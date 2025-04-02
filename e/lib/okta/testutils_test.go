@@ -235,6 +235,12 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 		OktaAPIEndpoint:  "dummy",
 		ConnectorService: ap,
 		AuthProvider:     oktaapi.NewSSWSAuthProvider("dummy"),
+		SyncSettings: types.PluginOktaSyncSettings{
+			SsoConnectorId:  "dummy-connector-id",
+			SyncUsers:       true,
+			SyncAccessLists: true,
+			DefaultOwners:   []string{"the-owner"},
+		},
 	}
 	for _, opt := range options {
 		opt(&serviceConfig)

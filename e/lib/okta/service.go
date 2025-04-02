@@ -355,21 +355,55 @@ func New(ctx context.Context, config Config) (*Service, error) {
 }
 
 // newWithClientCreator will create a new Okta service with the given oktaClient.
-func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.OktaClientFn) (*Service, error) {
+func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.OktaClientFn) (service *Service, err error) {
 	oktaStatus := NewPluginOktaStatus(PluginOktaStatusParams{
 		SyncSettings: config.SyncSettings,
 		ScimEnabled:  config.SCIMEnabled,
 	})
 
+	defer func() {
+		if err != nil {
+			ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
+				types.PluginStatusCode_OTHER_ERROR,
+				oktaStatus)
+
+		} else {
+			ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
+				types.PluginStatusCode_RUNNING,
+				oktaStatus)
+		}
+	}()
+
 	if err := config.CheckAndSetDefaults(); err != nil {
-		ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
-			types.PluginStatusCode_OTHER_ERROR,
-			oktaStatus)
 		return nil, trace.Wrap(err)
-	} else {
-		ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink,
-			types.PluginStatusCode_RUNNING,
-			oktaStatus)
+	}
+
+	var (
+		userSyncEnabled          = config.SyncSettings.SyncUsers
+		appGroupSyncEnabled      = !config.SyncSettings.DisableSyncAppGroups
+		accessListSyncEnabled    = config.SyncSettings.SyncAccessLists
+		bidirectionalSyncEnabled = !config.SyncSettings.DisableBidirectionalSync
+	)
+
+	if !userSyncEnabled {
+		if accessListSyncEnabled {
+			config.Logger.WarnContext(ctx, "Access List sync enabled but User sync disabled, proceeding without enabling Access List sync")
+		}
+		appGroupSyncEnabled = false
+		accessListSyncEnabled = false
+		bidirectionalSyncEnabled = false
+	}
+
+	if !appGroupSyncEnabled {
+		if accessListSyncEnabled {
+			config.Logger.WarnContext(ctx, "Access List sync enabled but App and Group sync disabled, proceeding without enabling Access List sync")
+		}
+		accessListSyncEnabled = false
+		bidirectionalSyncEnabled = false
+	}
+
+	if !accessListSyncEnabled {
+		bidirectionalSyncEnabled = false
 	}
 
 	s := &Service{
@@ -410,25 +444,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	// it will create a logger if the passed in logger is nil.
 	s.tlsConfig = app.CopyAndConfigureTLS(nil, s.accessPoint, config.TLSConfig)
 
-	if config.SyncSettings.SyncUsers {
-		config.Logger.InfoContext(ctx, "User sync is enabled", "okta_org_url", config.OktaAPIEndpoint)
-
-		var err error
-		s.userReconciler, err = newUserReconciler(userReconcilerConfig{
-			clusterName: config.ClusterName,
-			teleportAP:  config.AccessPoint,
-			logger:      config.Logger,
-			userOrgURL:  config.OktaAPIEndpoint,
-			emitter:     config.Emitter,
-		})
-		if err != nil {
-			s.serviceStatus.UpdateUserSync(ctx, config.Clock.Now(), 0, err)
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		config.Logger.InfoContext(ctx, "User synchronization is disabled")
-	}
-
 	scopes := []string{
 		oktaapi.ScopeUserRead,
 		oktaapi.ScopeUserManage,
@@ -436,7 +451,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		oktaapi.ScopeGroupsRead,
 	}
 
-	if !config.SyncSettings.DisableSyncAppGroups {
+	if accessListSyncEnabled && bidirectionalSyncEnabled {
 		// If app and group sync is enabled, add the necessary scopes.
 		// to manage apps and groups assignments in Okta.
 		scopes = append(scopes, []string{
@@ -452,27 +467,77 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		Scopes:       scopes,
 	})
 	if err != nil {
-		s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
+		if userSyncEnabled {
+			s.serviceStatus.UpdateUserSync(ctx, config.Clock.Now(), 0, err)
+		}
+		if appGroupSyncEnabled {
+			s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
+		}
+		if accessListSyncEnabled {
+			s.serviceStatus.UpdateAccessListSync(ctx, config.Clock.Now(), 0, 0, err)
+		}
 		return nil, trace.Wrap(err)
 	}
-
 	// Assign the client to the service.
 	s.client = client
 	s.orgURL = strings.TrimSuffix(client.GetOrgUrl(), "/")
 
-	clusterName, err := s.accessPoint.GetClusterName(ctx)
-	if err != nil {
-		s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
-		return nil, trace.Wrap(err)
+	if userSyncEnabled {
+		config.Logger.InfoContext(ctx, "User sync is enabled")
+
+		var err error
+		s.userReconciler, err = newUserReconciler(userReconcilerConfig{
+			clusterName: config.ClusterName,
+			teleportAP:  config.AccessPoint,
+			logger:      config.Logger,
+			userOrgURL:  config.OktaAPIEndpoint,
+			emitter:     config.Emitter,
+		})
+		if err != nil {
+			s.serviceStatus.UpdateUserSync(ctx, config.Clock.Now(), 0, err)
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		config.Logger.InfoContext(ctx, "User sync is disabled")
 	}
 
-	if !s.disableOktaAppGroupSync {
-		s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
+	if appGroupSyncEnabled {
+		config.Logger.InfoContext(ctx, "App and Group sync is enabled")
+
+		s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Application]{
+			Matcher:             s.appsMatcher,
+			GetCurrentResources: s.apps.Clone,
+			GetNewResources:     s.newApps.Clone,
+			OnCreate:            s.onCreateApp,
+			OnUpdate:            s.onUpdateApp,
+			OnDelete:            s.onDeleteApp,
+			Logger:              s.logger.With("kind", types.KindAppServer),
+		})
+		if err != nil {
+			s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
+			return nil, trace.Wrap(err)
+		}
+
+		s.groupsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.UserGroup]{
+			Matcher:             s.groupMatcher,
+			GetCurrentResources: s.groups.Clone,
+			GetNewResources:     s.newGroups.Clone,
+			OnCreate:            s.onCreateGroup,
+			OnUpdate:            s.onUpdateGroup,
+			OnDelete:            s.onDeleteGroup,
+			Logger:              s.logger.With("kind", types.KindUserGroup),
+		})
+		if err != nil {
+			s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		config.Logger.InfoContext(ctx, "App and Group sync is enabled", "bidirectional", bidirectionalSyncEnabled)
 	}
 
-	if config.SyncSettings.SyncAccessLists {
-		config.Logger.InfoContext(ctx, "Access list synchronization is enabled")
-		alSync, err := newAccessListSync(accessListSyncConfig{
+	if accessListSyncEnabled {
+		config.Logger.InfoContext(ctx, "Access List sync is enabled", "bidirectional", bidirectionalSyncEnabled)
+		s.accessListSync, err = newAccessListSync(accessListSyncConfig{
 			Logger:              s.logger,
 			Clock:               s.clock,
 			ClusterName:         s.clusterName,
@@ -495,19 +560,29 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 			s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
 			return nil, trace.Wrap(err)
 		}
-		s.accessListSync = alSync
+
+		if bidirectionalSyncEnabled {
+			clusterName, err := s.accessPoint.GetClusterName(ctx)
+			if err != nil {
+				s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)
+				return nil, trace.Wrap(err)
+			}
+			s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
+		}
 	} else {
-		config.Logger.InfoContext(ctx, "Access list synchronization is disabled")
+		config.Logger.InfoContext(ctx, "Access List sync is disabled")
 	}
+
 	return s, nil
 }
 
-// Start will start the Okta service.
+// Start will start the Okta service. This service will not make any calls the Okta API while it is
+// not the leader.
 func (s *Service) Start(ctx context.Context) error {
-	// becomeLeader will ensure that the Okta service is the leader before processing anything. This service
-	// will not make any calls the Okta API while it is not the leader.
-	if err := s.startSynchronizerReconcilers(ctx); err != nil {
-		return trace.Wrap(err)
+	if s.groupsReconciler != nil {
+		if err := s.seedGroupReconciler(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	go s.synchronizeLoop(ctx)

@@ -102,8 +102,9 @@ func TestSynchronizeGroups(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, group3.GetMetadata().Description)
 
-	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
+	require.NoError(t, svc.seedGroupReconciler(ctx))
 
+	svc.userReconciler = nil // disable user reconciliation
 	require.NoError(t, svc.synchronize(ctx))
 
 	// Verify the groups that are present.
@@ -117,8 +118,10 @@ func TestSynchronizeGroups(t *testing.T) {
 
 	// These should have been deleted.
 	_, err = ap.GetUserGroup(ctx, "group1")
+	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 	_, err = ap.GetUserGroup(ctx, "group2")
+	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 
 	// These should be created.
@@ -286,7 +289,7 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 			// GIVEN a running Okta sync service
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
 			svc, client, emitter := newTestService(t, ap)
-			svc.startSynchronizerReconcilers(ctx)
+			require.NoError(t, svc.seedGroupReconciler(ctx))
 			t.Cleanup(svc.stopAllHeartbeats)
 
 			// ALSO GIVEN a mocked Okta organization with several applications
@@ -311,6 +314,7 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 
 			// ALSO GIVEN a set of Teleport Applications created by pre-syncing
 			// the Okta organization with the Teleport cluster
+			svc.userReconciler = nil // disable user sync
 			err := svc.synchronize(ctx)
 			require.NoError(t, err)
 			expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
@@ -357,7 +361,7 @@ func TestSynchronizeApplications(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client, emitter := newTestService(t, ap)
-	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
+	require.NoError(t, svc.seedGroupReconciler(ctx))
 	t.Cleanup(svc.stopAllHeartbeats)
 
 	// Add a few apps that should be deleted since they're not present in the client.
@@ -423,6 +427,7 @@ func TestSynchronizeApplications(t *testing.T) {
 	app3 := apps[app3Name]
 	require.Equal(t, "https://test.com", app3.GetURI())
 
+	svc.userReconciler = nil // disable user sync
 	require.NoError(t, svc.synchronize(ctx))
 
 	apps = mapOfAllApps(t, svc)
@@ -464,7 +469,7 @@ func TestEmitSyncEventsInBatches(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, _, emitter := newTestService(t, ap)
-	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
+	require.NoError(t, svc.seedGroupReconciler(ctx))
 
 	added := genEventResources(50, "added")
 	updated := genEventResources(100, "updated")

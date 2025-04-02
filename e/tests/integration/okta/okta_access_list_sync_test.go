@@ -13,10 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/events"
@@ -168,6 +170,120 @@ func TestAccessListSync(t *testing.T) {
 		}
 		require.Equal(t, 2, accessListRolesCnt)
 	})
+}
+
+func TestAccessListSync_bidirectionalSync(t *testing.T) {
+	var err error
+	ctx := context.Background()
+
+	// Setup Okta mock.
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	oktaClient := oktaapi.NewForAPIClient(oktaApiClient)
+
+	// Create Okta SAML app.
+	connectorSamlApp := createOktaSAMLAPP(t, ctx, oktaApiClient, "trial-1234567_teleportsamlconnectorapp_1")
+
+	// Create and assign Okta SAML app users.
+	user1, _ := createOktaUser(t, ctx, oktaApiClient, "bob")
+	user2, _ := createOktaUser(t, ctx, oktaApiClient, "alice")
+	err = oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(user1.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
+	require.NoError(t, err)
+	err = oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(user2.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
+	require.NoError(t, err)
+
+	// Setup Teleport.
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	// 1. Create integration with bidirectional sync disabled.
+
+	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ApiCredentials:          apiCredentials,
+		EnableUserSync:          true,
+		EnableAppGroupSync:      true,
+		EnableAccessListSync:    true,
+		EnableBidirectionalSync: false, // disabled
+		AccessListSettings: &oktav1.AccessListSettings{
+			DefaultOwner: []string{"alice-admin"},
+		},
+		ReuseConnector: "okta-pre-created-test",
+	})
+	require.NoError(t, err)
+
+	// 2. Wait for the connector SAML app users to be syncrhonized.
+
+	var oktaUsers []types.User
+	mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		users, err := sut.Teleport.Process.GetAuthServer().GetUsers(ctx, false /* withSecrets */)
+		require.NoError(t, err)
+		oktaUsers = oktaUsers[:0] // clear
+		for _, u := range users {
+			if v, _ := u.GetLabel("teleport.dev/origin"); v == "okta" {
+				oktaUsers = append(oktaUsers, u)
+			}
+		}
+		require.Len(t, oktaUsers, 2, "expected 2 Okta users in all_users = %v", users)
+	}, time.Second*2, time.Millisecond*50)
+
+	// 3. Ensure there are okta_assignments for each user and they are "pending"
+
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		oktaAssignments, nextToken, err := authServer.ListOktaAssignments(ctx, 1000, "")
+		require.NoError(t, err)
+		require.Empty(t, nextToken)
+		require.Len(t, oktaAssignments, 2)
+		for _, assignment := range oktaAssignments {
+			require.Equal(t, constants.OktaAssignmentStatusPending, assignment.GetStatus(), "okta_assignment for user = %q", assignment.GetUser())
+		}
+	}, time.Second*2, time.Millisecond*50)
+
+	// 4. Check if the okta_assignments are still "pending" after another Access List sync
+
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+
+	oktaAssignments, nextToken, err := authServer.ListOktaAssignments(ctx, 1000, "")
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Len(t, oktaAssignments, 2)
+	for _, assignment := range oktaAssignments {
+		require.Equal(t, constants.OktaAssignmentStatusPending, assignment.GetStatus(), "okta_assignment for user = %q", assignment.GetUser())
+	}
+
+	// 5. Update integration enabling bidirectional sync
+
+	_, err = oktaAuthClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		EnableUserSync:          true,
+		EnableAppGroupSync:      true,
+		EnableAccessListSync:    true,
+		EnableBidirectionalSync: true, // enabled
+		AccessListSettings: &oktav1.AccessListSettings{
+			DefaultOwner: []string{"alice-admin"},
+		},
+	})
+	require.NoError(t, err)
+
+	// 6. Wait for AssignmentProcessor event and verify okta_assignments are in "successful" state
+
+	mustWaitForEvent(t, sut, events.OktaAssignmentProcessEvent)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		oktaAssignments, nextToken, err := authServer.ListOktaAssignments(ctx, 1000, "")
+		require.NoError(t, err)
+		require.Empty(t, nextToken)
+		require.Len(t, oktaAssignments, 2)
+		for _, assignment := range oktaAssignments {
+			require.Equal(t, constants.OktaAssignmentStatusSuccessful, assignment.GetStatus(), "okta_assignment for user = %q", assignment.GetUser())
+		}
+	}, time.Second*4, time.Millisecond*50)
 }
 
 func testResourceSuffix(t *testing.T, oktaAppId string, appLinks []oktaApplicationEmbedLink) string {

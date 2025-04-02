@@ -532,6 +532,8 @@ func (a *accessListSync) getAndProcessMembers(ctx context.Context, accessListNam
 	return members, nil
 }
 
+// processMember sets Okta labels on the Okta-originated users and sets the Access List name to the
+// root Access List if this is a member of a nested Access List.
 func (a *accessListSync) processMember(member *accesslist.AccessListMember, accessListName string) {
 	// Check if the member exists in Okta users
 	if a.oktaUsers != nil {

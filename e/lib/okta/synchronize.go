@@ -14,7 +14,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -33,10 +32,19 @@ var (
 	SyncRetryAfterLeadershipFailure = time.Minute
 )
 
-// synchronizeLoop will synchronize Okta with the backend periodically until the
-// process is terminated.
+// synchronizeLoop will synchronize Okta with the backend periodically until the process is
+// terminated. It won't do any calls to Okta until it becomes the leader.
 func (s *Service) synchronizeLoop(ctx context.Context) {
+	interval := s.getSynchronizerInterval(ctx)
+
+	s.logger.InfoContext(ctx,
+		"Synchronizer started",
+		"refresh_interval", interval,
+		"user_sync_enabled", s.userReconciler != nil,
+		"apps_groups_sync_enabled", s.appsReconciler != nil && s.groupsReconciler != nil,
+	)
 	if shouldStop := s.waitIfNotLeader(ctx); shouldStop {
+		s.logger.InfoContext(ctx, "Not a leader, stopping synchronizer")
 		return
 	}
 
@@ -45,13 +53,9 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 		s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
 	}()
 
-	interval := s.getSynchronizerInterval(ctx)
-
 	// Generate a random jitter between 0 and 10 seconds
 	timer := s.clock.NewTimer(interval + utils.RandomDuration(syncJitter))
 	defer timer.Stop()
-
-	s.logger.InfoContext(ctx, "Synchronizer started", "refresh_interval", interval)
 
 	for {
 		s.synchronizeAndEmitEvents(ctx)
@@ -156,21 +160,38 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 
 // synchronize will synchronize the Okta groups and applications with the backend.
 func (s *Service) synchronize(ctx context.Context) error {
-	if err := s.syncUsers(ctx); err != nil {
-		return trace.Wrap(err)
+	switch {
+	case s.userReconciler == nil:
+		s.logger.InfoContext(ctx, "User sync is disabled")
+	default:
+		s.logger.InfoContext(ctx, "Synchronizing users")
+		if err := s.syncUsers(ctx); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	if !s.disableOktaAppGroupSync {
+	switch {
+	case s.appsReconciler == nil && s.groupsReconciler == nil:
+		s.logger.InfoContext(ctx, "App and Group sync is disabled")
+	case s.appsReconciler == nil && s.groupsReconciler != nil:
+		return trace.Errorf("this is a bug: apps reconciler is set but groups reconciler is nil")
+	case s.groupsReconciler == nil && s.appsReconciler != nil:
+		return trace.Errorf("this is a bug: apps reconciler is set but groups reconciler is nil")
+	default:
 		if err := s.buildImportRuleMappings(ctx); err != nil {
 			return trace.Wrap(err)
 		}
+
+		s.logger.InfoContext(ctx, "Synchronizing apps")
 		groupsToAppsMapping, err := s.synchronizeApplications(ctx)
 		if err != nil {
-			s.logger.WarnContext(ctx, "Error when synchronizing applications, unable to sync groups", "error", err)
+			s.logger.WarnContext(ctx, "Error when synchronizing apps", "error", err)
 			// We need the groups to apps mapping in order to synchronize groups properly, so
 			// we won't try to synchronize groups if we can't synchronize apps.
 			return trace.Wrap(err)
 		}
+
+		s.logger.InfoContext(ctx, "Synchronizing groups")
 		if err := s.synchronizeGroups(ctx, groupsToAppsMapping); err != nil {
 			s.logger.WarnContext(ctx, "Error when synchronizing groups", "error", err)
 			return trace.Wrap(err)
@@ -182,10 +203,6 @@ func (s *Service) synchronize(ctx context.Context) error {
 
 // synchronizeGroups will synchronize Okta groups with the backend.
 func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping userGroupsToApplications) error {
-	if s.groupsReconciler == nil {
-		s.logger.DebugContext(ctx, "Group synchronization is disabled")
-		return nil
-	}
 	newGroups := map[string]types.UserGroup{}
 	err := s.client.IterateGroups(ctx, func(oktaGroup *okta.Group) error {
 		s.logger.DebugContext(ctx, "Processing Okta group", "group_id", oktaGroup.Id)
@@ -201,7 +218,7 @@ func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping use
 		return nil
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "iterating Okta groups")
 	}
 
 	s.newGroups.Set(newGroups)
@@ -211,7 +228,7 @@ func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping use
 	s.groupsDeleted = nil
 
 	if err := s.groupsReconciler.Reconcile(ctx); err != nil {
-		return trace.Wrap(err, "error during group reconciliation")
+		return trace.Wrap(err, "groups reconciliation")
 	}
 
 	// If all of the group stats are 0, skip the emit. We only want to emit on changes.
@@ -229,18 +246,9 @@ type userGroupsToApplications map[string][]string
 
 // synchronizeApplications will synchronize Okta applications with the backend.
 func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToApplications, error) {
-	if s.appsReconciler == nil {
-		s.logger.DebugContext(ctx, "Application synchronization is disabled")
-		return nil, nil
-	}
-	s.logger.DebugContext(ctx, "Synchronizing applications")
-
 	groupsToAppsMapping := userGroupsToApplications{}
 	newApps := map[string]types.Application{}
 	err := s.client.IterateApps(ctx, func(oktaApp okta.App) error {
-		// This type assertion is necessary as okta.App, which is supplied by the Okta go SDK,
-		// does not contain all of the information that we need to create a types.Application
-		// object.
 		oktaApplication, ok := oktaApp.(*okta.Application)
 		if !ok {
 			s.logger.DebugContext(ctx, "Unable to process Okta application of unknown type")
@@ -251,12 +259,10 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 		logger.DebugContext(ctx, "Processing Okta application")
 
 		oktaGroups, err := s.client.GetAppGroups(ctx, oktaAppID(oktaApplication.Id))
-		if err != nil {
-			s.logger.WarnContext(ctx, "Error getting groups for application", "error", err)
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err, "getting groups for application %q", oktaApplication.Id)
-			}
+		if trace.IsNotFound(err) {
 			return nil
+		} else if err != nil {
+			return trace.Wrap(err, "getting groups for app %q", oktaApplication.Id)
 		}
 
 		groups := make([]string, len(oktaGroups))
@@ -290,7 +296,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 	s.appsDeleted = nil
 
 	if err := s.appsReconciler.Reconcile(ctx); err != nil {
-		return nil, trace.Wrap(err, "error during application reconciliation")
+		return nil, trace.Wrap(err, "apps reconciliation")
 	}
 
 	// If all of the app stats are 0, skip the emit. We only want to emit on changes.
@@ -330,42 +336,6 @@ func (s *Service) seedGroupReconciler(ctx context.Context) error {
 	}
 	s.groups.Set(groups)
 	return nil
-}
-
-func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
-	if s.disableOktaAppGroupSync {
-		return nil
-	}
-
-	var err error
-	if err := s.seedGroupReconciler(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.groupsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.UserGroup]{
-		Matcher:             s.groupMatcher,
-		GetCurrentResources: s.groups.Clone,
-		GetNewResources:     s.newGroups.Clone,
-		OnCreate:            s.onCreateGroup,
-		OnUpdate:            s.onUpdateGroup,
-		OnDelete:            s.onDeleteGroup,
-		Logger:              s.logger.With("kind", types.KindUserGroup),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.Application]{
-		Matcher:             s.appsMatcher,
-		GetCurrentResources: s.apps.Clone,
-		GetNewResources:     s.newApps.Clone,
-		OnCreate:            s.onCreateApp,
-		OnUpdate:            s.onUpdateApp,
-		OnDelete:            s.onDeleteApp,
-		Logger:              s.logger.With("kind", types.KindAppServer),
-	})
-
-	return trace.Wrap(err)
 }
 
 // groupMatcher will match groups.
