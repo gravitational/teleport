@@ -33,7 +33,7 @@ type YubiKeyService struct {
 	prompt hardwarekey.Prompt
 }
 
-// Returns a new [YubiKeyService].
+// Returns a new [YubiKeyService]. If [prompt] is nil, the default CLI prompt will be used.
 //
 // Only a single service should be created for each process to ensure the cached connections
 // are shared and multiple services don't compete for PIV resources.
