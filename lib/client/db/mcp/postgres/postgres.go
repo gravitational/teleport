@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -26,6 +27,7 @@ type NewSessionConfig struct {
 }
 
 func NewSession(ctx context.Context, cfg NewSessionConfig) (*Session, error) {
+	slog.DebugContext(ctx, "New database MCP session")
 	pgConfig, err := buildConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -50,6 +52,7 @@ func (sess *Session) Close(ctx context.Context) error {
 }
 
 func (sess *Session) QueryToolHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	slog.DebugContext(ctx, "Handle query", "request", request)
 	sql := request.Params.Arguments[queryToolSQLParamName].(string)
 
 	tx, err := sess.conn.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
@@ -62,13 +65,15 @@ func (sess *Session) QueryToolHandler(ctx context.Context, request mcp.CallToolR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = tx.Commit(ctx)
+	defer rows.Close()
+
+	result, err := buildQueryResult(rows)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	result, err := buildQueryResult(rows)
-	if err != nil {
+	// Commit after rows are drained.
+	if err = tx.Commit(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
