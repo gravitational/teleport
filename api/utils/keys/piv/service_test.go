@@ -50,7 +50,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 
 	s := piv.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
 
-	y, err := piv.FindYubiKey(0, hardwarekey.NewStdCLIPrompt())
+	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
 	resetYubikey(t, y)
@@ -124,7 +124,7 @@ func TestOverwritePrompt(t *testing.T) {
 
 	s := piv.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
 
-	y, err := piv.FindYubiKey(0, hardwarekey.NewStdCLIPrompt())
+	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
 	resetYubikey(t, y)

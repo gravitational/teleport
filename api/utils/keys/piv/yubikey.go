@@ -24,10 +24,8 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"fmt"
 	"io"
 	"math/big"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -41,25 +39,88 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-const (
-	// PIVCardTypeYubiKey is the PIV card type assigned to yubiKeys.
-	PIVCardTypeYubiKey = "yubikey"
-)
+// YubiKey is a specific YubiKey PIV card.
+type YubiKey struct {
+	// conn is a shared YubiKey PIV connection.
+	//
+	// PIV connections claim an exclusive lock on the PIV module until closed.
+	// In order to improve connection sharing for this program without locking
+	// out other programs during extended program executions (like "tsh proxy ssh"),
+	// this connections is opportunistically formed and released after being
+	// unused for a few seconds.
+	*sharedPIVConnection
+	// serialNumber is the YubiKey's 8 digit serial number.
+	serialNumber uint32
+	// version is the YubiKey's version.
+	version piv.Version
+}
 
-// Cache keys to prevent reconnecting to PIV module to discover a known key.
-//
-// Additionally, this allows the program to cache the key's PIN (if applicable)
-// after the user is prompted the first time, preventing redundant prompts when
-// the key is retrieved multiple times.
-//
-// Note: in most cases the connection caches the PIN itself, and connections can be
-// reclaimed before they are fully closed (within a few seconds). However, in uncommon
-// setups, this PIN caching does not actually work as expected, so we handle it instead.
-// See https://github.com/go-piv/piv-go/issues/47
-var (
-	cachedKeys   = map[piv.Slot]*hardwarekey.PrivateKey{}
-	cachedKeysMu sync.Mutex
-)
+// FindYubiKey finds a YubiKey PIV card by serial number. If no serial
+// number is provided, the first YubiKey found will be returned.
+func FindYubiKey(serialNumber uint32) (*YubiKey, error) {
+	yubiKeyCards, err := findYubiKeyCards()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(yubiKeyCards) == 0 {
+		if serialNumber != 0 {
+			return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
+		}
+		return nil, trace.ConnectionProblem(nil, "no YubiKey device connected")
+	}
+
+	for _, card := range yubiKeyCards {
+		y, err := newYubiKey(card)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if serialNumber == 0 || y.serialNumber == serialNumber {
+			return y, nil
+		}
+	}
+
+	return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
+}
+
+// pivCardTypeYubiKey is the PIV card type assigned to yubiKeys.
+const pivCardTypeYubiKey = "yubikey"
+
+// findYubiKeyCards returns a list of connected yubiKey PIV card names.
+func findYubiKeyCards() ([]string, error) {
+	cards, err := piv.Cards()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var yubiKeyCards []string
+	for _, card := range cards {
+		if strings.Contains(strings.ToLower(card), pivCardTypeYubiKey) {
+			yubiKeyCards = append(yubiKeyCards, card)
+		}
+	}
+
+	return yubiKeyCards, nil
+}
+
+func newYubiKey(card string) (*YubiKey, error) {
+	y := &YubiKey{
+		sharedPIVConnection: &sharedPIVConnection{
+			card: card,
+		},
+	}
+
+	var err error
+	if y.serialNumber, err = y.getSerialNumber(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if y.version, err = y.getVersion(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return y, nil
+}
 
 // YubiKeys require touch when signing with a private key that requires touch.
 // Unfortunately, there is no good way to check whether touch is cached by the
@@ -221,38 +282,6 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 	}
 }
 
-// YubiKey is a specific YubiKey PIV card.
-type YubiKey struct {
-	// conn is a shared YubiKey PIV connection.
-	//
-	// PIV connections claim an exclusive lock on the PIV module until closed.
-	// In order to improve connection sharing for this program without locking
-	// out other programs during extended program executions (like "tsh proxy ssh"),
-	// this connections is opportunistically formed and released after being
-	// unused for a few seconds.
-	*sharedPIVConnection
-	// serialNumber is the yubiKey's 8 digit serial number.
-	serialNumber uint32
-	prompt       hardwarekey.Prompt
-}
-
-func newYubiKey(card string, prompt hardwarekey.Prompt) (*YubiKey, error) {
-	y := &YubiKey{
-		sharedPIVConnection: &sharedPIVConnection{
-			card: card,
-		},
-		prompt: prompt,
-	}
-
-	serialNumber, err := y.serial()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	y.serialNumber = serialNumber
-	return y, nil
-}
-
 // Reset resets the YubiKey PIV module to default settings.
 func (y *YubiKey) Reset() error {
 	err := y.reset()
@@ -362,28 +391,6 @@ func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	return trace.Wrap(err)
 }
 
-// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
-// If the user provides the default PIN, they will be prompted to set a
-// non-default PIN and PUK before continuing.
-func (y *YubiKey) checkOrSetPIN(ctx context.Context) error {
-	pin, err := y.prompt.AskPIN(ctx, hardwarekey.PINOptional)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch pin {
-	case piv.DefaultPIN:
-		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
-		fallthrough
-	case "":
-		if pin, err = y.setPINAndPUKFromDefault(ctx, y.prompt); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return trace.Wrap(y.verifyPIN(pin))
-}
-
 type sharedPIVConnection struct {
 	// card is a reader name used to find and connect to this yubiKey.
 	// This value may change between OS's, or with other system changes.
@@ -475,7 +482,7 @@ func (c *sharedPIVConnection) privateKey(slot piv.Slot, public crypto.PublicKey,
 	return privateKey, trace.Wrap(err)
 }
 
-func (c *sharedPIVConnection) serial() (uint32, error) {
+func (c *sharedPIVConnection) getSerialNumber() (uint32, error) {
 	release, err := c.connect()
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -485,14 +492,21 @@ func (c *sharedPIVConnection) serial() (uint32, error) {
 	return serial, trace.Wrap(err)
 }
 
+func (c *sharedPIVConnection) getVersion() (piv.Version, error) {
+	release, err := c.connect()
+	if err != nil {
+		return piv.Version{}, trace.Wrap(err)
+	}
+	defer release()
+	return c.conn.Version(), nil
+}
+
 func (c *sharedPIVConnection) reset() error {
 	release, err := c.connect()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer release()
-	// Clear cached keys.
-	cachedKeys = make(map[piv.Slot]*hardwarekey.PrivateKey)
 	return trace.Wrap(c.conn.Reset())
 }
 
@@ -607,52 +621,6 @@ func (c *sharedPIVConnection) setPINAndPUKFromDefault(ctx context.Context, promp
 func isRetryError(err error) bool {
 	const retryError = "connecting to smart card: the smart card cannot be accessed because of other connections outstanding"
 	return strings.Contains(err.Error(), retryError)
-}
-
-// FindYubiKey finds a yubiKey PIV card by serial number. If no serial
-// number is provided, the first yubiKey found will be returned.
-func FindYubiKey(serialNumber uint32, prompt hardwarekey.Prompt) (*YubiKey, error) {
-	yubiKeyCards, err := findYubiKeyCards()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(yubiKeyCards) == 0 {
-		if serialNumber != 0 {
-			return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
-		}
-		return nil, trace.ConnectionProblem(nil, "no YubiKey device connected")
-	}
-
-	for _, card := range yubiKeyCards {
-		y, err := newYubiKey(card, prompt)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if serialNumber == 0 || y.serialNumber == serialNumber {
-			return y, nil
-		}
-	}
-
-	return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
-}
-
-// findYubiKeyCards returns a list of connected yubiKey PIV card names.
-func findYubiKeyCards() ([]string, error) {
-	cards, err := piv.Cards()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var yubiKeyCards []string
-	for _, card := range cards {
-		if strings.Contains(strings.ToLower(card), PIVCardTypeYubiKey) {
-			yubiKeyCards = append(yubiKeyCards, card)
-		}
-	}
-
-	return yubiKeyCards, nil
 }
 
 func parsePIVSlot(slotKey hardwarekey.PIVSlotKey) (piv.Slot, error) {
