@@ -93,7 +93,7 @@
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-highlight": "^0.15.0",
-    "react-is": "^18.3.1",
+    "react-is": "^19.1.0",
     "react-router": "5.3.4",
     "react-router-dom": "5.3.4",
     "react-select": "^5.10.1",
