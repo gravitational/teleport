@@ -227,7 +227,10 @@ func (r *remoteSFTPSubsystem) Wait() error {
 	var err error
 	select {
 	case err = <-r.subsystem.errorCh:
-		if err != nil && !errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
+			err = nil
+		}
+		if err != nil {
 			r.subsystem.logger.WarnContext(r.subsystem.ctx, "Connection problem", "error", err)
 		}
 	case <-r.subsystem.ctx.Done():
