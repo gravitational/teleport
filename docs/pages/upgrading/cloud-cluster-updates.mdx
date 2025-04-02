@@ -11,24 +11,23 @@ described in [Teleport Upcoming Releases](../upcoming-releases.mdx).
 release of a new major version. Minor version updates and patches occur more regularly.
 - Major version updates will not occur if any connected Teleport Agents are more than one major version behind.
 - Updates only occur during your scheduled maintenance window.
-- Teleport Agents are only updated automatically if you enroll them in managed updates.  See the [Upgrading
-Overview](../upgrading/overview.mdx) for more information.
+- Teleport Agents are only updated automatically if you enroll them in [managed updates](agent-managed-updates.mdx).
 
 ## Notifications
 
 Teleport Enterprise (Cloud) users will receive notification in the Web UI when
-a cluster update is scheduled. The notification will include the target version
-and the maintenance window during which the upgrade will take place.
+a cluster update is scheduled. The notification will include the version
+and maintenance window during which the update will take place.
 
 ![notification-scheduled](../../img/cloud/notification-scheduled.png)
 ![notification-message](../../img/cloud/notification-message.png)
 
-After the upgrade has been completed, users will receive a new notification
-indicating that the upgrade has finished.
+After the update has been completed, users will receive a new notification
+indicating that the update has finished.
 
 ![notification-complete](../../img/cloud/notification-complete.png)
 
-## Impact
+## Expected Impact
 
 When an update occurs, some active sessions through Teleport Cloud may be terminated.
 SSH sessions between Teleport clients (tsh & tbot) and agents running up-to-date
@@ -38,10 +37,9 @@ To minimize potential disruption, please keep your Teleport clients and agents u
 
 ## Maintenance Windows
 
-The scheduled maintenance window allow users to specify the start time for maintenance
-events that work best for your organization. The window applies for all updates,
-including patches and agent updates for all Teleport Cloud accounts. Updates for
-your cluster won't start earlier than the maintenance window start time you set.
+The scheduled maintenance window lets you define a preferred start time for
+updates that best fits your organization’s needs. This window applies to all
+update types, including patches and agent upgrades. Updates will not begin before the start time you specify.
 
 Customers can change their maintenance window by navigating to the `Help & Support`
 section in the Teleport Web UI and clicking the edit button for `Window Start Time`
