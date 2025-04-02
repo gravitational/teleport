@@ -285,12 +285,12 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		// it in the client store. This allows the process to properly share PIV connections
 		// and prompt logic (pin caching, etc.).
 		hwKeyService := NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
-		hwPrivateKey, err := hardwarekey.DecodeSigner(hwKeyService, block.Bytes)
+		hwSigner, err := hardwarekey.DecodeSigner(hwKeyService, block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware key signer")
 		}
 
-		return newPrivateKeyWithKeyPEM(hwPrivateKey, keyPEM)
+		return newPrivateKeyWithKeyPEM(hwSigner, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
