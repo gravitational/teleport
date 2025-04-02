@@ -421,6 +421,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child := &ServerContext{
 		ConnectionContext:      parent,
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
+		sessionID:              rsession.ID(parent.ID),
 		env:                    make(map[string]string),
 		srv:                    srv,
 		ExecResultCh:           make(chan ExecResult, 10),
@@ -548,6 +549,7 @@ func (c *ServerContext) ID() int {
 }
 
 // SessionID returns the ID of the session in the context.
+// TODO: change?
 func (c *ServerContext) SessionID() rsession.ID {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -571,32 +573,21 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 	// its ID will be added to the environment
 	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Will create new session for SSH connection")
 		return nil
 	}
 
 	// make sure whatever session is requested is a valid session
 	id, err := rsession.ParseID(ssid)
 	if err != nil {
-		return trace.BadParameter("invalid session ID")
+		return trace.BadParameter("invalid session ID %s", ssid)
 	}
 
 	// update ctx with the session if it exists
 	if sess, found := reg.findSession(*id); found {
 		c.sessionID = *id
 		c.session = sess
+		c.ConnectionContext.SetSessionID(id.String())
 		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
-	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
-		// clients should only set TELEPORT_SESSION when they want to
-		// join a session. Always return an error instead of using a
-		// new ID.
-		//
-		// to prevent the user from controlling the session ID, generate
-		// a new one
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Creating new SSH session")
 	}
 
 	return nil
@@ -1113,6 +1104,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 		}
 		if session.id != "" {
 			env.AddTrusted(teleport.SSHSessionID, string(session.id))
+			env.AddTrusted(sshutils.SessionEnvVar, string(session.id))
 		}
 	}
 

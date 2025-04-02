@@ -30,12 +30,15 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
+	ID string
+
 	// NetConn is the base connection object.
 	NetConn net.Conn
 
@@ -95,6 +98,7 @@ func SetConnectionContextClock(clock clockwork.Clock) ConnectionContextOption {
 func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn, opts ...ConnectionContextOption) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
 	ccx := &ConnectionContext{
+		ID:         string(rsession.NewID()),
 		NetConn:    nconn,
 		ServerConn: sconn,
 		env:        make(map[string]string),
@@ -134,6 +138,12 @@ func (a *agentChannel) Close() error {
 	return trace.NewAggregate(
 		a.ch.CloseWrite(),
 		a.ch.Close())
+}
+
+func (c *ConnectionContext) SetSessionID(sessionID string) {
+	c.mu.Lock()
+	c.ID = sessionID
+	c.mu.Unlock()
 }
 
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
