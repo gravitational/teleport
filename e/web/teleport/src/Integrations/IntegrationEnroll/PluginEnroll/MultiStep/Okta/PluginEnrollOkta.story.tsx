@@ -83,7 +83,7 @@ export default {
 export const Overview = {
   parameters: {
     msw: [
-      http.get(cfg.getPluginUrl('okta'), async () => {
+      http.get(cfg.getPluginUrl('okta', 'get'), async () => {
         return HttpResponse.json();
       }),
     ],

@@ -94,7 +94,7 @@ export const WithAllFeaturesEnabled = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.api.pluginPath, () => HttpResponse.json(basePluginResp)),
+        http.get(cfg.api.plugin.get, () => HttpResponse.json(basePluginResp)),
       ],
     },
   },
@@ -108,7 +108,7 @@ export const WithAllFeaturesEnabledWithoutAppName = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.api.pluginPath, () =>
+        http.get(cfg.api.plugin.get, () =>
           HttpResponse.json({
             ...basePluginResp,
             status: {
@@ -138,7 +138,7 @@ export const WithAllFeaturesEnabledWithoutAppName = {
 export const Loading = {
   parameters: {
     msw: {
-      handlers: [http.get(cfg.api.pluginPath, () => delay('infinite'))],
+      handlers: [http.get(cfg.api.plugin.get, () => delay('infinite'))],
     },
   },
   render: () => render(cfg.oss.getIntegrationStatusRoute('okta', 'okta')),
@@ -148,7 +148,7 @@ export const Failed = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.api.pluginPath, () =>
+        http.get(cfg.api.plugin.get, () =>
           HttpResponse.json(
             {
               message: 'Whoops, some kind of bad parameter message',
@@ -166,7 +166,7 @@ export const WithSyncErrors = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.api.pluginPath, () =>
+        http.get(cfg.api.plugin.get, () =>
           HttpResponse.json({
             ...basePluginResp,
             spec: {
@@ -234,7 +234,7 @@ export const WithCta = {
   parameters: {
     msw: {
       handlers: [
-        http.get(cfg.api.pluginPath, () =>
+        http.get(cfg.api.plugin.get, () =>
           HttpResponse.json({
             ...basePluginResp,
             spec: {

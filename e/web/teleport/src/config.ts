@@ -102,7 +102,13 @@ const cfg = {
     license: '/v1/enterprise/license',
 
     pluginTypesPath: '/v1/enterprise/plugins/types',
-    pluginPath: '/v1/enterprise/plugin/:name?',
+    plugin: {
+      list: '/v1/enterprise/plugin',
+      get: '/v1/enterprise/plugin/:name',
+      delete: '/v1/enterprise/plugin/:name',
+      update: '/v1/enterprise/plugin',
+      create: '/v1/enterprise/plugin',
+    },
     pluginValidatePath: '/v1/enterprise/plugins/validate',
     pluginNeedsCleanupPath: '/v1/enterprise/plugins/needscleanup/:kind',
     pluginCleanupPath: '/v1/enterprise/plugins/cleanup/:kind',
@@ -275,8 +281,15 @@ const cfg = {
     return generatePath(cfg.api.recoveryTokenPath, { tokenId });
   },
 
-  getPluginUrl(name?: string) {
-    return generatePath(cfg.api.pluginPath, { name });
+  getPluginUrl(name: string, action: 'get' | 'delete') {
+    switch (action) {
+      case 'delete':
+        return generatePath(cfg.api.plugin.delete, { name });
+      case 'get':
+        return generatePath(cfg.api.plugin.get, { name });
+      default:
+        action satisfies never;
+    }
   },
 
   getPluginNeedsCleanupUrl(kind: PluginKind) {

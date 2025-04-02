@@ -26,7 +26,7 @@ export const pluginsService = {
   },
 
   fetchPlugins(): Promise<Plugin[]> {
-    return api.get(cfg.getPluginUrl()).then(makePlugins);
+    return api.get(cfg.api.plugin.list).then(makePlugins);
   },
 
   checkPluginRequiresCleanup(kind: PluginKind): Promise<boolean> {
@@ -45,7 +45,7 @@ export const pluginsService = {
     const webauthnResponse =
       await auth.getMfaChallengeResponseForAdminAction(true);
     return api
-      .postFormData(cfg.getPluginUrl(), formData, webauthnResponse)
+      .postFormData(cfg.api.plugin.create, formData, webauthnResponse)
       .then(makePlugin);
   },
 
@@ -54,7 +54,7 @@ export const pluginsService = {
   },
 
   async deletePlugin(name: string): Promise<void> {
-    await api.delete(cfg.getPluginUrl(name));
+    await api.delete(cfg.getPluginUrl(name, 'delete'));
   },
 
   getPluginConfigOktaGroups(
@@ -75,13 +75,13 @@ export const pluginsService = {
     name: T,
     abortSignal?: AbortSignal
   ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
-    return api.get(cfg.getPluginUrl(name), abortSignal).then(makePlugin);
+    return api.get(cfg.getPluginUrl(name, 'get'), abortSignal).then(makePlugin);
   },
 
   updatePlugin<T extends string>(
     req: PluginUpdateRequest<T>
   ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
-    return api.put(cfg.getPluginUrl(), req).then(makePlugin);
+    return api.put(cfg.api.plugin.update, req).then(makePlugin);
   },
 
   getAwsIcAccounts(

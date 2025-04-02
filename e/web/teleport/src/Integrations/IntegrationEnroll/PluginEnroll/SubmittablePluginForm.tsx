@@ -188,7 +188,7 @@ export function SubmittablePluginForm({
         since the user needs to be redirected to the OAuth provider after submitting. */}
             {({ validator }) => (
               <form
-                action={cfg.getPluginUrl()}
+                action={cfg.api.plugin.create}
                 onSubmit={e => onSubmit(validator, e)}
                 method="POST"
               >

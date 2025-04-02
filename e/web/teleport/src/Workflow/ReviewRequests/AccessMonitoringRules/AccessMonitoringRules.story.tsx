@@ -117,7 +117,7 @@ subjects:
 - access_request
 version: v1`;
 
-const withPlugins = http.get(cfg.getPluginUrl(), () =>
+const withPlugins = http.get(cfg.api.plugin.list, () =>
   HttpResponse.json([
     {
       name: 'slack-plugin',
@@ -329,7 +329,7 @@ NoPlugins.parameters = {
   msw: {
     handlers: [
       noRules,
-      http.get(cfg.getPluginUrl(), () => HttpResponse.json([])),
+      http.get(cfg.api.plugin.list, () => HttpResponse.json([])),
       deleteRule,
       createRule,
     ],
@@ -366,7 +366,7 @@ WithPluginError.parameters = {
       withRule,
       deleteRule,
       createRule,
-      http.get(cfg.getPluginUrl(), () =>
+      http.get(cfg.api.plugin.list, () =>
         HttpResponse.json(
           {
             message: 'some listing plugin error',

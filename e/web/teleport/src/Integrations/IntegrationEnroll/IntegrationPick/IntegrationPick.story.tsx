@@ -67,7 +67,7 @@ export const NoPluginsEnrolled: StoryObj = {
         http.get(cfg.api.pluginTypesPath, () => {
           return HttpResponse.json(onboardSupportPluginKinds);
         }),
-        http.get(cfg.getPluginUrl(), () => {
+        http.get(cfg.api.plugin.list, () => {
           return HttpResponse.json([]);
         }),
       ],
@@ -86,7 +86,7 @@ export const PluginsEnrolled: StoryObj = {
         http.get(cfg.api.pluginTypesPath, () => {
           return HttpResponse.json(onboardSupportPluginKinds);
         }),
-        http.get(cfg.getPluginUrl(), () => {
+        http.get(cfg.api.plugin.list, () => {
           return HttpResponse.json(mockGetPluginsReply);
         }),
       ],
@@ -140,7 +140,7 @@ export const RequiresEnterprise: StoryObj = {
         http.get(cfg.api.pluginTypesPath, () => {
           return HttpResponse.json(onboardSupportPluginKinds);
         }),
-        http.get(cfg.getPluginUrl(), () => {
+        http.get(cfg.api.plugin.list, () => {
           return HttpResponse.json(mockGetPluginsReply);
         }),
       ],
@@ -162,7 +162,7 @@ export const FullFeatures: StoryObj = {
         http.get(cfg.api.pluginTypesPath, () => {
           return HttpResponse.json(onboardSupportPluginKinds);
         }),
-        http.get(cfg.getPluginUrl(), () => {
+        http.get(cfg.api.plugin.list, () => {
           return HttpResponse.json(mockGetPluginsReply);
         }),
       ],
