@@ -124,7 +124,13 @@ test.each(tests)(
     ).toBeInTheDocument();
 
     // Verify that a notification is shown and that the address is in the clipboard.
-    expect(await screen.findByText(/copied to clipboard/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        app.tcpPorts.length
+          ? /copied to clipboard/
+          : /\(copied to clipboard\) and any port/
+      )
+    ).toBeInTheDocument();
     await user.click(screen.getByTitle('Close Notification'));
     expect(await window.navigator.clipboard.readText()).toEqual(
       expectedPublicAddr
@@ -205,7 +211,13 @@ test.each(tests)(
     expect(
       await screen.findByText(/Proxying TCP connections/)
     ).toBeInTheDocument();
-    expect(await screen.findByText(/copied to clipboard/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        app.tcpPorts.length
+          ? /copied to clipboard/
+          : /\(copied to clipboard\) and any port/
+      )
+    ).toBeInTheDocument();
     expect(await window.navigator.clipboard.readText()).toEqual(
       expectedPublicAddr
     );

@@ -274,6 +274,7 @@ export class DocumentsService {
     rootClusterUri: RootClusterUri;
     app?: {
       targetAddress: string;
+      isMultiPort: boolean;
     };
   }): DocumentVnetInfo {
     const uri = routing.getDocUri({ docId: unique() });

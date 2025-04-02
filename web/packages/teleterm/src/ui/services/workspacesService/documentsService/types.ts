@@ -288,6 +288,7 @@ export interface DocumentVnetInfo extends DocumentBase {
          *
          */
         targetAddress: string | undefined;
+        isMultiPort: boolean;
       }
     | undefined;
 }

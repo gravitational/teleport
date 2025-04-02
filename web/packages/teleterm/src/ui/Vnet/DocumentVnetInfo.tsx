@@ -57,6 +57,7 @@ export function DocumentVnetInfo(props: {
   const startVnet = async () => {
     await launchVnetWithoutFirstTimeCheck({
       addrToCopy: doc.app?.targetAddress,
+      isMultiPort: doc.app?.isMultiPort,
     });
     // Remove targetAddress so that subsequent launches of VNet from this specific doc won't copy
     // the stale app address to the clipboard.
