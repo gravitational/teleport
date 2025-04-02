@@ -19,6 +19,7 @@ package keys
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -75,7 +76,7 @@ func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 }
 
 // NewSoftwarePrivateKey returns a new PrivateKey for a crypto.Signer.
-// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey.
+// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey
 func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -90,6 +91,27 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 		sshPub: sshPub,
 		keyPEM: keyPEM,
 	}, nil
+}
+
+// NewHardwarePrivateKey creates or retrieves a hardware private key from from the given hardware key
+// service that matches the given PIV slot and private key policy, returning the hardware private key
+// as a [PrivateKey].
+func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, keyConfig hardwarekey.PrivateKeyConfig) (*PrivateKey, error) {
+	if s == nil {
+		return nil, trace.BadParameter("cannot create a new hardware private key without a hardware key service provided")
+	}
+
+	hwPrivateKey, err := s.NewPrivateKey(ctx, keyConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyPEM, err := MarshalPrivateKey(hwPrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return NewPrivateKey(hwPrivateKey, keyPEM)
 }
 
 // SSHPublicKey returns the ssh.PublicKey representation of the public key.
@@ -292,7 +314,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 }
 
 // MarshalPrivateKey will return a PEM encoded crypto.Signer.
-// Only supports rsa, ecdsa, and ed25519 keys.
+// [key] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey
 func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 	switch privateKey := key.(type) {
 	case *rsa.PrivateKey:
@@ -309,6 +331,16 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 		privPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  PKCS8PrivateKeyType,
 			Bytes: der,
+		})
+		return privPEM, nil
+	case *hardwarekey.PrivateKey:
+		encodedKey, err := hardwarekey.EncodePrivateKey(privateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  pivYubiKeyPrivateKeyType,
+			Bytes: encodedKey,
 		})
 		return privPEM, nil
 	default:
