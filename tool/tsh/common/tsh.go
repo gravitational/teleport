@@ -972,7 +972,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// MCP.
 	mcp := app.Command("mcp", "View and control available MCP servers")
-	mcpStart := mcp.Command("start", "start proxy for particular MCP server")
+	mcpStart := mcp.Command("start", "Start proxy for particular MCP server")
 	mcpStart.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
 	lsMCP := mcp.Command("ls", "List available MCP servers")
 	mcpStartDB := mcp.Command("start-db", "Start a local MCP server for a database service")
@@ -980,7 +980,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mcpStartDB.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
 	mcpStartDB.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
 	mcpStartDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
-	mcpConfig := mcp.Command("config", "Check or update AI tool configs")
+	mcpConfig := mcp.Command("config", "Check config for AI tools like Claude Desktop")
 	mcpConfig.Flag("format", "only supporting claude_desktop for now").Default("claude_desktop").StringVar(&cf.Format)
 	mcpConfigUpdate := mcp.Command("config-update", "Add a mcp server to the config")
 	mcpConfigUpdate.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
