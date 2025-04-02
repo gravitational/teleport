@@ -16,16 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { wrapMutation, wrapQuery } from 'teleport/services/queryHelpers';
+import { createQueryHook } from 'teleport/services/queryHelpers';
 import userService from 'teleport/services/user';
 
-export const { queryKey: GetUsersQueryKey, useQuery: useGetUsers } = wrapQuery(
-  ['users', 'get'],
-  userService.fetchUsers
-);
-
-export const useCreateUser = wrapMutation(userService.createUser);
-
-export const useDeleteUser = wrapMutation(userService.deleteUser);
-
-export const useUpdateUser = wrapMutation(userService.updateUser);
+export const { queryKey: GetUsersQueryKey, useQuery: useGetUsers } =
+  createQueryHook(['users', 'get'], userService.fetchUsers);

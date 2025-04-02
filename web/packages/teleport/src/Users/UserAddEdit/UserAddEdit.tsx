@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
@@ -39,16 +39,13 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import { useTeleport } from 'teleport';
 import auth from 'teleport/services/auth';
-import {
+import userService, {
   ExcludeUserField,
   ResetToken,
+  type CreateUserVariables,
   type User,
 } from 'teleport/services/user';
-import {
-  GetUsersQueryKey,
-  useCreateUser,
-  useUpdateUser,
-} from 'teleport/services/user/hooks';
+import { GetUsersQueryKey } from 'teleport/services/user/hooks';
 
 import UserTokenLink from './../UserTokenLink';
 
@@ -63,19 +60,39 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
 
   const queryClient = useQueryClient();
 
-  const createUser = useCreateUser({
-    onSuccess: data => {
+  const createUser = useMutation({
+    mutationFn: async (variables: CreateUserVariables) => {
+      const mfaResponse =
+        await auth.getMfaChallengeResponseForAdminAction(true);
+
+      const user = await userService.createUser(variables);
+
+      const token = await ctx.userService.createResetPasswordToken(
+        user.name,
+        'invite',
+        mfaResponse
+      );
+
+      return {
+        user,
+        token,
+      };
+    },
+    onSuccess: ({ token, user }) => {
+      setToken(token);
+
       queryClient.setQueryData(GetUsersQueryKey, previous => {
         if (!previous) {
           return [];
         }
 
-        return [data, ...previous];
+        return [user, ...previous];
       });
     },
   });
 
-  const updateUser = useUpdateUser({
+  const updateUser = useMutation({
+    mutationFn: userService.updateUser,
     onSuccess: data => {
       queryClient.setQueryData(GetUsersQueryKey, previous => {
         if (!previous) {
@@ -109,11 +126,13 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
 
   async function onSave() {
     const traitsToSave = {};
+
     for (const traitKV of configuredTraits) {
       traitsToSave[traitKV.traitKey.value] = traitKV.traitValues.map(
         t => t.value
       );
     }
+
     const u: User = {
       name,
       roles: selectedRoles.map(r => r.value),
@@ -121,22 +140,10 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
     };
 
     if (isNew) {
-      const mfaResponse =
-        await auth.getMfaChallengeResponseForAdminAction(true);
-
       await createUser.mutateAsync({
         user: u,
         excludeUserField: ExcludeUserField.Traits,
-        mfaResponse,
       });
-
-      const token = await ctx.userService.createResetPasswordToken(
-        u.name,
-        'invite',
-        mfaResponse
-      );
-
-      setToken(token);
 
       return;
     }
@@ -165,7 +172,7 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
     return items.map(r => r.name);
   }
 
-  if (createUser.isSuccess && isNew) {
+  if (createUser.isSuccess && isNew && token) {
     return <UserTokenLink onClose={onClose} token={token} asInvite={true} />;
   }
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, ButtonSecondary, ButtonWarning, Text } from 'design';
 import Dialog, {
@@ -26,7 +26,8 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 
-import { GetUsersQueryKey, useDeleteUser } from 'teleport/services/user/hooks';
+import userService from 'teleport/services/user';
+import { GetUsersQueryKey } from 'teleport/services/user/hooks';
 
 interface UserDeleteProps {
   username: string;
@@ -36,7 +37,8 @@ interface UserDeleteProps {
 export function UserDelete({ username, onClose }: UserDeleteProps) {
   const queryClient = useQueryClient();
 
-  const deleteUser = useDeleteUser({
+  const deleteUser = useMutation({
+    mutationFn: userService.deleteUser,
     onSuccess: (_, name) => {
       queryClient.setQueryData(GetUsersQueryKey, previous => {
         if (!previous) {
