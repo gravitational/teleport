@@ -831,6 +831,10 @@ func (m mockCmdHandlers) Filecmd(req *sftp.Request) error {
 	return trace.Wrap(HandleFilecmd(req, localFS{}))
 }
 
+func (m mockCmdHandlers) Filelist(req *sftp.Request) (sftp.ListerAt, error) {
+	return HandleFilelist(req, localFS{})
+}
+
 func TestHandleFilecmd(t *testing.T) {
 	t.Parallel()
 	// We're using a full client/server instead of just calling HandleFilecmd so
