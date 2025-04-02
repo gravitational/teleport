@@ -19,6 +19,7 @@
 package export
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"sync"
@@ -86,18 +87,12 @@ func (cfg *DateExporterConfig) CheckAndSetDefaults() error {
 	if cfg.Date.IsZero() {
 		return trace.BadParameter("missing required parameter Date in DateExporterConfig")
 	}
-	if cfg.Concurrency == 0 {
-		cfg.Concurrency = 1
-	}
-	if cfg.MaxBackoff == 0 {
-		cfg.MaxBackoff = 90 * time.Second
-	}
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = 16 * time.Second
-	}
+	cfg.Concurrency = cmp.Or(cfg.Concurrency, 1)
+	cfg.MaxBackoff = cmp.Or(cfg.MaxBackoff, 90*time.Second)
+	cfg.PollInterval = cmp.Or(cfg.PollInterval, 16*time.Second)
 	if cfg.BatchExport != nil {
-		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5 * time.Second)
-		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2 * 1024 * 1024 /* 2MiB */)
+		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
+		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
 	return nil
 }

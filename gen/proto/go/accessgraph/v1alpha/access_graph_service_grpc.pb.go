@@ -72,27 +72,25 @@ type AccessGraphServiceClient interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EventsStreamV2Request, EventsStreamV2Response], error)
-	// AuditLogStream establishes a bidirectional stream for exporting audit log
-	// events from a client (teleport) to a server (access-graph).
+	// AuditLogStream establishes a persistent bidirectional stream for efficiently
+	// exporting audit log events from a client (teleport) to a server (access-graph).
 	//
-	// This stream handles:
-	//   - Sending batches of audit log events (sourced by 'search' or 'bulk').
-	//   - Transmitting resume state information alongside events to ensure reliable
-	//     exporting, allowing clients to resume after disconnections without losing
-	//     data or sending duplicates.
-	//   - Server providing the initial resume state to the client upon connection.
-	//   - Client-initiated synchronization of bulk resume state to purge expired
-	//     dates.
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	// - Client requests for server-side bulk export state cleanup.
 	//
-	// Flow:
-	//  1. Client initiates the stream.
-	//  2. Server sends an initial `AuditLogResponse` containing the appropriate
-	//     `resume_state` (Search or Bulk) for the client to start or resume from,
-	//     plus a `start_date`.
-	//  3. Client sends `AuditLogRequest` messages:
-	//     - Containing `AuditLogEvents` (batches of events and current resume
-	//     state/update).
-	//     - OR containing `BulkStateSync` (requests to prune old bulk state).
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration and providing the starting `resume_state` (if any).
+	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//     `events` (with resume state updates) or `bulk_sync` commands.
+	//
+	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
+	// definitions for detailed structure, payloads, behaviors, and constraints.
 	AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
@@ -297,27 +295,25 @@ type AccessGraphServiceServer interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]) error
-	// AuditLogStream establishes a bidirectional stream for exporting audit log
-	// events from a client (teleport) to a server (access-graph).
+	// AuditLogStream establishes a persistent bidirectional stream for efficiently
+	// exporting audit log events from a client (teleport) to a server (access-graph).
 	//
-	// This stream handles:
-	//   - Sending batches of audit log events (sourced by 'search' or 'bulk').
-	//   - Transmitting resume state information alongside events to ensure reliable
-	//     exporting, allowing clients to resume after disconnections without losing
-	//     data or sending duplicates.
-	//   - Server providing the initial resume state to the client upon connection.
-	//   - Client-initiated synchronization of bulk resume state to purge expired
-	//     dates.
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	// - Client requests for server-side bulk export state cleanup.
 	//
-	// Flow:
-	//  1. Client initiates the stream.
-	//  2. Server sends an initial `AuditLogResponse` containing the appropriate
-	//     `resume_state` (Search or Bulk) for the client to start or resume from,
-	//     plus a `start_date`.
-	//  3. Client sends `AuditLogRequest` messages:
-	//     - Containing `AuditLogEvents` (batches of events and current resume
-	//     state/update).
-	//     - OR containing `BulkStateSync` (requests to prune old bulk state).
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration and providing the starting `resume_state` (if any).
+	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//     `events` (with resume state updates) or `bulk_sync` commands.
+	//
+	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
+	// definitions for detailed structure, payloads, behaviors, and constraints.
 	AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
