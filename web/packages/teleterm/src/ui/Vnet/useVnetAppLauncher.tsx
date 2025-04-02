@@ -100,7 +100,7 @@ export const useVnetAppLauncher = (): {
       );
       // Update targetAddress so that clicking "Start VNet" from the info doc is going to copy that
       // address to clipboard.
-      docsService.update(docUri, { targetAddress: addrToCopy });
+      docsService.update(docUri, { app: { targetAddress: addrToCopy } });
     },
     [workspacesService]
   );
