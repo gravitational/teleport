@@ -45,8 +45,6 @@ func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.Pr
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 
-func (s *unavailableYubiKeyPIVService) SetPrompt(_ hardwarekey.Prompt) {}
-
 func (s *unavailableYubiKeyPIVService) GetMissingKeyRefDetails(ref *hardwarekey.PrivateKeyRef) error {
 	return trace.Wrap(errPIVUnavailable)
 }
