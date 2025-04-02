@@ -23,11 +23,13 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	libevents "github.com/gravitational/teleport/lib/events"
 )
@@ -110,6 +112,44 @@ as "start_key"" in the next call for pagination.
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			return mcp.NewToolResultText(string(result)), nil
+		},
+	)
+
+	mcpServer.AddTool(
+		mcp.NewTool(
+			"teleport_access_request",
+			mcp.WithDescription(`Create Teleport access request.
+
+The tool takes a mandatory "role" parameter that indicates a Teleport role
+an access request should be submitted for.
+`),
+			mcp.WithString("role", mcp.Required(), mcp.Description("role name to request")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			role, ok := request.Params.Arguments["role"].(string)
+			if !ok {
+				return nil, trace.BadParameter("missing string parameter 'role'")
+			}
+
+			accessRequest, err := types.NewAccessRequest(
+				uuid.NewString(),
+				tc.Username,
+				role)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			createdRequest, err := authClient.CreateAccessRequestV2(cf.Context, accessRequest)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			result, err := json.Marshal(createdRequest)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			return mcp.NewToolResultText(string(result)), nil
 		},
 	)
