@@ -38,6 +38,8 @@ import {
   makeDocumentVnetDiagReport,
   makeDocumentVnetInfo,
 } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { TabHostContainer } from './TabHost';
 
@@ -70,10 +72,14 @@ export function Story() {
   return (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
-        <TabHostContainer
-          topBarConnectMyComputerRef={createRef()}
-          topBarAccessRequestRef={createRef()}
-        />
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <TabHostContainer
+              topBarConnectMyComputerRef={createRef()}
+              topBarAccessRequestRef={createRef()}
+            />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
       </ResourcesContextProvider>
     </MockAppContextProvider>
   );

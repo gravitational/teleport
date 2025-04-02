@@ -42,7 +42,7 @@ describe('connectToApp', () => {
         origin: 'resource_table',
       });
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local.com:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000',
+        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com',
         '_blank',
         'noreferrer,noopener'
       );
@@ -79,7 +79,7 @@ describe('connectToApp', () => {
         { arnForAwsApp: 'foo-arn' }
       );
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local.com:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000/foo-arn',
+        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com/foo-arn',
         '_blank',
         'noreferrer,noopener'
       );
@@ -192,5 +192,4 @@ function setTestCluster(appContext: IAppContext): void {
   });
 }
 
-const launchVnet = () =>
-  Promise.resolve([undefined, undefined] as [void, Error]);
+const launchVnet = async () => {};

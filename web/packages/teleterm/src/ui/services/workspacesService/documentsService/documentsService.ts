@@ -272,6 +272,7 @@ export class DocumentsService {
 
   createVnetInfoDocument(opts: {
     rootClusterUri: RootClusterUri;
+    targetAddress?: string;
   }): DocumentVnetInfo {
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -280,6 +281,7 @@ export class DocumentsService {
       kind: 'doc.vnet_info',
       title: 'VNet',
       rootClusterUri: opts.rootClusterUri,
+      targetAddress: opts.targetAddress,
     };
   }
 
@@ -496,20 +498,23 @@ export class DocumentsService {
   /**
    * Finds an existing doc using findExisting and opens it. If there's no existing doc, uses
    * createNew to add a new doc and then opens it.
+   *
+   * Returns the URI of the doc that was opened.
    */
   openExistingOrAddNew(
     findExisting: (doc: Document) => boolean,
     createNew: () => Document
-  ): void {
+  ): DocumentUri {
     const existingDoc = this.getDocuments().find(findExisting);
     if (existingDoc) {
       this.open(existingDoc.uri);
-      return;
+      return existingDoc.uri;
     }
 
     const newDoc = createNew();
     this.add(newDoc);
     this.open(newDoc.uri);
+    return newDoc.uri;
   }
 
   getTshNodeDocuments() {
