@@ -1280,6 +1280,9 @@ message UserLogin {
   // AppliedLoginRules stores the name of each login rule that was applied
   // during the login.
   repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
+
+  // ConnectorID is the ID of the connector used
+  string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
