@@ -30,7 +30,6 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -93,25 +92,14 @@ func (d *dumpWriter) emitAuditEvent(msg string) {
 		return
 	}
 
-	event := &apievents.AppSessionMCPRequest{
-		Metadata: apievents.Metadata{
-			Type: events.AppSessionMCPRequestEvent,
-			Code: events.AppSessionMCPRequestCode,
-		},
-		UserMetadata:    d.identity.GetUserMetadata(),
-		SessionMetadata: apievents.SessionMetadata{SessionID: d.sessionID},
-	}
-
-	emitEvent, err := mcpMessageToEvent(event, msg)
+	event, emit, err := mcpMessageToEvent(msg)
 	if err != nil {
 		d.logger.WarnContext(d.ctx, "Failed to parse RPC message", "error", err)
 		return
 	}
-
-	if !emitEvent {
+	if !emit {
 		return
 	}
-
 	d.logger.InfoContext(d.ctx, "event", "val", event)
 
 	if err := d.emitter.EmitAuditEvent(d.ctx, event); err != nil {
