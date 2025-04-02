@@ -19,6 +19,7 @@ package keys
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -90,6 +91,27 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 		sshPub: sshPub,
 		keyPEM: keyPEM,
 	}, nil
+}
+
+// NewHardwarePrivateKey creates or retrieves a hardware private key from from the given hardware key
+// service that matches the given PIV slot and private key policy, returning the hardware private key
+// as a [PrivateKey].
+func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, keyConfig hardwarekey.PrivateKeyConfig) (*PrivateKey, error) {
+	if s == nil {
+		return nil, trace.BadParameter("cannot create a new hardware private key without a hardware key service provided")
+	}
+
+	hwPrivateKey, err := s.NewPrivateKey(ctx, keyConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyPEM, err := MarshalPrivateKey(hwPrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return NewPrivateKey(hwPrivateKey, keyPEM)
 }
 
 // SSHPublicKey returns the ssh.PublicKey representation of the public key.
@@ -309,6 +331,16 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 		privPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  PKCS8PrivateKeyType,
 			Bytes: der,
+		})
+		return privPEM, nil
+	case *hardwarekey.PrivateKey:
+		encodedKey, err := hardwarekey.EncodePrivateKey(privateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  pivYubiKeyPrivateKeyType,
+			Bytes: encodedKey,
 		})
 		return privPEM, nil
 	default:
