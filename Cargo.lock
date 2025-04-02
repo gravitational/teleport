@@ -2371,7 +2371,6 @@ dependencies = [
  "iso7816",
  "iso7816-tlv",
  "log",
- "parking_lot",
  "picky",
  "picky-asn1-der",
  "picky-asn1-x509",
