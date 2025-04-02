@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keys
+package piv
 
 import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
