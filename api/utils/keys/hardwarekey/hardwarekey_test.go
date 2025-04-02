@@ -40,7 +40,7 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	s := hardwarekey.NewMockHardwareKeyService()
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 	hwPriv, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
 		Policy: hardwarekey.PromptPolicyNone,
 	})
@@ -60,7 +60,7 @@ func TestPrivateKey_Prompt(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	s := hardwarekey.NewMockHardwareKeyService()
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/) // a new prompt is set for each [doWithPrompt] call.
 
 	for _, policy := range []hardwarekey.PromptPolicy{
 		hardwarekey.PromptPolicyNone,

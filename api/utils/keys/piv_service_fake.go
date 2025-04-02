@@ -24,8 +24,11 @@ import (
 // create a single YubiKeyService and ensure it is reused across the program
 // execution. At this point, it may make more sense to directly inject the mocked
 // hardware key service into the test instead of using the pivtest build tag to do it.
-var yubikeyService hardwarekey.Service = hardwarekey.NewMockHardwareKeyService()
+var mockedHardwareKeyService = hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 
-func NewYubiKeyService(_ hardwarekey.Prompt) hardwarekey.Service {
-	return yubikeyService
+// Returns a globally shared [hardwarekey.MockHardwareKeyService]. Test callers should
+// prefer [hardwarekey.NewMockHardwareKeyService] when possible.
+func NewYubiKeyService(prompt hardwarekey.Prompt) *hardwarekey.MockHardwareKeyService {
+	mockedHardwareKeyService.SetPrompt(prompt)
+	return mockedHardwareKeyService
 }

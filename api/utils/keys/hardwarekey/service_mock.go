@@ -50,9 +50,10 @@ type MockHardwareKeyService struct {
 }
 
 // NewMockHardwareKeyService returns a [mockHardwareKeyService] for use in tests.
-func NewMockHardwareKeyService() *MockHardwareKeyService {
+// If [prompt] is provided, the service will also mock PIN and touch prompts.
+func NewMockHardwareKeyService(prompt Prompt) *MockHardwareKeyService {
 	return &MockHardwareKeyService{
-		prompt:                     NewStdCLIPrompt(),
+		prompt:                     prompt,
 		mockTouch:                  make(chan struct{}),
 		fakeHardwarePrivateKeys:    map[hardwareKeySlot]*fakeHardwarePrivateKey{},
 		fakeHardwarePrivateKeysMux: &sync.Mutex{},
@@ -135,12 +136,8 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, r
 }
 
 func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPolicy) error {
-	if !policy.PINRequired && !policy.TouchRequired {
+	if s.prompt == nil || (!policy.PINRequired && !policy.TouchRequired) {
 		return nil
-	}
-
-	if s.prompt == nil {
-		return trace.BadParameter("must provide a prompt to test a hardware key with a pin or touch policy")
 	}
 
 	if policy.PINRequired {
@@ -149,7 +146,7 @@ func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPol
 		if _, err := s.prompt.AskPIN(ctx, PINRequired); err != nil {
 			return trace.Wrap(err, "failed to handle pin prompt")
 		}
-		// We don't actually check the PIN for the current tests, any input is sufficient.
+		// We don't actually check the PIN for the current tests, any input is sufficient to unblock the prompt.
 	}
 
 	if policy.TouchRequired {
