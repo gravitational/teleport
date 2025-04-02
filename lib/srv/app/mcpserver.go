@@ -19,7 +19,9 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
@@ -60,13 +62,41 @@ func (s *mcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	}
 
 	cmd := exec.CommandContext(ctx, app.GetMCPCommand(), app.GetMCPArgs()...)
-	cmd.Stdin = io.TeeReader(clientConn, mkWriter("in", true))
+	//cmd.Stdin = io.TeeReader(clientConn, mkWriter("in", true))
+	cmd.Stdin = &authorizedReader{clientConn: clientConn}
 	cmd.Stdout = io.MultiWriter(utils.NewSyncWriter(clientConn), mkWriter("out", false))
 	cmd.Stderr = mkWriter("err", false)
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
 	return cmd.Wait()
+}
+
+type authorizedReader struct {
+	clientConn io.Reader
+}
+
+func (r *authorizedReader) Read(p []byte) (n int, err error) {
+	temp := make([]byte, len(p))
+	n, err = r.clientConn.Read(temp)
+	if err != nil {
+		return n, trace.Wrap(err)
+	}
+	if len(temp) != 0 {
+		var baseMessage struct {
+			Method string `json:"method"`
+			Params struct {
+				Name string `json:"name"`
+			} `json:"params"`
+		}
+		if err := json.Unmarshal(bytes.TrimSpace(temp[:n]), &baseMessage); err == nil {
+			if baseMessage.Method == "tools/call" && baseMessage.Params.Name == "add" {
+				return 0, trace.AccessDenied("unauthorized")
+			}
+		}
+	}
+	copy(p, temp)
+	return n, err
 }
 
 func newDumpWriter(ctx context.Context, handleName string, emitter apievents.Emitter, log *slog.Logger, identity *tlsca.Identity, sessionID string) *dumpWriter {

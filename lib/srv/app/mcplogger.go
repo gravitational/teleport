@@ -19,7 +19,6 @@ func mcpMessageToEvent(line string, userMeta apievents.UserMetadata, sessionMeta
 		ID      any               `json:"id,omitempty"`
 		Params  *apievents.Struct `json:"params,omitempty"`
 	}
-
 	if err := json.Unmarshal([]byte(line), &baseMessage); err != nil {
 		return nil, false, trace.Wrap(err, "failed to parse MCP message")
 	}
