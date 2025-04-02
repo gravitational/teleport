@@ -39,6 +39,10 @@ type clientApplicationService struct {
 
 	localAppProvider *localAppProvider
 
+	// networkStackInfo will receive any network stack info reported via
+	// ReportNetworkStackInfo.
+	networkStackInfo chan *vnetv1.NetworkStackInfo
+
 	// mu protects appSignerCache
 	mu sync.Mutex
 	// appSignerCache caches the crypto.Signer for each certificate issued by
@@ -54,13 +58,9 @@ type clientApplicationService struct {
 func newClientApplicationService(localAppProvider *localAppProvider) *clientApplicationService {
 	return &clientApplicationService{
 		localAppProvider: localAppProvider,
+		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
 	}
-}
-
-// Ping implements [vnetv1.ClientApplicationServiceServer.Ping].
-func (s *clientApplicationService) Ping(ctx context.Context, req *vnetv1.PingRequest) (*vnetv1.PingResponse, error) {
-	return &vnetv1.PingResponse{}, nil
 }
 
 // AuthenticateProcess implements [vnetv1.ClientApplicationServiceServer.AuthenticateProcess].
@@ -77,6 +77,21 @@ func (s *clientApplicationService) AuthenticateProcess(ctx context.Context, req 
 	return &vnetv1.AuthenticateProcessResponse{
 		Version: api.Version,
 	}, nil
+}
+
+// ReportNetworkStackInfo implements [vnetv1.ClientApplicationServiceServer.ReportNetworkStackInfo].
+func (s *clientApplicationService) ReportNetworkStackInfo(ctx context.Context, req *vnetv1.ReportNetworkStackInfoRequest) (*vnetv1.ReportNetworkStackInfoResponse, error) {
+	select {
+	case s.networkStackInfo <- req.GetNetworkStackInfo():
+	default:
+		return nil, trace.BadParameter("ReportNetworkStackInfo must be called exactly once")
+	}
+	return &vnetv1.ReportNetworkStackInfoResponse{}, nil
+}
+
+// Ping implements [vnetv1.ClientApplicationServiceServer.Ping].
+func (s *clientApplicationService) Ping(ctx context.Context, req *vnetv1.PingRequest) (*vnetv1.PingResponse, error) {
+	return &vnetv1.PingResponse{}, nil
 }
 
 // ResolveAppInfo implements [vnetv1.ClientApplicationServiceServer.ResolveAppInfo].
