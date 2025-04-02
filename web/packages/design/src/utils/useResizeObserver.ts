@@ -33,6 +33,10 @@ import {
  * Returns a ref callback to attach to the element to be observed – the element
  * must be a HTMLElement but may be conditionally null.
  *
+ * `fireOnZeroHeight` determines whether the callback should be fired when the
+ * element's height is 0. This defaults to false, to account for a special case in
+ * Connect where tabs are hidden using `display: none;`.
+ *
  * @example
  * // Basic usage
  * const Component = () => {
@@ -47,7 +51,7 @@ import {
  */
 export const useResizeObserver = <T extends HTMLElement = HTMLElement>(
   callback: (entry: ResizeObserverEntry) => void,
-  { fireOnZeroHeight = true } = {}
+  { fireOnZeroHeight = false } = {}
 ): RefCallback<T> => {
   const callbackRef = useRef(callback);
   const elementRef = useRef<T | null>(null);
