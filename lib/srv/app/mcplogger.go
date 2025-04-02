@@ -71,7 +71,7 @@ func mcpMessageToEvent(event *events.AppSessionMCPRequest, line string) (bool, e
 		if err != nil {
 			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
 		}
-		return true, nil
+		return false, nil
 	case mcp.MethodResourcesTemplatesList:
 		var request mcp.ListResourceTemplatesRequest
 		err = json.Unmarshal(rawMessage, &request)
