@@ -98,6 +98,14 @@ export function requiresReset(rm: RoleEditorModel | undefined): boolean {
 
 export type MetadataModel = {
   name: string;
+  /**
+   * Set to `true` when we detect an existing role with the same name. This is
+   * for validation purposes only, but it's stored in the model, because our
+   * validation framework doesn't currently have a native support for
+   * asynchronous validaiton. This flag is only being set if a new rule is
+   * being created.
+   */
+  nameCollision: boolean;
   description?: string;
   revision?: string;
   labels: UILabel[];
@@ -638,6 +646,7 @@ export function roleToRoleEditorModel(
   return {
     metadata: {
       name,
+      nameCollision: false,
       description,
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
@@ -1326,7 +1335,8 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   const { name, description, revision, labels, version, ...mRest } =
     roleModel.metadata;
   // Compile-time assert that protects us from silently losing fields.
-  mRest satisfies Record<any, never>;
+  // `nameCollision` is the only field we don't care about.
+  mRest satisfies { nameCollision: boolean };
 
   const role: Role = {
     kind: 'role',

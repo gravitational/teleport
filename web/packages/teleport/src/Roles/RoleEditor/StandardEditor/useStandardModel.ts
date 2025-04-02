@@ -85,6 +85,7 @@ export enum ActionType {
   SetModel = 'SetModel',
   ResetToStandard = 'ResetToStandard',
   SetMetadata = 'SetMetadata',
+  SetRoleNameCollision = 'SetRoleNameCollision',
   AddResourceAccess = 'AddResourceAccess',
   SetResourceAccess = 'SetResourceAccess',
   RemoveResourceAccess = 'RemoveResourceAccess',
@@ -102,6 +103,7 @@ type StandardModelAction =
   | SetModelAction
   | ResetToStandardAction
   | SetMetadataAction
+  | SetRoleNameCollisionAction
   | AddResourceAccessAction
   | SetResourceAccessAction
   | RemoveResourceAccessAction
@@ -123,6 +125,10 @@ type ResetToStandardAction = {
 type SetMetadataAction = {
   type: ActionType.SetMetadata;
   payload: MetadataModel;
+};
+type SetRoleNameCollisionAction = {
+  type: ActionType.SetRoleNameCollision;
+  payload: boolean;
 };
 type AddResourceAccessAction = {
   type: ActionType.AddResourceAccess;
@@ -190,6 +196,10 @@ const reduce = (
         state.roleModel.resources,
         payload.version.value
       );
+      break;
+
+    case ActionType.SetRoleNameCollision:
+      state.roleModel.metadata.nameCollision = payload;
       break;
 
     case ActionType.SetOptions:
