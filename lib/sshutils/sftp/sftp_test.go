@@ -831,17 +831,16 @@ func (m mockCmdHandlers) Filecmd(req *sftp.Request) error {
 	return trace.Wrap(HandleFilecmd(req, localFS{}))
 }
 
-func (m mockCmdHandlers) Filelist(req *sftp.Request) (sftp.ListerAt, error) {
-	return HandleFilelist(req, localFS{})
-}
-
 func TestHandleFilecmd(t *testing.T) {
 	t.Parallel()
 	// We're using a full client/server instead of just calling HandleFilecmd so
 	// the sftp package can handle marshaling attributes.
 	clientConn, serverConn := net.Pipe()
 	srv := sftp.NewRequestServer(serverConn, sftp.Handlers{
-		FileCmd: mockCmdHandlers{},
+		FileGet:  sftp.InMemHandler().FileGet,
+		FilePut:  sftp.InMemHandler().FilePut,
+		FileCmd:  mockCmdHandlers{},
+		FileList: sftp.InMemHandler().FileList,
 	})
 
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
