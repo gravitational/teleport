@@ -167,6 +167,7 @@ func (s *MockHardwareKeyService) SetPrompt(prompt Prompt) {
 	s.prompt = prompt
 }
 
+// TODO(Joerger): DELETE IN v19.0.0
 func (s *MockHardwareKeyService) GetMissingKeyRefDetails(ref *PrivateKeyRef) error {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
