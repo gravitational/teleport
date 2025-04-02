@@ -74,6 +74,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -352,9 +353,15 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		nextHostID = nextHostID[uint32Len:]
 	}
 
-	c.cfg.Logger.InfoContext(ctx, "dialing RDP host from Go!")
-	rdpConn, err := net.Dial("tcp", c.cfg.Addr)
-	if err != nil {
+	rdpConn, err := net.DialTimeout("tcp", c.cfg.Addr, 5*time.Second)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return trace.Wrap(err, "Connection Timed Out\n\n"+
+			"Teleport could not connect to the host within the timeout period. "+
+			"This could be due to a firewall blocking connections, an overloaded system, "+
+			"or network congestion. To resolve this issue, ensure that the Teleport agent "+
+			"has connectivity to the Windows host.\n\n"+
+			"Use \"nc -vz HOST 3389\" to help debug this issue.")
+	} else if err != nil {
 		return trace.Wrap(err, "dialing from Go")
 	}
 	defer rdpConn.Close()

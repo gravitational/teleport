@@ -39,7 +39,6 @@ use rdpdr::tdp::{
 };
 use std::ffi::CString;
 use std::fmt::Debug;
-use std::io::ErrorKind;
 use std::os::fd::{FromRawFd, OwnedFd, RawFd};
 use std::os::raw::c_char;
 use std::ptr;
@@ -99,7 +98,6 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
 
     // Convert from C to Rust types.
     let username = from_c_string(params.go_username);
-    let addr = from_c_string(params.go_addr);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
@@ -119,7 +117,6 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             ad: params.ad,
             nla: params.nla,
             username,
-            addr,
             computer_name,
             cert_der,
             key_der,
@@ -152,28 +149,15 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         },
         Err(e) => {
             error!("client_run failed: {:?}", e);
-            let message = match e {
-                client::ClientError::Tcp(io_err) if io_err.kind() == ErrorKind::TimedOut => {
-                    String::from(TIMEOUT_ERROR_MESSAGE)
-                }
-                _ => format!("{}", e),
-            };
             CGOResult {
                 err_code: CGOErrCode::ErrCodeFailure,
-                message: CString::new(message)
+                message: CString::new(format!("{}", e))
                     .map(|c| c.into_raw())
                     .unwrap_or(ptr::null_mut()),
             }
         }
     }
 }
-
-const TIMEOUT_ERROR_MESSAGE: &str = "Connection Timed Out\n\n\
-Teleport could not connect to the host within the timeout period. \
-This could be due to a firewall blocking connections, an overloaded system, \
-or network congestion. To resolve this issue, ensure that the Teleport agent \
-has connectivity to the Windows host.\n\n\
-Use \"nc -vz HOST 3389\" to help debug this issue.";
 
 fn handle_operation<T>(cgo_handle: CgoHandle, ctx: &'static str, f: T) -> CGOErrCode
 where

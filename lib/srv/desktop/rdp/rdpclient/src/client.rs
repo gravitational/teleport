@@ -63,7 +63,6 @@ use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::Error as IoError;
-use std::net::ToSocketAddrs;
 use std::os::fd::OwnedFd;
 use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::io::{split, AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
@@ -121,29 +120,23 @@ impl Client {
 
     /// Initializes the RDP connection with the given [`ConnectParams`].
     async fn connect(cgo_handle: CgoHandle, mut params: ConnectParams) -> ClientResult<Self> {
-        let server_addr = params.addr.clone();
-        let server_socket_addr = server_addr
-            .to_socket_addrs()?
-            .next()
-            .ok_or(ClientError::UnknownAddress)?;
-
-        println!("!!!!!! using existing connection");
-
-        let std_stream = std::net::TcpStream::from(
+        let stream = TokioTcpStream::from_std(std::net::TcpStream::from(
             params
                 .conn_fd
                 .take()
                 .ok_or_else(|| ClientError::InternalError("missing conn fd".into()))?,
-        );
-        let stream = { TokioTcpStream::from_std(std_stream)? };
+        ))?;
 
-        let tls_std_stream = std::os::unix::net::UnixStream::from(
-            params
-                .tls_fd
-                .take()
-                .ok_or_else(|| ClientError::InternalError("missing tls fd".into()))?,
-        );
-        let mut tls_stream = tokio::net::UnixStream::from_std(tls_std_stream)?;
+        let local_addr = stream.local_addr()?;
+        let server_addr = stream.peer_addr()?;
+
+        let mut tls_stream =
+            tokio::net::UnixStream::from_std(std::os::unix::net::UnixStream::from(
+                params
+                    .tls_fd
+                    .take()
+                    .ok_or_else(|| ClientError::InternalError("missing tls fd".into()))?,
+            ))?;
 
         // Create a framed stream for use by connect_begin
         let mut framed = ironrdp_tokio::TokioFramed::new(stream);
@@ -193,7 +186,7 @@ impl Client {
         let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
-            .with_server_addr(server_socket_addr)
+            .with_server_addr(local_addr) // This is meant to be the client address.
             .with_static_channel(drdynvc_client) // require for resizing
             .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
             .with_static_channel(rdpdr); // required for smart card + directory sharing
@@ -206,11 +199,13 @@ impl Client {
 
         let should_upgrade = ironrdp_tokio::connect_begin(&mut framed, &mut connector).await?;
 
-        // Take the stream back out of the framed object for upgrading
+        // We're done with the original (pre-TLS) stream. Write a single byte to the socket pair
+        // in order to signal to the Go side that it's time to do the TLS handshake.
         let _ = framed.into_inner_no_leftover();
-
         tls_stream.write_all(&[0]).await?;
 
+        // When the Go side completes the TLS handshake it writes a 4-byte length followed by
+        // the server's public key info. Read that here.
         let server_public_key = {
             let len = tls_stream.read_u32_le().await?;
             let mut buf = vec![0u8; len.try_into().unwrap()];
@@ -218,7 +213,6 @@ impl Client {
             buf
         };
 
-        // Upgrade the stream
         let upgraded = ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector);
 
         // Frame the stream again for use by connect_finalize
@@ -238,7 +232,10 @@ impl Client {
             upgraded,
             &mut rdp_stream,
             connector,
-            params.computer_name.unwrap_or(server_addr).into(),
+            params
+                .computer_name
+                .unwrap_or(server_addr.to_string())
+                .into(),
             server_public_key,
             Some(&mut network_client),
             kerberos_config,
@@ -1480,7 +1477,6 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
 #[derive(Debug)]
 pub struct ConnectParams {
     pub username: String,
-    pub addr: String,
     pub kdc_addr: Option<String>,
     pub computer_name: Option<String>,
     pub cert_der: Vec<u8>,
