@@ -38,7 +38,7 @@ export function Transition({
   // It's especially noticeable on Safari.
   useLayoutEffect(onEntering, []);
 
-  const effect = useCallback(() => {
+  const resizeEffect = useCallback(() => {
     if (!paperRef.current || !enablePaperResizeObserver) return;
 
     const observer = new ResizeObserver(entries => {
@@ -54,7 +54,7 @@ export function Transition({
     };
   }, [onPaperResize, paperRef, enablePaperResizeObserver]);
 
-  useLayoutEffect(effect, [effect]);
+  useLayoutEffect(resizeEffect, [resizeEffect]);
 
   return children;
 }
