@@ -33,7 +33,8 @@ type Service interface {
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
 	Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
-	// GetMissingKeyRefDetails updates the key ref with missing details from the hardware key.
+	// GetFullKeyRef gets the full [PrivateKeyRef] for an existing hardware private
+	// key in the given slot of the hardware key with the given serial number.
 	GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error)
 }
 

@@ -261,8 +261,13 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
-		priv, err := parseYubiKeyPrivateKeyData(block.Bytes, appliedOpts.CustomHardwareKeyPrompt)
-		return priv, trace.Wrap(err, "parsing YubiKey private key")
+		hwKeyService := NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
+		hwPrivateKey, err := hardwarekey.DecodePrivateKey(hwKeyService, block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse hardware private key")
+		}
+
+		return NewPrivateKey(hwPrivateKey, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
