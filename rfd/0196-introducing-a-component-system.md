@@ -430,50 +430,9 @@ different variant props can be type-checked and autocompleted during development
 After a small proof of concept, full stack resources would be needed to style some of the existing Chakra components to
 Teleport's theme. This can also be a great opportunity for everyone to try it out and get to grips with Chakra.
 
-### Code structure
+### Code structure and approach
 
-Converting all the previous codebase to Chakra UI would be a huge task and could introduce regressions. Instead, we
-could
-start by deprecating the previous design system, and any code that uses it is kept in a separate package.
-
-This would also give the advantage of being able to enable stricter ESLint rules, for all new code going forward using
-the new design system. This can help reduce bugs by preventing common mistakes, and also help with maintaining a
-more consistent code style.
-
-```
-# current directory structure
-
-web/
-  packages/
-    design/
-    teleport/
-    teleterm/
-```
-
-Possible new directory structure
-
-```
-web/
-  packages/
-    legacy/ # current ESLint rules, not very strict
-      design/
-        src/
-      teleport/
-        src/
-      teleterm/
-        src/
-    design/
-      src/ # strict ESLint, TypeScript rules
-    teleport/
-      src/ # strict ESLint, TypeScript rules
-    teleterm/
-      src/ # strict ESLint, TypeScript rules
-```
-
-The "new" codebase should be able to import code from the "legacy" codebase, but not the other way around.
-
-Once we have a large portion of codebase using the new design system, and everyone is comfortable with it,
-we could then work on migrating the legacy code over.
+[RFD 206](https://github.com/gravitational/teleport/pull/53359) explains how we can approach the code structure changes needed to implement this. 
 
 ### Introduce new pages with the new design system
 
@@ -481,20 +440,6 @@ In an ideal world, putting together new pages should be easy - taking a few reus
 
 Working with the full stack team, we can gather what they components/design items they commonly reuse, and what they create each time, and start
 building out the new design system with these components in mind.
-
-### Rough timeline
-
-Implementing this change could look like this:
-
-- Adopt Chakra UI and adapt it to our theming
-- Move all the previous code into the legacy folder, across all major version branches that are currently supported
-  - This will make backporting bug fixes and changes to the previous codebase easily
-- Create new pages using the new design system
-- Start migrating the legacy code over to the new design system
-  - Some developer time will be needed for this, but would be a great hackathon idea/group effort
-- Repeat the above until legacy is no more
-
-Ideally, new pages should be indistinguishable from the old ones.
 
 ## Alternatives
 
