@@ -119,6 +119,11 @@ func onMCPConfig(cf *CLIConf) error {
 				LocalServerName: localName,
 				Args:            strings.Join(mcpServer.Args[3:], " "),
 			})
+		case "start-teleport":
+			rows = append(rows, mcpConfigTableRow{
+				Type:            "Teleport Tools",
+				LocalServerName: localName,
+			})
 		}
 	}
 

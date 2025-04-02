@@ -2,119 +2,60 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 // mcpMessageToEvent handles a single JSON-RPC message and either returns audit event (possibly empty) or error.
-func mcpMessageToEvent(event *events.AppSessionMCPRequest, line string) (bool, error) {
-	var rawMessage json.RawMessage
-	err := json.Unmarshal([]byte(line), &rawMessage)
-	if err != nil {
-		return false, trace.Wrap(err, "failed to parse as JSON")
-	}
-
+func mcpMessageToEvent(line string) (apievents.AuditEvent, bool, error) {
 	var baseMessage struct {
-		JSONRPC string        `json:"jsonrpc"`
-		Method  mcp.MCPMethod `json:"method"`
-		ID      any           `json:"id,omitempty"`
+		JSONRPC string            `json:"jsonrpc"`
+		Method  string            `json:"method"`
+		ID      any               `json:"id,omitempty"`
+		Params  *apievents.Struct `json:"params,omitempty"`
 	}
 
-	err = json.Unmarshal(rawMessage, &baseMessage)
-	if err != nil {
-		return false, trace.Wrap(err, "failed to parse message as JSON-RPC")
+	if err := json.Unmarshal([]byte(line), &baseMessage); err != nil {
+		return nil, false, trace.Wrap(err, "failed to parse MCP message")
 	}
-
-	// Check for valid JSONRPC version
-	if baseMessage.JSONRPC != mcp.JSONRPC_VERSION {
-		return false, trace.BadParameter("Invalid JSON-RPC version %q", baseMessage.JSONRPC)
-	}
-
+	shouldEmit := shouldEmitMCPEvent(mcp.MCPMethod(baseMessage.Method))
 	if baseMessage.ID == nil {
-		// probably notification, we ignore those for now anyway.
-		var notification mcp.JSONRPCNotification
-		if err := json.Unmarshal(rawMessage, &notification); err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC notification")
-		}
-		return false, nil // Return nil for notifications
+		return &apievents.AppSessionMCPNotification{
+			Metadata: apievents.Metadata{
+				Type: events.AppSessionMCPNotificationEvent,
+				Code: events.AppSessionMCPNotificationCode,
+			},
+			JSONRPC:   baseMessage.JSONRPC,
+			RPCMethod: baseMessage.Method,
+			RPCParams: baseMessage.Params,
+		}, shouldEmit, nil
 	}
+	return &apievents.AppSessionMCPRequest{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionMCPRequestEvent,
+			Code: events.AppSessionMCPRequestCode,
+		},
+		JSONRPC:   baseMessage.JSONRPC,
+		RPCMethod: baseMessage.Method,
+		RPCID:     fmt.Sprintf("%v", baseMessage.ID),
+		RPCParams: baseMessage.Params,
+	}, shouldEmit, nil
+}
 
-	event.RPCMethod = string(baseMessage.Method)
-
-	s := &events.Struct{}
-	if err := s.UnmarshalJSON(rawMessage); err != nil {
-		return false, trace.Wrap(err)
-	}
-	event.RPCParams = s
-
-	switch baseMessage.Method {
-	case mcp.MethodInitialize:
-		var request mcp.InitializeRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC initialize")
-		}
-		return true, nil
-	case mcp.MethodPing:
-		var request mcp.PingRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
-		return false, nil
-	case mcp.MethodResourcesList:
-		var request mcp.ListResourcesRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
-		return true, nil
-	case mcp.MethodResourcesTemplatesList:
-		var request mcp.ListResourceTemplatesRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
-		return true, nil
-	case mcp.MethodResourcesRead:
-		var request mcp.ReadResourceRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
-		return true, nil
-	case mcp.MethodPromptsList:
-		var request mcp.ListPromptsRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
-		return false, nil
-	case mcp.MethodPromptsGet:
-		var request mcp.GetPromptRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
-		return false, nil
-	case mcp.MethodToolsList:
-		var request mcp.ListToolsRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
-		return false, nil
-	case mcp.MethodToolsCall:
-		var request mcp.CallToolRequest
-		err = json.Unmarshal(rawMessage, &request)
-		if err != nil {
-			return false, trace.Wrap(err, "failed to parse message as JSON-RPC ping")
-		}
+func shouldEmitMCPEvent(method mcp.MCPMethod) bool {
+	switch method {
+	case mcp.MethodPing,
+		mcp.MethodResourcesList,
+		mcp.MethodResourcesTemplatesList,
+		mcp.MethodPromptsList,
+		mcp.MethodToolsList:
+		return false
 	default:
-		return true, nil
+		return true
 	}
-	return true, nil
 }

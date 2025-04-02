@@ -25,11 +25,11 @@ import (
 	"net"
 	"os/exec"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -42,17 +42,23 @@ type mcpServer struct {
 
 // handleConnection handles connection from an MCP application.
 func (s *mcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
-	s.log.DebugContext(ctx, "Running mcp", "app", app.GetName(),
-		"cmd", app.GetMCPCommand(), "args", app.GetMCPArgs())
+	sessionID := uuid.New().String()
+
+	log := s.log.With("session", sessionID)
+
+	log.DebugContext(ctx, "Running mcp",
+		"app", app.GetName(),
+		"cmd", app.GetMCPCommand(),
+		"args", app.GetMCPArgs(),
+	)
 
 	mkWriter := func(handleName string, emitEvents bool) *dumpWriter {
 		if emitEvents {
-			return newDumpWriter(ctx, handleName, s.emitter, s.log, identity)
+			return newDumpWriter(ctx, handleName, s.emitter, log, identity, sessionID)
 		}
-		return newDumpWriter(ctx, handleName, nil, s.log, identity)
+		return newDumpWriter(ctx, handleName, nil, log, identity, sessionID)
 	}
 
-	// TODO hijack the input/output and parse with SDK?
 	cmd := exec.CommandContext(ctx, app.GetMCPCommand(), app.GetMCPArgs()...)
 	cmd.Stdin = io.TeeReader(clientConn, mkWriter("in", true))
 	cmd.Stdout = io.MultiWriter(utils.NewSyncWriter(clientConn), mkWriter("out", false))
@@ -63,20 +69,22 @@ func (s *mcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	return cmd.Wait()
 }
 
-func newDumpWriter(ctx context.Context, handleName string, emitter apievents.Emitter, log *slog.Logger, identity *tlsca.Identity) *dumpWriter {
+func newDumpWriter(ctx context.Context, handleName string, emitter apievents.Emitter, log *slog.Logger, identity *tlsca.Identity, sessionID string) *dumpWriter {
 	return &dumpWriter{
-		ctx:      ctx,
-		logger:   log.With("stdio", handleName),
-		emitter:  emitter,
-		identity: identity,
+		ctx:       ctx,
+		logger:    log.With("stdio", handleName),
+		emitter:   emitter,
+		identity:  identity,
+		sessionID: sessionID,
 	}
 }
 
 type dumpWriter struct {
-	ctx      context.Context
-	logger   *slog.Logger
-	identity *tlsca.Identity
-	emitter  apievents.Emitter
+	ctx       context.Context
+	logger    *slog.Logger
+	identity  *tlsca.Identity
+	emitter   apievents.Emitter
+	sessionID string
 }
 
 func (d *dumpWriter) emitAuditEvent(msg string) {
@@ -84,23 +92,14 @@ func (d *dumpWriter) emitAuditEvent(msg string) {
 		return
 	}
 
-	event := &apievents.AppSessionMCPRequest{}
-
-	emitEvent, err := mcpMessageToEvent(event, msg)
+	event, emit, err := mcpMessageToEvent(msg)
 	if err != nil {
 		d.logger.WarnContext(d.ctx, "Failed to parse RPC message", "error", err)
 		return
 	}
-
-	if !emitEvent {
+	if !emit {
 		return
 	}
-
-	event.Metadata = apievents.Metadata{
-		Type: events.AppSessionMCPRequestEvent,
-		Code: events.AppSessionMCPRequestCode,
-	}
-
 	d.logger.InfoContext(d.ctx, "event", "val", event)
 
 	if err := d.emitter.EmitAuditEvent(d.ctx, event); err != nil {

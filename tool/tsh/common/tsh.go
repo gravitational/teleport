@@ -991,6 +991,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mcpConfigUpdateDB.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
 	mcpConfigUpdateDB.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
 	mcpConfigUpdateDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
+	mcpStartTeleport := mcp.Command("start-teleport", "Start a MCP server for generic Teleport tools like getting audit log, list resources")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1603,6 +1604,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onMCPConfigUpdate(&cf)
 	case mcpConfigUpdateDB.FullCommand():
 		err = onMCPConfigUpdateDB(&cf)
+	case mcpStartTeleport.FullCommand():
+		err = onMCPStartTeleport(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
