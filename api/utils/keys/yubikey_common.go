@@ -28,18 +28,10 @@ import (
 //   - hardware_key_touch: 9c
 //   - hardware_key_pin: 9d
 //   - hardware_key_touch_pin: 9e
-func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
+func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot hardwarekey.PIVSlotKeyString, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
 	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot, customPrompt)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
 	}
 	return priv, nil
-}
-
-// PIVSlot is the string representation of a PIV slot. e.g. "9a".
-type PIVSlot string
-
-// Validate that the PIV slot is a valid value.
-func (s PIVSlot) Validate() error {
-	return trace.Wrap(s.validate())
 }

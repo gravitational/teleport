@@ -448,7 +448,7 @@ type Config struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
-	PIVSlot keys.PIVSlot
+	PIVSlot hardwarekey.PIVSlotKeyString
 
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
