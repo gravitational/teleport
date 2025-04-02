@@ -42,7 +42,7 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 	ctx := context.Background()
 	s := hardwarekey.NewMockHardwareKeyService()
 	hwPriv, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
-		Policy: hardwarekey.PromptPolicyTouch,
+		Policy: hardwarekey.PromptPolicyNone,
 	})
 	require.NoError(t, err)
 

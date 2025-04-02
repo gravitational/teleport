@@ -4003,7 +4003,10 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		priv, err := keys.GetYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PIVSlot, tc.CustomHardwareKeyPrompt)
+		priv, err := keys.NewHardwarePrivateKey(ctx, keys.NewYubiKeyService(tc.CustomHardwareKeyPrompt), hardwarekey.PrivateKeyConfig{
+			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
+			CustomSlot: tc.PIVSlot,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
