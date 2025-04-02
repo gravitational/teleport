@@ -14,6 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package piv provides a PIV implementation of [hardwarekey.Service].
 package piv
 
 import (
@@ -25,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/go-piv/piv-go/piv"
@@ -40,10 +42,12 @@ var (
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
 	// transaction (connection) limit.
-	//
-	// TODO(Joerger): This will replace the key cache in yubikey.go
 	yubiKeys    map[uint32]*YubiKey = map[uint32]*YubiKey{}
 	yubiKeysMux sync.Mutex
+
+	// promptMux is used to prevent over-prompting, especially for back-to-back sign requests
+	// since touch/PIN from the first signature should be cached for following signatures.
+	promptMux sync.Mutex
 )
 
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
@@ -59,6 +63,7 @@ func NewYubiKeyService(prompt hardwarekey.Prompt) *YubiKeyService {
 	if prompt == nil {
 		prompt = hardwarekey.NewStdCLIPrompt()
 	}
+
 	return &YubiKeyService{
 		prompt: prompt,
 	}
@@ -73,9 +78,14 @@ func NewYubiKeyService(prompt hardwarekey.Prompt) *YubiKeyService {
 //   - touch  & pin  -> 9d
 //   - touch  & !pin -> 9e
 func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
+	// Use the first yubiKey we find.
+	y, err := s.getYubiKey(0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Get the requested or default PIV slot.
 	var slotKey hardwarekey.PIVSlotKey
-	var err error
 	if config.CustomSlot != "" {
 		slotKey, err = config.CustomSlot.Parse()
 	} else {
@@ -90,23 +100,9 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		return nil, trace.Wrap(err)
 	}
 
-	// If the program has already retrieved and cached this key, return it.
-	cachedKeysMu.Lock()
-	defer cachedKeysMu.Unlock()
-
-	if key, ok := cachedKeys[pivSlot]; ok && key.GetPromptPolicy() == config.Policy {
-		return key, nil
-	}
-
-	// Use the first yubiKey we find.
-	y, err := FindYubiKey(0, s.prompt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// If PIN is required, check that PIN and PUK are not the defaults.
 	if config.Policy.PINRequired {
-		if err := y.checkOrSetPIN(ctx); err != nil {
+		if err := s.checkOrSetPIN(ctx, y); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -116,9 +112,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		hwPriv := hardwarekey.NewSigner(s, ref)
-		cachedKeys[pivSlot] = hwPriv
-		return hwPriv, nil
+		return hardwarekey.NewSigner(s, ref), nil
 	}
 
 	// If a custom slot was not specified, check for a key in the
@@ -188,10 +182,13 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
 func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	y, err := getYubiKey(ref.SerialNumber, s.prompt)
+	y, err := s.getYubiKey(ref.SerialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	promptMux.Lock()
+	defer promptMux.Unlock()
 
 	return y.sign(ctx, ref, s.prompt, rand, digest, opts)
 }
@@ -222,7 +219,7 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 		return ref, nil
 	}
 
-	y, err := getYubiKey(serialNumber, s.prompt)
+	y, err := s.getYubiKey(serialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -261,7 +258,7 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",
 // return the first YubiKey found in the smart card list.
-func getYubiKey(serialNumber uint32, prompt hardwarekey.Prompt) (*YubiKey, error) {
+func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 	yubiKeysMux.Lock()
 	defer yubiKeysMux.Unlock()
 
@@ -269,7 +266,7 @@ func getYubiKey(serialNumber uint32, prompt hardwarekey.Prompt) (*YubiKey, error
 		return y, nil
 	}
 
-	y, err := FindYubiKey(serialNumber, prompt)
+	y, err := FindYubiKey(serialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,7 +275,36 @@ func getYubiKey(serialNumber uint32, prompt hardwarekey.Prompt) (*YubiKey, error
 	return y, nil
 }
 
+// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
+// If the user provides the default PIN, they will be prompted to set a
+// non-default PIN and PUK before continuing.
+func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey) error {
+	promptMux.Lock()
+	defer promptMux.Unlock()
+
+	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch pin {
+	case piv.DefaultPIN:
+		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+		fallthrough
+	case "":
+		pin, err = y.setPINAndPUKFromDefault(ctx, s.prompt)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(y.verifyPIN(pin))
+}
+
 func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string) error {
+	promptMux.Lock()
+	defer promptMux.Unlock()
+
 	promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
 	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion); confirmErr != nil {
 		return trace.Wrap(confirmErr)
