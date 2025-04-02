@@ -169,7 +169,7 @@ export const VnetContextProvider: FC<
         // started VNet through the "Connect" button next to a TCP app, it means that once we return
         // from this function, Connect is going to attempt to copy the address of the app to the
         // clipboard. This won't work unless Connect has focus, hence forcing focus here.
-        mainProcessClient.forceFocusWindow();
+        await mainProcessClient.forceFocusWindow({ wait: true });
       }
 
       setStatus({ value: 'running' });
