@@ -27,12 +27,14 @@ import { ResourceKind } from 'teleport/services/resources';
 import { AdminRules } from './AdminRules';
 import { RuleModel } from './standardmodel';
 import { StatefulSectionWithDispatch } from './StatefulSection';
+import { StandardModelDispatcher } from './useStandardModel';
 import { AdminRuleValidationResult } from './validation';
 
 describe('AdminRules', () => {
   const setup = () => {
     const modelRef = jest.fn();
     let validator: Validator;
+    let dispatch: StandardModelDispatcher;
     render(
       <StatefulSectionWithDispatch<RuleModel[], AdminRuleValidationResult[]>
         selector={m => m.roleModel.rules}
@@ -42,9 +44,12 @@ describe('AdminRules', () => {
           validator = v;
         }}
         modelRef={modelRef}
+        dispatchRef={d => {
+          dispatch = d;
+        }}
       />
     );
-    return { user: userEvent.setup(), modelRef, validator };
+    return { user: userEvent.setup(), modelRef, dispatch, validator };
   };
 
   test('editing', async () => {
@@ -71,14 +76,26 @@ describe('AdminRules', () => {
           { label: 'read', value: 'read' },
         ],
         where: 'some-filter',
+        hideValidationErrors: true,
       },
     ] as RuleModel[]);
   });
 
   test('validation', async () => {
-    const { user, validator } = setup();
+    const { user, validator, dispatch } = setup();
     await user.click(screen.getByRole('button', { name: 'Add New' }));
     act(() => validator.validate());
+
+    // Validation hidden
+    expect(
+      screen.queryByText('At least one resource kind is required')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('At least one permission is required')
+    ).not.toBeInTheDocument();
+
+    // Validation visible
+    act(() => dispatch({ type: 'show-validation-errors' }));
     expect(
       screen.getByText('At least one resource kind is required')
     ).toBeInTheDocument();
