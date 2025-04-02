@@ -31,6 +31,10 @@ import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
 import { Failed } from 'design/CardError';
+import {
+  InfoGuidePanelProvider,
+  useInfoGuide,
+} from 'shared/components/InfoGuide';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -54,7 +58,6 @@ import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
-import { InfoGuidePanelProvider, useInfoGuide } from './InfoGuideContext';
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 

@@ -21,8 +21,8 @@ import styled from 'styled-components';
 
 import { Box, Button, ButtonIcon, Flex, H3, Link, Text } from 'design';
 import { Cross, Info } from 'design/Icon';
+import { InfoGuideConfig, useInfoGuide } from 'shared/components/InfoGuide';
 
-import { InfoGuideConfig, useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import { SlidingSidePanel } from '..';
