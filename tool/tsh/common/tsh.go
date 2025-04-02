@@ -982,6 +982,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mcpStartDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	mcpConfig := mcp.Command("config", "Check or update AI tool configs")
 	mcpConfig.Flag("format", "only supporting claude_desktop for now").Default("claude_desktop").StringVar(&cf.Format)
+	mcpConfigUpdate := mcp.Command("config-update", "Add a mcp server to the config")
+	mcpConfigUpdate.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
+	mcpConfigUpdate.Flag("format", "only supporting claude_desktop for now").Default("claude_desktop").StringVar(&cf.Format)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1590,6 +1593,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onMCPStartDB(&cf)
 	case mcpConfig.FullCommand():
 		err = onMCPConfig(&cf)
+	case mcpConfigUpdate.FullCommand():
+		err = onMCPConfigUpdate(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
