@@ -20,6 +20,7 @@ import (
 	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -507,6 +508,7 @@ func testAuthProcess(t *testing.T, opts ...testAuthOption) *service.TeleportProc
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
