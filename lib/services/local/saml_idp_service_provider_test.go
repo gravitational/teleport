@@ -30,12 +30,12 @@ import (
 	"github.com/crewjam/saml/samlsp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	preset "github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	preset "github.com/gravitational/teleport/api/types/samlsp"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
