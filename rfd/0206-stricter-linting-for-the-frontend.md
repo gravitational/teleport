@@ -306,10 +306,10 @@ which can help to improve the consistency and readability of the codebase.
 These rules cannot be enabled all at once, or even one-by-one, as there would be thousands of errors which would be hard
 to fix in one PR and backport, and could also potentially disrupt other pull requests in flight.
 
-Instead, we can split off the frontend codebase (design, shared, teleport, teleterm) into a separate directory, and
-migrate code over to the new directory, fixing the strict errors as we go. This would make backporting a lot easier,
-as the new migrated code would not clash with any existing code in the backport branches, and the code that is
-backported into the old codebase would be import path updates.
+Instead, we can move the existing codebase over to a legacy directory in one large swoop, and then enable the strict
+changes for the new directories, left in the same place as the old codebase was. We would then move code over from
+the legacy folder to the new folder, fixing the strict errors as we go. Backporting changes should be relatively easy,
+as the diff to existing code should be small (ideally only import changes to point to the new codebase).
 
 Due to the way the TypeScript compiler works, it is not possible to have strictly typed code import non-strictly typed
 code, without also strictly checking the non-strictly typed code. This means that we cannot have a mix of strict and
@@ -317,6 +317,10 @@ non-strict code in the same directory.
 
 It is possible for the non-strict code to import strictly typed code, so as we migrate parts of the codebase over, the
 existing codebase can import and use the code from the new location.
+
+When moving code over, instead of deleting the legacy file once finished, the file should instead export all the
+exports from the new file, marked with a `@deprecated` comment. This will minimize the disruptions when updating 
+Teleport E, as import changes will not break the E build, as E can still point to the legacy locations.
 
 Once the migration is complete, we would be left with the codebase being strictly typed.
 
@@ -348,7 +352,7 @@ is a great opportunity to also add strict type checking.
     - teleport
 - web
   - packages
-    - new # maybe a better name?
+    - legacy
       - design
       - shared
       - teleport
@@ -362,15 +366,14 @@ is a great opportunity to also add strict type checking.
 
 ### Importing between codebases
 
-All the existing code can import the new code, through imports such as `teleport-new/services/auth`, etc. As services,
+All the existing code can import the new code, through imports such as `@gravitational/teleport/services/auth`, etc. As services,
 pages and components are moved over, the import paths would be updated to point to where they live in the new
 folders, and the old code would be removed.
 
 ### Migration process
 
 - Identify a part of the codebase to migrate over
-- Create a new directory in the new codebase
-- Copy the code over to the new directory
+- Copy the code over from the legacy directory to the new directory
 - Update the import paths in the new codebase to point to the new directory
 - Fix the strict type errors in the new codebase
 - Move the components over to use the new design system (if applicable)
@@ -396,16 +399,15 @@ This would be tracked on a GitHub project, so everyone can see what is being wor
 
 ### Downsides
 
-- The new code would be in a separate directory, which could be confusing for developers who are used to the old
+- The codebase is split between two different directories, which could be confusing for developers who are used to the old
   structure.
     - Detailed documentation and training sessions can help mitigate this, so everyone is on the same page.
-- The migration would take a while
-    - This is true, but the outcome is worth it - there aren't a lot of opportunities to introduce strict type checking
-      into a codebase, and the move to the new design system presents a great opportunity to do so.
-- The code lives split for a while
     - Each part of the codebase that needs to be migrated over can be tracked in a GitHub project, and people can take
       ownership of parts of the codebase to migrate over, so that it doesn't fall on one person to do all the work.
     - This can be a great opportunity for developers to learn about parts of the codebase they
       are not familiar with, and can help to improve the overall quality of the codebase.
     - This can also help developers improve their TypeScript skills, as they will be working with strict type
       checking and ESLint rules.
+- The migration would take a while
+    - This is true, but the outcome is worth it - there aren't a lot of opportunities to introduce strict type checking
+      into a codebase, and the move to the new design system presents a great opportunity to do so.
