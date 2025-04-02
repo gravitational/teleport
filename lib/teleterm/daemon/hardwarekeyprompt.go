@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
@@ -46,7 +46,7 @@ import (
 // Because the code in yubikey.go assumes you use a single key, we don't have any mutex here.
 // (unlike other modals triggered by tshd).
 // We don't expect receiving prompts from different hardware keys.
-func (s *Service) NewHardwareKeyPromptConstructor(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+func (s *Service) NewHardwareKeyPromptConstructor(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
 	return &hardwareKeyPrompter{s: s, rootClusterURI: rootClusterURI}
 }
 
@@ -67,10 +67,10 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context) error {
 }
 
 // AskPIN prompts the user for a PIN.
-func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPromptRequirement) (string, error) {
+func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement) (string, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		RootClusterUri: h.rootClusterURI.String(),
-		PinOptional:    requirement == keys.PINOptional,
+		PinOptional:    requirement == hardwarekey.PINOptional,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -81,14 +81,14 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement keys.PINPr
 // ChangePIN asks for a new PIN.
 // The Electron app prompt must handle default values for PIN and PUK,
 // preventing the user from submitting empty/default values.
-func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context) (*keys.PINAndPUK, error) {
+func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context) (*hardwarekey.PINAndPUK, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
 		RootClusterUri: h.rootClusterURI.String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &keys.PINAndPUK{
+	return &hardwarekey.PINAndPUK{
 		PIN:        res.Pin,
 		PUK:        res.Puk,
 		PUKChanged: res.PukChanged,

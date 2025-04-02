@@ -71,6 +71,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -497,7 +498,7 @@ type Config struct {
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
