@@ -38,7 +38,7 @@ import {
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import {
   InfoExternalTextLink,
-  InfoGuideWrapper,
+  InfoGuideButton,
   InfoParagraph,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
@@ -206,7 +206,7 @@ export function Roles(props: State & RolesProps) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <InfoGuideWrapper guide={<InfoGuide />}>
+        <InfoGuideButton config={{ guide: <InfoGuide /> }}>
           <HoverTooltip
             placement="bottom"
             tipContent={
@@ -236,7 +236,7 @@ export function Roles(props: State & RolesProps) {
               Create New Role
             </Button>
           </HoverTooltip>
-        </InfoGuideWrapper>
+        </InfoGuideButton>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />
