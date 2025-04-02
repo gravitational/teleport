@@ -24,7 +24,7 @@ import (
 // PIVSlotKey is the key reference for a specific PIV slot.
 //
 // See: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf#page=32
-type PIVSlotKey uint
+type PIVSlotKey uint32
 
 const (
 	pivSlotKeyBasic       PIVSlotKey = 0x9a

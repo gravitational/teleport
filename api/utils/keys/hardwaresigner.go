@@ -14,6 +14,7 @@ limitations under the License.
 package keys
 
 import (
+	"context"
 	"crypto"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -29,6 +30,9 @@ type HardwareSigner interface {
 
 	// GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this private key.
 	GetPrivateKeyPolicy() PrivateKeyPolicy
+
+	// WarmupHardwareKey warms up the hardware key with a bogus signature.
+	WarmupHardwareKey(ctx context.Context) error
 }
 
 // GetAttestationStatement returns this key's AttestationStatement. If the key is
@@ -53,6 +57,14 @@ func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 func (k *PrivateKey) IsHardware() bool {
 	_, ok := k.Signer.(HardwareSigner)
 	return ok
+}
+
+// WarmupHardwareKey checks if this is a [hardwarekey.PrivateKey] and warms it up if it is.
+func (k *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
+	if hwpk, ok := k.Signer.(*hardwarekey.PrivateKey); ok {
+		return hwpk.WarmupHardwareKey(ctx)
+	}
+	return nil
 }
 
 // AttestationData is verified attestation data for a public key.
