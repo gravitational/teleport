@@ -975,11 +975,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mcpStart := mcp.Command("start", "start proxy for particular MCP server")
 	mcpStart.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
 	lsMCP := mcp.Command("ls", "List available MCP servers")
-	mcpStartDB := mcp.Command("start-db", "star wars")
+	mcpStartDB := mcp.Command("start-db", "Start a local MCP server for a database service")
 	mcpStartDB.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
 	mcpStartDB.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
 	mcpStartDB.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
 	mcpStartDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
+	mcpConfig := mcp.Command("config", "Check or update AI tool configs")
+	mcpConfig.Flag("format", "only supporting claude_desktop for now").Default("claude_desktop").StringVar(&cf.Format)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1586,6 +1588,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onMCPList(&cf)
 	case mcpStartDB.FullCommand():
 		err = onMCPStartDB(&cf)
+	case mcpConfig.FullCommand():
+		err = onMCPConfig(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
