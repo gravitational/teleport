@@ -19,6 +19,7 @@
 package export
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"slices"
@@ -57,10 +58,21 @@ func (s *ExporterState) Clone() ExporterState {
 	return out
 }
 
+// BulkExportResumeState contains the information used to update the resume state
+// (specifically the Cursor and Completed flag) for a given Date and Chunk
+// on an external system managing the overall bulk export process.
 type BulkExportResumeState struct {
-	Chunk     string
-	Cursor    string
-	Date      time.Time
+	// Date is the specific day for which the resume state is being updated,
+	// expected to be normalized to UTC midnight (00:00:00).
+	Date time.Time
+	// Chunk identifies the specific data segment or partition (within the Date)
+	// for which this resume state applies.
+	Chunk string
+	// Cursor marks the position (e.g., the next event ID or offset) within
+	// the Chunk from where the export should resume.
+	Cursor string
+	// Completed indicates whether processing for this specific Date and Chunk
+	// has been fully and successfully exported.
 	Completed bool
 }
 
@@ -134,25 +146,12 @@ func (cfg *ExporterConfig) CheckAndSetDefaults() error {
 	if cfg.BatchExport != nil && cfg.BatchExport.Callback == nil {
 		return trace.BadParameter("missing parameter BatchExport.Callback in ExporterConfig")
 	}
-	if cfg.Concurrency == 0 {
-		cfg.Concurrency = 1
-	}
-	if cfg.BacklogSize == 0 {
-		cfg.BacklogSize = 1
-	}
-	if cfg.MaxBackoff == 0 {
-		cfg.MaxBackoff = 90 * time.Second
-	}
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = 16 * time.Second
-	}
+	cfg.Concurrency = cmp.Or(cfg.Concurrency, 1)
+	cfg.MaxBackoff = cmp.Or(cfg.MaxBackoff, 90*time.Second)
+	cfg.PollInterval = cmp.Or(cfg.PollInterval, 16*time.Second)
 	if cfg.BatchExport != nil {
-		if cfg.BatchExport.MaxDelay == 0 {
-			cfg.BatchExport.MaxDelay = time.Second * 5
-		}
-		if cfg.BatchExport.MaxSize == 0 {
-			cfg.BatchExport.MaxSize = 2 * 1024 * 1024 // 2MiB
-		}
+		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
+		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
 	return nil
 }

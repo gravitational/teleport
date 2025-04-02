@@ -330,8 +330,16 @@ type AccessGraphConfig struct {
 	// Insecure is true if the connection to the Access Graph service should be insecure
 	Insecure bool
 
-	// AuditLogsEnabled is true if the access graph service should process audit logs.
-	AuditLogsEnabled bool
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig
+}
+
+// AuditLogConfig sepcifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
