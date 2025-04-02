@@ -21,6 +21,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,8 +130,12 @@ func onMCPConfig(cf *CLIConf) error {
 }
 
 func onMCPConfigUpdate(cf *CLIConf) error {
-	// TODO use raw json.Byte to make sure we don't overwrite non-mcp-server
-	// settings.
+	cf.OverrideStdout = io.Discard
+	if err := onAppLogin(cf); err != nil {
+		return trace.Wrap(err)
+	}
+	cf.OverrideStdout = nil
+
 	config, all, err := openClaudeDesktopConfig(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -156,7 +161,68 @@ func onMCPConfigUpdate(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(cf.Stdout(), "Saving Claude Desktop config with entry %v\n", config.MCPServers[localName])
+	fmt.Fprintf(cf.Stdout(), "Saving Claude Desktop config with entry %v\n", config.MCPServers[localName].Args)
+	if err := os.WriteFile(configPath, data, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
+func onMCPConfigUpdateDB(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dbInfo, err := getDatabaseInfo(cf, tc, routes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	config, all, err := openClaudeDesktopConfig(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if config.MCPServers == nil {
+		config.MCPServers = make(map[string]claudeDesktopConfigMCPServer)
+	}
+
+	localName := "teleport-database-" + dbInfo.ServiceName
+	args := []string{"mcp", "start-db", cf.DatabaseService}
+	if dbInfo.RouteToDatabase.Username != "" {
+		args = append(args, "--db-user", dbInfo.RouteToDatabase.Username)
+	}
+	if dbInfo.RouteToDatabase.Database != "" {
+		args = append(args, "--db-name", dbInfo.RouteToDatabase.Database)
+	}
+	if len(dbInfo.RouteToDatabase.Roles) > 0 {
+		args = append(args, "--db-rows", strings.Join(dbInfo.RouteToDatabase.Roles, ","))
+	}
+
+	config.MCPServers[localName] = claudeDesktopConfigMCPServer{
+		Command: cf.executablePath,
+		Args:    args,
+	}
+
+	all["mcpServers"] = config.MCPServers
+	data, err := json.MarshalIndent(all, "", "  ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	configPath, err := claudeDesktopConfigPath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "Saving Claude Desktop config with entry %v\n", config.MCPServers[localName].Args)
 	if err := os.WriteFile(configPath, data, teleport.FileMaskOwnerOnly); err != nil {
 		return trace.ConvertSystemError(err)
 	}

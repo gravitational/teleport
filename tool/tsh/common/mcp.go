@@ -43,7 +43,6 @@ func onMCPStart(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// TODO(greedy52) currently assumes app login is done
 	cert, err := loadAppCertificate(tc, cf.AppName)
 	if err != nil {
 		return trace.Wrap(err)
