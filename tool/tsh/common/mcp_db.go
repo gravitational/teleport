@@ -22,8 +22,11 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
+	"github.com/mark3labs/mcp-go/server"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
+	pgmcp "github.com/gravitational/teleport/lib/client/db/mcp/postgres"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,6 +34,78 @@ import (
 )
 
 func onMCPStartDB(cf *CLIConf) error {
+	if cf.DatabaseService == "" {
+		// lib/mcp/proxy.go
+		return trace.Wrap(onGenericMCPServerOnProxy(cf))
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dbInfo, err := getDatabaseInfo(cf, tc, routes)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	requires := &dbLocalProxyRequirement{
+		localProxy: true,
+		tunnel:     true,
+	}
+	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
+		return trace.Wrap(err)
+	}
+	cert, err := loadDBCertificate(tc, dbInfo.ServiceName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	in, out := net.Pipe()
+
+	listener := listenerutils.NewSingleUseListener(out)
+	defer listener.Close()
+
+	lp, err := alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(cf.Context, tc, listener, tc.InsecureSkipVerify),
+		alpnproxy.WithDatabaseProtocol(dbInfo.Protocol),
+		alpnproxy.WithClientCert(cert),
+		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		defer lp.Close()
+		if err = lp.Start(cf.Context); err != nil {
+			logger.ErrorContext(cf.Context, "Failed to start local ALPN proxy", "error", err)
+		}
+	}()
+
+	serverName := "teleport_database_" + dbInfo.ServiceName
+	mcpServer := server.NewMCPServer(serverName, teleport.Version)
+	sess, err := pgmcp.NewSession(cf.Context, pgmcp.NewSessionConfig{
+		MCPServer: mcpServer,
+		RawDBConn: in,
+		Route:     client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sess.Close(cf.Context)
+
+	return trace.Wrap(
+		server.NewStdioServer(mcpServer).Listen(cf.Context, cf.Stdin(), cf.Stdout()),
+	)
+}
+
+func onGenericMCPServerOnProxy(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)

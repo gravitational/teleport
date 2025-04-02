@@ -976,6 +976,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mcpStart.Arg("name", "Name of the MCP server").Required().StringVar(&cf.AppName)
 	lsMCP := mcp.Command("ls", "List available MCP servers")
 	mcpStartDB := mcp.Command("start-db", "star wars")
+	mcpStartDB.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
+	mcpStartDB.Flag("db-user", "Database user to configure as default.").Short('u').StringVar(&cf.DatabaseUser)
+	mcpStartDB.Flag("db-name", "Database name to configure as default.").Short('n').StringVar(&cf.DatabaseName)
+	mcpStartDB.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
