@@ -12,6 +12,10 @@ import (
 
 	"github.com/sashabaranov/go-openai"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	sessionrecordingmetatadav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionrecordingmetatada/v1"
 	apiEvents "github.com/gravitational/teleport/api/types/events"
@@ -66,6 +70,11 @@ reader:
 				user = e.User
 			case *apiEvents.SessionPrint:
 				sb.Write(e.Data)
+			case *apiEvents.DatabaseSessionStart:
+				proto = e.DatabaseProtocol
+				user = e.User
+			case *apiEvents.DatabaseSessionQuery:
+				sb.Write([]byte(e.DatabaseQuery))
 			}
 		case err := <-errCh:
 			return trace.Wrap(err)
@@ -93,8 +102,19 @@ reader:
 		}
 
 	case "ollama":
-	default:
 		srm.Spec.Summary, err = generateSummaryUsingOllama(ctx, proto, sb.String())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	case "bedrock":
+		srm.Spec.Summary, err = generateSummaryUsingBedrock(ctx, proto, sb.String())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		srm.Spec.Summary, err = generateSummaryUsingOpenAI(ctx, proto, sb.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -237,9 +257,72 @@ type OllamaResponse struct {
 	Done     bool   `json:"done"`
 }
 
+func generateSummaryUsingBedrock(ctx context.Context, sessionType string, sessionContent string) (string, error) {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-west-2"))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	bedrockClient := bedrockruntime.NewFromConfig(cfg)
+
+	claudeRequest := ClaudeRequest{
+		Messages: []ClaudeMessage{
+			{
+				Role:    "user",
+				Content: summarizationPrompt(sessionType, sessionContent),
+			},
+		},
+		AnthropicVersion: "bedrock-2023-05-31",
+		MaxTokens:        1000,
+		Temperature:      0.7,
+	}
+
+	requestBytes, err := json.Marshal(claudeRequest)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	modelID := "anthropic.claude-3-5-sonnet-20241022-v2:0"
+
+	output, err := bedrockClient.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
+		ModelId:     aws.String(modelID),
+		ContentType: aws.String("application/json"),
+		Body:        requestBytes,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var response ClaudeResponse
+	if err := json.Unmarshal(output.Body, &response); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if len(response.Content) > 0 {
+		return response.Content[0].Text, nil
+	}
+
+	return "", trace.BadParameter("model returned no response")
+}
+
 func summarizationPrompt(sessionType string, sessionContent string) string {
-	return fmt.Sprintf(
-		`Summarize this Teleport session recording:
+	switch sessionType {
+	case "postgres":
+		return fmt.Sprintf(
+			`You are a database security analyst specialized in reviewing
+		 user session logs. Analyze the provided session details, including
+		 queries executed, access patterns, data retrieved, and time of access.
+		 Identify any potential security concerns such as unusual query
+		 patterns, excessive privilege usage, access to sensitive tables.
+		 Present your findings in a clear and concise summary in 3-5 sentences
+		 highlighting both normal user activities and potential malicious
+		 behaviors with specific recommendations for further investigation.
+		 The session content starts below.
+
+		 %s`, sessionContent)
+	default:
+		return fmt.Sprintf(
+			`Summarize this Teleport session recording:
 Type: %s
 
 Session Content:
@@ -247,7 +330,44 @@ Session Content:
 
 Please provide a concise summary of what commands were executed, their purpose, and any notable details in 3-5 sentences.
 If this session is a Kubernetes session, note the relevant pod/cluster/namespace if present.`,
-		sessionType,
-		sessionContent,
-	)
+			sessionType,
+			sessionContent,
+		)
+	}
+}
+
+// Claude message structure
+type ClaudeMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// Claude request payload
+type ClaudeRequest struct {
+	Messages         []ClaudeMessage `json:"messages"`
+	AnthropicVersion string          `json:"anthropic_version"`
+	MaxTokens        int             `json:"max_tokens"`
+	Temperature      float64         `json:"temperature,omitempty"`
+	TopP             float64         `json:"top_p,omitempty"`
+	TopK             int             `json:"top_k,omitempty"`
+	StopSequences    []string        `json:"stop_sequences,omitempty"`
+	System           string          `json:"system,omitempty"`
+}
+
+// Claude response structure
+type ClaudeResponse struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Role    string `json:"role"`
+	Content []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"content"`
+	Model        string `json:"model"`
+	StopReason   string `json:"stop_reason"`
+	StopSequence string `json:"stop_sequence"`
+	Usage        struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
 }

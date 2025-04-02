@@ -137,6 +137,7 @@ function makeDatabaseRecording({
   sid,
   db_service,
   db_protocol,
+  summary,
 }) {
   const description = cfg.getPlayableDatabaseProtocols().includes(db_protocol)
     ? 'play'
@@ -163,6 +164,7 @@ function makeDatabaseRecording({
     description,
     recordingType: 'database',
     playable: description === 'play',
+    summary,
   } as Recording;
 }
 

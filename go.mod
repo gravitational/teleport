@@ -250,7 +250,10 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
-require github.com/sashabaranov/go-openai v1.38.0
+require (
+	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.28.0
+	github.com/sashabaranov/go-openai v1.38.0
+)
 
 require (
 	cel.dev/expr v0.19.1 // indirect
