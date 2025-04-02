@@ -12,7 +12,7 @@ import (
 )
 
 // mcpMessageToEvent handles a single JSON-RPC message and either returns audit event (possibly empty) or error.
-func mcpMessageToEvent(line string) (apievents.AuditEvent, bool, error) {
+func mcpMessageToEvent(line string, userMeta apievents.UserMetadata, sessionMeta apievents.SessionMetadata) (apievents.AuditEvent, bool, error) {
 	var baseMessage struct {
 		JSONRPC string            `json:"jsonrpc"`
 		Method  string            `json:"method"`
@@ -26,6 +26,8 @@ func mcpMessageToEvent(line string) (apievents.AuditEvent, bool, error) {
 	shouldEmit := shouldEmitMCPEvent(mcp.MCPMethod(baseMessage.Method))
 	if baseMessage.ID == nil {
 		return &apievents.AppSessionMCPNotification{
+			UserMetadata:    userMeta,
+			SessionMetadata: sessionMeta,
 			Metadata: apievents.Metadata{
 				Type: events.AppSessionMCPNotificationEvent,
 				Code: events.AppSessionMCPNotificationCode,
@@ -36,6 +38,8 @@ func mcpMessageToEvent(line string) (apievents.AuditEvent, bool, error) {
 		}, shouldEmit, nil
 	}
 	return &apievents.AppSessionMCPRequest{
+		UserMetadata:    userMeta,
+		SessionMetadata: sessionMeta,
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionMCPRequestEvent,
 			Code: events.AppSessionMCPRequestCode,

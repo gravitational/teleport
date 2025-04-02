@@ -128,7 +128,7 @@ func TestMCPMessageToEvent(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			event, _, err := mcpMessageToEvent(test.input)
+			event, _, err := mcpMessageToEvent(test.input, apievents.UserMetadata{}, apievents.SessionMetadata{})
 			require.NoError(t, err)
 			switch wantEvent := test.wantEvent.(type) {
 			case *apievents.AppSessionMCPRequest:

@@ -92,7 +92,9 @@ func (d *dumpWriter) emitAuditEvent(msg string) {
 		return
 	}
 
-	event, emit, err := mcpMessageToEvent(msg)
+	userMeta := d.identity.GetUserMetadata()
+	sessionMeta := apievents.SessionMetadata{SessionID: d.sessionID}
+	event, emit, err := mcpMessageToEvent(msg, userMeta, sessionMeta)
 	if err != nil {
 		d.logger.WarnContext(d.ctx, "Failed to parse RPC message", "error", err)
 		return
