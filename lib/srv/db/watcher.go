@@ -231,7 +231,7 @@ func (s *Server) applyAWSResourceMatcherSettings(database types.Database) {
 		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
 			continue
 		}
-		if match, _, _ := services.MatchLabels(matcher.Labels, dbLabels); !match {
+		if match, _ := services.MatchLabels(matcher.Labels, dbLabels); !match {
 			continue
 		}
 

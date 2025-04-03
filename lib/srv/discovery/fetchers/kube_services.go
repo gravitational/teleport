@@ -136,7 +136,7 @@ func (f *KubeAppFetcher) getServices(ctx context.Context, discoveryType string) 
 				continue
 			}
 
-			match, _, err := services.MatchLabels(f.FilterLabels, s.Labels)
+			match, err := services.MatchLabels(f.FilterLabels, s.Labels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			} else if match {

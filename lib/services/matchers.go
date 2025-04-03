@@ -114,7 +114,7 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 		if len(matcher.Labels) == 0 {
 			return false
 		}
-		match, _, err := MatchLabels(matcher.Labels, labels)
+		match, err := MatchLabels(matcher.Labels, labels)
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to match labels",
 				"error", err,

@@ -337,7 +337,7 @@ func getAWSResourceMatcherToCluster(kubeCluster types.KubeCluster, resourceMatch
 		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
 			continue
 		}
-		if match, _, _ := services.MatchLabels(matcher.Labels, kubeCluster.GetAllLabels()); !match {
+		if match, _ := services.MatchLabels(matcher.Labels, kubeCluster.GetAllLabels()); !match {
 			continue
 		}
 		return &matcher.AWS

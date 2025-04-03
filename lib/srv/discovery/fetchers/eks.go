@@ -393,10 +393,10 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 		return nil, trace.WrapWithMessage(err, "Unable to convert eks.Cluster cluster into types.KubernetesClusterV3.")
 	}
 
-	if match, reason, err := services.MatchLabels(a.FilterLabels, cluster.GetAllLabels()); err != nil {
+	if match, err := services.MatchLabels(a.FilterLabels, cluster.GetAllLabels()); err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to match EKS cluster labels against match labels.")
 	} else if !match {
-		return nil, trace.CompareFailed("EKS cluster %q labels does not match the selector: %s", clusterName, reason)
+		return nil, trace.CompareFailed("EKS cluster %q labels does not match the selector", clusterName)
 	}
 
 	// If no access configuration is required, return the cluster.

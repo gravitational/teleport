@@ -645,7 +645,7 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 	// assigned.
 	var allowedRoleSet RoleSet
 	for _, role := range autoCreateRoles {
-		match, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, database, false)
+		match, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, database)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -657,7 +657,7 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 	}
 	var deniedRoleSet RoleSet
 	for _, role := range autoCreateRoles {
-		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database, false)
+		match, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -919,16 +919,15 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 	// the deny role set prohibits access.
 	var errs []error
 	for _, role := range a.RoleSet {
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, rc, isLoggingEnabled)
+		matchLabels, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, rc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if matchLabels {
 			// This condition avoids formatting calls on large scale.
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to cluster denied, deny rule matched",
+			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to cluster denied, deny rule matched label or expression",
 				slog.String("cluster", rc.GetName()),
 				slog.String("role", role.GetName()),
-				slog.String("label_message", labelsMessage),
 			)
 			return trace.AccessDenied("access to cluster denied")
 		}
@@ -936,7 +935,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 	// Check allow rules: label has to match in any role in the role set to be granted access.
 	for _, role := range a.RoleSet {
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, rc, isLoggingEnabled)
+		matchLabels, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, rc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -949,7 +948,6 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 			slog.String("cluster", rc.GetName()),
 			slog.Any("cluster_labels", rcLabels),
 			slog.Any("match_labels", matchLabels),
-			slog.String("labels_message", labelsMessage),
 			slog.Any("error", err),
 			slog.Any("allow", labelMatchers),
 		)
@@ -960,13 +958,11 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 			return nil
 		}
 		if isLoggingEnabled {
-			deniedError := trace.AccessDenied("role=%v, match(%s)",
-				role.GetName(), labelsMessage)
-			errs = append(errs, deniedError)
+			errs = append(errs, trace.AccessDenied("role=%v", role.GetName()))
 		}
 	}
 
-	rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to cluster denied, no allow rule matched",
+	rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to cluster denied, no allow rule matched label or label expression",
 		slog.String("cluster", rc.GetName()),
 		slog.Any("error", errs),
 	)
@@ -977,7 +973,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
 	groups := make(map[string]struct{})
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		result, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -996,7 +992,7 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 		}
 	}
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		result, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1069,7 +1065,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	var mode types.CreateHostUserMode
 
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		result, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1127,7 +1123,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	}
 
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		result, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1171,7 +1167,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 
 	seenSudoers := make(map[string]struct{})
 	for _, role := range roleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
+		result, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1191,7 +1187,7 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 
 	var finalSudoers []string
 	for _, role := range roleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
+		result, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

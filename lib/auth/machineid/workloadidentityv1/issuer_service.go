@@ -743,7 +743,7 @@ func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
 
 	canAccessAndInSearch := []*workloadidentityv1pb.WorkloadIdentity{}
 	for _, wid := range canAccess {
-		match, _, err := services.MatchLabelGetter(
+		match, err := services.MatchLabelGetter(
 			labels, types.Resource153ToResourceWithLabels(wid),
 		)
 		if err != nil {

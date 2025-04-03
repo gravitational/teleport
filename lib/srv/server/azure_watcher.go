@@ -203,7 +203,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		for key, value := range vm.Tags {
 			vmTags[key] = azure.StringVal(value)
 		}
-		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
+		if match, _ := services.MatchLabels(f.Labels, vmTags); !match {
 			continue
 		}
 		instancesByRegion[location] = append(instancesByRegion[location], vm)

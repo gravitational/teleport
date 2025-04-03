@@ -218,7 +218,7 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 		for k, v := range label.ToMap(matcher.NodeLabels) {
 			nodeLabels[k] = apiutils.Strings(v)
 		}
-		matched, _, err := services.CheckLabelsMatch(
+		matched, err := services.CheckLabelsMatch(
 			types.Allow,
 			types.LabelMatchers{
 				Labels:     nodeLabels,
@@ -226,7 +226,6 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 			},
 			nil, // userTraits
 			server,
-			false, // debug
 		)
 		if err != nil {
 			return trace.Wrap(err)

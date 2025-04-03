@@ -1030,13 +1030,14 @@ func NewEnumerationResult() EnumerationResult {
 
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
-func MatchNamespace(selectors []string, namespace string) (bool, string) {
+func MatchNamespace(selectors []string, namespace string) bool {
 	for _, n := range selectors {
 		if n == namespace || n == types.Wildcard {
-			return true, "matched"
+			return true
 		}
 	}
-	return false, fmt.Sprintf("no match, role selectors %v, server namespace: %v", selectors, namespace)
+
+	return false
 }
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
@@ -1105,7 +1106,7 @@ func MatchDatabaseUser(selectors []string, user string, matchWildcard, caseFold 
 
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
-func MatchLabels(selector types.Labels, target map[string]string) (bool, string, error) {
+func MatchLabels(selector types.Labels, target map[string]string) (bool, error) {
 	return MatchLabelGetter(selector, mapLabelGetter(target))
 }
 
@@ -1130,23 +1131,25 @@ func (m mapLabelGetter) GetAllLabels() map[string]string {
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
 // nothing, wildcard matches everything.
-func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
+func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
-		return false, "no match, empty selector", nil
+		rbacLogger.LogAttrs(context.TODO(), logutils.TraceLevel, "no labels matched - empty selector")
+		return false, nil
 	}
 
 	// *: * matches everything even empty target set.
 	selectorValues := selector[types.Wildcard]
 	if len(selectorValues) == 1 && selectorValues[0] == types.Wildcard {
-		return true, "matched", nil
+		return true, nil
 	}
 
 	// Perform full match.
 	for key, selectorValues := range selector {
 		targetVal, hasKey := labelGetter.GetLabel(key)
 		if !hasKey {
-			return false, fmt.Sprintf("no key match: '%v'", key), nil
+			rbacLogger.LogAttrs(context.TODO(), logutils.TraceLevel, "no label key matched", slog.String("key", key))
+			return false, nil
 		}
 
 		if slices.Contains(selectorValues, types.Wildcard) {
@@ -1155,13 +1158,17 @@ func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, str
 
 		result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
 		if err != nil {
-			return false, "", trace.Wrap(err)
+			return false, trace.Wrap(err)
 		} else if !result {
-			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
+			rbacLogger.LogAttrs(context.TODO(), logutils.TraceLevel, "no label value matched",
+				slog.String("got", targetVal),
+				slog.Any("want", selectorValues),
+			)
+			return false, nil
 		}
 	}
 
-	return true, "matched", nil
+	return true, nil
 }
 
 // RoleNames returns a slice with role names. Removes runtime roles like
@@ -2470,7 +2477,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
+	ok, err := CheckLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels))
 	return ok, trace.Wrap(err)
 }
 
@@ -2526,7 +2533,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	logger := rbacLogger
 	isLoggingEnabled := logger.Handler().Enabled(ctx, logutils.TraceLevel)
 	if isLoggingEnabled {
-		logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
+		logger = logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
 	}
 
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
@@ -2553,20 +2560,21 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 
 	// Check deny rules.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
-		if !matchNamespace {
+		if !MatchNamespace(role.GetNamespaces(types.Deny), namespace) {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "no namespace matched",
+				slog.Any("selectors", role.GetNamespaces(types.Deny)),
+				slog.String("namespace", namespace),
+			)
 			continue
 		}
 		if requiresLabelMatching {
-			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isLoggingEnabled)
+			matchLabels, err := checkRoleLabelsMatch(types.Deny, role, traits, r)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if matchLabels {
 				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
 					slog.String("role", role.GetName()),
-					slog.String("namespace_message", namespaceMessage),
-					slog.String("label_message", labelsMessage),
 				)
 				return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 					r.GetKind(), additionalDeniedMessage)
@@ -2576,14 +2584,14 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
-		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
+		matchMatchers, matcher, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if matchMatchers {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
 				slog.String("role", role.GetName()),
-				slog.Any("matcher_message", matchersMessage),
+				slog.Any("matcher", logutils.TypeAttr(matcher)),
 			)
 			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
@@ -2600,25 +2608,27 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	allowed := false
 	// Check allow rules.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
-		if !matchNamespace {
+		if !MatchNamespace(role.GetNamespaces(types.Deny), namespace) {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "no namespace matched",
+				slog.Any("selectors", role.GetNamespaces(types.Deny)),
+				slog.String("namespace", namespace),
+			)
+
 			if isLoggingEnabled {
-				errs = append(errs, trace.AccessDenied("role=%v, match(namespace=%v)",
-					role.GetName(), namespaceMessage))
+				errs = append(errs, trace.AccessDenied("role=%v", role.GetName()))
 			}
 			continue
 		}
 
 		if requiresLabelMatching {
-			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isLoggingEnabled)
+			matchLabels, err := checkRoleLabelsMatch(types.Allow, role, traits, r)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
 			if !matchLabels {
 				if isLoggingEnabled {
-					errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
-						role.GetName(), labelsMessage))
+					errs = append(errs, trace.AccessDenied("role=%v", role.GetName()))
 				}
 				continue
 			}
@@ -2711,13 +2721,12 @@ func checkRoleLabelsMatch(
 	role types.Role,
 	userTraits wrappers.Traits,
 	resource AccessCheckable,
-	debug bool,
-) (bool, string, error) {
+) (bool, error) {
 	labelMatchers, err := role.GetLabelMatchers(condition, resource.GetKind())
 	if err != nil {
-		return false, "", trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
-	return CheckLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
+	return CheckLabelsMatch(condition, labelMatchers, userTraits, resource)
 }
 
 // CheckLabelsMatch checks if the [labelMatchers] match the labels of [resource]
@@ -2738,70 +2747,69 @@ func CheckLabelsMatch(
 	labelMatchers types.LabelMatchers,
 	userTraits wrappers.Traits,
 	resource LabelGetter,
-	debug bool,
-) (bool, string, error) {
+) (bool, error) {
 	if labelMatchers.Empty() {
-		return false, "no label matchers or label expression", nil
+		return false, nil
 	}
 
-	var message string
 	labelsUnsetOrMatch, expressionUnsetOrMatch := true, true
-
 	if len(labelMatchers.Labels) > 0 {
-		match, msg, err := MatchLabelGetter(labelMatchers.Labels, resource)
+		match, err := MatchLabelGetter(labelMatchers.Labels, resource)
 		if err != nil {
-			return false, "", trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
-		if debug {
-			message += "label=" + msg
-		}
+
 		// Deny rules are greedy, if either matches, it's a match.
 		if condition == types.Deny && match {
-			return true, message, nil
+			rbacLogger.LogAttrs(context.TODO(), logutils.TraceLevel, "deny rule matched label")
+			return true, nil
 		}
 		labelsUnsetOrMatch = match
 	}
 
 	if len(labelMatchers.Expression) > 0 {
-		match, msg, err := matchLabelExpression(labelMatchers.Expression, resource, userTraits)
+		match, err := matchLabelExpression(labelMatchers.Expression, resource, userTraits)
 		if err != nil {
-			return false, "", trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
-		if debug {
-			message = strings.Join([]string{message, "expression=" + msg}, ", ")
-		}
+
 		// Deny rules are greedy, if either matches, it's a match.
 		if condition == types.Deny {
-			return match, message, nil
+			if match {
+				rbacLogger.LogAttrs(context.TODO(), logutils.TraceLevel, "deny rule matched expression",
+					slog.String("expression", labelMatchers.Expression),
+				)
+			}
+			return match, nil
 		}
 		expressionUnsetOrMatch = match
 	}
 
 	if condition == types.Deny {
 		// Either branch would have returned if it was a match.
-		return false, message, nil
+		return false, nil
 	}
 
 	// Allow rules are not greedy, both must match if they are set.
-	return labelsUnsetOrMatch && expressionUnsetOrMatch, message, nil
+	return labelsUnsetOrMatch && expressionUnsetOrMatch, nil
 }
 
-func matchLabelExpression(labelExpression string, resource LabelGetter, userTraits wrappers.Traits) (bool, string, error) {
+func matchLabelExpression(labelExpression string, resource LabelGetter, userTraits wrappers.Traits) (bool, error) {
 	parsedExpr, err := parseLabelExpression(labelExpression)
 	if err != nil {
-		return false, "", trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 	match, err := parsedExpr.Evaluate(labelExpressionEnv{
 		resourceLabelGetter: resource,
 		userTraits:          userTraits,
 	})
 	if err != nil {
-		return false, "", trace.Wrap(err, "evaluating label expression %q", labelExpression)
+		return false, trace.Wrap(err, "evaluating label expression %q", labelExpression)
 	}
 	if match {
-		return true, "matched", nil
+		return true, nil
 	}
-	return false, "no match", nil
+	return false, nil
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -3095,7 +3103,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 // GetKubeResources returns allowed and denied list of Kubernetes Resources configured in the RoleSet.
 func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappers.Traits) (allowed, denied []types.KubernetesResource) {
 	for _, role := range set {
-		matchLabels, _, err := checkRoleLabelsMatch(types.Allow, role, userTraits, cluster, false)
+		matchLabels, err := checkRoleLabelsMatch(types.Allow, role, userTraits, cluster)
 		if err != nil || !matchLabels {
 			continue
 		}
@@ -3182,7 +3190,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(p.namespace))
+		matchNamespace := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
 			matched, err := MakeRuleSet(role.GetRules(types.Deny)).Match(p.denyWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
@@ -3203,7 +3211,7 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(p.namespace))
+		matchNamespace := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(p.namespace))
 		if matchNamespace {
 			match, err := MakeRuleSet(role.GetRules(types.Allow)).Match(p.allowWhere, actionsParser, p.resource, p.verb)
 			if err != nil {
@@ -3254,7 +3262,7 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 	// and concatenate their negations by AND.
 	var denyCond *types.WhereExpr
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(namespace))
+		matchNamespace := MatchNamespace(role.GetNamespaces(types.Deny), types.ProcessNamespace(namespace))
 		if !matchNamespace {
 			continue
 		}
@@ -3286,7 +3294,7 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 	// and concatenate by OR.
 	var allowCond *types.WhereExpr
 	for _, role := range set {
-		matchNamespace, _ := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(namespace))
+		matchNamespace := MatchNamespace(role.GetNamespaces(types.Allow), types.ProcessNamespace(namespace))
 		if !matchNamespace {
 			continue
 		}
