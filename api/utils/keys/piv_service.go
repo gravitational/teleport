@@ -68,49 +68,7 @@ func NewYubiKeyService(prompt hardwarekey.Prompt) *YubiKeyService {
 //   - touch  & pin  -> 9d
 //   - touch  & !pin -> 9e
 func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
-	var requiredKeyPolicy PrivateKeyPolicy
-	switch config.Policy {
-	case hardwarekey.PromptPolicyNone:
-		requiredKeyPolicy = PrivateKeyPolicyHardwareKey
-	case hardwarekey.PromptPolicyTouch:
-		requiredKeyPolicy = PrivateKeyPolicyHardwareKeyTouch
-	case hardwarekey.PromptPolicyPIN:
-		requiredKeyPolicy = PrivateKeyPolicyHardwareKeyPIN
-	case hardwarekey.PromptPolicyTouchAndPIN:
-		requiredKeyPolicy = PrivateKeyPolicyHardwareKeyTouchAndPIN
-	}
-
-	ykPriv, err := getOrGenerateYubiKeyPrivateKey(ctx, requiredKeyPolicy, config.CustomSlot, s.prompt)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ref := &hardwarekey.PrivateKeyRef{
-		SerialNumber: ykPriv.serialNumber,
-		SlotKey:      hardwarekey.PIVSlotKey(ykPriv.pivSlot.Key),
-		PublicKey:    ykPriv.Public(),
-		Policy: hardwarekey.PromptPolicy{
-			TouchRequired: ykPriv.attestation.TouchPolicy != piv.TouchPolicyNever,
-			PINRequired:   ykPriv.attestation.PINPolicy != piv.PINPolicyNever,
-		},
-		AttestationStatement: &hardwarekey.AttestationStatement{
-			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
-				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
-					SlotCert:        ykPriv.slotCert.Raw,
-					AttestationCert: ykPriv.attestationCert.Raw,
-				},
-			},
-		},
-	}
-
-	keyRefsMux.Lock()
-	defer keyRefsMux.Unlock()
-	keyRefs[baseKeyRef{
-		serialNumber: ref.SerialNumber,
-		slotKey:      ref.SlotKey,
-	}] = ref
-
-	return hardwarekey.NewSigner(s, ref), nil
+	return newPrivateKey(ctx, config, s.prompt, s)
 }
 
 // Sign performs a cryptographic signature using the specified hardware
@@ -121,24 +79,7 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	pivSlot, err := parsePIVSlot(ref.SlotKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, err := y.getPrivateKey(pivSlot)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return priv.Sign(rand, digest, opts)
-}
-
-// SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
-// This is used by Teleport Connect which sets the prompt later than the hardware key service,
-// due to process initialization constraints.
-func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
-	s.prompt = prompt
+	return y.sign(ctx, ref, s.prompt, rand, digest, opts)
 }
 
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
@@ -177,7 +118,7 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 		return nil, trace.Wrap(err)
 	}
 
-	ykPriv, err := y.getPrivateKey(pivSlot)
+	slotCert, attCert, att, err := y.attestKey(pivSlot)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,16 +126,16 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 	ref := &hardwarekey.PrivateKeyRef{
 		SerialNumber: serialNumber,
 		SlotKey:      slotKey,
-		PublicKey:    ykPriv.Public(),
+		PublicKey:    slotCert.PublicKey,
 		Policy: hardwarekey.PromptPolicy{
-			TouchRequired: ykPriv.attestation.TouchPolicy != piv.TouchPolicyNever,
-			PINRequired:   ykPriv.attestation.PINPolicy != piv.PINPolicyNever,
+			TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
+			PINRequired:   att.PINPolicy != piv.PINPolicyNever,
 		},
 		AttestationStatement: &hardwarekey.AttestationStatement{
 			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
 				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
-					SlotCert:        ykPriv.slotCert.Raw,
-					AttestationCert: ykPriv.attestationCert.Raw,
+					SlotCert:        slotCert.Raw,
+					AttestationCert: attCert.Raw,
 				},
 			},
 		},
