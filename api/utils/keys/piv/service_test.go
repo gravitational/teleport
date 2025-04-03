@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keys_test
+package piv_test
 
 import (
 	"context"
@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
@@ -47,9 +48,9 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	s := keys.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
+	s := piv.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
 
-	y, err := keys.FindYubiKey(0, hardwarekey.NewStdCLIPrompt())
+	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
 	resetYubikey(t, y)
@@ -121,9 +122,9 @@ func TestOverwritePrompt(t *testing.T) {
 
 	ctx := context.Background()
 
-	s := keys.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
+	s := piv.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
 
-	y, err := keys.FindYubiKey(0, hardwarekey.NewStdCLIPrompt())
+	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
 
 	resetYubikey(t, y)
@@ -173,12 +174,12 @@ func TestOverwritePrompt(t *testing.T) {
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.
-func resetYubikey(t *testing.T, y *keys.YubiKey) {
+func resetYubikey(t *testing.T, y *piv.YubiKey) {
 	t.Helper()
 	require.NoError(t, y.Reset())
 }
 
-func setupPINPrompt(t *testing.T, y *keys.YubiKey) {
+func setupPINPrompt(t *testing.T, y *piv.YubiKey) {
 	t.Helper()
 
 	// Set pin for tests.
