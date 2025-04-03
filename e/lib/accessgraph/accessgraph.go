@@ -1126,45 +1126,41 @@ func (t *tagEventWatcher) sendDelete(event types.Event) error {
 				},
 			},
 		}
-
-	case types.Resource153Unwrapper:
-		switch resource := resource.Unwrap().(type) {
-		case *crownjewelv1.CrownJewel:
-			req = deleteEventStreamRequest(
-				&types.ResourceHeader{
-					Kind:     resource.Kind,
-					Version:  resource.Version,
-					Metadata: fromProtoMetadataToTypes(resource.Metadata),
+	case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
+		cj := resource.UnwrapT()
+		req = deleteEventStreamRequest(
+			&types.ResourceHeader{
+				Kind:     cj.Kind,
+				Version:  cj.Version,
+				Metadata: fromProtoMetadataToTypes(cj.Metadata),
+			},
+		)
+	case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
+		req = deleteEventStreamRequestResource153(resource.UnwrapT())
+	case types.Resource153UnwrapperT[*accessgraphsecretsv1pb.PrivateKey]:
+		pk := resource.UnwrapT()
+		req = deleteEventStreamRequest(
+			&types.ResourceHeader{
+				Kind:    pk.GetKind(),
+				Version: pk.GetVersion(),
+				Metadata: types.Metadata{
+					Name:        pk.GetMetadata().GetName(),
+					Description: pk.GetSpec().GetDeviceId(),
 				},
-			)
-		case *dbobjectv1.DatabaseObject:
-			req = deleteEventStreamRequestResource153(resource)
-		case *accessgraphsecretsv1pb.PrivateKey:
-			req = deleteEventStreamRequest(
-				&types.ResourceHeader{
-					Kind:    resource.GetKind(),
-					Version: resource.GetVersion(),
-					Metadata: types.Metadata{
-						Name:        resource.GetMetadata().GetName(),
-						Description: resource.GetSpec().GetDeviceId(),
-					},
+			},
+		)
+	case types.Resource153UnwrapperT[*accessgraphsecretsv1pb.AuthorizedKey]:
+		ak := resource.UnwrapT()
+		req = deleteEventStreamRequest(
+			&types.ResourceHeader{
+				Kind:    ak.GetKind(),
+				Version: ak.GetVersion(),
+				Metadata: types.Metadata{
+					Name:        ak.GetMetadata().GetName(),
+					Description: ak.GetSpec().GetHostId(),
 				},
-			)
-		case *accessgraphsecretsv1pb.AuthorizedKey:
-			req = deleteEventStreamRequest(
-				&types.ResourceHeader{
-					Kind:    resource.GetKind(),
-					Version: resource.GetVersion(),
-					Metadata: types.Metadata{
-						Name:        resource.GetMetadata().GetName(),
-						Description: resource.GetSpec().GetHostId(),
-					},
-				},
-			)
-		default:
-			return trace.BadParameter("resource type %T is not supported", resource)
-		}
-
+			},
+		)
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
 	}
@@ -1301,43 +1297,39 @@ func (t *tagEventWatcher) sendPut(event types.Event) (err error) {
 				},
 			},
 		)
-	case types.Resource153Unwrapper:
-		switch resource := resource.Unwrap().(type) {
-		case *dbobjectv1.DatabaseObject:
-			req = putResourceEventStreamRequest(
-				&accessgraphv1.ResourceEntry{
-					Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
-						DatabaseObject: resource,
-					},
+
+	case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
+		req = putResourceEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
+					DatabaseObject: resource.UnwrapT(),
 				},
-			)
-		case *crownjewelv1.CrownJewel:
-			req = putResourceEventStreamRequest(
-				&accessgraphv1.ResourceEntry{
-					Resource: &accessgraphv1.ResourceEntry_CrownJewel{
-						CrownJewel: resource,
-					},
+			},
+		)
+	case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
+		req = putResourceEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_CrownJewel{
+					CrownJewel: resource.UnwrapT(),
 				},
-			)
-		case *accessgraphsecretsv1pb.PrivateKey:
-			req = putResourceEventStreamRequest(
-				&accessgraphv1.ResourceEntry{
-					Resource: &accessgraphv1.ResourceEntry_PrivateKey{
-						PrivateKey: resource,
-					},
+			},
+		)
+	case types.Resource153UnwrapperT[*accessgraphsecretsv1pb.PrivateKey]:
+		req = putResourceEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_PrivateKey{
+					PrivateKey: resource.UnwrapT(),
 				},
-			)
-		case *accessgraphsecretsv1pb.AuthorizedKey:
-			req = putResourceEventStreamRequest(
-				&accessgraphv1.ResourceEntry{
-					Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{
-						AuthorizedKey: resource,
-					},
+			},
+		)
+	case types.Resource153UnwrapperT[*accessgraphsecretsv1pb.AuthorizedKey]:
+		req = putResourceEventStreamRequest(
+			&accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{
+					AuthorizedKey: resource.UnwrapT(),
 				},
-			)
-		default:
-			return trace.BadParameter("resource type %T is not supported", resource)
-		}
+			},
+		)
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
 	}
