@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -184,16 +185,13 @@ func (s *StaticHostUserHandler) run(ctx context.Context) error {
 			if event.Type != types.OpPut {
 				continue
 			}
-			r, ok := event.Resource.(types.Resource153Unwrapper)
+			r, ok := event.Resource.(types.Resource153UnwrapperT[*userprovisioningv2.StaticHostUser])
 			if !ok {
 				slog.WarnContext(ctx, "Unexpected resource type.", "resource", event.Resource)
 				continue
 			}
-			hostUser, ok := r.Unwrap().(*userprovisioningpb.StaticHostUser)
-			if !ok {
-				slog.WarnContext(ctx, "Unexpected resource type.", "resource", event.Resource)
-				continue
-			}
+			hostUser := r.UnwrapT()
+
 			if err := s.handleNewHostUser(ctx, hostUser); err != nil {
 				// Log the error so we don't stop the handler.
 				slog.WarnContext(ctx, "Error handling static host user.", "error", err, "login", hostUser.GetMetadata().Name)

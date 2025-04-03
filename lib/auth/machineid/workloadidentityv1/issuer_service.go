@@ -658,6 +658,8 @@ func (s *IssuanceService) issueJWTSVID(
 
 		SetIssuedAt: now,
 		SetExpiry:   notAfter,
+
+		PrivateClaims: wid.GetSpec().GetSpiffe().GetJwt().GetExtraClaims().AsMap(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "signing jwt")

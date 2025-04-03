@@ -86,25 +86,28 @@ export const WithTraitsAwsPostgresAutoEnroll = () => {
   return (
     <RequiredDiscoverProviders
       resourceSpec={resourceSpecAwsRdsPostgres}
-      agentMeta={
-        {
-          ...meta,
-          autoDiscovery: {
-            config: {
-              name: 'some-name',
-              discoveryGroup: 'some-group',
-              aws: [
-                {
-                  types: ['rds'],
-                  regions: ['us-east-1'],
-                  tags: {},
-                  integration: 'some-integration',
-                },
-              ],
-            },
+      agentMeta={{
+        ...meta,
+        autoDiscovery: {
+          config: {
+            name: 'some-name',
+            discoveryGroup: 'some-group',
+            aws: [
+              {
+                types: ['rds'],
+                regions: ['us-east-1'],
+                tags: {},
+                integration: 'some-integration',
+              },
+            ],
           },
-        } as any
-      }
+        },
+        serviceDeploy: {
+          method: 'auto',
+          selectedSecurityGroups: ['sg-1', 'sg-2'],
+          selectedSubnetIds: ['subnet1', 'subnet2'],
+        },
+      }}
     >
       <SetupAccess />
     </RequiredDiscoverProviders>

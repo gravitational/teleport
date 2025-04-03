@@ -281,6 +281,15 @@ export interface PromptMFARequest {
      * @generated from protobuf field: teleport.lib.teleterm.v1.SSOChallenge sso = 6;
      */
     sso?: SSOChallenge;
+    /**
+     * We may handle MFA options differently based on whether or not per-session
+     * MFA is required. For example, we invalidate TOTP as an option during
+     * per-session MFA but we may still need to know that the user has TOTP
+     * configured as an option.
+     *
+     * @generated from protobuf field: bool per_session_mfa = 7;
+     */
+    perSessionMfa: boolean;
 }
 /**
  * SSOChallenge contains SSO challenge details.
@@ -1097,7 +1106,8 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
             { no: 3, name: "totp", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge }
+            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge },
+            { no: 7, name: "per_session_mfa", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
@@ -1106,6 +1116,7 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         message.totp = false;
         message.webauthn = false;
         message.clusterUri = "";
+        message.perSessionMfa = false;
         if (value !== undefined)
             reflectionMergePartial<PromptMFARequest>(this, message, value);
         return message;
@@ -1129,6 +1140,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                     break;
                 case /* teleport.lib.teleterm.v1.SSOChallenge sso */ 6:
                     message.sso = SSOChallenge.internalBinaryRead(reader, reader.uint32(), options, message.sso);
+                    break;
+                case /* bool per_session_mfa */ 7:
+                    message.perSessionMfa = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1157,6 +1171,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* teleport.lib.teleterm.v1.SSOChallenge sso = 6; */
         if (message.sso)
             SSOChallenge.internalBinaryWrite(message.sso, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* bool per_session_mfa = 7; */
+        if (message.perSessionMfa !== false)
+            writer.tag(7, WireType.Varint).bool(message.perSessionMfa);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

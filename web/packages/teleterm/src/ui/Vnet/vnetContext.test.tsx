@@ -57,7 +57,7 @@ describe('autostart', () => {
     });
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
-      vnet: { autoStart: true },
+      vnet: { autoStart: true, hasEverStarted: true },
     });
 
     const { result } = renderHook(() => useVnetContext(), {
@@ -74,7 +74,7 @@ describe('autostart', () => {
     const appContext = new MockAppContext();
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
-      vnet: { autoStart: true },
+      vnet: { autoStart: true, hasEverStarted: true },
     });
 
     const { result } = renderHook(() => useVnetContext(), {
@@ -102,7 +102,7 @@ describe('autostart', () => {
     });
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
-      vnet: { autoStart: false },
+      vnet: { autoStart: false, hasEverStarted: false },
     });
 
     const { result } = renderHook(() => useVnetContext(), {
@@ -120,7 +120,7 @@ describe('autostart', () => {
     const { statePersistenceService } = appContext;
     statePersistenceService.putState({
       ...statePersistenceService.getState(),
-      vnet: { autoStart: true },
+      vnet: { autoStart: true, hasEverStarted: true },
     });
     jest
       .spyOn(appContext.vnet, 'start')
@@ -173,7 +173,7 @@ it('registers a callback for unexpected shutdown', async () => {
   });
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
+    vnet: { autoStart: true, hasEverStarted: true },
   });
 
   const { result } = renderHook(() => useVnetContext(), {
@@ -423,7 +423,7 @@ describe('diag notification', () => {
     // Automatically start VNet.
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
-      vnet: { autoStart: true },
+      vnet: { autoStart: true, hasEverStarted: true },
     });
 
     jest.spyOn(appContext.notificationsService, 'notifyWarning');
