@@ -469,4 +469,9 @@ export type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
 
 export type CreateOrOverwriteGitServer = CreateOrOverwriteGithubServer;
 
-export type AccessMonitoringRuleState = 'reviewed';
+// AccessMonitoringRuleState defines the desired states of the access monitoring
+// rule subject.
+export type AccessMonitoringRuleState = '' | 'reviewed';
+
+// AccessReviewDecision defines the access review propsed states.
+export type AccessReviewDecision = '' | 'APPROVED' | 'DENIED';
