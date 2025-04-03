@@ -85,17 +85,24 @@ export enum LogType {
   TRACE = 'TRACE',
 }
 
-//TODO(gzdunek): This a temporary transport layer based on AuthenticatedWebSocket.
-interface TdpTransport {
-  binaryType: 'arraybuffer' | 'blob';
-  readyState: number;
-  onopen(this: WebSocket, ev: Event): void;
-  onmessage(event: MessageEvent): void;
-  onerror(ev: Event): void;
-  onclose(ev: CloseEvent): void;
-  close(code?: number): void;
-  send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void;
+export interface TdpTransport {
+  /** Sends a message down the stream. */
+  send(data: string | ArrayBufferLike): void;
+  /** Adds a callback for every new message. */
+  onMessage(callback: (data: ArrayBuffer) => void): RemoveListenerFn;
+  /**
+   * Adds a callback for errors.
+   * The stream is closed when this callback is called.
+   */
+  onError(callback: (error: Error) => void): RemoveListenerFn;
+  /**
+   * Adds a callback for stream completion.
+   * The stream is closed when this callback is called.
+   */
+  onComplete(callback: () => void): RemoveListenerFn;
 }
+
+type RemoveListenerFn = () => void;
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
@@ -103,69 +110,91 @@ interface TdpTransport {
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export class TdpClient extends EventEmitter {
   protected codec: Codec;
-  protected socket: TdpTransport | undefined;
+  protected transport: TdpTransport | undefined;
+  private transportAbortController: AbortController | undefined;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
   private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
-  constructor(private getTransport: () => TdpTransport) {
+  constructor(
+    private getTransport: (signal: AbortSignal) => Promise<TdpTransport>
+  ) {
     super();
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
   }
 
-  // Connect to the websocket and register websocket event handlers.
-  // Include a screen spec in cases where the client should determine the screen size
-  // (e.g. in a desktop session) in order to automatically send it to the server and
-  // start the session. Leave the screen spec undefined in cases where the server determines
-  // the screen size (e.g. in a recording playback session). In that case, the client will
-  // set the internal screen size when it receives the screen spec from the server
-  // (see PlayerClient.handleClientScreenSpec).
+  /**
+   * Connects to the transport and registers event handlers.
+   * Include a screen spec in cases where the client should determine the screen size
+   * (e.g. in a desktop session). Leave the screen spec undefined in cases where the server determines
+   * the screen size (e.g. in a recording playback session). In that case, the client will
+   * set the internal screen size when it receives the screen spec from the server
+   * (see PlayerClient.handleClientScreenSpec).
+   */
   async connect(spec?: ClientScreenSpec) {
+    this.transportAbortController = new AbortController();
     if (!this.wasmReady) {
       this.wasmReady = this.initWasm();
     }
     await this.wasmReady;
 
-    this.socket = this.getTransport();
-    this.socket.binaryType = 'arraybuffer';
+    try {
+      this.transport = await this.getTransport(
+        this.transportAbortController.signal
+      );
+    } catch (error) {
+      this.emit(TdpClientEvent.ERROR, error.message);
+      return;
+    }
 
-    this.socket.onopen = () => {
-      this.logger.info('websocket is open');
-      this.emit(TdpClientEvent.WS_OPEN);
-      if (spec) {
-        this.sendClientScreenSpec(spec);
-      }
-    };
+    this.emit(TdpClientEvent.WS_OPEN);
+    if (spec) {
+      this.sendClientScreenSpec(spec);
+    }
 
-    this.socket.onmessage = async (ev: MessageEvent) => {
-      await this.processMessage(ev.data as ArrayBuffer);
-    };
+    let processingError: Error | undefined;
+    let connectionError: Error | undefined;
+    await new Promise<void>(resolve => {
+      const subscribers = new Set<() => void>();
+      const unsubscribe = () => {
+        subscribers.forEach(unsubscribe => unsubscribe());
+        resolve();
+      };
 
-    // The socket 'error' event will only ever be emitted by the socket
-    // prior to a socket 'close' event (https://stackoverflow.com/a/40084550/6277051).
-    // Therefore, we can rely on our onclose handler to account for any websocket errors.
-    this.socket.onerror = null;
-    this.socket.onclose = ev => {
-      let message = 'session disconnected';
-      //TODO(gzdunek): This will be handled in AuthenticatedWebSocket.
-      // WebsocketCloseCode.NORMAL
-      if (ev.code !== 1000) {
-        this.logger.error(`websocket closed with error code: ${ev.code}`);
-        message = `connection closed with websocket error`;
-      }
-      this.logger.info('websocket is closed');
+      subscribers.add(
+        this.transport.onMessage(data => {
+          void this.processMessage(data).catch(error => {
+            processingError = error;
+            unsubscribe();
+            // All errors are treated as fatal, close the connection.
+            this.transportAbortController.abort();
+          });
+        })
+      );
+      subscribers.add(
+        this.transport.onError(error => {
+          connectionError = error;
+          unsubscribe();
+        })
+      );
+      subscribers.add(this.transport.onComplete(unsubscribe));
+    });
 
-      // Clean up all of our socket's listeners and the socket itself.
-      this.socket.onopen = null;
-      this.socket.onmessage = null;
-      this.socket.onclose = null;
-      this.socket = null;
+    // 'Processing' errors are the most important.
+    if (processingError) {
+      this.emit(TdpClientEvent.ERROR, processingError.message);
+    } else if (connectionError) {
+      this.emit(TdpClientEvent.WS_CLOSE, connectionError.message);
+    } else {
+      this.emit(TdpClientEvent.WS_CLOSE, 'Session disconnected');
+    }
 
-      this.emit(TdpClientEvent.WS_CLOSE, message);
-    };
+    this.logger.info('Transport is closed');
+
+    this.transport = undefined;
   }
 
   onClientError = (listener: (error: Error) => void) => {
@@ -656,19 +685,12 @@ export class TdpClient extends EventEmitter {
     };
   }
 
-  protected send(
-    data: string | ArrayBufferLike | Blob | ArrayBufferView
-  ): void {
-    if (this.socket && this.socket.readyState === 1) {
-      try {
-        this.socket.send(data);
-      } catch (e) {
-        this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-      }
+  protected send(data: string | ArrayBufferLike): void {
+    if (!this.transport) {
+      this.logger.info('Transport is not ready, discarding message');
       return;
     }
-
-    this.logger.warn('websocket is not open');
+    this.transport.send(data);
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
@@ -831,10 +853,8 @@ export class TdpClient extends EventEmitter {
 
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
-  //TODO(gzdunek): This will be handled in AuthenticatedWebSocket.
-  // WebsocketCloseCode.NORMAL
-  shutdown(closeCode = 1000) {
-    this.socket?.close(closeCode);
+  shutdown() {
+    this.transportAbortController?.abort();
   }
 }
 

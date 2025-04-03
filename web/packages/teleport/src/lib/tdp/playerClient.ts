@@ -23,6 +23,8 @@ import { throttle } from 'shared/utils/highbar';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { StatusEnum } from 'teleport/lib/player';
 
+import { adaptWebSocketToTdpTransport } from './webSocketTransportAdapter';
+
 // we update the time every time we receive data, or
 // at this interval (which ensures that the progress
 // bar updates even when we aren't receiving data)
@@ -52,7 +54,9 @@ export class PlayerClient extends TdpClient {
   private timeout = null;
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
-    super(() => new AuthenticatedWebSocket(url));
+    super(signal =>
+      adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal)
+    );
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
     this._setTime = setTime;
