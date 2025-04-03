@@ -16,14 +16,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 
 // wasm-pack build artifacts were originally kept in 'teleport' before being moved to 'shared'.
 // While they don’t cause significant issues, they show up in autocomplete suggestions,
 // so it's best to clean them up.
 // TODO(gzdunek) DELETE IN v20.0.0
-await rm('web/packages/teleport/src/ironrdp', {
+await rm(join(import.meta.dirname, '..', 'packages/teleport/src/ironrdp'), {
   recursive: true,
   force: true,
 });
