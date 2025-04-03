@@ -122,14 +122,11 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		if err != nil {
 			panic(err)
 		}
-		keyPEM, err = keys.MarshalPrivateKey(signer)
+		key, err = keys.NewPrivateKey(signer)
 		if err != nil {
 			panic(err)
 		}
-		key, err = keys.NewPrivateKey(signer, keyPEM)
-		if err != nil {
-			panic(err)
-		}
+		keyPEM = key.PrivateKeyPEM()
 	}
 
 	ca := &types.CertAuthorityV2{
