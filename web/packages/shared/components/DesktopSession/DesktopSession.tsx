@@ -137,7 +137,6 @@ export function DesktopSession({
     [setClipboardSharingState, setDirectorySharingState]
   );
   useListener(client.onError, handleFatalError);
-  useListener(client.onClientError, handleFatalError);
 
   const addWarning = useCallback(
     (warning: string) => {

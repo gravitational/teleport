@@ -86,7 +86,7 @@ export const FetchError = () => (
 export const TdpError = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TDP_ERROR, new Error('some tdp error'));
+    client.emit(TdpClientEvent.ERROR, new Error('some tdp error'));
   };
 
   return <DesktopSession {...props} client={client} />;
