@@ -45,10 +45,6 @@ pub fn get_client_handle(cgo_handle: CgoHandle) -> Option<ClientHandle> {
     CLIENT_HANDLES.get(cgo_handle)
 }
 
-/// A global, static tokio runtime for use by all clients.
-pub static TOKIO_RT: LazyLock<tokio::runtime::Runtime> =
-    LazyLock::new(|| tokio::runtime::Runtime::new().unwrap());
-
 /// A global, static map of [`ClientHandle`] indexed by [`CgoHandle`].
 ///
 /// See [`ClientHandles`].

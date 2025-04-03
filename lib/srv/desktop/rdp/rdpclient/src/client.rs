@@ -66,12 +66,12 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
-use tokio::task::JoinError;
+use tokio::task::{self, JoinError};
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::license::GoLicenseCache;
@@ -103,6 +103,10 @@ pub struct Client {
     pending_resize: Arc<Mutex<PendingResize>>,
 }
 
+/// A global, static tokio runtime for use by `Client`.
+static TOKIO_RT: LazyLock<tokio::runtime::Runtime> =
+    LazyLock::new(|| tokio::runtime::Runtime::new().unwrap());
+
 impl Client {
     /// Connects a new client to the RDP server specified by `params` and starts the session.
     ///
@@ -117,7 +121,7 @@ impl Client {
         cgo_handle: CgoHandle,
         params: ConnectParams,
     ) -> ClientResult<Option<DisconnectDescription>> {
-        global::TOKIO_RT.block_on(async {
+        TOKIO_RT.block_on(async {
             Self::connect(cgo_handle, params)
                 .await?
                 .register()?
@@ -570,22 +574,20 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         data: String,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let cliprdr = Self::cliprdr_backend(&mut x224_processor)?;
-                cliprdr.set_clipboard_data(data.clone());
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let cliprdr = Self::cliprdr_backend(&mut x224_processor)?;
+            cliprdr.set_clipboard_data(data.clone());
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_remote_copy(cgo_handle: CgoHandle, mut data: Vec<u8>) -> ClientResult<()> {
-        let code = global::TOKIO_RT
-            .spawn_blocking(move || unsafe {
-                cgo_handle_remote_copy(cgo_handle, data.as_mut_ptr(), data.len() as u32)
-            })
-            .await?;
+        let code = task::spawn_blocking(move || unsafe {
+            cgo_handle_remote_copy(cgo_handle, data.as_mut_ptr(), data.len() as u32)
+        })
+        .await?;
         ClientResult::from(code)
     }
 
@@ -595,8 +597,8 @@ impl Client {
         fun: Box<dyn ClipboardFn>,
     ) -> ClientResult<()> {
         let processor = x224_processor.clone();
-        let messages: ClientResult<CliprdrSvcMessages<ironrdp_cliprdr::Client>> = global::TOKIO_RT
-            .spawn_blocking(move || {
+        let messages: ClientResult<CliprdrSvcMessages<ironrdp_cliprdr::Client>> =
+            task::spawn_blocking(move || {
                 let mut x224_processor = Self::x224_lock(&processor)?;
                 let cliprdr = Self::get_svc_processor::<CliprdrClient>(&mut x224_processor)?;
                 Ok(fun.call(cliprdr)?)
@@ -782,28 +784,27 @@ impl Client {
         height: u32,
     ) -> ClientResult<()> {
         let cloned = x224_processor.clone();
-        let messages = global::TOKIO_RT
-            .spawn_blocking(move || {
-                let x224_processor = Self::x224_lock(&cloned)?;
-                let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
-                let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
-                    "DisplayControlClient channel_id not found".to_string(),
+        let messages = task::spawn_blocking(move || {
+            let x224_processor = Self::x224_lock(&cloned)?;
+            let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
+            let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
+                "DisplayControlClient channel_id not found".to_string(),
+            ))?;
+            let disp_ctl_cli = dvc
+                .channel_processor_downcast_ref::<DisplayControlClient>()
+                .ok_or(ClientError::InternalError(
+                    "DisplayControlClient not found".to_string(),
                 ))?;
-                let disp_ctl_cli = dvc
-                    .channel_processor_downcast_ref::<DisplayControlClient>()
-                    .ok_or(ClientError::InternalError(
-                        "DisplayControlClient not found".to_string(),
-                    ))?;
 
-                Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
-                    channel_id,
-                    width,
-                    height,
-                    None,
-                    Some((width, height)),
-                ))
-            })
-            .await???;
+            Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
+                channel_id,
+                width,
+                height,
+                None,
+                Some((width, height)),
+            ))
+        })
+        .await???;
 
         let encoded = Client::x224_process_svc_messages(
             x224_processor,
@@ -836,134 +837,125 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryInfoResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_info_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_info_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_create_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryCreateResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_create_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_create_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_delete_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryDeleteResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_delete_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_delete_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_list_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryListResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_list_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_list_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_read_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryReadResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_read_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_read_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_write_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryWriteResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_write_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_write_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_move_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryMoveResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_move_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr: &mut TeleportRdpdrBackend = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_move_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn handle_tdp_sd_truncate_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryTruncateResponse,
     ) -> ClientResult<()> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                debug!("received tdp: {:?}", res);
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
-                rdpdr.handle_tdp_sd_truncate_response(res)?;
-                Ok(())
-            })
-            .await?
+        task::spawn_blocking(move || {
+            debug!("received tdp: {:?}", res);
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::rdpdr_backend(&mut x224_processor)?;
+            rdpdr.handle_tdp_sd_truncate_response(res)?;
+            Ok(())
+        })
+        .await?
     }
 
     async fn add_drive(
         x224_processor: Arc<Mutex<x224::Processor>>,
         sda: tdp::SharedDirectoryAnnounce,
     ) -> ClientResult<ClientDeviceListAnnounce> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                let mut x224_processor = Self::x224_lock(&x224_processor)?;
-                let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-                let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
-                Ok(pdu)
-            })
-            .await?
+        task::spawn_blocking(move || {
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
+            let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
+            Ok(pdu)
+        })
+        .await?
     }
 
     /// Processes an x224 frame on a blocking thread.
@@ -976,8 +968,7 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         frame: BytesMut,
     ) -> SessionResult<Vec<ProcessorOutput>> {
-        global::TOKIO_RT
-            .spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
+        task::spawn_blocking(move || Self::x224_lock(&x224_processor)?.process(&frame))
             .await
             .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
@@ -992,12 +983,11 @@ impl Client {
         x224_processor: Arc<Mutex<x224::Processor>>,
         messages: SvcProcessorMessages<C>,
     ) -> SessionResult<Vec<u8>> {
-        global::TOKIO_RT
-            .spawn_blocking(move || {
-                Self::x224_lock(&x224_processor)?.process_svc_processor_messages(messages)
-            })
-            .await
-            .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
+        task::spawn_blocking(move || {
+            Self::x224_lock(&x224_processor)?.process_svc_processor_messages(messages)
+        })
+        .await
+        .map_err(|err| reason_err!(function!(), "JoinError: {:?}", err))?
     }
 
     fn x224_lock(
