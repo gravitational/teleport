@@ -89,12 +89,8 @@ func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event typ
 		var resource T
 		var ok bool
 		switch r := event.Resource.(type) {
-		case types.Resource153Unwrapper:
-			resource, ok = r.Unwrap().(T)
-			if !ok {
-				return trace.BadParameter("unexpected wrapped type %T (expected %T)", r.Unwrap(), resource)
-			}
-
+		case interface{ UnwrapT() T }:
+			resource, ok = r.UnwrapT(), true
 		default:
 			resource, ok = event.Resource.(T)
 		}
