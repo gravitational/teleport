@@ -34,7 +34,7 @@ import { Failed } from 'design/CardError';
 import {
   InfoGuidePanelProvider,
   useInfoGuide,
-} from 'shared/components/InfoGuide';
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -42,8 +42,10 @@ import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
-import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel';
-import { infoGuidePanelWidth } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel/InfoGuideSidePanel';
+import {
+  infoGuidePanelWidth,
+  InfoGuideSidePanel,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';

@@ -20,7 +20,7 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
-import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
 import { Discover, DiscoverComponent } from 'teleport/Discover/Discover';

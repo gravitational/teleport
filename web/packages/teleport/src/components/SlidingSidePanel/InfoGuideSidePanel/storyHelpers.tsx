@@ -20,8 +20,7 @@ import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { Box } from 'design';
-import { Info } from 'design/Alert';
-import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -31,8 +30,6 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import { TopBar as Component } from 'teleport/TopBar';
 import { UserContext } from 'teleport/User/UserContext';
-
-import { InfoParagraph, InfoTitle, ReferenceLinks } from './InfoGuideSidePanel';
 
 export const TopBar: React.FC<PropsWithChildren> = ({ children }) => {
   const ctx = createTeleportContext();
@@ -76,53 +73,3 @@ export const TopBar: React.FC<PropsWithChildren> = ({ children }) => {
     </MemoryRouter>
   );
 };
-
-export const LongContent = ({ withPadding = false }) => (
-  <Box px={withPadding ? 3 : 0}>
-    <InfoTitle>Each title is wrapped with InfoTitle component</InfoTitle>
-    <InfoParagraph>
-      Each paragraphs are wrapped with InfoParagraph component.
-    </InfoParagraph>
-    <InfoTitle>InfoTitle Two</InfoTitle>
-    <InfoParagraph>
-      2 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
-      corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
-      architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur.
-    </InfoParagraph>
-    <InfoTitle>InfoTitle Three</InfoTitle>
-    <InfoParagraph>
-      3 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
-      corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
-      architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur.
-    </InfoParagraph>
-    <InfoTitle>InfoTitle Four</InfoTitle>
-    <InfoParagraph>
-      4 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
-      corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
-      architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur.
-    </InfoParagraph>
-    <InfoTitle>InfoTitle Five</InfoTitle>
-    <InfoParagraph>
-      5 Lorem ipsum dolor sit, amet consectetur adipisicing elit. Commodi
-      corrupti voluptates aliquam eligendi placeat harum rerum ipsam. Corrupti
-      architecto laudantium, libero perspiciatis officia doloremque est aliquam,
-      eius qui tenetur.
-    </InfoParagraph>
-    <ReferenceLinks
-      links={[
-        { title: 'Some Link 1', href: 'link1' },
-        { title: 'Some Link 2', href: 'link2' },
-        { title: 'Some Link 3', href: 'link3' },
-        { title: 'Some Link 4', href: 'link4' },
-        { title: 'Some Link 5', href: 'link5' },
-      ]}
-    />
-  </Box>
-);
-
-export const DevInfo = () => (
-  <Info>The top bar nav is only rendered for demo purposes</Info>
-);

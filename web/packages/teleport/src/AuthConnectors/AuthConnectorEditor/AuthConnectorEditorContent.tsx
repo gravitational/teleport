@@ -25,11 +25,11 @@ import Flex from 'design/Flex';
 import { ArrowBack } from 'design/Icon';
 import { Indicator } from 'design/Indicator';
 import { H1 } from 'design/Text';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import TextEditor from 'shared/components/TextEditor';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
-import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 
 import { InfoGuide } from '../AuthConnectors';
 

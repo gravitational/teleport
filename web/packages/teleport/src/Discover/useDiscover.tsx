@@ -19,7 +19,7 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
-import { useInfoGuide } from 'shared/components/InfoGuide';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import {
   addIndexToViews,

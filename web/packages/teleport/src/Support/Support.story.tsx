@@ -18,7 +18,7 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import { ContentMinWidth } from 'teleport/Main/Main';

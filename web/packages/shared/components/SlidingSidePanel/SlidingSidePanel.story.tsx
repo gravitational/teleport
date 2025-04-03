@@ -22,8 +22,9 @@ import { useState } from 'react';
 import { Box, ButtonPrimary } from 'design';
 import { Info } from 'design/Alert';
 
+import { InfoGuideContainer } from './InfoGuide';
+import { LongGuideContent } from './InfoGuide/storyHelper';
 import { SlidingSidePanel } from './SlidingSidePanel';
-import { LongContent, TopBar } from './storyHelpers';
 
 type StoryProps = {
   slideFrom: 'left' | 'right';
@@ -33,7 +34,7 @@ type StoryProps = {
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'Teleport/SlidingSidePanel',
+  title: 'Shared/SlidingSidePanel',
   component: Controls,
   argTypes: {
     slideFrom: {
@@ -64,10 +65,11 @@ export function Controls(props: StoryProps) {
   const [show, setShow] = useState(false);
 
   return (
-    <TopBar>
-      {/* this Box wrapper is just for demo purposes */}
-      <Box mt={10} textAlign="center">
-        <Info>The top bar nav is only rendered for demo purposes</Info>
+    <>
+      <Box textAlign="center">
+        <Info>
+          Dev: The panel uses components defined in InfoGuide.tsx as examples
+        </Info>
         <ButtonPrimary onClick={() => setShow(!show)}>Toggle Me</ButtonPrimary>
       </Box>
       <SlidingSidePanel
@@ -78,10 +80,13 @@ export function Controls(props: StoryProps) {
         slideFrom={props.slideFrom}
         panelOffset={props.panelOffset}
       >
-        <Box css={{ height: '100%', overflow: 'auto' }}>
-          <LongContent withPadding />
-        </Box>
+        <InfoGuideContainer
+          onClose={() => setShow(false)}
+          title="Some Guide Title"
+        >
+          <LongGuideContent />
+        </InfoGuideContainer>
       </SlidingSidePanel>
-    </TopBar>
+    </>
   );
 }

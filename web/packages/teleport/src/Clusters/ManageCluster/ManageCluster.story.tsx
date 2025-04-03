@@ -18,7 +18,7 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
