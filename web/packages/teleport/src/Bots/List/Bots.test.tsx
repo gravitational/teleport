@@ -19,7 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
-import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { botsApiResponseFixture } from 'teleport/Bots/fixtures';
 import { ContextProvider } from 'teleport/index';

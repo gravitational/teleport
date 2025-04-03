@@ -20,7 +20,7 @@ import { LocationDescriptor } from 'history';
 import React, { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';

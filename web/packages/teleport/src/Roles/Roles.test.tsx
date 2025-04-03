@@ -19,7 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
-import { InfoGuidePanelProvider } from 'shared/components/InfoGuide';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
