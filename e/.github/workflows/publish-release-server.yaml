@@ -88,7 +88,7 @@ jobs:
 
       - name: Fetch release service application credentials
         id: relsrv-auth
-        uses: teleport-actions/auth-application@f79fa517ce6609c9b94462f8b3e28346a6a2436a # v2
+        uses: teleport-actions/auth-application@f7d42b0ac9f5b7911cbadb2313b5dd2d6ae6d6f3 # v2
         with:
           proxy: platform.teleport.sh:443
           token: ${{ env.RELCLI_TBOT_TOKEN }}
