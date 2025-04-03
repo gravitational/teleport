@@ -134,7 +134,7 @@ Any OpenSSH hosts must be issued new host certificates during the
 
 Any Teleport processes that connect directly to the Auth Service need a CA pin
 in order to trust the TLS certificate presented by the Auth Service.
-This includes all Proxy Services and any agents in a self-hosted cluster that
+This includes all Proxy Service instances and any agents in a self-hosted cluster that
 connect directly to the Auth Service.
 During the CA rotation, `tctl status` will report that there are 2 CA pins.
 If you are adding any new Teleport Agents to the cluster during the CA rotation
