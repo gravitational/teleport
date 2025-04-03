@@ -43,6 +43,7 @@ type hardwareKeySlot struct {
 
 type MockHardwareKeyService struct {
 	prompt    Prompt
+	promptMux sync.Mutex
 	mockTouch chan struct{}
 
 	fakeHardwarePrivateKeys    map[hardwareKeySlot]*fakeHardwarePrivateKey
@@ -136,6 +137,9 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, r
 }
 
 func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPolicy) error {
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
+
 	if s.prompt == nil || (!policy.PINRequired && !policy.TouchRequired) {
 		return nil
 	}
@@ -164,9 +168,12 @@ func (s *MockHardwareKeyService) tryPrompt(ctx context.Context, policy PromptPol
 }
 
 func (s *MockHardwareKeyService) SetPrompt(prompt Prompt) {
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 	s.prompt = prompt
 }
 
+// TODO(Joerger): DELETE IN v19.0.0
 func (s *MockHardwareKeyService) GetMissingKeyRefDetails(ref *PrivateKeyRef) error {
 	s.fakeHardwarePrivateKeysMux.Lock()
 	defer s.fakeHardwarePrivateKeysMux.Unlock()
