@@ -51,7 +51,7 @@ export const DesktopPlayer = ({
     time,
 
     clientOnWsClose,
-    clientOnTdpError,
+    clientOnError,
     clientOnTdpInfo,
   } = useDesktopPlayer({
     sid,
@@ -59,8 +59,7 @@ export const DesktopPlayer = ({
   });
   const canvasRendererRef = useRef<CanvasRendererRef>(null);
 
-  useListener(playerClient?.onError, clientOnTdpError);
-  useListener(playerClient?.onClientError, clientOnTdpError);
+  useListener(playerClient?.onError, clientOnError);
   useListener(playerClient?.onInfo, clientOnTdpInfo);
   useListener(playerClient?.onWsClose, clientOnWsClose);
   useListener(
@@ -137,7 +136,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     }
   }, [playerClient]);
 
-  const clientOnTdpError = useCallback((error: Error) => {
+  const clientOnError = useCallback((error: Error) => {
     setPlayerStatus(StatusEnum.ERROR);
     setStatusText(error.message || error.toString());
   }, []);
@@ -164,7 +163,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     statusText,
 
     clientOnWsClose,
-    clientOnTdpError,
+    clientOnError,
     clientOnTdpInfo,
   };
 };

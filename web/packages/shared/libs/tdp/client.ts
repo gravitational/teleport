@@ -60,10 +60,8 @@ export enum TdpClientEvent {
   TDP_PNG_FRAME = 'tdp png frame',
   TDP_BMP_FRAME = 'tdp bmp frame',
   TDP_CLIPBOARD_DATA = 'tdp clipboard data',
-  // TDP_ERROR corresponds with the TDP error message
-  TDP_ERROR = 'tdp error',
-  // CLIENT_ERROR represents an error event in the client that isn't a TDP_ERROR
-  CLIENT_ERROR = 'client error',
+  // Represents either a remote TDP error or a client-side error.
+  ERROR = 'error',
   // TDP_WARNING corresponds the TDP warning message
   TDP_WARNING = 'tdp warning',
   // CLIENT_WARNING represents a warning event that isn't a TDP_WARNING
@@ -197,19 +195,14 @@ export class TdpClient extends EventEmitter {
     this.transport = undefined;
   }
 
-  onClientError = (listener: (error: Error) => void) => {
-    this.on(TdpClientEvent.CLIENT_ERROR, listener);
-    return () => this.off(TdpClientEvent.CLIENT_ERROR, listener);
-  };
-
   onClientWarning = (listener: (warningMessage: string) => void) => {
     this.on(TdpClientEvent.CLIENT_WARNING, listener);
     return () => this.off(TdpClientEvent.CLIENT_WARNING, listener);
   };
 
   onError = (listener: (error: Error) => void) => {
-    this.on(TdpClientEvent.TDP_ERROR, listener);
-    return () => this.off(TdpClientEvent.TDP_ERROR, listener);
+    this.on(TdpClientEvent.ERROR, listener);
+    return () => this.off(TdpClientEvent.ERROR, listener);
   };
 
   onInfo = (listener: (info: string) => void) => {
@@ -293,82 +286,74 @@ export class TdpClient extends EventEmitter {
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBuffer): Promise<void> {
-    try {
-      const messageType = this.codec.decodeMessageType(buffer);
-      switch (messageType) {
-        case MessageType.PNG_FRAME:
-          this.handlePngFrame(buffer);
-          break;
-        case MessageType.PNG2_FRAME:
-          this.handlePng2Frame(buffer);
-          break;
-        case MessageType.RDP_CONNECTION_ACTIVATED:
-          this.handleRdpConnectionActivated(buffer);
-          break;
-        case MessageType.RDP_FASTPATH_PDU:
-          this.handleRdpFastPathPDU(buffer);
-          break;
-        case MessageType.CLIENT_SCREEN_SPEC:
-          this.handleClientScreenSpec(buffer);
-          break;
-        case MessageType.MOUSE_BUTTON:
-          this.handleMouseButton(buffer);
-          break;
-        case MessageType.MOUSE_MOVE:
-          this.handleMouseMove(buffer);
-          break;
-        case MessageType.CLIPBOARD_DATA:
-          this.handleClipboardData(buffer);
-          break;
-        case MessageType.ERROR:
-          this.handleError(
-            new Error(this.codec.decodeErrorMessage(buffer)),
-            TdpClientEvent.TDP_ERROR
-          );
-          break;
-        case MessageType.ALERT:
-          this.handleTdpAlert(buffer);
-          break;
-        case MessageType.MFA_JSON:
-          this.handleMfaChallenge(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
-          this.handleSharedDirectoryAcknowledge(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
-          this.handleSharedDirectoryInfoRequest(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_CREATE_REQUEST:
-          // A typical sequence is that we receive a SharedDirectoryCreateRequest
-          // immediately followed by a SharedDirectoryWriteRequest. It's important
-          // that we await here so that this client doesn't field the SharedDirectoryWriteRequest
-          // until the create has successfully completed, or else we might get an error
-          // trying to write to a file that hasn't been created yet.
-          await this.handleSharedDirectoryCreateRequest(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_DELETE_REQUEST:
-          this.handleSharedDirectoryDeleteRequest(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_READ_REQUEST:
-          this.handleSharedDirectoryReadRequest(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_WRITE_REQUEST:
-          this.handleSharedDirectoryWriteRequest(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_MOVE_REQUEST:
-          this.handleSharedDirectoryMoveRequest(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
-          this.handleSharedDirectoryListRequest(buffer);
-          break;
-        case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
-          this.handleSharedDirectoryTruncateRequest(buffer);
-          break;
-        default:
-          this.logger.warn(`received unsupported message type ${messageType}`);
-      }
-    } catch (err) {
-      this.handleError(err, TdpClientEvent.CLIENT_ERROR);
+    const messageType = this.codec.decodeMessageType(buffer);
+    switch (messageType) {
+      case MessageType.PNG_FRAME:
+        this.handlePngFrame(buffer);
+        break;
+      case MessageType.PNG2_FRAME:
+        this.handlePng2Frame(buffer);
+        break;
+      case MessageType.RDP_CONNECTION_ACTIVATED:
+        this.handleRdpConnectionActivated(buffer);
+        break;
+      case MessageType.RDP_FASTPATH_PDU:
+        this.handleRdpFastPathPDU(buffer);
+        break;
+      case MessageType.CLIENT_SCREEN_SPEC:
+        this.handleClientScreenSpec(buffer);
+        break;
+      case MessageType.MOUSE_BUTTON:
+        this.handleMouseButton(buffer);
+        break;
+      case MessageType.MOUSE_MOVE:
+        this.handleMouseMove(buffer);
+        break;
+      case MessageType.CLIPBOARD_DATA:
+        this.handleClipboardData(buffer);
+        break;
+      case MessageType.ERROR:
+        throw new Error(this.codec.decodeErrorMessage(buffer));
+      case MessageType.ALERT:
+        this.handleTdpAlert(buffer);
+        break;
+      case MessageType.MFA_JSON:
+        this.handleMfaChallenge(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
+        this.handleSharedDirectoryAcknowledge(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
+        await this.handleSharedDirectoryInfoRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_CREATE_REQUEST:
+        // A typical sequence is that we receive a SharedDirectoryCreateRequest
+        // immediately followed by a SharedDirectoryWriteRequest. It's important
+        // that we await here so that this client doesn't field the SharedDirectoryWriteRequest
+        // until the create has successfully completed, or else we might get an error
+        // trying to write to a file that hasn't been created yet.
+        await this.handleSharedDirectoryCreateRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_DELETE_REQUEST:
+        await this.handleSharedDirectoryDeleteRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_READ_REQUEST:
+        await this.handleSharedDirectoryReadRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_WRITE_REQUEST:
+        await this.handleSharedDirectoryWriteRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_MOVE_REQUEST:
+        this.handleSharedDirectoryMoveRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
+        await this.handleSharedDirectoryListRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
+        await this.handleSharedDirectoryTruncateRequest(buffer);
+        break;
+      default:
+        this.logger.warn(`received unsupported message type ${messageType}`);
     }
   }
 
@@ -407,7 +392,7 @@ export class TdpClient extends EventEmitter {
     const alert = this.codec.decodeAlert(buffer);
     // TODO(zmb3): info and warning should use the same handler
     if (alert.severity === Severity.Error) {
-      this.handleError(new Error(alert.message), TdpClientEvent.TDP_ERROR);
+      throw new Error(alert.message);
     } else if (alert.severity === Severity.Warning) {
       this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
@@ -451,51 +436,38 @@ export class TdpClient extends EventEmitter {
     let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
-    if (!this.fastPathProcessor)
-      this.handleError(
-        new Error('FastPathProcessor not initialized'),
-        TdpClientEvent.CLIENT_ERROR
-      );
-
-    try {
-      this.fastPathProcessor.process(
-        rdpFastPathPDU,
-        this,
-        (bmpFrame: BitmapFrame) => {
-          this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
-        },
-        (responseFrame: ArrayBuffer) => {
-          this.sendRdpResponsePDU(responseFrame);
-        },
-        (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
-          this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
-        }
-      );
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
+    if (!this.fastPathProcessor) {
+      throw new Error('FastPathProcessor not initialized');
     }
+
+    this.fastPathProcessor.process(
+      rdpFastPathPDU,
+      this,
+      (bmpFrame: BitmapFrame) => {
+        this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+      },
+      (responseFrame: ArrayBuffer) => {
+        this.sendRdpResponsePDU(responseFrame);
+      },
+      (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
+        this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
+      }
+    );
   }
 
   handleMfaChallenge(buffer: ArrayBuffer) {
-    try {
-      const mfaJson = this.codec.decodeMfaJson(buffer);
-      if (mfaJson.mfaType == 'n') {
-        // TermEvent.MFA_CHALLENGE
-        this.emit('terminal.webauthn', mfaJson.jsonString);
-      } else {
-        // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
-        this.handleError(
-          new Error(
-            'Multifactor authentication is required for accessing this desktop, \
+    const mfaJson = this.codec.decodeMfaJson(buffer);
+    if (mfaJson.mfaType == 'n') {
+      // TermEvent.MFA_CHALLENGE
+      this.emit('terminal.webauthn', mfaJson.jsonString);
+    } else {
+      // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
+      throw new Error(
+        'Multifactor authentication is required for accessing this desktop, \
       however the U2F API for hardware keys is not supported for desktop sessions. \
       Please notify your system administrator to update cluster settings \
       to use WebAuthn as the second factor protocol.'
-          ),
-          TdpClientEvent.CLIENT_ERROR
-        );
-      }
-    } catch (err) {
-      this.handleError(err, TdpClientEvent.CLIENT_ERROR);
+      );
     }
   }
 
@@ -540,7 +512,7 @@ export class TdpClient extends EventEmitter {
           },
         });
       } else {
-        this.handleError(e, TdpClientEvent.CLIENT_ERROR);
+        throw e;
       }
     }
   }
@@ -592,40 +564,32 @@ export class TdpClient extends EventEmitter {
 
   async handleSharedDirectoryReadRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryReadRequest(buffer);
-    try {
-      const readData = await this.sdManager.readFile(
-        req.path,
-        req.offset,
-        req.length
-      );
-      this.sendSharedDirectoryReadResponse({
-        completionId: req.completionId,
-        errCode: SharedDirectoryErrCode.Nil,
-        readDataLength: readData.length,
-        readData,
-      });
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+    const readData = await this.sdManager.readFile(
+      req.path,
+      req.offset,
+      req.length
+    );
+    this.sendSharedDirectoryReadResponse({
+      completionId: req.completionId,
+      errCode: SharedDirectoryErrCode.Nil,
+      readDataLength: readData.length,
+      readData,
+    });
   }
 
   async handleSharedDirectoryWriteRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryWriteRequest(buffer);
-    try {
-      const bytesWritten = await this.sdManager.writeFile(
-        req.path,
-        req.offset,
-        req.writeData
-      );
+    const bytesWritten = await this.sdManager.writeFile(
+      req.path,
+      req.offset,
+      req.writeData
+    );
 
-      this.sendSharedDirectoryWriteResponse({
-        completionId: req.completionId,
-        errCode: SharedDirectoryErrCode.Nil,
-        bytesWritten,
-      });
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+    this.sendSharedDirectoryWriteResponse({
+      completionId: req.completionId,
+      errCode: SharedDirectoryErrCode.Nil,
+      bytesWritten,
+    });
   }
 
   handleSharedDirectoryMoveRequest(buffer: ArrayBuffer) {
@@ -643,36 +607,26 @@ export class TdpClient extends EventEmitter {
   }
 
   async handleSharedDirectoryListRequest(buffer: ArrayBuffer) {
-    try {
-      const req = this.codec.decodeSharedDirectoryListRequest(buffer);
-      const path = req.path;
+    const req = this.codec.decodeSharedDirectoryListRequest(buffer);
+    const path = req.path;
 
-      const infoList: FileOrDirInfo[] = await this.sdManager.listContents(path);
-      const fsoList: FileSystemObject[] = infoList.map(info =>
-        this.toFso(info)
-      );
+    const infoList: FileOrDirInfo[] = await this.sdManager.listContents(path);
+    const fsoList: FileSystemObject[] = infoList.map(info => this.toFso(info));
 
-      this.sendSharedDirectoryListResponse({
-        completionId: req.completionId,
-        errCode: SharedDirectoryErrCode.Nil,
-        fsoList,
-      });
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+    this.sendSharedDirectoryListResponse({
+      completionId: req.completionId,
+      errCode: SharedDirectoryErrCode.Nil,
+      fsoList,
+    });
   }
 
   async handleSharedDirectoryTruncateRequest(buffer: ArrayBuffer) {
     const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
-    try {
-      await this.sdManager.truncateFile(req.path, req.endOfFile);
-      this.sendSharedDirectoryTruncateResponse({
-        completionId: req.completionId,
-        errCode: SharedDirectoryErrCode.Nil,
-      });
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+    await this.sdManager.truncateFile(req.path, req.endOfFile);
+    this.sendSharedDirectoryTruncateResponse({
+      completionId: req.completionId,
+      errCode: SharedDirectoryErrCode.Nil,
+    });
   }
 
   private toFso(info: FileOrDirInfo): FileSystemObject {
@@ -753,29 +707,20 @@ export class TdpClient extends EventEmitter {
   }
 
   addSharedDirectory(sharedDirectory: FileSystemDirectoryHandle) {
-    try {
-      this.sdManager.add(sharedDirectory);
-    } catch (err) {
-      this.handleError(err, TdpClientEvent.CLIENT_ERROR);
-    }
+    this.sdManager.add(sharedDirectory);
   }
 
   sendSharedDirectoryAnnounce() {
-    let name: string;
-    try {
-      name = this.sdManager.getName();
-      this.send(
-        this.codec.encodeSharedDirectoryAnnounce({
-          discard: 0, // This is always the first request.
-          // Hardcode directoryId for now since we only support sharing 1 directory.
-          // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
-          directoryId: 2,
-          name,
-        })
-      );
-    } catch (e) {
-      this.handleError(e, TdpClientEvent.CLIENT_ERROR);
-    }
+    const name = this.sdManager.getName();
+    this.send(
+      this.codec.encodeSharedDirectoryAnnounce({
+        discard: 0, // This is always the first request.
+        // Hardcode directoryId for now since we only support sharing 1 directory.
+        // We're using 2 because the smartcard device is hardcoded to 1 in the backend.
+        directoryId: 2,
+        name,
+      })
+    );
   }
 
   sendSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse) {
@@ -818,23 +763,6 @@ export class TdpClient extends EventEmitter {
 
   sendRdpResponsePDU(responseFrame: ArrayBuffer) {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
-  }
-
-  // Emits an errType event and closes the websocket connection.
-  // Should only be used for fatal errors.
-  private handleError(
-    err: Error,
-    errType: TdpClientEvent.TDP_ERROR | TdpClientEvent.CLIENT_ERROR
-  ) {
-    this.logger.error(err);
-    this.emit(errType, err);
-    // All errors are fatal, meaning that we are closing the connection after they happen.
-    // To prevent overwriting such error with our close handler, remove it before
-    // closing the connection.
-    if (this.socket) {
-      this.socket.onclose = null;
-      this.socket.close();
-    }
   }
 
   // Emits a warning event, but keeps the socket open.
