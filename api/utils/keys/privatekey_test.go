@@ -1,3 +1,5 @@
+//go:build pivtest
+
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -313,7 +315,7 @@ func TestHardwareKeyMethods(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotNil(t, hwKey.GetAttestationStatement())
-	require.Equal(t, keys.PrivateKeyPolicyHardwareKey, hwKey.GetPrivateKeyPolicy())
+	require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouch, hwKey.GetPrivateKeyPolicy())
 	require.True(t, hwKey.IsHardware())
 	require.NoError(t, hwKey.WarmupHardwareKey(ctx))
 }
