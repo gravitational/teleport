@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "pnpm --filter=@gravitational/shared build-wasm && vite",
-    "build": "pnpm --filter=@gravitational/shared build-wasm && vite build"
+    "start": "pnpm build-wasm && vite",
+    "build": "pnpm build-wasm && vite build",
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
   },
   "author": "Gravitational, Inc.",
   "license": "Apache-2.0",
