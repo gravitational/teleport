@@ -594,6 +594,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureUsersE(),
     new FeatureRoles(),
     new OSS.FeatureBots(),
+    new OSS.FeatureWorkloadIdentity(),
     new OSS.FeatureAddBotsShortcut(),
     new OSS.FeatureJoinTokens(),
     new FeatureAuthConnectors(),
