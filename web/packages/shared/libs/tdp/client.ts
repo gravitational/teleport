@@ -68,8 +68,8 @@ export enum TdpClientEvent {
   CLIENT_WARNING = 'client warning',
   // TDP_INFO corresponds with the TDP info message
   TDP_INFO = 'tdp info',
-  WS_OPEN = 'ws open',
-  WS_CLOSE = 'ws close',
+  TRANSPORT_OPEN = 'transport open',
+  TRANSPORT_CLOSE = 'transport close',
   RESET = 'reset',
   POINTER = 'pointer',
 }
@@ -148,7 +148,7 @@ export class TdpClient extends EventEmitter {
       return;
     }
 
-    this.emit(TdpClientEvent.WS_OPEN);
+    this.emit(TdpClientEvent.TRANSPORT_OPEN);
     if (spec) {
       this.sendClientScreenSpec(spec);
     }
@@ -185,9 +185,9 @@ export class TdpClient extends EventEmitter {
     if (processingError) {
       this.emit(TdpClientEvent.ERROR, processingError.message);
     } else if (connectionError) {
-      this.emit(TdpClientEvent.WS_CLOSE, connectionError.message);
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError.message);
     } else {
-      this.emit(TdpClientEvent.WS_CLOSE, 'Session disconnected');
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, 'Session disconnected');
     }
 
     this.logger.info('Transport is closed');
@@ -235,14 +235,14 @@ export class TdpClient extends EventEmitter {
     return () => this.off(TdpClientEvent.TDP_WARNING, listener);
   };
 
-  onWsClose = (listener: (message: string) => void) => {
-    this.on(TdpClientEvent.WS_CLOSE, listener);
-    return () => this.off(TdpClientEvent.WS_CLOSE, listener);
+  onTransportClose = (listener: (message: string) => void) => {
+    this.on(TdpClientEvent.TRANSPORT_CLOSE, listener);
+    return () => this.off(TdpClientEvent.TRANSPORT_CLOSE, listener);
   };
 
-  onWsOpen = (listener: () => void) => {
-    this.on(TdpClientEvent.WS_OPEN, listener);
-    return () => this.off(TdpClientEvent.WS_OPEN, listener);
+  onTransportOpen = (listener: () => void) => {
+    this.on(TdpClientEvent.TRANSPORT_OPEN, listener);
+    return () => this.off(TdpClientEvent.TRANSPORT_OPEN, listener);
   };
 
   onClipboardData = (listener: (clipboardData: ClipboardData) => void) => {
