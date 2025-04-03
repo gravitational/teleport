@@ -543,12 +543,7 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 
 	syncSettings := s.plugin.Spec.GetOkta()
 	var authProvider oktaapi.AuthProvider
-	switch {
-	case syncSettings.CredentialsInfo.HasOauthCredentials:
-		oauthCreds, err := okta.SelectOAuthClientID(staticCreds)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if oauthCreds, err := okta.SelectOAuthClientID(staticCreds); err == nil {
 		clientID, _ := oauthCreds.GetOAuthClientSecret()
 		authProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
 			OAuthClientID: clientID,
@@ -556,13 +551,9 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 			CAKeyStore:    s.jwtSignerGetter,
 			Clock:         s.clock,
 		})
-	case syncSettings.CredentialsInfo.HasSsmToken:
-		sswsCreds, err := okta.SelectAPIToken(staticCreds)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	} else if sswsCreds, err := okta.SelectAPIToken(staticCreds); err == nil {
 		authProvider = oktaapi.NewSSWSAuthProvider(sswsCreds.GetAPIToken())
-	default:
+	} else {
 		return nil, trace.NotFound("no OAuth or SSM token static credentials set")
 	}
 
