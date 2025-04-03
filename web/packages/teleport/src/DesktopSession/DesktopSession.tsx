@@ -19,10 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
-import {
-  AlertDialog,
-  DesktopSession as SharedDesktopSession,
-} from 'shared/components/DesktopSession';
+import { DesktopSession as SharedDesktopSession } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
 import { TdpClient } from 'shared/libs/tdp';
 
