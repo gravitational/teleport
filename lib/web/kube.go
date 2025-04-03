@@ -264,7 +264,7 @@ func (p *podExecHandler) handler(r *http.Request) error {
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(stream.WSStream, p.sctx.cfg.RootClient.CreateAuthenticateChallenge, p.publicProxyAddr),
@@ -278,14 +278,14 @@ func (p *podExecHandler) handler(r *http.Request) error {
 		return trace.Wrap(err, "failed performing mfa ceremony")
 	}
 
-	if certs == nil {
-		certs, err = p.sctx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
+	if result.NewCerts == nil {
+		result.NewCerts, err = p.sctx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
 		if err != nil {
 			return trace.Wrap(err, "failed issuing user certs")
 		}
 	}
 
-	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, p.localCA, certs.TLS, privateKeyPEM)
+	restConfig, err := createKubeRestConfig(p.configServerAddr, p.configTLSServerName, p.localCA, result.NewCerts.TLS, privateKeyPEM)
 	if err != nil {
 		return trace.Wrap(err, "failed creating Kubernetes rest config")
 	}
@@ -536,7 +536,7 @@ func (h *Handler) joinKubernetesSession(
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: clt,
 		RootAuthClient:    sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(stream.WSStream, sctx.cfg.RootClient.CreateAuthenticateChallenge, h.cfg.PublicProxyAddr),
@@ -550,8 +550,8 @@ func (h *Handler) joinKubernetesSession(
 		return trace.Wrap(err, "failed performing mfa ceremony")
 	}
 
-	if certs == nil {
-		certs, err = sctx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
+	if result.NewCerts == nil {
+		result.NewCerts, err = sctx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
 		if err != nil {
 			return trace.Wrap(err, "failed issuing user certs")
 		}
@@ -583,7 +583,7 @@ func (h *Handler) joinKubernetesSession(
 				RootCAs:    certPool,
 				ServerName: tlsServerName,
 				GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-					cert, err := tls.X509KeyPair(certs.TLS, privateKeyPEM)
+					cert, err := tls.X509KeyPair(result.NewCerts.TLS, privateKeyPEM)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
