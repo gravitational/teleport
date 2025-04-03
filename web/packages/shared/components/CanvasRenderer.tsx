@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -25,14 +25,12 @@ import React, {
 } from 'react';
 
 import { Logger } from 'shared/libs/logger';
+import { BitmapFrame, PngFrame } from 'shared/libs/tdp';
 import { debounce } from 'shared/utils/highbar';
 
-import { BitmapFrame } from 'teleport/lib/tdp/client';
-import type { PngFrame } from 'teleport/lib/tdp/codec';
+const logger = new Logger('CanvasRenderer');
 
-const logger = new Logger('TdpClientCanvas');
-
-export interface TdpClientCanvasRef {
+export interface CanvasRendererRef {
   setPointer(pointer: Pointer): void;
   renderPngFrame(frame: PngFrame): void;
   renderBitmapFrame(frame: BitmapFrame): void;
@@ -42,8 +40,8 @@ export interface TdpClientCanvasRef {
   getSize(): { width: number; height: number };
 }
 
-export const TdpClientCanvas = forwardRef<
-  TdpClientCanvasRef,
+export const CanvasRenderer = forwardRef<
+  CanvasRendererRef,
   {
     onKeyDown?(e: React.KeyboardEvent): void;
     onKeyUp?(e: React.KeyboardEvent): void;
