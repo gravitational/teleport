@@ -29,7 +29,7 @@ import TextEditor from 'shared/components/TextEditor';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
-import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 
 import { InfoGuide } from '../AuthConnectors';
 
@@ -64,7 +64,9 @@ export function AuthConnectorEditorContent({
               <H1>{title}</H1>
             </Box>
           </Flex>
-          <InfoGuideWrapper guide={<InfoGuide isGitHub={isGithub} />} />
+          <InfoGuideButton
+            config={{ guide: <InfoGuide isGitHub={isGithub} /> }}
+          />
         </Flex>
       </FeatureHeaderTitle>
       {fetchAttempt.status === 'error' && (
