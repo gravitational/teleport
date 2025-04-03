@@ -80,7 +80,7 @@ impl ClientHandles {
     }
 
     pub fn get(&self, cgo_handle: CgoHandle) -> Option<ClientHandle> {
-        self.map.lock().unwrap().get(&cgo_handle).map(|c| c.clone())
+        self.map.lock().unwrap().get(&cgo_handle).cloned()
     }
 
     pub fn remove(&self, cgo_handle: CgoHandle) {
