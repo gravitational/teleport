@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
-	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
@@ -206,46 +205,6 @@ Slot %s:
 	)
 }
 
-// YubiKeyPrivateKey is a YubiKey PIV private key. Cryptographical operations open
-// a new temporary connection to the PIV card to perform the operation.
-type YubiKeyPrivateKey struct {
-	// YubiKey is a specific YubiKey PIV module.
-	*YubiKey
-
-	pivSlot piv.Slot
-	signMux sync.Mutex
-
-	slotCert        *x509.Certificate
-	attestationCert *x509.Certificate
-	attestation     *piv.Attestation
-}
-
-// Public returns the public key corresponding to this private key.
-func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
-	return y.slotCert.PublicKey
-}
-
-// WarmupHardwareKey performs a bogus sign() call to prompt the user for
-// a PIN/touch (if needed).
-func (y *YubiKeyPrivateKey) WarmupHardwareKey(ctx context.Context) error {
-	hash := sha256.Sum256(make([]byte, 256))
-	_, err := y.sign(ctx, rand.Reader, hash[:], crypto.SHA256)
-	return trace.Wrap(err, "failed to access a YubiKey private key")
-}
-
-// Sign implements crypto.Signer.
-func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	signature, err := y.sign(ctx, rand, digest, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return signature, nil
-}
-
 // YubiKeys require touch when signing with a private key that requires touch.
 // Unfortunately, there is no good way to check whether touch is cached by the
 // PIV module at a given time. In order to require touch only when needed, we
@@ -397,23 +356,6 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 	case result := <-signResultCh:
 		return result.signature, trace.Wrap(result.err)
 	}
-}
-
-// GetAttestationStatement returns an AttestationStatement for this YubiKeyPrivateKey.
-func (y *YubiKeyPrivateKey) GetAttestationStatement() *hardwarekey.AttestationStatement {
-	return &hardwarekey.AttestationStatement{
-		AttestationStatement: &attestation.AttestationStatement_YubikeyAttestationStatement{
-			YubikeyAttestationStatement: &attestation.YubiKeyAttestationStatement{
-				SlotCert:        y.slotCert.Raw,
-				AttestationCert: y.attestationCert.Raw,
-			},
-		},
-	}
-}
-
-// GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this YubiKeyPrivateKey.
-func (y *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
-	return GetPrivateKeyPolicyFromAttestation(y.attestation)
 }
 
 // YubiKey is a specific YubiKey PIV card.
