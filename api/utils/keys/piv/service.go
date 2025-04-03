@@ -54,17 +54,17 @@ type YubiKeyService struct {
 	prompt hardwarekey.Prompt
 }
 
-// Returns a new [YubiKeyService]. If [prompt] is nil, the default CLI prompt will be used.
+// Returns a new [YubiKeyService]. If [customPrompt] is nil, the default CLI prompt will be used.
 //
 // Only a single service should be created for each process to ensure the cached connections
 // are shared and multiple services don't compete for PIV resources.
-func NewYubiKeyService(prompt hardwarekey.Prompt) *YubiKeyService {
-	if prompt == nil {
-		prompt = hardwarekey.NewStdCLIPrompt()
+func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
+	if customPrompt == nil {
+		customPrompt = hardwarekey.NewStdCLIPrompt()
 	}
 
 	return &YubiKeyService{
-		prompt: prompt,
+		prompt: customPrompt,
 	}
 }
 
