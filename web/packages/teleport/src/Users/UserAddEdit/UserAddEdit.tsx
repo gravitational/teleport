@@ -65,7 +65,7 @@ export function UserAddEdit({ onClose, isNew, user }: UserAddEditProps) {
       const mfaResponse =
         await auth.getMfaChallengeResponseForAdminAction(true);
 
-      const user = await userService.createUser(variables);
+      const user = await userService.createUser({ ...variables, mfaResponse });
 
       const token = await ctx.userService.createResetPasswordToken(
         user.name,
