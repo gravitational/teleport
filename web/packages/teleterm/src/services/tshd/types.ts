@@ -72,12 +72,6 @@ export {
   /**
    * @deprecated Import directly from gen-proto-ts instead.
    */
-  App,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-export {
-  /**
-   * @deprecated Import directly from gen-proto-ts instead.
-   */
   Label,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/label_pb';
 export {
