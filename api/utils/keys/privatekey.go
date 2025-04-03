@@ -294,6 +294,9 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
+		// TODO(Joerger): Initialize the hardware key service early in the process and store
+		// it in the client store. This allows the process to properly share PIV connections
+		// and prompt logic (pin caching, etc.).
 		hwKeyService := NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
 		hwPrivateKey, err := hardwarekey.DecodePrivateKey(hwKeyService, block.Bytes)
 		if err != nil {
