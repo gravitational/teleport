@@ -56,7 +56,7 @@ func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
 	}
 }
 
-func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
+func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, _ ContextualKeyInfo) (string, error) {
 	message := "Enter your YubiKey PIV PIN"
 	if requirement == PINOptional {
 		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
@@ -65,12 +65,12 @@ func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement
 	return password, trace.Wrap(err)
 }
 
-func (c *cliPrompt) Touch(_ context.Context) error {
+func (c *cliPrompt) Touch(_ context.Context, _ ContextualKeyInfo) error {
 	_, err := fmt.Fprintln(c.writer, "Tap your YubiKey")
 	return trace.Wrap(err)
 }
 
-func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
+func (c *cliPrompt) ChangePIN(ctx context.Context, _ ContextualKeyInfo) (*PINAndPUK, error) {
 	var pinAndPUK = &PINAndPUK{}
 	for {
 		fmt.Fprintf(c.writer, "Please set a new 6-8 character PIN.\n")
@@ -147,7 +147,7 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	return pinAndPUK, nil
 }
 
-func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
+func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string, _ ContextualKeyInfo) (bool, error) {
 	confirmation, err := prompt.Confirmation(ctx, c.writer, c.reader, message)
 	return confirmation, trace.Wrap(err)
 }

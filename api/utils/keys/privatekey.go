@@ -266,6 +266,8 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 type ParsePrivateKeyOptions struct {
 	// HardwareKeyService is the hardware key service to use with parsed hardware private keys.
 	HardwareKeyService hardwarekey.Service
+	// ContextualKeyInfo is contextual information associated with the key.
+	ContextualKeyInfo hardwarekey.ContextualKeyInfo
 }
 
 // ParsePrivateKeyOpt applies configuration options.
@@ -275,6 +277,13 @@ type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 func WithHardwareKeyService(hwKeyService hardwarekey.Service) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
 		o.HardwareKeyService = hwKeyService
+	}
+}
+
+// WithContextualKeyInfo adds contextual key info to the parsed private key.
+func WithContextualKeyInfo(info hardwarekey.ContextualKeyInfo) ParsePrivateKeyOpt {
+	return func(o *ParsePrivateKeyOptions) {
+		o.ContextualKeyInfo = info
 	}
 }
 
@@ -309,7 +318,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			hwks = piv.NewYubiKeyService(nil /*prompt*/)
 		}
 
-		hwPrivateKey, err := hardwarekey.DecodePrivateKey(hwks, block.Bytes)
+		hwPrivateKey, err := hardwarekey.DecodePrivateKey(hwks, block.Bytes, appliedOpts.ContextualKeyInfo)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware private key")
 		}

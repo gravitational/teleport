@@ -4007,6 +4007,11 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, hardwarekey.PrivateKeyConfig{
 			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
 			CustomSlot: tc.PIVSlot,
+			ContextualKeyInfo: hardwarekey.ContextualKeyInfo{
+				ProxyHost:   tc.WebProxyHost(),
+				Username:    tc.Username,
+				ClusterName: tc.SiteName,
+			},
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -41,16 +41,23 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 
 	ctx := context.Background()
 	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+
+	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
+		ProxyHost:   "billy.io",
+		Username:    "Billy@billy.io",
+		ClusterName: "billy.io",
+	}
+
 	hwPriv, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
-		Policy: hardwarekey.PromptPolicyNone,
+		Policy:            hardwarekey.PromptPolicyNone,
+		ContextualKeyInfo: contextualKeyInfo,
 	})
 	require.NoError(t, err)
 
-	priv := hardwarekey.NewPrivateKey(s, hwPriv.Ref)
-	encoded, err := hardwarekey.EncodePrivateKey(priv)
+	encoded, err := hardwarekey.EncodePrivateKey(hwPriv)
 	require.NoError(t, err)
 
-	decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded)
+	decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded, contextualKeyInfo)
 	require.NoError(t, err)
 	require.Equal(t, hwPriv, decodedPriv)
 }

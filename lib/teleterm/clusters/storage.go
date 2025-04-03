@@ -286,11 +286,7 @@ func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *clien
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	// TODO(Joerger): Remove the rootClusterURI dependency from the teleterm prompt so that
-	// the storage service can share a single hardware key service+prompt. This allows the
-	// process to properly share PIV connections, prevents duplicate prompts, and enables
-	// PIN caching across clusters (if both clusters allow PIN caching).
-	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
+	cfg.CustomHardwareKeyPrompt = s.CustomHardwareKeyPrompt
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg

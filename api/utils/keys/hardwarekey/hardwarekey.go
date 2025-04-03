@@ -32,7 +32,7 @@ type Service interface {
 	NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*PrivateKey, error)
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
-	Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
+	Sign(ctx context.Context, ref *PrivateKeyRef, keyInfo ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
 	// GetMissingKeyRefDetails updates the key ref with missing details from the hardware key.
 	GetMissingKeyRefDetails(ref *PrivateKeyRef) error
 }
@@ -41,14 +41,17 @@ type Service interface {
 type PrivateKey struct {
 	service Service
 	Ref     *PrivateKeyRef
+	KeyInfo ContextualKeyInfo
 }
 
 // NewPrivateKey returns a [PrivateKey] for the given service and ref.
-// keyInfo is an optional argument to supply additional contextual info.
-func NewPrivateKey(s Service, ref *PrivateKeyRef) *PrivateKey {
+// keyInfo is an optional argument to supply additional contextual info
+// used to add additional context to prompts, e.g. ProxyHost.
+func NewPrivateKey(s Service, ref *PrivateKeyRef, keyInfo ContextualKeyInfo) *PrivateKey {
 	return &PrivateKey{
 		service: s,
 		Ref:     ref,
+		KeyInfo: keyInfo,
 	}
 }
 
@@ -60,7 +63,7 @@ func (h *PrivateKey) Public() crypto.PublicKey {
 // Sign implements [crypto.Signer].
 func (h *PrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// When context.TODO() is passed, the service should replace this with its own parent context.
-	return h.service.Sign(context.TODO(), h.Ref, rand, digest, opts)
+	return h.service.Sign(context.TODO(), h.Ref, h.KeyInfo, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
@@ -83,7 +86,7 @@ func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
 	// ed25519 hardware keys outside of the mocked PIV service, but we may extend support in
 	// the future as newer keys are being made with ed25519 support (YubiKey 5.7.x, SoloKey).
 	hash := sha512.Sum512(make([]byte, 512))
-	_, err := h.service.Sign(ctx, h.Ref, rand.Reader, hash[:], crypto.SHA512)
+	_, err := h.service.Sign(ctx, h.Ref, h.KeyInfo, rand.Reader, hash[:], crypto.SHA512)
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
@@ -93,7 +96,7 @@ func EncodePrivateKey(p *PrivateKey) ([]byte, error) {
 }
 
 // DecodePrivateKey decodes an encoded hardware private key for the given service.
-func DecodePrivateKey(s Service, encodedKey []byte) (*PrivateKey, error) {
+func DecodePrivateKey(s Service, encodedKey []byte, keyInfo ContextualKeyInfo) (*PrivateKey, error) {
 	ref, err := decodeKeyRef(encodedKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,7 +110,7 @@ func DecodePrivateKey(s Service, encodedKey []byte) (*PrivateKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewPrivateKey(s, ref), nil
+	return NewPrivateKey(s, ref, keyInfo), nil
 }
 
 // PrivateKeyRef references a specific hardware private key.
@@ -155,4 +158,16 @@ type PrivateKeyConfig struct {
 	//   - touch & pin   -> 9d
 	//   - touch & !pin  -> 9e
 	CustomSlot PIVSlotKeyString
+	// ContextualKeyInfo contains additional info to associate with the key.
+	ContextualKeyInfo ContextualKeyInfo
+}
+
+// ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
+type ContextualKeyInfo struct {
+	// ProxyHost is the root proxy hostname that the key is associated with.
+	ProxyHost string
+	// Username is a Teleport username that the key is associated with.
+	Username string
+	// ClusterName is a Teleport cluster name that the key is associated with.
+	ClusterName string
 }
