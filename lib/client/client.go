@@ -157,6 +157,13 @@ type ReissueParams struct {
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
 	// if MFA is required.
 	TTL time.Duration
+
+	// OnMFAResponse is a callback to receive retrieved MFA response. Useful
+	// when a reusable MFA challenge is requested.
+	OnMFAResponse func(*proto.MFAAuthenticateResponse)
+	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
+	// is required.
+	ReusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {

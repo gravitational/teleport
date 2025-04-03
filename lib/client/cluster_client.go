@@ -406,6 +406,11 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		tlsAttestationStatement = tlsSubjectKey.GetAttestationStatement()
 	}
 
+	purpose := proto.UserCertsRequest_CERT_PURPOSE_UNSPECIFIED
+	if params.ReusableMFAResponse != nil {
+		purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
+	}
+
 	return newUserKeys, &proto.UserCertsRequest{
 		SSHPublicKey:                     sshPub,
 		TLSPublicKey:                     tlsPub,
@@ -424,6 +429,8 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		SSHLogin:                         c.tc.HostLogin,
 		SSHPublicKeyAttestationStatement: sshAttestationStatement.ToProto(),
 		TLSPublicKeyAttestationStatement: tlsAttestationStatement.ToProto(),
+		Purpose:                          purpose,
+		MFAResponse:                      params.ReusableMFAResponse,
 	}, nil
 }
 
@@ -452,7 +459,7 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
 	}
 
-	keyRing, _, err = PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
+	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
 		MFACeremony:       c.tc.NewMFACeremony(),
@@ -462,7 +469,13 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		KeyRing:           keyRing,
 		newUserKeys:       newUserKeys,
 	}, promptOpts...)
-	return keyRing, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if params.OnMFAResponse != nil && result.MFAResponse != nil {
+		params.OnMFAResponse(result.MFAResponse)
+	}
+	return result.KeyRing, nil
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
@@ -527,7 +540,9 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}
 
 		// only close the new auth client and not the copied cluster client.
-		defer authClient.Close()
+		if params.AuthClient == nil {
+			defer authClient.Close()
+		}
 	} else {
 		mfaRequired = params.MFACheck.Required
 	}
@@ -562,8 +577,17 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	// target included in it for routing.
 	if !mfaRequired {
 		log.Debug("MFA not required for access.")
+		params.ReusableMFAResponse = nil
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		return keyRing, proto.MFARequired_MFA_REQUIRED_NO, trace.Wrap(err)
+	}
+
+	// TODO add retry on expire
+	if params.ReusableMFAResponse != nil {
+		log.Debug("MFA is required but reusable MFA response is provided")
+		params.ExistingCreds = keyRing
+		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
+		return keyRing, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
 	}
 
 	// Perform the MFA ceremony and add the new credential to the KeyRing.
@@ -622,6 +646,12 @@ type newUserKeys struct {
 	ssh, tls, app, db, kube *keys.PrivateKey
 }
 
+type SessionMFACeremonyResult struct {
+	KeyRing     *KeyRing
+	NewCerts    *proto.Certs
+	MFAResponse *proto.MFAAuthenticateResponse
+}
+
 // PerformSessionMFACeremony issues single-use certificates via GenerateUserCerts,
 // following its recommended RPC flow.
 //
@@ -638,7 +668,7 @@ type newUserKeys struct {
 //  4. Call RootAuthClient.GenerateUserCerts
 //
 // Returns the modified params.Key and the GenerateUserCertsResponse, or an error.
-func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACeremonyParams, promptOpts ...mfa.PromptOpt) (*KeyRing, *proto.Certs, error) {
+func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACeremonyParams, promptOpts ...mfa.PromptOpt) (*SessionMFACeremonyResult, error) {
 	rootClient := params.RootAuthClient
 	currentClient := params.CurrentAuthClient
 	mfaRequiredReq := params.MFARequiredReq
@@ -651,11 +681,16 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
 		switch {
 		case err != nil:
-			return nil, nil, trace.Wrap(MFARequiredUnknown(err))
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		case !mfaRequiredResp.Required:
-			return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
 		mfaRequiredReq = nil // Already checked, don't check again at root.
+	}
+
+	allowReuse := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
+	if params.CertsReq.AllowsMFAReuse() {
+		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
 	params.MFACeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
@@ -665,13 +700,14 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		},
 		MFARequiredCheck: mfaRequiredReq,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			AllowReuse: allowReuse,
 		},
 	}, promptOpts...)
 	if errors.Is(err, &mfa.ErrMFANotRequired) {
-		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	} else if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// If mfaResp is nil, the ceremony was a no-op (no devices registered).
@@ -679,7 +715,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// this error directly instead of an empty challenge, without
 	// regressing https://github.com/gravitational/teleport/issues/36482.
 	if mfaResp == nil {
-		return nil, nil, trace.Wrap(authclient.ErrNoMFADevices)
+		return nil, trace.Wrap(authclient.ErrNoMFADevices)
 	}
 
 	// Issue certificate.
@@ -689,14 +725,17 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
 	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	keyRing := params.KeyRing
 
 	// Nothing more to do.
 	if keyRing == nil {
-		return nil, newCerts, nil
+		return &SessionMFACeremonyResult{
+			NewCerts:    newCerts,
+			MFAResponse: mfaResp,
+		}, nil
 	}
 
 	switch {
@@ -715,7 +754,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		case proto.UserCertsRequest_Database:
 			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, params.newUserKeys.db)
 			if err != nil {
-				return nil, nil, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			if keyRing.DBTLSCredentials == nil {
 				keyRing.DBTLSCredentials = make(map[string]TLSCredential)
@@ -733,10 +772,14 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 				PrivateKey: params.newUserKeys.app,
 			}
 		default:
-			return nil, nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
+			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", certsReq.Usage)
 		}
 	}
 	keyRing.ClusterName = certsReq.RouteToCluster
 
-	return keyRing, newCerts, nil
+	return &SessionMFACeremonyResult{
+		KeyRing:     keyRing,
+		NewCerts:    newCerts,
+		MFAResponse: mfaResp,
+	}, nil
 }

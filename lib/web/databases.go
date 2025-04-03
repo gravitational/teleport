@@ -706,7 +706,7 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 		RouteToDatabase: routeToDatabase,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: s.clt,
 		RootAuthClient:    s.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge),
@@ -720,14 +720,14 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 		return nil, trace.Wrap(err, "failed performing mfa ceremony")
 	}
 
-	if certs == nil {
-		certs, err = s.sctx.cfg.RootClient.GenerateUserCerts(s.ctx, certsReq)
+	if result.NewCerts == nil {
+		result.NewCerts, err = s.sctx.cfg.RootClient.GenerateUserCerts(s.ctx, certsReq)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed issuing user certs")
 		}
 	}
 
-	tlsCert, err := pk.TLSCertificate(certs.TLS)
+	tlsCert, err := pk.TLSCertificate(result.NewCerts.TLS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

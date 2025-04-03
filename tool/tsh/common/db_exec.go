@@ -409,6 +409,9 @@ type sharedDatabaseExecClient struct {
 	clusterClient *client.ClusterClient
 	accessChecker services.AccessChecker
 	tracer        oteltrace.Tracer
+
+	issueCertMu         sync.Mutex
+	reusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 func newSharedDatabaseExecClient(cf *CLIConf, tc *client.TeleportClient) (*sharedDatabaseExecClient, error) {
@@ -456,10 +459,17 @@ func (c *sharedDatabaseExecClient) getProfileStatus() *client.ProfileStatus {
 
 // issueCert issues a single use cert for the db route.
 func (c *sharedDatabaseExecClient) issueCert(ctx context.Context, dbInfo *databaseInfo) (tls.Certificate, error) {
-	// TODO(greedy52) add support for multi-session MFA.
+	c.issueCertMu.Lock()
+	defer c.issueCertMu.Unlock()
+
 	params := client.ReissueParams{
-		RouteToDatabase: client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
-		AccessRequests:  c.profile.ActiveRequests,
+		RouteToDatabase:     client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
+		AccessRequests:      c.profile.ActiveRequests,
+		RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
+		ReusableMFAResponse: c.reusableMFAResponse,
+		OnMFAResponse: func(response *proto.MFAAuthenticateResponse) {
+			c.reusableMFAResponse = response
+		},
 	}
 
 	keyRing, _, err := c.clusterClient.IssueUserCertsWithMFA(ctx, params)

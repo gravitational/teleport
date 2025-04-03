@@ -351,6 +351,9 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			if test.agent != nil {
 				agent = test.agent
 			}
+			if test.params.AuthClient != nil {
+				defer test.params.AuthClient.Close()
+			}
 
 			suite := test.signatureAlgorithmSuite
 			if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
