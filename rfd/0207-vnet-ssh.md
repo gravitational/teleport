@@ -9,11 +9,12 @@ state: draft
 
 * Engineering: @ravicious && (@zmb3 || @rosstimothy)
 * Security: doyensec
+* Product: @klizhentas
 
 ## What
 
 This document outlines the addition of native SSH support for [VNet](0163-vnet.md).
-When VNet SSH is active, users will be able to use any third-party SSH client
+When VNet SSH is active, users will be able to use third-party SSH clients
 to connect to Teleport hosts the same way they are used to connecting to hosts
 on a local network by simply providing a username and hostname e.g.
 `ssh user@hostname`.
@@ -28,7 +29,7 @@ https://goteleport.zoom.us/clips/share/3xSvI4taSD6YgM1C0l12nQ
 ## Why
 
 Users often prefer to use third-party SSH clients to connect to Teleport hosts.
-These clients may be built into tools like VSCode or PuTTY or WinSCP.
+These clients may be built into or called by tools like VSCode or ansible.
 Teleport currently offers partial support for third-party SSH clients with the
 `tsh config` command which outputs an OpenSSH configuration file.
 However, third-party SSH clients do not support advanced features including
@@ -48,37 +49,21 @@ Third-party SSH clients are unable to use
 because `tsh` uses a custom file format to reference these keys, which
 third-party clients won't recognize and won't be able to use for signatures.
 
-VNet SSH will simplify access for third-party SSH clients by avoiding the need
-for custom OpenSSH configuration.
-The third-party clients will not need to use any SSH certificate, they will
-connect directly to the local VNet process without any user authentication
-required from the SSH client.
-The VNet process will "terminate" the incoming SSH connection from the
-third-party client, and dial an outbound SSH connection to the target SSH host,
-then proxy the connection between the two.
-VNet is able to authenticate the user out-of-band from the SSH connection by
-prompting the user from Teleport Connect for any hardware key interactions or
-re-logins necessary.
-Because VNet will own the full SSH connection to the remote host, it can fully
-support per-session MFA and hardware keys.
+VNet SSH will automate all configuration steps to make SSH connections to
+Teleport servers simple and transparent while supporting advanced Teleport
+features that our users are accustomed to.
 
 ## Details
 
 ### UX
 
 When VNet SSH is active, third-party SSH clients such as OpenSSH will be able
-to connect to teleport SSH hosts at a URI matching
-`<username>@<hostname>.ssh.<proxy-address>`.
-For example, `ssh alice@node.ssh.teleport.example.com` will work to connect as
-the SSH user `alice` to a host named `node` in the cluster
-`teleport.example.com`.
+to connect to Teleport SSH hosts at a URI matching
+`<username>@<hostname>.<cluster name>`.
+For example, `ssh alice@node.teleport.example.com` will work to connect as
+the SSH user `alice` to a host named `node` in the cluster `teleport.example.com`.
 If per-session MFA is required, Connect will prompt the user to tap their
 hardware key.
-
-VNet SSH will be enabled by default whenever the user runs VNet on their local
-workstation.
-The user will be able to start VNet the same way they do today, by enabling it
-in Connect or running `tsh vnet`.
 
 #### User story - VSCode remote development
 
@@ -91,18 +76,49 @@ The machine has the hostname `devbox`.
 
 Alice opens Teleport Connect and sees `devbox` as an SSH server on the main
 resources page.
-Next to the usual "Connect" button on the SSH server card, she sees a new VNet
-button.
-She clicks the VNet button and two things happen:
+Next to the usual "Connect" dropdown on the SSH server card, she sees a new
+three-dots menu button.
+She clicks the menu button and there is a single option "Connect with VNet".
+She clicks the "Connect with VNet" button and a few things happen:
 
-1. Because Alice has not started VNet before, the VNet dropdown in the top left
-   opens and displays the text:
-   "Proxying connections to TCP apps and SSH servers in teleport.example.com"
-2. A toast pops up in the bottom right and displays the text:
-   "Connect with any SSH client to devbox.ssh.teleport.example.com (copied to clipboard)."
+1. Because Alice has not started VNet before, VNet starts for the first time.
+1. The VNet panel in the top left opens and displays:
+   > 🟢 Proxying TCP connections to teleport.example.com<br>
+   > 🔴 VNet SSH is not configured<br>
+   > Open Status Page
+1. A toast pops up in the bottom right and displays:
+   "VNet SSH is not configured, click here (link) to enable VNet SSH"
+
+Clicking either the "Open Status Page" button in the VNet panel or the link
+in the toast both open a new VNet Status tab in Connect.
+This tab will include the existing VNet diagnostic report, and a new section at
+the top on the status of VNet SSH.
+
+The SSH section in the VNet Status page will display:
+
+> VNet SSH lets any SSH client connect to Teleport SSH servers.<br>
+> When you enable VNet SSH, Connect will automatically add configuration options
+> to `~/.ssh/config`.
+>
+> Enable VNet SSH (button)
+
+Alice clicks the "Enable VNet SSH" button and the VNet Status page refreshes to
+display:
+
+> VNet SSH lets any SSH client connect to Teleport SSH servers.<br>
+> VNet SSH is enabled, configuration options are present in `~/.ssh/config`.
+>
+> Disable VNet SSH (button)
+
+Alice closes the VNet Status page to return to the Resources page.
+She finds her `devbox` server and clicks the menu button and then the
+"Connect with VNet" button again.
+This time, a toast pops up in the bottom right and displays:
+
+> Connect with any SSH client to `devbox.teleport.example.com` (copied to clipboard)
 
 Alice has not tried VNet before so she goes to her terminal and tries
-`ssh alice@devbox.ssh.teleport.example.com` and the connection works!
+`ssh alice@devbox.teleport.example.com` and the connection works!
 She has a shell on `devbox`, she can run all her normal commands, and all
 Teleport features like session recording are working.
 
@@ -111,7 +127,7 @@ knows it supports remote development so she decides to try connecting to
 `devbox` in VSCode from her laptop.
 She has Microsoft's official "Remote - SSH" extension installed in VSCode so she
 goes to the command palette and selects "Remote-SSH: Connect to Host..." and
-types in `ssh alice@devbox.ssh.teleport.example.com`.
+types in `ssh alice@devbox.teleport.example.com`.
 VSCode successfully connects to the host and Alice is able to use all the normal
 development workflows she is used to.
 
@@ -131,7 +147,7 @@ closes and reopens the remote connection in VSCode.
 #### User story - Failed authentication
 
 Alice tries to connect to `devbox` with the SSH username `root` by running
-`ssh root@devbox.ssh.teleport.example.com`.
+`ssh root@devbox.teleport.example.com`.
 However, her Teleport roles do not allow her to SSH as `root`.
 She gets an error message from `ssh` on the CLI reading
 `ERROR: access denied to root connecting to devbox`.
@@ -140,7 +156,6 @@ She gets an error message from `ssh` on the CLI reading
 
 The purpose of VNet SSH is to simplify Teleport SSH connections with third-party
 SSH clients as much as possible.
-The goal is zero manual configuration steps for the user.
 In order to support per-session MFA in this scenario, the third-party SSH
 client cannot be required to use the Teleport user SSH certificate to terminate
 the SSH connection with the target SSH server, because it simply does not have a
@@ -173,119 +188,106 @@ we already have an SSH forwarding server implemented in `lib/srv/forward/sshserv
 
 #### DNS names
 
-We have a lot of options in what we could potentially support for DNS
-resolution of SSH hosts.
-Things to consider are:
+VNet SSH will support SSH connections to DNS names matching any of the following:
 
-1. we want to keep queries for apps and SSH hosts fast
-1. we don't want to have to handle all DNS queries on the local host, it's
-   better to use scoped DNS "zones" so that we can continue to use split DNS
-   configurations on the host so VNet doesn't have to handle non-Teleport
-   queries
-1. we'd prefer to avoid conflicting DNS names for SSH servers and apps and, in
-   the future, other protocols like databases
+- `<hostname>.<cluster name>`
+- `<hostname>.<leaf cluster name>.<root cluster name>`
+- `<host ID>.<cluster name>`
+- `<host ID>.<leaf cluster name>.<root cluster name>`
 
-We already support app access at subdomains of the proxy public address or any
-custom DNS zone configured in the `vnet_config` resource.
-I propose we support the same DNS zones for SSH access, but include a subdomain
-of `ssh` before the zone suffix. For example, we will support:
+These are the same patterns supported by our existing OpenSSH client
+integration, which will offer a seamless transition for users switching to VNet SSH
+https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/#step-23-generate-an-ssh-client-configuration
 
-- `<hostname>.ssh.<proxy public addr>`
-- `<hostname>.ssh.<custom dns zone>`
-
-Including the `ssh` subdomain has two benefits:
-
-1. If the `ssh` subdomain is present in an incoming DNS query, we only have to
-   search for SSH servers with that hostname, we don't have to search for apps.
-1. DNS names for SSH servers will not conflict with DNS names for apps with a
-   matching name.
-
-#### Trusted host key
-
-For VNet to terminate the incoming SSH connection from the SSH client it needs
-to use an SSH host certificate, and that host cert needs to be trusted by the client.
-
-When VNet is started it will generate an Ed25519 keypair to use as a certificate
-authority (CA).
-The CA key will be used only for the lifetime of the current VNet process, every
-time VNet starts a brand new CA key will be used.
-This is to avoid the need to persist the private key anywhere.
-The private key will remain in memory and never be written to disk, so that it
-cannot be found and used by another process.
-
-For each new connection to a unique hostname, the CA will be used to sign a new
-host certificate matching the hostname.
-The host certificate and key will be used to terminate the incoming SSH
-connection.
-
-In order for third-party SSH clients to trust this CA, VNet will add an
-entry to ~/.ssh/known-hosts with its own CA public key.
-The entry will be valid for all DNS zones that VNet is serving, this includes
-`*.ssh.<proxy public addr>` and `*.ssh.<custom dns zone>` for all clusters the
-user is currently logged-in to, see [DNS names](#dns-names).
-For a user logged in to `teleport.example.com` and `teleport2.example.com` with
-custom DNS zone `example.internal`, the entry would look like:
+If users prefer to use a shorter name to connect to SSH hosts, they can add
+a `CanonicalDomains` option to their `~/.ssh/config` file, e.g.
 
 ```
-@cert-authority *.ssh.teleport.example.com,*.ssh.teleport2.example.com,*.ssh.example.internal ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHK1sKZTW6njOZXK7mhpS7h6Hre/uKmE/UfLD1mQGTiR type=host # Teleport VNet
+CanonicalizeHostname yes
+CanonicalDomains teleport.example.com
+CanonicalizeMaxDots 0
 ```
 
-Because the user may log in or out of clusters and new DNS zones may be added,
-this line may need to be updated during the lifetime of the VNet process.
-To handle this, VNet will check for this entry each time it successfully
-resolves a DNS query for an SSH server.
-If it is missing or does not contain an entry that matches the current query, it
-will update the entry.
+This would cause SSH client calls like `ssh user@host` to be canonicalized to
+`ssh user@host.teleport.example.com`, and VNet would get a DNS query for
+`host.teleport.example.com.` which it could handle and resolve to the correct
+cluster.
 
-The trailing comment `# Teleport VNet` is used so that VNet can reference and
-update a single line in the `known_hosts` file.
-Before shutdown, VNet will delete the entry.
-If the process is killed without being able to delete the entry, it will be
-overwritten the next time VNet starts, this should not cause any problems.
+#### SSH client configuration
 
-#### Search domains
+When the user opts to enable VNet SSH, VNet will add a section like the
+following to `~/.ssh/config`:
 
-One possibility to shorten the DNS names for SSH hosts, e.g. so the user
-could type `ssh <user>@<hostname>` instead of `<user>@<hostname>.ssh.<proxy address>`,
-would be to configure a DNS [search domain](https://en.wikipedia.org/wiki/Search_domain)
-in the host OS.
-For example, if your proxy address is `teleport.example.com` you could configure
-a search domain for `ssh.teleport.example.com.`.
-The OS DNS resolver will then reference that search domain whenever it receives
-a query for a DNS name that is not fully-qualified (does not end with a `.`).
-So if the user types `ssh user@hostname`, the OS DNS resolver would
-fully-qualify that to `hostname.ssh.teleport.example.com`, which is the query
-that would be sent to the VNet DNS nameserver, and everything should work.
+```
+# Begin generated Teleport configuration for VNet
 
-This is something we could potentially configure automatically for the user, but
-I think it might be likely to conflict with many corporate internal network
-search domains, so I don't plan to implement this in VNet.
-Another downside to this approach is that VNet would probably receive queries
-for almost all DNS queries on the host, because users usually don't fully-qualify their
-domain names.
-E.g. if the user tries to look up `google.com` VNet would get a DNS query for
-`google.com.ssh.teleport.example.com.`.
-When the VNet name lookup fails the OS resolver should properly handle the
-lookup for `google.com.`, but it may slow things down and add unnecessary load to
-the VNet process which may also generate queries to the cluster.
+Host *.teleport.example.com *.leaf.teleport.example.com
+    IdentityFile "/Users/nic/.ssh/id_vnet"
+    UserKnownHostsFile "/Users/nic/.ssh/vnet_known_hosts"
+
+# End generated Teleport configuration
+```
+
+This configures a custom identity and known hosts file for all Teleport SSH hosts.
+It will use wildcards to match Teleport cluster names of all root and leaf clusters
+in all profiles found in `$TELEPORT_HOME`.
+VNet will update this configuration section at a regular interval if the set of
+clusters changes.
+The default interval VNet will check if the set of clusters has changed will be
+30 seconds, but it may be updated early if Connect can signal VNet that the user
+has logged into or out of a new profile.
+
+`$HOME/.ssh/id_vnet` will be an Ed25519 private key that the client will use to
+make connections to VNet.
+VNet will generate this key if it does not exist and VNet SSH is enabled.
+VNet will trust the corresponding public key `$HOME/.ssh/id_vnet.pub` for
+incoming SSH connections.
+
+`HOME/.ssh/vnet_known_hosts` will contain a single `cert-authority` entry
+matching all Teleport clusters, the wildcard matches will be identical to the
+`Host` matches in the SSH config file.
+Each time VNet SSH starts it will generate a new Ed25519 key to use as this host
+CA and write the public key to this file.
+The corresponding private key will remain in memory and never be written to disk.
+VNet will update this file at the same interval the SSH config file is updated to
+match all the user's Teleport clusters.
+The SSH client will trust this CA for all connections it makes to VNet.
+The contents will look like:
+
+```
+@cert-authority *.teleport.example.com,*.leaf.teleport.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHK1sKZTW6njOZXK7mhpS7h6Hre/uKmE/UfLD1mQGTiR type=host
+```
+
+For VNet to terminate the incoming SSH connection from the SSH client it will
+present an SSH host certificate generated on the fly signed by the VNet SSH CA.
+
+This configuration should be compatible with OpenSSH clients, any clients or
+integrations that call out to the OpenSSH client, and any other clients that
+parse `~/.ssh/config`.
+It will not support PuTTY or WinSCP, or other clients that do not read
+`~/.ssh/config`.
+We can consider adding native support for PuTTY in a future release by
+implementing something similar to `tsh puttyconfig`.
 
 #### DNS resolution
 
-When the VNet process receives a DNS query for `<hostname>.ssh.<namespace>`,
-this is how it will be resolved:
+When the VNet process receives a DNS query this is how it will be resolved:
 
-1. If it has already resolved this name and assigned a VNet IP address for the
-   host, it will return the assigned IP address.
-1. If the name matches `*.ssh.<proxy-address>` or `*.ssh.<custom-dns-zone>`:
-   1. VNet will determine which clusters the proxy address or custom DNS zone
-      matches. If none, the DNS request is forwarded upstream.
-   1. VNet will apply any matching proxy templates found in the user's
-      `TELEPORT_HOME`.
-   1. VNet will query each matching cluster to see if any SSH servers have a
-      matching SSH server using the `ResolveSSHTarget` rpc.
-   1. If a match is found a free IP will be assigned to that SSH server and it
-      will be returned in an authoritative DNS answer.
-   1. If no matching server is found VNet will respond with `NXDOMAIN`.
+1. If it has already resolved this name and assigned a VNet IP address, it will
+   return the cached IP address.
+1. The existing TCP app lookup will run first, if the address matches a TCP app
+   an IP will be assigned for that app and returned.
+1. If the name does not match `*.<cluster name>` or
+   `*.<leaf cluster name>.<root cluster name>` for any profile, the request will
+   be forwarded to upstream DNS servers.
+1. VNet will apply any matching proxy templates found in the user's
+   `TELEPORT_HOME`.
+1. VNet will query the matching cluster to see if any SSH servers have a
+   matching SSH server using the `ResolveSSHTarget` rpc.
+1. If a match is found a free IP will be assigned to that SSH server and it
+   will be returned in an authoritative DNS answer.
+1. If no matching server is found a `NXDOMAIN` response will be returned with
+   no cache TTL.
 
 #### Connection forwarding
 
@@ -300,57 +302,34 @@ sequenceDiagram
     participant Teleport as teleport.example.com
     participant SSH_Server as SSH Server
 
-    User->>Client: ssh host.ssh.teleport.example.com
-    Client->>DNS_Resolver: Ask for A record for host.ssh.teleport.example.com
+    User->>Client: ssh host.teleport.example.com
+    Client->>DNS_Resolver: Ask for A record for host.teleport.example.com
     DNS_Resolver->>DNS_Resolver: Check own cache
-    DNS_Resolver->>VNet: Ask for A record for host.ssh.teleport.example.com
+    DNS_Resolver->>VNet: Ask for A record for host.teleport.example.com
     VNet->>VNet: Check own cache
+    VNet->>VNet: Check if matches `*.<cluster name>`
     VNet->>VNet: Apply proxy templates
     VNet->>Teleport: Ask if SSH server "host" exists
     Teleport->>VNet: Reply "host" exists
-    VNet->>VNet: Assign IP 100.64.0.2 to host.ssh.teleport.example.com
-    VNet->>DNS_Resolver: Return A record with IP 100.64.0.2
-    DNS_Resolver->>Client: Return A record with IP 100.64.0.2
-    Client<<->>VNet: Terminated SSH connection to 100.64.0.2
+    VNet->>VNet: Assign IP 100.64.0.3 to host.teleport.example.com
+    VNet->>DNS_Resolver: Return A record with IP 100.64.0.3
+    DNS_Resolver->>Client: Return A record with IP 100.64.0.3
+    Client<<->>VNet: Terminated SSH connection to 100.64.0.3
     VNet->>Teleport: Request per-session MFA certificate
     Teleport->>VNet: Send MFA challenge
     VNet->>User: Prompt user to tap MFA
     VNet->>Teleport: Send MFA response
     Teleport->>VNet: Send MFA-verified SSH cert
-    VNet<<->>Teleport: Terminated SSH connection to "host"
-    Teleport<<->>SSH_Server: Tunnelled connection to "host"
+    VNet<<->>SSH_Server: Terminated SSH connection to "host"
 ```
 
 ### Security
 
-The point of VNet is to allow applications running on the local host to connect
-to Teleport resources transparently, without needing to configure a Teleport
-user certificate.
-It has a similar security model to a VPN, once the user securely logs in to
-Teleport on their host, all applications on the host can connect to their
-Teleport resources.
-Where Teleport improves upon the VPN security model here is with per-session
+VNet SSH will be implemented purely client-side, so all existing Teleport
+security measures will apply to VNet SSH connections.
+The security model is effectively equivalent to our existing OpenSSH client
+support, but now allows the cluster to require hardware keys and/or per-session
 MFA.
-When per-session MFA is enabled for SSH access in the cluster, the user will
-have to tap their MFA device every time they start a new SSH session to a
-server.
-
-#### Authentication
-
-VNet will effectively run an in-process SSH server to terminate incoming SSH
-connections and forward them to the target host.
-This SSH server will *not* require any client authentication, as mentioned above
-the point of VNet is to allow transparent access to Teleport resources by any
-application running on the local host where the user has logged in.
-
-The VNet in-process SSH server will set
-[`ssh.ServerConfig.NoClientAuth`](https://pkg.go.dev/golang.org/x/crypto/ssh#ServerConfig)
-to `true` to disable client authentication.
-However, it will also set `ssh.ServerConfig.NoClientAuthCallback`.
-In this callback is where it will attempt to dial the target server with the
-requested username, and complete the per-session MFA ceremony if necessary.
-By doing this in the callback we can return an authentication error to the user
-if they fail to authenticate to the target server.
 
 ### Privacy
 
@@ -366,9 +345,8 @@ gRPC.
 
 ### Backward Compatibility
 
-As a brand new feature, there are not many backward compatibility concerns.
-If a user happens to have a TCP app named `ssh`, connections will still work.
-Only queries for `*.ssh` will be used for SSH access.
+If the user's `~/.ssh/config` file has existing Teleport configuration blocks,
+VNet will not overwrite them without explicit confirmation from the user.
 
 ### Audit Events
 
@@ -393,6 +371,9 @@ The test plan will be updated to cover SSH connections via VNet with:
 1. proxy recording mode
 1. proxy templates
 1. trusted clusters
+1. hardware keys
+1. TCP port forwarding
+1. X11 forwarding
 
 We should test that SSH connections work and that sessions are properly
 recorded.
