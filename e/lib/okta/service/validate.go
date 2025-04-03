@@ -133,9 +133,11 @@ func validateSyncSettings(req interface {
 		}
 	}
 
+	// Bidirectional sync only makes sense when App and Group Sync is enabled, but we want to allow enabling it earlier in the Integration setup,
+	// so it's already pre-set when the user continues to the App and Group Sync setup step.
 	if req.GetEnableBidirectionalSync() {
-		if !req.GetEnableAppGroupSync() {
-			return trace.BadParameter("bidirectional sync can be set only when App and Group sync is enabled")
+		if !req.GetEnableUserSync() {
+			return trace.BadParameter("Bidirectional Sync can be enabled only when User Sync is enabled")
 		}
 	}
 

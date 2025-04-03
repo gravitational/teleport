@@ -324,8 +324,7 @@ export const AppGroupSyncForm = ({
       <Validation>
         {({ validator }) => (
           <Flex flexDirection="column" gap={4} width="100%">
-            <StyledBox>
-              <H2 mb={1}>Step 1: Set Default List Owner(s) for Access Lists</H2>
+            <StyledBox header="Step 1: Set Default List Owner(s) for Access Lists">
               <Text>
                 List Owners are responsible for periodically reviewing
                 membership to each Access List. You must assign at least 1
@@ -361,24 +360,26 @@ export const AppGroupSyncForm = ({
                 </Box>
               )}
             </StyledBox>
-            <StyledBox>
-              <Flex
-                flexDirection="row"
-                alignItems="center"
-                justifyContent="space-between"
-                width="100%"
-                mb={1}
-              >
-                <H2>Step 2: Sync Okta User Groups as Access Lists</H2>
-                <Flex flexDirection="row" alignItems="center" gap={2}>
-                  <Toggle
-                    isToggled={syncAllGroups}
-                    onToggle={() => setSyncAllGroups(s => !s)}
-                    size="large"
-                  />
-                  <Text typography="body1">Sync All User Groups</Text>
+            <StyledBox
+              header={
+                <Flex
+                  flexDirection="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  width="100%"
+                >
+                  <H2>Step 2: Sync Okta User Groups as Access Lists</H2>
+                  <Flex flexDirection="row" alignItems="center" gap={3}>
+                    <Toggle
+                      isToggled={syncAllGroups}
+                      onToggle={() => setSyncAllGroups(s => !s)}
+                      size="large"
+                    />
+                    <Text typography="body1">Sync All User Groups</Text>
+                  </Flex>
                 </Flex>
-              </Flex>
+              }
+            >
               {filterGroupsAttempt.statusText && (
                 <FailedAttempt
                   attempt={filterGroupsAttempt}
@@ -415,24 +416,26 @@ export const AppGroupSyncForm = ({
                 loading={filterGroupsAttempt.status === 'processing'}
               />
             </StyledBox>
-            <StyledBox>
-              <Flex
-                flexDirection="row"
-                alignItems="center"
-                justifyContent="space-between"
-                width="100%"
-                mb={1}
-              >
-                <H2>Step 3: Sync Direct Assignments as Access Lists</H2>
-                <Flex flexDirection="row" alignItems="center" gap={2}>
-                  <Toggle
-                    isToggled={syncAllApps}
-                    onToggle={() => setSyncAllApps(s => !s)}
-                    size="large"
-                  />
-                  <Text typography="body1">Sync All Apps</Text>
+            <StyledBox
+              header={
+                <Flex
+                  flexDirection="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  width="100%"
+                >
+                  <H2>Step 3: Sync Direct Assignments as Access Lists</H2>
+                  <Flex flexDirection="row" alignItems="center" gap={3}>
+                    <Toggle
+                      isToggled={syncAllApps}
+                      onToggle={() => setSyncAllApps(s => !s)}
+                      size="large"
+                    />
+                    <Text typography="body1">Sync All Apps</Text>
+                  </Flex>
                 </Flex>
-              </Flex>
+              }
+            >
               <Text>
                 Teleport will import and sync any applications with direct
                 assignments to Teleport Access Lists. You will not see an Access

@@ -8,7 +8,6 @@ import {
   ButtonSecondary,
   Flex,
   H1,
-  H2,
   Indicator,
   Link,
   Text,
@@ -197,11 +196,7 @@ const MetadataURLForm = ({
           {getErrMessage(attempt.error)}
         </Alert>
       )}
-      <StyledBox>
-        <H2 mb={2}>
-          Step 1: Create an application in the Okta dashboard to allow Teleport
-          to access Okta as an IdP provider
-        </H2>
+      <StyledBox header="Step 1: Create an application in the Okta dashboard to allow Teleport to access Okta as an IdP provider">
         <Text>
           Follow the instructions in the Teleport documentation to{' '}
           <Link
@@ -223,16 +218,12 @@ const MetadataURLForm = ({
       <Validation>
         {({ validator }) => (
           <>
-            <StyledBox>
-              <H2 mb={2}>
-                Step 2: Copy and paste the <b>Metadata URL</b> from Okta
-              </H2>
+            <StyledBox header="Step 2: Copy and paste the 'Metadata URL' from Okta">
               <Text mb={4}>
                 In Okta, go to your new Teleport SSO application and open the{' '}
                 <b>Sign On</b> tab. From the <b>Sign on methods</b> section,
                 copy the Metadata URL and paste it below:
               </Text>
-
               <FieldInput
                 width="500px"
                 label="Metadata URL"

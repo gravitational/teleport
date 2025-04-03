@@ -152,110 +152,88 @@ function compareValues<T>(a: T, b: T, dir: SortDir) {
 // Filters Access Lists based on search and filter values.
 export const filterAccessLists = <T extends AccessListWithModifiedGrants>({
   accessLists,
-  searchValue,
+  searchValue = '',
   filterValue,
 }: {
   accessLists: T[];
   searchValue?: string;
   filterValue: AccessListFilters;
-}) => {
-  // Skip if no filters are set.
+}): T[] => {
+  // Skip if no filters are set or list is empty
+  const trimmedSearch = searchValue?.trim() || '';
+  const hasSourceFilter = filterValue.source?.length > 0;
+  const hasOwnerFilter = filterValue.owners?.length > 0;
+  const hasRoleFilter = filterValue.roles?.length > 0;
+
   if (
     !accessLists.length ||
-    (!searchValue?.trim() &&
-      !filterValue.source?.length &&
-      !filterValue.owners?.length &&
-      !filterValue.roles?.length)
+    (!trimmedSearch && !hasSourceFilter && !hasOwnerFilter && !hasRoleFilter)
   ) {
     return accessLists;
   }
 
-  let filtered = accessLists;
+  return accessLists.filter(acl => {
+    // Search filtering
+    if (trimmedSearch) {
+      const searchTerms = trimmedSearch.toLowerCase().split(' ');
 
-  if (searchValue?.trim()) {
-    // Split the search string into separate words
-    // so we can search for each category regardless of order.
-    const split = searchValue.split(' ').map(s => s.toLowerCase());
+      // Check if any searchable field matches all search terms
+      const matchesSearch =
+        // Title match
+        searchTerms.every(term => acl.title.toLowerCase().includes(term)) ||
+        // Owner names match
+        searchTerms.every(term =>
+          acl.owners.some(owner => owner.name.toLowerCase().includes(term))
+        ) ||
+        // Description match
+        searchTerms.every(term =>
+          acl.description.toLowerCase().includes(term)
+        ) ||
+        // Roles match
+        searchTerms.every(term =>
+          acl.grants.roles.some(role => role.toLowerCase().includes(term))
+        ) ||
+        // Type-specific matches
+        (trimmedSearch.includes('okta') && acl.type === AccessListType.Okta) ||
+        (trimmedSearch.includes('aws') &&
+          acl.type === AccessListType.AwsIdentityCenter);
 
-    filtered = filtered.filter(r => {
-      const title = r.title.toLowerCase();
-      const titleMatch = split.every(s => title.includes(s));
-      if (titleMatch) {
-        return true;
-      }
+      if (!matchesSearch) return false;
+    }
 
-      const owners = r.owners
-        .map(o => o.name)
-        .join('')
-        .toLowerCase();
-      const ownerMatch = split.every(s => owners.includes(s));
-      if (ownerMatch) {
-        return true;
-      }
+    // Source filtering
+    if (hasSourceFilter) {
+      const matchesSource =
+        (filterValue.source.includes('okta') &&
+          acl.type === AccessListType.Okta) ||
+        (filterValue.source.includes('aws-identity-center') &&
+          acl.type === AccessListType.AwsIdentityCenter) ||
+        (filterValue.source.includes('teleport') &&
+          acl.type === AccessListType.Unspecified);
 
-      const description = r.description.toLowerCase();
-      const descriptionMatch = split.every(s => description.includes(s));
-      if (descriptionMatch) {
-        return true;
-      }
+      if (!matchesSource) return false;
+    }
 
-      const strRoles = r.grants.roles.join('').toLowerCase();
-      const rolesMatch = split.every(s => strRoles.includes(s));
-      if (rolesMatch) {
-        return true;
-      }
-
-      if (
-        searchValue.toLowerCase().includes('okta') &&
-        r.type === AccessListType.Okta
-      ) {
-        return true;
-      }
-      if (
-        searchValue.toLowerCase().includes('aws') &&
-        r.type === AccessListType.AwsIdentityCenter
-      ) {
-        return true;
-      }
-    });
-  }
-
-  if (filterValue.source?.length) {
-    filtered = filtered.filter(acl => {
-      if (
-        filterValue.source.includes('okta') &&
-        acl.type === AccessListType.Okta
-      ) {
-        return true;
-      }
-      if (
-        filterValue.source.includes('aws-identity-center') &&
-        acl.type === AccessListType.AwsIdentityCenter
-      ) {
-        return true;
-      }
-      return (
-        filterValue.source.includes('teleport') &&
-        acl.type === AccessListType.Unspecified
-      );
-    });
-  }
-
-  if (filterValue.owners?.length) {
-    filtered = filtered.filter(acl =>
-      filterValue.owners.some(ownerName =>
-        acl.owners.some(owner => owner.name === ownerName)
+    // Owner filtering
+    if (
+      hasOwnerFilter &&
+      !filterValue.owners.some(name =>
+        acl.owners.some(owner => owner.name === name)
       )
-    );
-  }
+    ) {
+      return false;
+    }
 
-  if (filterValue.roles?.length) {
-    filtered = filtered.filter(acl =>
-      filterValue.roles.some(role => acl.grants.roles.includes(role))
-    );
-  }
+    // Role filtering
+    if (
+      hasRoleFilter &&
+      !filterValue.roles.some(role => acl.grants.roles.includes(role))
+    ) {
+      return false;
+    }
 
-  return filtered;
+    return true;
+  });
 };
 
 const ReactSelectAccessListOptionBadge = styled.span`

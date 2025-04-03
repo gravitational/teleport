@@ -114,12 +114,12 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 			expectedErr: "Access List sync can be enabled only when App and Group sync is enabled",
 		},
 		{
-			name: "bidirectional sync can be set only when App and Group sync is enabled",
+			name: "bidirectional sync can be set only when User sync is enabled",
 			req: &oktapb.CreateIntegrationRequest{
 				SsoMetadataUrl:          "example.com/sso", // to bypass URL validation
 				EnableBidirectionalSync: true,
 			},
-			expectedErr: "bidirectional sync can be set only when App and Group sync is enabled",
+			expectedErr: "Bidirectional Sync can be enabled only when User Sync is enabled",
 		},
 		{
 			name: "valid case for setting bidirectional sync",
@@ -131,8 +131,6 @@ func Test_validateCreateIntegrationRequest(t *testing.T) {
 					},
 				},
 				EnableUserSync:          true,
-				EnableAccessListSync:    true,
-				EnableAppGroupSync:      true,
 				EnableBidirectionalSync: true,
 			},
 			expectedErr: "",
@@ -212,7 +210,7 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 			expectedErr: "Access List sync can be enabled only when App and Group sync is enabled",
 		},
 		{
-			name: "bidirectional sync can be set only when app group sync and access list sync are enabled",
+			name: "bidirectional sync can be set only when user sync is enabled",
 			req: &oktapb.UpdateIntegrationRequest{
 				EnableBidirectionalSync: true,
 			},
@@ -223,7 +221,7 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: "bidirectional sync can be set only when App and Group sync is enabled",
+			expectedErr: "Bidirectional Sync can be enabled only when User Sync is enabled",
 		},
 		{
 			name: "valid case for setting bidirectional sync",

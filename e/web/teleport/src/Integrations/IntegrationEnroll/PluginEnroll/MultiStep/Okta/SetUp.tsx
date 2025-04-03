@@ -29,6 +29,7 @@ import {
   OktaIntegrationLabelValues,
   OktaIntegrationLevel,
   oktaIntegrationLevels,
+  StyledBox,
   UpsellBulletList,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
 import { SetUpAppGroupSync } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpAppGroupSync';
@@ -239,7 +240,7 @@ const Overview = ({
 
   return (
     <>
-      <Box>
+      <Box maxWidth="800px">
         <H1 mb={2}>Okta Integration Overview</H1>
         <Text typography="subtitle1">
           The Okta integration has 4 steps. We recommend the full integration,
@@ -316,7 +317,6 @@ const IntegrationLevelTile = ({
       cta: true;
     }) => {
   const { title, bullets } = getIntegrationLevelTileDetails(!!cta, level);
-  // const { level: completedLevels } = oktaIntegrationLevels[completed] || {};
   let chip: ReactNode = null;
   let bulletColor = 'text.muted';
 
@@ -345,11 +345,15 @@ const IntegrationLevelTile = ({
   }
 
   return (
-    <IntegrationLevelTileInner flexDirection="column">
-      <Flex flexDirection="row" gap={2} mb={2} alignItems="center">
-        <H2>{title}</H2>
-        {chip}
-      </Flex>
+    <StyledBox
+      gap={2}
+      header={
+        <Flex flexDirection="row" gap={2} alignItems="center">
+          <H2>{title}</H2>
+          {chip}
+        </Flex>
+      }
+    >
       <UpsellBulletList bullets={bullets} color={bulletColor} />
       {cta && (
         <ButtonLockedFeature
@@ -360,16 +364,9 @@ const IntegrationLevelTile = ({
           Unlock the Full Integration with {FeatureName.IdentityGovernance}
         </ButtonLockedFeature>
       )}
-    </IntegrationLevelTileInner>
+    </StyledBox>
   );
 };
-
-const IntegrationLevelTileInner = styled(Flex)`
-  padding: ${({ theme }) => theme.space[4]};
-  border: ${({ theme }) => `2px solid ${theme.colors.spotBackground[0]}`};
-  border-radius: ${({ theme }) => theme.radii[2]}px;
-  padding: ${({ theme }) => theme.space[3]}px ${({ theme }) => theme.space[4]}px;
-`;
 
 const Chip = styled(Flex).attrs({
   flexDirection: 'row',

@@ -95,7 +95,7 @@ describe('Okta status', () => {
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /enable/i }));
 
-    expect(screen.getByText(/sync users/i)).toBeInTheDocument();
+    expect(screen.getByText(/edit user sync/i)).toBeInTheDocument();
 
     jest.spyOn(pluginsService, 'updatePlugin').mockResolvedValueOnce({
       ...stubOktaPluginOnlySSO,
@@ -125,7 +125,9 @@ describe('Okta status', () => {
     fireEvent.change(screen.getByLabelText(/client id/i), {
       target: { value: 'some-client-id' },
     });
-    await userEvent.click(screen.getByRole('button', { name: /update/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /save changes/i })
+    );
     await act(tick);
 
     userSyncSection = (await screen.findByText(/user sync/i)).closest('div')

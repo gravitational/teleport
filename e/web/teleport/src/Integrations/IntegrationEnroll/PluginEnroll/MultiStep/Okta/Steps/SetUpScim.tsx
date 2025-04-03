@@ -1,15 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import {
-  Alert,
-  Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  H2,
-  Text,
-} from 'design';
+import { Alert, Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import { Check } from 'design/Icon';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { useAsync } from 'shared/hooks/useAsync';
@@ -110,8 +102,7 @@ export const ScimForm = ({
         </Text>
       </Box>
       <Flex flexDirection="column" gap={4} width="100%">
-        <StyledBox>
-          <H2 mb={1}>Step 1: Enable SCIM in Okta</H2>
+        <StyledBox header="Step 1: Enable SCIM in Okta">
           <NumberedList>
             <ListItem>
               <Text>
@@ -134,8 +125,7 @@ export const ScimForm = ({
             </ListItem>
           </NumberedList>
         </StyledBox>
-        <StyledBox>
-          <H2 mb={1}>Step 2: Configure SCIM Details in Okta</H2>
+        <StyledBox header="Step 2: Configure SCIM Details in Okta">
           <NumberedList>
             <ListItem>
               <Text>
@@ -226,10 +216,7 @@ export const ScimForm = ({
             {`${isEditing ? 'Update' : 'Save'} SCIM Configuration`}
           </ButtonPrimary>
         </StyledBox>
-        <StyledBox>
-          <H2 mb={1}>
-            Step 3: Configure SCIM Provisioning Permissions in Okta
-          </H2>
+        <StyledBox header="Step 3: Configure SCIM Provisioning Permissions in Okta">
           <NumberedList>
             <ListItem>
               <Text>

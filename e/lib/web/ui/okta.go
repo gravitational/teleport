@@ -44,6 +44,9 @@ type OktaPluginSpec struct {
 	// EnableAppGroupSync indicates whether App Group Sync is enabled for the
 	// plugin, regardless of whether it is currently running.
 	EnableAppGroupSync bool `json:"enableAppGroupSync,omitempty"`
+	// EnableBidirectionalSync indicates whether changes made in Teleport
+	// should be synced back to Okta.
+	EnableBidirectionalSync bool `json:"enableBidirectionalSync,omitempty"`
 
 	// CredentialInfo holds information about configured credentials in the plugin.
 	CredentialInfo *OktaCredentialInfo `json:"credentialsInfo,omitempty"`

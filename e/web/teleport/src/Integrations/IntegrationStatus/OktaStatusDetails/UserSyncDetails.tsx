@@ -27,11 +27,13 @@ import {
 
 export function UserSyncDetails({
   spec,
+  bidirectionalSync = true,
   disabled,
   toggled,
   onToggle,
 }: {
   spec?: OktaUserSyncDetails;
+  bidirectionalSync?: boolean;
   disabled?: boolean;
   toggled?: boolean;
   onToggle: () => void;
@@ -90,6 +92,11 @@ export function UserSyncDetails({
               <Text color="text.slightlyMuted">
                 Okta users are imported and synced with Teleport so Teleport
                 always includes all of your Okta users.
+              </Text>
+              <Text color="text.slightlyMuted">
+                <i>
+                  {bidirectionalSync ? 'Access Requests enabled' : 'Read-only'}.
+                </i>
               </Text>
             </Flex>
             <Flex alignItems="center" mt={3}>

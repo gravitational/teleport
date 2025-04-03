@@ -214,6 +214,7 @@ function MainContent({
     setFilters: setFilterValue,
     sort: currentSort,
     setSort: setCurrentSort,
+    oktaPluginAttempt,
   } = useAccessListManagementContext();
 
   const currentUsername = ctx.storeUser.getUsername();
@@ -292,6 +293,11 @@ function MainContent({
         )}
     </>
   );
+
+  // Okta Integration is read-only if bidirectionalSync is 'false' or omitted.
+  const isOktaReadOnly =
+    oktaPluginAttempt?.data &&
+    !oktaPluginAttempt.data.spec?.enableBidirectionalSync;
 
   if (attempt.status === 'processing' || attempt.status === '') {
     return (
@@ -382,16 +388,17 @@ function MainContent({
           <AccessListTable
             accessLists={sortedAccessLists}
             history={history}
-            searchValue={searchValue}
             showListTypes={showListTypes}
             currentSort={currentSort}
             setCurrentSort={setCurrentSort}
+            isOktaReadOnly={isOktaReadOnly}
           />
         ) : sortedAccessLists.length > 0 ? (
           sortedAccessLists.map(a => (
             <AccessCard
-              accessList={a}
               key={a.id}
+              accessList={a}
+              isOktaReadOnly={isOktaReadOnly}
               onClick={() =>
                 history.push(cfg.getAccessListManagementRoute(a.id))
               }
@@ -411,17 +418,17 @@ function MainContent({
 const AccessListTable = ({
   accessLists,
   history,
-  searchValue,
   showListTypes,
   currentSort,
   setCurrentSort,
+  isOktaReadOnly = false,
 }: {
   accessLists: AccessListWithModifiedGrants[];
   history: ReturnType<typeof useHistory>;
-  searchValue?: string;
   showListTypes?: boolean;
   currentSort: AccessListSort;
   setCurrentSort: (sort: AccessListSort) => void;
+  isOktaReadOnly?: boolean;
 }) => {
   const columns = useMemo(() => {
     const cols: TableColumn<AccessListWithModifiedGrants>[] = [
@@ -507,25 +514,38 @@ const AccessListTable = ({
         headerText: 'Next Review',
         key: 'auditNextDate',
         onSort: (a, b) => {
-          if (!a.audit?.nextDate && !b.audit?.nextDate) {
+          const aDate =
+            a.type === AccessListType.Okta && isOktaReadOnly
+              ? null
+              : a.audit?.nextDate;
+          const bDate =
+            b.type === AccessListType.Okta && isOktaReadOnly
+              ? null
+              : b.audit?.nextDate;
+
+          if (!aDate && !bDate) {
             return 0;
           }
-          if (!a.audit?.nextDate) {
+          if (!aDate) {
             return 1;
           }
-          if (!b.audit?.nextDate) {
+          if (!bDate) {
             return -1;
           }
-          return a.audit.nextDate.getTime() - b.audit.nextDate.getTime();
+          return aDate.getTime() - bDate.getTime();
         },
         render: acl => (
-          <TableAuditNextDateCell accessList={acl} history={history} />
+          <TableAuditNextDateCell
+            accessList={acl}
+            isOktaReadOnly={isOktaReadOnly}
+            history={history}
+          />
         ),
       }
     );
 
     return cols;
-  }, [showListTypes, history, searchValue]);
+  }, [showListTypes, history]);
 
   return (
     <Table
@@ -567,11 +587,16 @@ const friendlyListType = (listType: string) => {
 const TableAuditNextDateCell = ({
   accessList,
   history,
+  isOktaReadOnly = false,
 }: {
   accessList: AccessListWithModifiedGrants;
   history: ReturnType<typeof useHistory>;
+  isOktaReadOnly?: boolean;
 }) => {
-  if (!accessList.audit?.nextDate) {
+  if (
+    (accessList.type === AccessListType.Okta && isOktaReadOnly) ||
+    !accessList.audit?.nextDate
+  ) {
     return <Cell></Cell>;
   }
 

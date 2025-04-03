@@ -112,12 +112,11 @@ func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.Update
 	}
 
 	return &oktav1.UpdateIntegrationRequest{
-		ApiCredentials:       oktaAPICreds,
-		EnableUserSync:       params.EnableUserSync,
-		EnableAccessListSync: params.EnableAccessListSync,
-		EnableAppGroupSync:   params.EnableAppGroupSync,
-		// TODO(kopiczko) handle EnableBidirectionalSync with UI, e.g. EnableBidirectionalSync: params.EnableBidirectionalSync
-		EnableBidirectionalSync: params.EnableAppGroupSync,
+		ApiCredentials:          oktaAPICreds,
+		EnableAccessListSync:    params.EnableAccessListSync,
+		EnableAppGroupSync:      params.EnableAppGroupSync,
+		EnableUserSync:          params.EnableUserSync,
+		EnableBidirectionalSync: params.EnableBidirectionalSync,
 		AccessListSettings:      accessListSettings,
 		ScimToken:               params.SCIMToken,
 	}, nil
@@ -182,10 +181,9 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 			AppFilters:   params.appFilters,
 			DefaultOwner: params.defaultOwners,
 		},
-		ReuseConnector: params.reuseConnector,
-		SsoMetadataUrl: params.metadataURL,
-		// TODO(kopiczko) handle EnableBidirectionalSync with UI, e.g. EnableBidirectionalSync: params.EnableBidirectionalSync
-		EnableBidirectionalSync: params.enableAppGroupsSync,
+		ReuseConnector:          params.reuseConnector,
+		SsoMetadataUrl:          params.metadataURL,
+		EnableBidirectionalSync: params.enableBidirectionalSync,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -232,19 +230,20 @@ func getOktaCredsFromParams(params *oktaPluginInputs) *oktav1.OktaAPICredentials
 }
 
 type oktaPluginInputs struct {
-	oktaOrgURL           string
-	oktaAPIToken         string
-	scimBearerToken      string
-	scimBearerTokenHash  string
-	groupFilters         []string
-	appFilters           []string
-	defaultOwners        []string
-	enableAccessListSync bool
-	oauthClientID        string
-	enableUserSync       bool
-	enableAppGroupsSync  bool
-	metadataURL          string
-	reuseConnector       string
+	oktaOrgURL              string
+	oktaAPIToken            string
+	scimBearerToken         string
+	scimBearerTokenHash     string
+	groupFilters            []string
+	appFilters              []string
+	defaultOwners           []string
+	enableAccessListSync    bool
+	oauthClientID           string
+	enableUserSync          bool
+	enableAppGroupsSync     bool
+	enableBidirectionalSync bool
+	metadataURL             string
+	reuseConnector          string
 }
 
 type validateOktaPluginInputsArgs struct {
@@ -339,6 +338,8 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	out.enableUserSync = orDefault(args.form, "enableUserSync", true)
 	out.enableAppGroupsSync = orDefault(args.form, "enableAppGroupsSync", out.enableAccessListSync)
 	out.reuseConnector = args.form.Get("reuseConnector")
+	// If access list sync is enabled, default to true
+	out.enableBidirectionalSync = orDefault(args.form, "enableBidirectionalSync", out.enableAccessListSync)
 
 	// We only want to validate the config via live req to the Okta org
 	// if providing credentials or toggling sync options.

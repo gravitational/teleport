@@ -304,15 +304,16 @@ func pluginSpec(p types.Plugin) PluginSpec {
 
 	case *types.PluginSpecV1_Okta:
 		return &OktaPluginSpec{
-			OktaOrgURL:           settings.Okta.OrgUrl,
-			OktaAppID:            settings.Okta.SyncSettings.AppId,
-			OktaAppName:          settings.Okta.SyncSettings.AppName,
-			TeleportSSOConnector: settings.Okta.SyncSettings.SsoConnectorId,
-			DefaultOwners:        settings.Okta.SyncSettings.DefaultOwners,
-			EnableUserSync:       settings.Okta.SyncSettings.SyncUsers,
-			EnableAppGroupSync:   !settings.Okta.SyncSettings.DisableSyncAppGroups,
-			EnableAccessListSync: settings.Okta.SyncSettings.SyncAccessLists,
-			CredentialInfo:       toCredentialInfo(settings.Okta.CredentialsInfo),
+			OktaOrgURL:              settings.Okta.OrgUrl,
+			OktaAppID:               settings.Okta.SyncSettings.AppId,
+			OktaAppName:             settings.Okta.SyncSettings.AppName,
+			TeleportSSOConnector:    settings.Okta.SyncSettings.SsoConnectorId,
+			DefaultOwners:           settings.Okta.SyncSettings.DefaultOwners,
+			EnableUserSync:          settings.Okta.SyncSettings.SyncUsers,
+			EnableAppGroupSync:      !settings.Okta.SyncSettings.DisableSyncAppGroups,
+			EnableAccessListSync:    settings.Okta.SyncSettings.SyncAccessLists,
+			EnableBidirectionalSync: !settings.Okta.SyncSettings.DisableBidirectionalSync,
+			CredentialInfo:          toCredentialInfo(settings.Okta.CredentialsInfo),
 		}
 	case *types.PluginSpecV1_Msteams:
 		return &MsTeamsPluginSpec{
@@ -374,6 +375,8 @@ type OktaPluginUpdate struct {
 	EnableAccessListSync bool `json:"enableAccessListSync,omitempty"`
 	// EnableAppGroupSync indicates whether App/Group Sync should be enabled/disabled.
 	EnableAppGroupSync bool `json:"enableAppGroupSync,omitempty"`
+	// EnableBidirectionalSync indicates whether changes made in Teleport should be synced back to Okta.
+	EnableBidirectionalSync bool `json:"enableBidirectionalSync,omitempty"`
 	// ClientID is the Client ID used for OAuth with Okta.
 	ClientID string `json:"clientID"`
 	// DefaultOwners is the list of default owners for synced Access Lists.

@@ -10,6 +10,7 @@ import {
   Info,
   ListMagnifyingGlass,
 } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import type { Option } from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -18,11 +19,11 @@ import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManageme
 import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
 import {
-  AccessList,
-  AccessListMember,
   AccessListMemberKind,
   AccessListType,
   accessManagementService,
+  type AccessList,
+  type AccessListMember,
 } from 'e-teleport/services/accessmanagement';
 import useTeleport from 'e-teleport/useTeleportE';
 import {
@@ -47,7 +48,14 @@ import {
 import { EditTitle } from './Specs/EditTitle';
 import { Specs } from './Specs/Specs';
 
-const noAccessDeleteMsg = 'You do not have access to delete this access_list';
+const genericNoAccessMsg =
+  'You do not have permission to edit this Access List';
+const noAccessDeleteMsg =
+  'You do not have permission to delete this Access List';
+const oktaTitleMsg =
+  "Editing this Access List's title is disabled; it is managed by Okta";
+const readOnlyOktaDeleteMsg =
+  'Deleting this Access List is disabled; it is managed by Okta and is read-only in Teleport';
 
 export function ViewEditAccessList() {
   const ctx = useTeleport();
@@ -58,6 +66,7 @@ export function ViewEditAccessList() {
     fetchRoleOptions,
     fetchUsersAndRoles,
     usersAndRolesAttempt,
+    oktaPluginAttempt,
     processAccessLists,
   } = useAccessListManagementContext();
   const location = useLocation();
@@ -70,6 +79,16 @@ export function ViewEditAccessList() {
 
   const [perms, setPerms] = useState<Perms>(getPerms({}));
   const [showEditTitle, setShowEditTitle] = useState(false);
+
+  const isOktaList = accessList?.type === AccessListType.Okta;
+
+  // An Okta-synced Access List is read-only if bidirectional sync is 'false' or omitted.
+  // In this case, updates to the members/owners must be made in Okta, and
+  // membership/ownership requirements are disabled.
+  const isReadOnlyOktaList =
+    isOktaList &&
+    oktaPluginAttempt.data?.spec &&
+    !oktaPluginAttempt.data.spec?.enableBidirectionalSync;
 
   function updateAccessList(
     newAccessList: AccessList,
@@ -194,6 +213,7 @@ export function ViewEditAccessList() {
         reviewer={ctx.storeUser.getUsername()}
         accessList={accessList}
         fetchRoleOptions={fetchRoleOptions}
+        isReadOnlyOktaList={isReadOnlyOktaList}
         cancelReview={() => {
           if (!location.key || location.key === 'default') {
             history.replace(location.pathname, location.state);
@@ -232,6 +252,7 @@ export function ViewEditAccessList() {
             </div>
             <FeatureTitle
               perms={perms}
+              isOktaList={isOktaList}
               attempt={scopedAttempt.attempt}
               accessList={accessList}
               setShowEditTitle={setShowEditTitle}
@@ -239,16 +260,27 @@ export function ViewEditAccessList() {
           </Flex>
         </FeatureHeaderTitle>
         {accessList && (
-          <ButtonSecondary
-            onClick={() => setDeleteConfirm(true)}
-            title={perms.adminWhoCanDelete ? '' : noAccessDeleteMsg}
-            disabled={
-              scopedAttempt.attempt.status === 'processing' ||
+          <HoverTooltip
+            tipContent={
               !perms.adminWhoCanDelete
+                ? noAccessDeleteMsg
+                : isReadOnlyOktaList
+                  ? readOnlyOktaDeleteMsg
+                  : undefined
             }
+            position="bottom"
           >
-            Delete
-          </ButtonSecondary>
+            <ButtonSecondary
+              onClick={() => setDeleteConfirm(true)}
+              disabled={
+                scopedAttempt.attempt.status === 'processing' ||
+                !perms.adminWhoCanDelete ||
+                isReadOnlyOktaList
+              }
+            >
+              Delete
+            </ButtonSecondary>
+          </HoverTooltip>
         )}
       </FeatureHeader>
       <MainContent
@@ -258,6 +290,7 @@ export function ViewEditAccessList() {
         userOptions={userOptions}
         accessLists={accessLists}
         fetchRoleOptions={fetchRoleOptions}
+        isReadOnlyOktaList={isReadOnlyOktaList}
         updateAccessList={updateAccessList}
       />
       {deleteConfirm && (
@@ -284,11 +317,13 @@ const FeatureTitle = ({
   attempt,
   accessList,
   setShowEditTitle,
+  isOktaList,
 }: {
   accessList: AccessListModified;
   attempt: ReturnType<typeof useAttempt>['attempt'];
   perms: Perms;
   setShowEditTitle: (value: boolean) => void;
+  isOktaList: boolean;
 }) => {
   switch (attempt.status) {
     case 'failed':
@@ -301,15 +336,21 @@ const FeatureTitle = ({
             {accessList.type !== AccessListType.Unspecified && (
               <TypeBadge type={accessList.type} />
             )}
-            <ButtonPencil
-              title={
+            <HoverTooltip
+              tipContent={
                 !perms.adminWhoCanEdit
-                  ? 'You do not have access to edit this access_list'
-                  : 'Edit Title'
+                  ? genericNoAccessMsg
+                  : isOktaList
+                    ? oktaTitleMsg
+                    : undefined
               }
-              onClick={() => setShowEditTitle(true)}
-              disabled={!perms.adminWhoCanEdit}
-            />
+              position="right"
+            >
+              <ButtonPencil
+                onClick={() => setShowEditTitle(true)}
+                disabled={!perms.adminWhoCanEdit || isOktaList}
+              />
+            </HoverTooltip>
           </Flex>
           {accessList.description && (
             <Text typography="body3">{accessList.description}</Text>
@@ -328,6 +369,7 @@ const MainContent = ({
   accessList,
   accessLists,
   fetchRoleOptions,
+  isReadOnlyOktaList,
   updateAccessList,
 }: {
   perms: Perms;
@@ -336,6 +378,7 @@ const MainContent = ({
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
   fetchRoleOptions: (input: string) => Promise<Option[]>;
+  isReadOnlyOktaList: boolean;
   updateAccessList: (
     newAccessList: AccessList,
     members?: AccessListMember[]
@@ -349,7 +392,7 @@ const MainContent = ({
     );
   }
   if (attempt.status === 'failed') {
-    return <Alert children={attempt.statusText} />;
+    return <Alert kind="outline-danger">{attempt.statusText}</Alert>;
   }
   if (attempt.status !== 'success') {
     return null;
@@ -357,13 +400,18 @@ const MainContent = ({
 
   return (
     <>
-      <ReviewBanner accessList={accessList} perms={perms} />
+      <ReviewBanner
+        accessList={accessList}
+        isReadOnlyOktaList={isReadOnlyOktaList}
+        perms={perms}
+      />
       <Box mb={6}>
         <Specs
           fetchRoleOptions={fetchRoleOptions}
           accessList={accessList}
           updateAccessList={updateAccessList}
           canEditSpecs={perms.adminWhoCanEdit}
+          isReadOnlyOktaList={isReadOnlyOktaList}
         />
       </Box>
       <Box mb={6}>
@@ -373,6 +421,7 @@ const MainContent = ({
           accessList={accessList}
           updateAccessList={updateAccessList}
           accessLists={accessLists}
+          isReadOnlyOktaList={isReadOnlyOktaList}
         />
       </Box>
       {(perms.isOwner || perms.adminWhoCanRead) && (
@@ -382,6 +431,7 @@ const MainContent = ({
           accessList={accessList}
           updateAccessList={updateAccessList}
           accessLists={accessLists}
+          isReadOnlyOktaList={isReadOnlyOktaList}
         />
       )}
     </>
@@ -391,22 +441,26 @@ const MainContent = ({
 const ReviewBanner = ({
   accessList,
   perms,
+  isReadOnlyOktaList = false,
 }: {
   accessList: AccessListModified;
   perms: Perms;
+  isReadOnlyOktaList?: boolean;
 }) => {
   const location = useLocation();
   const history = useHistory();
 
   const canReview = perms.isOwner || perms.adminWhoCanEdit;
   const requiresReview =
-    accessList.requiresReview || accessList.audit.nextDate < new Date();
+    (accessList.requiresReview || accessList.audit.nextDate < new Date()) &&
+    !isReadOnlyOktaList;
 
   if (!requiresReview && canReview && location.hash === '#review') {
     return (
       <Alert kind="neutral" icon={Info}>
-        This Access List does not need review until{' '}
-        {format(accessList.audit.nextDate, DATE_FORMAT)}.
+        {isReadOnlyOktaList
+          ? 'This Access List does not require review; it is managed by Okta and is read-only in Teleport.'
+          : `This Access List does not require review until ${format(accessList.audit.nextDate, DATE_FORMAT)}.`}
       </Alert>
     );
   }
@@ -427,7 +481,7 @@ const ReviewBanner = ({
             history.push(`${location.pathname}#review`, location.state),
         }}
       >
-        This Access List needs review by{' '}
+        This Access List requires review by{' '}
         {format(accessList.audit.nextDate, DATE_FORMAT)}.
       </Alert>
     );

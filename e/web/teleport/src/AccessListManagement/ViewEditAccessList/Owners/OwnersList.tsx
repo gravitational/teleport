@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { ButtonText, Flex, H2 } from 'design';
 import Table from 'design/DataTable';
 import { Add, Wrench } from 'design/Icon';
-import { IconTooltip } from 'design/Tooltip';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
-import type { AccessList } from 'e-teleport/services/accessmanagement';
+import { AccessList } from 'e-teleport/services/accessmanagement';
 import { AccessListMemberKind } from 'e-teleport/services/accessmanagement/types';
 
 import { NestedListLink, type UserOption } from '../../Shared/Shared';
@@ -19,7 +19,9 @@ import {
 } from '../Shared';
 import { EnrollNewOwners } from './EnrollNewOwners';
 
-const genericNoAccessMsg = 'You do not have access to edit owners';
+const genericNoAccessMsg = 'You do not have permission to edit owners';
+const readOnlyOktaOwnersMsg =
+  'Editing owners is disabled; this Access List is managed by Okta and is read-only in Teleport';
 
 export function OwnersList({
   accessList,
@@ -27,12 +29,14 @@ export function OwnersList({
   userOptions,
   updateAccessList,
   accessLists,
+  isReadOnlyOktaList,
 }: {
   userOptions: UserOption[];
   canEditOwners: boolean;
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
+  isReadOnlyOktaList?: boolean;
 }) {
   const { owners } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
@@ -49,15 +53,24 @@ export function OwnersList({
             Owners
           </H2>
         </Flex>
-        <ButtonText
-          title={canEditOwners ? '' : genericNoAccessMsg}
-          disabled={!canEditOwners}
-          onClick={() => setShowEnrollNewMembers(true)}
-          mr={0}
+        <HoverTooltip
+          tipContent={
+            !canEditOwners
+              ? genericNoAccessMsg
+              : isReadOnlyOktaList
+                ? readOnlyOktaOwnersMsg
+                : undefined
+          }
         >
-          <Add size={16} mr={2} />
-          Enroll New Owners or Access Lists
-        </ButtonText>
+          <ButtonText
+            disabled={!canEditOwners || isReadOnlyOktaList}
+            onClick={() => setShowEnrollNewMembers(true)}
+            mr={0}
+          >
+            <Add size={16} mr={2} />
+            Enroll New Owners or Access Lists
+          </ButtonText>
+        </HoverTooltip>
       </Flex>
       <Table
         data={owners}
@@ -132,8 +145,14 @@ export function OwnersList({
             altKey: 'options-btn',
             render: owner => (
               <UserRevokeButtonCell
-                disabled={!canEditOwners}
-                btnTitle={canEditOwners ? '' : genericNoAccessMsg}
+                disabled={!canEditOwners || isReadOnlyOktaList}
+                tooltip={
+                  !canEditOwners
+                    ? genericNoAccessMsg
+                    : isReadOnlyOktaList
+                      ? readOnlyOktaOwnersMsg
+                      : undefined
+                }
                 onClick={() => setDeleteOwner(owner)}
                 ineligibleReason={owner.ineligibleReason}
               />

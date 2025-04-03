@@ -18,12 +18,18 @@ export type Props = {
   // onlyRender flag makes access card non-interactable.
   onlyRender?: boolean;
   onClick(): void;
+  isOktaReadOnly?: boolean;
 };
 
 // TODO(lisa): design is very similar to unifiedresources/ResourceCard.tsx
 // consider moving shared styles to a more general place eg: `SingleLineBox`
 // and `TruncatingLabel`
-export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
+export function AccessCard({
+  accessList,
+  onlyRender = false,
+  onClick,
+  isOktaReadOnly = false,
+}: Props) {
   const {
     id,
     title,
@@ -49,7 +55,12 @@ export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
   // case for Members.
   const isMember = membersCount == null;
   const canViewMembers = !isMember && membersCount >= 0;
-  const requiresReview = needsReviewBy && !isMember;
+  // If list is Okta-synced and Okta Integration is set to read-only,
+  // reviews are irrelevant as members and grants may not be edited in Teleport.
+  const requiresReview =
+    needsReviewBy &&
+    !isMember &&
+    !(isOktaReadOnly && type === AccessListType.Okta);
   const isOverdue = requiresReview && needsReviewBy < new Date();
 
   return (

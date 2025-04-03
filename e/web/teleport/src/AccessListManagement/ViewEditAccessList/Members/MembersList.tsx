@@ -29,7 +29,9 @@ import {
 } from '../Shared';
 import { EnrollNewMembers } from './EnrollNewMembers';
 
-const genericNoAccessMsg = 'You do not have access to edit members';
+const genericNoAccessMsg = 'You do not have permission to edit members';
+const readOnlyOktaMembersMsg =
+  'Editing members is disabled; this Access List is managed by Okta and is read-only in Teleport';
 
 export function MembersList({
   accessList,
@@ -37,12 +39,14 @@ export function MembersList({
   canEditMembers,
   updateAccessList,
   accessLists,
+  isReadOnlyOktaList,
 }: {
   userOptions: UserOption[];
   canEditMembers: boolean;
   updateAccessList(accessList: AccessList, members?: AccessListMember[]): void;
   accessList: AccessListModified;
   accessLists: AccessListWithModifiedGrants[];
+  isReadOnlyOktaList?: boolean;
 }) {
   const { members } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
@@ -59,20 +63,30 @@ export function MembersList({
               Members
             </H2>
           </Flex>
-          <ButtonText
-            title={canEditMembers ? '' : genericNoAccessMsg}
-            disabled={!canEditMembers}
-            onClick={() => setShowEnrollNewMembers(true)}
-            mr={0}
+          <HoverTooltip
+            tipContent={
+              !canEditMembers
+                ? genericNoAccessMsg
+                : isReadOnlyOktaList
+                  ? readOnlyOktaMembersMsg
+                  : undefined
+            }
           >
-            <Add size={16} mr={2} />
-            Enroll New Members or Access Lists
-          </ButtonText>
+            <ButtonText
+              disabled={!canEditMembers || isReadOnlyOktaList}
+              onClick={() => setShowEnrollNewMembers(true)}
+              mr={0}
+            >
+              <Add size={16} mr={2} />
+              Enroll New Members or Access Lists
+            </ButtonText>
+          </HoverTooltip>
         </Flex>
       </Box>
       <AccessListMemberTable
         members={members}
         canEditMembers={canEditMembers}
+        isReadOnlyOktaList={isReadOnlyOktaList}
         onDeleteMember={setDeleteMember}
       />
       {showEnrollNewMembers && (
@@ -110,6 +124,7 @@ export function MembersList({
 export const AccessListMemberTable = ({
   members,
   canEditMembers,
+  isReadOnlyOktaList,
   onDeleteMember = null,
   hideIneligibleReason = false,
   hideReasonCol = false,
@@ -117,6 +132,7 @@ export const AccessListMemberTable = ({
 }: {
   members: AccessListModified['members'];
   canEditMembers: boolean;
+  isReadOnlyOktaList?: boolean;
   onDeleteMember?(m: AccessListModified['members'][number]): void;
   hideIneligibleReason?: boolean;
   hideReasonCol?: boolean;
@@ -254,8 +270,14 @@ export const AccessListMemberTable = ({
           isNonRender: !onDeleteMember,
           render: member => (
             <UserRevokeButtonCell
-              disabled={!canEditMembers}
-              btnTitle={canEditMembers ? '' : genericNoAccessMsg}
+              disabled={!canEditMembers || isReadOnlyOktaList}
+              tooltip={
+                !canEditMembers
+                  ? genericNoAccessMsg
+                  : isReadOnlyOktaList
+                    ? readOnlyOktaMembersMsg
+                    : undefined
+              }
               onClick={() => onDeleteMember(member)}
               ineligibleReason={member.ineligibleReason}
               hideIneligibleReason={hideIneligibleReason}

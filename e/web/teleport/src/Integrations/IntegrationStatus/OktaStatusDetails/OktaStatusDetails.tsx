@@ -375,6 +375,7 @@ const StatusDetails = ({
         />
         <UserSyncDetails
           spec={plugin.status.details?.usersSyncDetails}
+          bidirectionalSync={!!plugin.spec?.enableBidirectionalSync}
           disabled={updatePluginAttempt.status === 'processing'}
           toggled={localSettings.enableUserSync}
           onToggle={() =>

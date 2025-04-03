@@ -3,6 +3,7 @@ import {
   createContext,
   Dispatch,
   SetStateAction,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -12,6 +13,7 @@ import {
 
 import type { SortDir } from 'design/DataTable/types';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
@@ -22,7 +24,10 @@ import {
   accessManagementService,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
+import { pluginsService } from 'e-teleport/services/plugins';
 import { ApiError } from 'teleport/services/api/parseError';
+import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
+import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { KeysEnum } from 'teleport/services/storageService';
 
 // PreProcessFn is a function that takes a list of AccessList and returns a list of AccessLists.
@@ -52,6 +57,7 @@ type State = {
 interface AccessListManagementContext {
   attempt: ReturnType<typeof useAttempt>;
   usersAndRolesAttempt: ReturnType<typeof useAttempt>['attempt'];
+  oktaPluginAttempt: Attempt<Plugin<PluginOktaSpec, PluginStatusOkta>>;
   processAccessLists: (preProcess?: PreProcessFn) => void;
   fetchRoleOptions: ReturnType<typeof useFetchUserAndRoles>['fetchRoleOptions'];
   fetchUsersAndRoles: ReturnType<
@@ -86,6 +92,7 @@ const DEFAULT_SORT = {
 const AccessListManagementContext = createContext<AccessListManagementContext>({
   attempt: STUB_ATTEMPT,
   usersAndRolesAttempt: STUB_ATTEMPT.attempt,
+  oktaPluginAttempt: { status: '', data: null, statusText: '' },
   accessLists: [],
   userOptions: [],
   allOwners: [],
@@ -166,6 +173,30 @@ export const AccessListManagementContextProvider = (
   const { userOptions, fetchRoleOptions, fetchUsersAndRoles } =
     useFetchUserAndRoles(usersAndRolesAttempt);
 
+  const [oktaPluginAttempt, fetchOktaPlugin] = useAsync<
+    [],
+    Plugin<PluginOktaSpec, PluginStatusOkta>
+  >(
+    useCallback(
+      () =>
+        pluginsService.fetchPlugin('okta').catch(err => {
+          if (err instanceof ApiError && err.response.status === 404) {
+            return undefined;
+          }
+          throw err;
+        }),
+      []
+    )
+  );
+
+  useEffect(() => {
+    if (['success', 'processing'].includes(oktaPluginAttempt.status)) {
+      return;
+    }
+
+    void fetchOktaPlugin();
+  }, []);
+
   const processAccessLists = (
     preProcess?: (lists: AccessList[]) => AccessList[]
   ) => {
@@ -195,6 +226,7 @@ export const AccessListManagementContextProvider = (
       value={{
         attempt,
         usersAndRolesAttempt: usersAndRolesAttempt.attempt,
+        oktaPluginAttempt,
         userOptions,
         accessLists: state.accessLists,
         allOwners: state.allOwners,

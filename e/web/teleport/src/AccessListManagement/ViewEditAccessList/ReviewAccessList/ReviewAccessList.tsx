@@ -64,12 +64,14 @@ export function ReviewAccessList({
   reviewer,
   cancelReview,
   isOwner = false,
+  isReadOnlyOktaList = false,
 }: {
   accessList: AccessListModified;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
   reviewer: string;
   cancelReview(): void;
   isOwner?: boolean;
+  isReadOnlyOktaList?: boolean;
 }) {
   const history = useHistory();
   const [reviewStep, setReviewStep] = useState<ReviewStep>(views[0].step);
@@ -208,6 +210,7 @@ export function ReviewAccessList({
                 onDeleteMember={handleRemoveMember}
                 originalMembers={accessList.members}
                 isOkta={accessList.type === AccessListType.Okta}
+                isReadOnlyOktaList={isReadOnlyOktaList}
               />
             </Box>
           )}

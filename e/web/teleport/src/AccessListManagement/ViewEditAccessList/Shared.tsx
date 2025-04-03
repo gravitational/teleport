@@ -5,7 +5,7 @@ import { Alert, Box, ButtonIcon, ButtonSecondary, Flex } from 'design';
 import { Cell } from 'design/DataTable';
 import { Pencil } from 'design/Icon';
 import Link from 'design/Link';
-import { IconTooltip } from 'design/Tooltip';
+import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import { Option } from 'shared/components/Select';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
@@ -241,14 +241,14 @@ export const CustomCell: React.FC<
 
 export const UserRevokeButtonCell = ({
   disabled,
-  btnTitle,
+  tooltip = undefined,
   onClick,
   ineligibleReason,
   hideIneligibleReason = false,
   isReviewing = false,
 }: {
   disabled: boolean;
-  btnTitle: string;
+  tooltip?: string;
   onClick(): void;
   ineligibleReason: string;
   // when reviewing, hide ineligible reason
@@ -256,30 +256,29 @@ export const UserRevokeButtonCell = ({
   // a dynamic change.
   hideIneligibleReason?: boolean;
   isReviewing?: boolean;
-}) => {
-  return (
-    <Cell align="right">
-      <Flex alignItems="center" justifyContent="flex-end">
-        {!hideIneligibleReason && ineligibleReason && (
-          <Box mr={3}>
-            <IconTooltip kind="warning" position="left">
-              {ineligibleReason}
-            </IconTooltip>
-          </Box>
-        )}
+}) => (
+  <Cell align="right">
+    <Flex alignItems="center" justifyContent="flex-end">
+      {!hideIneligibleReason && ineligibleReason && (
+        <Box mr={3}>
+          <IconTooltip kind="warning" position="left">
+            {ineligibleReason}
+          </IconTooltip>
+        </Box>
+      )}
+      <HoverTooltip tipContent={tooltip} position="left">
         <ButtonSecondary
           textTransform="none"
           disabled={disabled}
-          title={btnTitle}
           onClick={onClick}
           size="small"
         >
           {isReviewing ? 'Remove' : 'Delete'}
         </ButtonSecondary>
-      </Flex>
-    </Cell>
-  );
-};
+      </HoverTooltip>
+    </Flex>
+  </Cell>
+);
 
 // getNewAndExistingUsersForEnrollingNewUsers extracts
 // existing users in the selected users list and returns

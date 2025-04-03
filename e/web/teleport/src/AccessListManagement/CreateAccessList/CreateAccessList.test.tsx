@@ -7,10 +7,13 @@ import { mockAccessLists } from 'e-teleport/AccessListManagement/AccessLists/Emp
 import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import { pluginsService } from 'e-teleport/services/plugins';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { getAcl } from 'teleport/mocks/contexts';
+import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
+import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
 
@@ -38,6 +41,9 @@ describe('upsell links', () => {
       items: [],
       startKey: '',
     });
+    jest
+      .spyOn(pluginsService, 'fetchPlugin')
+      .mockResolvedValue({} as Plugin<PluginOktaSpec, PluginStatusOkta>);
   });
 
   afterEach(() => {

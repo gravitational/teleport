@@ -13,8 +13,11 @@ import {
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
+import { pluginsService } from 'e-teleport/services/plugins';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
+import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
+import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
 
@@ -35,6 +38,9 @@ beforeEach(() => {
     .spyOn(ResourceService.prototype, 'fetchRoles')
     .mockResolvedValue({ items: [], startKey: '' });
   jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
+  jest
+    .spyOn(pluginsService, 'fetchPlugin')
+    .mockResolvedValue({} as Plugin<PluginOktaSpec, PluginStatusOkta>);
 });
 
 afterEach(() => {

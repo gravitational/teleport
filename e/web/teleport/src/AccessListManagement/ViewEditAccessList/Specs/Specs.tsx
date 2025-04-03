@@ -2,7 +2,8 @@ import { useState } from 'react';
 
 import { Box, ButtonText, Flex, H2, Text } from 'design';
 import { CircleCheck, NotificationsActive, UserIdBadge } from 'design/Icon';
-import { Option } from 'shared/components/Select';
+import { HoverTooltip } from 'design/Tooltip';
+import type { Option } from 'shared/components/Select';
 
 import {
   getReviewDayOfMonthOption,
@@ -11,7 +12,10 @@ import {
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import { EditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
 import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
-import { AccessList } from 'e-teleport/services/accessmanagement';
+import {
+  AccessListType,
+  type AccessList,
+} from 'e-teleport/services/accessmanagement';
 
 import {
   AccessListModified,
@@ -28,15 +32,24 @@ type Props = {
   canEditSpecs: boolean;
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
+  isReadOnlyOktaList?: boolean;
 };
 
-const genericNoAccessMsg = 'You do not have access to edit this access_list';
+const genericNoAccessMsg =
+  'You do not have permission to edit this Access List';
+const readOnlyOktaOwnerMsg =
+  'Editing Owner eligibility is disabled; this Access List is managed by Okta and is read-only in Teleport';
+const readOnlyOktaMemberMsg =
+  'Editing Member eligibility is disabled; this Access List is managed by Okta and is read-only in Teleport';
+const oktaGrantsMsg =
+  'Editing granted permissions is disabled; this Access List is managed by Okta';
 
 export function Specs({
   accessList,
   fetchRoleOptions,
   canEditSpecs,
   updateAccessList,
+  isReadOnlyOktaList,
 }: Props) {
   const {
     membershipRequires,
@@ -55,8 +68,6 @@ export function Specs({
     audit.recurrence.dayOfMonth
   ).label;
 
-  const editBtnTitle = canEditSpecs ? '' : genericNoAccessMsg;
-
   const inheritedMemberRoles = inheritedMemberGrants.roles;
   const inheritedMemberTraits = convertToTraitConvenience(
     inheritedMemberGrants.traits
@@ -65,6 +76,8 @@ export function Specs({
   const truncateInheritedRolesTraits =
     inheritedMemberRoles.length > MAX_DISPLAYED_INHERITED_ROLES_TRAITS ||
     inheritedMemberTraits.length > MAX_DISPLAYED_INHERITED_ROLES_TRAITS;
+
+  const isOktaList = accessList.type === AccessListType.Okta;
 
   return (
     <>
@@ -82,11 +95,21 @@ export function Specs({
                 <Text bold mr={1}>
                   List Owners
                 </Text>
-                <ButtonPencil
-                  title={editBtnTitle}
-                  onClick={() => setEditPermKind('Owner')}
-                  disabled={!canEditSpecs}
-                />
+                <HoverTooltip
+                  tipContent={
+                    !canEditSpecs
+                      ? genericNoAccessMsg
+                      : isReadOnlyOktaList
+                        ? readOnlyOktaOwnerMsg
+                        : undefined
+                  }
+                  position="right"
+                >
+                  <ButtonPencil
+                    onClick={() => setEditPermKind('Owner')}
+                    disabled={!canEditSpecs || isReadOnlyOktaList}
+                  />
+                </HoverTooltip>
               </Flex>
               <RoleAndTraitLabels
                 roles={ownershipRequires.roles}
@@ -100,11 +123,21 @@ export function Specs({
                 <Text bold mr={1}>
                   Members
                 </Text>
-                <ButtonPencil
-                  title={editBtnTitle}
-                  onClick={() => setEditPermKind('Member')}
-                  disabled={!canEditSpecs}
-                />
+                <HoverTooltip
+                  tipContent={
+                    !canEditSpecs
+                      ? genericNoAccessMsg
+                      : isReadOnlyOktaList
+                        ? readOnlyOktaMemberMsg
+                        : undefined
+                  }
+                  position="right"
+                >
+                  <ButtonPencil
+                    onClick={() => setEditPermKind('Member')}
+                    disabled={!canEditSpecs || isReadOnlyOktaList}
+                  />
+                </HoverTooltip>
               </Flex>
               <RoleAndTraitLabels
                 roles={membershipRequires.roles}
@@ -126,11 +159,20 @@ export function Specs({
             <Box mb={3} ml={1}>
               <Flex alignItems="center" gap={1}>
                 <Text bold>List Owners</Text>
-                <ButtonPencil
-                  title={editBtnTitle}
-                  onClick={() => setEditPermKind('OwnerGrants')}
-                  disabled={!canEditSpecs}
-                />
+                <HoverTooltip
+                  tipContent={
+                    !canEditSpecs
+                      ? genericNoAccessMsg
+                      : isOktaList
+                        ? oktaGrantsMsg
+                        : undefined
+                  }
+                >
+                  <ButtonPencil
+                    onClick={() => setEditPermKind('OwnerGrants')}
+                    disabled={!canEditSpecs || isOktaList}
+                  />
+                </HoverTooltip>
               </Flex>
               <RoleAndTraitLabels
                 roles={ownerGrants.roles}
@@ -143,11 +185,20 @@ export function Specs({
             <Box ml={1}>
               <Flex alignItems="center" gap={1}>
                 <Text bold>Members</Text>
-                <ButtonPencil
-                  title={editBtnTitle}
-                  onClick={() => setEditPermKind('Grants')}
-                  disabled={!canEditSpecs}
-                />
+                <HoverTooltip
+                  tipContent={
+                    !canEditSpecs
+                      ? genericNoAccessMsg
+                      : isOktaList
+                        ? oktaGrantsMsg
+                        : undefined
+                  }
+                >
+                  <ButtonPencil
+                    onClick={() => setEditPermKind('Grants')}
+                    disabled={!canEditSpecs || isOktaList}
+                  />
+                </HoverTooltip>
               </Flex>
               <RoleAndTraitLabels
                 roles={grants.roles}
@@ -193,27 +244,29 @@ export function Specs({
         )}
 
         {/* Audit section */}
-        <Box width="20%">
-          <Flex mb={2} alignItems="center" mt="-4px">
-            <NotificationsActive />
-            <H2 ml={1} mr={1}>
-              Audit
-            </H2>
-            <ButtonPencil
-              title={editBtnTitle}
-              onClick={() => setShowEditAudit(true)}
-              disabled={!canEditSpecs}
-            />
-          </Flex>
-          <Box mb={2}>
-            <Text typography="body3" mb={2}>
-              Next Date: {getFormattedDate(audit.nextDate)}
-            </Text>
-            <Text typography="body3">
-              Frequency: {frequency} {dayOfMonth}
-            </Text>
+        {isReadOnlyOktaList ? null : (
+          <Box width="20%">
+            <Flex mb={2} alignItems="center" mt="-4px">
+              <NotificationsActive />
+              <H2 ml={1} mr={1}>
+                Audit
+              </H2>
+              <ButtonPencil
+                title={!canEditSpecs ? genericNoAccessMsg : ''}
+                onClick={() => setShowEditAudit(true)}
+                disabled={!canEditSpecs}
+              />
+            </Flex>
+            <Box mb={2}>
+              <Text typography="body3" mb={2}>
+                Next Date: {getFormattedDate(audit.nextDate)}
+              </Text>
+              <Text typography="body3">
+                Frequency: {frequency} {dayOfMonth}
+              </Text>
+            </Box>
           </Box>
-        </Box>
+        )}
       </Flex>
       {editPermKind && (
         <EditEligibilityOrGrantRoles

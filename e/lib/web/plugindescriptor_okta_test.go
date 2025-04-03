@@ -236,11 +236,12 @@ func TestOktaPluginUpdate(t *testing.T) {
 	require.IsType(t, &ui.OktaPluginSpec{}, installed.Spec)
 
 	expectedOktaSpec := &ui.OktaPluginSpec{
-		OktaOrgURL:           oktaTestOrg,
-		TeleportSSOConnector: common.OktaSSOConnectorName,
-		EnableUserSync:       false,
-		EnableAppGroupSync:   false,
-		EnableAccessListSync: false,
+		OktaOrgURL:              oktaTestOrg,
+		TeleportSSOConnector:    common.OktaSSOConnectorName,
+		EnableUserSync:          false,
+		EnableAppGroupSync:      false,
+		EnableAccessListSync:    false,
+		EnableBidirectionalSync: false,
 		CredentialInfo: &ui.OktaCredentialInfo{
 			HasConfiguredOauthCredentials: false,
 			HasConfiguredSCIMToken:        false,

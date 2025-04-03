@@ -13,11 +13,13 @@ import {
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
+import { pluginsService } from 'e-teleport/services/plugins';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { getAcl } from 'teleport/mocks/contexts';
 import { ApiError } from 'teleport/services/api/parseError';
+import type { Plugin } from 'teleport/services/integrations';
 
 import { AccessLists } from './AccessLists';
 
@@ -33,6 +35,7 @@ describe('access list management upsell links', () => {
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
       .mockResolvedValue([]);
+    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue({} as Plugin);
   });
 
   afterEach(() => {
@@ -107,6 +110,7 @@ describe('access list management caching', () => {
     jest
       .spyOn(accessManagementService, 'fetchAccessLists')
       .mockResolvedValue([]);
+    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue({} as Plugin);
   });
 
   afterEach(() => {
@@ -368,6 +372,7 @@ test(`should show access list if backend returns it, even if user lacks list and
   jest
     .spyOn(accessManagementService, 'fetchAccessLists')
     .mockResolvedValue([mockAccessListApple]);
+  jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue({} as Plugin);
   const ctx = createTeleportContextE({
     customAcl: getAcl({ noAccess: true }),
   });
