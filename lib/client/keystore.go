@@ -525,6 +525,10 @@ func (e *LegacyCertPathError) Unwrap() error {
 
 // GetKeyRing returns the user's key including the specified certs.
 // If the key is not found, returns trace.NotFound error.
+//
+// If [hwks] is not provided, the keystore may fail to parse hardware keys into
+// a fully functional, signable keyring. This is ok if the keyring is only being
+// retrieved to gather keyring info, e.g. to see what app certs are present.
 func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opts ...CertOption) (*KeyRing, error) {
 	if len(opts) > 0 {
 		if err := idx.Check(); err != nil {
