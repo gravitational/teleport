@@ -37,7 +37,8 @@ import (
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
-	ID string
+	// sessionID is the Teleport session ID that all child ServerContexts will inherit.
+	sessionID rsession.ID
 
 	// NetConn is the base connection object.
 	NetConn net.Conn
@@ -98,7 +99,7 @@ func SetConnectionContextClock(clock clockwork.Clock) ConnectionContextOption {
 func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn, opts ...ConnectionContextOption) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
 	ccx := &ConnectionContext{
-		ID:         string(rsession.NewID()),
+		sessionID:  rsession.NewID(),
 		NetConn:    nconn,
 		ServerConn: sconn,
 		env:        make(map[string]string),
@@ -140,9 +141,18 @@ func (a *agentChannel) Close() error {
 		a.ch.Close())
 }
 
-func (c *ConnectionContext) SetSessionID(sessionID string) {
+// GetSessionID returns the Teleport session ID that all child ServerContexts will inherit.
+func (c *ConnectionContext) GetSessionID() rsession.ID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.sessionID
+}
+
+// SetSessionID sets the Teleport session ID that all child ServerContexts will inherit.
+func (c *ConnectionContext) SetSessionID(sessionID rsession.ID) {
 	c.mu.Lock()
-	c.ID = sessionID
+	c.sessionID = sessionID
 	c.mu.Unlock()
 }
 

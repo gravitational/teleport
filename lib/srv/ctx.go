@@ -281,10 +281,6 @@ type ServerContext struct {
 	// term holds PTY if it was requested by the session.
 	term Terminal
 
-	// sessionID holds the session ID that will be used when a new
-	// session is created.
-	sessionID rsession.ID
-
 	// session holds the active session (if there's an active one).
 	session *session
 
@@ -421,7 +417,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child := &ServerContext{
 		ConnectionContext:      parent,
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
-		sessionID:              rsession.ID(parent.ID),
 		env:                    make(map[string]string),
 		srv:                    srv,
 		ExecResultCh:           make(chan ExecResult, 10),
@@ -549,14 +544,8 @@ func (c *ServerContext) ID() int {
 }
 
 // SessionID returns the ID of the session in the context.
-// TODO: change?
 func (c *ServerContext) SessionID() rsession.ID {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.session == nil {
-		return c.sessionID
-	}
-	return c.session.id
+	return c.ConnectionContext.GetSessionID()
 }
 
 // GetServer returns the underlying server which this context was created in.
@@ -584,9 +573,8 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 
 	// update ctx with the session if it exists
 	if sess, found := reg.findSession(*id); found {
-		c.sessionID = *id
 		c.session = sess
-		c.ConnectionContext.SetSessionID(id.String())
+		c.ConnectionContext.SetSessionID(*id)
 		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
 	}
 
