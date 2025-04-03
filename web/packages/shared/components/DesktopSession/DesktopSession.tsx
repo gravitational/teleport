@@ -164,7 +164,7 @@ export function DesktopSession({
   );
 
   useListener(
-    client.onWsClose,
+    client.onTransportClose,
     useCallback(
       statusText => {
         setTdpConnectionStatus({ status: 'disconnected', message: statusText });
@@ -174,7 +174,7 @@ export function DesktopSession({
     )
   );
   useListener(
-    client.onWsOpen,
+    client.onTransportOpen,
     useCallback(() => {
       setTdpConnectionStatus({ status: 'connected' });
     }, [setTdpConnectionStatus])

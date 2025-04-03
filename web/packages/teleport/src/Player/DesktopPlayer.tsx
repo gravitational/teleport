@@ -61,7 +61,7 @@ export const DesktopPlayer = ({
 
   useListener(playerClient?.onError, clientOnError);
   useListener(playerClient?.onInfo, clientOnTdpInfo);
-  useListener(playerClient?.onWsClose, clientOnWsClose);
+  useListener(playerClient?.onTransportClose, clientOnWsClose);
   useListener(
     playerClient?.onPngFrame,
     canvasRendererRef.current?.renderPngFrame
