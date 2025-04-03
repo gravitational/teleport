@@ -267,7 +267,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				require.Len(t, rules, 1)
 				require.True(t, proto.Equal(test.rule, rules[0]))
 			} else {
-				require.Len(t, rules, 0)
+				require.Empty(t, rules)
 			}
 			require.NoError(t, service.DeleteAccessMonitoringRule(ctx, test.rule.GetMetadata().GetName()))
 		})
