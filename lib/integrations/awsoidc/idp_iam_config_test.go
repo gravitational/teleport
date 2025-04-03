@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -558,6 +559,9 @@ func (m *mockIdPIAMConfigClient) TagRole(ctx context.Context, params *iam.TagRol
 
 func TestNewIdPIAMConfigureClient(t *testing.T) {
 	t.Run("no aws_region env var, returns an error", func(t *testing.T) {
+		t.Setenv("AWS_REGION", "")
+		os.Unsetenv("AWS_REGION")
+
 		_, err := NewIdPIAMConfigureClient(context.Background())
 		require.ErrorContains(t, err, "please set the AWS_REGION environment variable")
 	})
