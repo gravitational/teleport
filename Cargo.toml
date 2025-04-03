@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "lib/srv/desktop/rdp/rdpclient",
-    "web/packages/teleport/src/ironrdp"
+    "web/packages/shared/libs/ironrdp"
 ]
 
 [workspace.package]
