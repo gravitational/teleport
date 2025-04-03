@@ -48,7 +48,7 @@ type YubiKey struct {
 	// out other programs during extended program executions (like "tsh proxy ssh"),
 	// this connections is opportunistically formed and released after being
 	// unused for a few seconds.
-	*sharedPIVConnection
+	c *sharedPIVConnection
 	// serialNumber is the YubiKey's 8 digit serial number.
 	serialNumber uint32
 	// version is the YubiKey's version.
@@ -106,16 +106,16 @@ func findYubiKeyCards() ([]string, error) {
 
 func newYubiKey(card string) (*YubiKey, error) {
 	y := &YubiKey{
-		sharedPIVConnection: &sharedPIVConnection{
+		c: &sharedPIVConnection{
 			card: card,
 		},
 	}
 
 	var err error
-	if y.serialNumber, err = y.getSerialNumber(); err != nil {
+	if y.serialNumber, err = y.c.getSerialNumber(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if y.version, err = y.getVersion(); err != nil {
+	if y.version, err = y.c.getVersion(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -147,7 +147,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 	// process. Without this, the connection will be released,
 	// leading to a failure when providing PIN or touch input:
 	// "verify pin: transmitting request: the supplied handle was invalid".
-	release, err := y.connect()
+	release, err := y.c.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,7 +205,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 	// the signature fails.
 	manualRetryWithPIN := false
 	fw531 := piv.Version{Major: 5, Minor: 3, Patch: 1}
-	if auth.PINPolicy == piv.PINPolicyOnce && y.conn.Version() == fw531 {
+	if auth.PINPolicy == piv.PINPolicyOnce && y.c.conn.Version() == fw531 {
 		// Set the keys PIN policy to never to skip the insVerify check. If PIN was provided in
 		// a previous recent call, the signature will succeed as expected of the "once" policy.
 		auth.PINPolicy = piv.PINPolicyNever
@@ -217,7 +217,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 		return nil, trace.Wrap(err)
 	}
 
-	privateKey, err := y.privateKey(pivSlot, ref.PublicKey, auth)
+	privateKey, err := y.c.privateKey(pivSlot, ref.PublicKey, auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -240,7 +240,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := y.verifyPIN(pin); err != nil {
+		if err := y.c.verifyPIN(pin); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		signature, err := abandonableSign(ctx, signer, rand, digest, opts)
@@ -284,7 +284,7 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 
 // Reset resets the YubiKey PIV module to default settings.
 func (y *YubiKey) Reset() error {
-	err := y.reset()
+	err := y.c.reset()
 	return trace.Wrap(err)
 }
 
@@ -306,17 +306,17 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		TouchPolicy: touchPolicy,
 	}
 
-	pub, err := y.generateKey(piv.DefaultManagementKey, slot, opts)
+	pub, err := y.c.generateKey(piv.DefaultManagementKey, slot, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	slotCert, err := y.attest(slot)
+	slotCert, err := y.c.attest(slot)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	attCert, err := y.attestationCertificate()
+	attCert, err := y.c.attestationCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -354,25 +354,25 @@ func (y *YubiKey) SetMetadataCertificate(slot piv.Slot, subject pkix.Name) error
 		return trace.Wrap(err)
 	}
 
-	err = y.setCertificate(piv.DefaultManagementKey, slot, cert)
+	err = y.c.setCertificate(piv.DefaultManagementKey, slot, cert)
 	return trace.Wrap(err)
 }
 
 // getCertificate gets a certificate from the given PIV slot.
 func (y *YubiKey) getCertificate(slot piv.Slot) (*x509.Certificate, error) {
-	cert, err := y.certificate(slot)
+	cert, err := y.c.certificate(slot)
 	return cert, trace.Wrap(err)
 }
 
 // attestKey attests the key in the given PIV slot.
 // The key's public key can be found in the returned slotCert.
 func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert *x509.Certificate, att *piv.Attestation, err error) {
-	slotCert, err = y.attest(slot)
+	slotCert, err = y.c.attest(slot)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	attCert, err = y.attestationCertificate()
+	attCert, err = y.c.attestationCertificate()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -387,7 +387,35 @@ func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert 
 
 // SetPIN sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
 func (y *YubiKey) SetPIN(oldPin, newPin string) error {
-	err := y.setPIN(oldPin, newPin)
+	err := y.c.setPIN(oldPin, newPin)
+	return trace.Wrap(err)
+}
+
+func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt) (string, error) {
+	pinAndPUK, err := prompt.ChangePIN(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := pinAndPUK.Validate(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if pinAndPUK.PUKChanged {
+		if err := y.c.setPUK(piv.DefaultPUK, pinAndPUK.PUK); err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	if err := y.c.unblock(pinAndPUK.PUK, pinAndPUK.PIN); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pinAndPUK.PIN, nil
+}
+
+func (y *YubiKey) verifyPIN(pin string) error {
+	err := y.c.verifyPIN(pin)
 	return trace.Wrap(err)
 }
 
@@ -593,29 +621,6 @@ func (c *sharedPIVConnection) verifyPIN(pin string) error {
 	}
 	defer release()
 	return trace.Wrap(c.conn.VerifyPIN(pin))
-}
-
-func (c *sharedPIVConnection) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt) (string, error) {
-	pinAndPUK, err := prompt.ChangePIN(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if err := pinAndPUK.Validate(); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if pinAndPUK.PUKChanged {
-		if err := c.setPUK(piv.DefaultPUK, pinAndPUK.PUK); err != nil {
-			return "", trace.Wrap(err)
-		}
-	}
-
-	if err := c.unblock(pinAndPUK.PUK, pinAndPUK.PIN); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return pinAndPUK.PIN, nil
 }
 
 func isRetryError(err error) bool {
