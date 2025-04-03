@@ -61,7 +61,6 @@ export const DesktopPlayer = ({
 
   useListener(playerClient?.onError, clientOnTdpError);
   useListener(playerClient?.onClientError, clientOnTdpError);
-  useListener(playerClient?.onClientError, clientOnTdpError);
   useListener(playerClient?.onInfo, clientOnTdpInfo);
   useListener(playerClient?.onWsClose, clientOnWsClose);
   useListener(
