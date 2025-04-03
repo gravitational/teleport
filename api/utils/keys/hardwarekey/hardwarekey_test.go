@@ -46,13 +46,38 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	priv := hardwarekey.NewPrivateKey(s, hwPriv.Ref)
-	encoded, err := hardwarekey.EncodePrivateKey(priv)
-	require.NoError(t, err)
+	for _, tt := range []struct {
+		name         string
+		ref          *hardwarekey.PrivateKeyRef
+		updateKeyRef func(*hardwarekey.PrivateKeyRef) error
+		expectPriv   *hardwarekey.PrivateKey
+	}{
+		{
+			name:       "new client encoding",
+			ref:        hwPriv.Ref,
+			expectPriv: hwPriv,
+		},
+		{
+			// Old client logins would only have encoded the serial number and slot key.
+			// TODO(Joerger): DELETE IN v19.0.0
+			name: "old client encoding",
+			ref: &hardwarekey.PrivateKeyRef{
+				SerialNumber: hwPriv.Ref.SerialNumber,
+				SlotKey:      hwPriv.Ref.SlotKey,
+			},
+			expectPriv: hwPriv,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			priv := hardwarekey.NewPrivateKey(s, tt.ref)
+			encoded, err := hardwarekey.EncodePrivateKey(priv)
+			require.NoError(t, err)
 
-	decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded)
-	require.NoError(t, err)
-	require.Equal(t, hwPriv, decodedPriv)
+			decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectPriv, decodedPriv)
+		})
+	}
 }
 
 // TestPrivateKey_Prompt tests hardware key service PIN/Touch logic with a mocked service.
