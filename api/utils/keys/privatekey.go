@@ -289,6 +289,10 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			// e.g. tbot, integrations, and custom API client programs.
 			//
 			// TODO(Joerger): initialize client store for all clients early in process.
+			// If hwks is still not provided, we should successfully parse the key but
+			// inject the "unavailable" hardware key service, which will return a
+			// "piv unavailable" error on signature attempts, making this method useful
+			// for key info gathering in specific circumstances (e.g. ProfileStatus.AppsForCluster)
 			hwks = piv.NewYubiKeyService(nil /*prompt*/)
 		}
 
