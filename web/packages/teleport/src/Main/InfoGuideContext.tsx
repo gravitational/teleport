@@ -25,8 +25,32 @@ import {
 } from 'react';
 
 type InfoGuidePanelContextState = {
-  setInfoGuideElement: (element: JSX.Element | null) => void;
-  infoGuideElement: JSX.Element | null;
+  infoGuideConfig: InfoGuideConfig | null;
+  setInfoGuideConfig: (cfg: InfoGuideConfig) => void;
+};
+
+export type InfoGuideConfig = {
+  /**
+   * The component that contains the guide to render.
+   */
+  guide: JSX.Element;
+  /**
+   * Optional custom title for the guide panel.
+   */
+  title?: string;
+  /**
+   * Optional custom panel width.
+   */
+  panelWidth?: number;
+  /**
+   * Optional ID of the component rendered.
+   * Useful when there are multi guides in a page, and we need to know
+   * which of the guide was activated.
+   *
+   * eg: we have a table with rows of different guides, and we need to
+   * highlight the row where the guide was activated.
+   */
+  id?: string;
 };
 
 const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
@@ -34,13 +58,12 @@ const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
 export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
-  const [infoGuideElement, setInfoGuideElement] = useState<JSX.Element | null>(
-    null
-  );
+  const [infoGuideConfig, setInfoGuideConfig] =
+    useState<InfoGuideConfig | null>(null);
 
   return (
     <InfoGuidePanelContext.Provider
-      value={{ infoGuideElement, setInfoGuideElement }}
+      value={{ infoGuideConfig, setInfoGuideConfig }}
     >
       {children}
     </InfoGuidePanelContext.Provider>
@@ -51,7 +74,7 @@ export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
  * hook that allows you to set the info guide element that
  * will render in the InfoGuideSidePanel component.
  *
- * To close the InfoGuideSidePanel component, set infoGuideElement
+ * To close the InfoGuideSidePanel component, set infoGuideConfig
  * state back to null.
  */
 export const useInfoGuide = () => {
@@ -61,16 +84,16 @@ export const useInfoGuide = () => {
     throw new Error('useInfoGuide must be used within a InfoGuidePanelContext');
   }
 
-  const { infoGuideElement, setInfoGuideElement } = context;
+  const { infoGuideConfig, setInfoGuideConfig } = context;
 
   useEffect(() => {
     return () => {
-      setInfoGuideElement(null);
+      setInfoGuideConfig(null);
     };
   }, []);
 
   return {
-    setInfoGuideElement,
-    infoGuideElement,
+    infoGuideConfig,
+    setInfoGuideConfig,
   };
 };

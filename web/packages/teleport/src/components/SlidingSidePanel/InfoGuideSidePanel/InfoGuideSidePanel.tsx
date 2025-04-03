@@ -21,9 +21,8 @@ import styled from 'styled-components';
 
 import { Box, Button, ButtonIcon, Flex, H3, Link, Text } from 'design';
 import { Cross, Info } from 'design/Icon';
-import { P } from 'design/Text/Text';
 
-import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
+import { InfoGuideConfig, useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 
 import { SlidingSidePanel } from '..';
@@ -35,28 +34,37 @@ export const infoGuidePanelWidth = 300;
  * from inside of panel (by clicking on x button from the sticky header).
  */
 export const InfoGuideSidePanel = () => {
-  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
-  const infoGuideSidePanelOpened = infoGuideElement != null;
+  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
+  const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <SlidingSidePanel
       isVisible={infoGuideSidePanelOpened}
       skipAnimation={false}
-      panelWidth={infoGuidePanelWidth}
+      panelWidth={infoGuideConfig?.panelWidth || infoGuidePanelWidth}
       zIndex={zIndexMap.infoGuideSidePanel}
       slideFrom="right"
     >
       <Box css={{ height: '100%', overflow: 'auto' }}>
-        <InfoGuideHeader onClose={() => setInfoGuideElement(null)} />
+        <InfoGuideHeader
+          title={infoGuideConfig?.title}
+          onClose={() => setInfoGuideConfig(null)}
+        />
         <Box px={3} pb={3}>
-          {infoGuideElement}
+          {infoGuideConfig?.guide}
         </Box>
       </Box>
     </SlidingSidePanel>
   );
 };
 
-const InfoGuideHeader = ({ onClose }: { onClose(): void }) => (
+const InfoGuideHeader = ({
+  onClose,
+  title = 'Page Info',
+}: {
+  onClose(): void;
+  title?: string;
+}) => (
   <Flex
     gap={2}
     alignItems="center"
@@ -70,7 +78,7 @@ const InfoGuideHeader = ({ onClose }: { onClose(): void }) => (
       border-bottom: 1px solid ${p => p.theme.colors.spotBackground[1]};
     `}
   >
-    <Text bold>Page Info</Text>
+    <Text bold>{title}</Text>
     <ButtonIcon onClick={onClose} data-testid="info-guide-btn-close">
       <Cross size="small" />
     </ButtonIcon>
@@ -86,13 +94,13 @@ const FilledButtonIcon = styled(Button)`
 /**
  * Renders a clickable info icon next to the children.
  */
-export const InfoGuideWrapper: React.FC<
+export const InfoGuideButton: React.FC<
   PropsWithChildren<{
-    guide: JSX.Element;
+    config: InfoGuideConfig;
     spaceBetween?: boolean;
   }>
-> = ({ guide, children, spaceBetween = false }) => {
-  const { setInfoGuideElement } = useInfoGuide();
+> = ({ config, children, spaceBetween = false }) => {
+  const { setInfoGuideConfig } = useInfoGuide();
 
   return (
     <Flex
@@ -103,7 +111,7 @@ export const InfoGuideWrapper: React.FC<
       {children}
       <FilledButtonIcon
         intent="neutral"
-        onClick={() => setInfoGuideElement(guide)}
+        onClick={() => setInfoGuideConfig(config)}
         data-testid="info-guide-btn-open"
       >
         <Info size="small" />
@@ -117,7 +125,7 @@ export const InfoTitle = styled(H3)`
   margin-top: ${p => p.theme.space[3]}px;
 `;
 
-export const InfoParagraph = styled(P)`
+export const InfoParagraph = styled(Box)`
   margin-top: ${p => p.theme.space[3]}px;
 `;
 

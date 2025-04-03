@@ -29,6 +29,7 @@ import {
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
+import { InfoGuideConfig } from 'teleport/Main/InfoGuideContext';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { SelectResourceSpec } from '../SelectResource/resources';
@@ -309,3 +310,15 @@ export const getRdsIamAuthnHref = (id: AwsRdsGuideIds) => {
     return 'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL';
   }
 };
+
+export function getDiscoverInfoGuideConfig(
+  guide: JSX.Element
+): InfoGuideConfig {
+  if (!guide) {
+    return;
+  }
+  return {
+    guide: guide,
+    title: 'Overview',
+  };
+}

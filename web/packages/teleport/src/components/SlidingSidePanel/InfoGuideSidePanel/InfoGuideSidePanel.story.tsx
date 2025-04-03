@@ -21,7 +21,7 @@ import { Box } from 'design';
 import { DevInfo, LongContent, TopBar } from '../storyHelpers';
 import {
   InfoGuideSidePanel as Component,
-  InfoGuideWrapper,
+  InfoGuideButton,
 } from './InfoGuideSidePanel';
 
 export default {
@@ -34,9 +34,9 @@ export const InfoGuideSidePanel = () => {
       {/* this Box wrapper is just for demo purposes */}
       <Box mt={10} ml={3}>
         <DevInfo />
-        <InfoGuideWrapper guide={<LongContent />}>
+        <InfoGuideButton config={{ guide: <LongContent /> }}>
           Click on the info icon
-        </InfoGuideWrapper>
+        </InfoGuideButton>
       </Box>
       <Component />
     </TopBar>
