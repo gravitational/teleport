@@ -52,7 +52,7 @@ There's even some features that are implemented with workarounds because of tele
 
 **Requires publicly accessible proxy when using AWS OIDC Integration** because AWS must consume the public keys exposed in Teleport Proxy.
 
-**Using IAM Roles Anywhere**, Teleport acts solely as a X.509 certificate issuer, ensuring a transparent and seamless experience by not depending on any Teleport resources or networks paths for access.
+**Using IAM Roles Anywhere**, Teleport acts solely as a X.509 certificate issuer, ensuring a transparent and seamless experience by not depending on any Teleport resources or network paths for access.
 It will be compatible with all AWS tooling by providing a [configuration profile](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) in `~/.aws/config`.
 
 ## Non goals
@@ -68,7 +68,7 @@ This can be improved later on by pulling logs from AWS CloudTrail.
 
 **AWS Identity Center and AWS External Audit Storage** could use the Roles Anywhere integration (instead of OIDC IdP), however that is currently not being considered.
 
-**AWS IAM Resource-based policies** is [not supported](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/security_iam_service-with-iam.html) by IAM Roles Anywhere.
+**AWS IAM Resource-based policies** are [not supported](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/security_iam_service-with-iam.html) by IAM Roles Anywhere.
 
 ## User stories
 
@@ -85,7 +85,7 @@ The user now runs `aws s3 ls` and they receive a list of buckets.
 
 **As a Teleport end user, I have access to listing S3 buckets, but I want to elevate my permissions to be able to upload files**
 
-To get access to another AWS IAM Role, user creates an Access Request.
+To get access to another AWS IAM Role, user creates an Access Request to access a different Profile/Role.
 They will request and assume an IAM Role which gives them the correct IAM permissions.
 
 After assuming the new access, they are able to send files using:
@@ -106,6 +106,7 @@ module "module" {
 Running `terraform init` works as expected.
 
 **As a Teleport Administrator, I want to add access to another AWS IAM Role**
+
 AWS Admin must create another IAM Roles Anywhere Profile, and associate the AWS IAM Roles they wish to provide access to.
 
 Those IAM Roles must have their Trust Relationship accept the Teleport Trust Anchor.
@@ -113,6 +114,7 @@ Those IAM Roles must have their Trust Relationship accept the Teleport Trust Anc
 After adding them, a new Application appears in Teleport which can be given access to users, using existing RBAC system.
 
 **As a Teleport Administrator, I want to provide access to my users using Teleport, but I've never configured Roles Anywhere**
+
 When setting up access to AWS using Teleport, the Administrator is informed that Teleport uses Roles Anywhere Profiles as resources.
 
 After completing the set up, they are informed that there's no Profiles in their account.
@@ -123,21 +125,23 @@ As a pre-requirement for adding the IAM Roles into Profiles, they must change th
 
 After doing this, they get back to Teleport and after a couple of minutes the Profiles will appear as resources they can assign to users and can use to access their AWS account by assuming an IAM Role.
 
-**As a Teleport Administrator, I want to give users of team "dev" read-only access to AWS Account, and ability to request read-write access to it**
+**As a Teleport Administrator, I want to give users of team "Dev" read-only access to AWS Account, and ability to request read-write access to it**
+
 There are two Profiles, each with only one IAM Role: ReadOnlyAccess and ReadWriteAccess.
 
-When setting up the AWS Access, the administrator enables the Role Per Profile auto creation.
+When setting up the AWS Access, the administrator enables the Role per Profile auto creation.
 This creates as many Teleport Roles as Profiles, but each Teleport Role only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
 
 They also create a new Teleport Role which allows access to requesting access to the ReadWriteAccess: RequestReadWriteAccess.
 The administrator changes the "Dev" access list and adds the two roles: ReadOnlyAccess and RequestReadWriteAccess.
 
-This way, "dev" members can now access the ReadOnlyAccess but can also request access to the ReadWriteAccess using the permissions inherited by the RequestReadWriteAccess role.
+This way, "Dev" members can now access the ReadOnlyAccess but can also request access to the ReadWriteAccess using the permissions inherited by the RequestReadWriteAccess role.
 
 **As a user, I want to be able to see what AWS roles are available to me and request access to a role I don't have long standing access to**
+
 There are two Profiles, each with only one IAM Role: ReadOnlyAccess and ReadWriteAccess.
 
-When setting up the AWS Access, the administrator enables the Role Per Profile auto creation.
+When setting up the AWS Access, the administrator enables the Role per Profile auto creation.
 This creates as many Teleport Roles as Profiles, but each Teleport Role only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
 
 The administrator assigns the ReadOnlyAccess to all their users, and creates another Role that allows users to request access to the ReadWriteAccess Role.
@@ -159,7 +163,7 @@ Adding another tile for "AWS Roles Anywhere" would create too many integrations 
 
 Instead, the AWS OIDC Identity Provider should be removed, and only accessible from the Enroll New Resource tiles.
 
-The Enroll New Resource/ AWS CLI/Web Console tile will only accept AWS Roles Anywhere integrations.
+The Enroll New Resource/ AWS CLI/Web Console tile will lead the user to creating a new AWS Roles Anywhere integration (no integration selection will happen).
 
 Other AWS related tiles (eg EC2 Auto Enrollment with SSM) will only be accessible using AWS OIDC integrations.
 
@@ -324,6 +328,7 @@ This Role has a custom Trust Policy, as described in [AWS documentation](https:/
 The following policy is required:
 - `rolesanywhere:ListProfiles` - used to fetch existing IAM Roles Anywhere Profiles
 - `rolesanywhere:ListTagsForResource` - used to fetch the Profile tags
+- `rolesanywhere:ImportCrl` - to be used in the future to revoke sessions
 - `iam:GetRole` - used to create UserTasks when a given IAM Role's trust policy does not accept the Trust Anchor
 
 A new **IAM Roles Anywhere Profile** is created, containing the IAM Role above.
@@ -337,28 +342,23 @@ After accepting the names, they are asked to run a set up script in CloudShell.
 
 Users must now copy the resources ARN into teleport and test the connection (ie is teleport able to list profiles?).
 
-After this point, Teleport is now syncing IAM Roles Anywhere Profiles as Teleport AWS Application Access resources.
+After this point, Teleport is able to sync IAM Roles Anywhere Profiles as Teleport AWS Application Access resources.
 
-If the first sync process fails, then users are required to fix the issue and try again.
+#### Configure Access screen
 
-#### Set Up Access screen
+In this screen users are shown a list of Roles Anywhere Profiles, with a list of name, tags and IAM Roles.
 
-In this screen users are asked to configure access to their own user using traits.
+IAM Roles are clickable and will open the AWS Web Console assuming that role.
+This gives the user the ability to test.
 
-This includes two rules:
-- which Profiles they can access, which relies on `app_labels` Role rule
-- which IAM Roles they can assume, which relies on `aws_role_arn` Role rule and User traits
+If the IAM Role is not compatible with the teleport's trust anchor, then a warning icon appears and the user is informed how they can fix the issue.
 
-Similar to existing flows, users are asked to enter the Role ARNs they want to access.
+This can happen, for example, when the IAM Role's Trust Policy has a condition statement that only accepts other Trust Anchor ARN.
 
-This selection should be guided with the list of Role ARNs gathered from the synchronization process.
+Users can also decide whether they want to allow access to all Profiles from Teleport, or only an explicit subset or even use a regular expression matcher against the Profile name.
+By default, all Profiles are imported.
 
-#### Test Connection
-
-After completing the Set Up Access step, users land in the Test Connection step.
-
-This step allows them to test the access they've just created: by logging in into AWS using one of the IAM Roles which was configured in the previous step.
-
+Users can also chose whether to create a Teleport Role for each IAM Roles Anywhere Profile, which eases the configuration for granting access to other users.
 
 ### Integration Dashboard
 Teleport has a status page for viewing the AWS OIDC Integration status.
@@ -366,6 +366,8 @@ Teleport has a status page for viewing the AWS OIDC Integration status.
 The dashboard must also support this new Integration.
 
 The stats page will report the number of synced IAM Profiles.
+
+Opening the details of the stats, will allow the user to access the Configure Access screen as described above.
 
 User Tasks might also be created by the sync process and the following issue types will be reported:
 - IAM Roles Anywhere Trust Anchor was removed
@@ -398,7 +400,11 @@ _, err = iamClient.CreateRole(ctx, &iam.CreateRoleInput{
   RoleName:                 &roleName,
   AssumeRolePolicyDocument: &trustPolicyJSON,
 })
-// iam.PutRolePolicy with `rolesanywhere:ListProfiles` and `iam:GetRole`
+// Call iam.PutRolePolicy allowing the following actions:
+// - rolesanywhere:ListProfiles
+// - rolesanywhere:ListTagsForResource
+// - rolesanywhere:ImportCrl
+// - iam:GetRole
 
 _, err = raClient.CreateProfile(ctx, &rolesanywhere.CreateProfileInput{})
 raClient.CreateProfile(ctx, &rolesanywhere.CreateProfileInput{
@@ -408,9 +414,9 @@ raClient.CreateProfile(ctx, &rolesanywhere.CreateProfileInput{
 ```
 
 #### Integration
-A new integration resource must be created, using `aws-ra` subkind, and includes the Trust Anchor ARN which trusts Teleport CA and a synchronization section that contains:
+A new integration sub-kind - `aws-ra` - must be created, which specifies the Trust Anchor ARN, which trusts Teleport CA, and a synchronization section that contains:
 - IAM Roles Anywhere Profile ARN and IAM Role ARN used to fetch existing AWS Roles Anywhere Profiles
-- label matchers which are used to selectively sync profiles (defaults to sync)
+- profile filters selectively sync profiles (defaults to sync everything)
 
 Format for the new integration subkind:
 ```yaml
@@ -427,7 +433,10 @@ spec:
       profile_arn: <profile arn>
       role_arn: <role arn>
       profile_filter:
-        <list of profile ARNs or regex to apply on the profile name>
+        - include:
+          arn: <profile arn>
+        - include:
+          regex_name: <regex for the name>
       create_role_per_profile: <true|false>
 status:
   aws_ra:
@@ -453,9 +462,12 @@ spec:
       profile_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a3
       role_arn: arn:aws:iam::123456789012:role/role-for-rolesanywhere-listprofiles
       profile_filter:
-        - arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a4
-        - arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a5
-        - name_regex: ^TeleportProfiles.*
+        - include:
+          arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a4
+        - include:
+          arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a5
+        - include:
+          name_regex: ^TeleportProfiles.*$
       create_role_per_profile: true
 status:
   aws_ra:
@@ -495,7 +507,7 @@ spec:
 ```
 
 Teleport must check if the Profile Roles are compatible with the Integration's Trust Anchor.
-This is done using the `iam:get-role` and checking its trust policy property:
+This is done using the `iam:GetRole` and checking its trust policy property:
 ```json
         "Condition": {
           "ArnEquals": {
@@ -556,7 +568,7 @@ The `rolesanywhere.CreateSession` call accepts a `durationSeconds` param which a
 Its value must be set using the current's Teleport User session, up to 12 hours if it exceeds that.
 
 ### AWS Roles requirements for usage with IAM Roles Anywhere
-AWS IAM Roles must be accessible from Roles Anywhere service, which requires a [custom Trust Policy](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html#trust-policy).
+AWS IAM Roles must be accessible from Roles Anywhere service principal, which requires a [custom Trust Policy](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html#trust-policy).
 
 For IAM Roles to be accessible from IAM Roles Anywhere, they must have the following trust policy:
 ```json
@@ -585,7 +597,7 @@ For IAM Roles to be accessible from IAM Roles Anywhere, they must have the follo
   }
 ```
 
-Note: The `Condition` section is optional, and will ensure only the mentioned Trust Anchor can use this IAM Role.
+Note: The `Condition` section is optional, and will ensure only the referenced Trust Anchor can use this IAM Role.
 
 ### Integration with end user tools
 Users will login using `tsh apps login --aws-role <Role ARN> <App Name>`.

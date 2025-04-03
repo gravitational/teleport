@@ -149,6 +149,7 @@
     "crashloop",
     "createrepo",
     "createrole",
+    "credentialprocess",
     "creds",
     "cryptographical",
     "cslint",
