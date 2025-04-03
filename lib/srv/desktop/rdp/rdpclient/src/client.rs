@@ -1490,7 +1490,10 @@ pub struct ConnectParams {
     pub nla: bool,
     pub client_id: [u32; 4],
 
+    /// conn_fd is used for the pre-TLS portion of the connection sequence.
     pub conn_fd: Option<OwnedFd>,
+    /// tls_fd is used after the TLS upgrade, at which point the Rust code
+    /// must stop reading from and writing to conn_fd.
     pub tls_fd: Option<OwnedFd>,
 }
 

@@ -308,12 +308,6 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	// [addr] need only be valid for the duration of
-	// C.client_run. It is copied on the Rust side and
-	// thus can be freed here.
-	addr := C.CString(c.cfg.Addr)
-	defer C.free(unsafe.Pointer(addr))
-
 	// [kdcAddr] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.
@@ -333,10 +327,10 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user cert was nil")
 	}
 
-	key_der, err := utils.UnsafeSliceData(userKeyDER)
+	keyDER, err := utils.UnsafeSliceData(userKeyDER)
 	if err != nil {
 		return trace.Wrap(err)
-	} else if key_der == nil {
+	} else if keyDER == nil {
 		return trace.BadParameter("user key was nil")
 	}
 
@@ -393,6 +387,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			return
 		}
 
+		// RDP uses TLS for encryption, but not authentication, so disable TLS verification.
 		rdpConnTLS := tls.Client(rdpConn, &tls.Config{
 			InsecureSkipVerify: true, //#nosec
 		})
@@ -410,11 +405,11 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			panic("spki length greater than uint32")
 		}
 		if _, err := right.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(spki)))); err != nil {
-			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to rdp client", "error", err)
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to RDP client", "error", err)
 			return
 		}
 		if _, err := right.Write(spki); err != nil {
-			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to rdp client", "error", err)
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to RDP client", "error", err)
 			return
 		}
 
@@ -424,12 +419,12 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			_, err := io.Copy(right, rdpConnTLS)
-			c.cfg.Logger.DebugContext(ctx, "finished copying from tls connection to rdp client", "error", err)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from TLS connection to RDP client", "error", err)
 		}()
 		go func() {
 			defer wg.Done()
 			_, err := io.Copy(rdpConnTLS, right)
-			c.cfg.Logger.DebugContext(ctx, "finished copying from rdp client to tls connection", "error", err)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from RDP client to TLS connection", "error", err)
 		}()
 	}()
 
@@ -439,7 +434,6 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			ad:               C.bool(c.cfg.AD),
 			nla:              C.bool(c.cfg.NLA),
 			go_username:      username,
-			go_addr:          addr,
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
@@ -447,7 +441,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			cert_der:     (*C.uint8_t)(cert_der),
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(key_der),
+			key_der:                 (*C.uint8_t)(keyDER),
 			screen_width:            C.uint16_t(c.requestedWidth),
 			screen_height:           C.uint16_t(c.requestedHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
