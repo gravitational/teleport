@@ -20,6 +20,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/sha512"
+	"crypto/x509"
 	"encoding/json"
 	"io"
 
@@ -33,7 +34,9 @@ type Service interface {
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
 	Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
+	// TODO(Joerger): DELETE IN v19.0.0
 	// GetMissingKeyRefDetails updates the key ref with missing details from the hardware key.
+	// Used to fill in details from old client logins that only saved serial number and piv slot.
 	GetMissingKeyRefDetails(ref *PrivateKeyRef) error
 }
 
@@ -99,12 +102,14 @@ func DecodePrivateKey(s Service, encodedKey []byte) (*PrivateKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(Joerger): all fields should be encoded to the key's PEM file
-	// rather than being retrieved from the hardware key each time. This
-	// will result in a massive performance boost by avoiding re-attesting
-	// the key for every client call.
-	if err := s.GetMissingKeyRefDetails(ref); err != nil {
-		return nil, trace.Wrap(err)
+	// If the public key is missing, this is likely an old login key with only
+	// the serial number and slot. Fetch missing data from the hardware key.
+	// This data will be saved to the login key on next login
+	// TODO(Joerger): DELETE IN v19.0.0
+	if ref.PublicKey == nil {
+		if err := s.GetMissingKeyRefDetails(ref); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return NewPrivateKey(s, ref), nil
@@ -117,12 +122,12 @@ type PrivateKeyRef struct {
 	// SlotKey is the key name for the hardware key PIV slot, e.g. "9a".
 	SlotKey PIVSlotKey `json:"slot_key"`
 	// PublicKey is the public key paired with the hardware private key.
-	PublicKey crypto.PublicKey
+	PublicKey crypto.PublicKey `json:"-"` // uses custom JSON marshaling in PKIX, ASN.1 DER form
 	// Policy specifies the hardware private key's PIN/touch prompt policies.
-	Policy PromptPolicy
+	Policy PromptPolicy `json:"policy"`
 	// AttestationStatement contains the hardware private key's attestation statement, which is
 	// to attest the touch and pin requirements for this hardware private key during login.
-	AttestationStatement *AttestationStatement
+	AttestationStatement *AttestationStatement `json:"attestation_statement"`
 }
 
 // encode encodes a [PrivateKeyRef] to JSON.
@@ -142,6 +147,50 @@ func decodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
 	}
 
 	return keyRef, nil
+}
+
+// These types are used for custom marshaling of the crypto.PublicKey field in [PrivateKeyRef].
+type refAlias PrivateKeyRef
+type hardwarePrivateKeyRefJSON struct {
+	// embedding an alias type instead of [HardwarePrivateKeyRef] prevents the custom marshaling
+	// from recursively applying, which would result in a stack overflow.
+	refAlias
+	PublicKeyDER []byte `json:"public_key"`
+}
+
+// UnmarshalJSON marshals [PrivateKeyRef] with custom logic for the public key.
+func (r PrivateKeyRef) MarshalJSON() ([]byte, error) {
+	var pubDER []byte
+	if r.PublicKey != nil {
+		var err error
+		if pubDER, err = x509.MarshalPKIXPublicKey(r.PublicKey); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return json.Marshal(&hardwarePrivateKeyRefJSON{
+		refAlias:     refAlias(r),
+		PublicKeyDER: pubDER,
+	})
+}
+
+// UnmarshalJSON unmarshals [PrivateKeyRef] with custom logic for the public key.
+func (r *PrivateKeyRef) UnmarshalJSON(b []byte) error {
+	ref := hardwarePrivateKeyRefJSON{}
+	err := json.Unmarshal(b, &ref)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(ref.PublicKeyDER) > 0 {
+		ref.refAlias.PublicKey, err = x509.ParsePKIXPublicKey(ref.PublicKeyDER)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	*r = PrivateKeyRef(ref.refAlias)
+	return nil
 }
 
 // PrivateKeyConfig contains config for creating a new hardware private key.

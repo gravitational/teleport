@@ -193,6 +193,8 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 }
 
 // GetMissingKeyRefDetails updates the key ref with missing information by querying the hardware key.
+// Used for backwards compatibility with old logins.
+// TODO(Joerger): DELETE IN v19.0.0
 func (s *YubiKeyService) GetMissingKeyRefDetails(ref *hardwarekey.PrivateKeyRef) error {
 	y, err := s.getYubiKey(ref.SerialNumber)
 	if err != nil {
