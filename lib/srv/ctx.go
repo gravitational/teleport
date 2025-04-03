@@ -576,6 +576,8 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 		c.session = sess
 		c.ConnectionContext.SetSessionID(*id)
 		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
+	} else {
+		return trace.NotFound("session %s not found", ssid)
 	}
 
 	return nil

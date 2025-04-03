@@ -33,6 +33,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/trace"
 )
 
 func TestCheckSFTPAllowed(t *testing.T) {
@@ -318,17 +319,16 @@ func TestCreateOrJoinSession(t *testing.T) {
 	tests := []struct {
 		name              string
 		sessionID         string
+		expectedErr       bool
 		wantSameSessionID bool
 	}{
 		{
-			name:              "no session ID",
-			wantSameSessionID: false,
+			name: "no session ID",
 		},
-		// TODO(capnspacehook): Check that an error is returned in v17
 		{
-			name:              "new session ID",
-			sessionID:         string(rsession.NewID()),
-			wantSameSessionID: false,
+			name:        "new session ID",
+			sessionID:   string(rsession.NewID()),
+			expectedErr: true,
 		},
 		{
 			name:              "existing session ID",
@@ -360,13 +360,20 @@ func TestCreateOrJoinSession(t *testing.T) {
 			}
 
 			err = ctx.CreateOrJoinSession(context.Background(), registry)
-			require.NoError(t, err)
-			require.False(t, ctx.sessionID.IsZero())
-			if tt.wantSameSessionID {
-				require.Equal(t, parsedSessionID.String(), ctx.sessionID.String())
+			if tt.expectedErr {
+				require.True(t, trace.IsNotFound(err))
 			} else {
-				require.NotEqual(t, parsedSessionID.String(), ctx.sessionID.String())
+				require.NoError(t, err)
 			}
+
+			sessID := ctx.GetSessionID()
+			require.False(t, sessID.IsZero())
+			if tt.wantSameSessionID {
+				require.Equal(t, *parsedSessionID, ctx.GetSessionID())
+			} else {
+				require.NotEqual(t, *parsedSessionID, ctx.GetSessionID())
+			}
+
 		})
 	}
 }
