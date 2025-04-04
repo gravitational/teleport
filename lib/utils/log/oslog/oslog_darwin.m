@@ -34,8 +34,3 @@ void TELLog(void *log, uint type, const char *message) {
   // there's no need to transfer ownership.
   os_log_with_type((__bridge os_log_t)log, type, "%{public}s", message);
 }
-
-void TELReleaseLog(void *log) {
-  // Since ownership was transfered out of Obj-C in TELCreateLog, the object needs to be manually released.
-  CFRelease((__bridge CFTypeRef)((__bridge os_log_t)log));
-}

@@ -20,8 +20,6 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/utils/log/oslog"
 )
 
@@ -30,7 +28,6 @@ import (
 type SlogTextHandlerOutputOSLog struct {
 	subsystem string
 	mu        sync.Mutex
-	isClosed  bool
 	loggers   map[string]*oslog.Logger
 }
 
@@ -47,10 +44,7 @@ func NewSlogTextHandlerOutputOSLog(subsystem string) *SlogTextHandlerOutputOSLog
 // Write sends the message from buf to os_log and maps level to a specific oslog.OsLogType.
 // os_log truncates messages by default, see [oslog.Logger.Log] for more details.
 func (o *SlogTextHandlerOutputOSLog) Write(buf *buffer, rawComponent string, level slog.Level) error {
-	logger, err := o.getLogger(rawComponent)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	logger := o.getLogger(rawComponent)
 
 	var osLogType oslog.OsLogType
 
@@ -74,38 +68,16 @@ func (o *SlogTextHandlerOutputOSLog) Write(buf *buffer, rawComponent string, lev
 	return nil
 }
 
-func (o *SlogTextHandlerOutputOSLog) getLogger(rawComponent string) (*oslog.Logger, error) {
+func (o *SlogTextHandlerOutputOSLog) getLogger(rawComponent string) *oslog.Logger {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	if o.isClosed {
-		return nil, trace.Errorf("OutputOSLog is closed")
-	}
-
 	logger, found := o.loggers[rawComponent]
 	if found {
-		return logger, nil
+		return logger
 	}
 
 	logger = oslog.NewLogger(o.subsystem, rawComponent)
 	o.loggers[rawComponent] = logger
-	return logger, nil
-}
-
-// Close releases objects that back all loggers created thus far and makes all further calls to Write
-// fail.
-func (o *SlogTextHandlerOutputOSLog) Close() error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	var errs []error
-	for _, logger := range o.loggers {
-		if err := logger.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	o.isClosed = true
-
-	return trace.NewAggregate(errs...)
+	return logger
 }

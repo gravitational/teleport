@@ -35,6 +35,10 @@ type Logger struct {
 // NewLogger creates a new logger that writes to os_log. The caller is expected to call the Close
 // method when Logger is no longer needed.
 //
+// Calling this function twice with the same arguments returns a pointer to a different Go struct,
+// but the underlying osLog pointer is the same. This is handled by the logging runtime. The
+// underlying os_log_t object is never deallocated. See os_log_create(3) for more details.
+//
 // https://developer.apple.com/documentation/os/1643744-os_log_create/
 func NewLogger(subsystem string, category string) *Logger {
 	cSubsystem := C.CString(subsystem)
@@ -65,13 +69,6 @@ func (l *Logger) Log(logType OsLogType, message string) {
 	defer C.free(unsafe.Pointer(cMessage))
 
 	C.TELLog(l.osLog, C.uint(logType), cMessage)
-}
-
-// Close releases the object behind l.osLog.
-func (l *Logger) Close() error {
-	C.TELReleaseLog(l.osLog)
-	C.free(l.osLog)
-	return nil
 }
 
 // OsLogType describes available log types that can be passed to Logger.Log.
