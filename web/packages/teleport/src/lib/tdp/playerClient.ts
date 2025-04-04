@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClientScreenSpec, TdpClient, TdpClientEvent } from 'shared/libs/tdp';
+import { TdpClient, TdpClientEvent } from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
 
@@ -71,12 +71,6 @@ export class PlayerClient extends TdpClient {
       this.lastTimestamp = t;
       this.lastUpdateTime = Date.now();
     }, PROGRESS_UPDATE_INTERVAL_MS);
-  }
-
-  // Override so we can set player status.
-  async connect(spec?: ClientScreenSpec) {
-    await super.connect(spec);
-    this.setPlayerStatus(StatusEnum.PLAYING);
   }
 
   scheduleNextUpdate(current: number) {

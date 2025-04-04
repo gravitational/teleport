@@ -50,6 +50,7 @@ export const DesktopPlayer = ({
     statusText,
     time,
 
+    clientOnTransportOpen,
     clientOnWsClose,
     clientOnError,
     clientOnTdpInfo,
@@ -61,6 +62,7 @@ export const DesktopPlayer = ({
 
   useListener(playerClient?.onError, clientOnError);
   useListener(playerClient?.onInfo, clientOnTdpInfo);
+  useListener(playerClient?.onTransportOpen, clientOnTransportOpen);
   useListener(playerClient?.onTransportClose, clientOnWsClose);
   useListener(
     playerClient?.onPngFrame,
@@ -130,6 +132,10 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
   }, [clusterId, sid]);
 
+  const clientOnTransportOpen = useCallback(() => {
+    setPlayerStatus(StatusEnum.PLAYING);
+  }, []);
+
   const clientOnWsClose = useCallback(() => {
     if (playerClient) {
       playerClient.cancelTimeUpdate();
@@ -162,6 +168,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     playerStatus,
     statusText,
 
+    clientOnTransportOpen,
     clientOnWsClose,
     clientOnError,
     clientOnTdpInfo,
