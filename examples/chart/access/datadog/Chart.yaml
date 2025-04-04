@@ -1,4 +1,4 @@
-.version: &version "17.4.2"
+.version: &version "17.4.2-dev-oidc.1"
 
 apiVersion: v2
 name: teleport-plugin-datadog
