@@ -49,10 +49,12 @@ func (d *KubernetesServiceV2DataSource) Schema(ctx context.Context, req datasour
 					Attributes: map[string]schema.Attribute{
 						"name": schema.StringAttribute{
 							MarkdownDescription: "Name of the Kubernetes cluster",
+							Optional:            true,
 						},
 						"labels": schema.MapAttribute{
 							ElementType:         types.StringType,
 							MarkdownDescription: "Labels to select the Kubernetes clusters.",
+							Optional:            true,
 						},
 					},
 				},
@@ -122,11 +124,11 @@ func (d *KubernetesServiceV2DataSource) Read(ctx context.Context, req datasource
 
 	dest := &tbotconfig.DestinationMemory{}
 
-	output := tbotconfig.KubernetesV2Output{
+	output := &tbotconfig.KubernetesV2Output{
 		Destination:       dest,
 		DisableExecPlugin: true,
 		Selectors:         selectors,
-		CredentialsLifetime: tbotconfig.CredentialsLifetime{
+		CredentialLifetime: tbotconfig.CredentialLifetime{
 			// TODO: parse TTL
 			TTL:             time.Hour,
 			RenewalInterval: 30 * time.Minute,

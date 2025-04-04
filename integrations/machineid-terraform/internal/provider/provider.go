@@ -7,10 +7,12 @@ import (
 	"context"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/trace"
-	"net/http"
+	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
@@ -58,12 +60,15 @@ func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaReq
 		Attributes: map[string]schema.Attribute{
 			"addr": schema.StringAttribute{
 				MarkdownDescription: "host:port of the Teleport address. This can be the Teleport Proxy Service address (port 443 or 4080) or the Teleport Auth Service address (port 3025).",
+				Required:            true,
 			},
 			"join_method": schema.StringAttribute{
 				MarkdownDescription: "See [the join method reference](../join-methods.mdx) for possible values. You must use [a delegated join method](../join-methods.mdx#secret-vs-delegated).",
+				Required:            true,
 			},
 			"join_token": schema.StringAttribute{
 				MarkdownDescription: "Name of the token used for MachineID joining.",
+				Required:            true,
 			},
 			"audience_tag": schema.StringAttribute{
 				MarkdownDescription: "Name of the optional audience tag used for native Machine ID joining with the `terraform` method.",
@@ -140,8 +145,8 @@ type botConfig struct {
 }
 
 func (c *botConfig) preflight(ctx context.Context) (*proto.PingResponse, error) {
-	credential := &config.UnstableClientCredentialOutput{}
-	services := config.ServiceConfigs{credential}
+	credential := &tbotconfig.UnstableClientCredentialOutput{}
+	services := tbotconfig.ServiceConfigs{credential}
 
 	err := c.runWithServices(ctx, services)
 	if err != nil {
@@ -164,15 +169,15 @@ func (c *botConfig) preflight(ctx context.Context) (*proto.PingResponse, error) 
 	return &pong, nil
 }
 
-func (c *botConfig) runWithServices(ctx context.Context, services tbotconfig.Services) error {
+func (c *botConfig) runWithServices(ctx context.Context, services tbotconfig.ServiceConfigs) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	cfg := &tbotconfig.Config{
+	cfg := &tbotconfig.BotConfig{
 		Oneshot: true,
 		Onboarding: tbotconfig.OnboardingConfig{
 			TokenValue: c.joinToken,
-			JoinMethod: types.JoinMethod(c.joinMethod),
+			JoinMethod: apitypes.JoinMethod(c.joinMethod),
 			Terraform: tbotconfig.TerraformOnboardingConfig{
 				AudienceTag: c.audienceTag,
 			},
@@ -187,7 +192,7 @@ func (c *botConfig) runWithServices(ctx context.Context, services tbotconfig.Ser
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err, "checking bot config")
 	}
 
 	bot := tbot.New(cfg, slog.Default())
