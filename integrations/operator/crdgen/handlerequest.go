@@ -231,7 +231,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		}
 		err := generator.addResource(file, resource.name, resource.opts...)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating %q", resource.name)
 		}
 	}
 
