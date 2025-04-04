@@ -52,6 +52,7 @@ func TestGetKnownRegions(t *testing.T) {
 	})
 
 }
+
 func TestIsKnownRegion(t *testing.T) {
 	for _, region := range GetKnownRegions() {
 		require.True(t, IsKnownRegion(region))

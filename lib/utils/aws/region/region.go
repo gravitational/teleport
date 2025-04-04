@@ -22,31 +22,20 @@ import (
 	"maps"
 	"slices"
 	"sync"
-
-	"github.com/aws/aws-sdk-go/aws/endpoints"
 )
+
+var sortedRegions = sync.OnceValue(func() []string {
+	return slices.Sorted(maps.Keys(regions()))
+})
 
 // IsKnownRegion returns true if provided region is one of the "well-known"
 // AWS regions.
 func IsKnownRegion(region string) bool {
-	return slices.Contains(GetKnownRegions(), region)
+	_, ok := regions()[region]
+	return ok
 }
 
-// GetKnownRegions returns a list of "well-known" AWS regions generated from
-// AWS SDK.
+// GetKnownRegions returns a list of "well-known" AWS regions.
 func GetKnownRegions() []string {
-	knownRegionsOnce.Do(func() {
-		var regions []string
-		partitions := endpoints.DefaultPartitions()
-		for _, partition := range partitions {
-			regions = append(regions, slices.Collect(maps.Keys(partition.Regions()))...)
-		}
-		knownRegions = regions
-	})
-	return knownRegions
+	return sortedRegions()
 }
-
-var (
-	knownRegions     []string
-	knownRegionsOnce sync.Once
-)
