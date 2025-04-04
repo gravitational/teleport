@@ -21,7 +21,6 @@ import { components, MultiValueProps } from 'react-select';
 import styled, { useTheme } from 'styled-components';
 
 import { ButtonSecondary } from 'design/Button';
-import { Divider } from 'design/Divider';
 import Flex from 'design/Flex';
 import { Plus } from 'design/Icon';
 import { LabelContent } from 'design/LabelInput/LabelInput';
@@ -231,7 +230,8 @@ function VerbEditor({
   const id = useId();
   const { valid, message } = useRule(rule(verbs));
 
-  // This is dumb, but it works for now, as the editor is fixed-width.
+  // This is dumb, but it works for now, as the editor is fixed-width (defined
+  // in the RoleEditorAdapter component).
   const numColumns = verbs.some(
     v => v.verb === 'create_enroll_token' || v.verb === 'readnosecrets'
   )
@@ -295,4 +295,34 @@ const Legend = styled.legend`
   margin: 0 0 ${props => props.theme.space[1]}px 0;
   padding: 0;
   ${props => props.theme.typography.body3}
+`;
+
+function Divider() {
+  return (
+    <Flex
+      alignItems="center"
+      justifyContent="center"
+      flexDirection="column"
+      borderBottom={1}
+      borderColor="text.muted"
+      my={3}
+      css={`
+        position: relative;
+      `}
+    >
+      <StyledOr>Or</StyledOr>
+    </Flex>
+  );
+}
+
+const StyledOr = styled.div`
+  background: ${props => props.theme.colors.levels.surface};
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  height: 32px;
+  width: 32px;
+  justify-content: center;
+  position: absolute;
+  text-transform: uppercase;
 `;
