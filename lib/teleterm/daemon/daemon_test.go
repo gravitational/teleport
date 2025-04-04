@@ -347,6 +347,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		ClientStore:        client.NewFSClientStore(t.TempDir()),
 	})
 	require.NoError(t, err)
 
@@ -381,6 +382,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		ClientStore:        client.NewFSClientStore(t.TempDir()),
 	})
 	require.NoError(t, err)
 
