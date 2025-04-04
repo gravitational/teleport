@@ -13,9 +13,14 @@ ensure that all tables are aligned.*/}
     table-layout: fixed;
   }
 
-  table td {
-    width: 25%;
-  }`}}
+  th, td {
+    width: 18%;
+  }
+  th:first-child, td:first-child {
+    width: 46%;
+  }
+  `
+  }}
 />
 
 
@@ -34,11 +39,9 @@ include:
 to applications, servers, databases, Kubernetes clusters, and other resources
 across distributed infrastructures.
 
-### User identity
-
-Authenticate users without passwords leveraging Touch ID, YubiKey Bio and other
-biometric devices. Add Teleport as a security layer on top of your identity
-provider or use Teleport's SSO.
+**User identity:** Authenticate users without passwords leveraging Touch ID,
+YubiKey Bio and other biometric devices. Add Teleport as a security layer on top
+of your identity provider or use Teleport's SSO.
 
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
@@ -46,20 +49,17 @@ provider or use Teleport's SSO.
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
 | [Hardware Private Key Support](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 
-### Resource identity
-
-Assign a cryptographic identity to every application, server, database and other
-Teleport Protected Resources to gain visibility and control of all your
-infrastructure.
+**Resource identity:** Assign a cryptographic identity to every application,
+server, database and other Teleport Protected Resources to gain visibility and
+control of all your infrastructure.
 
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
 | Protecting:  [Applications](https://goteleport.com/docs/enroll-resources/application-access/getting-started/),  [Databases](https://goteleport.com/docs/enroll-resources/database-access/getting-started/), [Kubernetes Clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/getting-started/), [Linux Servers](https://goteleport.com/docs/enroll-resources/server-access/getting-started/), [Windows Servers](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/), [Windows Desktops](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](https://goteleport.com/docs/admin-guides/management/guides/github-integration/) | ✔ | ✔ | ✔ (does not include Oracle support) |
 
-### Secure remote access
-
-Zero-trust, auditable  access to all supported infrastructure  types from
-anywhere, without VPNs, bastion hosts or Vaults with shared secrets.
+**Secure remote access:** Zero-trust, auditable  access to all supported
+infrastructure  types from anywhere, without VPNs, bastion hosts or Vaults with
+shared secrets.
 
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
@@ -70,23 +70,20 @@ anywhere, without VPNs, bastion hosts or Vaults with shared secrets.
 | [IP-Based Restrictions](https://goteleport.com/docs/admin-guides/access-controls/guides/ip-pinning/) | ✔ | ✔ | ✖ |
 | [Teleport VNet](https://goteleport.com/docs/connect-your-client/vnet/) | ✔ | ✔ | ✔ |
 
-### Short-lived privileges
-
-Ephemeral authorization granted through short-lived certificates bound to
-biometric devices and secure-enclaves, via Teleport’s built-in certificate
-authority for X.509 and SSH certificates for all resources, including legacy
-systems.
+**Short-lived privileges:** Ephemeral authorization granted through short-lived
+certificates bound to biometric devices and secure-enclaves, via Teleport’s
+built-in certificate authority for X.509 and SSH certificates for all resources,
+including legacy systems.
 
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
 | [Role-Based Access Control](https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/) | ✔ | ✔ | ✔ |
 | [Just-in-Time Access Requests & Reviews](https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/) | Available in Teleport Identity Governance |  | Only can request roles through CLI  |
 
-### Session recording and interactive controls
-
-RRecord, replay, join, and moderate interactive sessions for SSH and Kubernetes,
-Linux Servers, Windows Kubernetes Clusters & pods, Databases, AWS, GCP, and
-Azure CLI & API, and other Protected Resources.
+**Session recording and interactive controls:** Record, replay, join, and
+moderate interactive sessions for SSH and Kubernetes, Linux Servers, Windows
+Kubernetes Clusters & pods, Databases, AWS, GCP, and Azure CLI & API, and other
+Protected Resources.
 
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
@@ -98,17 +95,17 @@ Azure CLI & API, and other Protected Resources.
 | [Dual Authorization](https://goteleport.com/docs/admin-guides/access-controls/guides/dual-authz/) | ✔ | ✔ | ✖ |
 | [Session Sharing & Moderation](https://goteleport.com/docs/admin-guides/access-controls/guides/joining-sessions/) | ✔ | ✔ | ✖ |
 
-### Identity-based audit events
-
-Teleport collects structured audit events for each identity, application and
-protocol giving you a detailed view of every interaction.
+**Identity-based audit events:** Teleport collects structured audit events for
+each identity, application and protocol giving you a detailed view of every
+interaction.
 
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
 | [Structured Audit Logs](https://goteleport.com/docs/reference/monitoring/audit/) | ✔ | ✔ | ✔ |
 | [Export to SIEM](https://goteleport.com/docs/admin-guides/management/export-audit-events/) | ✔ | ✔ | ✔ |
 
-### Regulatory standards and frameworks
+**Regulatory standards and frameworks:** Teleport makes ite asier to achieve
+compliance.
 
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
