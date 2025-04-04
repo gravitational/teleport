@@ -29,7 +29,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import {
   deleteBot,
@@ -145,7 +145,7 @@ export function Bots() {
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
         <Box ml="auto">
-          <InfoGuideWrapper guide={<InfoGuide />}>
+          <InfoGuideButton config={{ guide: <InfoGuide /> }}>
             <HoverTooltip
               tipContent={
                 hasAddBotPermissions
@@ -170,7 +170,7 @@ export function Bots() {
                 Enroll New Bot
               </Button>
             </HoverTooltip>
-          </InfoGuideWrapper>
+          </InfoGuideButton>
         </Box>
       </FeatureHeader>
       {fetchAttempt.status == 'failed' && (

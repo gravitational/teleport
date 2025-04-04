@@ -129,21 +129,25 @@ type AccessMonitoringRuleSpec struct {
 	// and determines whether the subject will be moved into desired state.
 	Condition string `protobuf:"bytes,3,opt,name=condition,proto3" json:"condition,omitempty"`
 	// notification defines the plugin configuration for notifications if rule is triggered.
-	// Both notification and automatic_approval may be set within the same
-	// access_monitoring_rule. If both fields are set, the rule handler will
-	// manage notifications and automatic approvals for the same set
-	// of access events. Separate plugins may be used if both notifications and
-	// automatic_approvals is set.
+	// Both notification and automatic_review may be set within the same
+	// access_monitoring_rule. If both fields are set, the rule will trigger
+	// both notifications and automatic reviews for the same set of access events.
+	// Separate plugins may be used if both notifications and automatic_reviews is
+	// set.
 	Notification *Notification `protobuf:"bytes,4,opt,name=notification,proto3" json:"notification,omitempty"`
-	// automatic_approval defines the plugin configuration for automatic approvals.
-	// Both notification and automatic_approval may be set within the same
-	// access_monitoring_rule. If both fields are set, the rule handler will
-	// manage notifications and automatic approvals for the same set
-	// of access events. Separate plugins may be used if both notifications and
-	// automatic_approvals is set.
-	AutomaticApproval *AutomaticApproval `protobuf:"bytes,5,opt,name=automatic_approval,json=automaticApproval,proto3" json:"automatic_approval,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// automatic_review defines automatic review configurations for access requests.
+	// Both notification and automatic_review may be set within the same
+	// access_monitoring_rule. If both fields are set, the rule will trigger
+	// both notifications and automatic reviews for the same set of access events.
+	// Separate plugins may be used if both notifications and automatic_reviews is
+	// set.
+	AutomaticReview *AutomaticReview `protobuf:"bytes,6,opt,name=automatic_review,json=automaticReview,proto3" json:"automatic_review,omitempty"`
+	// desired_state defines the desired state of the subject. For access request
+	// subjects, the desired_state may be set to `reviewed` to indicate that the
+	// access request should be automatically reviewed.
+	DesiredState  string `protobuf:"bytes,7,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AccessMonitoringRuleSpec) Reset() {
@@ -204,11 +208,18 @@ func (x *AccessMonitoringRuleSpec) GetNotification() *Notification {
 	return nil
 }
 
-func (x *AccessMonitoringRuleSpec) GetAutomaticApproval() *AutomaticApproval {
+func (x *AccessMonitoringRuleSpec) GetAutomaticReview() *AutomaticReview {
 	if x != nil {
-		return x.AutomaticApproval
+		return x.AutomaticReview
 	}
 	return nil
+}
+
+func (x *AccessMonitoringRuleSpec) GetDesiredState() string {
+	if x != nil {
+		return x.DesiredState
+	}
+	return ""
 }
 
 // Notification contains configurations for plugin notification rules.
@@ -266,30 +277,33 @@ func (x *Notification) GetRecipients() []string {
 	return nil
 }
 
-// AutomaticApproval contains configurations for plugin automatic approval rules.
-type AutomaticApproval struct {
+// AutomaticReview contains configurations for automatic review rules.
+type AutomaticReview struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// name is the name of the plugin to which this configuration should apply.
-	// Set this value to `teleport` to manage automatic approvals natively within Teleport.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// integration is the name of the integration that is responsible for monitoring
+	// the rule. Set this value to `builtin` to monitor the rule with Teleport.
+	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
+	// decision specifies the proposed state of the access review. This can be
+	// either 'approved' or 'denied'.
+	Decision      string `protobuf:"bytes,2,opt,name=decision,proto3" json:"decision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AutomaticApproval) Reset() {
-	*x = AutomaticApproval{}
+func (x *AutomaticReview) Reset() {
+	*x = AutomaticReview{}
 	mi := &file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AutomaticApproval) String() string {
+func (x *AutomaticReview) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AutomaticApproval) ProtoMessage() {}
+func (*AutomaticReview) ProtoMessage() {}
 
-func (x *AutomaticApproval) ProtoReflect() protoreflect.Message {
+func (x *AutomaticReview) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -301,14 +315,21 @@ func (x *AutomaticApproval) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutomaticApproval.ProtoReflect.Descriptor instead.
-func (*AutomaticApproval) Descriptor() ([]byte, []int) {
+// Deprecated: Use AutomaticReview.ProtoReflect.Descriptor instead.
+func (*AutomaticReview) Descriptor() ([]byte, []int) {
 	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *AutomaticApproval) GetName() string {
+func (x *AutomaticReview) GetIntegration() string {
 	if x != nil {
-		return x.Name
+		return x.Integration
+	}
+	return ""
+}
+
+func (x *AutomaticReview) GetDecision() string {
+	if x != nil {
+		return x.Decision
 	}
 	return ""
 }
@@ -611,11 +632,11 @@ type ListAccessMonitoringRulesWithFilterRequest struct {
 	Subjects []string `protobuf:"bytes,3,rep,name=subjects,proto3" json:"subjects,omitempty"`
 	// notification_name is the value of the notification name field the rule must have. This field is optional.
 	NotificationName string `protobuf:"bytes,4,opt,name=notification_name,json=notificationName,proto3" json:"notification_name,omitempty"`
-	// automatic_approval_name is the value of the automatic_approval name field
+	// automatic_review_name is the value of the automatic_review integration field
 	// the rule must have. This field is optional.
-	AutomaticApprovalName string `protobuf:"bytes,5,opt,name=automatic_approval_name,json=automaticApprovalName,proto3" json:"automatic_approval_name,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	AutomaticReviewName string `protobuf:"bytes,6,opt,name=automatic_review_name,json=automaticReviewName,proto3" json:"automatic_review_name,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ListAccessMonitoringRulesWithFilterRequest) Reset() {
@@ -676,9 +697,9 @@ func (x *ListAccessMonitoringRulesWithFilterRequest) GetNotificationName() strin
 	return ""
 }
 
-func (x *ListAccessMonitoringRulesWithFilterRequest) GetAutomaticApprovalName() string {
+func (x *ListAccessMonitoringRulesWithFilterRequest) GetAutomaticReviewName() string {
 	if x != nil {
-		return x.AutomaticApprovalName
+		return x.AutomaticReviewName
 	}
 	return ""
 }
@@ -805,20 +826,22 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x03 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12O\n" +
-	"\x04spec\x18\x05 \x01(\v2;.teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpecR\x04spec\"\xa6\x02\n" +
+	"\x04spec\x18\x05 \x01(\v2;.teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpecR\x04spec\"\xdf\x02\n" +
 	"\x18AccessMonitoringRuleSpec\x12\x1a\n" +
 	"\bsubjects\x18\x01 \x03(\tR\bsubjects\x12\x16\n" +
 	"\x06states\x18\x02 \x03(\tR\x06states\x12\x1c\n" +
 	"\tcondition\x18\x03 \x01(\tR\tcondition\x12S\n" +
-	"\fnotification\x18\x04 \x01(\v2/.teleport.accessmonitoringrules.v1.NotificationR\fnotification\x12c\n" +
-	"\x12automatic_approval\x18\x05 \x01(\v24.teleport.accessmonitoringrules.v1.AutomaticApprovalR\x11automaticApproval\"B\n" +
+	"\fnotification\x18\x04 \x01(\v2/.teleport.accessmonitoringrules.v1.NotificationR\fnotification\x12]\n" +
+	"\x10automatic_review\x18\x06 \x01(\v22.teleport.accessmonitoringrules.v1.AutomaticReviewR\x0fautomaticReview\x12#\n" +
+	"\rdesired_state\x18\a \x01(\tR\fdesiredStateJ\x04\b\x05\x10\x06R\x12automatic_approval\"B\n" +
 	"\fNotification\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\n" +
 	"recipients\x18\x02 \x03(\tR\n" +
-	"recipients\"'\n" +
-	"\x11AutomaticApproval\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"p\n" +
+	"recipients\"O\n" +
+	"\x0fAutomaticReview\x12 \n" +
+	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1a\n" +
+	"\bdecision\x18\x02 \x01(\tR\bdecision\"p\n" +
 	"!CreateAccessMonitoringRuleRequest\x12K\n" +
 	"\x04rule\x18\x01 \x01(\v27.teleport.accessmonitoringrules.v1.AccessMonitoringRuleR\x04rule\"p\n" +
 	"!UpdateAccessMonitoringRuleRequest\x12K\n" +
@@ -832,14 +855,14 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	" ListAccessMonitoringRulesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x03R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\xe9\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x84\x02\n" +
 	"*ListAccessMonitoringRulesWithFilterRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x03R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1a\n" +
 	"\bsubjects\x18\x03 \x03(\tR\bsubjects\x12+\n" +
-	"\x11notification_name\x18\x04 \x01(\tR\x10notificationName\x126\n" +
-	"\x17automatic_approval_name\x18\x05 \x01(\tR\x15automaticApprovalName\"\x9a\x01\n" +
+	"\x11notification_name\x18\x04 \x01(\tR\x10notificationName\x122\n" +
+	"\x15automatic_review_name\x18\x06 \x01(\tR\x13automaticReviewNameJ\x04\b\x05\x10\x06R\x17automatic_approval_name\"\x9a\x01\n" +
 	"!ListAccessMonitoringRulesResponse\x12M\n" +
 	"\x05rules\x18\x01 \x03(\v27.teleport.accessmonitoringrules.v1.AccessMonitoringRuleR\x05rules\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xa4\x01\n" +
@@ -864,7 +887,7 @@ var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_goTypes
 	(*AccessMonitoringRule)(nil),                        // 0: teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	(*AccessMonitoringRuleSpec)(nil),                    // 1: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec
 	(*Notification)(nil),                                // 2: teleport.accessmonitoringrules.v1.Notification
-	(*AutomaticApproval)(nil),                           // 3: teleport.accessmonitoringrules.v1.AutomaticApproval
+	(*AutomaticReview)(nil),                             // 3: teleport.accessmonitoringrules.v1.AutomaticReview
 	(*CreateAccessMonitoringRuleRequest)(nil),           // 4: teleport.accessmonitoringrules.v1.CreateAccessMonitoringRuleRequest
 	(*UpdateAccessMonitoringRuleRequest)(nil),           // 5: teleport.accessmonitoringrules.v1.UpdateAccessMonitoringRuleRequest
 	(*UpsertAccessMonitoringRuleRequest)(nil),           // 6: teleport.accessmonitoringrules.v1.UpsertAccessMonitoringRuleRequest
@@ -880,7 +903,7 @@ var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_depIdxs
 	13, // 0: teleport.accessmonitoringrules.v1.AccessMonitoringRule.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.accessmonitoringrules.v1.AccessMonitoringRule.spec:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec
 	2,  // 2: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.notification:type_name -> teleport.accessmonitoringrules.v1.Notification
-	3,  // 3: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.automatic_approval:type_name -> teleport.accessmonitoringrules.v1.AutomaticApproval
+	3,  // 3: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.automatic_review:type_name -> teleport.accessmonitoringrules.v1.AutomaticReview
 	0,  // 4: teleport.accessmonitoringrules.v1.CreateAccessMonitoringRuleRequest.rule:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	0,  // 5: teleport.accessmonitoringrules.v1.UpdateAccessMonitoringRuleRequest.rule:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	0,  // 6: teleport.accessmonitoringrules.v1.UpsertAccessMonitoringRuleRequest.rule:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule

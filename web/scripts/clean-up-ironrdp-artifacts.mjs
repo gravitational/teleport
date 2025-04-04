@@ -1,6 +1,7 @@
+#!/usr/bin/env node
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,24 +16,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 
-import { useCallback } from 'react';
-
-import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
-
-import { useVnetContext } from './vnetContext';
-
-export const useVnetLauncher = (): (() => Promise<[void, Error]>) => {
-  const { start, status, startAttempt } = useVnetContext();
-  const { open } = useConnectionsContext();
-
-  return useCallback(() => {
-    if (status.value === 'running' || startAttempt.status === 'processing') {
-      return Promise.resolve([undefined, undefined]);
-    }
-
-    open('vnet');
-
-    return start();
-  }, [status, startAttempt.status, open, start]);
-};
+// wasm-pack build artifacts were originally kept in 'teleport' before being moved to 'shared'.
+// While they don’t cause significant issues, they show up in autocomplete suggestions,
+// so it's best to clean them up.
+// TODO(gzdunek) DELETE IN v20.0.0
+await rm(join(import.meta.dirname, '..', 'packages/teleport/src/ironrdp'), {
+  recursive: true,
+  force: true,
+});

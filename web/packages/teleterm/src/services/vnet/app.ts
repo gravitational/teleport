@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TdpClientCanvas } from './TdpClientCanvas';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 
-export default TdpClientCanvas;
+/**
+ * Given a complete app, returns its public address mean to be used with VNet. Appends the target
+ * port if given.
+ */
+export const appToAddrToCopy = (app: App, targetPort?: number | undefined) =>
+  targetPort ? `${app.publicAddr}:${targetPort}` : app.publicAddr;

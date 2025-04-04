@@ -268,6 +268,20 @@ export interface DocumentVnetInfo extends DocumentBase {
   // must be possible to determine the relation between a document and a cluster just by looking at
   // the document fields, hence why rootClusterUri is defined here.
   rootClusterUri: uri.RootClusterUri;
+  /**
+   * The address that's going to be copied to the clipboard after user starts VNet for the first
+   * time through this document.
+   *
+   * This is to facilitate a scenario where a first time user clicks "Connect" next to a TCP app,
+   * which opens this doc. Once the user clicks "Start VNet" in the doc, Connect should continue the
+   * regular flow of connecting to a TCP app through VNet, which means it should copy the address of
+   * the app to the clipboard, hence this field.
+   *
+   * targetAddress is removed when restoring persisted state. Let's say the user opens the doc
+   * through the "Connect" button of a specific app. If they close the app and then reopen the docs,
+   * we don't want the "Start VNet" button to copy the address of the app from the prev session.
+   */
+  targetAddress: string | undefined;
 }
 
 /**

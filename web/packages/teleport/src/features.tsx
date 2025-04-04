@@ -25,6 +25,7 @@ import {
   Integrations as IntegrationsIcon,
   Key,
   Laptop,
+  License,
   ListAddCheck,
   ListThin,
   LockKey,
@@ -66,6 +67,7 @@ import { TrustedClusters } from './TrustedClusters';
 import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
 import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
+import { EmptyState as WorkloadIdentityEmptyState } from './WorkloadIdentity/EmptyState/EmptyState';
 
 // to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
 // However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
@@ -624,6 +626,33 @@ export class FeatureTrust implements TeleportFeature {
   };
 }
 
+export class FeatureWorkloadIdentity implements TeleportFeature {
+  category = NavigationCategory.MachineWorkloadId;
+  route = {
+    title: 'Workload Identity',
+    path: cfg.routes.workloadIdentity,
+    exact: true,
+    component: WorkloadIdentityEmptyState,
+  };
+
+  // for now, workload identity page is just a placeholder so everyone has
+  // access, unless feature hiding is off
+  hasAccess(): boolean {
+    if (shouldHideFromNavigation(cfg)) {
+      return false;
+    }
+    return true;
+  }
+  navigationItem = {
+    title: NavTitle.WorkloadIdentity,
+    icon: License,
+    getLink() {
+      return cfg.routes.workloadIdentity;
+    },
+    searchableTags: ['workload identity', 'workload', 'identity'],
+  };
+}
+
 class FeatureDeviceTrust implements TeleportFeature {
   category = NavigationCategory.IdentityGovernance;
   route = {
@@ -746,6 +775,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureLocks(),
     new FeatureNewLock(),
     new FeatureDeviceTrust(),
+    new FeatureWorkloadIdentity(),
 
     // - Audit
     new FeatureAudit(),

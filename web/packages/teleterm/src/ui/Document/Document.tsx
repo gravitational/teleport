@@ -35,6 +35,7 @@ const Document: React.FC<{
   // Read more https://github.com/gravitational/teleport/pull/49351.
   return (
     <Flex
+      data-testid={visible ? 'visible-doc' : ''}
       tabIndex={visible ? 0 : -1}
       flex="1"
       ref={ref}
