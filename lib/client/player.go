@@ -24,8 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/sessionrecording"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -51,7 +51,7 @@ func (p *playFromFileStreamer) StreamSessionEvents(
 		}
 		defer f.Close()
 
-		pr := events.NewProtoReader(f)
+		pr := sessionrecording.NewReader(f)
 		for i := int64(0); ; i++ {
 			evt, err := pr.Read(ctx)
 			if err != nil {
