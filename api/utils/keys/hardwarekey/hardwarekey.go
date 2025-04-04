@@ -35,6 +35,10 @@ type Service interface {
 	Sign(ctx context.Context, ref *PrivateKeyRef, keyInfo ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
 	// GetMissingKeyRefDetails updates the key ref with missing details from the hardware key.
 	GetMissingKeyRefDetails(ref *PrivateKeyRef) error
+	// SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
+	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
+	// due to process initialization constraints.
+	SetPrompt(prompt Prompt)
 }
 
 // PrivateKey is a hardware private key implementation of [crypto.Signer].
