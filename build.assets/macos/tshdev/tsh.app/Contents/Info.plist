@@ -48,5 +48,24 @@
 		<string>Main</string>
 		<key>NSPrincipalClass</key>
 		<string>NSApplication</string>
+		<key>OSLogPreferences</key>
+		<dict>
+			<!-- VNet sends its logs to os_log as `com.goteleport.tshdev.vnetd`. By default only warn level+
+			logs are visible and persisted on disk. The settings below make sure that os_log persists info
+			logs to disk too, but only for VNet and not for tsh invocations with the os-log flag. -->
+			<key>com.goteleport.tshdev.vnetd</key>
+			<dict>
+				<key>DEFAULT-OPTIONS</key>
+				<dict>
+					<key>Level</key>
+					<dict>
+						<key>Enable</key>
+						<string>Info</string>
+						<key>Persist</key>
+						<string>Info</string>
+					</dict>
+				</dict>
+			</dict>
+		</dict>
 	</dict>
 </plist>
