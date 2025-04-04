@@ -22,8 +22,10 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -164,28 +166,36 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	resp := &GetAppDetailsResponse{
 		FQDN: result.FQDN,
 	}
+	proxyPublicAddr := utils.InferProxyPublicAddrFromRequestHost(req.FQDNHint, h.proxyPublicAddrs())
+	useAnyProxyPublicAddr := result.App.GetUseAnyProxyPublicAddr()
+	if useAnyProxyPublicAddr {
+		appName := strings.TrimSuffix(req.FQDNHint, proxyPublicAddr)
+		resp.FQDN = utils.AssembleAppFQDN(appName, proxyPublicAddr, clusterName, result.App)
+	}
 
 	requiredAppNames := result.App.GetRequiredAppNames()
 
 	if !isRedirectFlow {
-		// TODO (avatus) this would be nice if the string in the RequiredApps spec was the fqdn of the required app
-		// so we could skip the resolution step all together but this would break existing configs.
-
 		// if clusterName is not supplied in the params, the initial app must have been fetched with fqdn hint only.
 		// We can use the clusterName of the initially resolved app
 		if clusterName == "" {
 			clusterName = result.ClusterName
 		}
-		for _, required := range requiredAppNames {
-			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: required})
+		for _, requiredAppName := range requiredAppNames {
+			if useAnyProxyPublicAddr {
+				requiredAppFQDN := fmt.Sprintf("%s.%s", requiredAppName, proxyPublicAddr)
+				resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, requiredAppFQDN)
+				continue
+			}
+			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: requiredAppName})
 			if err != nil {
-				h.log.Errorf("Error getting app details for %s, a required app for %s", required, result.App.GetName())
+				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", requiredAppName, "app", result.App.GetName(), "error", err)
 				continue
 			}
 			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
 		}
 		// append self to end of required apps so that it can be the final entry in the redirect "chain".
-		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, result.FQDN)
+		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, resp.FQDN)
 	}
 
 	return resp, nil
@@ -414,7 +424,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
 func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnelclient.Tunnel, fqdn string) (types.AppServer, string, error) {
-	return app.ResolveFQDN(ctx, clt, proxy, h.proxyDNSNames(), fqdn)
+	return app.ResolveFQDN(ctx, clt, proxy, h.proxyPublicAddrs(), fqdn)
 }
 
 // proxyDNSName is a DNS name the HTTP proxy is available at, where
@@ -441,4 +451,17 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
+}
+
+// proxyPublicAddrs returns a list of public proxy addresses as strings.
+// It collects the addresses from h.cfg.ProxyPublicAddrs. If no addresses
+// are configured, it defaults to the cluster name from h.auth.
+func (h *Handler) proxyPublicAddrs() (proxyPublicAddrs []string) {
+	for _, addr := range h.cfg.ProxyPublicAddrs {
+		proxyPublicAddrs = append(proxyPublicAddrs, addr.String())
+	}
+	if len(proxyPublicAddrs) == 0 {
+		return []string{h.auth.clusterName}
+	}
+	return proxyPublicAddrs
 }

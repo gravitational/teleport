@@ -211,6 +211,9 @@ function prepareFqdn(fqdn: string) {
 
 function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
   try {
+    if (fqdn.includes(port)) {
+      fqdn = fqdn.replace(port, '');
+    }
     return new URL(`https://${fqdn}${port}/x-teleport-auth`);
   } catch (err) {
     throwFailedToParseUrlError(err);

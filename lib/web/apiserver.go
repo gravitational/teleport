@@ -3190,11 +3190,17 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			allowedAWSRolesLookup := map[string][]string{
 				r.GetApp().GetName(): allowedAWSRoles,
 			}
+			var proxyPublicAddrs []string
+			for _, addr := range h.cfg.ProxyPublicAddrs {
+				proxyPublicAddrs = append(proxyPublicAddrs, addr.String())
+			}
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
 				LocalProxyDNSName:     h.proxyDNSName(),
 				AppClusterName:        site.GetName(),
+				RequestHost:           request.Host,
+				ProxyPublicAddrs:      proxyPublicAddrs,
 				AllowedAWSRolesLookup: allowedAWSRolesLookup,
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.log,
