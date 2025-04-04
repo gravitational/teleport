@@ -55,7 +55,7 @@ extern const int VNEMissingCodeSigningIdentifiersError;
 //
 // The filename and the value of the Label key in the plist file and the Mach
 // service of of the daemon must match the string returned from this function.
-NSString *DaemonLabel(NSString *bundlePath);
+NSString *VNEDaemonLabel(NSString *bundlePath);
 
 // VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
 // The caller is expected to free the returned pointer.
