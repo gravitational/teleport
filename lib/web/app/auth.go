@@ -69,7 +69,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 	// if required apps is length 1, it _should_ be itself as the final stop of the redirect chain.
 	// If that is the case, skip any further required app redirects and complete the auth flow.
 	// This value gets shifted off the front after a complete auth exchange
-	if len(requiredApps) > 1 && requiredApps[0] != reqAddr.Host() {
+	if len(requiredApps) > 1 && requiredApps[0] != reqAddr.String() {
 		nextRequiredApp := requiredApps[0]
 
 		webLauncherURLParams := launcherURLParams{
@@ -229,7 +229,6 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 
 		webLauncherURLParams := launcherURLParams{
 			publicAddr:          nextRequiredApp,
-			clusterName:         h.clusterName,
 			requiredAppFQDNs:    strings.Join(requiredApps, ","),
 			requiresAppRedirect: true,
 		}
@@ -237,7 +236,13 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), webLauncherURLParams)
+
+		var proxyPublicAddrs []string
+		for _, addr := range h.c.ProxyPublicAddrs {
+			proxyPublicAddrs = append(proxyPublicAddrs, addr.String())
+		}
+		proxyPublicAddr := utils.InferProxyPublicAddrFromRequestHost(addr.String(), proxyPublicAddrs)
+		urlString := makeAppRedirectURL(r, proxyPublicAddr, addr.String(), webLauncherURLParams)
 		// this request does not return a response, so we can pass this value through a custom header instead
 		w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
 	}
