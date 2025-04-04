@@ -24,7 +24,6 @@ import {
   FileTransfer,
   FileTransferActionBar,
   FileTransferContextProvider,
-  FileTransferRequests,
   useFileTransferContext,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
@@ -36,6 +35,7 @@ import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import { useConsoleContext } from '../consoleContextProvider';
 import Document from '../Document';
+import { FileTransferRequests } from './FileTransferRequests';
 import { Terminal, TerminalRef } from './Terminal';
 import { useFileTransfer } from './useFileTransfer';
 import useSshSession from './useSshSession';

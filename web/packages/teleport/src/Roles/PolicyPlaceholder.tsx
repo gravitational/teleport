@@ -18,8 +18,9 @@
 
 import { useTheme } from 'styled-components';
 
-import { Box, Flex } from 'design';
-import { ButtonSecondary } from 'design/Button';
+import { Alert, Box, Flex } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design/Button';
+import { FeatureName } from 'design/constants';
 import { ChevronLeft, ChevronRight } from 'design/Icon';
 import Image from 'design/Image';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
@@ -31,6 +32,7 @@ import cfg from 'teleport/config';
 
 import accessGraphPromoDark from './access-graph-promo-dark.png';
 import accessGraphPromoLight from './access-graph-promo-light.png';
+import { RoleDiffProps, RoleDiffState } from './Roles';
 
 const promoImageWidth = 782;
 const promoImages: Record<Theme['type'], string> = {
@@ -45,37 +47,62 @@ const promoFlows = {
 
 export function PolicyPlaceholder({
   currentFlow,
+  enableDemoMode,
+  roleDiffProps,
 }: {
   currentFlow: 'creating' | 'updating';
+  enableDemoMode?: () => void;
+  roleDiffProps?: RoleDiffProps;
 }) {
   const theme = useTheme();
+  const loading =
+    roleDiffProps?.roleDiffState === RoleDiffState.LoadingSettings ||
+    roleDiffProps?.roleDiffState === RoleDiffState.WaitingForSync;
+
   return (
     <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
-      <H1 mb={2}>Teleport Identity Security saves you from mistakes.</H1>
+      {roleDiffProps?.roleDiffErrorMessage && (
+        <Alert>{roleDiffProps.roleDiffErrorMessage}</Alert>
+      )}
+      <H1 mb={2}>{FeatureName.IdentitySecurity} saves you from mistakes.</H1>
       <Flex mb={4} gap={6} flexWrap="wrap" justifyContent="space-between">
         <Box flex="1" minWidth="30ch">
           <P>
-            Teleport Identity Security will visualize resource access paths as
-            you create and edit roles so you can always see what you are
+            {FeatureName.IdentitySecurity} will visualize resource access paths
+            as you create and edit roles so you can always see what you are
             granting before you push a role into production.
           </P>
         </Box>
         <Flex flex="0 0 auto" alignItems="start">
-          {!cfg.isPolicyEnabled && (
-            <>
-              <ButtonLockedFeature noIcon py={0} width={undefined}>
-                Contact Sales
-              </ButtonLockedFeature>
-              <ButtonSecondary
-                as="a"
-                href="https://goteleport.com/platform/policy/"
-                target="_blank"
-                ml={2}
+          {!cfg.isPolicyEnabled &&
+            cfg.isCloud &&
+            enableDemoMode && ( // cloud can enable a demo mode so show that button
+              <ButtonPrimary
+                onClick={enableDemoMode}
+                py="12px"
+                width="100%"
+                disabled={loading}
+                style={{ textTransform: 'none' }}
               >
-                Learn More
-              </ButtonSecondary>
-            </>
-          )}
+                {loading ? 'Creating graph…' : 'Preview Identity Security'}
+              </ButtonPrimary>
+            )}
+          {!cfg.isPolicyEnabled &&
+            !cfg.isCloud && ( // non-cloud must contact sales
+              <>
+                <ButtonLockedFeature noIcon py={0} width={undefined}>
+                  Contact Sales
+                </ButtonLockedFeature>
+                <ButtonSecondary
+                  as="a"
+                  href="https://goteleport.com/platform/policy/"
+                  target="_blank"
+                  ml={2}
+                >
+                  Learn More
+                </ButtonSecondary>
+              </>
+            )}
         </Flex>
       </Flex>
       <Flex
@@ -107,9 +134,9 @@ function VisualizeAccessPathsPanel(props: StepComponentProps) {
       heading="Visualize access paths granted by your roles"
       content={
         <>
-          See what you’re granting before pushing to prod. Teleport Identity
-          Security will show resource access paths granted by your role before
-          you save changes.
+          See what you’re granting before pushing to prod.{' '}
+          {FeatureName.IdentitySecurity} will show resource access paths granted
+          by your role before you save changes.
         </>
       }
     />
@@ -123,9 +150,9 @@ function VisualizeDiffPanel(props: StepComponentProps) {
       heading="Visualize the diff in permissions as you edit roles"
       content={
         <>
-          Prevent mistakes. Teleport Identity Security shows you what access is
-          removed and what is added as you make edits to a role—all before you
-          save your changes.
+          Prevent mistakes. {FeatureName.IdentitySecurity} shows you what access
+          is removed and what is added as you make edits to a role—all before
+          you save your changes.
         </>
       }
     />

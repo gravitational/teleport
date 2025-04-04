@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.3.3",
+      "version": "17.4.1",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -274,6 +274,21 @@
     {
       "source": "/server-access/introduction/",
       "destination": "/enroll-resources/server-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/",
+      "destination": "/reference/agent-services/auto-discovery-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
+      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/kubernetes-application-discovery/",
+      "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
       "permanent": true
     }
   ]

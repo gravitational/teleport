@@ -117,15 +117,11 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 	defer amrh.accessMonitoringRules.Unlock()
 	switch op := event.Type; op {
 	case types.OpPut:
-		e, ok := event.Resource.(types.Resource153Unwrapper)
+		e, ok := event.Resource.(types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule])
 		if !ok {
 			return trace.BadParameter("expected Resource153Unwrapper resource type, got %T", event.Resource)
 		}
-		req, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
-		if !ok {
-			return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
-		}
-
+		req := e.UnwrapT()
 		// In the event an existing rule no longer applies we must remove it.
 		if !amrh.ruleApplies(req) {
 			delete(amrh.accessMonitoringRules.rules, event.Resource.GetName())

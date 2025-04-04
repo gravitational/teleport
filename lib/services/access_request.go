@@ -2175,14 +2175,10 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 
 		switch rr := resource.(type) {
-		case types.Resource153Unwrapper:
-			switch urr := rr.Unwrap().(type) {
-			case IdentityCenterAccount:
-				matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
-
-			case IdentityCenterAccountAssignment:
-				matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
-			}
+		case types.Resource153UnwrapperT[IdentityCenterAccount]:
+			matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
+		case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
+			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
 		for _, role := range allRoles {

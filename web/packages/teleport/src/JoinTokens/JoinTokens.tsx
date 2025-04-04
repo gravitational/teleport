@@ -56,7 +56,7 @@ import {
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import {
   InfoExternalTextLink,
-  InfoGuideWrapper,
+  InfoGuideButton,
   InfoParagraph,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
@@ -148,7 +148,7 @@ export const JoinTokens = () => {
       >
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
         {!creatingToken && !editingToken && (
-          <InfoGuideWrapper guide={<InfoGuide />}>
+          <InfoGuideButton config={{ guide: <InfoGuide /> }}>
             <Button
               intent="primary"
               fill="border"
@@ -158,7 +158,7 @@ export const JoinTokens = () => {
             >
               Create New Token
             </Button>
-          </InfoGuideWrapper>
+          </InfoGuideButton>
         )}
       </FeatureHeader>
       <Flex>

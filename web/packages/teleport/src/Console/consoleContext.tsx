@@ -128,8 +128,8 @@ export default class ConsoleContext {
       title: params.kubeId,
       url,
       created: new Date(),
-      mode: null,
-
+      mode: params.mode,
+      sid: params.sid,
       kubeCluster: params.kubeId,
       kubeNamespace: '',
       pod: '',
@@ -192,7 +192,9 @@ export default class ConsoleContext {
   }
 
   getKubeExecDocumentUrl(kubeExecParams: UrlKubeExecParams) {
-    return cfg.getKubeExecConnectRoute(kubeExecParams);
+    return kubeExecParams.sid
+      ? cfg.getKubeExecSessionRoute(kubeExecParams)
+      : cfg.getKubeExecConnectRoute(kubeExecParams);
   }
 
   getDbDocumentUrl(dbConnectParams: UrlDbConnectParams) {
@@ -260,6 +262,11 @@ export default class ConsoleContext {
         baseUrl = cfg.api.ttyWsAddr;
         break;
       case 'k8s':
+        ttyParams = {
+          sid,
+          mode,
+        };
+
         baseUrl = cfg.api.ttyKubeExecWsAddr;
         break;
       case 'db':

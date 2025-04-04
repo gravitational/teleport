@@ -2502,3 +2502,25 @@ func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
 	return out
 }
+
+func (m *HealthCheckConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *HealthCheckConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *HealthCheckConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *WorkloadIdentityX509IssuerOverrideCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *WorkloadIdentityX509IssuerOverrideDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}

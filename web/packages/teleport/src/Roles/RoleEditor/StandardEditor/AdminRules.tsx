@@ -31,8 +31,13 @@ import {
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { precomputed } from 'shared/components/Validation/rules';
+import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
-import { SectionBox, SectionPropsWithDispatch } from './sections';
+import {
+  SectionBox,
+  SectionPadding,
+  SectionPropsWithDispatch,
+} from './sections';
 import {
   ResourceKindOption,
   resourceKindOptions,
@@ -57,6 +62,9 @@ export const AdminRules = memo(function AdminRules({
   }
   return (
     <Flex flexDirection="column" gap={3}>
+      <SectionPadding>
+        Rules that give this role administrative rights to Teleport resources
+      </SectionPadding>
       {value.map((rule, i) => (
         <AdminRule
           key={rule.id}
@@ -80,7 +88,7 @@ const AdminRule = memo(function AdminRule({
   validation,
   dispatch,
 }: SectionPropsWithDispatch<RuleModel, AdminRuleValidationResult>) {
-  const { id, resources, verbs, where } = value;
+  const { id, resources, verbs, where, hideValidationErrors } = value;
   const theme = useTheme();
   function setRule(rule: RuleModel) {
     dispatch({ type: 'set-access-rule', payload: rule });
@@ -89,62 +97,77 @@ const AdminRule = memo(function AdminRule({
     dispatch({ type: 'remove-access-rule', payload: { id } });
   }
   return (
-    <SectionBox
-      title="Admin Rule"
-      tooltip="A rule that gives users access to certain kinds of resources"
-      removable
-      isProcessing={isProcessing}
-      validation={validation}
-      onRemove={removeRule}
-    >
-      <ResourceKindSelect
-        components={{ MultiValue: ResourceKindMultiValue }}
-        isMulti
-        label="Resources"
-        required
-        isDisabled={isProcessing}
-        options={resourceKindOptions}
-        value={resources}
-        onChange={r => setRule({ ...value, resources: r })}
-        rule={precomputed(validation.fields.resources)}
-        menuPosition="fixed"
-      />
-      <FieldSelect
-        isMulti
-        label="Permissions"
-        required
-        isDisabled={isProcessing}
-        options={verbOptions}
-        value={verbs}
-        onChange={v => setRule({ ...value, verbs: v })}
-        rule={precomputed(validation.fields.verbs)}
-        menuPosition="fixed"
-      />
-      <FieldInput
-        label="Filter"
-        toolTipContent={
-          <>
-            Optional condition that further limits the list of resources
-            affected by this rule, expressed using the{' '}
-            <Text
-              as="a"
-              href="https://goteleport.com/docs/reference/predicate-language/"
-              target="_blank"
-              color={theme.colors.interactive.solid.accent.default}
-            >
-              Teleport predicate language
-            </Text>
-          </>
-        }
-        tooltipSticky
-        disabled={isProcessing}
-        value={where}
-        onChange={e => setRule({ ...value, where: e.target.value })}
-        mb={0}
-      />
-    </SectionBox>
+    <ValidationSuspender suspend={hideValidationErrors}>
+      <SectionBox
+        titleSegments={getTitleSegments(value.resources)}
+        removable
+        isProcessing={isProcessing}
+        validation={validation}
+        onRemove={removeRule}
+      >
+        <ResourceKindSelect
+          components={{ MultiValue: ResourceKindMultiValue }}
+          isMulti
+          label="Teleport Resources"
+          required
+          isDisabled={isProcessing}
+          options={resourceKindOptions}
+          value={resources}
+          onChange={r => setRule({ ...value, resources: r })}
+          rule={precomputed(validation.fields.resources)}
+          menuPosition="fixed"
+        />
+        <FieldSelect
+          isMulti
+          label="Permissions"
+          required
+          isDisabled={isProcessing}
+          options={verbOptions}
+          value={verbs}
+          onChange={v => setRule({ ...value, verbs: v })}
+          rule={precomputed(validation.fields.verbs)}
+          menuPosition="fixed"
+        />
+        <FieldInput
+          label="Filter"
+          toolTipContent={
+            <>
+              Optional condition that further limits the list of resources
+              affected by this rule, expressed using the{' '}
+              <Text
+                as="a"
+                href="https://goteleport.com/docs/reference/predicate-language/"
+                target="_blank"
+                color={theme.colors.interactive.solid.accent.default}
+              >
+                Teleport predicate language
+              </Text>
+            </>
+          }
+          tooltipSticky
+          disabled={isProcessing}
+          value={where}
+          onChange={e => setRule({ ...value, where: e.target.value })}
+          mb={0}
+        />
+      </SectionBox>
+    </ValidationSuspender>
   );
 });
+
+function getTitleSegments(resources: readonly ResourceKindOption[]): string[] {
+  switch (resources.length) {
+    case 0:
+      return ['Admin Rule'];
+    case 1:
+      return ['Admin Rule', resources[0].label];
+    default:
+      return [
+        'Admin Rule',
+        `${resources[0].label} + ${resources.length - 1} more`,
+      ];
+  }
+}
 
 const ResourceKindSelect = styled(
   FieldSelectCreatable<ResourceKindOption, true>
