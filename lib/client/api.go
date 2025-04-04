@@ -409,9 +409,6 @@ type Config struct {
 	// user home dir.
 	OverridePostgresServiceFilePath string
 
-	// HomePath is where tsh stores profiles
-	HomePath string
-
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
@@ -944,7 +941,6 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.MongoProxyAddr = profile.MongoProxyAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
-	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
