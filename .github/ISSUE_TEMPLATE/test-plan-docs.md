@@ -61,14 +61,14 @@ version of Teleport.
     changes introduced by the release. If not, plan to update the docs ASAP and
     notify all relevant teams of the delay.
 
-- [ ] Verify that the [changelog](../../CHANGELOG.md) is up to date and complete
-  for the default docs version. If one release branch has a more complete
-  changelog than others, copy that `CHANGELOG.md` to our other support release
-  branches, e.g.,:
+- [ ] Verify that the [changelog](../../CHANGELOG.md) is up to date. Each
+  version of the docs (i.e., each `gravitational/teleport` release branch shown
+  on the docs website) must include a `CHANGELOG.md` file in which the most
+  recent major version is the one that corresponds to its release branch. 
 
-  ```bash
-  $ git checkout origin/branch/v<release_version> -- CHANGELOG.md
-  ```
+  For example, if we cut `branch/v20` from `master`, the `CHANGELOG.md` on
+  `branch/v20` must end with `v20` release notes and `master` must end with
+  `v21` release notes.
 
 - [ ] Verify the accuracy of critical docs pages. Follow the docs guides below
   and verify their accuracy while using the newly released major version of
