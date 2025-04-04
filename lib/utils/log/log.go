@@ -31,8 +31,8 @@ import (
 
 // Config configures teleport logging
 type Config struct {
-	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
-	// a path to a log file
+	// Output defines where logs go. It can be one of the following: "stderr", "stdout",
+	// "syslog" (on Linux), "os_log" (on macOS) or a path to a log file.
 	Output string
 	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
 	Severity string
@@ -44,7 +44,14 @@ type Config struct {
 	EnableColors bool
 	// Padding to use for various components.
 	Padding int
+	// OSLogSubsystem is the subsystem under which logs will be visible in os_log if Output is set to
+	// "os_log". If used from within a packaged app, this should include the identifier of the app in
+	// reverse DNS notation, e.g., "com.goteleport.tshdev", "com.goteleport.tshdev.vnet".
+	OSLogSubsystem string
 }
+
+// LogOutputOSLog represents os_log, the unified logging system on macOS, as the destination for logs.
+const LogOutputOSLog = "os_log"
 
 // Initialize configures the default global logger based on the
 // provided configuration. The [slog.Logger] and [slog.LevelVar]
@@ -58,6 +65,8 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 
 	var w io.Writer
 	level := new(slog.LevelVar)
+	format := strings.ToLower(loggerConfig.Format)
+
 	switch loggerConfig.Output {
 	case "":
 		w = os.Stderr
@@ -72,6 +81,14 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
 			slog.SetDefault(slog.New(DiscardHandler{}))
 			return slog.Default(), level, nil
+		}
+	case LogOutputOSLog:
+		if format != "text" {
+			return nil, nil, trace.BadParameter("os_log is supported as output only when format is set to text")
+		}
+
+		if loggerConfig.OSLogSubsystem == "" {
+			return nil, nil, trace.BadParameter("OSLogSubsystem must be set when using os_log as output")
 		}
 	default:
 		// Assume a file path for all other provided output values.
@@ -106,16 +123,26 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 	}
 
 	var logger *slog.Logger
-	switch strings.ToLower(loggerConfig.Format) {
+	switch format {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		logger = slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{
-			Level:            level,
-			EnableColors:     loggerConfig.EnableColors,
-			ConfiguredFields: configuredFields,
-			Padding:          loggerConfig.Padding,
-		}))
+		if loggerConfig.Output == LogOutputOSLog {
+			//nolint:staticcheck // SA4023. NewSlogOSLogHandler on unsupported platforms always returns err.
+			handler, err := NewSlogOSLogHandler(loggerConfig.OSLogSubsystem, level)
+			//nolint:staticcheck // SA4023.
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			logger = slog.New(handler)
+		} else {
+			logger = slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{
+				Level:            level,
+				EnableColors:     loggerConfig.EnableColors,
+				ConfiguredFields: configuredFields,
+				Padding:          loggerConfig.Padding,
+			}))
+		}
 		slog.SetDefault(logger)
 	case "json":
 		logger = slog.New(NewSlogJSONHandler(w, SlogJSONHandlerConfig{
