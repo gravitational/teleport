@@ -277,7 +277,7 @@ export class WindowsManager {
    * passed signal is aborted. There's no guarantee that the window receives focus, hence the
    * built-in timeout.
    */
-  waitForWindowFocus(signal?: AbortSignal, timeoutMs?: number): Promise<void> {
+  waitForWindowFocus(signal?: AbortSignal, timeoutMs = 400): Promise<void> {
     if (signal?.aborted) {
       return Promise.resolve();
     }
