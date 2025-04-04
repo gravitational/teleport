@@ -499,11 +499,6 @@ type Config struct {
 	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
 	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
 
-	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
-	// for a hardware key PIN, touch, etc.
-	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt hardwarekey.Prompt
-
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
@@ -1293,7 +1288,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		} else {
 			// TODO (Joerger): init hardware key service (and client store) earlier where it can
 			// be properly shared.
-			hardwareKeyService := libhwk.NewService(context.TODO(), tc.CustomHardwareKeyPrompt)
+			hardwareKeyService := libhwk.NewService(context.TODO(), nil /*prompt*/)
 			tc.ClientStore = NewFSClientStore(c.KeysDir, WithHardwareKeyService(hardwareKeyService))
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.

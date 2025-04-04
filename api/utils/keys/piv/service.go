@@ -67,7 +67,7 @@ func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
 	if yubiKeyService != nil {
 		// If a prompt is provided, prioritize it over the existing prompt value.
 		if customPrompt != nil {
-			yubiKeyService.prompt = customPrompt
+			yubiKeyService.SetPrompt(customPrompt)
 		}
 		return yubiKeyService
 	}
