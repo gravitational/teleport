@@ -82,7 +82,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |hint|string|A freeform text field which is provided to workloads along with a credential produced by this WorkloadIdentity. This can be used to provide additional context that can be used to select between multiple credentials.|
 |id|string|The path of the SPIFFE ID that will be issued to the workload.  This should be prefixed with a forward-slash ("/").  This field supports templating using attributes.|
+|jwt|[object](#specspiffejwt)|Configuration specific to JWT-SVIDs.|
 |x509|[object](#specspiffex509)|Configuration specific to X509-SVIDs.|
+
+### spec.spiffe.jwt
+
+|Field|Type|Description|
+|---|---|---|
+|extra_claims|object|Additional claims that will be added to the JWT.|
 
 ### spec.spiffe.x509
 
