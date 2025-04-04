@@ -24,7 +24,7 @@ import { Server } from 'design/Icon';
 import { P } from 'design/Text/Text';
 
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
-import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
 import { IntegrationTile } from 'teleport/Integrations';
@@ -139,7 +139,7 @@ export function AddBotsPicker() {
     <>
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
-        <InfoGuideWrapper guide={<InfoGuide />} />
+        <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
       <P mb="5">

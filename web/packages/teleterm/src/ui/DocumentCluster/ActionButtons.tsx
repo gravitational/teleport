@@ -43,10 +43,10 @@ import {
   isWebApp,
 } from 'teleterm/services/tshd/app';
 import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   captureAppLaunchInBrowser,
-  connectToAppWithVnet,
   connectToDatabase,
   connectToKube,
   connectToServer,
@@ -55,7 +55,7 @@ import {
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+import { useVnetAppLauncher, useVnetContext } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -119,10 +119,13 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
-  const launchVnet = useVnetLauncher();
+  const { launchVnet } = useVnetAppLauncher();
 
   function connectWithVnet(targetPort?: number): void {
-    connectToAppWithVnet(appContext, launchVnet, props.app, targetPort);
+    void launchVnet({
+      addrToCopy: appToAddrToCopy(props.app, targetPort),
+      resourceUri: props.app.uri,
+    });
   }
 
   function setUpGateway(targetPort?: number): void {
