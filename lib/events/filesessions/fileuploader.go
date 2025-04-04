@@ -41,6 +41,8 @@ type Config struct {
 	Directory string
 	// OnBeforeComplete can be used to inject failures during tests
 	OnBeforeComplete func(ctx context.Context, upload events.StreamUpload) error
+	// OpenFile is used by session recording to open OS files
+	OpenFile utils.OpenFileWithFlagsFunc
 }
 
 // nopBeforeComplete does nothing
@@ -72,9 +74,11 @@ func NewHandler(cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	logger := slog.With(teleport.ComponentKey, teleport.SchemeFile)
 	h := &Handler{
-		logger: slog.With(teleport.ComponentKey, teleport.SchemeFile),
-		Config: cfg,
+		logger:  logger,
+		Config:  cfg,
+		fileOps: NewPlainFileOps(logger, cfg.OpenFile),
 	}
 	return h, nil
 }
@@ -86,6 +90,8 @@ type Handler struct {
 	Config
 	// logger emits logs messages
 	logger *slog.Logger
+	// fileOps is the interface for "low-level" file operations
+	fileOps FileOps
 }
 
 // Closer releases connection and resources associated with log if any
