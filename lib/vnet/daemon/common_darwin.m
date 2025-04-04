@@ -30,7 +30,7 @@ const char* const VNEErrorDomain = "com.Gravitational.Vnet.ErrorDomain";
 const int VNEAlreadyRunningError = 1;
 const int VNEMissingCodeSigningIdentifiersError = 2;
 
-NSString *DaemonLabel(NSString *bundlePath) {
+NSString *VNEDaemonLabel(NSString *bundlePath) {
   NSString *bundleIdentifier = TELBundleIdentifier(bundlePath);
   if ([bundleIdentifier length] == 0) {
     return @"";
