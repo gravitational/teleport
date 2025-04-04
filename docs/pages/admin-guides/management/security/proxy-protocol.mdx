@@ -87,6 +87,20 @@ your network setup:
    from the same IP address from Teleport's point of view, compromising the
    Teleport audit log and IP pinning feature.
 
+1. If you need to connect from an IPv6-only network to an IPv4-only network, you
+   can downgrade the source address by enabling `proxy_protocol_allow_downgrade`.
+   IP pinning is not allowed for downgraded connections due to the possibility of
+   colliding source addresses.
+
+<Admonition type="warning">
+
+If you are upgrading Teleport in order to enable `proxy_protocol_allow_downgrade`,
+you will need to upgrade all instances of Teleport Proxy Service before enabling it.
+Versions that do not support this configuration will be unable to verify the PROXY
+header signature and fail to accept downgraded connections.
+
+</Admonition>
+
 ## Step 2/2. Edit your static Teleport configuration
 
 On a Teleport process, the Auth Service and Proxy Service can each support the
@@ -97,6 +111,7 @@ the Teleport configuration file:
 ```yaml
 proxy_service:
   proxy_protocol: on | off
+  proxy_protocol_allow_downgrade: on | off
   # ...
 auth_service:
   proxy_protocol: on | off
@@ -111,6 +126,8 @@ By default,  `proxy_protocol` is unspecified. Users can manually set
 - `off`: the PROXY protocol is disabled and forbidden. Any connection with a
   PROXY protocol header is automatically rejected.
 
+The `PROXY` 
+If you need to facilitate connections from IPv6 networks into IPv4 networks without dualstack networking, you can enable `proxy_protocol_allow_downgrade`.
 We encourage users to explicitly set their `proxy_protocol` setting to `on` or
 `off` mode depending on the network setup. 
 
@@ -122,8 +139,8 @@ will also be marked by setting source port to `0`, and this will be visible in
 audit events as well.
 
 IP pinning will not work if `proxy_protocol` setting wasn't explicitly set in
-the config. Connections that are marked with `0` as the source port will be
-rejected during IP pinning checks.
+the config or if a connection is downgraded. Connections that are marked with
+`0` as the source port will be rejected during IP pinning checks.
 
 <Admonition type="danger">
 

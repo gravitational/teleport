@@ -16,6 +16,19 @@ proxy_service:
     # headers, otherwise set to `off`.
     proxy_protocol: on
 
+    # proxy_protocol_allow_downgrade controls support for automatic downgrading of
+    # PROXY header source addresses from IPv6 to pseudo IPv4.
+    # Defaults to 'off', possible values:
+    # 'on' - Downgrade PROXY header source IPv6 addresses to pseudo IPv4 addresses.
+    # 'off' - Do not modify PROXY header source addresses.
+    #
+    # Because the PROXY protocol spec does not support source and destination addresses
+    # with mixed TCP versions, this allows for environments where Teleport is proxying
+    # between IPv6 networks into IPv4 networks. Downgrading to IPv4 comes with the
+    # posibility of collisions, which means IP pinning functionality will not work for
+    # downgraded connections.
+    proxy_protocol_allow_downgrade: on
+
     # SSH forwarding/proxy address. Command line (CLI) clients always begin
     # their SSH sessions by connecting to this port
     #
