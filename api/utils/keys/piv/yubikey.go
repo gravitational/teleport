@@ -40,23 +40,24 @@ import (
 )
 
 // YubiKey is a specific YubiKey PIV card.
+// The [sharedPIVConnection] field makes its methods thread-safe.
 type YubiKey struct {
 	// conn is a shared YubiKey PIV connection.
 	//
-	// PIV connections claim an exclusive lock on the PIV module until closed.
-	// In order to improve connection sharing for this program without locking
-	// out other programs during extended program executions (like "tsh proxy ssh"),
-	// this connections is opportunistically formed and released after being
-	// unused for a few seconds.
-	c *sharedPIVConnection
+	// For each YubiKey, PIV connections claim an exclusive lock on the key's
+	// PIV module until closed. In order to improve connection sharing for this
+	// program without locking out other programs during extended program executions
+	// (like "tsh proxy ssh"), this connections is opportunistically formed and
+	// released after being unused for a few seconds.
+	conn *sharedPIVConnection
 	// serialNumber is the YubiKey's 8 digit serial number.
 	serialNumber uint32
 	// version is the YubiKey's version.
 	version piv.Version
 }
 
-// FindYubiKey finds a YubiKey PIV card by serial number. If no serial
-// number is provided, the first YubiKey found will be returned.
+// FindYubiKey finds a YubiKey PIV card by serial number. If the provided
+// [serialNumber] is "0", the first YubiKey found will be returned.
 func FindYubiKey(serialNumber uint32) (*YubiKey, error) {
 	yubiKeyCards, err := findYubiKeyCards()
 	if err != nil {
@@ -106,16 +107,16 @@ func findYubiKeyCards() ([]string, error) {
 
 func newYubiKey(card string) (*YubiKey, error) {
 	y := &YubiKey{
-		c: &sharedPIVConnection{
+		conn: &sharedPIVConnection{
 			card: card,
 		},
 	}
 
 	var err error
-	if y.serialNumber, err = y.c.getSerialNumber(); err != nil {
+	if y.serialNumber, err = y.conn.getSerialNumber(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if y.version, err = y.c.getVersion(); err != nil {
+	if y.version, err = y.conn.getVersion(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -147,7 +148,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 	// process. Without this, the connection will be released,
 	// leading to a failure when providing PIN or touch input:
 	// "verify pin: transmitting request: the supplied handle was invalid".
-	release, err := y.c.connect()
+	release, err := y.conn.connect()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,7 +206,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 	// the signature fails.
 	manualRetryWithPIN := false
 	fw531 := piv.Version{Major: 5, Minor: 3, Patch: 1}
-	if auth.PINPolicy == piv.PINPolicyOnce && y.c.conn.Version() == fw531 {
+	if auth.PINPolicy == piv.PINPolicyOnce && y.conn.conn.Version() == fw531 {
 		// Set the keys PIN policy to never to skip the insVerify check. If PIN was provided in
 		// a previous recent call, the signature will succeed as expected of the "once" policy.
 		auth.PINPolicy = piv.PINPolicyNever
@@ -217,7 +218,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 		return nil, trace.Wrap(err)
 	}
 
-	privateKey, err := y.c.privateKey(pivSlot, ref.PublicKey, auth)
+	privateKey, err := y.conn.privateKey(pivSlot, ref.PublicKey, auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -240,7 +241,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, prom
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := y.c.verifyPIN(pin); err != nil {
+		if err := y.conn.verifyPIN(pin); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		signature, err := abandonableSign(ctx, signer, rand, digest, opts)
@@ -284,7 +285,7 @@ func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, 
 
 // Reset resets the YubiKey PIV module to default settings.
 func (y *YubiKey) Reset() error {
-	err := y.c.reset()
+	err := y.conn.reset()
 	return trace.Wrap(err)
 }
 
@@ -306,17 +307,17 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		TouchPolicy: touchPolicy,
 	}
 
-	pub, err := y.c.generateKey(piv.DefaultManagementKey, slot, opts)
+	pub, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	slotCert, err := y.c.attest(slot)
+	slotCert, err := y.conn.attest(slot)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	attCert, err := y.c.attestationCertificate()
+	attCert, err := y.conn.attestationCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -354,25 +355,25 @@ func (y *YubiKey) SetMetadataCertificate(slot piv.Slot, subject pkix.Name) error
 		return trace.Wrap(err)
 	}
 
-	err = y.c.setCertificate(piv.DefaultManagementKey, slot, cert)
+	err = y.conn.setCertificate(piv.DefaultManagementKey, slot, cert)
 	return trace.Wrap(err)
 }
 
 // getCertificate gets a certificate from the given PIV slot.
 func (y *YubiKey) getCertificate(slot piv.Slot) (*x509.Certificate, error) {
-	cert, err := y.c.certificate(slot)
+	cert, err := y.conn.certificate(slot)
 	return cert, trace.Wrap(err)
 }
 
 // attestKey attests the key in the given PIV slot.
 // The key's public key can be found in the returned slotCert.
 func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert *x509.Certificate, att *piv.Attestation, err error) {
-	slotCert, err = y.c.attest(slot)
+	slotCert, err = y.conn.attest(slot)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	attCert, err = y.c.attestationCertificate()
+	attCert, err = y.conn.attestationCertificate()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -387,7 +388,7 @@ func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert 
 
 // SetPIN sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
 func (y *YubiKey) SetPIN(oldPin, newPin string) error {
-	err := y.c.setPIN(oldPin, newPin)
+	err := y.conn.setPIN(oldPin, newPin)
 	return trace.Wrap(err)
 }
 
@@ -402,12 +403,12 @@ func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwareke
 	}
 
 	if pinAndPUK.PUKChanged {
-		if err := y.c.setPUK(piv.DefaultPUK, pinAndPUK.PUK); err != nil {
+		if err := y.conn.setPUK(piv.DefaultPUK, pinAndPUK.PUK); err != nil {
 			return "", trace.Wrap(err)
 		}
 	}
 
-	if err := y.c.unblock(pinAndPUK.PUK, pinAndPUK.PIN); err != nil {
+	if err := y.conn.unblock(pinAndPUK.PUK, pinAndPUK.PIN); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -415,7 +416,7 @@ func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwareke
 }
 
 func (y *YubiKey) verifyPIN(pin string) error {
-	err := y.c.verifyPIN(pin)
+	err := y.conn.verifyPIN(pin)
 	return trace.Wrap(err)
 }
 

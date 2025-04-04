@@ -41,7 +41,7 @@ import (
 var (
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
-	// transaction (connection) limit.
+	// transaction (connection) per-yubikey limit.
 	yubiKeys    map[uint32]*YubiKey = map[uint32]*YubiKey{}
 	yubiKeysMux sync.Mutex
 
