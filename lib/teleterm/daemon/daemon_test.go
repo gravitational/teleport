@@ -342,10 +342,7 @@ func TestGatewayCRUD(t *testing.T) {
 }
 
 func TestUpdateTshdEventsServerAddress(t *testing.T) {
-	homeDir := t.TempDir()
-
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                homeDir,
 		InsecureSkipVerify: true,
 		ClientStore:        client.NewFSClientStore(t.TempDir()),
 	})
@@ -377,10 +374,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 }
 
 func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
-	homeDir := t.TempDir()
-
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                homeDir,
 		InsecureSkipVerify: true,
 		ClientStore:        client.NewFSClientStore(t.TempDir()),
 	})
@@ -482,8 +476,8 @@ func TestRetryWithRelogin(t *testing.T) {
 			t.Parallel()
 
 			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
+				ClientStore:        client.NewFSClientStore(t.TempDir()),
 			})
 			require.NoError(t, err)
 
@@ -535,8 +529,8 @@ func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	ctx := context.Background()
 
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
+		ClientStore:        client.NewFSClientStore(t.TempDir()),
 	})
 	require.NoError(t, err)
 

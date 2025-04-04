@@ -47,7 +47,7 @@ func (s *Storage) ListProfileNames() ([]string, error) {
 
 // ListRootClusters reads root clusters from profiles.
 func (s *Storage) ListRootClusters() ([]*Cluster, error) {
-	pfNames, err := s.ListProfileNames()
+	pfNames, err := s.ClientStore.ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,7 +135,7 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *c
 		}
 	}
 
-	cluster, clusterClient, err := s.addCluster(ctx, s.Dir, webProxyAddress)
+	cluster, clusterClient, err := s.addCluster(ctx, webProxyAddress)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -146,13 +146,9 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *c
 // addCluster adds a new cluster. This makes the underlying profile .yaml file to be saved to the
 // tsh home dir without logging in the user yet. Adding a cluster makes it show up in the UI as the
 // list of clusters depends on the profiles in the home dir of tsh.
-func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
+func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	if webProxyAddress == "" {
 		return nil, nil, trace.BadParameter("cluster address is missing")
-	}
-
-	if dir == "" {
-		return nil, nil, trace.BadParameter("cluster directory is missing")
 	}
 
 	profileName := parseName(webProxyAddress)
@@ -193,7 +189,6 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		Name:          pingResponse.ClusterName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
-		dir:           s.Dir,
 		clock:         s.Clock,
 		Logger:        clusterLog,
 	}, clusterClient, nil
@@ -230,7 +225,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		Name:          clusterClient.SiteName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
-		dir:           s.Dir,
 		clock:         s.Clock,
 		statusError:   err,
 		Logger:        s.Logger.With("cluster", clusterURI),
@@ -272,8 +266,6 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 
 func (s *Storage) makeClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
 	cfg := &client.Config{}
-	cfg.HomePath = s.Dir
-	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
