@@ -1,0 +1,584 @@
+package accessrequest
+
+import (
+	"context"
+	"fmt"
+	"github.com/gravitational/teleport/api/accessrequest"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
+	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/launcher"
+	"github.com/gravitational/teleport/integrations/lib/logger"
+	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/teleport/integrations/lib/services/common"
+	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
+	"slices"
+	"strings"
+	"time"
+)
+
+const (
+	maxAccessRequestConcurrency = 20
+	arDeadline                  = 10 * time.Second
+)
+
+type accessRequestService struct {
+	// provided on creation
+	notifier         Notifier
+	approvalUser     string
+	staticRecipients common.RawRecipientsMap
+
+	// provided at runtime
+	pluginName     string
+	teleportClient teleport.Client
+
+	// initialized but the service itself
+	pluginData            *pd.CompareAndSwap[PluginData]
+	accessMonitoringRules *accessmonitoring.RuleHandler
+}
+
+func NewAccessRequestService(notifier Notifier, staticRecipients common.RawRecipientsMap, approvalUser string) launcher.Service {
+	return &accessRequestService{
+		notifier:         notifier,
+		approvalUser:     approvalUser,
+		staticRecipients: staticRecipients,
+	}
+}
+
+func (a *accessRequestService) CheckHealth(ctx context.Context) error {
+	// TODO: use the notifier to ping the remote service instead
+	return nil
+}
+
+func (a *accessRequestService) init(ctx context.Context) error {
+	cas := pd.NewCAS(
+		a.teleportClient,
+		a.pluginName,
+		types.KindAccessRequest,
+		EncodePluginData,
+		DecodePluginData,
+	)
+
+	accessMonitoringRules := accessmonitoring.NewRuleHandler(
+		accessmonitoring.RuleHandlerConfig{
+			Client:                a.teleportClient,
+			PluginName:            a.pluginName,
+			OnCacheUpdateCallback: nil,
+		})
+
+	a.pluginData = cas
+	a.accessMonitoringRules = accessMonitoringRules
+	return nil
+}
+
+func (a *accessRequestService) Run(ctx context.Context, clt teleport.Client, name string) error {
+	a.teleportClient = clt
+	a.pluginName = name
+
+	err := a.init(ctx)
+	if err != nil {
+		return trace.Wrap(err, "initializing")
+	}
+
+	// try to setup AMR watcher
+	amrWatcher, err := a.teleportClient.NewWatcher(ctx, types.Watch{
+		Name:                a.pluginName,
+		Kinds:               []types.WatchKind{{Kind: types.KindAccessMonitoringRule}},
+		AllowPartialSuccess: false,
+	})
+	if err != nil {
+		// TODO: gracefully handle not implemented
+		return trace.Wrap(err, "failed to watch for AMRs")
+	}
+	defer amrWatcher.Close()
+
+	// AMR watcher is open, expect init event
+	select {
+	case initEvent := <-amrWatcher.Events():
+		if initEvent.Type != types.OpInit {
+			return trace.BadParameter("watcher yielded %[1]v (%[1]d) as first event, expected Init (this is a bug)", initEvent.Type)
+		}
+	case <-amrWatcher.Done():
+		return trace.Wrap(amrWatcher.Error())
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	//  Watcher initialized, loading the cache
+	// TODO load AMR cache
+
+	handlers, ctx := errgroup.WithContext(ctx)
+	handlers.Go(func() error {
+		for {
+			select {
+			case event := <-amrWatcher.Events():
+				switch event.Type {
+				// TODO: process event
+				}
+			case <-amrWatcher.Done():
+				if err := amrWatcher.Error(); err != nil {
+					return trace.Wrap(err, "watcher failed")
+				}
+				return trace.BadParameter("watcher closed unexpectedly")
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	})
+
+	// setting up AR watcher
+	arWatcher, err := a.teleportClient.NewWatcher(ctx, types.Watch{
+		Name:                a.pluginName,
+		Kinds:               []types.WatchKind{{Kind: types.KindAccessRequest}},
+		AllowPartialSuccess: false,
+	})
+	if err != nil {
+		return trace.Wrap(err, "failed to watch for ARs")
+	}
+	defer arWatcher.Close()
+
+	// AMR watcher is open, expect init event
+	select {
+	case initEvent := <-arWatcher.Events():
+		if initEvent.Type != types.OpInit {
+			return trace.BadParameter("watcher yielded %[1]v (%[1]d) as first event, expected Init (this is a bug)", initEvent.Type)
+		}
+	case <-arWatcher.Done():
+		return trace.Wrap(arWatcher.Error())
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	lock := semaphore.NewWeighted(maxAccessRequestConcurrency)
+
+	handlers.Go(func() error {
+		for {
+			select {
+			case event := <-arWatcher.Events():
+				err := lock.Acquire(ctx, 1)
+				if err != nil {
+					return trace.Wrap(err, "failed to acquire AR semaphore")
+				}
+				go func() {
+					eventCtx, cancel := context.WithTimeout(ctx, arDeadline)
+					defer cancel()
+
+					err := a.handleAccessRequest(eventCtx, event)
+					defer lock.Release(1)
+
+					if err != nil {
+						// log why the event processing failed
+					}
+				}()
+
+			}
+		}
+	})
+
+	// TODO: send ready in status sink
+	return handlers.Wait()
+}
+
+func (a *accessRequestService) handleAccessRequest(ctx context.Context, event types.Event) error {
+	op := event.Type
+	reqID := event.Resource.GetName()
+	ctx, _ = logger.WithField(ctx, "request_id", reqID)
+
+	switch op {
+	case types.OpPut:
+		ctx, _ = logger.WithField(ctx, "request_op", "put")
+		req, ok := event.Resource.(types.AccessRequest)
+		if !ok {
+			return trace.BadParameter("unexpected resource type %T", event.Resource)
+		}
+		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
+
+		var err error
+		switch {
+		case req.GetState().IsPending():
+			err = a.onPendingRequest(ctx, req)
+		case req.GetState().IsResolved():
+			err = a.onResolvedRequest(ctx, req)
+		default:
+			log.WithField("event", event).Warn("Unknown request state")
+			return nil
+		}
+
+		if err != nil {
+			log.WithError(err).Errorf("Failed to process request")
+			return trace.Wrap(err)
+		}
+
+		return nil
+	case types.OpDelete:
+		ctx, log := logger.WithField(ctx, "request_op", "delete")
+
+		if err := a.onDeletedRequest(ctx, reqID); err != nil {
+			log.WithError(err).Errorf("Failed to process deleted request")
+			return trace.Wrap(err)
+		}
+		return nil
+	default:
+		return trace.BadParameter("unexpected event operation %s", op)
+	}
+}
+
+func (a *accessRequestService) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
+	log := logger.Get(ctx)
+
+	reqID := req.GetName()
+
+	resourceNames, err := a.getResourceNames(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	loginsByRole, err := a.getLoginsByRole(ctx, req)
+	if trace.IsAccessDenied(err) {
+		log.Warnf("Missing permissions to get logins by role. Please add role.read to the associated role. error: %s", err)
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reqData := pd.AccessRequestData{
+		User:              req.GetUser(),
+		Roles:             req.GetRoles(),
+		RequestReason:     req.GetRequestReason(),
+		SystemAnnotations: req.GetSystemAnnotations(),
+		Resources:         resourceNames,
+		LoginsByRole:      loginsByRole,
+	}
+
+	_, err = a.pluginData.Create(ctx, reqID, PluginData{AccessRequestData: reqData})
+	switch {
+	case err == nil:
+		// This is a new access-request, we have to broadcast it first.
+		if recipients := a.getMessageRecipients(ctx, req); len(recipients) > 0 {
+			if err := a.broadcastAccessRequestMessages(ctx, recipients, reqID, reqData); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			log.Warning("No channel to post")
+		}
+
+		// Try to approve the request if user is currently on-call.
+		if err := a.tryApproveRequest(ctx, reqID, req); err != nil {
+			log.Warningf("Failed to auto approve request: %v", err)
+		}
+	case trace.IsAlreadyExists(err):
+		// The messages were already sent, nothing to do, we can update the reviews
+	default:
+		// This is an unexpected error, returning
+		return trace.Wrap(err)
+	}
+
+	// This is an already existing access request, we post reviews and update its status
+	if reqReviews := req.GetReviews(); len(reqReviews) > 0 {
+		if err := a.postReviewReplies(ctx, reqID, reqReviews); err != nil {
+			return trace.Wrap(err)
+		}
+
+		err := a.updateMessages(ctx, reqID, pd.Unresolved, "", reqReviews)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (a *accessRequestService) onResolvedRequest(ctx context.Context, req types.AccessRequest) error {
+	// We always post review replies in thread. If the messaging service does not support
+	// threading this will do nothing
+	replyErr := a.postReviewReplies(ctx, req.GetName(), req.GetReviews())
+
+	reason := req.GetResolveReason()
+	state := req.GetState()
+	var tag pd.ResolutionTag
+
+	switch state {
+	case types.RequestState_APPROVED:
+		tag = pd.ResolvedApproved
+	case types.RequestState_DENIED:
+		tag = pd.ResolvedDenied
+	case types.RequestState_PROMOTED:
+		tag = pd.ResolvedPromoted
+	default:
+		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
+		return replyErr
+	}
+	err := trace.Wrap(a.updateMessages(ctx, req.GetName(), tag, reason, req.GetReviews()))
+	return trace.NewAggregate(replyErr, err)
+}
+
+func (a *accessRequestService) onDeletedRequest(ctx context.Context, reqID string) error {
+	return a.updateMessages(ctx, reqID, pd.ResolvedExpired, "", nil)
+}
+
+// broadcastAccessRequestMessages sends nessages to each recipient for an access-request.
+// This method is only called when for new access-requests.
+func (a *accessRequestService) broadcastAccessRequestMessages(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) error {
+	sentMessages, err := a.notifier.BroadcastAccessRequestMessage(ctx, recipients, reqID, reqData)
+	if len(sentMessages) == 0 && err != nil {
+		return trace.Wrap(err)
+	}
+	for _, data := range sentMessages {
+		logger.Get(ctx).WithFields(logger.Fields{
+			"channel_id": data.ChannelID,
+			"message_id": data.MessageID,
+		}).Info("Successfully posted messages")
+	}
+	if err != nil {
+		logger.Get(ctx).WithError(err).Error("Failed to post one or more messages")
+	}
+
+	_, err = a.pluginData.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
+		existing.SentMessages = sentMessages
+		return existing, nil
+	})
+
+	return trace.Wrap(err)
+}
+
+// postReviewReplies lists and updates existing messages belonging to an access request.
+// Posting reviews is done both by updating the original message and by replying in thread if possible.
+func (a *accessRequestService) postReviewReplies(ctx context.Context, reqID string, reqReviews []types.AccessReview) error {
+	var oldCount int
+
+	pd, err := a.pluginData.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
+		sentMessages := existing.SentMessages
+		if len(sentMessages) == 0 {
+			// wait for the plugin data to be updated with SentMessages
+			return PluginData{}, trace.CompareFailed("existing sentMessages is empty")
+		}
+
+		count := len(reqReviews)
+		oldCount = existing.ReviewsCount
+		if oldCount >= count {
+			return PluginData{}, trace.AlreadyExists("reviews are sent already")
+		}
+
+		existing.ReviewsCount = count
+		return existing, nil
+	})
+	if trace.IsAlreadyExists(err) {
+		logger.Get(ctx).Debug("Failed to post reply: replies are already sent")
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	slice := reqReviews[oldCount:]
+	if len(slice) == 0 {
+		return nil
+	}
+
+	errors := make([]error, 0, len(slice))
+	for _, data := range pd.SentMessages {
+		ctx, _ = logger.WithFields(ctx, logger.Fields{"channel_id": data.ChannelID, "message_id": data.MessageID})
+		for _, review := range slice {
+			if err := a.notifier.PostReviewReply(ctx, data.ChannelID, data.MessageID, review); err != nil {
+				errors = append(errors, err)
+			}
+		}
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// getMessageRecipients takes an access request and returns a list of channelIDs that should be messaged.
+// channelIDs can represent any communication channel depending on the MessagingBot implementation:
+// a public channel, a private one, or a user direct message channel.
+func (a *accessRequestService) getMessageRecipients(ctx context.Context, req types.AccessRequest) []common.Recipient {
+	log := logger.Get(ctx)
+
+	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
+	// This can happen if this set contains the channel `C` and the email for channel `C`.
+	recipientSet := common.NewRecipientSet()
+
+	recipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	recipients.ForEach(func(r common.Recipient) {
+		recipientSet.Add(r)
+	})
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice()
+	}
+
+	// TODO: burn this horror
+
+	/*
+		switch a.pluginType {
+		case types.PluginTypeServiceNow:
+			// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
+			// Recipients just needs to be non empty.
+			recipientSet.Add(common.Recipient{})
+			return recipientSet.ToSlice()
+		case types.PluginTypeOpsgenie:
+			recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifySchedulesLabel]
+			if !ok {
+				return recipientSet.ToSlice()
+			}
+			for _, recipient := range recipients {
+				rec, err := a.notifier.FetchRecipient(ctx, recipient)
+				if err != nil {
+					log.Warningf("Failed to fetch Opsgenie recipient: %v", err)
+					continue
+				}
+				recipientSet.Add(*rec)
+			}
+			return recipientSet.ToSlice()
+		}
+	*/
+
+	validEmailSuggReviewers := []string{}
+	for _, reviewer := range req.GetSuggestedReviewers() {
+		if !lib.IsEmail(reviewer) {
+			log.Warningf("Failed to notify a suggested reviewer: %q does not look like a valid email", reviewer)
+			continue
+		}
+
+		validEmailSuggReviewers = append(validEmailSuggReviewers, reviewer)
+	}
+	rawRecipients := a.staticRecipients.GetRawRecipientsFor(req.GetRoles(), validEmailSuggReviewers)
+	for _, rawRecipient := range rawRecipients {
+		recipient, err := a.notifier.FetchRecipient(ctx, rawRecipient)
+		if err != nil {
+			log.WithError(err).Warn("Failure when fetching recipient, continuing anyway")
+		} else {
+			recipientSet.Add(*recipient)
+		}
+	}
+
+	return recipientSet.ToSlice()
+}
+
+// updateMessages updates the messages status and adds the resolve reason.
+func (a *accessRequestService) updateMessages(ctx context.Context, reqID string, tag pd.ResolutionTag, reason string, reviews []types.AccessReview) error {
+	log := logger.Get(ctx)
+
+	pluginData, err := a.pluginData.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
+		if len(existing.SentMessages) == 0 {
+			return PluginData{}, trace.NotFound("plugin data not found")
+		}
+
+		// If resolution field is not empty then we already resolved the incident before. In this case we just quit.
+		if existing.AccessRequestData.ResolutionTag != pd.Unresolved {
+			return PluginData{}, trace.AlreadyExists("request is already resolved")
+		}
+
+		// Mark plugin data as resolved.
+		existing.ResolutionTag = tag
+		existing.ResolutionReason = reason
+
+		return existing, nil
+	})
+	if trace.IsNotFound(err) {
+		log.Debug("Failed to update messages: plugin data is missing")
+		return nil
+	}
+	if trace.IsAlreadyExists(err) {
+		if tag != pluginData.ResolutionTag {
+			return trace.WrapWithMessage(err,
+				"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
+				pluginData.ResolutionTag, tag)
+		}
+		log.Debug("Request is already resolved, ignoring event")
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reqData, sentMessages := pluginData.AccessRequestData, pluginData.SentMessages
+	if err := a.notifier.UpdateMessages(ctx, reqID, reqData, sentMessages, reviews); err != nil {
+		return trace.Wrap(err)
+	}
+	log.Infof("Successfully marked request as %s in all messages", tag)
+
+	if err := a.notifier.NotifyUser(ctx, reqID, reqData); err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Successfully notified user %s request marked as %s", reqData.User, tag)
+
+	return nil
+}
+
+func (a *accessRequestService) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	loginsByRole := make(map[string][]string, len(req.GetRoles()))
+
+	for _, role := range req.GetRoles() {
+		currentRole, err := a.teleportClient.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		loginsByRole[role] = currentRole.GetLogins(types.Allow)
+	}
+
+	return loginsByRole, nil
+}
+
+func (a *accessRequestService) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
+
+	for cluster, resources := range resourcesByCluster {
+		resourceDetails, err := accessrequest.GetResourceDetails(ctx, cluster, a.teleportClient, resources)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			resourceName := types.ResourceIDToString(resource)
+			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
+				resourceName = fmt.Sprintf("%s/%s", resource.Kind, details.FriendlyName)
+			}
+			resourceNames = append(resourceNames, resourceName)
+		}
+	}
+	return resourceNames, nil
+}
+
+// tryApproveRequest attempts to automatically approve the access request if the
+// user is on call for the configured service/team.
+func (a *accessRequestService) tryApproveRequest(ctx context.Context, reqID string, req types.AccessRequest) error {
+	log := logger.Get(ctx).
+		WithField("req_id", reqID).
+		WithField("user", req.GetUser())
+
+	oncallUsers, err := a.notifier.FetchOncallUsers(ctx, req)
+	if trace.IsNotImplemented(err) {
+		log.Debugf("Skipping auto-approval because %q bot does not support automatic approvals.", a.pluginName)
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !slices.Contains(oncallUsers, req.GetUser()) {
+		log.Debug("Skipping approval because user is not on-call.")
+		return nil
+	}
+
+	if _, err := a.teleportClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: reqID,
+		Review: types.AccessReview{
+			Author:        a.approvalUser,
+			ProposedState: types.RequestState_APPROVED,
+			Reason:        fmt.Sprintf("Access request has been automatically approved by %q plugin because user %q is on-call.", a.pluginName, req.GetUser()),
+			Created:       time.Now(),
+		},
+	}); err != nil {
+		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
+			log.Debug("Request has already been reviewed.")
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	log.Info("Successfully submitted a request approval.")
+	return nil
+}
