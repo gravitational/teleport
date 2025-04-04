@@ -207,6 +207,26 @@ describe('cycle', () => {
       'https://goteleport.com/r/upgrade-igs?e_4.4.0-dev&utm_campaign=CTA_UNSPECIFIED'
     );
   });
+
+  test('hide MWI info text if account has extra MWI', () => {
+    cfg.entitlements.Policy.enabled = false;
+    props.summary.mwi.maximum = Math.ceil(props.summary.mau.maximum * 0.5) + 1;
+    renderWithContext(<Cycle {...props} />);
+
+    expect(
+      screen.queryByText(/MWIs were previously counted as TPRs/)
+    ).not.toBeInTheDocument();
+  });
+
+  test("show MWI info text if account doesn't have extra MWI", () => {
+    cfg.entitlements.Policy.enabled = false;
+    props.summary.mwi.maximum = Math.ceil(props.summary.mau.maximum * 0.5);
+    renderWithContext(<Cycle {...props} />);
+
+    expect(
+      screen.getByText(/MWIs were previously counted as TPRs/)
+    ).toBeInTheDocument();
+  });
 });
 
 describe('calibration period', () => {

@@ -12,6 +12,12 @@ import { ProductUsage } from './types';
 import { UpdatedAtDisplay } from './UpdatedAtDisplay';
 import { UsageBar } from './UsageBar';
 
+// MWI_PER_MAU is how many free MWI customers get for each MAU they aquire.
+// This value is used to tell if a customer has bought additional MWI and hence is
+// in the new price model, or not.
+// TODO(mcbattirola): This is temporary and will be removed in fall 2025.
+const MWI_PER_MAU = 0.5;
+
 export interface CycleProps {
   summary: UsageSummary;
 }
@@ -42,6 +48,13 @@ export const Cycle = ({
 
   const hasIdentityGovernance = cfg.entitlements.Identity.enabled;
   const hasIdentitySecurity = cfg.entitlements.Policy.enabled;
+
+  // hasExtraMwi is used to show or hide MWI's blurb, which contains additional info
+  // that only customers in the old price model should see.
+  // Ideally, this information should come from the Cloud backend, but since this is
+  // temporary and all products use the same MWI per MAU (0.5), we hardcoded it here.
+  // TODO(mcbattirola): remove this and MWI blurb completely on v19.
+  const hasExtraMwi = mwi.maximum > Math.ceil(MWI_PER_MAU * mau.maximum);
 
   const productUsages: ProductUsage[] = [
     {
@@ -84,8 +97,9 @@ export const Cycle = ({
           hardMax: mwi.maximum,
         },
       ],
-      blurb:
-        'MWIs were previously counted as TPRs, but are now part of a new product. Billing will remain consistent with your current contract.',
+      blurb: hasExtraMwi
+        ? null
+        : 'MWIs were previously counted as TPRs, but are now part of a new product. Billing will remain consistent with your current contract.',
     },
     {
       name: 'Identity Governance',
@@ -153,7 +167,11 @@ export const Cycle = ({
       </Text>
       <Flex gap="3" flexWrap="wrap" my="3">
         {productUsages.map(p => (
-          <CyclesContainer key={p.name} data-testid={p.name}>
+          <CyclesContainer
+            key={p.name}
+            data-testid={p.name}
+            enabled={p.enabled}
+          >
             <H3>{p.name}</H3>
             <Text color="text.slightlyMuted" mt="2" fontWeight={300}>
               {p.info}
@@ -179,14 +197,14 @@ export const Cycle = ({
   );
 };
 
-const CyclesContainer = styled(Flex)`
+const CyclesContainer = styled(Flex)<{ enabled?: boolean }>`
   flex: 1 1 33%;
   min-width: 420px;
   background-color: ${({ theme }) => theme.colors.levels.surface};
   border-radius: 8px;
   padding: ${({ theme }) => theme.space[4]}px;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: ${({ enabled }) => (enabled ? 'normal' : 'space-between')};
 `;
 
 const CalibrationText = styled(Text)`
