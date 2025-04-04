@@ -42,7 +42,8 @@ var yubiKeyServiceMu sync.Mutex
 
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
 type YubiKeyService struct {
-	prompt hardwarekey.Prompt
+	prompt   hardwarekey.Prompt
+	promptMu sync.Mutex
 
 	// signMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
 	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
@@ -67,7 +68,9 @@ func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
 	if yubiKeyService != nil {
 		// If a prompt is provided, prioritize it over the existing prompt value.
 		if customPrompt != nil {
+			yubiKeyService.promptMu.Lock()
 			yubiKeyService.prompt = customPrompt
+			yubiKeyService.promptMu.Unlock()
 		}
 		return yubiKeyService
 	}
@@ -116,9 +119,12 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
 	if config.Policy.PINRequired {
+		s.promptMu.Lock()
 		if err := y.checkOrSetPIN(ctx, s.prompt, config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
+			s.promptMu.Unlock()
 			return nil, trace.Wrap(err)
 		}
+		s.promptMu.Unlock()
 	}
 
 	generatePrivateKey := func() (*hardwarekey.Signer, error) {
@@ -188,6 +194,9 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 	s.signMu.Lock()
 	defer s.signMu.Unlock()
 
+	s.promptMu.Lock()
+	defer s.promptMu.Unlock()
+
 	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
 }
 
@@ -237,6 +246,13 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 
 	keyRefs[baseRef] = ref
 	return ref, nil
+}
+
+// SetPrompt sets the hardware key prompt.
+func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
+	s.promptMu.Lock()
+	defer s.promptMu.Unlock()
+	s.prompt = prompt
 }
 
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",
