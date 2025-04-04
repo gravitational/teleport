@@ -1,4 +1,4 @@
-// Copyright 2024 Gravitational, Inc.
+// Copyright 2025 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,6 +56,8 @@ func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
 	}
 }
 
+// AskPIN prompts the user for a PIN. If the requirement is [PINOptional],
+// the prompt will offer the default PIN as a default value.
 func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
 	message := "Enter your YubiKey PIV PIN"
 	if requirement == PINOptional {
@@ -65,11 +67,16 @@ func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement
 	return password, trace.Wrap(err)
 }
 
+// Touch prompts the user to touch the hardware key.
 func (c *cliPrompt) Touch(_ context.Context) error {
 	_, err := fmt.Fprintln(c.writer, "Tap your YubiKey")
 	return trace.Wrap(err)
 }
 
+// ChangePIN asks for a new PIN and the current PUK to change to the new PIN.
+// If the provided PUK is the default value, it will ask for a new PUK as well.
+// If an invalid PIN or PUK is provided, the user will be re-prompted until a
+// valid value is provided.
 func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	var pinAndPUK = &PINAndPUK{}
 	for {
@@ -147,6 +154,7 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 	return pinAndPUK, nil
 }
 
+// ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
 func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
 	confirmation, err := prompt.Confirmation(ctx, c.writer, c.reader, message)
 	return confirmation, trace.Wrap(err)
