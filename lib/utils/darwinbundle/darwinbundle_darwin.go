@@ -62,3 +62,26 @@ func Path() (string, error) {
 
 	return strings.TrimSuffix(dir, appBundleSuffix), nil
 }
+
+// Identifier returns the identifier of the bundle that the current executable comes from. Returns
+// either a non-empty string or an error.
+func Identifier() (string, error) {
+	path, err := Path()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	cPath := C.CString(path)
+	defer C.free(unsafe.Pointer(cPath))
+
+	cIdentifier := C.BundleIdentifier(cPath)
+	defer C.free(unsafe.Pointer(cIdentifier))
+
+	identifier := C.GoString(cIdentifier)
+
+	if identifier == "" {
+		return "", trace.Errorf("could not get details for bundle under %s", path)
+	}
+
+	return identifier, nil
+}

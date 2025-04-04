@@ -13,36 +13,16 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#include "darwinbundle_darwin.h"
 
-#import <Foundation/Foundation.h>
+//go:build !darwin
+// +build !darwin
 
-#include <string.h>
+package common
 
-char *CopyNSString(NSString *val) {
-  if (val) {
-    return strdup([val UTF8String]);
-  }
-  return strdup("");
-}
+import (
+	"github.com/gravitational/teleport/lib/utils"
+)
 
-const char *BundleIdentifier(const char *bundlePath) {
-  @autoreleasepool {
-    NSString *bundleIdentifier = TELBundleIdentifier(@(bundlePath));
-    return CopyNSString(bundleIdentifier);
-  }
-}
-
-NSString *TELBundleIdentifier(NSString *bundlePath) {
-  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
-  if (!main) {
-    return @"";
-  }
-
-  NSString *bundleIdentifier = [main bundleIdentifier];
-  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
-    return @"";
-  }
-
-  return bundleIdentifier;
+func getPlatformInitLoggerOpts(cf *CLIConf) []utils.LoggerOption {
+	return nil
 }
