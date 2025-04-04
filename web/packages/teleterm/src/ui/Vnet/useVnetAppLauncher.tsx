@@ -24,14 +24,24 @@ import { ResourceUri, routing } from 'teleterm/ui/uri';
 
 import { useVnetContext } from './vnetContext';
 
-export type VnetAppLauncher = (args: {
+export type VnetAppLauncher = (args: VnetAppLauncherArgs) => Promise<void>;
+
+// NOTE: Almost every field added to VnetAppLauncherArgs will need to be added to DocumentVnetInfo.
+//
+// This is because during the first launch of VNet through useVnetAppLauncher, the act of launching
+// VNet is split into two parts. When a user clicks the "Connect" button next to a TCP app or opens
+// one from the search bar, a DocumentVnetInfo is opened first. Then the user can start VNet from
+// there, which should carry out the launch of that particular app. Hence the need to copy some
+// arguments from the app to the doc.
+type VnetAppLauncherArgs = {
   addrToCopy: string | undefined;
   /**
    * resourceUri lets the VNet launcher establish which workspace to open the info doc in if
    * there's a need to do it.
    */
   resourceUri: ResourceUri;
-}) => Promise<void>;
+  isMultiPort: boolean;
+};
 
 export const useVnetAppLauncher = (): {
   /**
@@ -49,7 +59,7 @@ export const useVnetAppLauncher = (): {
    * address of the app to the clipboard.
    */
   launchVnetWithoutFirstTimeCheck: (
-    addrToCopy: string | undefined
+    args: Pick<VnetAppLauncherArgs, 'addrToCopy' | 'isMultiPort'>
   ) => Promise<void>;
 } => {
   const { notificationsService, workspacesService } = useAppContext();
@@ -72,13 +82,7 @@ export const useVnetAppLauncher = (): {
   }, [status.value, startAttempt.status, open, start]);
 
   const openInfoDoc = useCallback(
-    async ({
-      addrToCopy,
-      resourceUri,
-    }: {
-      addrToCopy: string | undefined;
-      resourceUri: ResourceUri;
-    }) => {
+    async ({ addrToCopy, resourceUri, isMultiPort }: VnetAppLauncherArgs) => {
       const rootClusterUri = routing.ensureRootClusterUri(resourceUri);
       // Since VNet app launcher might be called from the search bar, we have to account for the
       // user being in a different workspace than the selected app.
@@ -100,13 +104,18 @@ export const useVnetAppLauncher = (): {
       );
       // Update targetAddress so that clicking "Start VNet" from the info doc is going to copy that
       // address to clipboard.
-      docsService.update(docUri, { targetAddress: addrToCopy });
+      docsService.update(docUri, {
+        app: { targetAddress: addrToCopy, isMultiPort },
+      });
     },
     [workspacesService]
   );
 
   const launchVnetAndCopyAddr = useCallback(
-    async (addrToCopy: string | undefined) => {
+    async ({
+      addrToCopy,
+      isMultiPort,
+    }: Pick<VnetAppLauncherArgs, 'addrToCopy' | 'isMultiPort'>) => {
       if (!(await launchVnet())) {
         return;
       }
@@ -115,11 +124,15 @@ export const useVnetAppLauncher = (): {
         return;
       }
 
-      const ok = copyAddrToClipboard(addrToCopy);
+      const copiedToClipboard = copyAddrToClipboard(addrToCopy);
       notificationsService.notifyInfo(
-        ok
-          ? `Connect via VNet by using ${addrToCopy} (copied to clipboard).`
-          : `Connect via VNet by using ${addrToCopy}.`
+        [
+          `Connect via VNet by using ${addrToCopy}`,
+          copiedToClipboard && '(copied to clipboard)',
+          !isMultiPort && 'and any port',
+        ]
+          .filter(Boolean)
+          .join(' ') + '.'
       );
     },
     [launchVnet, notificationsService]
@@ -133,7 +146,7 @@ export const useVnetAppLauncher = (): {
           return;
         }
 
-        await launchVnetAndCopyAddr(args.addrToCopy);
+        await launchVnetAndCopyAddr(args);
       },
       launchVnetWithoutFirstTimeCheck: launchVnetAndCopyAddr,
     }),
