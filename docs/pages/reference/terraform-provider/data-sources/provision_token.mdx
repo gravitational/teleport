@@ -22,6 +22,7 @@ description: This page describes the supported values of the teleport_provision_
 ### Optional
 
 - `metadata` (Attributes) Metadata is resource metadata (see [below for nested schema](#nested-schema-for-metadata))
+- `status` (Attributes) Status is extended status information, depending on token type. It is not user writable. (see [below for nested schema](#nested-schema-for-status))
 - `sub_kind` (String) SubKind is an optional resource sub kind, used in some resources
 
 ### Nested Schema for `spec`
@@ -37,6 +38,7 @@ Optional:
 - `azure` (Attributes) Azure allows the configuration of options specific to the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
 - `bitbucket` (Attributes) Bitbucket allows the configuration of options specific to the "bitbucket" join method. (see [below for nested schema](#nested-schema-for-specbitbucket))
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
+- `bound_keypair` (Attributes) (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `circleci` (Attributes) CircleCI allows the configuration of options specific to the "circleci" join method. (see [below for nested schema](#nested-schema-for-speccircleci))
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
@@ -91,6 +93,33 @@ Optional:
 - `deployment_environment_uuid` (String) DeploymentEnvironmentUUID is the UUID of the deployment environment targeted by this pipelines run, if any. These values may be found in the "Pipelines -> OpenID Connect -> Deployment environments" section of the repository settings.
 - `repository_uuid` (String) RepositoryUUID is the UUID of the repository for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
 - `workspace_uuid` (String) WorkspaceUUID is the UUID of the workspace for which this token was issued. Bitbucket UUIDs must begin and end with braces, e.g. `{...}`. This value may be found in the Pipelines -> OpenID Connect section of the repository settings.
+
+
+
+### Nested Schema for `spec.bound_keypair`
+
+Optional:
+
+- `joining` (Attributes) Joining contains parameters related to all join attempts. (see [below for nested schema](#nested-schema-for-specbound_keypairjoining))
+- `onboarding` (Attributes) Onboarding contains parameters related to initial joining and keypair registration. (see [below for nested schema](#nested-schema-for-specbound_keypaironboarding))
+- `rotate_on_next_renewal` (Boolean) RotateOnNextRenewal is a flag that indicates clients should perform a keypair rotation on the next refresh or rejoin attempt. This flag will automatically be set to `false` after a successful rotation.
+
+### Nested Schema for `spec.bound_keypair.joining`
+
+Optional:
+
+- `may_join_until` (String) MayJoinUntil is an optional timestamp before which all joining attempts must occur. If unset, there are no time constraints on joining attempts. Note that clients may continue to renew their identities past this timestamp; a lock should be created if continued access should be cut off.
+- `total_joins` (Number) TotalJoins indicates the total number of joins that will be allowed over the lifetime of this token and is the initial value for `.status.bound_keypair.remaining_joins`. This value may be incremented after creation to allow additional joins should `remaining_joins` fall to zero, and `remaining_joins` will be incremented by the same amount. Unless `unlimited` is set, this value must be at least 1 at time of token creation for the initial join attempt to succeed.
+- `unlimited` (Boolean) Unlimited indicates no limit for joining and rejoining. `total_joins` and the calculated `.status.bound_keypair.remaining_joins` value will be zero, but rejoin attempts will succeed so long as other join requirements are met.
+
+
+### Nested Schema for `spec.bound_keypair.onboarding`
+
+Optional:
+
+- `initial_join_secret` (String) InitialJoinSecret is an initial join secret joining clients may use to register their public key on first join. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`; if unset, a random secure value will be generated server-side to populate the status field.
+- `initial_public_key` (String) InitialPublicKey is an initial, static public key that will be used to immediately populate `.status.bound_keypair.bound_public_key`. If set, `initial_join_secret` and `must_join_before` are ignored, and `.status.bound_keypair.initial_join_secret` will not be generated. This value is written in SSH public key format, including algorithm.
+- `must_join_before` (String) MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. Users may be modified after creation if necessary to allow the initial registration to take place.
 
 
 
@@ -286,4 +315,23 @@ Optional:
 - `expires` (String) Expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) Labels is a set of labels
 - `name` (String, Sensitive) Name is an object name
+
+
+### Nested Schema for `status`
+
+Optional:
+
+- `bound_keypair` (Attributes) BoundKeypair contains status information related to bound-keypair type tokens. (see [below for nested schema](#nested-schema-for-statusbound_keypair))
+
+### Nested Schema for `status.bound_keypair`
+
+Optional:
+
+- `bound_bot_instance_id` (String) BoundBotInstanceID is the ID of the currently associated bot instance. A new bot instance is issued on each join; the new bot instance will have a `previous_bot_instance` set to this value, if any.
+- `bound_public_key` (String) BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration. This value will be updated over time if keypair rotation takes place, and will always reflect the currently valid public key. This value is written in SSH public key format, including algorithm.
+- `initial_join_secret` (String) InitialJoinSecret contains a secret value that may be used for public key registration during the initial join process. If `.spec.bound_keypair.onboarding.initial_public_key` is set, †his field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.initial_join_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.
+- `join_count` (Number) JoinCount is a count of the total number of joins performed using this token. It is incremented for every successful join or rejoin.
+- `last_joined_at` (String) LastJoinedAt contains a timestamp of the last successful join attempt. Note that normal renewals will not trigger a join attempt. This corresponds with the last time `bound_bot_instance_id` was updated.
+- `last_rotated_at` (String) LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.
+- `remaining_joins` (Number) RemainingJoins is a count of the total number of additional joins that can be performed using this token. If `.spec.joining.total_joins` is incremented, this value will be incremented by the same value.
 
