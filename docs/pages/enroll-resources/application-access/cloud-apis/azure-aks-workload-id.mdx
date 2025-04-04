@@ -170,8 +170,8 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 ### Start the Teleport Application Service
 
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
-to the value of the join token you retrieved above, <Var
-name="example.teleport.sh:443" /> to the host **and port** of your Teleport
+to the value of the join token you retrieved above, 
+<Var name="example.teleport.sh:443" /> to the host **and port** of your Teleport
 Proxy Service (e.g., `teleport.example.com:443`):
 
 ```code
