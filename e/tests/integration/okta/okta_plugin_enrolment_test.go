@@ -630,6 +630,13 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 			},
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
+		cred, err := sut.Teleport.Process.GetAuthServer().GetPluginStaticCredentials(ctx, types.PluginTypeOkta)
+		require.NoError(t, err)
+		purpose, ok := cred.GetLabel("okta/purpose")
+		require.True(t, ok)
+		require.Equal(t, "okta-auth", purpose)
+		require.Equal(t, "token", cred.GetAPIToken())
 	})
 
 	t.Run("update credentials", func(t *testing.T) {
@@ -656,6 +663,14 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 			},
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
+
+		cred, err := sut.Teleport.Process.GetAuthServer().GetPluginStaticCredentials(ctx, types.PluginTypeOkta)
+		require.NoError(t, err)
+		purpose, ok := cred.GetLabel("okta/purpose")
+		require.True(t, ok)
+		require.Equal(t, "okta-oauth-client-id", purpose)
+		clientID, _ := cred.GetOAuthClientSecret()
+		require.Equal(t, "test_client_id_vSHak23", clientID)
 	})
 
 	t.Run("fall back to org user source while updating legacy plugins", func(t *testing.T) {

@@ -201,14 +201,17 @@ func (s *Service) upsertOauthClientID(ctx context.Context, clientID string, cred
 	item, err := selectCredsByLabelsFilter(creds, isSyncCredential)
 	switch {
 	case err == nil:
-		if _, err := s.credsBackend.UpdatePluginStaticCredentials(ctx, item); err != nil {
+		oauthCred := buildOAuthCredentials(clientID)
+		appendLabelsToResource(oauthCred, labels)
+		oauthCred.Metadata.Revision = item.GetMetadata().Revision
+		if _, err := s.credsBackend.UpdatePluginStaticCredentials(ctx, oauthCred); err != nil {
 			return trace.Wrap(err, "failed to update plugin static credentials")
 		}
 		s.logger.DebugContext(ctx, "Updated Okta plugin OAuth credentials.")
 	case trace.IsNotFound(err):
-		scimCreds := buildOAuthCredentials(clientID)
-		appendLabelsToResource(scimCreds, labels)
-		if err := s.credsBackend.CreatePluginStaticCredentials(ctx, scimCreds); err != nil {
+		oauthCred := buildOAuthCredentials(clientID)
+		appendLabelsToResource(oauthCred, labels)
+		if err := s.credsBackend.CreatePluginStaticCredentials(ctx, oauthCred); err != nil {
 			return trace.Wrap(err, "failed to create plugin static credentials")
 		}
 		s.logger.DebugContext(ctx, "Created Okta plugin OAuth credentials.")
