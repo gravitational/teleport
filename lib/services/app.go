@@ -170,7 +170,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 // It transforms service fields and annotations into appropriate Teleport app fields.
 // Service labels are copied to app labels.
 func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
-	appURI := buildAppURI(protocol, GetServiceFQDN(service), port.Port)
+	appURI := buildAppURI(protocol, GetServiceFQDN(service), service.GetAnnotations()[types.DiscoveryPathLabel], port.Port)
 
 	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 	if err != nil {
@@ -216,10 +216,11 @@ func GetServiceFQDN(service corev1.Service) string {
 	return fmt.Sprintf("%s.%s.svc.%s", service.GetName(), service.GetNamespace(), clusterDomainResolver())
 }
 
-func buildAppURI(protocol, serviceFQDN string, port int32) string {
+func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
 		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+		Path:   path,
 	}).String()
 }
 
