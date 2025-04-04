@@ -283,11 +283,6 @@ export class WindowsManager {
     }
 
     return new Promise(resolve => {
-      if (signal?.aborted) {
-        resolve();
-        return;
-      }
-
       const interval = setInterval(() => {
         if (this.window.isFocused()) {
           resolve();
