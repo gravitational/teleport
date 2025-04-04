@@ -11,7 +11,7 @@ Discovery in your Kubernetes cluster.
 ## Configuring Teleport Agent Helm chart
 
 You can configure scope of services discovery by setting value `kubernetesDiscovery` of the chart. For more information
-please see [helm chart documentation](../helm-reference/teleport-kube-agent.mdx).
+please see [helm chart documentation](../../helm-reference/teleport-kube-agent.mdx).
 
 `values.yaml` example:
 
@@ -68,7 +68,7 @@ app_service:
 
 Label `teleport.dev/kubernetes-cluster` should match value of `discovery_group` field in the Discovery Service config.
 
-For more information you can take a look at [`discovery_service`](../config.mdx) and [`app_service`](../config.mdx) configuration references.
+For more information you can take a look at [`discovery_service`](../../config.mdx) and [`app_service`](../../config.mdx) configuration references.
 
 ## Annotations
 
@@ -127,7 +127,7 @@ annotations:
 ### `teleport.dev/app-rewrite`
 
 Controls rewrite configuration for Teleport app, if needed. It should
-contain full rewrite configuration in YAML format, same as one would use when configuring an app with dynamic registration syntax (see [documentation](../../enroll-resources/application-access/guides/connecting-apps.mdx)).
+contain full rewrite configuration in YAML format, same as one would use when configuring an app with dynamic registration syntax (see [documentation](../../../enroll-resources/application-access/guides/connecting-apps.mdx)).
 
 ```yaml
 annotations:
