@@ -95,7 +95,7 @@ describe('Okta status', () => {
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /enable/i }));
 
-    expect(screen.getByText(/edit user sync/i)).toBeInTheDocument();
+    expect(screen.getByText(/sync users/i)).toBeInTheDocument();
 
     jest.spyOn(pluginsService, 'updatePlugin').mockResolvedValueOnce({
       ...stubOktaPluginOnlySSO,

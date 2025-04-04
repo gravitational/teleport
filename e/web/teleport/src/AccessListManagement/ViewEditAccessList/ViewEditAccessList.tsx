@@ -66,7 +66,7 @@ export function ViewEditAccessList() {
     fetchRoleOptions,
     fetchUsersAndRoles,
     usersAndRolesAttempt,
-    oktaPluginAttempt,
+    isOktaPluginReadOnly,
     processAccessLists,
   } = useAccessListManagementContext();
   const location = useLocation();
@@ -85,10 +85,7 @@ export function ViewEditAccessList() {
   // An Okta-synced Access List is read-only if bidirectional sync is 'false' or omitted.
   // In this case, updates to the members/owners must be made in Okta, and
   // membership/ownership requirements are disabled.
-  const isReadOnlyOktaList =
-    isOktaList &&
-    oktaPluginAttempt.data?.spec &&
-    !oktaPluginAttempt.data.spec?.enableBidirectionalSync;
+  const isReadOnlyOktaList = isOktaList && isOktaPluginReadOnly;
 
   function updateAccessList(
     newAccessList: AccessList,

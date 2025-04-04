@@ -13,7 +13,7 @@ import {
 
 import type { SortDir } from 'design/DataTable/types';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
@@ -57,7 +57,7 @@ type State = {
 interface AccessListManagementContext {
   attempt: ReturnType<typeof useAttempt>;
   usersAndRolesAttempt: ReturnType<typeof useAttempt>['attempt'];
-  oktaPluginAttempt: Attempt<Plugin<PluginOktaSpec, PluginStatusOkta>>;
+  isOktaPluginReadOnly: boolean;
   processAccessLists: (preProcess?: PreProcessFn) => void;
   fetchRoleOptions: ReturnType<typeof useFetchUserAndRoles>['fetchRoleOptions'];
   fetchUsersAndRoles: ReturnType<
@@ -92,7 +92,7 @@ const DEFAULT_SORT = {
 const AccessListManagementContext = createContext<AccessListManagementContext>({
   attempt: STUB_ATTEMPT,
   usersAndRolesAttempt: STUB_ATTEMPT.attempt,
-  oktaPluginAttempt: { status: '', data: null, statusText: '' },
+  isOktaPluginReadOnly: false,
   accessLists: [],
   userOptions: [],
   allOwners: [],
@@ -226,7 +226,10 @@ export const AccessListManagementContextProvider = (
       value={{
         attempt,
         usersAndRolesAttempt: usersAndRolesAttempt.attempt,
-        oktaPluginAttempt,
+        // Okta Integration is read-only if bidirectionalSync is 'false' or omitted.
+        isOktaPluginReadOnly:
+          oktaPluginAttempt?.data &&
+          !oktaPluginAttempt.data.spec?.enableBidirectionalSync,
         userOptions,
         accessLists: state.accessLists,
         allOwners: state.allOwners,

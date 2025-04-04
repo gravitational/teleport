@@ -1,16 +1,25 @@
 import { Meta, StoryObj } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { useEffect } from 'react';
+import { useEffect, type ComponentType as ReactComponentType } from 'react';
 import { MemoryRouter, Route } from 'react-router';
 
 import cfg from 'e-teleport/config';
 import PluginEnroll from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll';
 import { OktaIntegrationSetUpContextProvider } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
 import { OktaIntegrationLevel } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
-import { SetUpAppGroupSync as AppGroupSyncSetup } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpAppGroupSync';
-import { SetUpScim as ScimSetup } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpScim';
+import {
+  AppGroupSyncForm,
+  SetUpAppGroupSync as AppGroupSyncSetup,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpAppGroupSync';
+import {
+  ScimForm,
+  SetUpScim as ScimSetup,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpScim';
 import { SetUpSSO as SSOSetup } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpSSO';
-import { SetUpUserSync as UserSyncSetup } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpUserSync';
+import {
+  UserSyncForm,
+  SetUpUserSync as UserSyncSetup,
+} from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Steps/SetUpUserSync';
 import ResourceServiceE from 'e-teleport/services/resource';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { ContextProvider } from 'teleport';
@@ -84,7 +93,7 @@ export const Overview = {
   parameters: {
     msw: [
       http.get(cfg.getPluginUrl('okta', 'get'), async () => {
-        return HttpResponse.json();
+        return HttpResponse.json({});
       }),
     ],
   },
@@ -110,6 +119,13 @@ export const SetUpSSO = {
 };
 
 export const SetUpScim = {
+  argTypes: {
+    isEditing: {
+      control: { type: 'boolean' },
+      description: 'Enable edit view',
+    },
+  },
+  args: { isEditing: false },
   render: args => {
     cfg.oss.entitlements.Identity = {
       enabled: (args as { hasIdentity: boolean }).hasIdentity,
@@ -119,12 +135,24 @@ export const SetUpScim = {
       <RenderStep
         step={OktaIntegrationLevel.SCIM}
         plugin={StubPluginSSOSetUp}
+        isEditing={args.isEditing}
       />
     );
   },
 };
 
 export const SetUpUserSync = {
+  argTypes: {
+    isEditing: {
+      control: { type: 'boolean' },
+      description: 'Enable edit view',
+    },
+    hasSetClientID: {
+      control: { type: 'boolean' },
+      description: 'If clientID has been previously set',
+    },
+  },
+  args: { isEditing: false, hasSetClientID: false },
   render: args => {
     cfg.oss.entitlements.Identity = {
       enabled: (args as { hasIdentity: boolean }).hasIdentity,
@@ -134,12 +162,21 @@ export const SetUpUserSync = {
       <RenderStep
         step={OktaIntegrationLevel.USER_SYNC}
         plugin={StubPluginSCIMSetUp}
+        isEditing={args.isEditing || args.hasSetClientID}
+        hasSetClientID={args.hasSetClientID}
       />
     );
   },
 };
 
 export const SetUpAppGroupSync = {
+  argTypes: {
+    isEditing: {
+      control: { type: 'boolean' },
+      description: 'Enable edit view',
+    },
+  },
+  args: { isEditing: false },
   render: args => {
     cfg.oss.entitlements.Identity = {
       enabled: (args as { hasIdentity: boolean }).hasIdentity,
@@ -149,6 +186,7 @@ export const SetUpAppGroupSync = {
       <RenderStep
         step={OktaIntegrationLevel.APP_GROUP_SYNC}
         plugin={StubPluginSCIMSetUp}
+        isEditing={args.isEditing}
       />
     );
   },
@@ -213,27 +251,45 @@ const StubPluginSCIMSetUp = {
   },
 } satisfies Plugin<PluginOktaSpec, PluginStatusOkta>;
 
+type ComponentProps<T extends boolean> = T extends false
+  ? object
+  : {
+      isEditing: boolean;
+      plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
+      setPlugin: (plugin: Plugin<PluginOktaSpec, PluginStatusOkta>) => void;
+    };
+
 const RenderStep = ({
   step,
   plugin,
+  isEditing = false,
+  hasSetClientID = false,
 }: {
   step: OktaIntegrationLevel;
   plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
+  isEditing?: boolean;
+  hasSetClientID?: boolean;
 }) => {
   const ctx = useTeleportE();
-  let Component = () => <div>Unknown step</div>;
+
+  plugin.spec.credentialsInfo.hasConfiguredOauthCredentials = hasSetClientID;
+
+  type StepComponent = ReactComponentType<ComponentProps<typeof isEditing>>;
+
+  let Component: StepComponent;
   switch (step) {
+    default:
     case OktaIntegrationLevel.SSO:
       Component = SSOSetup;
       break;
     case OktaIntegrationLevel.SCIM:
-      Component = ScimSetup;
+      Component = isEditing ? ScimForm : ScimSetup;
       break;
     case OktaIntegrationLevel.USER_SYNC:
-      Component = UserSyncSetup;
+      Component = isEditing ? UserSyncForm : UserSyncSetup;
       break;
     case OktaIntegrationLevel.APP_GROUP_SYNC:
-      Component = AppGroupSyncSetup;
+      Component = isEditing ? AppGroupSyncForm : AppGroupSyncSetup;
       break;
   }
 
@@ -247,9 +303,13 @@ const RenderStep = ({
             plugin={plugin}
             setPlugin={() => {}}
             startFrom={undefined}
-            key={step}
+            key={`${step}${isEditing}${hasSetClientID}`}
           >
-            <Component />
+            {isEditing ? (
+              <Component isEditing plugin={plugin} setPlugin={() => {}} />
+            ) : (
+              <Component />
+            )}
           </OktaIntegrationSetUpContextProvider>
         </ContextProvider>
       </Route>

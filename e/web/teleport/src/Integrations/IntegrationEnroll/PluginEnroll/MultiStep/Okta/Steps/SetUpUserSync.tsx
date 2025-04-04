@@ -75,7 +75,9 @@ export const UserSyncForm = ({
   const [bidirectionalSync, setBidirectionalSync] = useState<boolean>(
     !isEditing ? true : !!plugin?.spec?.enableBidirectionalSync
   );
-  const [showingSetupSteps, setShowingSetupSteps] = useState(!isEditing);
+  const [showingSetupSteps, setShowingSetupSteps] = useState(
+    !(isEditing && plugin?.spec?.credentialsInfo?.hasConfiguredOauthCredentials)
+  );
   const [updatePluginAttempt, updatePlugin] = useAsync(
     useCallback(
       () =>
@@ -130,17 +132,19 @@ export const UserSyncForm = ({
     );
   }
 
+  const isConfigured =
+    isEditing && plugin?.spec?.credentialsInfo?.hasConfiguredOauthCredentials;
+
   // If editing, and the plugin has previously been configured with a ClientID,
   // collapse the first two steps by default as the user has already completed them.
-  const MaybeCollapsibleInfoSection =
-    isEditing && plugin?.spec?.credentialsInfo?.hasConfiguredOauthCredentials
-      ? CollapsibleInfoSection
-      : ({ children }: PropsWithChildren) => <>{children}</>;
+  const MaybeCollapsibleInfoSection = isConfigured
+    ? CollapsibleInfoSection
+    : ({ children }: PropsWithChildren) => <>{children}</>;
 
   return (
     <Flex flexDirection="column" gap={5} maxWidth={900}>
       <Box>
-        <Header header={isEditing ? 'Edit User Sync' : 'Sync Users'} />
+        <Header header={isConfigured ? 'Edit User Sync' : 'Sync Users'} />
         <Text>
           User sync will ensure that Okta users persist in Teleport after they
           log out, so you always have a full view of your team’s access.
@@ -154,7 +158,7 @@ export const UserSyncForm = ({
       >
         <StyledBox
           header="Step 1: Create 'API Services' OAuth App in Okta"
-          mb={isEditing ? 3 : 0}
+          mb={isConfigured ? 3 : 0}
         >
           <NumberedList>
             <ListItem>
@@ -216,9 +220,9 @@ export const UserSyncForm = ({
             <Text>
               Decide whether to enable Access Requests in Teleport. If enabled,
               Teleport will take ownership of imported Okta groups and modify
-              their memberships based on Access Requests and changes to Access
-              Lists. Disable this if you want Teleport to have read-only access
-              to your Okta organization.
+              their memberships based on Access Requests and changes made to
+              Access Lists. Disable this if you want Teleport to have read-only
+              access to your Okta organization.
             </Text>
             <Toggle
               isToggled={bidirectionalSync}
@@ -232,7 +236,7 @@ export const UserSyncForm = ({
           </ListItem>
           <GrantScopesSteps
             readOnly={!bidirectionalSync}
-            isEditing={isEditing && !showingSetupSteps}
+            showResourceSetSteps={!isEditing || showingSetupSteps}
           />
         </NumberedList>
       </StyledBox>
@@ -246,22 +250,19 @@ export const UserSyncForm = ({
                   : 'Step 4: Provide Client ID'
               }
             >
-              {!isEditing ||
-                (showingSetupSteps && (
-                  <Text>
-                    Go to the <b>General</b> tab of your app. Under{' '}
-                    <b>Client Credentials</b>, copy the <b>Client ID</b> value
-                    and paste it below.
-                  </Text>
-                ))}
-              {isEditing &&
-                plugin?.spec?.credentialsInfo?.hasConfiguredOauthCredentials &&
-                !showingSetupSteps && (
-                  <Text>
-                    A Client ID is already configured – Only enter a new value
-                    here if you want to change it.
-                  </Text>
-                )}
+              {(!isEditing || showingSetupSteps) && (
+                <Text>
+                  Go to the <b>General</b> tab of your app. Under{' '}
+                  <b>Client Credentials</b>, copy the <b>Client ID</b> value and
+                  paste it below.
+                </Text>
+              )}
+              {isConfigured && !showingSetupSteps && (
+                <Text>
+                  A Client ID is already configured – Only enter a new value
+                  here if you want to change it.
+                </Text>
+              )}
               <FieldInput
                 width="500px"
                 label="Client ID"
@@ -314,7 +315,7 @@ export const UserSyncForm = ({
                 onClick={() => onSubmit(validator)}
                 disabled={updatePluginAttempt.status === 'processing'}
               >
-                {isEditing ? 'Save Changes' : 'Sync Okta Users'}
+                {isEditing ? 'Save Changes' : 'Continue'}
               </ButtonPrimary>
               <ButtonSecondary
                 as={RouterLink}
@@ -419,10 +420,10 @@ const RequiredPermissionItem = ({
 
 const GrantScopesSteps = ({
   readOnly,
-  isEditing,
+  showResourceSetSteps,
 }: {
   readOnly: boolean;
-  isEditing: boolean;
+  showResourceSetSteps: boolean;
 }) => (
   <>
     <ListItem>
@@ -434,7 +435,7 @@ const GrantScopesSteps = ({
         size="small"
         openLabel="Show more"
         closeLabel="Show less"
-        defaultOpen={isEditing}
+        defaultOpen
       >
         <BulletList>
           {requiredScopes.map(([scope, desc]) =>
@@ -449,7 +450,7 @@ const GrantScopesSteps = ({
         </BulletList>
       </CollapsibleInfoSection>
     </ListItem>
-    {!isEditing && (
+    {showResourceSetSteps && (
       <>
         <ListItem>
           <Text>

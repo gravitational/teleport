@@ -159,7 +159,7 @@ describe('okta PluginEnroll.tsx', () => {
 
     expect(screen.getByText(/sso connected!/i)).toBeInTheDocument();
     // Shouldn't show the next step if not entitled to Identity.
-    expect(screen.queryByText(/next – level 2: scim/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/next – scim/i)).not.toBeInTheDocument();
 
     expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
     const calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
@@ -200,9 +200,7 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.keyDown(users, { key: 'ArrowDown' });
     fireEvent.keyDown(users, { key: 'Enter' });
 
-    await userEvent.click(
-      screen.getByRole('button', { name: /submit configuration/i })
-    );
+    await userEvent.click(screen.getByRole('button', { name: /continue/i }));
     expect(
       screen.getByText(
         oktaIntegrationLevels[OktaIntegrationLevel.APP_GROUP_SYNC].completeCopy
@@ -256,7 +254,7 @@ describe('okta PluginEnroll.tsx', () => {
     fireEvent.keyDown(appFilter, { key: 'Enter' });
 
     // Submit and test the submitted data.
-    await userEvent.click(screen.getByRole('button', { name: /submit/i }));
+    await userEvent.click(screen.getByRole('button', { name: /continue/i }));
     const updatedWithFormData = mockedUpdatePlugin.mock.calls[2][0];
     expect(updatedWithFormData.okta[FormDataField.GroupFilters]).toStrictEqual([
       '^group*',
@@ -359,7 +357,7 @@ describe('okta PluginEnroll.tsx', () => {
     await screen.findByText(/the following filters are invalid: app-/i);
 
     // Invalid states prevent user from going to next step.
-    const submitButton = screen.getByRole('button', { name: /submit/i });
+    const submitButton = screen.getByRole('button', { name: /continue/i });
     expect(submitButton).toBeDisabled();
   });
 
@@ -408,9 +406,7 @@ const completeFirstSteps = async ({
       value: metadataUrl,
     },
   });
-  await userEvent.click(
-    screen.getByRole('button', { name: /submit sso configuration/i })
-  );
+  await userEvent.click(screen.getByRole('button', { name: /continue/i }));
   if (!scim) return;
   await userEvent.click(screen.getByText(/next/i));
   await userEvent.click(
@@ -424,7 +420,7 @@ const completeFirstSteps = async ({
       value: clientID,
     },
   });
-  await userEvent.click(screen.getByText(/sync okta users/i));
+  await userEvent.click(screen.getByText(/continue/i));
   await userEvent.click(screen.getByText(/next/i));
 };
 

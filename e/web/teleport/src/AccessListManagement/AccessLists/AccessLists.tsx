@@ -214,7 +214,7 @@ function MainContent({
     setFilters: setFilterValue,
     sort: currentSort,
     setSort: setCurrentSort,
-    oktaPluginAttempt,
+    isOktaPluginReadOnly,
   } = useAccessListManagementContext();
 
   const currentUsername = ctx.storeUser.getUsername();
@@ -294,11 +294,6 @@ function MainContent({
     </>
   );
 
-  // Okta Integration is read-only if bidirectionalSync is 'false' or omitted.
-  const isOktaReadOnly =
-    oktaPluginAttempt?.data &&
-    !oktaPluginAttempt.data.spec?.enableBidirectionalSync;
-
   if (attempt.status === 'processing' || attempt.status === '') {
     return (
       <Box textAlign="center" m={10}>
@@ -312,6 +307,7 @@ function MainContent({
   if (accessLists.length === 0) {
     return emptyState;
   }
+
   return (
     <>
       <Box width="600px" mb={3}>
@@ -391,14 +387,14 @@ function MainContent({
             showListTypes={showListTypes}
             currentSort={currentSort}
             setCurrentSort={setCurrentSort}
-            isOktaReadOnly={isOktaReadOnly}
+            isOktaReadOnly={isOktaPluginReadOnly}
           />
         ) : sortedAccessLists.length > 0 ? (
           sortedAccessLists.map(a => (
             <AccessCard
               key={a.id}
               accessList={a}
-              isOktaReadOnly={isOktaReadOnly}
+              isOktaReadOnly={isOktaPluginReadOnly}
               onClick={() =>
                 history.push(cfg.getAccessListManagementRoute(a.id))
               }

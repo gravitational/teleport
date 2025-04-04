@@ -240,7 +240,7 @@ const MetadataURLForm = ({
                 onClick={() => onSubmit({ metadataUrl, validator })}
                 disabled={attempt.status === 'processing'}
               >
-                Submit SSO Configuration
+                Continue
               </ButtonPrimary>
               <ButtonSecondary
                 as={RouterLink}

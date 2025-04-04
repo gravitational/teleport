@@ -494,7 +494,7 @@ export const AppGroupSyncForm = ({
                   !!filterGroupsAttempt.statusText
                 }
               >
-                {isEditing ? 'Update' : 'Submit Configuration'}
+                {isEditing ? 'Save Changes' : 'Continue'}
               </ButtonPrimary>
               <ButtonSecondary
                 as={Link}
