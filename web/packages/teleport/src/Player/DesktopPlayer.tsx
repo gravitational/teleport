@@ -51,7 +51,7 @@ export const DesktopPlayer = ({
     time,
 
     clientOnTransportOpen,
-    clientOnWsClose,
+    clientOnTransportClose,
     clientOnError,
     clientOnTdpInfo,
   } = useDesktopPlayer({
@@ -63,7 +63,7 @@ export const DesktopPlayer = ({
   useListener(playerClient?.onError, clientOnError);
   useListener(playerClient?.onInfo, clientOnTdpInfo);
   useListener(playerClient?.onTransportOpen, clientOnTransportOpen);
-  useListener(playerClient?.onTransportClose, clientOnWsClose);
+  useListener(playerClient?.onTransportClose, clientOnTransportClose);
   useListener(
     playerClient?.onPngFrame,
     canvasRendererRef.current?.renderPngFrame
@@ -88,7 +88,7 @@ export const DesktopPlayer = ({
 
   return (
     <StyledPlayer>
-      {isError && <DesktopPlayerAlert my={4} children={statusText} />}
+      {isError && <DesktopPlayerAlert my={4}>{statusText}</DesktopPlayerAlert>}
       {isLoading && (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -136,7 +136,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     setPlayerStatus(StatusEnum.PLAYING);
   }, []);
 
-  const clientOnWsClose = useCallback(() => {
+  const clientOnTransportClose = useCallback(() => {
     if (playerClient) {
       playerClient.cancelTimeUpdate();
     }
@@ -169,7 +169,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     statusText,
 
     clientOnTransportOpen,
-    clientOnWsClose,
+    clientOnTransportClose,
     clientOnError,
     clientOnTdpInfo,
   };
