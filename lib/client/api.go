@@ -72,7 +72,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -256,6 +255,7 @@ type Config struct {
 	// Agent is an SSH agent to use for local Agent procedures. Defaults to in-memory agent keyring.
 	Agent agent.ExtendedAgent
 
+	// ClientStore is the store for client data, e.g. keys, certs, profiles.
 	ClientStore *Store
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
@@ -388,10 +388,10 @@ type Config struct {
 	//	off - do not attempt to load keys into agent
 	AddKeysToAgent string
 
-	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
+	// DisableEscapeSequences will disable scanning Stdin for SSH escape sequences during
 	// command/shell execution. This also requires Stdin to be an interactive
 	// terminal.
-	EnableEscapeSequences bool
+	DisableEscapeSequences bool
 
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
@@ -408,9 +408,6 @@ type Config struct {
 	// Useful in parallel tests so they don't all use the default path in the
 	// user home dir.
 	OverridePostgresServiceFilePath string
-
-	// HomePath is where tsh stores profiles
-	HomePath string
 
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
@@ -496,11 +493,6 @@ type Config struct {
 	// SSOMFACeremonyConstructor is a custom SSO MFA ceremony constructor.
 	SSOMFACeremonyConstructor func(rd *sso.Redirector) mfa.SSOMFACeremony
 
-	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
-	// for a hardware key PIN, touch, etc.
-	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt hardwarekey.Prompt
-
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
@@ -535,16 +527,74 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
-// MakeDefaultConfig returns default client config
-func MakeDefaultConfig() *Config {
-	return &Config{
-		Stdout:                os.Stdout,
-		Stderr:                os.Stderr,
-		Stdin:                 os.Stdin,
-		AddKeysToAgent:        AddKeysToAgentAuto,
-		EnableEscapeSequences: true,
-		Tracer:                tracing.NoopProvider().Tracer("TeleportClient"),
+// MakeDefaultConfig returns default client config.
+// If store is not provided, it will default to in-memory storage without
+// hardware key support. This should only be used with static auth methods
+// (TLS and AuthMethods fields).
+func MakeDefaultConfig(store *Store) *Config {
+	if store == nil {
+		store = NewMemClientStore()
 	}
+	return &Config{
+		Stdout:         os.Stdout,
+		Stderr:         os.Stderr,
+		Stdin:          os.Stdin,
+		AddKeysToAgent: AddKeysToAgentAuto,
+		Tracer:         tracing.NoopProvider().Tracer("TeleportClient"),
+		ClientStore:    store,
+	}
+}
+
+func (c *Config) CheckAndSetDefaults() error {
+	if c.ClientStore == nil {
+		if c.TLS == nil && c.AuthMethods == nil {
+			return trace.BadParameter("either client store is or static auth methods are required")
+		}
+		// Client will use static auth methods instead of client store.
+		// Initialize empty client store to prevent panics.
+		c.ClientStore = NewMemClientStore()
+	}
+
+	// validate configuration
+	var err error
+	if c.Username == "" {
+		c.Username, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
+	}
+	if c.WebProxyAddr == "" {
+		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
+	}
+	if c.HostLogin == "" {
+		c.HostLogin, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
+	}
+	if len(c.JumpHosts) > 1 {
+		return trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
+	}
+
+	// set defaults
+	if c.Stdout == nil {
+		c.Stdout = os.Stdout
+	}
+	if c.Stderr == nil {
+		c.Stderr = os.Stderr
+	}
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
+	}
+	if c.AddKeysToAgent == "" {
+		c.AddKeysToAgent = AddKeysToAgentAuto
+	}
+	if c.Tracer == nil {
+		c.Tracer = tracing.NoopProvider().Tracer("TeleportClient")
+	}
+	return nil
 }
 
 // VirtualPathKind is the suffix component for env vars denoting the type of
@@ -846,13 +896,16 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		IsNoCredentialsError(err)
 }
 
-// GetProfile gets the profile for the specified proxy address, or
-// the current profile if no proxy is specified.
-func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile, error) {
+// GetProfile gets the client profile for the specified proxy address.
+func (c *Config) GetProfile(proxyAddr string) (*profile.Profile, error) {
+	if c.ClientStore == nil {
+		return nil, trace.BadParameter("client store can not be nil")
+	}
+
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
-		proxyHost, err = ps.CurrentProfile()
+		proxyHost, err = c.ClientStore.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -863,18 +916,17 @@ func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile
 		}
 	}
 
-	profile, err := ps.GetProfile(proxyHost)
+	profile, err := c.ClientStore.GetProfile(proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return profile, nil
 }
 
-// LoadProfile populates Config with the values stored in the given
-// profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
-	profile, err := c.GetProfile(ps, proxyAddr)
+// LoadProfile populates Config with the values stored in the client
+// profile for the specified proxy address.
+func (c *Config) LoadProfile(proxyAddr string) error {
+	profile, err := c.GetProfile(proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -889,7 +941,6 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.MongoProxyAddr = profile.MongoProxyAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
-	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
@@ -1240,61 +1291,12 @@ type ShellCreatedCallback func(s *tracessh.Session, c *tracessh.Client, terminal
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
-	if len(c.JumpHosts) > 1 {
-		return nil, trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
-	}
-	// validate configuration
-	if c.Username == "" {
-		c.Username, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
-	}
-	if c.WebProxyAddr == "" {
-		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
-	}
-	if c.HostLogin == "" {
-		c.HostLogin, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
-	}
-
-	if c.Tracer == nil {
-		c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tc = &TeleportClient{
 		Config: *c,
-	}
-
-	if tc.Stdout == nil {
-		tc.Stdout = os.Stdout
-	}
-	if tc.Stderr == nil {
-		tc.Stderr = os.Stderr
-	}
-	if tc.Stdin == nil {
-		tc.Stdin = os.Stdin
-	}
-
-	if tc.ClientStore == nil {
-		if tc.TLS != nil || tc.AuthMethods != nil {
-			// Client will use static auth methods instead of client store.
-			// Initialize empty client store to prevent panics.
-			tc.ClientStore = NewMemClientStore()
-		} else {
-			// TODO (Joerger): init hardware key service (and client store) earlier where it can
-			// be properly shared.
-			hardwareKeyService := piv.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
-			tc.ClientStore = NewFSClientStore(c.KeysDir, WithHardwareKeyService(hardwareKeyService))
-			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				// Store client keys in memory, but still save trusted certs and profile to disk.
-				tc.ClientStore.KeyStore = NewMemKeyStore()
-			}
-		}
 	}
 
 	// Create a buffered channel to hold events that occurred during this session.

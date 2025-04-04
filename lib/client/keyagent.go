@@ -571,6 +571,11 @@ func (a *LocalKeyAgent) addKeyRing(keyRing *KeyRing) error {
 // DeleteKey removes the key with all its certs from the key store
 // and unloads the key from the agent.
 func (a *LocalKeyAgent) DeleteKey() error {
+	// delete the profile
+	if err := a.clientStore.ProfileStore.DeleteProfile(a.proxyHost); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// remove key from key store
 	err := a.clientStore.DeleteKeyRing(KeyRingIndex{ProxyHost: a.proxyHost, Username: a.username})
 	if err != nil {
