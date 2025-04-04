@@ -39,7 +39,7 @@ test('Available traits are rendered', async () => {
   render(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={traitsToTraitsOption(userTraits)}
         setConfiguredTraits={setConfiguredTraits}
       />
@@ -58,7 +58,7 @@ test('Add and remove Trait', async () => {
   const { rerender } = render(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={configuredTraits}
         setConfiguredTraits={setConfiguredTraits}
       />
@@ -76,7 +76,7 @@ test('Add and remove Trait', async () => {
   rerender(
     <Validation>
       <TraitsEditor
-        attempt={{ status: '' }}
+        isLoading={false}
         configuredTraits={traitsToTraitsOption(singleTrait)}
         setConfiguredTraits={setConfiguredTraits}
       />
