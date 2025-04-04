@@ -17,6 +17,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common_darwin.h"
+#include "../../../lib/utils/darwinbundle/darwinbundle_darwin.h"
 
 #import <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
@@ -30,13 +31,8 @@ const int VNEAlreadyRunningError = 1;
 const int VNEMissingCodeSigningIdentifiersError = 2;
 
 NSString *DaemonLabel(NSString *bundlePath) {
-  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
-  if (!main) {
-    return @"";
-  }
-
-  NSString *bundleIdentifier = [main bundleIdentifier];
-  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
+  NSString *bundleIdentifier = TELBundleIdentifier(bundlePath);
+  if ([bundleIdentifier length] == 0) {
     return @"";
   }
 
