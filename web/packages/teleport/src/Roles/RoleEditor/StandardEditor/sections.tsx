@@ -16,13 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  Fragment,
-  PropsWithChildren,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { Fragment, PropsWithChildren, useEffect, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box, { BoxProps } from 'design/Box';
@@ -102,18 +96,13 @@ export const SectionBox = ({
   const expandTooltip =
     expansionState === ExpansionState.Collapsed ? 'Collapse' : 'Expand';
   const validator = useValidation();
-  // Points to the content element whose height will be observed for setting
-  // target height of the expand animation.
-  const contentRef = useRef();
   const [contentHeight, setContentHeight] = useState(0);
 
-  useResizeObserver(
-    contentRef,
-    entry => {
-      setContentHeight(entry.borderBoxSize[0].blockSize);
-    },
-    { enabled: true }
-  );
+  // Points to the content element whose height will be observed for setting
+  // target height of the expand animation.
+  const contentRef = useResizeObserver(entry => {
+    setContentHeight(entry.borderBoxSize[0].blockSize);
+  });
 
   useEffect(() => {
     // After the content is rendered and measured, immediately transition to
