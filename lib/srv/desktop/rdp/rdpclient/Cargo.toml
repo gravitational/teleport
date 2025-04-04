@@ -40,7 +40,6 @@ url = "2.5.4"
 picky = { version = "7.0.0-rc.11", default-features = false }
 picky-asn1-der = "0.5.2"
 picky-asn1-x509 = "0.14.3"
-picky-krb = "0.9.4"
 reqwest = { version = "0.12", default-features = false }
 rustls = { version = "0.23.25", default-features = false, features = [
     "aws-lc-rs",
