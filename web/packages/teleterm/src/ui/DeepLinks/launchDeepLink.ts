@@ -24,7 +24,6 @@ import {
 } from 'shared/deepLinks';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
-import { ConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { IAppContext } from 'teleterm/ui/types';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { VnetContext } from 'teleterm/ui/Vnet';
@@ -34,7 +33,6 @@ import { VnetContext } from 'teleterm/ui/Vnet';
  */
 export type AuxContext = {
   vnet: Pick<VnetContext, 'isSupported'>;
-  connections: Pick<ConnectionsContext, 'open'>;
 };
 
 /**
@@ -102,7 +100,7 @@ export async function launchDeepLink(
       break;
     }
     case '/vnet': {
-      await openVnetPanel(appCtx, auxCtx, result.url);
+      await openVnetInfoDoc(appCtx, auxCtx, result.url);
       break;
     }
     default: {
@@ -243,12 +241,12 @@ async function loginAndSetActiveWorkspace(
   return { isAtDesiredWorkspace: false };
 }
 
-async function openVnetPanel(
+async function openVnetInfoDoc(
   appCtx: IAppContext,
-  { vnet, connections }: AuxContext,
+  { vnet }: AuxContext,
   url: VnetDeepURL
 ): Promise<void> {
-  const { notificationsService } = appCtx;
+  const { notificationsService, workspacesService } = appCtx;
   if (!vnet.isSupported) {
     notificationsService.notifyWarning(
       'VNet is not supported on this platform.'
@@ -262,5 +260,11 @@ async function openVnetPanel(
     return;
   }
 
-  connections.open('vnet');
+  const { rootClusterUri } = result;
+  const docsService =
+    workspacesService.getWorkspaceDocumentService(rootClusterUri);
+  docsService.openExistingOrAddNew(
+    d => d.kind === 'doc.vnet_info',
+    () => docsService.createVnetInfoDocument({ rootClusterUri })
+  );
 }
