@@ -27,37 +27,38 @@ type EntitlementKind string
 // All EntitlementKinds added here should also be added to AllEntitlements below and defaultEntitlements in
 // web/packages/teleport/src/entitlement.ts.
 const (
-	AccessLists            EntitlementKind = "AccessLists"
-	AccessMonitoring       EntitlementKind = "AccessMonitoring"
-	AccessRequests         EntitlementKind = "AccessRequests"
-	App                    EntitlementKind = "App"
-	CloudAuditLogRetention EntitlementKind = "CloudAuditLogRetention"
-	DB                     EntitlementKind = "DB"
-	Desktop                EntitlementKind = "Desktop"
-	DeviceTrust            EntitlementKind = "DeviceTrust"
-	ExternalAuditStorage   EntitlementKind = "ExternalAuditStorage"
-	FeatureHiding          EntitlementKind = "FeatureHiding"
-	HSM                    EntitlementKind = "HSM"
-	Identity               EntitlementKind = "Identity"
-	JoinActiveSessions     EntitlementKind = "JoinActiveSessions"
-	K8s                    EntitlementKind = "K8s"
-	MobileDeviceManagement EntitlementKind = "MobileDeviceManagement"
-	OIDC                   EntitlementKind = "OIDC"
-	OktaSCIM               EntitlementKind = "OktaSCIM"
-	OktaUserSync           EntitlementKind = "OktaUserSync"
-	Policy                 EntitlementKind = "Policy"
-	SAML                   EntitlementKind = "SAML"
-	SessionLocks           EntitlementKind = "SessionLocks"
-	UpsellAlert            EntitlementKind = "UpsellAlert"
-	UsageReporting         EntitlementKind = "UsageReporting"
-	LicenseAutoUpdate      EntitlementKind = "LicenseAutoUpdate"
+	AccessLists             EntitlementKind = "AccessLists"
+	AccessMonitoring        EntitlementKind = "AccessMonitoring"
+	AccessRequests          EntitlementKind = "AccessRequests"
+	App                     EntitlementKind = "App"
+	CloudAuditLogRetention  EntitlementKind = "CloudAuditLogRetention"
+	DB                      EntitlementKind = "DB"
+	Desktop                 EntitlementKind = "Desktop"
+	DeviceTrust             EntitlementKind = "DeviceTrust"
+	ExternalAuditStorage    EntitlementKind = "ExternalAuditStorage"
+	FeatureHiding           EntitlementKind = "FeatureHiding"
+	HSM                     EntitlementKind = "HSM"
+	Identity                EntitlementKind = "Identity"
+	JoinActiveSessions      EntitlementKind = "JoinActiveSessions"
+	K8s                     EntitlementKind = "K8s"
+	MobileDeviceManagement  EntitlementKind = "MobileDeviceManagement"
+	OIDC                    EntitlementKind = "OIDC"
+	OktaSCIM                EntitlementKind = "OktaSCIM"
+	OktaUserSync            EntitlementKind = "OktaUserSync"
+	Policy                  EntitlementKind = "Policy"
+	SAML                    EntitlementKind = "SAML"
+	SessionLocks            EntitlementKind = "SessionLocks"
+	UnlimitedManagedUpdates EntitlementKind = "UnlimitedManagedUpdates"
+	UpsellAlert             EntitlementKind = "UpsellAlert"
+	UsageReporting          EntitlementKind = "UsageReporting"
+	LicenseAutoUpdate       EntitlementKind = "LicenseAutoUpdate"
 )
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
 	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
 	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
-	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting, LicenseAutoUpdate,
+	OktaUserSync, Policy, SAML, SessionLocks, UnlimitedManagedUpdates, UpsellAlert, UsageReporting, LicenseAutoUpdate,
 }
 
 // BackfillFeatures ensures entitlements are backwards compatible.

@@ -39,6 +39,7 @@ type entitlement =
   | 'Policy'
   | 'SAML'
   | 'SessionLocks'
+  | 'UnlimitedManagedUpdates'
   | 'UpsellAlert'
   | 'UsageReporting';
 
@@ -67,6 +68,7 @@ export const defaultEntitlements: Record<
   Policy: { enabled: false, limit: 0 },
   SAML: { enabled: false, limit: 0 },
   SessionLocks: { enabled: false, limit: 0 },
+  UnlimitedManagedUpdates: { enabled: false, limit: 0 },
   UpsellAlert: { enabled: false, limit: 0 },
   UsageReporting: { enabled: false, limit: 0 },
 };
