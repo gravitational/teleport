@@ -1,0 +1,4 @@
+/usr/local/bin/teleport  -- gen_context(system_u:object_r:teleport_exec_t,s0)
+/run/.teleport.pid(\d+)  -- gen_context(system_u:object_r:teleport_pid_t,s0)
+/etc/teleport.yaml       -- gen_context(system_u:object_r:teleport_conf_t,s0)
+/var/lib/teleport(/.*)?     gen_context(system_u:object_r:teleport_data_t,s0)
