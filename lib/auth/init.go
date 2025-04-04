@@ -350,6 +350,9 @@ type InitConfig struct {
 	// this node.
 	IdentityCenter services.IdentityCenter
 
+	// Plugins is a service that manages plugin resources for integrations.
+	Plugins *local.PluginsService
+
 	// PluginStaticCredentials handles credentials for integrations and plugins.
 	PluginStaticCredentials services.PluginStaticCredentials
 

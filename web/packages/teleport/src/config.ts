@@ -164,6 +164,7 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
+    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',

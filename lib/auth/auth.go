@@ -85,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -324,6 +325,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Plugins == nil {
+		cfg.Plugins = local.NewPluginsService(cfg.Backend)
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -519,6 +523,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ProvisioningStates:              cfg.ProvisioningStates,
 		IdentityCenter:                  cfg.IdentityCenter,
 		WorkloadIdentities:              cfg.WorkloadIdentity,
+		Plugins:                         cfg.Plugins,
 		PluginStaticCredentials:         cfg.PluginStaticCredentials,
 		GitServers:                      cfg.GitServers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
@@ -741,6 +746,7 @@ type Services struct {
 	services.ProvisioningStates
 	services.IdentityCenter
 	services.WorkloadIdentities
+	services.Plugins
 	services.PluginStaticCredentials
 	services.GitServers
 	services.WorkloadIdentityX509Revocations
@@ -5179,6 +5185,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
 
+	if err := a.checkResourcesRequestable(ctx, requestedResourceIDs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
@@ -5350,6 +5360,24 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 	}
 
 	return resources, nil
+}
+
+func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []types.ResourceID) error {
+	if len(resourceIDs) == 0 {
+		return nil
+	}
+
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
+		Plugins:              a.Plugins,
+		UnifiedResourceCache: a.UnifiedResourceCache,
+	})
+	if errors.Is(err, okta.OktaResourceNotRequestableError) {
+		return trace.Wrap(err)
+	} else if err != nil {
+		return trace.Wrap(err, "checking if Okta-originated resources are requestable")
+	}
+
+	return nil
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
@@ -6182,6 +6210,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 	}()
 
 	now := a.clock.Now()
+
+	// TODO(kiosion): Check possible Okta plugin configuration – if Bidirectional Sync is explicitly disabled,
+	// we shouldn't create notifications for any Okta-synced Access Lists, as they are managed in Okta and
+	// their grants, owners/members, and ownership/membership requirements cannot be edited in Teleport.
 
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList

@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.4.1
+VERSION=17.4.2
 
 DOCKER_IMAGE ?= teleport
 
@@ -536,7 +536,7 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 	# Clean up wasm-pack build artifacts
-	rm -rf web/packages/teleport/src/ironrdp/pkg/
+	rm -rf web/packages/shared/libs/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
@@ -1314,7 +1314,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'target/**' \
 		-ignore 'version.go' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
-		-ignore 'web/packages/teleport/src/ironrdp/**' \
+		-ignore 'web/packages/shared/libs/ironrdp/**' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
