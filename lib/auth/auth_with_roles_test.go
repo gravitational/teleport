@@ -63,6 +63,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -10566,4 +10567,216 @@ func newTestAppServerV3(t *testing.T, auth *Server, name string, labels map[stri
 	require.NoError(t, err, "upserting test Application Server")
 
 	return appServer
+}
+
+type fakeOIDCAuthService struct {
+	OIDCService
+	identityService services.Identity
+}
+
+func (f fakeOIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	req.StateToken = uuid.NewString()
+	if err := f.identityService.CreateOIDCAuthRequest(ctx, req, time.Hour); err != nil {
+		return nil, err
+	}
+	return &req, nil
+}
+
+func (f fakeOIDCAuthService) CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	return f.CreateOIDCAuthRequest(ctx, req)
+}
+func (fakeOIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
+	return nil, nil
+}
+
+func TestOIDCAuthRequest(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+			}},
+	})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	srv.Auth().SetOIDCService(fakeOIDCAuthService{identityService: srv.Auth().Services.Identity})
+
+	emptyRole, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	access1Role, err := CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDCRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access2Role, err := CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDC},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	access3Role, err := CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDC, types.KindOIDCRequest},
+					Verbs:     []string{types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	readerRole, err := CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindOIDCRequest},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
+		IssuerURL:    "https://proxy.example.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "idp-admin",
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = srv.Auth().CreateOIDCConnector(context.Background(), conn)
+	require.NoError(t, err)
+
+	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
+	reqTest := types.OIDCAuthRequest{
+		ConnectorID: conn.GetName(),
+		Type:        constants.OIDC,
+		SSOTestFlow: true,
+		ConnectorSpec: &types.OIDCConnectorSpecV3{
+			IssuerURL:    "https://proxy.example.com",
+			ClientID:     "example-client-id",
+			ClientSecret: "example-client-secret",
+			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+			Display:      "sign in with example.com",
+			Scope:        []string{"foo", "bar"},
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "groups",
+					Value: "idp-admin",
+					Roles: []string{"access"},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		desc               string
+		roles              []string
+		request            types.OIDCAuthRequest
+		expectAccessDenied bool
+	}{
+		{
+			desc:               "empty role - no access",
+			roles:              []string{emptyRole.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "cannot create sso test request with normal access",
+			roles:              []string{access1Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create normal request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "cannot create sso test request with connector access",
+			roles:              []string{access2Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: true,
+		},
+		{
+			desc:               "can create regular request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqNormal,
+			expectAccessDenied: false,
+		},
+		{
+			desc:               "can create sso test request with combined access",
+			roles:              []string{access3Role.GetName()},
+			request:            reqTest,
+			expectAccessDenied: false,
+		},
+	}
+
+	user, err := CreateUser(ctx, srv.Auth(), "dummy")
+	require.NoError(t, err)
+
+	userReader, err := CreateUser(ctx, srv.Auth(), "dummy-reader", readerRole)
+	require.NoError(t, err)
+
+	clientReader, err := srv.NewClient(TestUser(userReader.GetName()))
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			user.SetRoles(tt.roles)
+			user, err = srv.Auth().UpsertUser(ctx, user)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			request, err := client.CreateOIDCAuthRequest(ctx, tt.request)
+			if tt.expectAccessDenied {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotEmpty(t, request.StateToken)
+			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
+
+			requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
+			require.NoError(t, err)
+			require.Equal(t, request, requestCopy)
+		})
+	}
 }
