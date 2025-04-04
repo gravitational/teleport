@@ -466,6 +466,11 @@
             "type": "string",
             "default": ""
         },
+        "fullnameOverride": {
+            "$id": "#/properties/fullnameOverride",
+            "type": "string",
+            "default": ""
+        },
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
