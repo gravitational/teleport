@@ -74,11 +74,11 @@ type legacyToResource153Adapter struct {
 	inner Resource
 }
 
-// Unwrap is an escape hatch for Resource instances that are piped down into the
+// UnwrapT is an escape hatch for Resource instances that are piped down into the
 // codebase as a legacy Resource.
 //
 // Ideally you shouldn't depend on this.
-func (r *legacyToResource153Adapter) Unwrap() Resource {
+func (r *legacyToResource153Adapter) UnwrapT() Resource {
 	return r.inner
 }
 
@@ -136,11 +136,6 @@ func Resource153ToLegacy[T Resource153](r T) Resource {
 	return &resource153ToLegacyAdapter[T]{inner: r}
 }
 
-// Resource153Unwrapper returns a legacy [Resource153] type from a wrapped RFD
-// 153 style resource. Prefer using the stronger typed [Resource153UnwrapperT]
-// where possible.
-type Resource153Unwrapper interface{ Unwrap() Resource153 }
-
 // Resource153UnwrapperT returns a [T] from a wrapped RFD
 // 153 style resource.
 type Resource153UnwrapperT[T Resource153] interface{ UnwrapT() T }
@@ -151,14 +146,10 @@ type resource153ToLegacyAdapter[T Resource153] struct {
 	inner T
 }
 
-// Unwrap is an escape hatch for Resource153 instances that are piped down into
+// UnwrapT is an escape hatch for Resource153 instances that are piped down into
 // the codebase as a legacy Resource.
 //
 // Ideally you shouldn't depend on this.
-func (r *resource153ToLegacyAdapter[T]) Unwrap() Resource153 {
-	return r.inner
-}
-
 func (r *resource153ToLegacyAdapter[T]) UnwrapT() T {
 	return r.inner
 }
