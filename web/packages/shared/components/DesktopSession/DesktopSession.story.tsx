@@ -24,15 +24,17 @@ import {
   makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-
-import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
-import { BitmapFrame } from 'teleport/lib/tdp/client';
-import { ClientScreenSpec } from 'teleport/lib/tdp/codec';
+import {
+  BitmapFrame,
+  ClientScreenSpec,
+  TdpClient,
+  TdpClientEvent,
+} from 'shared/libs/tdp';
 
 import { DesktopSession, DesktopSessionProps } from './DesktopSession';
 
 const meta: Meta = {
-  title: 'Teleport/DesktopSession',
+  title: 'Shared/DesktopSession',
   decorators: [
     Story => (
       <div

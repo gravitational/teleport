@@ -16,18 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import { EventEmitter } from 'events';
 
-import Logger from 'shared/libs/logger';
+import { useEffect } from 'react';
 
 import init, {
   FastPathProcessor,
   init_wasm_log,
-} from 'teleport/ironrdp/pkg/ironrdp';
-import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
-import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { TermEvent, WebsocketCloseCode } from 'teleport/lib/term/enums';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
+} from 'shared/libs/ironrdp/pkg/ironrdp';
+import Logger from 'shared/libs/logger';
 
 import Codec, {
   FileType,
@@ -88,21 +85,32 @@ export enum LogType {
   TRACE = 'TRACE',
 }
 
+//TODO(gzdunek): This a temporary transport layer based on AuthenticatedWebSocket.
+interface TdpTransport {
+  binaryType: 'arraybuffer' | 'blob';
+  readyState: number;
+  onopen(this: WebSocket, ev: Event): void;
+  onmessage(event: MessageEvent): void;
+  onerror(ev: Event): void;
+  onclose(ev: CloseEvent): void;
+  close(code?: number): void;
+  send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void;
+}
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
-export default class Client extends EventEmitterWebAuthnSender {
+export class TdpClient extends EventEmitter {
   protected codec: Codec;
-  protected socket: AuthenticatedWebSocket | undefined;
+  protected socket: TdpTransport | undefined;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
   private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
-  //TODO(gzdunek): getTransport should return a generic transport layer.
-  constructor(private getTransport: () => AuthenticatedWebSocket) {
+  constructor(private getTransport: () => TdpTransport) {
     super();
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
@@ -142,7 +150,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket.onerror = null;
     this.socket.onclose = ev => {
       let message = 'session disconnected';
-      if (ev.code !== WebsocketCloseCode.NORMAL) {
+      //TODO(gzdunek): This will be handled in AuthenticatedWebSocket.
+      // WebsocketCloseCode.NORMAL
+      if (ev.code !== 1000) {
         this.logger.error(`websocket closed with error code: ${ev.code}`);
         message = `connection closed with websocket error`;
       }
@@ -443,7 +453,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     try {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
-        this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+        // TermEvent.MFA_CHALLENGE
+        this.emit('terminal.webauthn', mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -693,7 +704,20 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendWebAuthn(data: WebauthnAssertionResponse) {
+  sendWebAuthn(data: {
+    id: string;
+    type: string;
+    extensions: {
+      appid: boolean;
+    };
+    rawId: string;
+    response: {
+      authenticatorData: string;
+      clientDataJSON: string;
+      signature: string;
+      userHandle: string;
+    };
+  }) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),
@@ -802,7 +826,9 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   // It's safe to call this multiple times, calls subsequent to the first call
   // will simply do nothing.
-  shutdown(closeCode = WebsocketCloseCode.NORMAL) {
+  //TODO(gzdunek): This will be handled in AuthenticatedWebSocket.
+  // WebsocketCloseCode.NORMAL
+  shutdown(closeCode = 1000) {
     this.socket?.close(closeCode);
   }
 }
