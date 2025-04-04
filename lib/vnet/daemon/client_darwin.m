@@ -26,10 +26,10 @@
 
 #include <string.h>
 
-// DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
+// DaemonPlist takes the result of VNEDaemonLabel and appends ".plist" to it
 // if not empty.
 NSString *DaemonPlist(NSString *bundlePath) {
-  NSString *label = DaemonLabel(bundlePath);
+  NSString *label = VNEDaemonLabel(bundlePath);
   if ([label length] == 0) {
     return label;
   }
@@ -91,7 +91,7 @@ void OpenSystemSettingsLoginItems(void) {
 - (NSXPCConnection *)connection {
   // Create the XPC Connection on demand.
   if (_connection == nil) {
-    _connection = [[NSXPCConnection alloc] initWithMachServiceName:DaemonLabel(_bundlePath)
+    _connection = [[NSXPCConnection alloc] initWithMachServiceName:VNEDaemonLabel(_bundlePath)
                                                            options:NSXPCConnectionPrivileged];
     _connection.remoteObjectInterface =
         [NSXPCInterface interfaceWithProtocol:@protocol(VNEDaemonProtocol)];
