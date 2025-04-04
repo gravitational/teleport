@@ -28,6 +28,7 @@ import (
 	"testing"
 	"testing/slogtest"
 
+	"github.com/gravitational/teleport"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -220,4 +221,56 @@ func TestSlogJSONHandlerReservedKeysOverrideTypeDoesntPanic(t *testing.T) {
 	// msg was injected but is not a string, so, its value must be kept
 	require.Contains(t, logRecordMap, "msg")
 	require.InEpsilon(t, float64(123), logRecordMap["msg"], float64(0))
+}
+
+// TestSlogTextHandlerRawComponent checks if the value of the component field is forwarded from the
+// handler to the writer without any changes. This allows certain writers, such as the os_log writer
+// on macOS, to log the component in its full form since os_log provides dedicated fields for such
+// metadata.
+func TestSlogTextHandlerRawComponent(t *testing.T) {
+	var buf bytes.Buffer
+	out := &rawComponentWriter{}
+	h := NewSlogTextHandler(&buf, SlogTextHandlerConfig{
+		Level:            slog.LevelDebug,
+		Padding:          6,
+		ConfiguredFields: []string{ComponentField},
+	})
+	h.out = out
+
+	logger := slog.New(h)
+	logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, "foobarbaz")
+	require.Equal(t, "foobarbaz", out.lastRawComponent(),
+		"raw component wasn't properly processed when teleport.ComponentKey was passed only directly with message")
+
+	logger = logger.With(teleport.ComponentKey, "foobarbaz")
+	logger.DebugContext(t.Context(), "bar")
+	require.Equal(t, "foobarbaz", out.lastRawComponent(),
+		"raw component wasn't properly processed when teleport.ComponentKey was passed to slog.Logger.With")
+
+	logger.With("quux", "xuuq").DebugContext(t.Context(), "bar")
+	require.Equal(t, "foobarbaz", out.lastRawComponent(),
+		"raw component wasn't properly cloned when teleport.ComponentKey wasn't passed to slog.Logger.With")
+
+	logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, "bazbarfoo")
+	require.Equal(t, "bazbarfoo", out.lastRawComponent(),
+		"raw component wasn't properly processed when teleport.ComponentKey was meant to override existing component")
+}
+
+// rawComponentWriter is a writer that persists only rawComponent values that were passed to its
+// Write method.
+type rawComponentWriter struct {
+	rawComponents []string
+}
+
+func (r *rawComponentWriter) Write(bytes []byte, rawComponent string, level slog.Level) error {
+	r.rawComponents = append(r.rawComponents, rawComponent)
+	return nil
+}
+
+func (r *rawComponentWriter) lastRawComponent() string {
+	if len(r.rawComponents) == 0 {
+		return ""
+	}
+
+	return r.rawComponents[len(r.rawComponents)-1]
 }
