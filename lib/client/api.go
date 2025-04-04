@@ -322,10 +322,6 @@ type Config struct {
 	// that uses local cache to validate hosts
 	HostKeyCallback ssh.HostKeyCallback
 
-	// KeyDir defines where temporary session keys will be stored.
-	// if empty, they'll go to ~/.tsh
-	KeysDir string
-
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
@@ -408,9 +404,6 @@ type Config struct {
 	// Useful in parallel tests so they don't all use the default path in the
 	// user home dir.
 	OverridePostgresServiceFilePath string
-
-	// HomePath is where tsh stores profiles
-	HomePath string
 
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
@@ -947,7 +940,6 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.MongoProxyAddr = profile.MongoProxyAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
-	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
