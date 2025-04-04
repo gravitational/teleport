@@ -43,8 +43,7 @@ func NewStorage(cfg Config) (*Storage, error) {
 
 // ListProfileNames returns just the names of profiles in s.Dir.
 func (s *Storage) ListProfileNames() ([]string, error) {
-	pfNames, err := profile.ListProfileNames(s.Dir)
-	return pfNames, trace.Wrap(err)
+	return s.ClientStore.ListProfiles()
 }
 
 // ListRootClusters reads root clusters from profiles.
@@ -164,7 +163,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	profileName := parseName(webProxyAddress)
 	clusterURI := uri.NewClusterURI(profileName)
 
-	cfg := s.makeDefaultClientConfig(clusterURI)
+	cfg := s.makeClientConfig(clusterURI)
 	cfg.WebProxyAddr = webProxyAddress
 
 	clusterClient, err := client.NewClient(cfg)
@@ -214,7 +213,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	clusterNameForKey := profileName
 	clusterURI := uri.NewClusterURI(profileName)
 
-	cfg := s.makeDefaultClientConfig(clusterURI)
+	cfg := s.makeClientConfig(clusterURI)
 	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -276,15 +275,14 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	return status, nil
 }
 
-func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
+func (s *Storage) makeClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
 	cfg := client.MakeDefaultConfig()
-
 	cfg.HomePath = s.Dir
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	cfg.CustomHardwareKeyPrompt = s.CustomHardwareKeyPrompt
+	cfg.ClientStore = s.ClientStore
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg
