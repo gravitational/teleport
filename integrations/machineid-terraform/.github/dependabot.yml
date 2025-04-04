@@ -1,0 +1,21 @@
+# See GitHub's documentation for more information on this file:
+# https://docs.github.com/en/code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/configuration-options-for-dependency-updates
+version: 2
+updates:
+  # Maintain dependencies for Go modules
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      # Check for updates to Go modules every weekday
+      interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/tools"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    # TODO: Dependabot only updates hashicorp GHAs in the template repository, the following lines can be removed for consumers of this template
+    allow:
+      - dependency-name: "hashicorp/*"

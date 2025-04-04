@@ -1,0 +1,21 @@
+# DO NOT EDIT - This GitHub Workflow is managed by automation
+# https://github.com/hashicorp/terraform-devex-repos
+name: Issue Comment Triage
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  issue_comment_triage:
+    runs-on: ubuntu-latest
+    env:
+      # issue_comment events are triggered by comments on issues and pull requests. Checking the
+      # value of github.event.issue.pull_request tells us whether the issue is an issue or is
+      # actually a pull request, allowing us to dynamically set the gh subcommand:
+      # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#issue_comment-on-issues-only-or-pull-requests-only
+      COMMAND: ${{ github.event.issue.pull_request && 'pr' || 'issue' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: 'Remove waiting-response on comment'
+        run: gh ${{ env.COMMAND }} edit ${{ github.event.issue.html_url }} --remove-label waiting-response

@@ -1,0 +1,21 @@
+# DO NOT EDIT - This GitHub Workflow is managed by automation
+# https://github.com/hashicorp/terraform-devex-repos
+name: 'Lock Threads'
+
+on:
+  schedule:
+    - cron: '43 20 * * *'
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      # NOTE: When TSCCR updates the GitHub action version, update the template workflow file to avoid drift:
+      # https://github.com/hashicorp/terraform-devex-repos/blob/main/modules/repo/workflows/lock.tftpl
+      - uses: dessant/lock-threads@1bf7ec25051fe7c00bdd17e6a7cf3d7bfb7dc771 # v5.0.1
+        with:
+          github-token: ${{ github.token }}
+          issue-inactive-days: '30'
+          issue-lock-reason: resolved
+          pr-inactive-days: '30'
+          pr-lock-reason: resolved
