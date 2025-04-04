@@ -23,9 +23,13 @@ import (
 	"fmt"
 	"strings"
 
-	go_github "github.com/google/go-github/v41/github"
+	go_github "github.com/google/go-github/v70/github"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
+)
+
+const (
+	maxRedirects = 10
 )
 
 type Client struct {
@@ -85,20 +89,20 @@ func (c *Client) Backport(ctx context.Context, baseBranchName string, pullNumber
 	// Create a new branch off of the target branch.
 	err := c.createBranchFrom(ctx, baseBranchName, newBranchName)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", fmt.Errorf("failed to create new branch %s: %w", newBranchName, err)
 	}
 	fmt.Printf("Created a new branch: %s.\n", newBranchName)
 
 	commits, err := c.getPullRequestCommits(ctx, pullNumber)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", fmt.Errorf("failed to get PR %d commits: %w", pullNumber, err)
 	}
 	fmt.Printf("Found %v commits. \n", len(commits))
 
 	// Cherry pick commits.
 	err = c.cherryPickCommitsOnBranch(ctx, newBranchName, commits)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", fmt.Errorf("failed to cherry pick commits on branch %s: %w", newBranchName, err)
 	}
 	return newBranchName, nil
 }
@@ -118,10 +122,10 @@ func (c *Client) CreatePullRequest(ctx context.Context, baseBranch string, headB
 	body += fmt.Sprintf("Backports #%v", originalPrNumber)
 
 	newPR := &go_github.NewPullRequest{
-		Title: go_github.String(fmt.Sprintf("[%v] %v", major, pr.GetTitle())),
-		Head:  go_github.String(headBranch),
-		Base:  go_github.String(baseBranch),
-		Body:  go_github.String(body),
+		Title: go_github.Ptr(fmt.Sprintf("[%v] %v", major, pr.GetTitle())),
+		Head:  go_github.Ptr(headBranch),
+		Base:  go_github.Ptr(baseBranch),
+		Body:  go_github.Ptr(body),
 	}
 	_, _, err = c.Client.PullRequests.Create(ctx, c.c.Organization, c.c.Repository, newPR)
 	if err != nil {
@@ -161,7 +165,7 @@ func (c *Client) getPullRequestCommits(ctx context.Context, number int) (commits
 
 // cherryPickCommitsOnBranch cherry picks a list of commits onto the given branch.
 func (c *Client) cherryPickCommitsOnBranch(ctx context.Context, branchName string, commits []string) error {
-	branch, _, err := c.Client.Repositories.GetBranch(ctx, c.c.Organization, c.c.Repository, branchName, true)
+	branch, _, err := c.Client.Repositories.GetBranch(ctx, c.c.Organization, c.c.Repository, branchName, maxRedirects)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,7 +235,7 @@ func (c *Client) cherryPickCommit(ctx context.Context, branchName string, cherry
 		Parents: []*go_github.Commit{
 			updatedCommit,
 		},
-	})
+	}, &go_github.CreateCommitOptions{})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -241,9 +245,9 @@ func (c *Client) cherryPickCommit(ctx context.Context, branchName string, cherry
 	sha := commit.GetSHA()
 	refName := fmt.Sprintf("%s%s", branchRefPrefix, branchName)
 	_, _, err = c.Client.Git.UpdateRef(ctx, c.c.Organization, c.c.Repository, &go_github.Reference{
-		Ref: go_github.String(refName),
+		Ref: go_github.Ptr(refName),
 		Object: &go_github.GitObject{
-			SHA: go_github.String(sha),
+			SHA: go_github.Ptr(sha),
 		},
 	}, true)
 	if err != nil {
@@ -261,12 +265,12 @@ func (c *Client) createSiblingCommit(ctx context.Context, branchName string, bra
 	// The commit message does not matter as this commit will not be in the final
 	// branch.
 	commit, _, err := c.Client.Git.CreateCommit(ctx, c.c.Organization, c.c.Repository, &go_github.Commit{
-		Message: go_github.String("field-not-required"),
+		Message: go_github.Ptr("field-not-required"),
 		Tree:    tree,
 		Parents: []*go_github.Commit{
 			cherryParent,
 		},
-	})
+	}, &go_github.CreateCommitOptions{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -274,9 +278,9 @@ func (c *Client) createSiblingCommit(ctx context.Context, branchName string, bra
 
 	refName := fmt.Sprintf("%s%s", branchRefPrefix, branchName)
 	_, _, err = c.Client.Git.UpdateRef(ctx, c.c.Organization, c.c.Repository, &go_github.Reference{
-		Ref: go_github.String(refName),
+		Ref: go_github.Ptr(refName),
 		Object: &go_github.GitObject{
-			SHA: go_github.String(sha),
+			SHA: go_github.Ptr(sha),
 		},
 	}, true)
 	if err != nil {
@@ -287,7 +291,7 @@ func (c *Client) createSiblingCommit(ctx context.Context, branchName string, bra
 
 // createBranchFrom creates a new branch pointing at the same commit as the supplied branch.
 func (c *Client) createBranchFrom(ctx context.Context, branchFromName string, newBranchName string) error {
-	baseBranch, _, err := c.Client.Repositories.GetBranch(ctx, c.c.Organization, c.c.Repository, branchFromName, true)
+	baseBranch, _, err := c.Client.Repositories.GetBranch(ctx, c.c.Organization, c.c.Repository, branchFromName, maxRedirects)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -295,14 +299,14 @@ func (c *Client) createBranchFrom(ctx context.Context, branchFromName string, ne
 	baseBranchSHA := baseBranch.GetCommit().GetSHA()
 
 	ref := &go_github.Reference{
-		Ref: go_github.String(newRefBranchName),
+		Ref: go_github.Ptr(newRefBranchName),
 		Object: &go_github.GitObject{
-			SHA: go_github.String(baseBranchSHA), /* SHA to branch from */
+			SHA: go_github.Ptr(baseBranchSHA), /* SHA to branch from */
 		},
 	}
 	_, _, err = c.Client.Git.CreateRef(ctx, c.c.Organization, c.c.Repository, ref)
 	if err != nil {
-		return trace.Wrap(err)
+		return fmt.Errorf("branch creation failed with: %w", err)
 	}
 	return nil
 }
@@ -310,8 +314,8 @@ func (c *Client) createBranchFrom(ctx context.Context, branchFromName string, ne
 // merge merges a branch at `headCommitSHA` into branch `base`
 func (c *Client) merge(ctx context.Context, base string, headCommitSHA string) (*go_github.Commit, error) {
 	merge, _, err := c.Client.Repositories.Merge(ctx, c.c.Organization, c.c.Repository, &go_github.RepositoryMergeRequest{
-		Base: go_github.String(base),
-		Head: go_github.String(headCommitSHA),
+		Base: go_github.Ptr(base),
+		Head: go_github.Ptr(headCommitSHA),
 	})
 	if err != nil {
 		return nil, trace.Errorf("err: %v. failed to merge %s into %s", err, headCommitSHA, base)
