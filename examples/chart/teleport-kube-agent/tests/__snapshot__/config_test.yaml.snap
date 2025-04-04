@@ -1278,6 +1278,55 @@ matches snapshot for stateful.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for template-apps.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          apps:
+          - name: service1
+            uri: http://service1.default.svc.cluster.local:80
+          - name: service2
+            uri: http://service2.default.svc.cluster.local:80
+          - name: service3
+            uri: http://service3.default.svc.cluster.local:80
+          enabled: true
+          resources: null
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          enabled: false
+        jamf_service:
+          enabled: false
+        kubernetes_service:
+          enabled: false
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for tolerations.yaml:
   1: |
     apiVersion: v1
