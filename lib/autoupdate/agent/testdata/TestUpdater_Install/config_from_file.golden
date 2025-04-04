@@ -8,6 +8,7 @@ spec:
     enabled: true
     pinned: false
 status:
+    id_file: updater-id-file
     active:
         version: 16.3.0
     backup:
