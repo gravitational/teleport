@@ -294,8 +294,7 @@ func (w mockWatcher) Error() error {
 
 // newApprovalRule creates a new access monitoring rule for testing.
 func newApprovalRule(name, condition string) *accessmonitoringrulesv1.AccessMonitoringRule {
-	const stateApproved = "approved"
-	const pluginName = "test"
+	const integrationName = "test"
 
 	return &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
@@ -304,11 +303,12 @@ func newApprovalRule(name, condition string) *accessmonitoringrulesv1.AccessMoni
 			Name: name,
 		},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-			Subjects:  []string{types.KindAccessRequest},
-			States:    []string{stateApproved},
-			Condition: condition,
-			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
-				Name: pluginName,
+			Subjects:     []string{types.KindAccessRequest},
+			Condition:    condition,
+			DesiredState: types.AccessMonitoringRuleStateReviewed,
+			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+				Integration: integrationName,
+				Decision:    types.RequestState_APPROVED.String(),
 			},
 		},
 	}

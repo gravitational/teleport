@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package approval
+package review
 
 import (
 	"context"
@@ -54,8 +54,8 @@ func TestInitializeCache(t *testing.T) {
 	require.NoError(t, err)
 
 	mockReq := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
-		Subjects:              []string{types.KindAccessRequest},
-		AutomaticApprovalName: handler.HandlerName,
+		Subjects:            []string{types.KindAccessRequest},
+		AutomaticReviewName: handler.HandlerName,
 	}
 
 	mockResp := []*accessmonitoringrulesv1.AccessMonitoringRule{
@@ -115,7 +115,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid automatic approval name.
 	rule = newApprovalRule("test-rule", `condition`)
-	rule.Spec.AutomaticApproval.Name = "invalid"
+	rule.Spec.AutomaticReview.Integration = "invalid"
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -124,7 +124,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid state.
 	rule = newApprovalRule("test-rule", `condition`)
-	rule.Spec.States = []string{"invalid"}
+	rule.Spec.DesiredState = "invalid"
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -231,7 +231,8 @@ func TestHandleAccessRequest(t *testing.T) {
 				m.On("GetUser", mock.Anything, approvedUserName, withSecretsFalse).
 					Return(approvedUser, nil)
 
-				review := newAccessReview(approvedUserName, testRuleName)
+				review, err := newAccessReview(approvedUserName, testRuleName, types.RequestState_APPROVED.String())
+				require.NoError(t, err)
 				review.Created = time.Time{}
 
 				m.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
@@ -277,11 +278,12 @@ func newApprovalRule(name, condition string) *accessmonitoringrulesv1.AccessMoni
 			Name: name,
 		},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-			Subjects:  []string{types.KindAccessRequest},
-			States:    []string{stateApproved},
-			Condition: condition,
-			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
-				Name: handlerName,
+			Subjects:     []string{types.KindAccessRequest},
+			Condition:    condition,
+			DesiredState: types.AccessMonitoringRuleStateReviewed,
+			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+				Integration: handlerName,
+				Decision:    types.RequestState_APPROVED.String(),
 			},
 		},
 	}

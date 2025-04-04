@@ -27,7 +27,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
-	"github.com/gravitational/teleport/lib/accessmonitoring/approval"
+	"github.com/gravitational/teleport/lib/accessmonitoring/review"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -86,8 +86,9 @@ func NewAccessMonitoringService(cfg Config) (*AccessMonitoringService, error) {
 
 // Run the access monitoring service.
 func (s *AccessMonitoringService) Run(ctx context.Context) (err error) {
-	accessApprovalHandler, err := approval.NewHandler(approval.Config{
-		Client: s.cfg.Client,
+	accessApprovalHandler, err := review.NewHandler(review.Config{
+		HandlerName: types.BuiltInAutomaticReview,
+		Client:      s.cfg.Client,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package approval
+package review
 
 import (
 	"context"
@@ -35,23 +35,20 @@ import (
 )
 
 const (
-	// componentName specifies the access approval handler component name used for debugging.
-	componentName = "access_approval_handler"
-
-	// stateApproved specifies the approved state.
-	stateApproved = "approved"
+	// componentName specifies the access review handler component name used for debugging.
+	componentName = "access_review_handler"
 )
 
 // Client aggregates the parts of Teleport API client interface
 // (as implemented by github.com/gravitational/teleport/api/client.Client)
-// that are used by the access approval handler.
+// that are used by the access review handler.
 type Client interface {
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 }
 
-// Config specifies approval handler configuration.
+// Config specifies access review handler configuration.
 type Config struct {
 	// Logger is the logger for the handler.
 	Logger *slog.Logger
@@ -80,14 +77,14 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Handler handles automatic approvals of access requests.
+// Handler handles automatic reviews of access requests.
 type Handler struct {
 	Config
 
 	rules *accessmonitoring.Cache
 }
 
-// NewHandler returns a new access approval handler.
+// NewHandler returns a new access review handler.
 func NewHandler(cfg Config) (*Handler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -107,10 +104,10 @@ func (handler *Handler) initialize(ctx context.Context) error {
 		error,
 	) {
 		req := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
-			PageSize:              pageSize,
-			PageToken:             pageToken,
-			Subjects:              []string{types.KindAccessRequest},
-			AutomaticApprovalName: handler.HandlerName,
+			PageSize:            pageSize,
+			PageToken:           pageToken,
+			Subjects:            []string{types.KindAccessRequest},
+			AutomaticReviewName: handler.HandlerName,
 		}
 		page, next, err := handler.Client.ListAccessMonitoringRulesWithFilter(ctx, req)
 		if err != nil {
@@ -161,11 +158,11 @@ func (handler *Handler) HandleAccessMonitoringRule(ctx context.Context, event ty
 
 // ruleApplies returns true if the rule applies to this handler.
 func (handler *Handler) ruleApplies(rule *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-	// Automatic approval rule is only applied if the desired state is "approved".
-	if !slices.Contains(rule.GetSpec().GetStates(), stateApproved) {
+	// Automatic review rule is only applied if the desired state is "reviewed".
+	if rule.GetSpec().GetDesiredState() != types.AccessMonitoringRuleStateReviewed {
 		return false
 	}
-	if rule.GetSpec().GetAutomaticApproval().GetName() != handler.HandlerName {
+	if rule.GetSpec().GetAutomaticReview().GetIntegration() != handler.HandlerName {
 		return false
 	}
 	return slices.Contains(rule.GetSpec().GetSubjects(), types.KindAccessRequest)
@@ -201,15 +198,21 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 		"req_id", req.GetName(),
 		"user", req.GetUser())
 
+	// Automatic reviews are only supported with role requests.
+	if len(req.GetRequestedResourceIDs()) > 0 {
+		return trace.BadParameter("cannot automatically review access requests for resources other than 'roles'")
+	}
+
 	const withSecretsFalse = false
 	user, err := handler.Client.GetUser(ctx, req.GetUser(), withSecretsFalse)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
 	for _, rule := range handler.rules.Get() {
-		// Check if any access monitoring rule enables automatic approval for the access request.
-		approved, err := accessmonitoring.EvaluateCondition(
+		// Check if any access monitoring rule enables automatic review for the access request.
+		conditionMatch, err := accessmonitoring.EvaluateCondition(
 			rule.GetSpec().GetCondition(),
 			getAccessRequestExpressionEnv(req, user.GetTraits()))
 		if err != nil {
@@ -219,39 +222,77 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 			)
 		}
 
-		if !approved {
+		if !conditionMatch {
 			continue
 		}
 
-		// If the the request is pre-approved, then submimt an access request approval.
-		_, err = handler.Client.SubmitAccessReview(ctx, types.AccessReviewSubmission{
-			RequestID: req.GetName(),
-			Review:    newAccessReview(req.GetUser(), rule.GetMetadata().GetName()),
-		})
-
-		switch {
-		case isAlreadyReviewedError(err):
-			log.DebugContext(ctx, "Already reviewed the request.", "error", err)
-			return nil
-		case err != nil:
-			return trace.Wrap(err, "submitting access request")
+		if reviewRule == nil {
+			reviewRule = rule
+			continue
 		}
 
-		log.InfoContext(ctx, "Successfully submitted a request approval.")
+		// Unable to submit review if set of rules contain conflicting
+		// review decisions.
+		if reviewRule.GetSpec().GetAutomaticReview().GetDecision() !=
+			rule.GetSpec().GetAutomaticReview().GetDecision() {
+			log.WarnContext(ctx, "Conflicting automatic review rules found",
+				"rules", []string{
+					reviewRule.GetMetadata().GetName(),
+					rule.GetMetadata().GetName(),
+				},
+			)
+		}
+	}
+
+	// Automatic review is not enabled for this access request.
+	if reviewRule == nil {
 		return nil
 	}
+
+	review, err := newAccessReview(
+		req.GetUser(),
+		reviewRule.GetMetadata().GetName(),
+		reviewRule.GetSpec().GetAutomaticReview().GetDecision())
+	if err != nil {
+		return trace.Wrap(err, "failed to create new access review")
+	}
+
+	_, err = handler.Client.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: req.GetName(),
+		Review:    review,
+	})
+
+	switch {
+	case isAlreadyReviewedError(err):
+		log.DebugContext(ctx, "Already reviewed the request.", "error", err)
+		return nil
+	case err != nil:
+		return trace.Wrap(err, "submitting access review")
+	}
+
+	log.InfoContext(ctx, "Successfully submitted an access review.")
 	return nil
 }
 
-func newAccessReview(userName, ruleName string) types.AccessReview {
+func newAccessReview(userName, ruleName, state string) (types.AccessReview, error) {
+	var proposedState types.RequestState
+	switch state {
+	case types.RequestState_APPROVED.String():
+		proposedState = types.RequestState_APPROVED
+	case types.RequestState_DENIED.String():
+		proposedState = types.RequestState_DENIED
+	default:
+		return types.AccessReview{}, trace.BadParameter("proposed state is unsupported: %s", state)
+	}
+
 	return types.AccessReview{
 		Author:        teleport.SystemAccessApproverUserName,
-		ProposedState: types.RequestState_APPROVED,
-		Reason: fmt.Sprintf("Access request has been automatically approved by %q. "+
-			"User %q is pre-approved by access_monitoring_rule %q.",
-			componentName, userName, ruleName),
+		ProposedState: proposedState,
+		Reason: fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
+			"User %[2]q is %[4]s by access_monitoring_rule %[3]q.",
+			componentName, userName, ruleName, strings.ToLower(state)),
 		Created: time.Now(),
-	}
+	}, nil
 }
 
 func isAlreadyReviewedError(err error) bool {
