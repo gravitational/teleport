@@ -21,6 +21,8 @@ package accesslists
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Mock implementation of AccessListAndMembersGetter.
@@ -539,6 +542,11 @@ func TestGetInheritedGrants(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+	slog.SetDefault(
+		slog.New(logutils.NewSlogTextHandler(
+			os.Stderr, logutils.SlogTextHandlerConfig{Level: slog.LevelDebug})))
+
 	aclroot := newAccessList(t, "root", clock)
 	acl1 := newAccessList(t, "1", clock)
 	acl2 := newAccessList(t, "2", clock)
@@ -562,6 +570,7 @@ func TestGetInheritedGrants(t *testing.T) {
 	// acl2 has no traits or roles
 	acl2.Spec.Grants = accesslist.Grants{}
 
+	// Hierarchy: acl1 is an Owner of aclroot
 	aclroot.SetOwners([]accesslist.Owner{
 		{
 			Name:           acl1.GetName(),
@@ -569,6 +578,9 @@ func TestGetInheritedGrants(t *testing.T) {
 		},
 	})
 	acl1.Status.OwnerOf = append(acl1.Status.OwnerOf, aclroot.GetName())
+
+	// acl2 is a Member of acl1
+	acl2.Status.MemberOf = append(acl2.Status.MemberOf, acl1.GetName())
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
 		accessLists: map[string]*accesslist.AccessList{
@@ -578,21 +590,43 @@ func TestGetInheritedGrants(t *testing.T) {
 		},
 	}
 
-	// acl1 is an Owner of aclroot, and acl2 is a Member of acl1.
-	acl2.Status.MemberOf = append(acl2.Status.MemberOf, acl1.GetName())
+	t.Run("with parent present", func(t *testing.T) {
+		logger := slog.Default().With("test", t.Name())
 
-	// so, members of acl2 should inherit aclroot's owner grants, and acl1's member grants.
-	expectedGrants := &accesslist.Grants{
-		Traits: map[string][]string{
-			"1-member-trait":   {"1-member-value"},
-			"root-owner-trait": {"root-owner-value"},
-		},
-		Roles: []string{"1-member-role", "root-owner-role"},
-	}
+		// so, members of acl2 should inherit aclroot's owner grants, and acl1's member grants.
+		expectedGrants := &accesslist.Grants{
+			Traits: map[string][]string{
+				"1-member-trait":   {"1-member-value"},
+				"root-owner-trait": {"root-owner-value"},
+			},
+			Roles: []string{"1-member-role", "root-owner-role"},
+		}
 
-	grants, err := GetInheritedGrants(ctx, acl2, accessListAndMembersGetter)
-	require.NoError(t, err)
-	require.Equal(t, expectedGrants, grants)
+		grants, err := GetInheritedGrants(ctx, acl2, accessListAndMembersGetter, logger)
+		require.NoError(t, err)
+		require.Equal(t, expectedGrants, grants)
+	})
+
+	t.Run("with missing parent", func(t *testing.T) {
+		logger := slog.Default().With("test", t.Name())
+
+		// simulate "aclroot" having been deleted w/o cleanup, so lookups for it will 404.
+		delete(accessListAndMembersGetter.accessLists, aclroot.GetName())
+
+		// now, if we call GetInheritedGrants on acl2, it sees an ancestor path leading to "acl1",
+		// which in turn references "aclroot". Because "aclroot" is deleted, we should ignore the 404.
+		// therefore, we expect only "1-member-trait" / "1-member-role".
+		expectedGrants := &accesslist.Grants{
+			Traits: map[string][]string{
+				"1-member-trait": {"1-member-value"},
+			},
+			Roles: []string{"1-member-role"},
+		}
+
+		grants, err := GetInheritedGrants(ctx, acl2, accessListAndMembersGetter, logger)
+		require.NoError(t, err)
+		require.Equal(t, expectedGrants, grants)
+	})
 }
 
 func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
