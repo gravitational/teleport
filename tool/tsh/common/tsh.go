@@ -1945,7 +1945,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.HomePath = cf.HomePath
 
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
@@ -4570,13 +4569,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// pass along MySQL/Postgres path overrides (only used in tests).
 	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath
 	c.OverridePostgresServiceFilePath = cf.overridePostgresServiceFilePath
-
-	// Set tsh home directory
-	c.HomePath = cf.HomePath
-
-	if c.KeysDir == "" {
-		c.KeysDir = c.HomePath
-	}
 
 	if cf.IdentityFileIn != "" {
 		c.NonInteractive = true

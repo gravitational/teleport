@@ -24,8 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config/openssh"
 )
 
@@ -75,7 +76,23 @@ func onConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
+	var keysDir string
+	switch s := tc.ClientStore.KeyStore.(type) {
+	case *client.FSKeyStore:
+		keysDir = s.KeyDir
+	default:
+		switch {
+		case cf.IdentityFileIn != "":
+			return trace.BadParameter("tsh config command is not supported with identity file. You can flatten your identity file into a tsh profile with \"tsh login -i\" and retry")
+		case cf.AuthConnector == constants.HeadlessConnector:
+			return trace.BadParameter("tsh config command is not supported the --headless flag option")
+		case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
+			return trace.BadParameter("tsh config command is not supported the --add-keys-to-agent=only flag option")
+		default:
+			return trace.BadParameter("tsh config command is not supported with a tsh profile outside of file storage")
+		}
+	}
+
 	knownHostsPath := keypaths.KnownHostsPath(keysDir)
 	identityFilePath := keypaths.UserSSHKeyPath(keysDir, proxyHost, tc.Config.Username)
 

@@ -57,7 +57,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	// Always use the direct YubiKey PIV service since Connect provides the best UX.
 	hwks := piv.NewYubiKeyService(nil /*prompt*/)
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                cfg.HomeDir,
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,

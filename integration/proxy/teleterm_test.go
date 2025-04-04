@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/client/mfa"
@@ -241,12 +242,12 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
 		Clock:         fakeClock,
 		WebauthnLogin: webauthnLogin,
+		ClientStore:   client.NewFSClientStore(t.TempDir()),
 	})
 	require.NoError(t, err)
 
@@ -876,8 +877,8 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 		require.NoError(t, err)
 
 		storage, err := clusters.NewStorage(clusters.Config{
-			Dir:                tc.KeysDir,
 			InsecureSkipVerify: tc.InsecureSkipVerify,
+			ClientStore:        client.NewFSClientStore(t.TempDir()),
 		})
 		require.NoError(t, err)
 		daemonService, err := daemon.New(daemon.Config{
