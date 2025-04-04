@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
@@ -210,14 +211,14 @@ type ParsePrivateKeyOptions struct {
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt HardwareKeyPrompt
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 }
 
 // ParsePrivateKeyOpt applies configuration options.
 type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 
 // WithCustomPrompt sets a custom hardware key prompt.
-func WithCustomPrompt(prompt HardwareKeyPrompt) ParsePrivateKeyOpt {
+func WithCustomPrompt(prompt hardwarekey.Prompt) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
 		o.CustomHardwareKeyPrompt = prompt
 	}
@@ -316,7 +317,7 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 }
 
 // LoadKeyPair returns the PrivateKey for the given private and public key files.
-func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+func LoadKeyPair(privFile, sshPubFile string, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
 	privPEM, err := os.ReadFile(privFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -335,7 +336,7 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
 	priv, err := ParsePrivateKey(privPEM, WithCustomPrompt(customPrompt))
 	if err != nil {
 		return nil, trace.Wrap(err)

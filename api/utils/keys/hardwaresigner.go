@@ -14,13 +14,9 @@ limitations under the License.
 package keys
 
 import (
-	"bytes"
 	"crypto"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gravitational/trace"
-
-	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // HardwareSigner is a crypto.Signer which can be attested as being backed by a hardware key.
@@ -29,7 +25,7 @@ type HardwareSigner interface {
 	crypto.Signer
 
 	// GetAttestationStatement returns an AttestationStatement for this private key.
-	GetAttestationStatement() *AttestationStatement
+	GetAttestationStatement() *hardwarekey.AttestationStatement
 
 	// GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this private key.
 	GetPrivateKeyPolicy() PrivateKeyPolicy
@@ -37,7 +33,7 @@ type HardwareSigner interface {
 
 // GetAttestationStatement returns this key's AttestationStatement. If the key is
 // not a hardware-backed key, this method returns nil.
-func (k *PrivateKey) GetAttestationStatement() *AttestationStatement {
+func (k *PrivateKey) GetAttestationStatement() *hardwarekey.AttestationStatement {
 	if attestedPriv, ok := k.Signer.(HardwareSigner); ok {
 		return attestedPriv.GetAttestationStatement()
 	}
@@ -53,30 +49,10 @@ func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	return PrivateKeyPolicyNone
 }
 
-// AttestationStatement is an attestation statement for a hardware private key
-// that supports json marshaling through the standard json/encoding package.
-type AttestationStatement attestation.AttestationStatement
-
-// ToProto converts this AttestationStatement to its protobuf form.
-func (ar *AttestationStatement) ToProto() *attestation.AttestationStatement {
-	return (*attestation.AttestationStatement)(ar)
-}
-
-// AttestationStatementFromProto converts an AttestationStatement from its protobuf form.
-func AttestationStatementFromProto(att *attestation.AttestationStatement) *AttestationStatement {
-	return (*AttestationStatement)(att)
-}
-
-// MarshalJSON implements custom protobuf json marshaling.
-func (ar *AttestationStatement) MarshalJSON() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	err := (&jsonpb.Marshaler{}).Marshal(buf, ar.ToProto())
-	return buf.Bytes(), trace.Wrap(err)
-}
-
-// UnmarshalJSON implements custom protobuf json unmarshaling.
-func (ar *AttestationStatement) UnmarshalJSON(buf []byte) error {
-	return (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(buf), ar.ToProto())
+// IsHardware returns true if [k] is a hardware PIV key.
+func (k *PrivateKey) IsHardware() bool {
+	_, ok := k.Signer.(HardwareSigner)
+	return ok
 }
 
 // AttestationData is verified attestation data for a public key.
