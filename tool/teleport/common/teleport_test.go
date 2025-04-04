@@ -24,10 +24,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -37,9 +40,26 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
+}
+
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
 }
 
 // bootstrap check
