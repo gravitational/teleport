@@ -355,6 +355,9 @@ type CLIConf struct {
 	// Debug sends debug logs to stdout.
 	Debug bool
 
+	// OSLog sends debug logs to the unified log system on macOS.
+	OSLog bool
+
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
 	Browser string
@@ -709,14 +712,17 @@ var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeC
 type CliOption func(*CLIConf) error
 
 // initLogger initializes the logger taking into account --debug and TELEPORT_DEBUG. If TELEPORT_DEBUG is set, it will also enable CLIConf.Debug.
-func initLogger(cf *CLIConf) {
+func initLogger(cf *CLIConf) error {
+	opts := getPlatformInitLoggerOpts(cf)
 	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
-	cf.Debug = cf.Debug || isDebug
+	cf.Debug = cf.Debug || isDebug || cf.OSLog
+
+	level := slog.LevelWarn
 	if cf.Debug {
-		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
-	} else {
-		utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
+		level = slog.LevelDebug
 	}
+
+	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, opts...))
 }
 
 // Run executes TSH client. same as main() but easier to test. Note that this
@@ -739,7 +745,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
-	initLogger(&cf)
+	if err := initLogger(&cf); err != nil {
+		return trace.Wrap(err)
+	}
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
@@ -778,6 +786,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
 	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behavior for this variable.
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
+	if runtime.GOOS == constants.DarwinOS {
+		app.Flag("os-log", "Verbose logging to the unified logging system. Takes precedence over --debug. https://developer.apple.com/documentation/os/viewing-log-messages").
+			BoolVar(&cf.OSLog)
+	}
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
@@ -1359,7 +1371,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set, it was already enabled by prior call to initLogger().
-	initLogger(&cf)
+	if err := initLogger(&cf); err != nil {
+		return trace.Wrap(err)
+	}
 
 	stopTracing := initializeTracing(&cf)
 	defer stopTracing()
