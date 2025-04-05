@@ -1169,10 +1169,6 @@ impl ClientHandle {
         self.blocking_send(ClientFunction::WriteRdpPointer(pointer))
     }
 
-    pub async fn write_rdp_pointer_async(&self, pointer: CGOMousePointerEvent) -> ClientResult<()> {
-        self.send(ClientFunction::WriteRdpPointer(pointer)).await
-    }
-
     pub fn write_rdp_key(&self, key: CGOKeyboardEvent) -> ClientResult<()> {
         self.blocking_send(ClientFunction::WriteRdpKey(key))
     }

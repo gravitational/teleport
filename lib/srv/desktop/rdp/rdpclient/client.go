@@ -66,6 +66,18 @@ package rdpclient
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
+
+#cgo noescape rdpclient_init_log
+#cgo nocallback rdpclient_init_log
+
+#cgo nocallback client_stop
+
+#cgo noescape client_write_rdp_pointer
+#cgo nocallback client_write_rdp_pointer
+
+#cgo noescape client_write_rdp_keyboard
+#cgo nocallback client_write_rdp_keyboard
+
 #include <librdprs.h>
 */
 import "C"
