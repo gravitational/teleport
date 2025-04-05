@@ -74,6 +74,8 @@ We'll reference the exported file(s) later when configuring the plugin.
 
 ### Install the plugin
 
+(!docs/pages/includes/plugins/install-access-request.mdx name="mattermost"!)
+
 <Tabs>
 <TabItem label="Download">
   Access Request Plugins are available as `amd64` or `arm64` Linux binaries for downloading.
@@ -87,14 +89,14 @@ We'll reference the exported file(s) later when configuring the plugin.
   ```
 </TabItem>
 <TabItem label="From Source">
-  To install from source you need `git` and `go >= (=teleport.golang=)` installed.
+  To install from source you need `git` and `go` installed. If you do not have Go
+  installed, visit the Go [downloads page](https://go.dev/dl/).
 
   ```code
-  # Checkout the Teleport repo and go in the mattermost access plugin directory
-  $ git clone https://github.com/gravitational/teleport.git -b branch/v(=teleport.major_version=)
+  $ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
   $ cd teleport/integrations/access/mattermost
-  $ git checkout (=teleport.plugin.version=)
-  $ make
+  $ git checkout v(=teleport.plugin.version=)
+  $ make build/teleport-mattermost
   ```
 </TabItem>
 </Tabs>
