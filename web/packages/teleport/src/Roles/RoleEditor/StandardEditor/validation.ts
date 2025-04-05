@@ -38,6 +38,7 @@ import {
   ResourceAccess,
   RoleEditorModel,
   RuleModel,
+  VerbModel,
 } from './standardmodel';
 
 export const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
@@ -329,9 +330,15 @@ export const validateAdminRule = (
   return runRules(rule, adminRuleValidationRules);
 };
 
+/** Ensures that at least one verb is checked. */
+const requiredVerbs = (message: string) => (verbs: VerbModel[]) => () => {
+  const valid = verbs.some(v => v.checked);
+  return { valid, message: valid ? '' : message };
+};
+
 const adminRuleValidationRules = {
   resources: requiredField('At least one resource kind is required'),
-  verbs: requiredField('At least one permission is required'),
+  verbs: requiredVerbs('At least one permission is required'),
 };
 export type AdminRuleValidationResult = RuleSetValidationResult<
   typeof adminRuleValidationRules

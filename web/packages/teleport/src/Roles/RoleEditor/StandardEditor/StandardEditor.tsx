@@ -38,7 +38,7 @@ import {
   roleEditorModelToRole,
   StandardEditorModel,
 } from './standardmodel';
-import { StandardModelDispatcher } from './useStandardModel';
+import { ActionType, StandardModelDispatcher } from './useStandardModel';
 
 export type StandardEditorProps = {
   originalRole?: RoleWithYaml;
@@ -79,14 +79,14 @@ export const StandardEditor = ({
   const validator = useValidation();
 
   function handleResetToStandard() {
-    dispatch({ type: 'reset-to-standard' });
+    dispatch({ type: ActionType.ResetToStandard });
   }
 
   const validate = useCallback(() => {
     // Enable instant validation messages.
     validator.validate();
     // Show validation errors on newly added sections.
-    dispatch({ type: 'show-validation-errors' });
+    dispatch({ type: ActionType.EnableValidation });
     // The model validation result is always up to date, so we don't need to
     // wait until the above action gets dispatched.
     return modelValid;
@@ -100,7 +100,7 @@ export const StandardEditor = ({
 
   const setOptions = useCallback(
     (options: OptionsModel) =>
-      dispatch({ type: 'set-options', payload: options }),
+      dispatch({ type: ActionType.SetOptions, payload: options }),
     [dispatch]
   );
 
@@ -205,7 +205,7 @@ export const StandardEditor = ({
             isProcessing={isProcessing}
             validation={validationResult.metadata}
             onChange={metadata =>
-              dispatch({ type: 'set-metadata', payload: metadata })
+              dispatch({ type: ActionType.SetMetadata, payload: metadata })
             }
           />
         </Box>

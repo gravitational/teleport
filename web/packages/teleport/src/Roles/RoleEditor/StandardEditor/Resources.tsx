@@ -58,6 +58,7 @@ import {
   ServerAccess,
   WindowsDesktopAccess,
 } from './standardmodel';
+import { ActionType } from './useStandardModel';
 import {
   AppAccessValidationResult,
   DatabaseAccessValidationResult,
@@ -89,7 +90,7 @@ export const ResourcesTab = memo(function ResourcesTab({
   );
 
   const addResourceAccess = (kind: ResourceAccessKind) =>
-    dispatch({ type: 'add-resource-access', payload: { kind } });
+    dispatch({ type: ActionType.AddResourceAccess, payload: { kind } });
 
   return (
     <Flex flexDirection="column" gap={3}>
@@ -205,11 +206,14 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   const { component: Body, title } = resourceAccessSections[value.kind];
 
   function handleChange(val: T) {
-    dispatch({ type: 'set-resource-access', payload: val });
+    dispatch({ type: ActionType.SetResourceAccess, payload: val });
   }
 
   function handleRemove() {
-    dispatch({ type: 'remove-resource-access', payload: { kind: value.kind } });
+    dispatch({
+      type: ActionType.RemoveResourceAccess,
+      payload: { kind: value.kind },
+    });
   }
 
   return (

@@ -45,7 +45,10 @@ import {
   roleEditorModelToRole,
   roleToRoleEditorModel,
 } from './StandardEditor/standardmodel';
-import { useStandardModel } from './StandardEditor/useStandardModel';
+import {
+  ActionType,
+  useStandardModel,
+} from './StandardEditor/useStandardModel';
 import { YamlEditor } from './YamlEditor';
 import { YamlEditorModel } from './yamlmodel';
 
@@ -197,7 +200,7 @@ export const RoleEditor = ({
         if (err) return;
 
         dispatch({
-          type: 'set-role-model',
+          type: ActionType.SetModel,
           payload: roleModel,
         });
         break;

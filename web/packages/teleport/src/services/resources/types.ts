@@ -167,7 +167,11 @@ export type KubernetesVerb =
   | 'portforward';
 
 export type Rule = {
-  resources?: ResourceKind[];
+  /**
+   * Typically, this is ResourceKind[], though in general, we allow
+   * unrecognized legacy resource types.
+   */
+  resources?: string[];
   verbs?: Verb[];
   where?: string;
 };
