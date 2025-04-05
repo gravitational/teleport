@@ -53,7 +53,7 @@ func TestAccessMonitoringRule(t *testing.T) {
 	go func() { require.NoError(t, monitor.Run(ctx)) }()
 
 	// Test rule handler initializaiton.
-	events.watcher.ch <- types.Event{
+	initEvent := types.Event{
 		Type: types.OpInit,
 		Resource: types.NewWatchStatus(
 			[]types.WatchKind{
@@ -61,59 +61,51 @@ func TestAccessMonitoringRule(t *testing.T) {
 			},
 		),
 	}
+	events.watcher.ch <- initEvent
 	require.EventuallyWithT(t,
-		ruleHandler.requireEvent(types.Event{
-			Type: types.OpInit,
-			Resource: types.NewWatchStatus(
-				[]types.WatchKind{
-					{Kind: types.KindAccessMonitoringRule},
-				},
-			),
-		}), 10*time.Second, 100*time.Millisecond,
+		ruleHandler.requireEvent(initEvent),
+		10*time.Second, 100*time.Millisecond,
 		"monitor passes init event")
 
 	rule := newApprovalRule("test-rule", "condition")
 
 	// Test new access monitoring rule event.
-	events.watcher.ch <- types.Event{
+	createEvent := types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule),
 	}
+	events.watcher.ch <- createEvent
 	require.EventuallyWithT(t,
-		ruleHandler.requireEvent(types.Event{
-			Type:     types.OpPut,
-			Resource: types.Resource153ToLegacy(rule),
-		}), 10*time.Second, 100*time.Millisecond,
+		ruleHandler.requireEvent(createEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle create access monitoring rule event")
 
 	// Test update access monitoring rule event.
 	rule.Spec.Condition = "new-condition"
-	events.watcher.ch <- types.Event{
+	updateEvent := types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule),
 	}
+	events.watcher.ch <- updateEvent
 	require.EventuallyWithT(t,
-		ruleHandler.requireEvent(types.Event{
-			Type:     types.OpPut,
-			Resource: types.Resource153ToLegacy(rule),
-		}), 10*time.Second, 100*time.Millisecond,
+		ruleHandler.requireEvent(updateEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle update access monitoring rule event")
 
 	// Test delete access monitoring rule event.
-	events.watcher.ch <- types.Event{
+	deleteEvent := types.Event{
 		Type:     types.OpDelete,
 		Resource: types.Resource153ToLegacy(rule),
 	}
+	events.watcher.ch <- deleteEvent
 	require.EventuallyWithT(t,
-		ruleHandler.requireEvent(types.Event{
-			Type:     types.OpDelete,
-			Resource: types.Resource153ToLegacy(rule),
-		}), 10*time.Second, 100*time.Millisecond,
+		ruleHandler.requireEvent(deleteEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle delete access monitoring rule event")
 
 	// Test delete access monitoring rule event from resource header.
 	// Delete events typically only include the resource kind and name.
-	events.watcher.ch <- types.Event{
+	deleteResourceHeaderEvent := types.Event{
 		Type: types.OpDelete,
 		Resource: &types.ResourceHeader{
 			Kind: types.KindAccessMonitoringRule,
@@ -122,16 +114,10 @@ func TestAccessMonitoringRule(t *testing.T) {
 			},
 		},
 	}
+	events.watcher.ch <- deleteResourceHeaderEvent
 	require.EventuallyWithT(t,
-		ruleHandler.requireEvent(types.Event{
-			Type: types.OpDelete,
-			Resource: &types.ResourceHeader{
-				Kind: types.KindAccessMonitoringRule,
-				Metadata: types.Metadata{
-					Name: rule.GetMetadata().GetName(),
-				},
-			},
-		}), 10*time.Second, 100*time.Millisecond,
+		ruleHandler.requireEvent(deleteResourceHeaderEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle delete access monitoring rule event from resource header")
 }
 
@@ -163,7 +149,7 @@ func TestAccessRequest(t *testing.T) {
 	go func() { require.NoError(t, monitor.Run(ctx)) }()
 
 	// Test rule handler initializaiton.
-	events.watcher.ch <- types.Event{
+	initEvent := types.Event{
 		Type: types.OpInit,
 		Resource: types.NewWatchStatus(
 			[]types.WatchKind{
@@ -171,30 +157,24 @@ func TestAccessRequest(t *testing.T) {
 			},
 		),
 	}
+	events.watcher.ch <- initEvent
 	require.EventuallyWithT(t,
-		requireEvent(initCh, types.Event{
-			Type: types.OpInit,
-			Resource: types.NewWatchStatus(
-				[]types.WatchKind{
-					{Kind: types.KindAccessRequest},
-				},
-			),
-		}), 10*time.Second, 100*time.Millisecond,
+		requireEvent(initCh, initEvent),
+		10*time.Second, 100*time.Millisecond,
 		"wait for initialize event")
 
 	req, err := types.NewAccessRequest(uuid.New().String(), "test-requester", "test-role")
 	require.NoError(t, err)
 
 	// Test create access request event.
-	events.watcher.ch <- types.Event{
+	createEvent := types.Event{
 		Type:     types.OpPut,
 		Resource: req,
 	}
+	events.watcher.ch <- createEvent
 	require.EventuallyWithT(t,
-		requestHandler.requireEvent(types.Event{
-			Type:     types.OpPut,
-			Resource: req,
-		}), 10*time.Second, 100*time.Millisecond,
+		requestHandler.requireEvent(createEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle create access request event")
 
 	// Test review access request event.
@@ -204,32 +184,30 @@ func TestAccessRequest(t *testing.T) {
 		Created:       time.Now(),
 		Reason:        "okay",
 	}})
-	events.watcher.ch <- types.Event{
+	reviewEvent := types.Event{
 		Type:     types.OpPut,
 		Resource: req,
 	}
+	events.watcher.ch <- reviewEvent
 	require.EventuallyWithT(t,
-		requestHandler.requireEvent(types.Event{
-			Type:     types.OpPut,
-			Resource: req,
-		}), 10*time.Second, 100*time.Millisecond,
+		requestHandler.requireEvent(reviewEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle update access request event")
 
 	// Test delete access request event.
-	events.watcher.ch <- types.Event{
+	deleteEvent := types.Event{
 		Type:     types.OpDelete,
 		Resource: req,
 	}
+	events.watcher.ch <- deleteEvent
 	require.EventuallyWithT(t,
-		requestHandler.requireEvent(types.Event{
-			Type:     types.OpDelete,
-			Resource: req,
-		}), 10*time.Second, 100*time.Millisecond,
+		requestHandler.requireEvent(deleteEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle delete access request event")
 
 	// Test delete access request event from resource header.
 	// Delete events typically only include the resource kind and name.
-	events.watcher.ch <- types.Event{
+	deleteResourceHeaderEvent := types.Event{
 		Type: types.OpDelete,
 		Resource: &types.ResourceHeader{
 			Kind: types.KindAccessRequest,
@@ -238,16 +216,10 @@ func TestAccessRequest(t *testing.T) {
 			},
 		},
 	}
+	events.watcher.ch <- deleteResourceHeaderEvent
 	require.EventuallyWithT(t,
-		requestHandler.requireEvent(types.Event{
-			Type: types.OpDelete,
-			Resource: &types.ResourceHeader{
-				Kind: types.KindAccessRequest,
-				Metadata: types.Metadata{
-					Name: req.GetName(),
-				},
-			},
-		}), 10*time.Second, 100*time.Millisecond,
+		requestHandler.requireEvent(deleteResourceHeaderEvent),
+		10*time.Second, 100*time.Millisecond,
 		"handle delete access request event from resource header")
 }
 
