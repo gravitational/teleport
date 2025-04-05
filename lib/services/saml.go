@@ -36,6 +36,7 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,13 +50,24 @@ const ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
-func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
+func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.SAMLConnectorValidationOption) error {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	if err := CheckAndSetDefaults(sc); err != nil {
 		return trace.Wrap(err)
 	}
 
 	getEntityDescriptorFromURL := func(url string) (string, error) {
-		resp, err := http.Get(url)
+		ctx, cancel := context.WithTimeout(context.TODO(), defaults.DefaultIOTimeout)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return "", trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", url, sc.GetName())
 		}
@@ -80,7 +92,7 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 	}
 
 	// Validate standard settings.
-	if url := sc.GetEntityDescriptorURL(); url != "" {
+	if url := sc.GetEntityDescriptorURL(); url != "" && !options.NoFollowURLs {
 		entityDescriptor, err := getEntityDescriptorFromURL(url)
 		if err != nil {
 			return trace.Wrap(err)
@@ -353,6 +365,11 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 
 // UnmarshalSAMLConnector unmarshals the SAMLConnector resource from JSON.
 func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConnector, error) {
+	return UnmarshalSAMLConnectorWithValidationOptions(bytes, nil, opts...)
+}
+
+// UnmarshalSAMLConnectorWithValidationOptions unmarshals the SAMLConnector resource from JSON.
+func UnmarshalSAMLConnectorWithValidationOptions(bytes []byte, validationOpts []types.SAMLConnectorValidationOption, opts ...MarshalOption) (types.SAMLConnector, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -369,7 +386,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.BadParameter("%s", err)
 		}
 
-		if err := ValidateSAMLConnector(&c, nil); err != nil {
+		if err := ValidateSAMLConnector(&c, nil, validationOpts...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
