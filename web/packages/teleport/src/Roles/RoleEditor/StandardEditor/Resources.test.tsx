@@ -152,7 +152,9 @@ describe('KubernetesAccessSection', () => {
       createOptionText: 'User: mary',
     });
 
-    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+    );
     expect(
       reactSelectValueContainer(screen.getByLabelText('Kind'))
     ).toHaveTextContent('Any kind');
@@ -201,16 +203,18 @@ describe('KubernetesAccessSection', () => {
   test('adding and removing resources', async () => {
     const { user, onChange } = setup();
 
-    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+    );
     await user.clear(screen.getByLabelText('Name *'));
     await user.type(screen.getByLabelText('Name *'), 'res1');
     await user.click(
-      screen.getByRole('button', { name: 'Add Another Resource' })
+      screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
     );
     await user.clear(screen.getAllByLabelText('Name *')[1]);
     await user.type(screen.getAllByLabelText('Name *')[1], 'res2');
     await user.click(
-      screen.getByRole('button', { name: 'Add Another Resource' })
+      screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
     );
     await user.clear(screen.getAllByLabelText('Name *')[2]);
     await user.type(screen.getAllByLabelText('Name *')[2], 'res3');
@@ -225,7 +229,7 @@ describe('KubernetesAccessSection', () => {
     );
 
     await user.click(
-      screen.getAllByRole('button', { name: 'Remove resource' })[1]
+      screen.getAllByRole('button', { name: 'Remove Kubernetes resource' })[1]
     );
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -236,7 +240,7 @@ describe('KubernetesAccessSection', () => {
       })
     );
     await user.click(
-      screen.getAllByRole('button', { name: 'Remove resource' })[0]
+      screen.getAllByRole('button', { name: 'Remove Kubernetes resource' })[0]
     );
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -244,7 +248,7 @@ describe('KubernetesAccessSection', () => {
       })
     );
     await user.click(
-      screen.getAllByRole('button', { name: 'Remove resource' })[0]
+      screen.getAllByRole('button', { name: 'Remove Kubernetes resource' })[0]
     );
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ resources: [] })
@@ -254,7 +258,9 @@ describe('KubernetesAccessSection', () => {
   test('validation', async () => {
     const { user, validator } = setup(RoleVersion.V6);
     await user.click(screen.getByRole('button', { name: 'Add a Label' }));
-    await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+    );
     await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
     await user.clear(screen.getByLabelText('Name *'));
     await user.clear(screen.getByLabelText('Namespace *'));

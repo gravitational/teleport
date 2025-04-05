@@ -55,7 +55,7 @@ describe('AdminRules', () => {
   test('editing', async () => {
     const { user, modelRef } = setup();
     await user.click(screen.getByRole('button', { name: 'Add New' }));
-    await selectEvent.select(screen.getByLabelText('Resources *'), [
+    await selectEvent.select(screen.getByLabelText('Teleport Resources *'), [
       'db',
       'node',
     ]);
