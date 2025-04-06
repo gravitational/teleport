@@ -31,6 +31,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |azure|[object](#specazure)|Azure allows the configuration of options specific to the "azure" join method.|
 |bitbucket|[object](#specbitbucket)|Bitbucket allows the configuration of options specific to the "bitbucket" join method.|
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
+|bound_keypair|[object](#specbound_keypair)||
 |circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
@@ -83,6 +84,30 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |deployment_environment_uuid|string||
 |repository_uuid|string||
 |workspace_uuid|string||
+
+### spec.bound_keypair
+
+|Field|Type|Description|
+|---|---|---|
+|joining|[object](#specbound_keypairjoining)|Joining contains parameters related to all join attempts.|
+|onboarding|[object](#specbound_keypaironboarding)|Onboarding contains parameters related to initial joining and keypair registration.|
+|rotate_on_next_renewal|boolean|RotateOnNextRenewal is a flag that indicates clients should perform a keypair rotation on the next refresh or rejoin attempt. This flag will automatically be set to `false` after a successful rotation.|
+
+### spec.bound_keypair.joining
+
+|Field|Type|Description|
+|---|---|---|
+|may_join_until|string||
+|total_joins|integer||
+|unlimited|boolean||
+
+### spec.bound_keypair.onboarding
+
+|Field|Type|Description|
+|---|---|---|
+|initial_join_secret|string||
+|initial_public_key|string||
+|must_join_before|string||
 
 ### spec.circleci
 
