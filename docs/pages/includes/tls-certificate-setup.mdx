@@ -24,6 +24,11 @@ deployments, use your own private key and certificate.
     ```
 
     Port 443 on your Teleport Proxy Service host must allow traffic from all sources.
+
+     <Admonition type="notice" title="Acme Certificates only for single Proxy" >
+       The Acme Let's Encrypt option is only a single proxy instance and is not supported for highly available configurations.
+       Teleport can be deployed with load balancers providing terminating TLS or installing certificates on each Teleport Proxy service.
+     </Admonition>     
   </TabItem>
 
   <TabItem label="Private network deployment">
