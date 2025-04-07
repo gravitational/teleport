@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -2075,11 +2076,12 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	tests := []struct {
-		name            string
-		initialVersion  string
-		expectedVersion string
-		expectError     bool
-		skipCheck       bool
+		name               string
+		initialVersion     string
+		initialProcVersion string
+		expectedVersion    string
+		expectError        bool
+		skipCheck          bool
 	}{
 		{
 			name:            "first-launch",
@@ -2094,10 +2096,22 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			expectError:     false,
 		},
 		{
+			name:               "old-version-upgrade-proc",
+			initialProcVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-1),
+			expectedVersion:    teleport.Version,
+			expectError:        false,
+		},
+		{
 			name:            "major-upgrade-fail",
 			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
 			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
 			expectError:     true,
+		},
+		{
+			name:               "major-upgrade-fail-proc",
+			initialProcVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectedVersion:    fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectError:        true,
 		},
 		{
 			name:            "major-upgrade-with-dev-skip-check",
@@ -2113,6 +2127,12 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			expectError:     true,
 		},
 		{
+			name:               "major-downgrade-fail-proc",
+			initialProcVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectedVersion:    fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectError:        true,
+		},
+		{
 			name:            "major-downgrade-with-dev-skip-check",
 			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
 			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
@@ -2126,23 +2146,29 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			defer cancel()
 
 			authCfg := setupConfig(t)
+			service, err := local.NewAuthInfoService(authCfg.Backend)
+			require.NoError(t, err)
 
+			if test.initialProcVersion != "" {
+				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, semver.New(test.initialProcVersion))
+				require.NoError(t, err)
+			}
 			if test.initialVersion != "" {
-				err := authCfg.VersionStorage.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
+				err = service.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
 				t.Setenv(skipVersionUpgradeCheckEnv, "yes")
 			}
 
-			_, err := Init(ctx, authCfg)
+			_, err = Init(ctx, authCfg)
 			if test.expectError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
 
-			lastKnownVersion, err := authCfg.VersionStorage.GetTeleportVersion(ctx)
+			lastKnownVersion, err := service.GetTeleportVersion(ctx)
 			require.NoError(t, err)
 			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
 		})
