@@ -152,8 +152,8 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
-	ticker := time.NewTicker(b.PollStreamPeriod)
-	defer ticker.Stop()
+	timer := time.NewTimer(b.PollStreamPeriod)
+	defer timer.Stop()
 
 	for {
 		select {
@@ -174,10 +174,11 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			} else {
 				b.buf.Emit(event.events...)
 			}
-		case <-ticker.C:
+		case <-timer.C:
 			if err := refreshShards(false); err != nil {
 				return trace.Wrap(err)
 			}
+			timer.Reset(b.PollStreamPeriod)
 		case <-ctx.Done():
 			b.logger.Log(ctx, logutils.TraceLevel, "Context is closing, returning.")
 			return nil
