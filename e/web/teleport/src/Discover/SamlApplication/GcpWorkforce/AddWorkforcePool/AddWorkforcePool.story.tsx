@@ -3,7 +3,7 @@ import { PropsWithChildren, useState } from 'react';
 import {
   emptySamlAppProps,
   MockSamlApplicationContextProvider,
-  resourceSpecSamlGcp,
+  resourceSpecSamlGeneric,
 } from 'e-teleport/SamlApplication/fixtures';
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
@@ -61,7 +61,7 @@ const DiscoverContextProvider: React.FC<PropsWithChildren> = props => {
           poolProviderName: 'test-provider-name',
         },
       }}
-      resourceSpec={resourceSpecSamlGcp}
+      resourceSpec={resourceSpecSamlGeneric}
     >
       {props.children}
     </RequiredDiscoverProviders>

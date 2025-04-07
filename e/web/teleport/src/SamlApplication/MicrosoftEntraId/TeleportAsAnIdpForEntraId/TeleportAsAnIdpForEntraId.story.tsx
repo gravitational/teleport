@@ -1,5 +1,3 @@
-import { PropsWithChildren } from 'react';
-
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   idpMetadata,
@@ -8,33 +6,25 @@ import {
 import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 
-import { DownloadMetadata as DownloadMetadataComponent } from './DownloadMetadata';
+import { TeleportAsAnIdpForEntraId as TeleportAsAnIdpForEntraIdComponent } from './TeleportAsAnIdpForEntraId';
 
 export default {
-  title: 'TeleportE/Discover/SAML Application',
+  title: 'TeleportE/SamlApplication/MicrosoftEntraId',
 };
 
-export const DownloadMetadata = () => {
+export const TeleportAsAnIdpForEntraId = () => {
   const ctx = createTeleportContextE();
   ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
-  return (
-    <Provider>
-      <DownloadMetadataComponent />
-    </Provider>
-  );
-};
-
-const Provider: React.FC<PropsWithChildren> = props => {
-  const ctx = createTeleportContextE();
-  ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
-
+  ctx.idpService.getMetadataXml = () => Promise.resolve('<xml>test<xml>');
   return (
     <RequiredDiscoverProviders
       agentMeta={{}}
       resourceSpec={resourceSpecSamlGeneric}
       teleportCtx={ctx}
     >
-      <SamlApplicationProvider>{props.children}</SamlApplicationProvider>
+      <SamlApplicationProvider>
+        <TeleportAsAnIdpForEntraIdComponent />
+      </SamlApplicationProvider>
     </RequiredDiscoverProviders>
   );
 };

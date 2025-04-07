@@ -99,6 +99,6 @@ export const MockSamlApplicationContextProvider: React.FC<
   );
 };
 
-export const resourceSpecSamlGcp = SAML_APPLICATIONS.find(
-  s => s.id === DiscoverGuideId.ApplicationSamlWorkforceIdentityFederation
+export const resourceSpecSamlGeneric = SAML_APPLICATIONS.find(
+  s => s.id === DiscoverGuideId.ApplicationSamlGeneric
 );
