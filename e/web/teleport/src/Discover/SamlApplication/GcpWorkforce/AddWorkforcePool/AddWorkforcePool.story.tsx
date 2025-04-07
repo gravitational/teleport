@@ -6,6 +6,7 @@ import {
   resourceSpecSamlGeneric,
 } from 'e-teleport/SamlApplication/fixtures';
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { gcpWorkforcePresetSpec } from 'e-teleport/services/idp/types';
 import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 
 import { defaultSamlMetaForGcpWorkforce } from '../ConfigureWorkforcePool/ConfigureWorkforcePool';
@@ -33,7 +34,9 @@ export const AddWorkforcePool = () => {
 };
 
 export const AddWorkforcePoolDisabledOnGuided = () => {
-  const [upsertRequest, setUpsertRequest] = useState(emptyUpsertRequest);
+  const gcpPreset = emptyUpsertRequest;
+  gcpPreset.attributeMapping = gcpWorkforcePresetSpec().attribute_mapping;
+  const [upsertRequest, setUpsertRequest] = useState(gcpPreset);
   return (
     <DiscoverContextProvider>
       <MockSamlApplicationContextProvider

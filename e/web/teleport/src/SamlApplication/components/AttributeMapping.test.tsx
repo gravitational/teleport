@@ -132,3 +132,77 @@ test('attribute maping disabled', async () => {
   expect(screen.getByLabelText('attribute value')).toBeDisabled();
   expect(screen.getByText('Add Another Attribute Mapping')).toBeDisabled();
 });
+
+const testSpec = Object.assign({}, emptyUpsertRequest);
+testSpec.attributeMapping = [
+  {
+    name: 'email',
+    name_format: 'uri',
+    value: 'uid',
+  },
+  {
+    name: 'roles',
+    name_format: 'unspecified',
+    value: 'user.spec.roles',
+  },
+  {
+    name: 'firstname',
+    name_format: 'basic',
+    value: 'user.spec.traits.firstname',
+  },
+];
+
+test('attribute maping row enabled if isGuide=false, and known preset', async () => {
+  render(
+    <Validation>
+      <AttributeMapping
+        spConfig={testSpec}
+        setSPConfig={jest.fn()}
+        addAttrMap={jest.fn()}
+        attrMapErr={{ emptyName: false, emptyValue: false }}
+        setAttrMapErr={jest.fn()}
+        disabled={false}
+        preset={SamlServiceProviderPreset.GcpWorkforce}
+        isGuided={false}
+      />
+    </Validation>
+  );
+  expect(screen.getByDisplayValue('email')).toBeEnabled();
+  expect(screen.getByText('uri')).toBeEnabled();
+  expect(screen.getByText('uid')).toBeEnabled();
+
+  expect(screen.getByDisplayValue('roles')).toBeEnabled();
+  expect(screen.getByText('unspecified')).toBeEnabled();
+  expect(screen.getByText('user.spec.roles')).toBeEnabled();
+
+  expect(screen.getByDisplayValue('firstname')).toBeEnabled();
+  expect(screen.getByText('basic')).toBeEnabled();
+  expect(screen.getByText('user.spec.traits.firstname')).toBeEnabled();
+});
+
+test('attribute maping row disabled if isGuide=true and known preset', async () => {
+  render(
+    <Validation>
+      <AttributeMapping
+        spConfig={testSpec}
+        setSPConfig={jest.fn()}
+        addAttrMap={jest.fn()}
+        attrMapErr={{ emptyName: false, emptyValue: false }}
+        setAttrMapErr={jest.fn()}
+        disabled={false}
+        preset={SamlServiceProviderPreset.GcpWorkforce}
+        isGuided={true}
+      />
+    </Validation>
+  );
+  expect(screen.getByDisplayValue('email')).toBeEnabled();
+  expect(screen.getByText('uri')).toBeEnabled();
+  expect(screen.getByText('uid')).toBeEnabled();
+
+  // GcpWorkforce preset configures "roles" attribute.
+  expect(screen.getByDisplayValue('roles')).toBeDisabled();
+
+  expect(screen.getByDisplayValue('firstname')).toBeEnabled();
+  expect(screen.getByText('basic')).toBeEnabled();
+  expect(screen.getByText('user.spec.traits.firstname')).toBeEnabled();
+});

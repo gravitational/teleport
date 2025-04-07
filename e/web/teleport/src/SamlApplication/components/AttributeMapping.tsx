@@ -12,8 +12,14 @@ import {
 } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 
-import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import {
+  gcpWorkforcePresetSpec,
+  type CreateSamlIdpServiceProviderRequest,
+} from 'e-teleport/services/idp/types';
+import {
+  SamlServiceProviderPreset,
+  type AttributeMapping as AttributeMappingType,
+} from 'teleport/services/samlidp/types';
 
 export function AttributeMapping({
   spConfig,
@@ -50,17 +56,6 @@ export function AttributeMapping({
     newList.splice(index, 1);
     setAttrMapErr({ emptyName: false, emptyValue: false });
     setSPConfig({ ...spConfig, attributeMapping: newList });
-  }
-
-  function disableAttributeRow(index: number) {
-    switch (preset) {
-      case SamlServiceProviderPreset.GcpWorkforce:
-        // only one preset attribute is configured for GcpWorkforce
-        // TODO(sshah): create a pre-populated GcpWorkforce preset
-        // so we can get length of attributes instead of using hardcoded
-        // zero index value.
-        return isGuided && index == 0;
-    }
   }
 
   const attributeMappingDocsUrl =
@@ -121,6 +116,11 @@ export function AttributeMapping({
         )}
         <Flex flexDirection="column" gap={3}>
           {spConfig.attributeMapping.map((attribute, index) => {
+            const disablePresetEdit = disableAttributeRow(
+              preset,
+              isGuided,
+              attribute
+            );
             return (
               <Box key={index}>
                 <Flex alignItems="center">
@@ -142,7 +142,7 @@ export function AttributeMapping({
                         index: index,
                       })
                     }
-                    disabled={disabled || disableAttributeRow(index)}
+                    disabled={disabled || disablePresetEdit}
                   />
                   <Box width="140px" mr={3}>
                     <StyledFieldSelect
@@ -164,7 +164,7 @@ export function AttributeMapping({
                         value: urnToFriendlyName(attribute.name_format),
                         label: urnToFriendlyName(attribute.name_format),
                       }}
-                      isDisabled={disabled || disableAttributeRow(index)}
+                      isDisabled={disabled || disablePresetEdit}
                     />
                   </Box>
                   <Box width="400px" ml={3}>
@@ -195,7 +195,7 @@ export function AttributeMapping({
                               label: attribute.value,
                             }
                       }
-                      isDisabled={disabled || disableAttributeRow(index)}
+                      isDisabled={disabled || disablePresetEdit}
                       createOptionPosition="last"
                       formatCreateLabel={(i: string) =>
                         'predicate: ' + `"${i}"`
@@ -214,7 +214,7 @@ export function AttributeMapping({
                         pointer-events: none;
                       }
                     `}
-                    disabled={disabled || disableAttributeRow(index)}
+                    disabled={disabled || disablePresetEdit}
                   >
                     <Icons.Trash size="medium" />
                   </ButtonIcon>
@@ -292,6 +292,29 @@ function urnToFriendlyName(nameFormat: string): string {
       return 'unspecified';
     default:
       return nameFormat;
+  }
+}
+
+/**
+ * Checks if attribute row should be disabled.
+ * Only the attribute name value is expected to be unique.
+ */
+function disableAttributeRow(
+  preset: SamlServiceProviderPreset,
+  isGuided: boolean,
+  currentAttribute: AttributeMappingType
+): boolean {
+  if (!isGuided) {
+    return false;
+  }
+
+  switch (preset) {
+    case SamlServiceProviderPreset.GcpWorkforce:
+      return gcpWorkforcePresetSpec().attribute_mapping.some(
+        presetAttribute => presetAttribute.name === currentAttribute.name
+      );
+    default:
+      return false;
   }
 }
 

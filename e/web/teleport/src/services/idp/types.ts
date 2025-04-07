@@ -1,6 +1,7 @@
-import type {
-  AttributeMapping,
+import {
+  SamlIdpServiceProviderSpec,
   SamlServiceProviderPreset,
+  type AttributeMapping,
 } from 'teleport/services/samlidp/types';
 
 export type CreateSamlIdpServiceProviderRequest = {
@@ -24,4 +25,25 @@ export type SamlIdpMetadataResponse = {
   entityID: string;
   ssoURL: string;
   x509PEM: string;
+};
+
+/**
+ * gcpWorkforcePresetSpec returns preset values for
+ * GCP Workforce Identity Federation SAML service provider.
+ */
+export const gcpWorkforcePresetSpec = (): SamlIdpServiceProviderSpec => {
+  return {
+    acs_url: '',
+    attribute_mapping: [
+      {
+        name: 'roles',
+        name_format: 'unspecified',
+        value: 'user.spec.roles',
+      },
+    ],
+    entity_descriptor: '',
+    entity_id: '',
+    preset: SamlServiceProviderPreset.GcpWorkforce,
+    relay_state: '',
+  };
 };

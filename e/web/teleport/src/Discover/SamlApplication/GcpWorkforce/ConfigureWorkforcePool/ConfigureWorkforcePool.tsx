@@ -16,6 +16,7 @@ import {
   genEntityIDAndAcsUrlForGcpWorkforce,
   useSamlApplication,
 } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { gcpWorkforcePresetSpec } from 'e-teleport/services/idp/types';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import {
@@ -79,13 +80,7 @@ export function Container() {
           upsertRequest.attributeMapping
         )
           ? upsertRequest.attributeMapping
-          : [
-              {
-                name: 'roles',
-                name_format: 'unspecified',
-                value: 'user.spec.roles',
-              },
-            ];
+          : gcpWorkforcePresetSpec().attribute_mapping;
 
       setUpsertRequest({
         ...upsertRequest,
