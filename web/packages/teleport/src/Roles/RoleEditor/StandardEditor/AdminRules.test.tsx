@@ -27,7 +27,7 @@ import { ResourceKind } from 'teleport/services/resources';
 import { AdminRules } from './AdminRules';
 import { RuleModel } from './standardmodel';
 import { StatefulSectionWithDispatch } from './StatefulSection';
-import { StandardModelDispatcher } from './useStandardModel';
+import { ActionType, StandardModelDispatcher } from './useStandardModel';
 import { AdminRuleValidationResult } from './validation';
 
 describe('AdminRules', () => {
@@ -59,26 +59,101 @@ describe('AdminRules', () => {
       'db',
       'node',
     ]);
-    await selectEvent.select(screen.getByLabelText('Permissions *'), [
-      'list',
-      'read',
-    ]);
+    await user.click(screen.getByLabelText('list'));
+    await user.click(screen.getByLabelText('read'));
     await user.type(screen.getByLabelText('Filter'), 'some-filter');
     expect(modelRef).toHaveBeenLastCalledWith([
       {
         id: expect.any(String),
         resources: [
-          { label: ResourceKind.Database, value: 'db' },
-          { label: ResourceKind.Node, value: 'node' },
+          { label: 'db', value: ResourceKind.Database },
+          { label: 'node', value: ResourceKind.Node },
         ],
+        allVerbs: false,
         verbs: [
-          { label: 'list', value: 'list' },
-          { label: 'read', value: 'read' },
+          { verb: 'read', checked: true },
+          { verb: 'list', checked: true },
+          { verb: 'create', checked: false },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: false },
         ],
         where: 'some-filter',
         hideValidationErrors: true,
       },
     ] as RuleModel[]);
+
+    // Add another resource kind and check that the list of permissions got
+    // extended.
+    expect(screen.queryByLabelText('readnosecrets')).not.toBeInTheDocument();
+    await selectEvent.select(screen.getByLabelText('Teleport Resources *'), [
+      'db',
+      'node',
+      'saml',
+    ]);
+    await user.click(screen.getByLabelText('readnosecrets'));
+    expect(modelRef).toHaveBeenLastCalledWith([
+      {
+        id: expect.any(String),
+        resources: [
+          { label: 'db', value: ResourceKind.Database },
+          { label: 'node', value: ResourceKind.Node },
+          { label: 'saml', value: ResourceKind.SAMLConnector },
+        ],
+        allVerbs: false,
+        verbs: [
+          { verb: 'read', checked: true },
+          { verb: 'list', checked: true },
+          { verb: 'create', checked: false },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: false },
+          { verb: 'readnosecrets', checked: true },
+        ],
+        where: 'some-filter',
+        hideValidationErrors: true,
+      },
+    ] as RuleModel[]);
+
+    // Select "All". Expect everything else to be checked.
+    await user.click(screen.getByLabelText('All (wildcard verb “*”)'));
+    expect(screen.getByLabelText('read')).toBeChecked();
+    expect(screen.getByLabelText('list')).toBeChecked();
+    expect(screen.getByLabelText('create')).toBeChecked();
+    expect(screen.getByLabelText('update')).toBeChecked();
+    expect(screen.getByLabelText('delete')).toBeChecked();
+    expect(screen.getByLabelText('readnosecrets')).toBeChecked();
+    expect(modelRef).toHaveBeenLastCalledWith([
+      expect.objectContaining({ allVerbs: true } as Partial<RuleModel>),
+    ]);
+
+    // Add one more resource type, expecting one more permission to be
+    // available. As now "All" is checked, expect the newly added permission to
+    // be checked, too.
+    await selectEvent.select(screen.getByLabelText('Teleport Resources *'), [
+      'db',
+      'node',
+      'saml',
+      'integration',
+    ]);
+    expect(screen.getByLabelText('use')).toBeChecked();
+
+    // Uncheck one of the checked verbs. Expect "all" to be automatically
+    // unchecked.
+    await user.click(screen.getByLabelText('update'));
+    expect(screen.getByLabelText('All (wildcard verb “*”)')).not.toBeChecked();
+    expect(modelRef).toHaveBeenLastCalledWith([
+      expect.objectContaining({
+        allVerbs: false,
+        verbs: [
+          { verb: 'read', checked: true },
+          { verb: 'list', checked: true },
+          { verb: 'create', checked: true },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: true },
+          { verb: 'readnosecrets', checked: true },
+          { verb: 'use', checked: true },
+        ],
+      } as Partial<RuleModel>),
+    ]);
   });
 
   test('validation', async () => {
@@ -95,7 +170,7 @@ describe('AdminRules', () => {
     ).not.toBeInTheDocument();
 
     // Validation visible
-    act(() => dispatch({ type: 'show-validation-errors' }));
+    act(() => dispatch({ type: ActionType.EnableValidation }));
     expect(
       screen.getByText('At least one resource kind is required')
     ).toBeInTheDocument();

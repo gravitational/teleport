@@ -291,6 +291,13 @@ message UserCertsRequest {
   teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
   // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
   teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
+
+  // ReissuableRoleImpersonation is a flag that indicates whether or not a
+  // role impersonation certificate can be reissued. If set to true, the
+  // generated certificate will be re-issuable, by default, it will not be
+  // re-issuable. This flag is only applicable when UseRoleRequests is set to
+  // true.
+  bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

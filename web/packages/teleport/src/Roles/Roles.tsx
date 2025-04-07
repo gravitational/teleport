@@ -38,7 +38,7 @@ import {
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import {
   InfoExternalTextLink,
-  InfoGuideWrapper,
+  InfoGuideButton,
   InfoParagraph,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
@@ -54,8 +54,17 @@ import { RoleList } from './RoleList';
 import templates from './templates';
 import { State, useRoles } from './useRoles';
 
+export enum RoleDiffState {
+  Disabled,
+  Error,
+  PolicyEnabled,
+  LoadingSettings,
+  WaitingForSync,
+  DemoReady,
+}
+
 /** Optional set of props to render the role diff visualizer. */
-type RoleDiffProps = {
+export type RoleDiffProps = {
   roleDiffElement: React.ReactNode;
   updateRoleDiff: (role: Role) => void;
 
@@ -71,6 +80,9 @@ type RoleDiffProps = {
   // updated.
   roleDiffAttempt?: Attempt<unknown>;
   clearRoleDiffAttempt?: () => void;
+  enableDemoMode?: () => void;
+  roleDiffState?: RoleDiffState;
+  roleDiffErrorMessage?: string;
 };
 
 export type RolesProps = {
@@ -194,7 +206,7 @@ export function Roles(props: State & RolesProps) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <InfoGuideWrapper guide={<InfoGuide />}>
+        <InfoGuideButton config={{ guide: <InfoGuide /> }}>
           <HoverTooltip
             placement="bottom"
             tipContent={
@@ -224,7 +236,7 @@ export function Roles(props: State & RolesProps) {
               Create New Role
             </Button>
           </HoverTooltip>
-        </InfoGuideWrapper>
+        </InfoGuideButton>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />
