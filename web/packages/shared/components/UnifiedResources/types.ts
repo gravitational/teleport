@@ -140,7 +140,6 @@ export type UnifiedResourcesQueryParams = {
     dir: 'ASC' | 'DESC';
   };
   pinnedOnly?: boolean;
-  statuses?: ResourceStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
   includedResourceMode?: IncludedResourceMode;
@@ -157,10 +156,6 @@ export interface UnifiedResourceViewItem {
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;
-  /**
-   * If undefined, status is not supported.
-   * TODO: test with cluster with old versions of teleport, how to handle?
-   */
   status?: ResourceStatus;
 }
 
@@ -199,10 +194,6 @@ export type ResourceItemProps = {
   requiresRequest?: boolean;
   pinningSupport: PinningSupport;
   expandAllLabels: boolean;
-  /**
-   * If undefined, status is not supported.
-   * TODO: test with cluster with old versions of teleport, how to handle?
-   */
   status?: ResourceStatus;
   onShowStatusInfo(): void;
   viewingUnhealthyStatus: boolean;
