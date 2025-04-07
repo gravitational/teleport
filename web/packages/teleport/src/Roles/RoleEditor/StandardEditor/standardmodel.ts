@@ -1019,9 +1019,11 @@ function ruleToModel(
   if (allVerbs) {
     // If there's a wildcard, it needs to be the only verb. Other combinations
     // are not supported because of the editor UI structure.
+    // TODO(bl-nero): Consider adding an explanation field to the conversion
+    // error type.
     if (verbs.length > 1) {
       conversionErrors.push(
-        unsupportedValueWithReplacement(`${pathPrefix}.verbs`, '["*"]')
+        unsupportedValueWithReplacement(`${pathPrefix}.verbs`, ['*'])
       );
     }
   } else {
