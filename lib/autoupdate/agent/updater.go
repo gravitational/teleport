@@ -800,7 +800,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 		Insecure:    u.InsecureSkipVerify,
 		Timeout:     30 * time.Second,
 		UpdateGroup: cfg.Spec.Group,
-		UpdateHost:  id,
+		UpdateID:    id,
 		Pool:        u.Pool,
 	})
 	if err != nil {

@@ -55,12 +55,12 @@ const (
 	// before others.
 	AgentUpdateGroupParameter = "group"
 
-	// AgentUpdateHostParameter is the parameter used to specify the updater
-	// host during a Ping() or Find() query.
+	// AgentUpdateIDParameter is the parameter used to specify the updater
+	// ID during a Ping() or Find() query.
 	// The proxy server will modulate the auto_update part of the PingResponse
-	// based on the specified host ID. e.g. canary hosts might need to update
+	// based on the specified update ID. e.g. canary hosts might need to update
 	// before others.
-	AgentUpdateHostParameter = "host"
+	AgentUpdateIDParameter = "update_id"
 )
 
 // Config specifies information when building requests with the
@@ -87,9 +87,9 @@ type Config struct {
 	// UpdateGroup is used to vary the webapi response based on the
 	// client's Managed Update group.
 	UpdateGroup string
-	// UpdateHost is used to vary the webapi response based on the
-	// client's Managed Update Host ID.
-	UpdateHost string
+	// UpdateID is used to vary the webapi response based on the
+	// client's Managed Update ID.
+	UpdateID string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -204,8 +204,8 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	if cfg.UpdateGroup != "" {
 		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
 	}
-	if cfg.UpdateHost != "" {
-		query[AgentUpdateHostParameter] = []string{cfg.UpdateHost}
+	if cfg.UpdateID != "" {
+		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
 	}
 	endpoint.RawQuery = query.Encode()
 
@@ -256,8 +256,8 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	if cfg.UpdateGroup != "" {
 		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
 	}
-	if cfg.UpdateHost != "" {
-		query[AgentUpdateHostParameter] = []string{cfg.UpdateHost}
+	if cfg.UpdateID != "" {
+		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
 	}
 	endpoint.RawQuery = query.Encode()
 	if cfg.ConnectorName != "" {
