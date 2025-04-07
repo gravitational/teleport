@@ -21,11 +21,10 @@ import {
   InfoGuideContainer,
   useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { resourceStatusInfoPanel } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 
 import { statusBarHeight } from '../StatusBar';
 import { tabHeight } from '../Tabs';
-
-export const infoGuidePanelWidth = 400;
 
 /**
  * An info panel that always slides from the right and supports closing
@@ -42,7 +41,7 @@ export const InfoGuideSidePanel = () => {
     <SlidingSidePanel
       isVisible={infoGuideSidePanelOpened}
       skipAnimation={false}
-      panelWidth={infoGuideConfig?.panelWidth || infoGuidePanelWidth}
+      panelWidth={infoGuideConfig?.panelWidth || resourceStatusInfoPanel}
       zIndex={10}
       slideFrom="right"
       css={`
