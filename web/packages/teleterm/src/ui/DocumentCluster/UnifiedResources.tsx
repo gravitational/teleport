@@ -33,7 +33,7 @@ import {
 import {
   marginTransitionCss,
   resourceStatusInfoPanel,
-} from 'shared/components/SlidingSidePanel/InfoGuide/const';
+} from 'shared/components/SlidingSidePanel/InfoGuide/constants';
 import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,

@@ -27,9 +27,8 @@ import {
   getStaticNameAndIcon,
 } from 'teleterm/ui/services/workspacesService';
 
+import { tabHeight } from './constants';
 import { NewTabItem, TabItem } from './TabItem';
-
-export const tabHeight = 32;
 
 export function Tabs(props: Props) {
   const {
