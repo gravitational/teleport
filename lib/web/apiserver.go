@@ -972,6 +972,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
+	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
