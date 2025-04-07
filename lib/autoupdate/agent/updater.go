@@ -176,7 +176,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		SetupNamespace:    ns.Setup,
 		TeardownNamespace: ns.Teardown,
 		LogConfigWarnings: ns.LogWarnings,
-		EnsureUpdaterID:   ns.EnsureID,
+		EnsureUpdateID:    ns.EnsureID,
 	}, nil
 }
 
@@ -232,9 +232,9 @@ type Updater struct {
 	TeardownNamespace func(ctx context.Context) error
 	// LogConfigWarnings logs warnings related to the configuration Namespace.
 	LogConfigWarnings func(ctx context.Context, pathDir string)
-	// EnsureUpdaterID generates and/or retrieves an ID for the updater, ensuring it is persisted.
+	// EnsureUpdateID generates and/or retrieves an ID for the updater, ensuring it is persisted.
 	// This ID is read by the Teleport agent and used to schedule progressive updates.
-	EnsureUpdaterID func() (string, error)
+	EnsureUpdateID func() (string, error)
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -365,7 +365,7 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 		return trace.Wrap(err)
 	}
 	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
-	cfg.Status.IDFile, err = u.EnsureUpdaterID()
+	cfg.Status.IDFile, err = u.EnsureUpdateID()
 	if err != nil {
 		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
 	}
@@ -683,7 +683,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 		return trace.Wrap(err)
 	}
 	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
-	cfg.Status.IDFile, err = u.EnsureUpdaterID()
+	cfg.Status.IDFile, err = u.EnsureUpdateID()
 	if err != nil {
 		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
 	}

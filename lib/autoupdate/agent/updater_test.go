@@ -836,7 +836,7 @@ func TestUpdater_Update(t *testing.T) {
 				revertSetupCalls++
 				return nil
 			}
-			updater.EnsureUpdaterID = func() (string, error) {
+			updater.EnsureUpdateID = func() (string, error) {
 				return "updater-id-file", nil
 			}
 
@@ -1778,7 +1778,7 @@ func TestUpdater_Install(t *testing.T) {
 				revertSetupCalls++
 				return nil
 			}
-			updater.EnsureUpdaterID = func() (string, error) {
+			updater.EnsureUpdateID = func() (string, error) {
 				return "updater-id-file", nil
 			}
 
