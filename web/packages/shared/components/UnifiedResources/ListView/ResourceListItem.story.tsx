@@ -124,6 +124,9 @@ export const ListItems: Story = {
             labels={res.labels}
             ActionButton={res.ActionButton}
             expandAllLabels={false}
+            onShowStatusInfo={() => null}
+            viewingUnhealthyStatus={false}
+            status={res.status}
           />
         ))}
       </Flex>
