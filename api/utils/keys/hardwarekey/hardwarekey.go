@@ -19,7 +19,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
-	"crypto/sha512"
 	"encoding/json"
 	"io"
 
@@ -82,8 +81,12 @@ func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
 	// ed25519 keys only support sha512 hashing, or no hashing. Currently we don't support
 	// ed25519 hardware keys outside of the mocked PIV service, but we may extend support in
 	// the future as newer keys are being made with ed25519 support (YubiKey 5.7.x, SoloKey).
-	hash := sha512.Sum512(make([]byte, 512))
-	_, err := h.service.Sign(ctx, h.Ref, rand.Reader, hash[:], crypto.SHA512)
+	hash := crypto.SHA512
+
+	// We don't actually need to hash the digest, just make it match the hash size.
+	digest := make([]byte, hash.Size())
+
+	_, err := h.service.Sign(ctx, h.Ref, rand.Reader, digest, hash)
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
