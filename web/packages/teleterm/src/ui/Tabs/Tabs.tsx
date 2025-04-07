@@ -29,6 +29,8 @@ import {
 
 import { NewTabItem, TabItem } from './TabItem';
 
+export const tabHeight = 32;
+
 export function Tabs(props: Props) {
   const {
     items,
@@ -93,9 +95,9 @@ type Props = {
 };
 
 // TODO(bl-nero): Typography should have a more restrictive type.
-const StyledTabs = styled(Box)<TypographyProps>`
+export const StyledTabs = styled(Box)<TypographyProps>`
   background-color: ${props => props.theme.colors.levels.surface};
-  min-height: 32px;
+  min-height: ${tabHeight}px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
