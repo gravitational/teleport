@@ -718,10 +718,7 @@ describe('roleToRoleEditorModel', () => {
         {
           type: ConversionErrorType.UnsupportedValueWithReplacement,
           errors: [
-            unsupportedValueWithReplacement(
-              'spec.allow.rules[3].verbs',
-              '["*"]'
-            ),
+            unsupportedValueWithReplacement('spec.allow.rules[3].verbs', ['*']),
             unsupportedValueWithReplacement(
               'spec.options.cert_format',
               'standard'

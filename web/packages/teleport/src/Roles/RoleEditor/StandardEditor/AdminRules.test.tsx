@@ -114,7 +114,7 @@ describe('AdminRules', () => {
     ] as RuleModel[]);
 
     // Select "All". Expect everything else to be checked.
-    await user.click(screen.getByLabelText('All (*)'));
+    await user.click(screen.getByLabelText('All (wildcard verb “*”)'));
     expect(screen.getByLabelText('read')).toBeChecked();
     expect(screen.getByLabelText('list')).toBeChecked();
     expect(screen.getByLabelText('create')).toBeChecked();
@@ -139,7 +139,7 @@ describe('AdminRules', () => {
     // Uncheck one of the checked verbs. Expect "all" to be automatically
     // unchecked.
     await user.click(screen.getByLabelText('update'));
-    expect(screen.getByLabelText('All (*)')).not.toBeChecked();
+    expect(screen.getByLabelText('All (wildcard verb “*”)')).not.toBeChecked();
     expect(modelRef).toHaveBeenLastCalledWith([
       expect.objectContaining({
         allVerbs: false,

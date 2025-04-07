@@ -230,8 +230,8 @@ function VerbEditor({
   const id = useId();
   const { valid, message } = useRule(rule(verbs));
 
-  // This is dumb, but it works for now, as the editor is fixed-width (defined
-  // in the RoleEditorAdapter component).
+  // Hardcoded column works here because the editor is fixed-width (defined in
+  // the RoleEditorAdapter component).
   const numColumns = verbs.some(
     v => v.verb === 'create_enroll_token' || v.verb === 'readnosecrets'
   )
@@ -244,7 +244,7 @@ function VerbEditor({
         <LabelContent required>Permissions</LabelContent>
       </Legend>
       <FieldCheckbox
-        label={'All (*)'}
+        label={'All (wildcard verb “*”)'}
         checked={allVerbs}
         onChange={e => onAllVerbsChange(e.target.checked)}
         mb={0}
