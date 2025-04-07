@@ -21,9 +21,13 @@ import (
 )
 
 var (
-	PromptPolicyNone        = PromptPolicy{TouchRequired: false, PINRequired: false}
-	PromptPolicyTouch       = PromptPolicy{TouchRequired: true, PINRequired: false}
-	PromptPolicyPIN         = PromptPolicy{TouchRequired: false, PINRequired: true}
+	// PromptPolicyNone does not require touch or pin.
+	PromptPolicyNone = PromptPolicy{TouchRequired: false, PINRequired: false}
+	// PromptPolicyTouch requires touch.
+	PromptPolicyTouch = PromptPolicy{TouchRequired: true, PINRequired: false}
+	// PromptPolicyPIN requires pin.
+	PromptPolicyPIN = PromptPolicy{TouchRequired: false, PINRequired: true}
+	// PromptPolicyTouchAndPIN requires touch and pin.
 	PromptPolicyTouchAndPIN = PromptPolicy{TouchRequired: true, PINRequired: true}
 )
 

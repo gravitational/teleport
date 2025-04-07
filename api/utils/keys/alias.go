@@ -18,6 +18,9 @@ import "github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 // Temporary aliases for types moved to the hardwarekey or piv packages
 // TODO(Joerger): Remove once /e no longer relies on them.
 
+// AttestationStatement is an attestation statement for a hardware private key
+// that supports json marshaling through the standard json/encoding package.
 type AttestationStatement = hardwarekey.AttestationStatement
 
+// AttestationStatementFromProto converts an AttestationStatement from its protobuf form.
 var AttestationStatementFromProto = hardwarekey.AttestationStatementFromProto
