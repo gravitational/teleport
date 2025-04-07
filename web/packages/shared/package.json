@@ -9,6 +9,9 @@
     "url": "https://github.com/gravitational/webapps/webapps.git",
     "directory": "packages/shared"
   },
+  "scripts": {
+    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && RUST_MIN_STACK=16777216 wasm-pack build ./libs/ironrdp --target web"
+  },
   "dependencies": {
     "@gravitational/design": "workspace:*",
     "@xterm/addon-search": "^0.15.0",

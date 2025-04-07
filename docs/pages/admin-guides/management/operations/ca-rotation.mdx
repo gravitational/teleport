@@ -268,7 +268,7 @@ the `/.well-known/openid-configuration` path of the Web UI and reading the
 `jwks_uri` field:
 
 ```code
-$ curl https://example.teleport.sh/.well-known/open-id-configuration | jq '.jwks_uri'
+$ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
 "https://example.teleport.sh/.well-known-jwks-oidc"
 ```
 
@@ -308,15 +308,26 @@ authority of the chosen type, but does not use it to sign certificates.
    $ tctl status
    Cluster       teleport.example.com
    Version       (=teleport.version=)
-   host CA       initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
-   user CA       never updated
-   db CA         never updated
-   db_client CA  never updated
-   openssh CA    never updated
-   jwt CA        never updated
-   saml_idp CA   never updated
-   oidc_idp CA   never updated
-   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   CA pins: sha256:0000000000000000000000000000000000000000000000000000000000000000
+            sha256:1000000000000000000000000000000000000000000000000000000000000000
+
+   authority rotation                                protocol status  algorithm   storage
+   --------- --------------------------------------- -------- ------- ----------- --------
+   host      in progress (mode: manual, phase: init) SSH      active  Ed25519     software
+                                                     SSH      trusted Ed25519     software
+                                                     TLS      active  ECDSA P-256 software
+                                                     TLS      trusted ECDSA P-256 software
+   user      standby (never rotated)                 SSH      active  Ed25519     software
+                                                     TLS      active  ECDSA P-256 software
+   db        standby (never rotated)                 TLS      active  RSA 2048    software
+   db_client standby (never rotated)                 TLS      active  RSA 2048    software
+   openssh   standby (never rotated)                 SSH      active  Ed25519     software
+   jwt       standby (never rotated)                 JWT      active  ECDSA P-256 software
+   saml_idp  standby (never rotated)                 TLS      active  RSA 2048    software
+   oidc_idp  standby (never rotated)                 JWT      active  RSA 2048    software
+   spiffe    standby (never rotated)                 JWT      active  RSA 2048    software
+                                                     TLS      active  ECDSA P-256 software
+   okta      standby (never rotated)                 JWT      active  ECDSA P-256 software
    ```
 
 1. Perform checks and updates on your infrastructure, depending on
@@ -336,15 +347,26 @@ trust certificates signed by the original CA.
    $ tctl status
    Cluster       teleport.example.com
    Version       (=teleport.version=)
-   host CA       rotating clients (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
-   user CA       never updated
-   db CA         never updated
-   db_client CA  never updated
-   openssh CA    never updated
-   jwt CA        never updated
-   saml_idp CA   never updated
-   oidc_idp CA   never updated
-   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   CA pins: sha256:0000000000000000000000000000000000000000000000000000000000000000
+            sha256:1000000000000000000000000000000000000000000000000000000000000000
+
+   authority rotation                                          protocol status  algorithm   storage
+   --------- ------------------------------------------------- -------- ------- ----------- --------
+   host      in progress (mode: manual, phase: update_clients) SSH      active  Ed25519     software
+                                                               SSH      trusted Ed25519     software
+                                                               TLS      active  ECDSA P-256 software
+                                                               TLS      trusted ECDSA P-256 software
+   user      standby (never rotated)                           SSH      active  Ed25519     software
+                                                               TLS      active  ECDSA P-256 software
+   db        standby (never rotated)                           TLS      active  RSA 2048    software
+   db_client standby (never rotated)                           TLS      active  RSA 2048    software
+   openssh   standby (never rotated)                           SSH      active  Ed25519     software
+   jwt       standby (never rotated)                           JWT      active  ECDSA P-256 software
+   saml_idp  standby (never rotated)                           TLS      active  RSA 2048    software
+   oidc_idp  standby (never rotated)                           JWT      active  RSA 2048    software
+   spiffe    standby (never rotated)                           JWT      active  RSA 2048    software
+                                                               TLS      active  ECDSA P-256 software
+   okta      standby (never rotated)                           JWT      active  ECDSA P-256 software
    ```
 
 1. Check or update infrastructure that depends on your CA before proceeding to
@@ -372,15 +394,26 @@ affects the `host` CA.
    $ tctl status
    Cluster       teleport.example.com
    Version       (=teleport.version=)
-   host CA       rotating servers (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
-   user CA       never updated
-   db CA         never updated
-   db_client CA  never updated
-   openssh CA    never updated
-   jwt CA        never updated
-   saml_idp CA   never updated
-   oidc_idp CA   never updated
-   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   CA pins: sha256:0000000000000000000000000000000000000000000000000000000000000000
+            sha256:1000000000000000000000000000000000000000000000000000000000000000
+
+   authority rotation                                          protocol status  algorithm   storage
+   --------- ------------------------------------------------- -------- ------- ----------- --------
+   host      in progress (mode: manual, phase: update_servers) SSH      active  Ed25519     software
+                                                               SSH      trusted Ed25519     software
+                                                               TLS      active  ECDSA P-256 software
+                                                               TLS      trusted ECDSA P-256 software
+   user      standby (never rotated)                           SSH      active  Ed25519     software
+                                                               TLS      active  ECDSA P-256 software
+   db        standby (never rotated)                           TLS      active  RSA 2048    software
+   db_client standby (never rotated)                           TLS      active  RSA 2048    software
+   openssh   standby (never rotated)                           SSH      active  Ed25519     software
+   jwt       standby (never rotated)                           JWT      active  ECDSA P-256 software
+   saml_idp  standby (never rotated)                           TLS      active  RSA 2048    software
+   oidc_idp  standby (never rotated)                           JWT      active  RSA 2048    software
+   spiffe    standby (never rotated)                           JWT      active  RSA 2048    software
+                                                               TLS      active  ECDSA P-256 software
+   okta      standby (never rotated)                           JWT      active  ECDSA P-256 software
    ```
 
 1. Configure and check resources depending on the CA you are rotating. This is
@@ -408,15 +441,23 @@ resources that rely on the CA that you rotated.
    $ tctl status
    Cluster       teleport.example.com
    Version       (=teleport.version=)
-   host CA       rotated Sep 20 2023 02:11:25 UTC
-   user CA       never updated
-   db CA         never updated
-   db_client CA  never updated
-   openssh CA    never updated
-   jwt CA        never updated
-   saml_idp CA   never updated
-   oidc_idp CA   never updated
-   CA pin        sha256:0000000000000000000000000000000000000000000000000000000000000000
+   CA pins: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+   authority rotation                                        protocol status algorithm   storage
+   --------- ----------------------------------------------- -------- ------ ----------- --------
+   host      standby (last rotated: Apr 4 2025 10:14:51 UTC) SSH      active Ed25519     software
+                                                             TLS      active ECDSA P-256 software
+   user      standby (never rotated)                         SSH      active Ed25519     software
+                                                             TLS      active ECDSA P-256 software
+   db        standby (never rotated)                         TLS      active RSA 2048    software
+   db_client standby (never rotated)                         TLS      active RSA 2048    software
+   openssh   standby (never rotated)                         SSH      active Ed25519     software
+   jwt       standby (never rotated)                         JWT      active ECDSA P-256 software
+   saml_idp  standby (never rotated)                         TLS      active RSA 2048    software
+   oidc_idp  standby (never rotated)                         JWT      active RSA 2048    software
+   spiffe    standby (never rotated)                         JWT      active RSA 2048    software
+                                                             TLS      active ECDSA P-256 software
+   okta      standby (never rotated)                         JWT      active ECDSA P-256 software
    ```
 
 1. Follow the instructions for your CA to ensure that you can connect to

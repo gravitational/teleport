@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -73,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/okta/oktatest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -5490,6 +5492,270 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	}
 }
 
+func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// 1. Create Okta-originated app server in the backend.
+
+	searchableOktaApp := newTestAppServerV3(t, srv.Auth(), "serachable-okta-app", map[string]string{
+		"name":            "serachable-okta-app",
+		types.OriginLabel: types.OriginOkta,
+	})
+
+	// 2. Create a role allowing the Okta app (used for search_as_roles)
+
+	searchRole, err := CreateRole(ctx, srv.Auth(), "serach_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"name": {searchableOktaApp.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 3. Create the user role allowing to search Okta app
+
+	aliceRole, err := CreateRole(ctx, srv.Auth(), "alice_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{
+					searchRole.GetName(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 4. Create the user
+
+	alice, err := CreateUser(ctx, srv.Auth(), "alice", aliceRole)
+	require.NoError(t, err)
+
+	// 5. Create a client for the user
+
+	aliceClt, err := srv.NewClient(TestUser(alice.GetName()))
+	require.NoError(t, err)
+
+	// 6. Prepare access requests
+
+	testAccessRequests := []types.AccessRequest{
+		// requesting app
+		mustAccessRequest(t, alice.GetName(), types.RequestState_PENDING, srv.Clock().Now(), srv.Clock().Now().Add(time.Hour),
+			[]string{}, // roles
+			[]types.ResourceID{
+				mustResourceID(srv.ClusterName(), types.KindApp, searchableOktaApp.GetName()),
+			},
+		),
+		// requesting app_server
+		mustAccessRequest(t, alice.GetName(), types.RequestState_PENDING, srv.Clock().Now(), srv.Clock().Now().Add(time.Hour),
+			[]string{}, // roles
+			[]types.ResourceID{
+				mustResourceID(srv.ClusterName(), types.KindAppServer, searchableOktaApp.GetName()),
+			},
+		),
+	}
+
+	// 7. Run tests
+
+	t.Run("requesting okta resources but no okta plugin", func(t *testing.T) {
+		// Note: Okta-originated resources present in the cluster and no Okta plugin
+		// configured is the situation where the plugin was freshly deleted and the
+		// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
+		// error is a bit confusing.
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+		}
+	})
+
+	t.Run("requesting okta resources and okta bidirectional sync enabled", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SyncAccessLists:          true,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: false,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("requesting okta resources and okta bidirectional sync disabled", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SyncAccessLists:          true,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: true,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+		}
+	})
+}
+
+func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// 1. Create app resources
+
+	searchableGenericApp := newTestAppServerV3(t, srv.Auth(),
+		"test_generic_app",
+		map[string]string{
+			"find_me": "please",
+		},
+	)
+
+	searchableOktaApp := newTestAppServerV3(t, srv.Auth(),
+		"test_searchable_okta_app",
+		map[string]string{
+			"find_me":         "please",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
+
+	assignedOktaApp := newTestAppServerV3(t, srv.Auth(),
+		"test_assigned_okta_app",
+		map[string]string{
+			"owner":           "alice",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
+
+	// 2. Create a role allowing the Okta app (used for search_as_roles)
+
+	searchRole, err := CreateRole(ctx, srv.Auth(), "serach_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"find_me": {"please"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 3. Create the user role allowing access to one Okta app and allowing to search the other Okta app
+
+	aliceRole, err := CreateRole(ctx, srv.Auth(), "alice_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"owner": []string{"alice"},
+			},
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{
+					searchRole.GetName(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 4. Create the user
+
+	alice, err := CreateUser(ctx, srv.Auth(), "alice", aliceRole)
+	require.NoError(t, err)
+
+	// 5. Run tests
+
+	type expected struct {
+		name        string
+		requestable bool
+	}
+
+	for _, tc := range []struct {
+		name                  string
+		useSearchAsRoles      bool
+		includeRequestable    bool
+		oktaBidirectionalSync bool
+		expectedResources     []expected
+	}{
+		{
+			name:                  "useSearchAsRoles and Okta bidirectional sync enabled",
+			useSearchAsRoles:      true,
+			oktaBidirectionalSync: true,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableOktaApp.GetName(), requestable: false}, // includes Okta searchable app
+				{name: searchableGenericApp.GetName(), requestable: false},
+			},
+		},
+		{
+			name:                  "useSearchAsRoles and Okta bidirectional sync disabled",
+			useSearchAsRoles:      true,
+			oktaBidirectionalSync: false,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableGenericApp.GetName(), requestable: false},
+			},
+		},
+		{
+			name:                  "includeRequestable and Okta bidirectional sync enabled",
+			includeRequestable:    true,
+			oktaBidirectionalSync: true,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableOktaApp.GetName(), requestable: true}, // includes Okta searchable app
+				{name: searchableGenericApp.GetName(), requestable: true},
+			},
+		},
+		{
+			name:                  "includeRequestable and Okta bidirectional sync disabled",
+			includeRequestable:    true,
+			oktaBidirectionalSync: false,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableGenericApp.GetName(), requestable: true},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := proto.ListUnifiedResourcesRequest{
+				SortBy:             types.SortBy{Field: "name", IsDesc: false},
+				Limit:              int32(1000),
+				IncludeRequestable: tc.includeRequestable,
+				UseSearchAsRoles:   tc.useSearchAsRoles,
+			}
+
+			oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+				oktatest.NewPlugin(t, oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SyncAccessLists:          true,
+					DefaultOwners:            []string{"alice"},
+					DisableBidirectionalSync: !tc.oktaBidirectionalSync,
+				})),
+			)
+
+			aliceClt, err := srv.NewClient(TestUser(alice.GetName()))
+			require.NoError(t, err)
+
+			resp, err := aliceClt.ListUnifiedResources(ctx, &req)
+			require.NoError(t, err)
+
+			var resources []expected
+			for _, resource := range resp.Resources {
+				resources = append(resources, expected{name: resource.GetAppServer().GetName(), requestable: resource.RequiresRequest})
+			}
+			require.Len(t, resources, len(tc.expectedResources))
+			require.ElementsMatch(t, tc.expectedResources, resources)
+		})
+	}
+}
+
 // TestListUnifiedResources_KindsFilter will generate multiple resources
 // and filter for only one kind.
 func TestListUnifiedResources_KindsFilter(t *testing.T) {
@@ -9348,10 +9614,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
 	t.Helper()
 
-	accessRequest, err := types.NewAccessRequest(uuid.NewString(), user, roles...)
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, resourceIDs)
 	require.NoError(t, err)
 
-	accessRequest.SetRequestedResourceIDs(resourceIDs)
 	accessRequest.SetState(state)
 	accessRequest.SetCreationTime(created)
 	accessRequest.SetExpiry(expires)
@@ -10272,4 +10537,36 @@ func TestValidateOracleJoinToken(t *testing.T) {
 			})
 		}
 	})
+}
+
+func newTestAppServerV3(t *testing.T, auth *Server, name string, labels map[string]string) *types.AppServerV3 {
+	t.Helper()
+	ctx := context.Background()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			URI: "https://" + name + ".example.com",
+		},
+	)
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppServerSpecV3{
+			HostID: "test-host-id",
+			App:    app,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = auth.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err, "upserting test Application Server")
+
+	return appServer
 }

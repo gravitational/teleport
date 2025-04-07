@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ClientScreenSpec, TdpClient, TdpClientEvent } from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
 
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { StatusEnum } from 'teleport/lib/player';
-
-import Client, { TdpClientEvent } from './client';
-import { ClientScreenSpec } from './codec';
 
 // we update the time every time we receive data, or
 // at this interval (which ensures that the progress
@@ -36,7 +34,7 @@ enum Action {
   SEEK = 'seek',
 }
 
-export class PlayerClient extends Client {
+export class PlayerClient extends TdpClient {
   private textDecoder = new TextDecoder();
   private setPlayerStatus: React.Dispatch<React.SetStateAction<StatusEnum>>;
   private setStatusText: React.Dispatch<React.SetStateAction<string>>;
