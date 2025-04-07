@@ -217,6 +217,7 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 				"error", err,
 				"rule", rule.GetMetadata().GetName(),
 			)
+			continue
 		}
 
 		if !conditionMatch {
@@ -238,6 +239,7 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 					rule.GetMetadata().GetName(),
 				},
 			)
+			return trace.BadParameter("conflicting access review rules found")
 		}
 	}
 

@@ -59,7 +59,7 @@ func TestInitializeCache(t *testing.T) {
 	}
 
 	mockResp := []*accessmonitoringrulesv1.AccessMonitoringRule{
-		newApprovalRule("test-rule", "condition"),
+		newApprovedRule("test-rule", "condition"),
 	}
 
 	mockClient.On("ListAccessMonitoringRulesWithFilter", mock.Anything, mockReq).
@@ -89,7 +89,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test add rule.
-	rule := newApprovalRule("test-rule", `condition`)
+	rule := newApprovedRule("test-rule", `condition`)
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -98,7 +98,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.True(t, proto.Equal(rule, cache.Get()[0]))
 
 	// Test update rule.
-	rule = newApprovalRule("test-rule", `condition-updated`)
+	rule = newApprovedRule("test-rule", `condition-updated`)
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -114,7 +114,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid automatic approval name.
-	rule = newApprovalRule("test-rule", `condition`)
+	rule = newApprovedRule("test-rule", `condition`)
 	rule.Spec.AutomaticReview.Integration = "invalid"
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
@@ -123,7 +123,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid state.
-	rule = newApprovalRule("test-rule", `condition`)
+	rule = newApprovedRule("test-rule", `condition`)
 	rule.Spec.DesiredState = "invalid"
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
@@ -132,13 +132,89 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	require.Empty(t, cache.Get())
 
 	// Test rule does not apply with invalid subject.
-	rule = newApprovalRule("test-rule", `condition`)
+	rule = newApprovedRule("test-rule", `condition`)
 	rule.Spec.Subjects = []string{"invalid"}
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
 	}))
 	require.Empty(t, cache.Get())
+}
+
+func TestConflictingRules(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	t.Cleanup(cancel)
+
+	testReqID := uuid.New().String()
+	withSecretsFalse := false
+	requesterUserName := "requester"
+
+	// Configure both an approved and denied rule.
+	cache := accessmonitoring.NewCache()
+	cache.Put(newApprovedRule("approved-rule", "true"))
+	cache.Put(newDeniedRule("denied-rule", "true"))
+
+	requester, err := types.NewUser(requesterUserName)
+	require.NoError(t, err)
+
+	client := &mockClient{}
+	client.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+		Return(requester, nil)
+
+	handler, err := NewHandler(Config{
+		HandlerName: handlerName,
+		Client:      client,
+		Cache:       cache,
+	})
+	require.NoError(t, err)
+
+	req, err := types.NewAccessRequest(testReqID, "requester", "role")
+	require.NoError(t, err)
+
+	event := types.Event{
+		Type:     types.OpPut,
+		Resource: req,
+	}
+	require.ErrorContains(t, handler.HandleAccessRequest(ctx, event),
+		"conflicting access review rule")
+}
+
+func TestResourceRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	t.Cleanup(cancel)
+
+	testReqID := uuid.New().String()
+	withSecretsFalse := false
+	requesterUserName := "requester"
+
+	cache := accessmonitoring.NewCache()
+	cache.Put(newApprovedRule("approved-rule", "true"))
+
+	requester, err := types.NewUser(requesterUserName)
+	require.NoError(t, err)
+
+	client := &mockClient{}
+	client.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
+		Return(requester, nil)
+
+	handler, err := NewHandler(Config{
+		HandlerName: handlerName,
+		Client:      client,
+		Cache:       cache,
+	})
+	require.NoError(t, err)
+
+	// Create a request for both a role and node.
+	req, err := types.NewAccessRequest(testReqID, "requester", "role")
+	require.NoError(t, err)
+	req.SetRequestedResourceIDs([]types.ResourceID{{Kind: "node"}})
+
+	event := types.Event{
+		Type:     types.OpPut,
+		Resource: req,
+	}
+	require.ErrorContains(t, handler.HandleAccessRequest(ctx, event),
+		"cannot automatically review access requests for resources other than 'roles")
 }
 
 func TestHandleAccessRequest(t *testing.T) {
@@ -160,7 +236,7 @@ func TestHandleAccessRequest(t *testing.T) {
 
 	// Setup test rule
 	cache := accessmonitoring.NewCache()
-	cache.Put(newApprovalRule(testRuleName,
+	cache.Put(newApprovedRule(testRuleName,
 		fmt.Sprintf(`
 			contains_all(set("%s"), access_request.spec.roles) &&
 			contains_any(user.traits["%s"], set("%s"))`,
@@ -271,7 +347,15 @@ func TestHandleAccessRequest(t *testing.T) {
 	}
 }
 
-func newApprovalRule(name, condition string) *accessmonitoringrulesv1.AccessMonitoringRule {
+func newApprovedRule(name, condition string) *accessmonitoringrulesv1.AccessMonitoringRule {
+	return newReviewRule(name, condition, types.RequestState_APPROVED.String())
+}
+
+func newDeniedRule(name, condition string) *accessmonitoringrulesv1.AccessMonitoringRule {
+	return newReviewRule(name, condition, types.RequestState_DENIED.String())
+}
+
+func newReviewRule(name, condition, decision string) *accessmonitoringrulesv1.AccessMonitoringRule {
 	return &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind: types.KindAccessMonitoringRule,
 		Metadata: &headerv1.Metadata{
@@ -283,7 +367,7 @@ func newApprovalRule(name, condition string) *accessmonitoringrulesv1.AccessMoni
 			DesiredState: types.AccessMonitoringRuleStateReviewed,
 			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 				Integration: handlerName,
-				Decision:    types.RequestState_APPROVED.String(),
+				Decision:    decision,
 			},
 		},
 	}
