@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -2217,9 +2218,9 @@ type certRequest struct {
 	// TLS certificate.
 	tlsPublicKey []byte
 	// sshPublicKeyAttestationStatement is an attestation statement associated with sshPublicKey.
-	sshPublicKeyAttestationStatement *keys.AttestationStatement
+	sshPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 	// tlsPublicKeyAttestationStatement is an attestation statement associated with tlsPublicKey.
-	tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	tlsPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 
 	// user is a user to generate certificate for
 	user services.UserState
@@ -2462,8 +2463,8 @@ type GenerateUserTestCertsRequest struct {
 	RouteToCluster          string
 	PinnedIP                string
 	MFAVerified             string
-	SSHAttestationStatement *keys.AttestationStatement
-	TLSAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
 }
@@ -3485,7 +3486,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 type attestHardwareKeyParams struct {
 	requiredKeyPolicy    keys.PrivateKeyPolicy
 	pubKey               crypto.PublicKey
-	attestationStatement *keys.AttestationStatement
+	attestationStatement *hardwarekey.AttestationStatement
 	sessionTTL           time.Duration
 	readOnlyAuthPref     readonly.AuthPreference
 	userName             string

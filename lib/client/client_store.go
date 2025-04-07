@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -84,7 +85,7 @@ func (s *Store) AddKeyRing(keyRing *KeyRing) error {
 
 // SetCustomHardwareKeyPrompt sets a custom hardware key prompt
 // used to interact with a YubiKey private key.
-func (s *Store) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+func (s *Store) SetCustomHardwareKeyPrompt(prompt hardwarekey.Prompt) {
 	s.KeyStore.SetCustomHardwareKeyPrompt(prompt)
 }
 
