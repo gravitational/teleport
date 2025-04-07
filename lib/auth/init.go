@@ -328,6 +328,10 @@ type InitConfig struct {
 	// WorkloadIdentityX509Revocations.
 	WorkloadIdentityX509Revocations services.WorkloadIdentityX509Revocations
 
+	// WorkloadIdentityX509Overrides handles the storage for workload
+	// identity-related X.509 certificate overrides.
+	WorkloadIdentityX509Overrides services.WorkloadIdentityX509Overrides
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
@@ -342,6 +346,9 @@ type InitConfig struct {
 	// IdentityCenter is the Identity Center state storage service to use in
 	// this node.
 	IdentityCenter services.IdentityCenter
+
+	// Plugins is a service that manages plugin resources for integrations.
+	Plugins *local.PluginsService
 
 	// PluginStaticCredentials handles credentials for integrations and plugins.
 	PluginStaticCredentials services.PluginStaticCredentials
@@ -466,7 +473,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
+		if _, err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
 			return trace.Wrap(err)
 		}
 		asrv.logger.InfoContext(ctx, "Created reverse tunnel", "tunnel", tunnel.GetName())
@@ -530,7 +537,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 
 		// If the cluster name has already been set, log a warning if the user
 		// is trying to change the name.
-		cn, err = asrv.Services.GetClusterName()
+		cn, err = asrv.Services.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1417,7 +1424,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	migrationStart(ctx, "remote_clusters", asrv.logger)
 	defer migrationEnd(ctx, "remote_clusters", asrv.logger)
 
-	clusterName, err := asrv.Services.GetClusterName()
+	clusterName, err := asrv.Services.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1492,13 +1499,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		return cmp.Compare(priorityA, priorityB)
 	})
 	for _, resource := range resources {
-		// Unwrap "new style" resources.
-		// We always want to switch over the underlying type.
-		var res any = resource
-		if w, ok := res.(interface{ Unwrap() types.Resource153 }); ok {
-			res = w.Unwrap()
-		}
-		switch r := res.(type) {
+		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
 		case types.User:
@@ -1513,14 +1514,14 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
-		case *machineidv1pb.Bot:
-			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
-		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
-			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
-		case *autoupdatev1pb.AutoUpdateConfig:
-			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r)
-		case *autoupdatev1pb.AutoUpdateVersion:
-			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r)
+		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
+			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
+		case types.Resource153UnwrapperT[*dbobjectimportrulev1pb.DatabaseObjectImportRule]:
+			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
+			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
+			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

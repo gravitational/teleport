@@ -17,6 +17,7 @@
  */
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import {
   AuthSettings,
   ClientVersionStatus,
@@ -29,7 +30,7 @@ import {
 import { TshdRpcError } from './cloneableClient';
 import * as tsh from './types';
 
-export const rootClusterUri = '/clusters/teleport-local';
+export const rootClusterUri = '/clusters/teleport-local.com';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
@@ -68,15 +69,15 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   ...props,
 });
 
-export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
+export const makeApp = (props: Partial<App> = {}): App => ({
   name: 'foo',
   labels: [],
   endpointUri: 'tcp://localhost:3000',
   friendlyName: '',
   desc: '',
   awsConsole: false,
-  publicAddr: 'local-app.example.com:3000',
-  fqdn: 'local-app.example.com:3000',
+  publicAddr: 'local-app.example.com',
+  fqdn: 'local-app.example.com',
   samlApp: false,
   uri: appUri,
   awsRoles: [],
@@ -94,7 +95,7 @@ export const makeRootCluster = (
   name: 'teleport-local',
   connected: true,
   leaf: false,
-  proxyHost: 'teleport-local:3080',
+  proxyHost: 'teleport-local.com:3080',
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',

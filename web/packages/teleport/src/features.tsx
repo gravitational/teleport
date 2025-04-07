@@ -17,6 +17,7 @@
  */
 
 import {
+  AddCircle,
   Bots as BotsIcon,
   CirclePlay,
   ClipboardUser,
@@ -24,6 +25,7 @@ import {
   Integrations as IntegrationsIcon,
   Key,
   Laptop,
+  License,
   ListAddCheck,
   ListThin,
   LockKey,
@@ -65,6 +67,7 @@ import { TrustedClusters } from './TrustedClusters';
 import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
 import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
+import { EmptyState as WorkloadIdentityEmptyState } from './WorkloadIdentity/EmptyState/EmptyState';
 
 // to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
 // However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
@@ -102,7 +105,7 @@ class AccessRequests implements TeleportFeature {
 }
 
 export class FeatureJoinTokens implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   navigationItem = {
     title: NavTitle.JoinTokens,
@@ -202,7 +205,7 @@ export class FeatureSessions implements TeleportFeature {
 // - Access
 
 export class FeatureUsers implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Manage Users',
@@ -233,7 +236,7 @@ export class FeatureUsers implements TeleportFeature {
 }
 
 export class FeatureBots implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.MachineWorkloadId;
 
   route = {
     title: 'Manage Bots',
@@ -266,6 +269,24 @@ export class FeatureBots implements TeleportFeature {
   }
 }
 
+export class FeatureAddBotsShortcut implements TeleportFeature {
+  category = NavigationCategory.MachineWorkloadId;
+  isHyperLink = true;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.addBots;
+  }
+
+  navigationItem = {
+    title: NavTitle.NewBotShortcut,
+    icon: AddCircle,
+    exact: true,
+    getLink() {
+      return cfg.getBotsNewRoute();
+    },
+  };
+}
+
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.AddNew;
 
@@ -296,7 +317,7 @@ export class FeatureAddBots implements TeleportFeature {
 }
 
 export class FeatureRoles implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Manage User Roles',
@@ -328,7 +349,7 @@ export class FeatureRoles implements TeleportFeature {
 }
 
 export class FeatureAuthConnectors implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Manage Auth Connectors',
@@ -357,7 +378,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 }
 
 export class FeatureLocks implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
 
   route = {
     title: 'Session & Identity Locks',
@@ -431,7 +452,7 @@ export class FeatureDiscover implements TeleportFeature {
 }
 
 export class FeatureIntegrations implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   hasAccess(flags: FeatureFlags) {
     // if feature hiding is enabled, only show
@@ -550,7 +571,7 @@ export class FeatureAudit implements TeleportFeature {
 // - Clusters
 
 export class FeatureClusters implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Clusters',
@@ -583,7 +604,7 @@ export class FeatureClusters implements TeleportFeature {
 }
 
 export class FeatureTrust implements TeleportFeature {
-  category = NavigationCategory.Access;
+  category = NavigationCategory.ZeroTrustAccess;
 
   route = {
     title: 'Trusted Root Clusters',
@@ -605,8 +626,35 @@ export class FeatureTrust implements TeleportFeature {
   };
 }
 
+export class FeatureWorkloadIdentity implements TeleportFeature {
+  category = NavigationCategory.MachineWorkloadId;
+  route = {
+    title: 'Workload Identity',
+    path: cfg.routes.workloadIdentity,
+    exact: true,
+    component: WorkloadIdentityEmptyState,
+  };
+
+  // for now, workload identity page is just a placeholder so everyone has
+  // access, unless feature hiding is off
+  hasAccess(): boolean {
+    if (shouldHideFromNavigation(cfg)) {
+      return false;
+    }
+    return true;
+  }
+  navigationItem = {
+    title: NavTitle.WorkloadIdentity,
+    icon: License,
+    getLink() {
+      return cfg.routes.workloadIdentity;
+    },
+    searchableTags: ['workload identity', 'workload', 'identity'],
+  };
+}
+
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.Identity;
+  category = NavigationCategory.IdentityGovernance;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -703,7 +751,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
-    // TODO(rudream): Implement shortcuts to pinned/nodes/apps/dbs/desktops/kubes.
     new FeatureUnifiedResources(),
 
     // AddNew
@@ -714,6 +761,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureBots(),
+    new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
     new FeatureAuthConnectors(),
@@ -727,6 +775,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureLocks(),
     new FeatureNewLock(),
     new FeatureDeviceTrust(),
+    new FeatureWorkloadIdentity(),
 
     // - Audit
     new FeatureAudit(),

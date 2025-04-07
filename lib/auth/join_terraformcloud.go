@@ -59,7 +59,7 @@ func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.
 
 	aud := token.Spec.TerraformCloud.Audience
 	if aud == "" {
-		clusterName, err := a.GetClusterName()
+		clusterName, err := a.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

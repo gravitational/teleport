@@ -191,12 +191,13 @@ func (a *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.Use
 }
 
 func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
+	ctx := context.TODO()
 	// Fetch account name to display in OTP apps.
 	accountName, err := formatAccountName(a, user, a.AuthServiceName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

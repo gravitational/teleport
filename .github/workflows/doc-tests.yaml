@@ -14,6 +14,8 @@ jobs:
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
       changed_files: ${{ steps.changes.outputs.changed_files }}
+      new_docs_content: ${{ steps.changes.outputs.new_docs_content }}
+      new_docs_content_files: ${{ steps.changes.outputs.new_docs_content_files }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -30,6 +32,8 @@ jobs:
               - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
+            new_docs_content:
+              - added|modified: 'docs/pages/**/*.mdx'
 
   doc-tests:
     name: Lint (Docs)
@@ -140,31 +144,3 @@ jobs:
       - name: Test the docs build
         working-directory: docs
         run: yarn build
-
-  stylecheck:
-    name: Lint docs prose style
-    runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
-    permissions:
-      pull-requests: read
-    steps:
-      - name: Check out the teleport repo
-        uses: actions/checkout@v4
-        with:
-          repository: "gravitational/teleport"
-
-      - name: Run the linter
-        uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
-        with:
-          version: 3.9.4
-          # Take the comma-separated list of files returned by the "Check for
-          # relevant changes" job.
-          separator: ","
-          files: ${{ needs.changes.outputs.changed_files }}
-          # Restrict the linter to lines modified/added by a PR, not entire
-          # changed files.
-          filter_mode: added
-          fail_on_error: true
-          vale_flags: "--config=docs/.vale.ini"
-

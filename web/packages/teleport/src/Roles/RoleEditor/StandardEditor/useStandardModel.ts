@@ -22,7 +22,7 @@ import { useImmerReducer } from 'use-immer';
 
 import { Logger } from 'design/logger';
 
-import { Role, RoleVersion } from 'teleport/services/resources';
+import { Role, RoleVersion, Verb } from 'teleport/services/resources';
 
 import {
   hasModifiedFields,
@@ -30,12 +30,13 @@ import {
   newResourceAccess,
   newRole,
   newRuleModel,
+  newVerbsModel,
   OptionsModel,
   ResourceAccess,
   ResourceAccessKind,
+  ResourceKindOption,
   RoleEditorModel,
   roleToRoleEditorModel,
-  RuleModel,
   StandardEditorModel,
 } from './standardmodel';
 import { validateRoleEditorModel } from './validation';
@@ -80,6 +81,23 @@ const safelyConvertRoleToEditorModel = (
 /** A function for dispatching model-changing actions. */
 export type StandardModelDispatcher = Dispatch<StandardModelAction>;
 
+export enum ActionType {
+  SetModel = 'SetModel',
+  ResetToStandard = 'ResetToStandard',
+  SetMetadata = 'SetMetadata',
+  AddResourceAccess = 'AddResourceAccess',
+  SetResourceAccess = 'SetResourceAccess',
+  RemoveResourceAccess = 'RemoveResourceAccess',
+  AddAdminRule = 'AddAdminRule',
+  SetAdminRuleResources = 'SetAdminRuleResources',
+  SetAdminRuleVerb = 'SetAdminRuleVerb',
+  SetAdminRuleAllVerbs = 'SetAdminRuleAllVerbs',
+  SetAdminRuleWhere = 'SetAdminRuleWhere',
+  RemoveAdminRule = 'RemoveAdminRule',
+  SetOptions = 'SetOptions',
+  EnableValidation = 'EnableValidation',
+}
+
 type StandardModelAction =
   | SetModelAction
   | ResetToStandardAction
@@ -87,34 +105,63 @@ type StandardModelAction =
   | AddResourceAccessAction
   | SetResourceAccessAction
   | RemoveResourceAccessAction
-  | AddAccessRuleAction
-  | SetAccessRuleAction
-  | RemoveAccessRuleAction
-  | SetOptionsAction;
+  | AddAdminRuleAction
+  | SetAdminRuleResourcesAction
+  | SetAdminRuleVerbAction
+  | SetAdminRuleAllVerbsAction
+  | SetAdminRuleWhereAction
+  | RemoveAdminRuleAction
+  | SetOptionsAction
+  | EnableValidationAction;
 
 /** Sets the entire model. */
-type SetModelAction = { type: 'set-role-model'; payload: RoleEditorModel };
-type ResetToStandardAction = { type: 'reset-to-standard'; payload?: never };
-type SetMetadataAction = { type: 'set-metadata'; payload: MetadataModel };
+type SetModelAction = { type: ActionType.SetModel; payload: RoleEditorModel };
+type ResetToStandardAction = {
+  type: ActionType.ResetToStandard;
+  payload?: never;
+};
+type SetMetadataAction = {
+  type: ActionType.SetMetadata;
+  payload: MetadataModel;
+};
 type AddResourceAccessAction = {
-  type: 'add-resource-access';
+  type: ActionType.AddResourceAccess;
   payload: { kind: ResourceAccessKind };
 };
 type SetResourceAccessAction = {
-  type: 'set-resource-access';
+  type: ActionType.SetResourceAccess;
   payload: ResourceAccess;
 };
 type RemoveResourceAccessAction = {
-  type: 'remove-resource-access';
+  type: ActionType.RemoveResourceAccess;
   payload: { kind: ResourceAccessKind };
 };
-type AddAccessRuleAction = { type: 'add-access-rule'; payload?: never };
-type SetAccessRuleAction = { type: 'set-access-rule'; payload: RuleModel };
-type RemoveAccessRuleAction = {
-  type: 'remove-access-rule';
+type AddAdminRuleAction = { type: 'add-access-rule'; payload?: never };
+type SetAdminRuleResourcesAction = {
+  type: ActionType.SetAdminRuleResources;
+  payload: { id: string; resources: readonly ResourceKindOption[] };
+};
+type SetAdminRuleVerbAction = {
+  type: ActionType.SetAdminRuleVerb;
+  payload: { id: string; verb: Verb; checked: boolean };
+};
+type SetAdminRuleAllVerbsAction = {
+  type: ActionType.SetAdminRuleAllVerbs;
+  payload: { id: string; checked: boolean };
+};
+type SetAdminRuleWhereAction = {
+  type: ActionType.SetAdminRuleWhere;
+  payload: { id: string; where: string };
+};
+type RemoveAdminRuleAction = {
+  type: ActionType.RemoveAdminRule;
   payload: { id: string };
 };
-type SetOptionsAction = { type: 'set-options'; payload: OptionsModel };
+type SetOptionsAction = { type: ActionType.SetOptions; payload: OptionsModel };
+type EnableValidationAction = {
+  type: ActionType.EnableValidation;
+  payload?: never;
+};
 
 /** Produces a new model using existing state and the action. */
 const reduce = (
@@ -128,16 +175,16 @@ const reduce = (
   // This reduce uses Immer, so we modify the model draft directly.
   // TODO(bl-nero): add immutability to the model data types.
   switch (type) {
-    case 'set-role-model':
+    case ActionType.SetModel:
       state.roleModel = payload;
       break;
 
-    case 'reset-to-standard':
+    case ActionType.ResetToStandard:
       state.roleModel.conversionErrors = [];
       state.roleModel.requiresReset = false;
       break;
 
-    case 'set-metadata':
+    case ActionType.SetMetadata:
       state.roleModel.metadata = payload;
       updateRoleVersionInResources(
         state.roleModel.resources,
@@ -145,23 +192,23 @@ const reduce = (
       );
       break;
 
-    case 'set-options':
+    case ActionType.SetOptions:
       state.roleModel.options = payload;
       break;
 
-    case 'add-resource-access':
+    case ActionType.AddResourceAccess:
       state.roleModel.resources.push(
         newResourceAccess(payload.kind, state.roleModel.metadata.version.value)
       );
       break;
 
-    case 'set-resource-access':
+    case ActionType.SetResourceAccess:
       state.roleModel.resources = state.roleModel.resources.map(r =>
         r.kind === payload.kind ? payload : r
       );
       break;
 
-    case 'remove-resource-access':
+    case ActionType.RemoveResourceAccess:
       state.roleModel.resources = state.roleModel.resources.filter(
         r => r.kind !== payload.kind
       );
@@ -171,16 +218,67 @@ const reduce = (
       state.roleModel.rules.push(newRuleModel());
       break;
 
-    case 'set-access-rule':
-      state.roleModel.rules = state.roleModel.rules.map(r =>
-        r.id === payload.id ? payload : r
-      );
+    case ActionType.SetAdminRuleResources: {
+      const rule = state.roleModel.rules.find(r => r.id === payload.id);
+      rule.resources = payload.resources;
+      // Update the verbs, as with changing resources, the list of allowed
+      // verbs may also change.
+      const newVerbs = newVerbsModel(rule.resources);
+      for (const nv of newVerbs) {
+        if (rule.allVerbs) {
+          // If the "All" checkbox is selected, just keep everything checked.
+          nv.checked = true;
+        } else {
+          // Otherwise, copy from the current state.
+          const currentVerb = rule.verbs.find(cv => cv.verb == nv.verb);
+          if (currentVerb) {
+            nv.checked = currentVerb.checked;
+          }
+        }
+      }
+      rule.verbs = newVerbs;
+      break;
+    }
+
+    case ActionType.SetAdminRuleVerb: {
+      const rule = state.roleModel.rules.find(r => r.id === payload.id);
+      rule.verbs.find(v => v.verb === payload.verb).checked = payload.checked;
+      if (!payload.checked) {
+        rule.allVerbs = false;
+      }
+      break;
+    }
+
+    case ActionType.SetAdminRuleAllVerbs: {
+      const rule = state.roleModel.rules.find(r => r.id === payload.id);
+      rule.allVerbs = payload.checked;
+      // When we check the "All" checkbox, all verbs should be checked
+      // immediately. When we uncheck the "All" checkbox, all verbs should be
+      // cleared.
+      for (const v of rule.verbs) {
+        v.checked = payload.checked;
+      }
+      break;
+    }
+
+    case ActionType.SetAdminRuleWhere:
+      state.roleModel.rules.find(r => r.id === payload.id).where =
+        payload.where;
       break;
 
-    case 'remove-access-rule':
+    case ActionType.RemoveAdminRule:
       state.roleModel.rules = state.roleModel.rules.filter(
         r => r.id !== payload.id
       );
+      break;
+
+    case ActionType.EnableValidation:
+      for (const r of state.roleModel.resources) {
+        r.hideValidationErrors = false;
+      }
+      for (const r of state.roleModel.rules) {
+        r.hideValidationErrors = false;
+      }
       break;
 
     default:

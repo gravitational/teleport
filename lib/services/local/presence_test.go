@@ -1323,7 +1323,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
-		err = presenceService.UpsertReverseTunnel(ctx, rc)
+		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
 		require.NoError(t, err)
 	}
 
@@ -1373,7 +1373,7 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Upsert a reverse tunnel
-	got, err := presenceService.UpsertReverseTunnelV2(ctx, rt)
+	got, err := presenceService.UpsertReverseTunnel(ctx, rt)
 	require.NoError(t, err)
 	// Check that the returned resource is the same as the one we upserted
 	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))

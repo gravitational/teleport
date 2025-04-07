@@ -137,6 +137,7 @@ export function Notification(props: NotificationProps) {
         style={{
           visibility: isHovered ? 'visible' : 'hidden',
         }}
+        title="Close Notification"
         onClick={e => {
           e.stopPropagation();
           onRemove();

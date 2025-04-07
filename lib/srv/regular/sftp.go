@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -188,7 +189,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 			}
 
 			var oneOfEvent apievents.OneOf
-			err = jsonpb.UnmarshalString(eventStr[:len(eventStr)-1], &oneOfEvent)
+			err = (&jsonpb.Unmarshaler{}).Unmarshal(strings.NewReader(eventStr[:len(eventStr)-1]), &oneOfEvent)
 			if err != nil {
 				s.logger.WarnContext(ctx, "Failed to unmarshal SFTP event", "error", err)
 				continue

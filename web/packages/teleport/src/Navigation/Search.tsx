@@ -26,7 +26,11 @@ import { color, height, space } from 'design/system';
 import { storageService } from 'teleport/services/storageService';
 
 import { CustomNavigationCategory } from './categories';
-import { NavigationSection, NavigationSubsection } from './Navigation';
+import {
+  NavigationSection,
+  NavigationSubsection,
+  useFloatingUiWithRestMs,
+} from './Navigation';
 import { RecentHistory, RecentHistoryItem } from './RecentHistory';
 import {
   CustomChildrenSection,
@@ -61,20 +65,31 @@ export function SearchSection({
 
   const isExpanded =
     expandedSection?.category === CustomNavigationCategory.Search;
+
+  const { refs, getReferenceProps, getFloatingProps } = useFloatingUiWithRestMs(
+    {
+      open: isExpanded,
+      onOpenChange: open => open && handleSetExpandedSection(section),
+    }
+  );
+
   return (
     <CustomChildrenSection
+      ref={refs.setReference}
       key="search"
       section={section}
       $active={false}
-      onExpandSection={() => handleSetExpandedSection(section)}
       aria-controls={`panel-${expandedSection?.category}`}
       isExpanded={isExpanded}
+      {...getReferenceProps()}
     >
       <RightPanel
+        ref={refs.setFloating}
         isVisible={isExpanded}
         skipAnimation={!!previousExpandedSection}
         id={`panel-${section.category}`}
         onFocus={() => handleSetExpandedSection(section)}
+        {...getFloatingProps()}
       >
         <Box
           css={`

@@ -124,6 +124,10 @@ type ResourceAccessBase<T extends ResourceAccessKind> = {
    * this one.
    */
   kind: T;
+  /**
+   * Indicates if the form should make
+   */
+  hideValidationErrors: boolean;
 };
 
 export type ResourceAccessKind =
@@ -247,7 +251,11 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
 ];
 export const kubernetesVerbOptionsMap = optionsToMap(kubernetesVerbOptions);
 
-export type ResourceKindOption = Option<ResourceKind, string>;
+/**
+ * An option that denotes a resource kind. The values are mostly {@link
+ * ResourceKind}, but we allow unsupported values.
+ */
+export type ResourceKindOption = Option<string, string>;
 export const resourceKindOptions: ResourceKindOption[] = Object.values(
   ResourceKind
 )
@@ -313,9 +321,24 @@ export type RuleModel = {
    * (Also: keeping track of supported resource types is hard.)
    */
   resources: readonly ResourceKindOption[];
-  verbs: readonly VerbOption[];
+
+  /**
+   * Indicates whether a wildcard verb is in the list of rule's {@link
+   * Rule.verbs}. For the purpose of model conversion, this overrides all verbs
+   * in the {@link RuleModel.verbs} list.
+   */
+  allVerbs: boolean;
+
+  /**
+   * Lists all non-wildcard verbs allowed for the currently selected {@link
+   * RuleModel.resources}, along with their checked state.
+   */
+  verbs: VerbModel[];
   where: string;
+  hideValidationErrors: boolean;
 };
+
+export type VerbModel = { verb: Verb; checked: boolean };
 
 export type OptionsModel = {
   maxSessionTTL: string;
@@ -483,6 +506,7 @@ export function newResourceAccess(
         kind: 'node',
         labels: [],
         logins: [stringToOption('{{internal.logins}}')],
+        hideValidationErrors: true,
       };
     case 'kube_cluster':
       return {
@@ -492,6 +516,7 @@ export function newResourceAccess(
         resources: [],
         users: [],
         roleVersion,
+        hideValidationErrors: true,
       };
     case 'app':
       return {
@@ -500,6 +525,7 @@ export function newResourceAccess(
         awsRoleARNs: ['{{internal.aws_role_arns}}'],
         azureIdentities: ['{{internal.azure_identities}}'],
         gcpServiceAccounts: ['{{internal.gcp_service_accounts}}'],
+        hideValidationErrors: true,
       };
     case 'db':
       return {
@@ -509,17 +535,20 @@ export function newResourceAccess(
         users: [stringToOption('{{internal.db_users}}')],
         roles: [stringToOption('{{internal.db_roles}}')],
         dbServiceLabels: [],
+        hideValidationErrors: true,
       };
     case 'windows_desktop':
       return {
         kind: 'windows_desktop',
         labels: [],
         logins: [stringToOption('{{internal.windows_logins}}')],
+        hideValidationErrors: true,
       };
     case 'git_server':
       return {
         kind: 'git_server',
         organizations: [stringToOption('{{internal.github_orgs}}')],
+        hideValidationErrors: true,
       };
     default:
       kind satisfies never;
@@ -543,8 +572,10 @@ export function newRuleModel(): RuleModel {
   return {
     id: crypto.randomUUID(),
     resources: [],
-    verbs: [],
+    allVerbs: false,
+    verbs: newVerbsModel([]),
     where: '',
+    hideValidationErrors: true,
   };
 }
 
@@ -663,7 +694,7 @@ function roleConditionsToModel(
     // GitHub organization access
     github_permissions,
 
-    // Access rules
+    // Admin rules
     rules,
 
     ...unsupported
@@ -681,6 +712,7 @@ function roleConditionsToModel(
       kind: 'node',
       labels: nodeLabelsModel,
       logins: nodeLoginsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -712,6 +744,7 @@ function roleConditionsToModel(
       resources: kubeResourcesModel,
       users: kubeUsersModel,
       roleVersion,
+      hideValidationErrors: false,
     });
   }
 
@@ -733,6 +766,7 @@ function roleConditionsToModel(
       awsRoleARNs: awsRoleARNsModel,
       azureIdentities: azureIdentitiesModel,
       gcpServiceAccounts: gcpServiceAccountsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -757,6 +791,7 @@ function roleConditionsToModel(
       users: stringsToOptions(dbUsersModel),
       roles: stringsToOptions(dbRolesModel),
       dbServiceLabels: dbServiceLabelsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -769,6 +804,7 @@ function roleConditionsToModel(
       kind: 'windows_desktop',
       labels: windowsDesktopLabelsModel,
       logins: windowsDesktopLoginsModel,
+      hideValidationErrors: false,
     });
   }
 
@@ -783,6 +819,7 @@ function roleConditionsToModel(
     resources.push({
       kind: 'git_server',
       organizations: gitHubOrganizationsModel,
+      hideValidationErrors: false,
     });
   }
   conversionErrors.push(...gitHubOrganizationConversionErrors);
@@ -961,37 +998,106 @@ function ruleToModel(
   conversionErrors: ConversionError[];
 } {
   const { resources = [], verbs = [], where = '', ...unsupported } = rule;
+
   const conversionErrors = unsupportedFieldErrorsFromObject(
     pathPrefix,
     unsupported
   );
+
   const resourcesModel = resources.map(
     // Resource kind can be unknown, so we just create a necessary option on
     // the fly.
     k => resourceKindOptionsMap.get(k) ?? { label: k, value: k }
   );
-  const verbsModel = verbs.map(v => verbOptionsMap.get(v));
-  const knownVerbsModel: VerbOption[] = [];
-  verbsModel.forEach((verb, i) => {
-    if (verb !== undefined) {
-      knownVerbsModel.push(verb);
-    } else {
-      conversionErrors.push({
-        type: ConversionErrorType.UnsupportedValue,
-        path: `${pathPrefix}.verbs[${i}]`,
-      });
+
+  const allVerbs = verbs.includes('*');
+  const verbsModel = allowedVerbsForResourceKinds(resources).map(verb => ({
+    verb,
+    checked: allVerbs, // Mark all as checked if there's a wildcard.
+  }));
+
+  if (allVerbs) {
+    // If there's a wildcard, it needs to be the only verb. Other combinations
+    // are not supported because of the editor UI structure.
+    // TODO(bl-nero): Consider adding an explanation field to the conversion
+    // error type.
+    if (verbs.length > 1) {
+      conversionErrors.push(
+        unsupportedValueWithReplacement(`${pathPrefix}.verbs`, ['*'])
+      );
     }
-  });
+  } else {
+    verbs.forEach((v, i) => {
+      const vm = verbsModel.find(m => m.verb === v);
+      if (vm) {
+        vm.checked = true;
+      } else {
+        conversionErrors.push({
+          type: ConversionErrorType.UnsupportedValue,
+          path: `${pathPrefix}.verbs[${i}]`,
+        });
+      }
+    });
+  }
+
   return {
     model: {
       id: crypto.randomUUID(),
       resources: resourcesModel,
-      verbs: knownVerbsModel,
+      allVerbs,
+      verbs: verbsModel,
       where,
+      hideValidationErrors: false,
     },
     conversionErrors,
   };
 }
+
+export function newVerbsModel(
+  resKindOptions: readonly ResourceKindOption[]
+): VerbModel[] {
+  const kinds = resKindOptions.map(rko => rko.value);
+  return allowedVerbsForResourceKinds(kinds).map(verb => ({
+    verb,
+    checked: false,
+  }));
+}
+
+/**
+ * Returns a list of verbs that are known to be supported by a given list of
+ * resources. This list excludes the wildcard (*) verb, which gets a special
+ * treatment in our model.
+ */
+export function allowedVerbsForResourceKinds(
+  resourceKinds: readonly string[]
+): Verb[] {
+  const verbs: Verb[] = ['read', 'list', 'create', 'update', 'delete'];
+  for (const kind of resourceKinds) {
+    if (additionalVerbs.has(kind)) {
+      verbs.push(...additionalVerbs.get(kind));
+    }
+  }
+  return verbs;
+}
+
+/** A map of known resource-type-specific verbs by resource type. */
+const additionalVerbs = new Map<string, Verb[]>([
+  [ResourceKind.Plugin, ['readnosecrets']],
+  [ResourceKind.CertAuthority, ['readnosecrets', 'rotate']],
+  [ResourceKind.WebSession, ['readnosecrets']],
+  [ResourceKind.OIDCConnector, ['readnosecrets']],
+  [ResourceKind.SAMLConnector, ['readnosecrets']],
+  [ResourceKind.GithubConnector, ['readnosecrets']],
+  [ResourceKind.Semaphore, ['readnosecrets']],
+  [ResourceKind.Device, ['create_enroll_token', 'enroll']],
+  [ResourceKind.AuditQuery, ['use']],
+  [ResourceKind.SecurityReport, ['use']],
+  [ResourceKind.Integration, ['use']],
+  [ResourceKind.AccessGraph, ['use']],
+
+  // Currently unsupported, but important for backwards compatibility.
+  ['assistant', ['use']],
+]);
 
 // These options must keep their default values, as we don't support them in
 // the standard editor, but they are required fields of the RoleOptions type.
@@ -1302,7 +1408,9 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   if (roleModel.rules.length > 0) {
     role.spec.allow.rules = roleModel.rules.map(role => ({
       resources: role.resources.map(r => r.value),
-      verbs: role.verbs.map(v => v.value),
+      verbs: role.allVerbs
+        ? ['*']
+        : role.verbs.filter(v => v.checked).map(v => v.verb),
       where: role.where || undefined,
     }));
   }

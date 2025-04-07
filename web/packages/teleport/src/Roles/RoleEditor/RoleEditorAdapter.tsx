@@ -30,9 +30,9 @@ import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
-import { PolicyPlaceholder } from '../PolicyPlaceholder';
 import { RolesProps } from '../Roles';
 import { RoleEditor } from './RoleEditor';
+import { RoleEditorVisualizer } from './RoleEditorVisualizer';
 
 /**
  * This component is responsible for converting from the `Resource`
@@ -76,12 +76,14 @@ export function RoleEditorAdapter({
 
   return (
     <Flex flex="1">
+      {/* This component's width influences how we lay out the permission
+          checkboxes in AdminRules. */}
       <Flex
         flexDirection="column"
         borderLeft={1}
         borderColor={theme.colors.interactive.tonal.neutral[0]}
         backgroundColor={theme.colors.levels.surface}
-        width="700px"
+        width="550px"
       >
         {convertAttempt.status === 'processing' && (
           <Flex
@@ -112,17 +114,10 @@ export function RoleEditorAdapter({
           />
         )}
       </Flex>
-      {roleDiffProps ? (
-        roleDiffProps.roleDiffElement
-      ) : (
-        <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
-          <PolicyPlaceholder
-            currentFlow={
-              resources.status === 'creating' ? 'creating' : 'updating'
-            }
-          />
-        </Flex>
-      )}
+      <RoleEditorVisualizer
+        roleDiffProps={roleDiffProps}
+        currentFlow={resources.status === 'creating' ? 'creating' : 'updating'}
+      />
     </Flex>
   );
 }

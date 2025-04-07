@@ -41,6 +41,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	apiproto "github.com/gravitational/teleport/api/client/proto"
@@ -55,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -71,7 +73,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
+func newTestTLSServer(t testing.TB, opts ...auth.TestTLSServerOption) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
@@ -79,9 +81,10 @@ func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecord
 	require.NoError(t, err)
 
 	emitter := &eventstest.MockRecorderEmitter{}
-	srv, err := as.NewTestTLSServer(func(config *auth.TestTLSServerConfig) {
+	opts = append(opts, func(config *auth.TestTLSServerConfig) {
 		config.APIConfig.Emitter = emitter
 	})
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -464,6 +467,31 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	extraClaimTemplates, err := structpb.NewStruct(map[string]any{
+		"user_name": "{{user.name}}",
+		"k8s": map[string]any{
+			"names": []any{"{{workload.kubernetes.pod_name}}"},
+		},
+	})
+	require.NoError(t, err)
+
+	extraClaims, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "extra-claims",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+				Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
+					ExtraClaims: extraClaimTemplates,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	workloadAttrs := func(f func(attrs *workloadidentityv1pb.WorkloadAttrs)) *workloadidentityv1pb.WorkloadAttrs {
 		attrs := &workloadidentityv1pb.WorkloadAttrs{
 			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
@@ -571,8 +599,38 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"JTI",
+						"Attributes",
 					),
 				))
+			},
+		},
+		{
+			name:   "jwt svid - extra claims",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: extraClaims.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com"},
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt())
+				require.NoError(t, err)
+
+				var claims struct {
+					UserName string `json:"user_name"`
+					K8s      struct {
+						Names []string `json:"names"`
+					} `json:"k8s"`
+				}
+				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
+				require.NoError(t, err)
+				require.Equal(t, "dog", claims.UserName)
+				require.Equal(t, []string{"test"}, claims.K8s.Names)
 			},
 		},
 		{
@@ -686,6 +744,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
+						"Attributes",
 					),
 				))
 			},
@@ -799,6 +858,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
+						"Attributes",
 					),
 				))
 			},
@@ -3000,9 +3060,15 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 
 func TestRevocationService_CRL(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestTLSServer(t)
+	revocationsEventCh := make(chan struct{})
+	fakeClock := clockwork.NewFakeClock()
+	srv, _ := newTestTLSServer(t, func(config *auth.TestTLSServerConfig) {
+		config.APIConfig.MutateRevocationsServiceConfig = func(config *workloadidentityv1.RevocationServiceConfig) {
+			config.RevocationsEventProcessedCh = revocationsEventCh
+			config.Clock = fakeClock
+		}
+	})
 	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
 
 	authorizedUser, _, err := auth.CreateUserAndRole(
 		srv.Auth(),
@@ -3082,6 +3148,12 @@ func TestRevocationService_CRL(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
+		}
 	}
 	deleteRevocation := func(t *testing.T, name string) {
 		_, err = revocationsClient.DeleteWorkloadIdentityX509Revocation(
@@ -3091,6 +3163,12 @@ func TestRevocationService_CRL(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
+		}
 	}
 
 	// Fetch the initial, empty, CRL

@@ -24,6 +24,7 @@ import {
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
 import cfg from 'teleport/config';
+import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import type { ResourceLabel } from 'teleport/services/agents';
 import type { App } from 'teleport/services/apps';
 import type { Database } from 'teleport/services/databases';
@@ -51,10 +52,10 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
-import { ServiceDeployMethod } from './Database/common';
 import { ResourceViewConfig, View } from './flow';
+import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
-import type { ResourceSpec } from './SelectResource';
+import { SelectResourceSpec } from './SelectResource/resources';
 import { EViewConfigs } from './types';
 
 export interface DiscoverContextState<T = any> {
@@ -62,9 +63,9 @@ export interface DiscoverContextState<T = any> {
   currentStep: number;
   nextStep: (count?: number) => void;
   prevStep: () => void;
-  onSelectResource: (resource: ResourceSpec) => void;
+  onSelectResource: (resource: SelectResourceSpec) => void;
   exitFlow: () => void;
-  resourceSpec: ResourceSpec;
+  resourceSpec: SelectResourceSpec;
   viewConfig: ResourceViewConfig<T>;
   indexedViews: View[];
   setResourceSpec: (value: T) => void;
@@ -94,7 +95,7 @@ type CustomEventInput = {
 export type DiscoverUpdateProps = {
   // resourceSpec specifies ResourceSpec which should be used to
   // start a Discover flow.
-  resourceSpec: ResourceSpec;
+  resourceSpec: SelectResourceSpec;
   // agentMeta includes data that will be used to prepopulate input fields
   // in the respective Discover compnents.
   agentMeta: AgentMeta;
@@ -118,7 +119,7 @@ export type DiscoverUrlLocationState = {
   // the flow from where user left off.
   discover: {
     eventState: EventState;
-    resourceSpec: ResourceSpec;
+    resourceSpec: SelectResourceSpec;
     currentStep: number;
   };
   // integration is the created aws-oidc integration
@@ -135,10 +136,11 @@ export function DiscoverProvider({
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
+  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
+  const [resourceSpec, setResourceSpec] = useState<SelectResourceSpec>();
   const [viewConfig, setViewConfig] = useState<ResourceViewConfig>();
   const [eventState, setEventState] = useState<EventState>({} as any);
 
@@ -290,7 +292,7 @@ export function DiscoverProvider({
 
   // onSelectResources inits states, starts flow, and
   // emits events.
-  function onSelectResource(resource: ResourceSpec) {
+  function onSelectResource(resource: SelectResourceSpec) {
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
@@ -322,7 +324,7 @@ export function DiscoverProvider({
   // startDiscoverFlow sets all the required states
   // that will begin the flow.
   function startDiscoverFlow(
-    resource: ResourceSpec,
+    resource: SelectResourceSpec,
     initEventState: EventState,
     targetViewIndex = 0
   ) {
@@ -353,6 +355,9 @@ export function DiscoverProvider({
     setIndexedViews(indexedViews);
     setResourceSpec(resource);
     setCurrentStep(targetViewIndex);
+    // Open the guide for the user when starting the flow.
+    const overview = getOverview({ resourceSpec: resource });
+    setInfoGuideConfig(getDiscoverInfoGuideConfig(overview));
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -438,6 +443,10 @@ export function DiscoverProvider({
     setViewConfig(null);
     setResourceSpec(null);
     setIndexedViews([]);
+
+    if (infoGuideConfig) {
+      setInfoGuideConfig(null);
+    }
   }
 
   function updateAgentMeta(meta: AgentMeta) {
@@ -545,6 +554,16 @@ export type NodeMeta = BaseMeta & {
   node: Node;
 };
 
+export type DatabaseServiceDeploy =
+  | {
+      method: 'auto';
+      selectedSecurityGroups: string[];
+      selectedSubnetIds: string[];
+    }
+  | {
+      method: 'manual' | 'skipped';
+    };
+
 // DbMeta describes the fields for a db resource
 // that needs to be preserved throughout the flow.
 export type DbMeta = BaseMeta & {
@@ -553,10 +572,10 @@ export type DbMeta = BaseMeta & {
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
   /**
-   * serviceDeployedMethod flag will be undefined if user skipped
-   * deploying service (service already existed).
+   * Only defined after the database service deploy step,
+   * before this step, it will be undefined.
    */
-  serviceDeployedMethod?: ServiceDeployMethod;
+  serviceDeploy?: DatabaseServiceDeploy;
 };
 
 // KubeMeta describes the fields for a kube resource

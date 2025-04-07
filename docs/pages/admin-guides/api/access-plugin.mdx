@@ -20,12 +20,12 @@ spreadsheet, with links to allow or deny each request.
 
 ![The result of the plugin](../../../img/api/google-sheets.png)
 
-<Notice type="danger">
+<Admonition type="danger">
 
 The plugin we will build in this guide is intended as a learning tool. **Do not
 connect it to your production Teleport cluster.**  Use a demo cluster instead.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -357,7 +357,7 @@ so, it calls `createRow`. If not, it calls `updateSpreadsheet`.
 The Teleport API client type, `client.Client`, has a `NewWatcher` method that
 listens for new audit events from the Auth Service API via a gRPC stream. The
 second parameter of the method indicates the type of audit event to watch for,
-in this case, events having to do with Teleport Access Requests.
+in this case, events having to do with Access Requests.
 
 The result of `NewWatcher`, a `types.Watcher`, enables `Run` to respond to new
 audit events by calling the `Events` method. This returns a Go **channel**, a
@@ -428,14 +428,14 @@ In your spreadsheet, click "View Access Request" next to your new request. Sign
 into the Teleport Web UI as your original user. When you submit your review,
 e.g., deny the request, the new status will appear within the spreadsheet.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 Access Request plugins must not enable reviewing Access Requests via the plugin,
 and must always refer a reviewer to the Teleport Web UI to complete the review.
 Otherwise, an unauthorized party could spoof traffic to the plugin and escalate
 privileges. 
 
-</Notice>
+</Admonition>
 
 ## Next steps
 

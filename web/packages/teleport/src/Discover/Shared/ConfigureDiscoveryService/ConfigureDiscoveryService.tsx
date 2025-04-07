@@ -19,8 +19,8 @@
 import { useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
-import { Box, Mark, Text } from 'design';
-import { OutlineInfo } from 'design/Alert/Alert';
+import { Mark, Text } from 'design';
+import { Info } from 'design/Alert/Alert';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 
@@ -117,7 +117,7 @@ export function ConfigureDiscoveryService({
   }
 
   return (
-    <Box maxWidth="1000px">
+    <>
       <Header>Configure Teleport Discovery Service</Header>
       <EnrollInfo kind={resourceSpec.kind} />
       <ConfigureDiscoveryServiceDirections
@@ -137,7 +137,7 @@ export function ConfigureDiscoveryService({
           notifyAboutDelay={false}
         />
       )}
-    </Box>
+    </>
   );
 }
 
@@ -158,7 +158,7 @@ function EnrollInfo({ kind }: { kind: ResourceKind }) {
           The Teleport Discovery Service can connect to Amazon EC2 and
           automatically discover and enroll EC2 instances.
         </Text>
-        <OutlineInfo mt={3} linkColor="buttons.link.default">
+        <Info mt={3} linkColor="buttons.link.default">
           Auto discovery will enroll all EC2 instances found in a region. If you
           want to enroll a <Mark>single</Mark> EC2 instance instead, consider
           following{' '}
@@ -171,7 +171,7 @@ function EnrollInfo({ kind }: { kind: ResourceKind }) {
             the Teleport service installation flow
           </InternalLink>
           .
-        </OutlineInfo>
+        </Info>
       </>
     );
   }

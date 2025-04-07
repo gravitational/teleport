@@ -163,7 +163,7 @@ When you configure the Teleport Auth Service to access a table or collection,
 the Auth Service checks that the table or collection exists on startup. If it
 does not, the Auth Service attempts to create it.
 
-<Admonition title="Required permissions">
+<Admonition type="info" title="Required permissions">
 
 Make sure you configure your cloud provider's RBAC solution (e.g., AWS or Google
 Cloud IAM) so that your Auth Service instances have permissions to read from and
@@ -192,7 +192,7 @@ S3-compatible service to use for managing session recordings.
 The Auth Service will check that the bucket exists on startup. If it does not,
 the Auth Service attempts to create it.
 
-<Admonition title="Required permissions">
+<Admonition type="info" title="Required permissions">
 
 In your cloud provider's RBAC solution, your Auth Service instances need
 permissions to get buckets as well as to create, get, list, and update objects.
@@ -273,7 +273,7 @@ application with Teleport:
 |A|*.teleport.example.com|The IP address of your load balancer|
 |CNAME|*.teleport.example.com|The domain name of your load balancer|
 
-<Admonition title="Required permissions">
+<Admonition type="info" title="Required permissions">
 
 If you are using Let's Encrypt to provide TLS credentials to your Teleport
 instances, the TLS credential system we mentioned earlier needs permissions to
@@ -292,13 +292,13 @@ compute resources, for example, using Kubernetes Deployments or AWS Auto
 Scaling groups. This requires running the `teleport` binary on each Kubernetes
 pod or virtual machine in your group. 
 
-<Notice type="tip">
+<Admonition type="tip">
 
 If you plan to run Teleport on Kubernetes, the `teleport-cluster` Helm chart
 deploys the Auth Service and Proxy Service pools for you. To see how to use this
 Helm chart, read our [Helm Deployments](helm-deployments/helm-deployments.mdx) documentation.
 
-</Notice>
+</Admonition>
 
 You should deploy your Teleport instances across multiple zones (if using a
 cloud provider) or data centers (if using an on-premise solution) to ensure

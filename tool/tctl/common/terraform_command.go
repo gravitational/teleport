@@ -352,7 +352,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 
 	id := facade.Get()
 
-	clusterName, err := clt.GetClusterName()
+	clusterName, err := clt.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "retrieving cluster name")
 	}
