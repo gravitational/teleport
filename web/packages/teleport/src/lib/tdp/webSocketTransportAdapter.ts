@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Logger } from 'design/logger';
+import { Logger } from 'shared/libs/logger';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 const logger = new Logger('WebSocketTdpTransport');

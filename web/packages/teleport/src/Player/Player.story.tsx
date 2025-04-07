@@ -30,36 +30,31 @@ import { Player } from './Player';
 
 const meta: Meta = {
   title: 'Teleport/Player',
-  decorators: Story => {
-    const ctx = createTeleportContext();
-
-    return (
-      <ContextProvider ctx={ctx}>
-        <Story />
-      </ContextProvider>
-    );
-  },
 };
 export default meta;
 
 export const SSH = () => {
+  const ctx = createTeleportContext();
   const history = createMemoryHistory({
     initialEntries: ['/web/cluster/localhost/session/123?recordingType=ssh'],
     initialIndex: 0,
   });
 
   return (
-    <Router history={history}>
-      <Flex m={-3}>
-        <Route path="/web/cluster/:clusterId/session/:sid">
-          <Player />
-        </Route>
-      </Flex>
-    </Router>
+    <ContextProvider ctx={ctx}>
+      <Router history={history}>
+        <Flex m={-3}>
+          <Route path="/web/cluster/:clusterId/session/:sid">
+            <Player />
+          </Route>
+        </Flex>
+      </Router>
+    </ContextProvider>
   );
 };
 
 export const Desktop = () => {
+  const ctx = createTeleportContext();
   const history = createMemoryHistory({
     initialEntries: [
       '/web/cluster/localhost/session/123?recordingType=desktop&durationMs=1234',
@@ -68,34 +63,40 @@ export const Desktop = () => {
   });
 
   return (
-    <Router history={history}>
-      <Flex m={-3}>
-        <Route path="/web/cluster/:clusterId/session/:sid">
-          <Player />
-        </Route>
-      </Flex>
-    </Router>
+    <ContextProvider ctx={ctx}>
+      <Router history={history}>
+        <Flex m={-3}>
+          <Route path="/web/cluster/:clusterId/session/:sid">
+            <Player />
+          </Route>
+        </Flex>
+      </Router>
+    </ContextProvider>
   );
 };
 
 export const RecordingTypeError = () => {
+  const ctx = createTeleportContext();
   const history = createMemoryHistory({
     initialEntries: ['/web/cluster/localhost/session/123?recordingType=bla'],
     initialIndex: 0,
   });
 
   return (
-    <Router history={history}>
-      <Flex m={-3}>
-        <Route path="/web/cluster/:clusterId/session/:sid">
-          <Player />
-        </Route>
-      </Flex>
-    </Router>
+    <ContextProvider ctx={ctx}>
+      <Router history={history}>
+        <Flex m={-3}>
+          <Route path="/web/cluster/:clusterId/session/:sid">
+            <Player />
+          </Route>
+        </Flex>
+      </Router>
+    </ContextProvider>
   );
 };
 
 export const DurationMsError = () => {
+  const ctx = createTeleportContext();
   const history = createMemoryHistory({
     initialEntries: [
       '/web/cluster/localhost/session/123?recordingType=desktop&durationMs=blabla',
@@ -104,12 +105,14 @@ export const DurationMsError = () => {
   });
 
   return (
-    <Router history={history}>
-      <Flex m={-3}>
-        <Route path="/web/cluster/:clusterId/session/:sid">
-          <Player />
-        </Route>
-      </Flex>
-    </Router>
+    <ContextProvider ctx={ctx}>
+      <Router history={history}>
+        <Flex m={-3}>
+          <Route path="/web/cluster/:clusterId/session/:sid">
+            <Player />
+          </Route>
+        </Flex>
+      </Router>
+    </ContextProvider>
   );
 };
