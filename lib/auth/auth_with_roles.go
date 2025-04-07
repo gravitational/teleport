@@ -7502,9 +7502,11 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
-		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
-			err = trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		// Only WebAuthn and SSO are supported in headless login flow for superior phishing prevention.
+		switch mfaResp.Response.(type) {
+		case *proto.MFAAuthenticateResponse_Webauthn, *proto.MFAAuthenticateResponse_SSO:
+		default:
+			err = trace.BadParameter("MFA response of type %T is not supported for headless authentication", mfaResp.Response)
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return err
 		}
