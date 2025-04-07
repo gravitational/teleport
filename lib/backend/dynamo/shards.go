@@ -280,6 +280,12 @@ func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([
 			return filterActiveShards(out), nil
 		}
 		input.ExclusiveStartShardId = streamInfo.StreamDescription.LastEvaluatedShardId
+		select {
+		case <-ctx.Done():
+			// let the next call deal with the context error
+		case <-time.After(200 * time.Millisecond):
+			// 10 calls per second with two auths, with ample margin
+		}
 	}
 }
 
