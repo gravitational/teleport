@@ -30,6 +30,8 @@ import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
 import { ShareFeedback } from './ShareFeedback';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
+export const statusBarHeight = 28;
+
 export function StatusBar(props: { onAssumedRolesClick(): void }) {
   const breadcrumbs = useActiveDocumentClusterBreadcrumbs();
   const theme = useTheme();
@@ -51,7 +53,7 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
   return (
     <Flex
       width="100%"
-      height="28px"
+      height={`${statusBarHeight}px`}
       css={`
         border-top: 1px solid ${props => props.theme.colors.spotBackground[1]};
       `}
