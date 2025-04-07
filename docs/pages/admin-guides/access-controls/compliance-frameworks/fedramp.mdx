@@ -294,7 +294,7 @@ Note that `arm64` FIPS builds do not support access to Windows desktops.
 ## Migrating from non-FIPS to FIPS
 
 As of v17, new installations of Teleport default to using Ed25519 keys.  This is currently not supported 
-by FIPS binaries.  If the Teleport auth service was already deployed with a standard binary or without 
+by FIPS binaries.  If the Teleport Auth Service was already deployed with a standard binary or without 
 the `--fips` flag, you must update the certificate authorities.  Otherwise, the error `User Message: only RSA and 
 ECDSA keys supported` is produced.  
 
