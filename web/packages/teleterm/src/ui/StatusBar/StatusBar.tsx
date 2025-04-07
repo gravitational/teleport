@@ -27,10 +27,9 @@ import { getAssumedRequests } from 'teleterm/ui/services/clusters';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
+import { statusBarHeight } from './constants';
 import { ShareFeedback } from './ShareFeedback';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
-
-export const statusBarHeight = 28;
 
 export function StatusBar(props: { onAssumedRolesClick(): void }) {
   const breadcrumbs = useActiveDocumentClusterBreadcrumbs();

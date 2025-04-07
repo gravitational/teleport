@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { resourceStatusInfoPanel } from '@gravitational/shared/components/SlidingSidePanel/InfoGuide/constants';
 import { SlidingSidePanel } from 'shared/components/SlidingSidePanel';
 import {
   InfoGuideContainer,
   useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { resourceStatusInfoPanel } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 
-import { statusBarHeight } from '../StatusBar';
-import { tabHeight } from '../Tabs';
+import { statusBarHeight } from '../StatusBar/constants';
+import { tabHeight } from '../Tabs/constants';
 
 /**
  * An info panel that always slides from the right and supports closing
