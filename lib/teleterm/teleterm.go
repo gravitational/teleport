@@ -32,7 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
@@ -42,7 +42,7 @@ import (
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
-	var hardwareKeyPromptConstructor func(clusterURI uri.ResourceURI) keys.HardwareKeyPrompt
+	var hardwareKeyPromptConstructor func(clusterURI uri.ResourceURI) hardwarekey.Prompt
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -59,7 +59,7 @@ func Serve(ctx context.Context, cfg Config) error {
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
 			return hardwareKeyPromptConstructor(rootClusterURI)
 		},
 	})

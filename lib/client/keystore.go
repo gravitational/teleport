@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -86,7 +87,7 @@ type KeyStore interface {
 
 	// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
 	// used to interact with a YubiKey private key.
-	SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt)
+	SetCustomHardwareKeyPrompt(prompt hardwarekey.Prompt)
 }
 
 // FSKeyStore is an on-disk implementation of the KeyStore interface.
@@ -101,7 +102,7 @@ type FSKeyStore struct {
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If nil, a default CLI prompt is used.
-	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 }
 
 // NewFSKeyStore initializes a new FSClientStore.
@@ -173,7 +174,7 @@ func (fs *FSKeyStore) kubeCertPath(idx KeyIndex, kubename string) string {
 
 // SetCustomHardwareKeyPrompt sets a custom hardware key prompt
 // used to interact with a YubiKey private key.
-func (fs *FSKeyStore) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
+func (fs *FSKeyStore) SetCustomHardwareKeyPrompt(prompt hardwarekey.Prompt) {
 	fs.CustomHardwareKeyPrompt = prompt
 }
 
@@ -724,4 +725,4 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 
 // SetCustomHardwareKeyPrompt implements the KeyStore.SetCustomHardwareKeyPrompt interface.
 // Does nothing.
-func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ keys.HardwareKeyPrompt) {}
+func (ms *MemKeyStore) SetCustomHardwareKeyPrompt(_ hardwarekey.Prompt) {}

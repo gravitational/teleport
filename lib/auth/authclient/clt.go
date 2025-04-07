@@ -57,7 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1354,7 +1354,7 @@ type AuthenticateSSHRequest struct {
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
 	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
