@@ -24,7 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
@@ -46,7 +46,7 @@ type Config struct {
 	AddKeysToAgent string
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
-	HardwareKeyPromptConstructor func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt
+	HardwareKeyPromptConstructor func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
