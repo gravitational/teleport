@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "16.5.0"
+const Version = "16.0.0-dev.camh.dbp.1"
 
 var SemVersion = semver.New(Version)
