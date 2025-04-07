@@ -47,6 +47,9 @@ type App struct {
 	PublicAddr string `json:"publicAddr"`
 	// FQDN is a fully qualified domain name of the application (app.example.com)
 	FQDN string `json:"fqdn"`
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from.
+	UseAnyProxyPublicAddr bool `json:"useAnyProxyPublicAddr,omitempty"`
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
 	// Labels is a map of static labels associated with an application.
@@ -154,22 +157,23 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	permissionSets := makePermissionSets(app.GetIdentityCenter().GetPermissionSets())
 
 	resultApp := App{
-		Kind:            types.KindApp,
-		SubKind:         app.GetSubKind(),
-		Name:            app.GetName(),
-		Description:     description,
-		URI:             app.GetURI(),
-		PublicAddr:      app.GetPublicAddr(),
-		Labels:          labels,
-		ClusterID:       c.AppClusterName,
-		FQDN:            fqdn,
-		AWSConsole:      app.IsAWSConsole(),
-		FriendlyName:    types.FriendlyName(app),
-		UserGroups:      userGroupAndDescriptions,
-		SAMLApp:         false,
-		RequiresRequest: c.RequiresRequest,
-		Integration:     app.GetIntegration(),
-		PermissionSets:  permissionSets,
+		Kind:                  types.KindApp,
+		SubKind:               app.GetSubKind(),
+		Name:                  app.GetName(),
+		Description:           description,
+		URI:                   app.GetURI(),
+		PublicAddr:            app.GetPublicAddr(),
+		Labels:                labels,
+		ClusterID:             c.AppClusterName,
+		FQDN:                  fqdn,
+		AWSConsole:            app.IsAWSConsole(),
+		FriendlyName:          types.FriendlyName(app),
+		UserGroups:            userGroupAndDescriptions,
+		SAMLApp:               false,
+		RequiresRequest:       c.RequiresRequest,
+		Integration:           app.GetIntegration(),
+		PermissionSets:        permissionSets,
+		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
 	}
 
 	if app.IsAWSConsole() {
