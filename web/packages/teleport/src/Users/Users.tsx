@@ -37,7 +37,7 @@ import {
 } from 'teleport/components/Layout';
 import {
   InfoExternalTextLink,
-  InfoGuideWrapper,
+  InfoGuideButton,
   InfoParagraph,
   InfoUl,
   ReferenceLinks,
@@ -158,7 +158,7 @@ export function Users(props: State) {
                 Enroll Users
               </Button>
             )}
-            <InfoGuideWrapper guide={<InfoGuide />} />
+            <InfoGuideButton config={{ guide: <InfoGuide /> }} />
           </Flex>
         )}
       </FeatureHeader>

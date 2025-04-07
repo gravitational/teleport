@@ -28,35 +28,40 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import type * as docTypes from 'teleterm/ui/services/workspacesService';
-import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import { routing } from 'teleterm/ui/uri';
 
 import appAccessPng from './app-access.png';
+import { useVnetAppLauncher } from './useVnetAppLauncher';
 import { useVnetContext } from './vnetContext';
 
 export function DocumentVnetInfo(props: {
   visible: boolean;
   doc: docTypes.DocumentVnetInfo;
 }) {
+  const { doc } = props;
   const { mainProcessClient } = useAppContext();
   const {
-    start,
     startAttempt,
     stop: stopVnet,
     stopAttempt,
     status,
   } = useVnetContext();
-  const { open: openConnectionsPanel } = useConnectionsContext();
+  const { launchVnetWithoutFirstTimeCheck } = useVnetAppLauncher();
   const userAtHost = useMemo(() => {
     const { hostname, username } = mainProcessClient.getRuntimeSettings();
     return `${username}@${hostname}`;
   }, [mainProcessClient]);
-  const { rootClusterUri } = useWorkspaceContext();
+  const { rootClusterUri, documentsService } = useWorkspaceContext();
   const proxyHostname = routing.parseClusterName(rootClusterUri);
 
-  const startVnet = () => {
-    openConnectionsPanel('vnet');
-    void start();
+  const startVnet = async () => {
+    await launchVnetWithoutFirstTimeCheck({
+      addrToCopy: doc.app?.targetAddress,
+      isMultiPort: doc.app?.isMultiPort,
+    });
+    // Remove targetAddress so that subsequent launches of VNet from this specific doc won't copy
+    // the stale app address to the clipboard.
+    documentsService.update(doc.uri, { app: undefined });
   };
 
   return (
