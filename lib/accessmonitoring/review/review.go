@@ -133,14 +133,11 @@ func (handler *Handler) HandleAccessMonitoringRule(ctx context.Context, event ty
 			return trace.Wrap(err)
 		}
 	case types.OpPut:
-		e, ok := event.Resource.(types.Resource153Unwrapper)
+		e, ok := event.Resource.(types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule])
 		if !ok {
-			return trace.BadParameter("expected Resource153Unwrapper resource type, got %T", event.Resource)
+			return trace.BadParameter("expected resource type, got %T", event.Resource)
 		}
-		rule, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
-		if !ok {
-			return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
-		}
+		rule := e.UnwrapT()
 
 		// In the event an existing rule no longer applies we must remove it.
 		if !handler.ruleApplies(rule) {
