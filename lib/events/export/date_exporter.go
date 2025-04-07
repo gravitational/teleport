@@ -477,28 +477,55 @@ Outer:
 // batchExportEvents exports all events from the provided stream in bulk,
 // updating the supplied entry on each successful export.
 func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry, chunk string) error {
-	var events []*auditlogpb.EventUnstructured
-	size := 0
-	startTime := time.Now()
-	for stream.Next() {
-		cursor := stream.Item().Cursor
-		event := stream.Item().GetEvent()
-		eventSize := proto.Size(event)
-		if size+eventSize > e.cfg.BatchExport.MaxSize {
-			err := e.batchExport(ctx, events, chunk, cursor, false /*completed*/)
-			if err != nil {
-				stream.Done()
-				return trace.Wrap(err)
-			}
-			entry.setCursor(cursor)
-			events = []*auditlogpb.EventUnstructured{event}
-			size = eventSize
-			startTime = time.Now()
-			continue
+	var (
+		events []*auditlogpb.EventUnstructured
+		size   = 0
+		cursor = ""
+	)
+	eventsChan := make(chan *auditlogpb.ExportEventUnstructured, 100)
+
+	go func() {
+		for stream.Next() {
+			eventsChan <- stream.Item()
 		}
-		events = append(events, event)
-		size += eventSize
-		if time.Since(startTime) > e.cfg.BatchExport.MaxDelay {
+		close(eventsChan)
+	}()
+
+	timer := time.NewTimer(e.cfg.BatchExport.MaxDelay)
+	defer timer.Stop()
+loop:
+	for {
+		select {
+		case eventU, ok := <-eventsChan:
+			if !ok {
+				// all events have been processed
+				break loop
+			}
+
+			cursor := eventU.GetCursor()
+			event := eventU.GetEvent()
+			eventSize := proto.Size(event)
+			if size+eventSize > e.cfg.BatchExport.MaxSize {
+				err := e.batchExport(ctx, events, chunk, cursor, false /*completed*/)
+				if err != nil {
+					stream.Done()
+					return trace.Wrap(err)
+				}
+				entry.setCursor(cursor)
+				events = []*auditlogpb.EventUnstructured{event}
+				size = eventSize
+				timer.Reset(e.cfg.BatchExport.MaxDelay)
+				continue
+			}
+			events = append(events, event)
+			size += eventSize
+		case <-timer.C:
+			if len(events) == 0 {
+				// no events to export, so just reset the timer
+				timer.Reset(e.cfg.BatchExport.MaxDelay)
+				continue
+			}
+
 			err := e.batchExport(ctx, events, chunk, cursor, false /*completed*/)
 			if err != nil {
 				stream.Done()
@@ -507,12 +534,14 @@ func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stre
 			entry.setCursor(cursor)
 			events = nil
 			size = 0
-			startTime = time.Now()
+			timer.Reset(e.cfg.BatchExport.MaxDelay)
 		}
 	}
+
 	if err := stream.Done(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	err := e.batchExport(ctx, events, chunk, "", true /*completed*/)
 	if err != nil {
 		stream.Done()
