@@ -20,9 +20,11 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -98,7 +100,7 @@ func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...O
 }
 
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(matchers []types.AzureMatcher, clients azureClientGetter, discoveryConfigName string) []Fetcher {
+func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, clients azureClientGetter, discoveryConfigName string) []Fetcher {
 	ret := make([]Fetcher, 0)
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
@@ -109,6 +111,7 @@ func MatchersToAzureInstanceFetchers(matchers []types.AzureMatcher, clients azur
 					ResourceGroup:       resourceGroup,
 					AzureClientGetter:   clients,
 					DiscoveryConfigName: discoveryConfigName,
+					Logger:              logger,
 				})
 				ret = append(ret, fetcher)
 			}
@@ -124,6 +127,7 @@ type azureFetcherConfig struct {
 	AzureClientGetter   azureClientGetter
 	DiscoveryConfigName string
 	Integration         string
+	Logger              *slog.Logger
 }
 
 type azureInstanceFetcher struct {
@@ -136,6 +140,7 @@ type azureInstanceFetcher struct {
 	ClientID            string
 	DiscoveryConfigName string
 	Integration         string
+	Logger              *slog.Logger
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
@@ -147,6 +152,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		Labels:              cfg.Matcher.ResourceTags,
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
 		Integration:         cfg.Integration,
+		Logger:              cfg.Logger,
 	}
 
 	if cfg.Matcher.Params != nil {
@@ -175,18 +181,16 @@ func (f *azureInstanceFetcher) IntegrationName() string {
 	return f.Integration
 }
 
+type resourceGroupLocation struct {
+	resourceGroup string
+	location      string
+}
+
 // GetInstances fetches all Azure virtual machines matching configured filters.
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
 	client, err := f.AzureClientGetter.GetAzureVirtualMachinesClient(f.Subscription)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
-	allowAllRegions := slices.Contains(f.Regions, types.Wildcard)
-	if !allowAllRegions {
-		for _, region := range f.Regions {
-			instancesByRegion[region] = []*armcompute.VirtualMachine{}
-		}
 	}
 
 	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
@@ -194,11 +198,17 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		return nil, trace.Wrap(err)
 	}
 
+	instancesByRegionAndResourceGroup := make(map[resourceGroupLocation][]*armcompute.VirtualMachine)
+
+	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
+	allowAllResourceGroups := f.ResourceGroup == types.Wildcard
+
 	for _, vm := range vms {
 		location := azure.StringVal(vm.Location)
-		if _, ok := instancesByRegion[location]; !ok && !allowAllRegions {
+		if !slices.Contains(f.Regions, location) && !allowAllLocations {
 			continue
 		}
+
 		vmTags := make(map[string]string, len(vm.Tags))
 		for key, value := range vm.Tags {
 			vmTags[key] = azure.StringVal(value)
@@ -206,23 +216,45 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
 			continue
 		}
-		instancesByRegion[location] = append(instancesByRegion[location], vm)
+
+		resourceGroup := f.ResourceGroup
+		if allowAllResourceGroups {
+			resourceMetadata, err := arm.ParseResourceID(azure.StringVal(vm.ID))
+			if err != nil {
+				f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
+					"subscription_id", f.Subscription,
+					"vm_id", azure.StringVal(vm.ID),
+					"error", err,
+				)
+				continue
+			}
+			resourceGroup = resourceMetadata.ResourceGroupName
+		}
+
+		batchGroup := resourceGroupLocation{
+			resourceGroup: resourceGroup,
+			location:      location,
+		}
+
+		if _, ok := instancesByRegionAndResourceGroup[batchGroup]; !ok {
+			instancesByRegionAndResourceGroup[batchGroup] = make([]*armcompute.VirtualMachine, 0)
+		}
+
+		instancesByRegionAndResourceGroup[batchGroup] = append(instancesByRegionAndResourceGroup[batchGroup], vm)
 	}
 
 	var instances []Instances
-	for region, vms := range instancesByRegion {
-		if len(vms) > 0 {
-			instances = append(instances, Instances{Azure: &AzureInstances{
-				SubscriptionID:  f.Subscription,
-				Region:          region,
-				ResourceGroup:   f.ResourceGroup,
-				Instances:       vms,
-				ScriptName:      f.Parameters["scriptName"],
-				PublicProxyAddr: f.Parameters["publicProxyAddr"],
-				Parameters:      []string{f.Parameters["token"]},
-				ClientID:        f.ClientID,
-			}})
-		}
+	for batchGroup, vms := range instancesByRegionAndResourceGroup {
+		instances = append(instances, Instances{Azure: &AzureInstances{
+			SubscriptionID:  f.Subscription,
+			Region:          batchGroup.location,
+			ResourceGroup:   batchGroup.resourceGroup,
+			Instances:       vms,
+			ScriptName:      f.Parameters["scriptName"],
+			PublicProxyAddr: f.Parameters["publicProxyAddr"],
+			Parameters:      []string{f.Parameters["token"]},
+			ClientID:        f.ClientID,
+		}})
 	}
 
 	return instances, nil
