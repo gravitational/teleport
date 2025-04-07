@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // NewCertificateStoreClient returns a new structure for modifying windows certificates in a Windows CA.
@@ -38,14 +37,22 @@ type CertificateStoreClient struct {
 	cfg CertificateStoreConfig
 }
 
+// CRLGenerator generates CRLs, which are required for certificate-based authentication on Windows.
+// Teleport has its own locking concept that is used for revocation, so the CRLS generated here
+// are always empty and exist only to satisfy the Windows requirements for CRL checking.
+type CRLGenerator interface {
+	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
+	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
+}
+
 // CertificateStoreConfig is a config structure for a Windows Certificate Authority
 type CertificateStoreConfig struct {
 	// AccessPoint is the Auth API client (with caching).
-	AccessPoint authclient.WindowsDesktopAccessPoint
+	AccessPoint CRLGenerator
 	// Domain is the Active Directory domain where Teleport publishes its
 	// Certificate Revocation List (CRL).
 	Domain string
-	// Log is the logging sink for the service
+	// Logger is the logging sink for the service
 	Logger *slog.Logger
 	// ClusterName is the name of this Teleport cluster
 	ClusterName string

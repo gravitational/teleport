@@ -16,9 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
-import Validator, { Result, useValidation, Validation } from './Validation';
+import FieldInput from '../FieldInput';
+import { requiredField } from './rules';
+import Validator, {
+  Result,
+  useValidation,
+  Validation,
+  ValidationSuspender,
+} from './Validation';
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -163,4 +172,62 @@ test('rendering validation result via render function', () => {
   act(() => validator.validate());
   expect(screen.getByText('Validating: true')).toBeInTheDocument();
   expect(screen.getByText('Valid: false')).toBeInTheDocument();
+});
+
+test('suspending validation', () => {
+  const TestComponent = () => {
+    const [str1, setStr1] = useState('');
+    const [str2, setStr2] = useState('');
+    const [suspend, setSuspend] = useState(true);
+    return (
+      <Validation>
+        {({ validator }) => {
+          return (
+            <>
+              <FieldInput
+                label="Field 1"
+                rule={requiredField('required 1')}
+                value={str1}
+                onChange={e => setStr1(e.target.value)}
+              />
+              <ValidationSuspender suspend={suspend}>
+                <FieldInput
+                  label="Field 2"
+                  rule={requiredField('required 2')}
+                  value={str2}
+                  onChange={e => setStr2(e.target.value)}
+                />
+              </ValidationSuspender>
+              <button onClick={() => validator.validate()}>Validate</button>
+              <button onClick={() => setSuspend(s => !s)}>
+                Toggle suspend
+              </button>
+            </>
+          );
+        }}
+      </Validation>
+    );
+  };
+
+  render(<TestComponent />);
+  // Validation of field 2 suspended, only 1st field is validated.
+  fireEvent.click(screen.getByRole('button', { name: 'Validate' }));
+  expect(screen.queryByText('required 1')).toBeVisible();
+  expect(screen.queryByText('required 2')).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Field 1'), {
+    target: { value: 'foo' },
+  });
+  expect(screen.queryByText('required 1')).not.toBeInTheDocument();
+  expect(screen.queryByText('required 2')).not.toBeInTheDocument();
+
+  // Validation of field 2 resumed, both fields are validated.
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle suspend' }));
+  expect(screen.queryByText('required 1')).not.toBeInTheDocument();
+  expect(screen.getByText('required 2')).toBeVisible();
+
+  fireEvent.change(screen.getByLabelText('Field 2'), {
+    target: { value: 'foo' },
+  });
+  expect(screen.queryByText('required 2')).not.toBeInTheDocument();
 });

@@ -41,27 +41,27 @@ test('renders ec2 impacts', async () => {
     discoverRds: undefined,
     discoverEc2: {
       region: 'us-east-2',
-      accountId: undefined,
-      ssmDocument: undefined,
-      installerScript: undefined,
+      account_id: undefined,
+      ssm_document: undefined,
+      installer_script: undefined,
       instances: {
         'i-016e32a5882f5ee81': {
           instance_id: 'i-016e32a5882f5ee81',
           resourceUrl: '',
           name: undefined,
-          invocationUrl: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          invocation_url: 'some-run-url',
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
         'i-065818031835365cc': {
           instance_id: 'i-065818031835365cc',
           resourceUrl: '',
           name: 'aws-test',
-          invocationUrl: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          invocation_url: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
       },
     },
@@ -76,12 +76,11 @@ test('renders ec2 impacts', async () => {
   await screen.findByText('Details');
 
   expect(getTableCellContents()).toEqual({
-    header: ['Instance ID', 'Instance Name'],
-    rows: [
-      ['i-016e32a5882f5ee81', ''],
-      ['i-065818031835365cc', 'aws-test'],
-    ],
+    header: ['Instances', 'Invocation Link'],
+    rows: [['i-016e32a5882f5ee81', ''], ['i-065818031835365ccaws-test']],
   });
+
+  expect(screen.getByRole('link')).toHaveAttribute('href', 'some-run-url');
 
   jest.resetAllMocks();
 });
@@ -101,23 +100,23 @@ test('renders eks impacts', async () => {
     discoverEc2: undefined,
     discoverRds: undefined,
     discoverEks: {
-      accountId: undefined,
+      account_id: undefined,
       region: undefined,
-      appAutoDiscover: false,
+      app_auto_discover: false,
       clusters: {
         'i-016e32a5882f5ee81': {
           name: 'i-016e32a5882f5ee81',
           resourceUrl: '',
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
         'i-065818031835365cc': {
           name: 'i-065818031835365cc',
           resourceUrl: '',
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
       },
     },
@@ -153,26 +152,26 @@ test('renders rds impacts', async () => {
     discoverEks: undefined,
     discoverEc2: undefined,
     discoverRds: {
-      accountId: undefined,
+      account_id: undefined,
       region: undefined,
       databases: {
         'i-016e32a5882f5ee81': {
           name: 'i-016e32a5882f5ee81',
           resourceUrl: '',
-          isCluster: undefined,
+          is_cluster: undefined,
           engine: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
         'i-065818031835365cc': {
           name: 'i-065818031835365cc',
           resourceUrl: '',
-          isCluster: undefined,
+          is_cluster: undefined,
           engine: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
       },
     },

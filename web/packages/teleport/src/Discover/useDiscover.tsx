@@ -52,9 +52,8 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
-import { ServiceDeployMethod } from './Database/common';
 import { ResourceViewConfig, View } from './flow';
-import { getOverview } from './Overview/Overview';
+import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
 import { SelectResourceSpec } from './SelectResource/resources';
 import { EViewConfigs } from './types';
@@ -137,7 +136,7 @@ export function DiscoverProvider({
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
-  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
+  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
@@ -356,7 +355,9 @@ export function DiscoverProvider({
     setIndexedViews(indexedViews);
     setResourceSpec(resource);
     setCurrentStep(targetViewIndex);
-    setInfoGuideElement(getOverview({ resourceSpec: resource }));
+    // Open the guide for the user when starting the flow.
+    const overview = getOverview({ resourceSpec: resource });
+    setInfoGuideConfig(getDiscoverInfoGuideConfig(overview));
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -443,8 +444,8 @@ export function DiscoverProvider({
     setResourceSpec(null);
     setIndexedViews([]);
 
-    if (infoGuideElement) {
-      setInfoGuideElement(null);
+    if (infoGuideConfig) {
+      setInfoGuideConfig(null);
     }
   }
 
@@ -553,6 +554,16 @@ export type NodeMeta = BaseMeta & {
   node: Node;
 };
 
+export type DatabaseServiceDeploy =
+  | {
+      method: 'auto';
+      selectedSecurityGroups: string[];
+      selectedSubnetIds: string[];
+    }
+  | {
+      method: 'manual' | 'skipped';
+    };
+
 // DbMeta describes the fields for a db resource
 // that needs to be preserved throughout the flow.
 export type DbMeta = BaseMeta & {
@@ -561,10 +572,10 @@ export type DbMeta = BaseMeta & {
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
   /**
-   * serviceDeployedMethod flag will be undefined if user skipped
-   * deploying service (service already existed).
+   * Only defined after the database service deploy step,
+   * before this step, it will be undefined.
    */
-  serviceDeployedMethod?: ServiceDeployMethod;
+  serviceDeploy?: DatabaseServiceDeploy;
 };
 
 // KubeMeta describes the fields for a kube resource

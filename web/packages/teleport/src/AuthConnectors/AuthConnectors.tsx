@@ -30,7 +30,7 @@ import {
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
 import {
-  InfoGuideWrapper,
+  InfoGuideButton,
   InfoParagraph,
   ReferenceLinks,
 } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
@@ -144,7 +144,7 @@ export function AuthConnectors() {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <InfoGuideWrapper guide={<InfoGuide isGitHub={true} />}>
+        <InfoGuideButton config={{ guide: <InfoGuide isGitHub={true} /> }}>
           <ResponsiveAddButton
             fill="border"
             onClick={() =>
@@ -153,10 +153,10 @@ export function AuthConnectors() {
           >
             New GitHub Connector
           </ResponsiveAddButton>
-        </InfoGuideWrapper>
+        </InfoGuideButton>
       </ResponsiveFeatureHeader>
       {fetchAttempt.status === 'error' && (
-        <Alert children={fetchAttempt.statusText} />
+        <Alert>{fetchAttempt.statusText}</Alert>
       )}
       {fetchAttempt.status === 'processing' && (
         <Box textAlign="center" m={10}>

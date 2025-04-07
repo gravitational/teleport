@@ -37,7 +37,7 @@ import (
 // for message section texts, so we truncate all reasons to a generous but
 // conservative limit
 const (
-	requestInlineLimit = 500
+	requestInlineLimit = 400
 	requestReasonLimit
 	resolutionReasonLimit
 	ReviewReasonLimit

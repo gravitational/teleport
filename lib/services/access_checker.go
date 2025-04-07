@@ -462,14 +462,10 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	}
 
 	switch rr := r.(type) {
-	case types.Resource153Unwrapper:
-		switch urr := rr.Unwrap().(type) {
-		case IdentityCenterAccount:
-			matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
-
-		case IdentityCenterAccountAssignment:
-			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
-		}
+	case types.Resource153UnwrapperT[IdentityCenterAccount]:
+		matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
+	case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
+		matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 	}
 
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))

@@ -1535,7 +1535,7 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 
 	var data tracepb.TracesData
-	if err := protojson.Unmarshal(body, &data); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(body, &data); err != nil {
 		h.logger.ErrorContext(r.Context(), "Failed to unmarshal traces request", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return nil, nil
@@ -1629,7 +1629,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet(r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -5272,4 +5272,44 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
+}
+
+// WithAuthCookieAndCSRF ensures that a request is authenticated
+// for plain old non-AJAX requests (does not check the Bearer header).
+// It enforces CSRF checks.
+//
+// TODO(kimlisa): DELETE IN v19.0 (csrf)
+// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
+func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
+	// formFieldName is the default form field to inspect.
+	const formFieldName = "csrf_token"
+
+	// verifyFormField checks if HTTP form value matches the cookie.
+	verifyFormField := func(r *http.Request) error {
+		token := r.FormValue(formFieldName)
+		if len(token) == 0 {
+			return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
+		}
+
+		err := csrf.VerifyToken(token, r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		sctx, err := h.AuthenticateRequest(w, r, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		errForm := verifyFormField(r)
+		if errForm != nil {
+			slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
+			return nil, trace.AccessDenied("access denied")
+		}
+		return fn(w, r, p, sctx)
+	})
 }

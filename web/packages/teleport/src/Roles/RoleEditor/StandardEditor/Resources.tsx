@@ -34,6 +34,7 @@ import {
 } from 'shared/components/FieldSelect';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { precomputed } from 'shared/components/Validation/rules';
+import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
@@ -121,7 +122,7 @@ export const ResourcesTab = memo(function ResourcesTab({
           buttonText={
             <>
               <Plus size="small" mr={2} />
-              Add Resource Access
+              Add Teleport Resource Access
             </>
           }
           buttonProps={{
@@ -212,20 +213,22 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   }
 
   return (
-    <SectionBox
-      titleSegments={[title]}
-      removable
-      onRemove={handleRemove}
-      isProcessing={isProcessing}
-      validation={validation}
-    >
-      <Body
-        value={value}
+    <ValidationSuspender suspend={value.hideValidationErrors}>
+      <SectionBox
+        titleSegments={[title]}
+        removable
+        onRemove={handleRemove}
         isProcessing={isProcessing}
         validation={validation}
-        onChange={handleChange}
-      />
-    </SectionBox>
+      >
+        <Body
+          value={value}
+          isProcessing={isProcessing}
+          validation={validation}
+          onChange={handleChange}
+        />
+      </SectionBox>
+    </ValidationSuspender>
   );
 });
 
@@ -351,8 +354,8 @@ export function KubernetesAccessSection({
           >
             <Add disabled={isProcessing} size="small" />
             {value.resources.length > 0
-              ? 'Add Another Resource'
-              : 'Add a Resource'}
+              ? 'Add Another Kubernetes Resource'
+              : 'Add a Kubernetes Resource'}
           </ButtonSecondary>
         </Box>
       </Flex>
@@ -384,10 +387,10 @@ function KubernetesResourceView({
     >
       <Flex>
         <Box flex="1">
-          <H4 mb={3}>Resource</H4>
+          <H4 mb={3}>Kubernetes Resource</H4>
         </Box>
         <ButtonIcon
-          aria-label="Remove resource"
+          aria-label="Remove Kubernetes resource"
           disabled={isProcessing}
           onClick={onRemove}
         >
