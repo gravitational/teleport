@@ -30,7 +30,10 @@ export const databases: Database[] = [
       { name: 'env', value: 'aws' },
     ],
     hostname: 'aurora-hostname',
-  },
+    targetHealth: { status: 'unhealthy' },
+    // TODO(kimlisa): remove as any once we add
+    // "targetHealth" field to db response
+  } as any,
   {
     kind: 'db',
     name: 'mongodbizzle',
@@ -42,7 +45,10 @@ export const databases: Database[] = [
       { name: 'env', value: 'aws' },
     ],
     hostname: 'mongo-bongo',
-  },
+    targetHealth: { status: 'unknown' },
+    // TODO(kimlisa): remove as any once we add
+    // "targetHealth" field to db response
+  } as any,
   {
     kind: 'db',
     name: 'Dynamooooo',
@@ -102,7 +108,10 @@ export const databases: Database[] = [
       { name: 'env', value: 'gcp' },
     ],
     hostname: 'postgres-hostname',
-  },
+    targetHealth: { status: 'unhealthy' },
+    // TODO(kimlisa): remove as any once we add
+    // "targetHealth" field to db response
+  } as any,
   {
     kind: 'db',
     name: 'mysql-aurora-56',

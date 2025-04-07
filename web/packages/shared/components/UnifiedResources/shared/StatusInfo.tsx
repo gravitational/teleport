@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,32 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Theme } from 'design/theme/themes/types';
+import { Theme } from 'design/theme';
 
-export interface BackgroundColorProps {
-  requiresRequest?: boolean;
-  selected?: boolean;
-  pinned?: boolean;
-  theme: Theme;
-  hasUnhealthyStatus: boolean;
+export const getStatusBackgroundColor = (props: {
   viewingUnhealthyStatus: boolean;
-}
+  theme: Theme;
+  action: '' | 'hover';
+  viewType: 'card' | 'list';
+}) => {
+  if (props.viewingUnhealthyStatus) {
+    if (props.action === 'hover') {
+      return props.theme.colors.interactive.tonal.alert[1];
+    }
+    return props.theme.colors.interactive.tonal.alert[2];
+  }
 
-export const getBackgroundColor = (props: BackgroundColorProps) => {
-  if (props.hasUnhealthyStatus) {
-    return 'transparent';
+  if (props.action === 'hover') {
+    return props.theme.colors.interactive.tonal.alert[1];
   }
-  if (props.requiresRequest && props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0];
+
+  if (props.viewType === 'list') {
+    return props.theme.colors.interactive.tonal.alert[0];
   }
-  if (props.requiresRequest) {
-    return props.theme.colors.spotBackground[0];
-  }
-  if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2];
-  }
-  if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[1];
-  }
+
   return 'transparent';
 };

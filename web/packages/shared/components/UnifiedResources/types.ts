@@ -60,6 +60,7 @@ export interface UnifiedResourceDatabase {
   protocol: DbProtocol;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
+  targetHealth?: { status: ResourceStatus };
 }
 
 export interface UnifiedResourceNode {
@@ -115,15 +116,17 @@ export type UnifiedResourceUi = {
   ActionButton: React.ReactElement;
 };
 
+export type UnifiedResourceDefinition =
+  | UnifiedResourceApp
+  | UnifiedResourceDatabase
+  | UnifiedResourceNode
+  | UnifiedResourceKube
+  | UnifiedResourceDesktop
+  | UnifiedResourceUserGroup
+  | UnifiedResourceGitServer;
+
 export type SharedUnifiedResource = {
-  resource:
-    | UnifiedResourceApp
-    | UnifiedResourceDatabase
-    | UnifiedResourceNode
-    | UnifiedResourceKube
-    | UnifiedResourceDesktop
-    | UnifiedResourceUserGroup
-    | UnifiedResourceGitServer;
+  resource: UnifiedResourceDefinition;
   ui: UnifiedResourceUi;
 };
 
@@ -137,6 +140,7 @@ export type UnifiedResourcesQueryParams = {
     dir: 'ASC' | 'DESC';
   };
   pinnedOnly?: boolean;
+  statuses?: ResourceStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
   includedResourceMode?: IncludedResourceMode;
@@ -153,6 +157,11 @@ export interface UnifiedResourceViewItem {
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;
+  /**
+   * If undefined, status is not supported.
+   * TODO: test with cluster with old versions of teleport, how to handle?
+   */
+  status?: ResourceStatus;
 }
 
 export enum PinningSupport {
@@ -190,6 +199,13 @@ export type ResourceItemProps = {
   requiresRequest?: boolean;
   pinningSupport: PinningSupport;
   expandAllLabels: boolean;
+  /**
+   * If undefined, status is not supported.
+   * TODO: test with cluster with old versions of teleport, how to handle?
+   */
+  status?: ResourceStatus;
+  onShowStatusInfo(): void;
+  viewingUnhealthyStatus: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -226,6 +242,11 @@ export type ResourceViewProps = {
   onPinResource: (resourceId: string) => void;
   pinningSupport: PinningSupport;
   isProcessing: boolean;
-  mappedResources: { item: UnifiedResourceViewItem; key: string }[];
+  mappedResources: {
+    item: UnifiedResourceViewItem;
+    key: string;
+    onShowStatusInfo(): void;
+    viewingUnhealthyStatus: boolean;
+  }[];
   expandAllLabels: boolean;
 };

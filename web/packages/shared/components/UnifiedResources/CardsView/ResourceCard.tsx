@@ -32,7 +32,10 @@ import {
   getBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
+import { SingleLineBox } from '../shared/SingleLineBox';
+import { getStatusBackgroundColor } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
+import { WarningRightEdgeBadgeSvg } from './WarningSideBadgeSvg';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -64,6 +67,9 @@ export function ResourceCard({
   selectResource,
   requiresRequest,
   selected,
+  status,
+  onShowStatusInfo,
+  viewingUnhealthyStatus,
 }: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
 
@@ -157,12 +163,18 @@ export function ResourceCard({
     }
   };
 
+  const hasUnhealthyStatus = status && status !== 'healthy';
+
   return (
     <CardContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      viewingUnhealthyStatus={viewingUnhealthyStatus}
     >
-      <CardOuterContainer showAllLabels={showAllLabels}>
+      <CardOuterContainer
+        showAllLabels={showAllLabels}
+        hasUnhealthyStatus={hasUnhealthyStatus}
+      >
         <CardInnerContainer
           ref={innerContainer}
           p={3}
@@ -174,6 +186,9 @@ export function ResourceCard({
           pinned={pinned}
           requiresRequest={requiresRequest}
           selected={selected}
+          viewingUnhealthyStatus={viewingUnhealthyStatus}
+          hasUnhealthyStatus={hasUnhealthyStatus}
+          {...(hasUnhealthyStatus && !showAllLabels && { pr: '35px' })}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
             <CheckboxInput
@@ -271,11 +286,38 @@ export function ResourceCard({
               </LabelsInnerContainer>
             </LabelsContainer>
           </Flex>
+          {hasUnhealthyStatus && !showAllLabels && (
+            <HoverTooltip tipContent={'Show Connection Issue'} placement="left">
+              <WarningRightEdgeBadgeIcon onClick={onShowStatusInfo} />
+            </HoverTooltip>
+          )}
         </CardInnerContainer>
       </CardOuterContainer>
+      {/* This is to let the StatusWarningEdgeIcon stay in place while inner
+      container expands vertically from rendering all labels. */}
+      {hasUnhealthyStatus && showAllLabels && (
+        <WarningRightEdgeBadgeIcon onClick={onShowStatusInfo} />
+      )}
     </CardContainer>
   );
 }
+
+const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick(): void }) => {
+  return (
+    <Box
+      onClick={onClick}
+      css={`
+        position: absolute;
+        top: 0;
+        right: 0px;
+        cursor: pointer;
+        height: 100%;
+      `}
+    >
+      <WarningRightEdgeBadgeSvg />
+    </Box>
+  );
+};
 
 /**
  * The outer container's purpose is to reserve horizontal space on the resource
@@ -288,11 +330,27 @@ export function ResourceCard({
  * layout; we may need to globally set the card height to fixed size on the
  * outer container.
  */
-const CardContainer = styled(Box)`
+const CardContainer = styled(Box)<{
+  viewingUnhealthyStatus: boolean;
+}>`
   position: relative;
+  .resource-health-status-svg {
+    fill: ${p =>
+      p.viewingUnhealthyStatus
+        ? p.theme.colors.interactive.solid.alert.active
+        : p.theme.colors.interactive.solid.alert.default};
+  }
+  &:hover {
+    .resource-health-status-svg {
+      fill: ${p => p.theme.colors.interactive.solid.alert.hover};
+    }
+  }
 `;
 
-const CardOuterContainer = styled(Box)<{ showAllLabels?: boolean }>`
+const CardOuterContainer = styled(Box)<{
+  showAllLabels?: boolean;
+  hasUnhealthyStatus: boolean;
+}>`
   border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
@@ -300,7 +358,8 @@ const CardOuterContainer = styled(Box)<{ showAllLabels?: boolean }>`
     css`
       position: absolute;
       left: 0;
-      right: 0;
+      // The padding is required to show the StatusWarningEdgeIcon
+      right: ${props.hasUnhealthyStatus ? '28px' : 0};
       z-index: 1;
     `}
   transition: all 150ms;
@@ -340,16 +399,40 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
   border-radius: ${props => props.theme.radii[3]}px;
   background-color: ${props => getBackgroundColor(props)};
 
+  ${p =>
+    p.hasUnhealthyStatus &&
+    css`
+      border: 2px solid ${p.theme.colors.interactive.solid.alert.default};
+      background-color: ${getStatusBackgroundColor({
+        viewingUnhealthyStatus: p.viewingUnhealthyStatus,
+        theme: p.theme,
+        action: '',
+        viewType: 'card',
+      })};
+    `}
+
+  ${p =>
+    p.viewingUnhealthyStatus &&
+    css`
+      border: 2px solid ${p.theme.colors.interactive.solid.alert.active};
+    `}
+
   &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
-  }
-`;
 
-const SingleLineBox = styled(Box)`
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+    ${p =>
+      p.hasUnhealthyStatus &&
+      css`
+        border-color: ${p.theme.colors.interactive.solid.alert.hover};
+        background-color: ${getStatusBackgroundColor({
+          viewingUnhealthyStatus: p.viewingUnhealthyStatus,
+          theme: p.theme,
+          action: 'hover',
+          viewType: 'card',
+        })};
+      `}
+  }
 `;
 
 /**
@@ -397,10 +480,14 @@ const MoreLabelsButton = styled(ButtonLink)`
   margin: ${labelVerticalMargin}px 0;
   min-height: 0;
 
-  background-color: ${props => getBackgroundColor(props)};
+  background-color: transparent;
   color: ${props => props.theme.colors.text.slightlyMuted};
   font-style: italic;
 
   transition: visibility 0s;
   transition: background 150ms;
+
+  &:hover {
+    background-color: transparent;
+  }
 `;

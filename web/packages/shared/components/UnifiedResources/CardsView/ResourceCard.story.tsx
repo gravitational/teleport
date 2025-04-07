@@ -140,6 +140,9 @@ export const Cards: Story = {
                 cardViewProps={res.cardViewProps}
                 labels={res.labels}
                 ActionButton={res.ActionButton}
+                onShowStatusInfo={() => null}
+                viewingUnhealthyStatus={false}
+                status={res.status}
               />
             ))}
           </Grid>
