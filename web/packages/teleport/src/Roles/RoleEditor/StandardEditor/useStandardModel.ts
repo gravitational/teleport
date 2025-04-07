@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { current, original } from 'immer';
+import { current, enableMapSet, original } from 'immer';
 import { Dispatch } from 'react';
 import { useImmerReducer } from 'use-immer';
 
@@ -44,6 +44,9 @@ import { validateRoleEditorModel } from './validation';
 
 const logger = new Logger('useStandardModel');
 
+// Enable support for the Set type in Immer. We use it for `disabledTabs`.
+enableMapSet();
+
 /**
  * Creates a standard model state and returns an array composed of the state
  * and an action dispatcher that can be used to change it. Since the conversion
@@ -68,8 +71,12 @@ const initializeState = (originalRole?: Role): StandardEditorModel => {
       roleModel && validateRoleEditorModel(roleModel, undefined, undefined),
     currentTab: StandardEditorTab.Overview,
     disabledTabs: isEditing
-      ? [false, false, false, false]
-      : [false, true, true, true],
+      ? new Set()
+      : new Set([
+          StandardEditorTab.Resources,
+          StandardEditorTab.AdminRules,
+          StandardEditorTab.Options,
+        ]),
   };
 };
 
@@ -189,7 +196,7 @@ const reduce = (
   switch (type) {
     case ActionType.SetCurrentTab:
       state.currentTab = payload;
-      state.disabledTabs[payload] = false;
+      state.disabledTabs.delete(payload);
       break;
 
     case ActionType.SetModel:
