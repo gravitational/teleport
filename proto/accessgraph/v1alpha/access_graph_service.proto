@@ -65,8 +65,8 @@ service AccessGraphService {
   // instead of a single response.
   rpc EventsStreamV2(stream EventsStreamV2Request) returns (stream EventsStreamV2Response);
 
-  // AuditLogStream establishes a persistent bidirectional stream for efficiently
-  // exporting audit log events from a client (teleport) to a server (access-graph).
+  // AuditLogStream establishes a persistent bidirectional stream for exporting
+  // audit log events from a client (teleport) to a server (access-graph).
   //
   // This stream facilitates:
   // - Initial configuration exchange and validation.

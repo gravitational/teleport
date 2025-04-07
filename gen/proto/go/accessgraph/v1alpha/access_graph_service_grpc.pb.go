@@ -72,8 +72,8 @@ type AccessGraphServiceClient interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EventsStreamV2Request, EventsStreamV2Response], error)
-	// AuditLogStream establishes a persistent bidirectional stream for efficiently
-	// exporting audit log events from a client (teleport) to a server (access-graph).
+	// AuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
 	//
 	// This stream facilitates:
 	// - Initial configuration exchange and validation.
@@ -295,8 +295,8 @@ type AccessGraphServiceServer interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]) error
-	// AuditLogStream establishes a persistent bidirectional stream for efficiently
-	// exporting audit log events from a client (teleport) to a server (access-graph).
+	// AuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
 	//
 	// This stream facilitates:
 	// - Initial configuration exchange and validation.

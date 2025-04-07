@@ -474,8 +474,11 @@ Outer:
 	}
 }
 
-// batchExportEvents exports all events from the provided stream in bulk,
-// updating the supplied entry on each successful export.
+// batchExportEvents reads events from the provided stream and exports them in batches.
+// Batching adheres to the export configuration: batches are sent either when
+// they reach the configured maximum size (MaxSize) or after the maximum delay
+// (MaxDelay) has passed with pending events. Processing continues until the
+// stream closes or an error occurs.
 func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stream[*auditlogpb.ExportEventUnstructured], entry *chunkEntry, chunk string) error {
 	var (
 		events []*auditlogpb.EventUnstructured
