@@ -1,4 +1,4 @@
-.version: &version "17.4.1"
+.version: &version "17.4.1-dev.ddbsthrottle.1"
 
 name: teleport-kube-agent
 apiVersion: v2

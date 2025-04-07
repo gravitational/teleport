@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "17.4.1"
+const Version = "17.4.1-dev.ddbsthrottle.1"
 
 var SemVersion = semver.New(Version)
