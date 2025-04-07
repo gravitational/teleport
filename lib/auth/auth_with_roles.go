@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
@@ -3404,7 +3405,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		traits:                 accessInfo.Traits,
 		activeRequests:         req.AccessRequests,
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
-		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
+		attestationStatement:   hardwarekey.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
 
 		// Always pass through a bot instance ID if available. Legacy bots

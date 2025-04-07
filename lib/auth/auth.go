@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -2182,7 +2183,7 @@ type certRequest struct {
 	// The Node/Agent will append connection traces to this instance.
 	connectionDiagnosticID string
 	// attestationStatement is an attestation statement associated with the given public key.
-	attestationStatement *keys.AttestationStatement
+	attestationStatement *hardwarekey.AttestationStatement
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
@@ -2324,7 +2325,7 @@ type GenerateUserTestCertsRequest struct {
 	RouteToCluster       string
 	PinnedIP             string
 	MFAVerified          string
-	AttestationStatement *keys.AttestationStatement
+	AttestationStatement *hardwarekey.AttestationStatement
 	AppName              string
 	AppSessionID         string
 }
