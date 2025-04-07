@@ -94,9 +94,12 @@ export const StandardEditor = ({
     [dispatch]
   );
 
-  const setCurrentTab = (newTab: StandardEditorTab) => {
-    dispatch({ type: ActionType.SetCurrentTab, payload: newTab });
-  };
+  const setCurrentTab = useCallback(
+    (newTab: StandardEditorTab) => {
+      dispatch({ type: ActionType.SetCurrentTab, payload: newTab });
+    },
+    [dispatch]
+  );
 
   const validateAndGoToNextTab = useCallback(() => {
     const nextTabIndex = currentTab + 1;
@@ -125,7 +128,7 @@ export const StandardEditor = ({
     return {
       key: tab,
       title: tabTitles[tab],
-      disabled: disabledTabs[tab],
+      disabled: disabledTabs.has(tab),
       controls: tabElementIDs[tab],
       status: error ? validationErrorTabStatus : undefined,
     };

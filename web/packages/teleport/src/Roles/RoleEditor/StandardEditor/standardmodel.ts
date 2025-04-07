@@ -78,7 +78,7 @@ export type StandardEditorModel = {
    */
   validationResult?: RoleEditorModelValidationResult;
   currentTab: StandardEditorTab;
-  disabledTabs: { [t in StandardEditorTab]: boolean };
+  disabledTabs: Set<StandardEditorTab>;
 };
 
 /**
