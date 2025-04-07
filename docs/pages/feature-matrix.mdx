@@ -43,9 +43,9 @@ across distributed infrastructures.
 YubiKey Bio and other biometric devices. Add Teleport as a security layer on top
 of your identity provider or use Teleport's SSO.
 
-|  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
-| [Single Sign-On](https://goteleport.com/docs/admin-guides/access-controls/sso/)| GitHub, Google Workspace, Entra, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Entra, Okta, OIDC, SAML, Teleport | GitHub |
+| [Single Sign-On](https://goteleport.com/docs/admin-guides/access-controls/sso/)| GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub |
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
 | [Hardware Private Key Support](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 
@@ -67,7 +67,7 @@ shared secrets.
 |---|:---:|:---:|:---:|
 | Dynamic, self-updating inventory | ✔ | ✔ | ✔ |
 | Supports SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
-| [Machines](https://goteleport.com/docs/enroll-resources/machine-id/) & [workloads](https://goteleport.com/docs/enroll-resources/workload-identity/introduction/#teleport-workload-identity-vs-machine-id) | Available in Teleport Machine & Workload Identity |  |  |
+| [Machines](https://goteleport.com/docs/enroll-resources/machine-id/) and [workloads](https://goteleport.com/docs/enroll-resources/workload-identity/introduction/#teleport-workload-identity-vs-machine-id) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
 | Agentless Integration with [OpenSSH Servers](https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/) | ✔ | ✔ | ✔ |
 | [IP-Based Restrictions](https://goteleport.com/docs/admin-guides/access-controls/guides/ip-pinning/) | ✔ | ✔ | ✖ |
 | [Teleport VNet](https://goteleport.com/docs/connect-your-client/vnet/) | ✔ | ✔ | ✔ |
@@ -81,7 +81,7 @@ including legacy systems.
 |  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
 |---|:---:|:---:|:---:|
 | [Role-Based Access Control](https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/) | ✔ | ✔ | ✔ |
-| [Just-in-Time Access Requests & Reviews](https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/) | Available in Teleport Identity Governance |  | Only can request roles through CLI  |
+| [Just-in-Time Access Requests & Reviews](https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | Only can request roles through CLI  |
 
 <br />
 **Session recording and interactive controls:** Record, replay, join, and
@@ -125,7 +125,7 @@ compliance.
 solution that secures machine-to-machine communication with short-lived
 certificates, access control, and auditability.
 
-|  | Teleport Enterprise (Cloud) | Teleport Enterprise (Self-Hosted) | Teleport Community Edition |
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | **Service Discovery:** Live inventory of machine and workload identities for CI/CD jobs, microservices, and others | ✔ | ✔ | ✔ |
 |**Issuance:** Provisions cryptographic identities for [machines](https://goteleport.com/docs/enroll-resources/machine-id/getting-started/) and [workloads](https://goteleport.com/docs/enroll-resources/workload-identity/getting-started/), eliminating anonymous computing and the need for static overprivileged users and automating certificate rotation | ✔ | ✔ | ✔ |
@@ -141,7 +141,7 @@ certificates, access control, and auditability.
 **Teleport Identity Governance** hardens and monitors identities for both human
 and non-human identities.
 
-|  | Teleport Enterprise (Cloud) | Teleport Enterprise (Self-Hosted) | Teleport Community Edition |
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | [JIT Access Requests](https://goteleport.com/docs/admin-guides/access-controls/guides/dual-authz/): Grant only those privileges necessary to complete the task at hand. Remove the need for super-privileged accounts. | ✔ | ✔ | Only can request roles through CLI  |
 | Automatic Access Requests & Approvals: Automate pre-defined workflows based on RBAC, ABAC, or context-based authorization. | ✔ | ✔ | ✖ |
@@ -155,7 +155,7 @@ and non-human identities.
 
 **Teleport Identity Security** identifies & mitigates risk in access paths.
 
-|  | Teleport Enterprise (Cloud) | Teleport Enterprise (Self-Hosted) | Teleport Community Edition |
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | Access Graph: Import and analysis of AWS, Azure, Okta, Microsoft Entra, GitLab and AWS IAM roles | ✔ | ✔ | ✖ |
 | Discover secrets, SSH Key Scanning| ✔ | ✔ | ✖ |
@@ -166,7 +166,7 @@ and non-human identities.
 
 ## Integrations
 
-|  | Teleport Enterprise (Cloud) | Teleport Enterprise (Self-Hosted) | Teleport Community Edition |
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | Infrastructure as Code (IaC): Terraform, K8s Operator | ✔ | ✔ | ✔ |
 | Cloud Providers: AWS, Azure, GCP | ✔ | ✔ | ✔ |
