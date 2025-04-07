@@ -145,7 +145,8 @@ test('addMetadataGenric: disabled app name on isUpdateFlow props', async () => {
       <AddMetadataGeneric
         spConfig={emptyUpsertRequest}
         setSPConfig={jest.fn()}
-        disableInputs={false}
+        isProcessing={false}
+        isGuided={false}
         isUpdateFlow={true}
         setLabelsValidator={() => null}
       />
@@ -163,13 +164,14 @@ test('addMetadataGenric: disabled app name on isUpdateFlow props', async () => {
   ).toBeEnabled();
 });
 
-test('addMetadataGenric: disabled inputs on disableInputs props', async () => {
+test('addMetadataGenric: disabled inputs on isProcessing props', async () => {
   render(
     <Validation>
       <AddMetadataGeneric
         spConfig={emptyUpsertRequest}
         setSPConfig={jest.fn()}
-        disableInputs={true}
+        isProcessing={true}
+        isGuided={false}
         isUpdateFlow={false}
         setLabelsValidator={() => null}
       />
@@ -186,14 +188,33 @@ test('addMetadataGenric: disabled inputs on disableInputs props', async () => {
   expect(screen.getByRole('button', { name: /add a label/i })).toBeDisabled();
 });
 
-test('addMetadataGenric: disabled inputs on guidedToggle props', async () => {
+test('addMetadataGenric: disabled inputs on guidedToggle and unspecified preset value', async () => {
   const samlProviderProps = {
     guidedToggle: true,
   };
-
   renderConfigureServiceProvider(
     samlProviderProps,
     SamlServiceProviderPreset.Unspecified
+  );
+
+  expect(screen.getByPlaceholderText('app_saml')).toBeEnabled();
+  expect(
+    screen.getByPlaceholderText('https://example.com/saml/metadata')
+  ).toBeDisabled();
+  expect(
+    screen.getByPlaceholderText('https://example.com/saml/acs')
+  ).toBeDisabled();
+
+  expect(screen.getByRole('button', { name: /add a label/i })).toBeEnabled();
+});
+
+test('addMetadataGenric: disabled inputs on guidedToggle and GcpWorkforce preset value', async () => {
+  const samlProviderProps = {
+    guidedToggle: true,
+  };
+  renderConfigureServiceProvider(
+    samlProviderProps,
+    SamlServiceProviderPreset.GcpWorkforce
   );
 
   expect(screen.getByPlaceholderText('app_saml')).toBeDisabled();
@@ -204,7 +225,7 @@ test('addMetadataGenric: disabled inputs on guidedToggle props', async () => {
     screen.getByPlaceholderText('https://example.com/saml/acs')
   ).toBeDisabled();
 
-  expect(screen.getByRole('button', { name: /add a label/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /add a label/i })).toBeEnabled();
 });
 
 describe('addMetadataGeneric: onchange events', () => {
@@ -261,7 +282,8 @@ describe('addMetadataGeneric: onchange events', () => {
           <AddMetadataGeneric
             spConfig={emptyUpsertRequest}
             setSPConfig={onChange}
-            disableInputs={false}
+            isProcessing={false}
+            isGuided={false}
             isUpdateFlow={false}
             setLabelsValidator={() => null}
           />
@@ -382,7 +404,8 @@ describe('addMetadataGeneric: onchange with errors', () => {
           <AddMetadataGeneric
             spConfig={emptyUpsertRequest}
             setSPConfig={onChange}
-            disableInputs={false}
+            isProcessing={false}
+            isGuided={false}
             isUpdateFlow={false}
             setLabelsValidator={() => null}
           />

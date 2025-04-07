@@ -170,10 +170,10 @@ export function ConfigureServiceProvider({
               spConfig={upsertRequest}
               setSPConfig={setUpsertRequest}
               isUpdateFlow={isUpdateFlow}
-              disableInputs={
-                upsertAttempt.status === 'processing' || guidedToggle
-              }
+              isProcessing={upsertAttempt.status === 'processing'}
               setLabelsValidator={setLabelsValidator}
+              preset={preset}
+              isGuided={guidedToggle}
             />
             <AttributeMapping
               spConfig={upsertRequest}
@@ -201,9 +201,11 @@ export function ConfigureServiceProvider({
 export function AddMetadataGeneric({
   setSPConfig,
   spConfig,
-  disableInputs = false,
+  isProcessing = false,
   isUpdateFlow = false,
   setLabelsValidator,
+  isGuided,
+  preset,
 }: SamlGenericMetadataConfig) {
   return (
     <StyledBox>
@@ -218,7 +220,11 @@ export function AddMetadataGeneric({
         width="500px"
         mr="3"
         onChange={e => setSPConfig({ ...spConfig, name: e.target.value })}
-        disabled={disableInputs || isUpdateFlow}
+        disabled={
+          isProcessing ||
+          disableAppNameEditPerPreset(isGuided, preset) ||
+          isUpdateFlow
+        }
       />
       <FieldInput
         mb={3}
@@ -235,7 +241,7 @@ export function AddMetadataGeneric({
         width="500px"
         mr="3"
         onChange={e => setSPConfig({ ...spConfig, entityID: e.target.value })}
-        disabled={disableInputs}
+        disabled={isProcessing || isGuided}
       />
       <FieldInput
         mb={3}
@@ -252,9 +258,9 @@ export function AddMetadataGeneric({
         width="500px"
         mr="3"
         onChange={e => setSPConfig({ ...spConfig, acsURL: e.target.value })}
-        disabled={disableInputs}
+        disabled={isProcessing || isGuided}
       />
-      {!disableInputs && (
+      {!isProcessing && !isGuided && (
         <AddEntityDescriptor spConfig={spConfig} setSPConfig={setSPConfig} />
       )}
       <Box mt={4} mb={2}>
@@ -262,7 +268,7 @@ export function AddMetadataGeneric({
           spConfig={spConfig}
           setSPConfig={setSPConfig}
           setLabelsValidator={setLabelsValidator}
-          disabled={disableInputs}
+          disabled={isProcessing}
         />
       </Box>
     </StyledBox>
@@ -288,9 +294,18 @@ export type SamlGenericMetadataConfig = {
   setSPConfig: (params: CreateSamlIdpServiceProviderRequest) => void;
   spConfig: CreateSamlIdpServiceProviderRequest;
   isUpdateFlow: boolean;
-  disableInputs: boolean;
+  isProcessing: boolean;
   setLabelsValidator: (validator: Validator) => void;
+  isGuided: boolean;
+  preset?: SamlServiceProviderPreset;
 };
 
 export const UPDATE_NOTE =
   '*To update an Entity ID and ACS URL, both the input fields and the entity descriptor must be updated.';
+
+function disableAppNameEditPerPreset(
+  isGuided: boolean,
+  preset: SamlServiceProviderPreset
+) {
+  return isGuided && preset === SamlServiceProviderPreset.GcpWorkforce;
+}
