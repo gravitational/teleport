@@ -32,7 +32,7 @@ import {
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
   marginTransitionCss,
-  resourceHealthStatusPanel,
+  resourceStatusInfoPanel,
 } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
   getResourceAvailabilityFilter,
@@ -396,7 +396,7 @@ const Resources = memo(
       <Box
         css={marginTransitionCss({
           sidePanelOpened: infoGuideSidePanelOpened,
-          panelWidth: infoGuideConfig?.panelWidth || resourceHealthStatusPanel,
+          panelWidth: infoGuideConfig?.panelWidth || resourceStatusInfoPanel,
         })}
       >
         <SharedUnifiedResources
