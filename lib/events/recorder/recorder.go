@@ -126,7 +126,7 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 		return events.NewSessionPreparerRecorder(preparer, events.NewDiscardRecorder()), nil
 	}
 
-	var streamer events.Streamer = cfg.SyncStreamer
+	streamer := cfg.SyncStreamer
 	if !services.IsRecordSync(cfg.RecordingCfg.GetMode()) {
 		uploadDir := filepath.Join(
 			cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,

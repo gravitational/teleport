@@ -41,7 +41,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -698,13 +697,13 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 
 	routeToDatabase := s.route()
 
-	certsReq := clientproto.UserCertsRequest{
+	certsReq := proto.UserCertsRequest{
 		TLSPublicKey:    publicKeyPEM,
 		Username:        s.sctx.GetUser(),
 		Expires:         s.sctx.cfg.Session.GetExpiryTime(),
 		Format:          constants.CertificateFormatStandard,
 		RouteToCluster:  s.site.GetName(),
-		Usage:           clientproto.UserCertsRequest_Database,
+		Usage:           proto.UserCertsRequest_Database,
 		RouteToDatabase: routeToDatabase,
 	}
 
@@ -713,8 +712,8 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 		RootAuthClient:    s.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge, s.proxyAddr),
 		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
-		MFARequiredReq: &clientproto.IsMFARequiredRequest{
-			Target: &clientproto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
+		MFARequiredReq: &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
 		},
 		CertsReq: &certsReq,
 	})
@@ -774,8 +773,8 @@ func (s *databaseInteractiveSession) makeReplConn() (*tls.Conn, error) {
 	return tls.Client(s.replConn, tlsConfig), nil
 }
 
-func (s *databaseInteractiveSession) route() clientproto.RouteToDatabase {
-	return clientproto.RouteToDatabase{
+func (s *databaseInteractiveSession) route() proto.RouteToDatabase {
+	return proto.RouteToDatabase{
 		Protocol:    s.req.Protocol,
 		ServiceName: s.req.ServiceName,
 		Username:    s.req.DatabaseUser,

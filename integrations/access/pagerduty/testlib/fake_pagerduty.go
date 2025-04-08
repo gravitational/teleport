@@ -260,7 +260,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 			}
 
 			// Filter by service_ids
-			if serviceIDSet.Len() > 0 && !(incident.Service.Type == "service_reference" && serviceIDSet.Contains(incident.Service.ID)) {
+			if serviceIDSet.Len() > 0 && (incident.Service.Type != "service_reference" || !serviceIDSet.Contains(incident.Service.ID)) {
 				return true
 			}
 
@@ -377,12 +377,12 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 				return true
 			}
 			// Filter by user_ids
-			if userIDSet.Len() > 0 && !(onCall.User.Type == "user_reference" && userIDSet.Contains(onCall.User.ID)) {
+			if userIDSet.Len() > 0 && (onCall.User.Type != "user_reference" || !userIDSet.Contains(onCall.User.ID)) {
 				return true
 			}
 
 			// Filter by escalation_policy_ids
-			if policyIDSet.Len() > 0 && !(onCall.EscalationPolicy.Type == "escalation_policy_reference" && policyIDSet.Contains(onCall.EscalationPolicy.ID)) {
+			if policyIDSet.Len() > 0 && (onCall.EscalationPolicy.Type != "escalation_policy_reference" || !policyIDSet.Contains(onCall.EscalationPolicy.ID)) {
 				return true
 			}
 

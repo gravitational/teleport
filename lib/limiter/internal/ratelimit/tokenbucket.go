@@ -144,7 +144,7 @@ func (tb *tokenBucket) consume(tokens int64) (time.Duration, error) {
 	tb.updateAvailableTokens()
 	tb.lastConsumed = 0
 	if tokens > tb.burst {
-		return UndefinedDelay, fmt.Errorf("Requested tokens larger than max tokens")
+		return UndefinedDelay, fmt.Errorf("requested tokens larger than max tokens")
 	}
 	if tb.availableTokens < tokens {
 		return tb.timeUntilAvailable(tokens), nil

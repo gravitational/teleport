@@ -67,7 +67,7 @@ func TestIDTokenSource_GetIDToken(t *testing.T) {
 		tok, err := its.GetIDToken()
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
-		require.Equal(t, "", tok)
+		require.Empty(t, tok)
 	})
 
 	t.Run("overridden env value present", func(t *testing.T) {
