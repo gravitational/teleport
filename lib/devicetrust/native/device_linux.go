@@ -111,9 +111,8 @@ func rewriteTPMPermissionError(err error) error {
 	)
 
 	return errors.New("" +
-		"Failed to open the TPM device. " +
-		"Consider assigning the user to the `tss` group or creating equivalent udev rules. " +
-		"See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting.")
+		"failed to open the TPM device, " +
+		"consider assigning the user to the `tss` group or creating equivalent udev rules")
 }
 
 // cddFuncs is used to mock various data collection functions for testing.

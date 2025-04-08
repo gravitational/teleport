@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -207,7 +206,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	dialTimeout := apidefaults.DefaultIOTimeout
+	dialTimeout := defaults.DefaultIOTimeout
 	if netConfig, err := accessPoint.GetClusterNetworkingConfig(ctx); err != nil {
 		h.logger.DebugContext(r.Context(), "Unable to fetch cluster networking config", "error", err)
 	} else {

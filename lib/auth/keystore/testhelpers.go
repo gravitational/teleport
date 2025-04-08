@@ -160,9 +160,7 @@ func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 		require.NoError(t, err)
 
 		// write config file
-		_, err = configFile.WriteString(fmt.Sprintf(
-			"directories.tokendir = %s\nobjectstore.backend = file\nlog.level = DEBUG\n",
-			tokenDir))
+		_, err = fmt.Fprintf(configFile, "directories.tokendir = %s\nobjectstore.backend = file\nlog.level = DEBUG\n", tokenDir)
 		require.NoError(t, err)
 		require.NoError(t, configFile.Close())
 
@@ -171,7 +169,7 @@ func softHSMTestConfig(t *testing.T) (servicecfg.KeystoreConfig, bool) {
 	}
 
 	// create test token (max length is 32 chars)
-	tokenLabel := strings.Replace(uuid.NewString(), "-", "", -1)
+	tokenLabel := strings.ReplaceAll(uuid.NewString(), "-", "")
 	cmd := exec.Command("softhsm2-util", "--init-token", "--free", "--label", tokenLabel, "--so-pin", "password", "--pin", "password")
 	t.Logf("Running command: %q", cmd)
 	if err := cmd.Run(); err != nil {

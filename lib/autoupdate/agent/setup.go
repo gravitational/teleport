@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/defaults"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
@@ -521,13 +520,13 @@ func (ns *Namespace) overrideFromConfig(ctx context.Context) {
 	switch t := cfg.Teleport; {
 	case t.ProxyServer != "":
 		addr = t.ProxyServer
-		port = libdefaults.HTTPListenPort
+		port = defaults.HTTPListenPort
 	case t.AuthServer != "":
 		addr = t.AuthServer
-		port = libdefaults.AuthListenPort
+		port = defaults.AuthListenPort
 	case len(t.AuthServers) > 0:
 		addr = t.AuthServers[0]
-		port = libdefaults.AuthListenPort
+		port = defaults.AuthListenPort
 	default:
 		ns.log.DebugContext(ctx, "Unable to find proxy in Teleport config", "config", path, errorKey, err)
 		return

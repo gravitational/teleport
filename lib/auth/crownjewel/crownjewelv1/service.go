@@ -30,7 +30,6 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/crownjewel"
 	"github.com/gravitational/teleport/lib/authz"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -128,15 +127,15 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 }
 
 func (s *Service) emitCreateAuditEvent(ctx context.Context, req *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
-	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.CrownJewelCreate{
-		Metadata: apievents.Metadata{
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &events.CrownJewelCreate{
+		Metadata: events.Metadata{
 			Type: libevents.CrownJewelCreateEvent,
 			Code: libevents.CrownJewelCreateCode,
 		},
 		UserMetadata:       authCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		ResourceMetadata: apievents.ResourceMetadata{
+		ResourceMetadata: events.ResourceMetadata{
 			Name:      req.GetMetadata().GetName(),
 			Expires:   getExpires(req.GetMetadata().GetExpires()),
 			UpdatedBy: authCtx.Identity.GetIdentity().Username,
@@ -220,15 +219,15 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 }
 
 func (s *Service) emitUpdateAuditEvent(ctx context.Context, old, new *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
-	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.CrownJewelUpdate{
-		Metadata: apievents.Metadata{
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &events.CrownJewelUpdate{
+		Metadata: events.Metadata{
 			Type: libevents.CrownJewelUpdateEvent,
 			Code: libevents.CrownJewelUpdateCode,
 		},
 		UserMetadata:       authCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		ResourceMetadata: apievents.ResourceMetadata{
+		ResourceMetadata: events.ResourceMetadata{
 			Name:      new.GetMetadata().GetName(),
 			Expires:   getExpires(new.GetMetadata().GetExpires()),
 			UpdatedBy: authCtx.Identity.GetIdentity().Username,
@@ -300,15 +299,15 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 
 	err = s.backend.DeleteCrownJewel(ctx, req.GetName())
 
-	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.CrownJewelDelete{
-		Metadata: apievents.Metadata{
+	if auditErr := s.emitter.EmitAuditEvent(ctx, &events.CrownJewelDelete{
+		Metadata: events.Metadata{
 			Type: libevents.CrownJewelDeleteEvent,
 			Code: libevents.CrownJewelDeleteCode,
 		},
 		UserMetadata:       authCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		ResourceMetadata: apievents.ResourceMetadata{
+		ResourceMetadata: events.ResourceMetadata{
 			Name:      req.GetName(),
 			UpdatedBy: authCtx.Identity.GetIdentity().Username,
 		},
@@ -323,13 +322,13 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 	return &emptypb.Empty{}, nil
 }
 
-func eventStatus(err error) apievents.Status {
+func eventStatus(err error) events.Status {
 	var msg string
 	if err != nil {
 		msg = err.Error()
 	}
 
-	return apievents.Status{
+	return events.Status{
 		Success:     err == nil,
 		Error:       msg,
 		UserMessage: msg,

@@ -125,7 +125,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 	require.NoError(t, first.err)
 
 	val := first.val.(string)
-	require.NotZero(t, val)
+	require.NotEmpty(t, val)
 
 	for i := 0; i < (workers - 1); i++ {
 		r := <-results

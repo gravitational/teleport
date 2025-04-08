@@ -116,7 +116,7 @@ func TestGetStaticHostUser(t *testing.T) {
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 					protocmp.Transform(),
 				}
-				require.Equal(t, "", cmp.Diff(tc.wantObj, obj, cmpOpts...))
+				require.Empty(t, cmp.Diff(tc.wantObj, obj, cmpOpts...))
 			}
 		})
 	}
@@ -219,7 +219,7 @@ func TestListStaticHostUsers(t *testing.T) {
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
 			})
 
@@ -243,7 +243,7 @@ func TestListStaticHostUsers(t *testing.T) {
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
 			})
 		})
