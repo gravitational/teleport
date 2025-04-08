@@ -60,7 +60,7 @@ export interface UnifiedResourceDatabase {
   protocol: DbProtocol;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
-  targetHealth?: { status: ResourceStatus };
+  targetHealth?: ResourceTargetHealth;
 }
 
 export interface UnifiedResourceNode {
