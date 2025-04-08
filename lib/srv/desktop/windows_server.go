@@ -661,6 +661,16 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 			return err
 		}
 	}
+	if err := s.startStaticHostHeartbeat(servicecfg.WindowsHost{
+		Name: s.cfg.Hostname,
+		Address: utils.NetAddr{
+			Addr: s.cfg.Hostname,
+		},
+		AD:     false,
+		Labels: nil,
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
