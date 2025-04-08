@@ -78,6 +78,16 @@ export type SamlGcpWorkforce = {
 };
 
 /**
+ * SamlMicrosoftEntraId defines fields for
+ * Microsoft Entra Id specific input that needs to be
+ * preserved throughout the Discover flow.
+ */
+export type SamlMicrosoftEntraId = {
+  /** Entra Id tenant ID */
+  tenantId: string;
+};
+
+/**
  * SamlAppToDelete is used to define the name of an
  * SAML app item to be deleted and its deletion state in the
  * backend. Intended to be used in the unified resource view.
