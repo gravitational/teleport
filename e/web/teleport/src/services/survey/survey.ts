@@ -1,8 +1,5 @@
 import cfg from 'e-teleport/config';
-import {
-  SetSurveyResultsRequest,
-  SurveyCompanyResponse,
-} from 'e-teleport/services/cloud/v1/tenants_pb';
+import { SetSurveyResultsRequest } from 'e-teleport/services/cloud/v1/tenants_pb';
 import api from 'teleport/services/api';
 
 export const surveyService = {
@@ -13,9 +10,5 @@ export const surveyService = {
       method: 'POST',
       body: JSON.stringify(survey),
     });
-  },
-
-  getSurveyCompanyResults(): Promise<SurveyCompanyResponse> {
-    return api.get(cfg.api.surveyCompanyPath);
   },
 };

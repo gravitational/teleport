@@ -132,7 +132,6 @@ const cfg = {
       '/v1/enterprise/user/devices?limit=:limit?&startKey=:startKey?',
 
     surveyPath: '/v1/enterprise/cloud/survey',
-    surveyCompanyPath: '/v1/enterprise/cloud/survey/company',
 
     accessMonitoring: {
       schema: '/v1/webapi/sites/:clusterId/audit/schema',

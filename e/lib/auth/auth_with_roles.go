@@ -104,6 +104,9 @@ func (ac *cloudWithRoles) GetFeatures(ctx context.Context, req *v1.EmptyRequest)
 }
 
 // GetSurveyCompany returns the company survey responses for the account associated with the current user.
+//
+// Deprecated: It's no longer used.
+// TODO(bl-nero) DELETE IN v19.0.0
 func (ac *cloudWithRoles) GetSurveyCompany(ctx context.Context, req *v1.EmptyRequest) (*v1.SurveyCompanyResponse, error) {
 	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {

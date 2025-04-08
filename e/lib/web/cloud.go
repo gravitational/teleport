@@ -58,7 +58,9 @@ func (p *Plugin) registerCloudHandlers() {
 		p.h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.withCloudCache(p.getUpgradeWindowStartHourHandle)))
 		p.h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHourHandle))
 
-		// surveyCompanyResponsesHandler gets survey company responses for the account
+		// surveyCompanyResponsesHandler gets survey company responses for the account.
+		// Deprecated: no longer used.
+		// TODO(bl-nero) DELETE IN v19.0.0
 		p.h.GET("/enterprise/cloud/survey/company", p.withCloudAuth(p.withCloudCache(p.surveyCompanyResponsesHandler)))
 	}
 
