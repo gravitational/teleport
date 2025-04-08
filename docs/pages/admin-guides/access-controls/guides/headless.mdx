@@ -26,7 +26,7 @@ For example:
 ## Prerequisites
 
 - A Teleport cluster with WebAuthn configured.
-  See the [Harden your Cluster Against IdP Compromises](./webauthn.mdx) guide.
+  See the [Second Factor: WebAuthn](./webauthn.mdx) guide.
 - WebAuthn hardware device, such as YubiKey.
 - Machines for Headless WebAuthn activities have [Linux](../../../installation.mdx), [macOS](../../../installation.mdx) or [Windows](../../../installation.mdx) `tsh` binary installed.
 - Machines used to approve Headless WebAuthn requests have a Web browser with [WebAuthn support](
@@ -54,7 +54,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "on"
   webauthn:
     rp_id: example.com
   connector_name: headless # headless by default
@@ -85,7 +85,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "on"
   webauthn:
     rp_id: example.com
   headless: false # disable Headless WebAuthn

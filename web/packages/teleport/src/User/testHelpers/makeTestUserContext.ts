@@ -38,7 +38,6 @@ export const makeTestUserContext = (
       updatePreferences: () => Promise.resolve(),
       updateClusterPinnedResources: () => Promise.resolve(),
       getClusterPinnedResources: () => Promise.resolve(),
-      updateDiscoverResourcePreferences: () => Promise.resolve(),
     },
     overrides
   );

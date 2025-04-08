@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { Box, Flex, Link, Mark, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -52,7 +52,7 @@ export function MutualTlsView({
   const [caCert, setCaCert] = useState('');
 
   return (
-    <>
+    <Box maxWidth="800px">
       <Header>Configure Mutual TLS</Header>
       <HeaderSubtitle>
         Self-hosted databases must be configured with Teleport's certificate
@@ -111,7 +111,9 @@ export function MutualTlsView({
                 resizable={true}
                 autoFocus
                 textAreaCss={`
+                font-size: 14px;
                 height: 100px;
+                width: 800px;
                 `}
               />
             </Validation>
@@ -122,7 +124,7 @@ export function MutualTlsView({
         onProceed={() => onNextStep(caCert)}
         disableProceed={attempt.status === 'processing'}
       />
-    </>
+    </Box>
   );
 }
 

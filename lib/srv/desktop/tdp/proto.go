@@ -75,7 +75,7 @@ const (
 	TypeSharedDirectoryListRequest      = MessageType(25)
 	TypeSharedDirectoryListResponse     = MessageType(26)
 	TypePNG2Frame                       = MessageType(27)
-	TypeAlert                           = MessageType(28)
+	TypeNotification                    = MessageType(28)
 	TypeRDPFastPathPDU                  = MessageType(29)
 	TypeRDPResponsePDU                  = MessageType(30)
 	TypeRDPConnectionInitialized        = MessageType(31)
@@ -142,8 +142,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
-	case TypeAlert:
-		return decodeAlert(in)
+	case TypeNotification:
+		return decodeNotification(in)
 	case TypeMFA:
 		return DecodeMFA(in)
 	case TypeSharedDirectoryAnnounce:
@@ -551,11 +551,8 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 }
 
 // Error is used to send a fatal error message to the browser.
-//
 // In Teleport 12 and up, Error is deprecated and Notification
-// should be preferred. Nevertheless, IT SHOULD NOT BE DELETED
-// in order for older session recordings to continue to work.
-//
+// should be preferred.
 // | message type (9) | message_length uint32 | message []byte |
 type Error struct {
 	Message string
@@ -571,7 +568,7 @@ func (m Error) Encode() ([]byte, error) {
 }
 
 func decodeError(in io.Reader) (Error, error) {
-	message, err := decodeString(in, tdpMaxAlertMessageLength)
+	message, err := decodeString(in, tdpMaxNotificationMessageLength)
 	if err != nil {
 		return Error{}, trace.Wrap(err)
 	}
@@ -586,19 +583,18 @@ const (
 	SeverityError   Severity = 2
 )
 
-// Alert is an informational message sent from Teleport
+// Notification is an informational message sent from Teleport
 // to the Web UI. It can be used for fatal errors or non-fatal
 // warnings.
-//
 // | message type (28) | message_length uint32 | message []byte | severity byte |
-type Alert struct {
+type Notification struct {
 	Message  string
 	Severity Severity
 }
 
-func (m Alert) Encode() ([]byte, error) {
+func (m Notification) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeAlert))
+	buf.WriteByte(byte(TypeNotification))
 	if err := encodeString(buf, m.Message); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -606,16 +602,16 @@ func (m Alert) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeAlert(in byteReader) (Alert, error) {
-	message, err := decodeString(in, tdpMaxAlertMessageLength)
+func decodeNotification(in byteReader) (Notification, error) {
+	message, err := decodeString(in, tdpMaxNotificationMessageLength)
 	if err != nil {
-		return Alert{}, trace.Wrap(err)
+		return Notification{}, trace.Wrap(err)
 	}
 	severity, err := in.ReadByte()
 	if err != nil {
-		return Alert{}, trace.Wrap(err)
+		return Notification{}, trace.Wrap(err)
 	}
-	return Alert{Message: message, Severity: Severity(severity)}, nil
+	return Notification{Message: message, Severity: Severity(severity)}, nil
 }
 
 // MouseWheelAxis identifies a scroll axis on the mouse wheel.
@@ -737,10 +733,10 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketMFAChallenge:
+	case defaults.WebsocketWebauthnChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.WebsocketMFAChallenge)
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
 	}
 
 	var length uint32
@@ -780,10 +776,10 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketMFAChallenge:
+	case defaults.WebsocketWebauthnChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.WebsocketMFAChallenge)
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
 	}
 
 	var length uint32
@@ -1689,9 +1685,9 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 }
 
 const (
-	// tdpMaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
+	// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
 	// the browser (Teleport never receives this message, so won't be decoding it)
-	tdpMaxAlertMessageLength = 10240
+	tdpMaxNotificationMessageLength = 10240
 
 	// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
 	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465

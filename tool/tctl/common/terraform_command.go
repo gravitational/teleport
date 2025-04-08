@@ -166,7 +166,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		switch {
 		case trace.IsNotFound(err) && c.existingRole == "":
 			return trace.Wrap(err, `The Terraform role %q does not exist in your Teleport cluster.
-This default role is included in Teleport clusters whose version is higher than v16.1 or v17.
+This default role is included in Teleport clusters whose version is higher than v16.2 or v17.
 If you want to use "tctl terraform env" against an older Teleport cluster, you must create the Terraform role
 yourself and set the flag --role <your-terraform-role-name>.`, roleName)
 		case trace.IsNotFound(err) && c.existingRole != "":
@@ -303,10 +303,10 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
-		Storage:            &config.StorageConfig{Destination: &config.DestinationMemory{}},
-		Services:           config.ServiceConfigs{credential},
-		CredentialLifetime: config.CredentialLifetime{TTL: c.botTTL},
-		Oneshot:            true,
+		Storage:        &config.StorageConfig{Destination: &config.DestinationMemory{}},
+		Services:       config.ServiceConfigs{credential},
+		CertificateTTL: c.botTTL,
+		Oneshot:        true,
 		// If --insecure is passed, the bot will trust the certificate on first use.
 		// This does not truly disable TLS validation, only trusts the certificate on first connection.
 		Insecure: clt.Config().InsecureSkipVerify,
@@ -352,7 +352,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 
 	id := facade.Get()
 
-	clusterName, err := clt.GetClusterName(ctx)
+	clusterName, err := clt.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "retrieving cluster name")
 	}

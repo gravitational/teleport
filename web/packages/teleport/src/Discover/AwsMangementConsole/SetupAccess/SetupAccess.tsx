@@ -19,10 +19,9 @@
 import React, { useEffect, useState } from 'react';
 import { useTheme } from 'styled-components';
 
-import { LabelInput, Link, Mark } from 'design';
+import { LabelInput, Link, Mark, Text } from 'design';
 import { OutlineInfo } from 'design/Alert/Alert';
 import { Cross } from 'design/Icon';
-import { P } from 'design/Text/Text';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
 
@@ -81,14 +80,14 @@ export function SetupAccess() {
 
   const preContent = (
     <OutlineInfo mt={-3} mb={3} linkColor="buttons.link.default">
-      <P>
+      <Text>
         Only{' '}
         <Link target="_blank" href={AWS_TAG_INFO_LINK}>
           IAM roles with tag
         </Link>{' '}
         key <Mark>teleport.dev/integration</Mark> and value <Mark>true</Mark>{' '}
         are allowed to be used by the integration.
-      </P>
+      </Text>
     </OutlineInfo>
   );
 

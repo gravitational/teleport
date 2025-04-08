@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { H2 } from 'design';
+import React from 'react';
+
+import Text from './../Text';
 
 export default function DialogTitle(props) {
-  return <H2 {...props} />;
+  return <Text typography="h3" color="text.main" caps {...props} />;
 }

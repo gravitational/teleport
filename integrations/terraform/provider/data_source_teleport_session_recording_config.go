@@ -76,8 +76,7 @@ func (r dataSourceTeleportSessionRecordingConfig) Read(ctx context.Context, req 
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
 	v, ok := state.Attrs["id"]
 	if !ok || v.IsNull() {
-		id := sessionRecordingConfig.GetName()
-		state.Attrs["id"] = types.String{Value: id}
+		state.Attrs["id"] = types.String{Value: sessionRecordingConfig.GetName()}
 	}
 
 	diags = resp.State.Set(ctx, &state)

@@ -62,15 +62,12 @@ func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
 
 	caService := NewCAService(tt.bk)
 
-	identityService, err := NewTestIdentityService(tt.bk)
-	require.NoError(t, err)
-
 	tt.suite = &suite.ServicesTestSuite{
 		TrustS:         caService,
 		TrustInternalS: caService,
 		PresenceS:      presenceService,
 		ProvisioningS:  NewProvisioningService(tt.bk),
-		WebS:           identityService,
+		WebS:           NewTestIdentityService(tt.bk),
 		Access:         NewAccessService(tt.bk),
 		EventsS:        eventsService,
 		ChangesC:       make(chan interface{}),
@@ -93,6 +90,7 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestUserCACRUD", tt.suite.CertAuthCRUD)
 	t.Run("TestServerCRUD", tt.suite.ServerCRUD)
 	t.Run("TestAppServerCRUD", tt.suite.AppServerCRUD)
+	t.Run("TestReverseTunnelsCRUD", tt.suite.ReverseTunnelsCRUD)
 	t.Run("TestUsersCRUD", tt.suite.UsersCRUD)
 	t.Run("TestUsersExpiry", tt.suite.UsersExpiry)
 	t.Run("TestLoginAttempts", tt.suite.LoginAttempts)

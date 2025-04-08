@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
@@ -35,11 +34,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -239,9 +239,6 @@ type AccessResourcesGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
-	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
-	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
-
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 
@@ -263,12 +260,8 @@ type AccessListSuggestionClient interface {
 type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
-
-type AccessListAndMembersGetter interface {
+type AccessListGetter interface {
 	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
-	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
-	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
 // Modules defines interface that external libraries can implement customizing
@@ -289,11 +282,11 @@ type Modules interface {
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
+	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
-	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error)
+	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListGetter, requestID string) ([]*accesslist.AccessList, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -335,13 +328,14 @@ var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authe
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	// todo(tross): DELETE WHEN ABLE TO [remove env var, leave insecure test mode]
-	allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor))
+	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
 	if GetModules().Features().Cloud ||
-		(!allowNoSecondFactor && !IsInsecureTestMode()) {
+		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
+
 		switch r := res.(type) {
 		case types.AuthPreference:
-			if !r.IsSecondFactorEnforced() {
+			switch r.GetSecondFactor() {
+			case constants.SecondFactorOff, constants.SecondFactorOptional:
 				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}
@@ -424,11 +418,11 @@ func (p *defaultModules) SetFeatures(f Features) {
 }
 
 func (p *defaultModules) IsBoringBinary() bool {
-	return IsBoringBinary()
+	return native.IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
 	return nil, trace.NotFound("no attestation data for the given key")
 }
@@ -440,7 +434,7 @@ func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ Ac
 }
 
 func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,
-	accessListGetter AccessListAndMembersGetter, requestID string,
+	accessListGetter AccessListGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }

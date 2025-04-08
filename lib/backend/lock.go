@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,12 +35,7 @@ const (
 )
 
 func lockKey(parts ...string) Key {
-	key := Key{
-		components: append([]string{locksPrefix}, parts...),
-	}
-	key.s = strings.Join(key.components, SeparatorString)
-
-	return key
+	return internalKey(locksPrefix, parts...)
 }
 
 type Lock struct {
@@ -62,6 +56,9 @@ func randomID() ([]byte, error) {
 type LockConfiguration struct {
 	// Backend to create the lock in.
 	Backend Backend
+	// LockName the precomputed lock name.
+	// TODO(tross) DELETE WHEN teleport.e is updated to use LockNameComponents.
+	LockName string
 	// LockNameComponents are subcomponents to be used when constructing
 	// the lock name.
 	LockNameComponents []string
@@ -76,8 +73,12 @@ func (l *LockConfiguration) CheckAndSetDefaults() error {
 	if l.Backend == nil {
 		return trace.BadParameter("missing Backend")
 	}
+	if l.LockName == "" && len(l.LockNameComponents) == 0 {
+		return trace.BadParameter("missing LockName/LockNameComponents")
+	}
+
 	if len(l.LockNameComponents) == 0 {
-		return trace.BadParameter("missing LockNameComponents")
+		l.LockNameComponents = []string{l.LockName}
 	}
 
 	if l.TTL == 0 {

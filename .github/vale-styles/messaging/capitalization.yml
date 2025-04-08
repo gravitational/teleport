@@ -1,0 +1,24 @@
+extends: existence
+scope:
+  - heading
+  - table
+  - list
+  - paragraph
+message: "Capitalize the names of Teleport services and features (%s is incorrect). See the Core Concepts page (https://goteleport.com/docs/core-concepts/) for a reference."
+level: error
+ignorecase: false
+tokens:
+  # Allow for mentions of a local proxy service, but not "proxy service".
+  - '(?<!local )proxy service'
+  - 'access lists?'
+  - 'access requests?'
+  - access graph
+  - 'app(lication) service'
+  - auth service
+  - database service
+  - db service
+  - desktop service
+  - discovery service
+  - kubernetes service
+  - machine id
+  - ssh service

@@ -20,16 +20,14 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"log/slog"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -42,11 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // remoteSite is a remote site that established the inbound connection to
@@ -55,7 +51,7 @@ import (
 type remoteSite struct {
 	sync.RWMutex
 
-	logger      *slog.Logger
+	logger      *log.Entry
 	domainName  string
 	connections []*remoteConn
 	lastUsed    int
@@ -87,7 +83,7 @@ type remoteSite struct {
 	remoteAccessPoint authclient.RemoteProxyAccessPoint
 
 	// nodeWatcher provides access the node set for the remote site
-	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
+	nodeWatcher *services.NodeWatcher
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -110,45 +106,36 @@ func (s *remoteSite) getRemoteClient() (authclient.ClientI, bool, error) {
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
-	if len(ca.GetTrustedTLSKeyPairs()) == 0 {
-		return nil, false, trace.BadParameter("no TLS keys found")
-	}
+	keys := ca.GetTrustedTLSKeyPairs()
+
 	// The fact that cluster has keys to remote CA means that the key exchange
 	// has completed.
-
-	s.logger.DebugContext(s.ctx, "Using TLS client to remote cluster")
-	tlsConfig := utils.TLSConfig(s.srv.ClientTLSCipherSuites)
-	// encode the name of this cluster to identify this cluster,
-	// connecting to the remote one (it is used to find the right certificate
-	// authority to verify)
-	tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
-	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		tlsCert, err := s.srv.GetClientTLSCertificate()
+	if len(keys) != 0 {
+		s.logger.Debug("Using TLS client to remote cluster.")
+		pool, err := services.CertPool(ca)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, false, trace.Wrap(err)
 		}
-		return tlsCert, nil
-	}
-	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(func() (*x509.CertPool, error) {
-		pool, _, err := authclient.ClientCertPool(s.ctx, s.srv.localAccessPoint, s.domainName, types.HostCA)
+		tlsConfig := s.srv.ClientTLS.Clone()
+		tlsConfig.RootCAs = pool
+		// encode the name of this cluster to identify this cluster,
+		// connecting to the remote one (it is used to find the right certificate
+		// authority to verify)
+		tlsConfig.ServerName = apiutils.EncodeClusterName(s.srv.ClusterName)
+		clt, err := authclient.NewClient(client.Config{
+			Dialer: client.ContextDialerFunc(s.authServerContextDialer),
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+			CircuitBreakerConfig: s.srv.CircuitBreakerConfig,
+		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, false, trace.Wrap(err)
 		}
-		return pool, nil
-	})
-
-	clt, err := authclient.NewClient(client.Config{
-		Dialer: client.ContextDialerFunc(s.authServerContextDialer),
-		Credentials: []client.Credentials{
-			client.LoadTLS(tlsConfig),
-		},
-		CircuitBreakerConfig: s.srv.CircuitBreakerConfig,
-	})
-	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return clt, false, nil
 	}
-	return clt, false, nil
+
+	return nil, false, trace.BadParameter("no TLS keys found")
 }
 
 func (s *remoteSite) authServerContextDialer(ctx context.Context, network, address string) (net.Conn, error) {
@@ -166,13 +153,8 @@ func (s *remoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, er
 }
 
 // NodeWatcher returns the services.NodeWatcher for the remote cluster.
-func (s *remoteSite) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
 	return s.nodeWatcher, nil
-}
-
-// GitServerWatcher returns the Git server watcher for the remote cluster.
-func (s *remoteSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return nil, trace.NotImplemented("GitServerWatcher not implemented for remoteSite")
 }
 
 func (s *remoteSite) GetClient() (authclient.ClientI, error) {
@@ -278,7 +260,7 @@ func (s *remoteSite) removeInvalidConns() {
 		} else {
 			go func(conn *remoteConn) {
 				if err := conn.Close(); err != nil {
-					s.logger.WarnContext(s.ctx, "Failed to close invalid connection", "error", err)
+					s.logger.WithError(err).Warn("Failed to close invalid connection")
 				}
 			}(s.connections[i])
 		}
@@ -311,12 +293,12 @@ func (s *remoteSite) adviseReconnect(ctx context.Context) {
 
 	s.RLock()
 	for _, conn := range s.connections {
-		s.logger.DebugContext(ctx, "Sending reconnect to server", "server_id", conn.nodeID)
+		s.logger.Debugf("Sending reconnect: %s", conn.nodeID)
 
 		wg.Add(1)
 		go func(conn *remoteConn) {
 			if err := conn.adviseReconnect(); err != nil {
-				s.logger.WarnContext(ctx, "Failed to send reconnection advisory", "error", err)
+				s.logger.WithError(err).Warn("Failed to send reconnection advisory")
 			}
 			wg.Done()
 		}(conn)
@@ -371,7 +353,7 @@ func (s *remoteSite) registerHeartbeat(t time.Time) {
 	s.setLastConnInfo(connInfo)
 	err := s.localAccessPoint.UpsertTunnelConnection(connInfo)
 	if err != nil {
-		s.logger.WarnContext(s.ctx, "Failed to register heartbeat", "error", err)
+		s.logger.WithError(err).Warn("Failed to register heartbeat")
 	}
 }
 
@@ -379,7 +361,7 @@ func (s *remoteSite) registerHeartbeat(t time.Time) {
 // that this node lost the connection and needs to be discovered
 func (s *remoteSite) deleteConnectionRecord() {
 	if err := s.localAccessPoint.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
-		s.logger.WarnContext(s.ctx, "Failed to delete tunnel connection", "error", err)
+		s.logger.WithError(err).Warn("Failed to delete tunnel connection")
 	}
 }
 
@@ -397,17 +379,17 @@ func (s *remoteSite) fanOutProxies(proxies []types.Server) {
 // handleHeartbeat receives heartbeat messages from the connected agent
 // if the agent has missed several heartbeats in a row, Proxy marks
 // the connection as invalid.
-func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
-	logger := s.logger.With(
-		"server_id", conn.nodeID,
-		"addr", logutils.StringerAttr(conn.conn.RemoteAddr()),
-	)
+func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
+	logger := s.logger.WithFields(log.Fields{
+		"serverID": conn.nodeID,
+		"addr":     conn.conn.RemoteAddr().String(),
+	})
 
 	sshutils.DiscardChannelData(ch)
 	if ch != nil {
 		defer func() {
 			if err := ch.Close(); err != nil {
-				logger.WarnContext(ctx, "Failed to close heartbeat channel", "error", err)
+				logger.Warnf("Failed to close heartbeat channel: %v", err)
 			}
 		}()
 	}
@@ -416,14 +398,14 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {
 		proxyResyncTicker.Stop()
-		logger.InfoContext(ctx, "Cluster connection closed")
+		logger.Info("Cluster connection closed.")
 
 		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			logger.WarnContext(ctx, "Failed to close remote connection for remote site", "error", err)
+			logger.WithError(err).Warnf("Failed to close remote connection for remote site")
 		}
 
 		if err := s.srv.onSiteTunnelClose(s); err != nil {
-			logger.WarnContext(ctx, "Failed to close remote site", "error", err)
+			logger.WithError(err).Warn("Failed to close remote site")
 		}
 	}()
 
@@ -432,18 +414,14 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 	for {
 		select {
 		case <-s.ctx.Done():
-			logger.InfoContext(ctx, "closing")
+			logger.Infof("closing")
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
-			if err != nil {
-				logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
-			}
-			req.SetProxies(proxies)
+			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
 
-			if err := conn.sendDiscoveryRequest(ctx, req); err != nil {
-				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
+			if err := conn.sendDiscoveryRequest(req); err != nil {
+				logger.WithError(err).Debug("Marking connection invalid on error")
 				conn.markInvalid(err)
 				return
 			}
@@ -451,17 +429,17 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 			var req discoveryRequest
 			req.SetProxies(proxies)
 
-			if err := conn.sendDiscoveryRequest(ctx, req); err != nil {
-				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
+			if err := conn.sendDiscoveryRequest(req); err != nil {
+				logger.WithError(err).Debug("Marking connection invalid on error")
 				conn.markInvalid(err)
 				return
 			}
 		case req := <-reqC:
 			if req == nil {
-				logger.InfoContext(ctx, "Cluster agent disconnected")
+				logger.Info("Cluster agent disconnected.")
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				if !s.HasValidConnections() {
-					logger.DebugContext(ctx, "Deleting connection record")
+					logger.Debug("Deleting connection record.")
 					s.deleteConnectionRecord()
 				}
 				return
@@ -469,12 +447,9 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 			if firstHeartbeat {
 				// as soon as the agent connects and sends a first heartbeat
 				// send it the list of current proxies back
-				proxies, err := s.srv.proxyWatcher.CurrentResources(ctx)
-				if err != nil {
-					logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
-				}
-				if len(proxies) > 0 {
-					conn.updateProxies(proxies)
+				current := s.srv.proxyWatcher.GetCurrent()
+				if len(current) > 0 {
+					conn.updateProxies(current)
 				}
 				firstHeartbeat = false
 			}
@@ -488,9 +463,9 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 
 			pinglog := logger
 			if roundtrip != 0 {
-				pinglog = pinglog.With("latency", roundtrip)
+				pinglog = pinglog.WithField("latency", roundtrip)
 			}
-			pinglog.DebugContext(ctx, "Received ping request", "remote_addr", logutils.StringerAttr(conn.conn.RemoteAddr()))
+			pinglog.Debugf("Ping <- %v", conn.conn.RemoteAddr())
 
 			tm := s.clock.Now().UTC()
 			conn.setLastHeartbeat(tm)
@@ -504,11 +479,11 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 			if t.After(hb.Add(s.offlineThreshold * missedHeartBeatThreshold)) {
 				count := conn.activeSessions()
 				if count == 0 {
-					logger.ErrorContext(ctx, "Closing unhealthy and idle connection", "last_heartbeat", hb)
+					logger.Errorf("Closing unhealthy and idle connection. Heartbeat last received at %s", hb)
 					return
 				}
 
-				logger.WarnContext(ctx, "Deferring closure of unhealthy connection due to active connections", "active_conn_count", count)
+				logger.Warnf("Deferring closure of unhealthy connection due to %d active connections", count)
 			}
 
 			offlineThresholdTimer.Reset(s.offlineThreshold)
@@ -560,24 +535,24 @@ func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry, remoteWatcher
 		if err != nil {
 			switch {
 			case trace.IsNotFound(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster does not support cert authorities rotation yet")
+				s.logger.Debug("Remote cluster does not support cert authorities rotation yet.")
 			case trace.IsCompareFailed(err):
-				s.logger.InfoContext(s.ctx, "Remote cluster has updated certificate authorities, going to force reconnect")
+				s.logger.Info("Remote cluster has updated certificate authorities, going to force reconnect.")
 				if err := s.srv.onSiteTunnelClose(&alwaysClose{RemoteSite: s}); err != nil {
-					s.logger.WarnContext(s.ctx, "Failed to close remote site", "error", err)
+					s.logger.WithError(err).Warn("Failed to close remote site")
 				}
 				return
 			case trace.IsConnectionProblem(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster is offline")
+				s.logger.Debug("Remote cluster is offline.")
 			default:
-				s.logger.WarnContext(s.ctx, "Could not perform cert authorities update", "error", err)
+				s.logger.Warnf("Could not perform cert authorities update: %v.", trace.DebugReport(err))
 			}
 		}
 
 		startedWaiting := s.clock.Now()
 		select {
 		case t := <-retry.After():
-			s.logger.DebugContext(s.ctx, "Initiating new cert authority watch after applying backoff", "backoff_duration", t.Sub(startedWaiting))
+			s.logger.Debugf("Initiating new cert authority watch after waiting %v.", t.Sub(startedWaiting))
 			retry.Inc()
 		case <-s.ctx.Done():
 			return
@@ -598,7 +573,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 	}
 	defer func() {
 		if err := localWatch.Close(); err != nil {
-			s.logger.WarnContext(s.ctx, "Failed to close local ca watcher subscription", "error", err)
+			s.logger.WithError(err).Warn("Failed to close local ca watcher subscription.")
 		}
 	}()
 
@@ -613,7 +588,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 	}
 	defer func() {
 		if err := remoteWatch.Close(); err != nil {
-			s.logger.WarnContext(s.ctx, "Failed to close remote ca watcher subscription", "error", err)
+			s.logger.WithError(err).Warn("Failed to close remote ca watcher subscription.")
 		}
 	}()
 
@@ -630,7 +605,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, ca); err != nil {
 			return trace.Wrap(err, "failed to push local cert authority")
 		}
-		s.logger.DebugContext(s.ctx, "Pushed local cert authority", "cert_authority", logutils.StringerAttr(caID))
+		s.logger.Debugf("Pushed local cert authority %v", caID.String())
 		localCAs[caType] = ca
 	}
 
@@ -656,7 +631,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 
 		// if CA is changed or does not exist, update backend
 		if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
-			s.logger.DebugContext(s.ctx, "Ingesting remote cert authority", "cert_authority", logutils.StringerAttr(remoteCA.GetID()))
+			s.logger.Debugf("Ingesting remote cert authority %v", remoteCA.GetID())
 			if err := s.localClient.UpsertCertAuthority(s.ctx, remoteCA); err != nil {
 				return trace.Wrap(err)
 			}
@@ -674,16 +649,17 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		return trace.Wrap(err)
 	}
 
-	s.logger.DebugContext(s.ctx, "Watching for cert authority changes")
+	s.logger.Debugf("Watching for cert authority changes.")
 	for {
 		select {
 		case <-s.ctx.Done():
+			s.logger.WithError(s.ctx.Err()).Debug("Context is closing.")
 			return trace.Wrap(s.ctx.Err())
 		case <-localWatch.Done():
-			s.logger.WarnContext(s.ctx, "Local CertAuthority watcher subscription has closed")
+			s.logger.Warn("Local CertAuthority watcher subscription has closed")
 			return fmt.Errorf("local ca watcher for cluster %s has closed", s.srv.ClusterName)
 		case <-remoteWatch.Done():
-			s.logger.WarnContext(s.ctx, "Remote CertAuthority watcher subscription has closed")
+			s.logger.Warn("Remote CertAuthority watcher subscription has closed")
 			return fmt.Errorf("remote ca watcher for cluster %s has closed", s.domainName)
 		case evt := <-localWatch.Events():
 			switch evt.Type {
@@ -704,7 +680,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 				// TODO(espadolini): figure out who should be responsible for validating the CA *once*
 				newCA = newCA.Clone()
 				if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, newCA); err != nil {
-					s.logger.WarnContext(s.ctx, "Failed to rotate external ca", "error", err)
+					log.WithError(err).Warn("Failed to rotate external ca")
 					return trace.Wrap(err)
 				}
 
@@ -729,13 +705,13 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 }
 
 func (s *remoteSite) updateLocks(retry retryutils.Retry) {
-	s.logger.DebugContext(s.ctx, "Watching for remote lock changes")
+	s.logger.Debugf("Watching for remote lock changes.")
 
 	for {
 		startedWaiting := s.clock.Now()
 		select {
 		case t := <-retry.After():
-			s.logger.DebugContext(s.ctx, "Initiating new lock watch after applying backoff", "backoff_duration", t.Sub(startedWaiting))
+			s.logger.Debugf("Initiating new lock watch after waiting %v.", t.Sub(startedWaiting))
 			retry.Inc()
 		case <-s.ctx.Done():
 			return
@@ -744,11 +720,11 @@ func (s *remoteSite) updateLocks(retry retryutils.Retry) {
 		if err := s.watchLocks(); err != nil {
 			switch {
 			case trace.IsNotImplemented(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster does not support locks yet", "cluster", s.domainName)
+				s.logger.Debugf("Remote cluster %v does not support locks yet.", s.domainName)
 			case trace.IsConnectionProblem(err):
-				s.logger.DebugContext(s.ctx, "Remote cluster is offline", "cluster", s.domainName)
+				s.logger.Debugf("Remote cluster %v is offline.", s.domainName)
 			default:
-				s.logger.WarnContext(s.ctx, "Could not update remote locks", "error", err)
+				s.logger.WithError(err).Warn("Could not update remote locks.")
 			}
 		}
 	}
@@ -757,21 +733,22 @@ func (s *remoteSite) updateLocks(retry retryutils.Retry) {
 func (s *remoteSite) watchLocks() error {
 	watcher, err := s.srv.LockWatcher.Subscribe(s.ctx)
 	if err != nil {
-		s.logger.ErrorContext(s.ctx, "Failed to subscribe to LockWatcher", "error", err)
+		s.logger.WithError(err).Error("Failed to subscribe to LockWatcher")
 		return err
 	}
 	defer func() {
 		if err := watcher.Close(); err != nil {
-			s.logger.WarnContext(s.ctx, "Failed to close lock watcher subscription", "error", err)
+			s.logger.WithError(err).Warn("Failed to close lock watcher subscription.")
 		}
 	}()
 
 	for {
 		select {
 		case <-watcher.Done():
-			s.logger.WarnContext(s.ctx, "Lock watcher subscription has closed", "error", watcher.Error())
+			s.logger.WithError(watcher.Error()).Warn("Lock watcher subscription has closed")
 			return trace.Wrap(watcher.Error())
 		case <-s.ctx.Done():
+			s.logger.WithError(s.ctx.Err()).Debug("Context is closing.")
 			return trace.Wrap(s.ctx.Err())
 		case evt := <-watcher.Events():
 			switch evt.Type {
@@ -826,10 +803,7 @@ func (s *remoteSite) Dial(params reversetunnelclient.DialParams) (net.Conn, erro
 }
 
 func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, error) {
-	s.logger.DebugContext(s.ctx, "Initiating dial request",
-		"source_addr", logutils.StringerAttr(params.From),
-		"target_addr", logutils.StringerAttr(params.To),
-	)
+	s.logger.Debugf("Dialing from %v to %v.", params.From, params.To)
 
 	conn, err := s.connThroughTunnel(&sshutils.DialReq{
 		Address:         params.To.String(),
@@ -850,10 +824,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	if params.GetUserAgent == nil && !params.IsAgentlessNode {
 		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
 	}
-	s.logger.DebugContext(s.ctx, "Initiating dial and forward request",
-		"source_addr", logutils.StringerAttr(params.From),
-		"target_addr", logutils.StringerAttr(params.To),
-	)
+	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
 	// request user agent connection if a SSH user agent is set
 	var userAgent teleagent.Agent
@@ -940,7 +911,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 // UseTunnel makes a channel request asking for the type of connection. If
 // the other side does not respond (older cluster) or takes to long to
 // respond, be on the safe side and assume it's not a tunnel connection.
-func UseTunnel(logger *slog.Logger, c *sshutils.ChConn) bool {
+func UseTunnel(logger *log.Entry, c *sshutils.ChConn) bool {
 	responseCh := make(chan bool, 1)
 
 	go func() {
@@ -956,16 +927,13 @@ func UseTunnel(logger *slog.Logger, c *sshutils.ChConn) bool {
 	case response := <-responseCh:
 		return response
 	case <-time.After(1 * time.Second):
-		logger.DebugContext(context.Background(), "Timed out waiting for response: returning false")
+		logger.Debugf("Timed out waiting for response: returning false.")
 		return false
 	}
 }
 
 func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn, error) {
-	s.logger.DebugContext(s.ctx, "Requesting connection in remote cluster.",
-		"target_address", req.Address,
-		"target_server_id", req.ServerID,
-	)
+	s.logger.Debugf("Requesting connection to %v [%v] in remote cluster.", req.Address, req.ServerID)
 
 	// Loop through existing remote connections and try and establish a
 	// connection over the "reverse tunnel".
@@ -976,7 +944,7 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 		if err == nil {
 			return conn, nil
 		}
-		s.logger.WarnContext(s.ctx, "Request for connection to remote site failed", "error", err)
+		s.logger.WithError(err).Warn("Request for connection to remote site failed")
 	}
 
 	// Didn't connect and no error? This means we didn't have any connected
@@ -984,10 +952,11 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 	if err == nil {
 		// Return the appropriate message if the user is trying to connect to a
 		// cluster or a node.
+		message := fmt.Sprintf("cluster %v is offline", s.GetName())
 		if req.Address != constants.RemoteAuthServer {
-			return nil, trace.ConnectionProblem(nil, "node %v is offline", req.Address)
+			message = fmt.Sprintf("node %v is offline", req.Address)
 		}
-		return nil, trace.ConnectionProblem(nil, "cluster %v is offline", s.GetName())
+		err = trace.ConnectionProblem(nil, message)
 	}
 	return nil, err
 }

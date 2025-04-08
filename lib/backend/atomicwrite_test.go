@@ -19,7 +19,7 @@
 package backend
 
 import (
-	"strconv"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,24 +39,24 @@ func TestAtomicWriteValidation(t *testing.T) {
 		{
 			condacts: []ConditionalAction{
 				{
-					Key:       NewKey("foo", "bar"),
+					Key:       []byte("/foo/bar"),
 					Condition: Exists(),
 					Action: Put(Item{
 						Value: []byte("true"),
 					}),
 				},
 				{
-					Key:       NewKey("bin", "baz"),
+					Key:       []byte("/bin/baz"),
 					Condition: Revision("r1"),
 					Action:    Delete(),
 				},
 				{
-					Key:       NewKey("apples", "oranges"),
+					Key:       []byte("/apples/oranges"),
 					Condition: NotExists(),
 					Action:    Nop(),
 				},
 				{
-					Key:       NewKey("up", "down"),
+					Key:       []byte("/up/down"),
 					Condition: Whatever(),
 					Action: Put(Item{
 						Value: []byte("v"),
@@ -69,7 +69,7 @@ func TestAtomicWriteValidation(t *testing.T) {
 		{
 			condacts: []ConditionalAction{
 				{
-					Key:       NewKey("foo", "bar"),
+					Key:       []byte("/foo/bar"),
 					Condition: Revision(""), // empty revisions are allowed
 					Action:    Delete(),
 				},
@@ -80,7 +80,7 @@ func TestAtomicWriteValidation(t *testing.T) {
 		{
 			condacts: []ConditionalAction{
 				{
-					Key:       NewKey("singleton"),
+					Key:       []byte("/singleton"),
 					Condition: Whatever(),
 					Action:    Delete(),
 				},
@@ -97,24 +97,24 @@ func TestAtomicWriteValidation(t *testing.T) {
 		{
 			condacts: []ConditionalAction{
 				{
-					Key:       NewKey("foo", "bar"),
+					Key:       []byte("/foo/bar"),
 					Condition: Exists(),
 					Action: Put(Item{
 						Value: []byte("true"),
 					}),
 				},
 				{
-					Key:       NewKey("foo", "baz"),
+					Key:       []byte("/foo/baz"),
 					Condition: Revision("r1"),
 					Action:    Delete(),
 				},
 				{
-					Key:       NewKey("apples", "oranges"),
+					Key:       []byte("/apples/oranges"),
 					Condition: NotExists(),
 					Action:    Nop(),
 				},
 				{
-					Key:       NewKey("foo", "bar"),
+					Key:       []byte("/foo/bar"),
 					Condition: Revision("r2"),
 					Action:    Nop(),
 				},
@@ -126,7 +126,7 @@ func TestAtomicWriteValidation(t *testing.T) {
 		{
 			condacts: []ConditionalAction{
 				{
-					Key:       NewKey("foo", "bar"),
+					Key:       []byte("/foo/bar"),
 					Condition: Exists(),
 					Action:    Put(Item{}),
 				},
@@ -138,7 +138,7 @@ func TestAtomicWriteValidation(t *testing.T) {
 		{
 			condacts: []ConditionalAction{
 				{
-					Key:       NewKey("foo", "bar"),
+					Key:       []byte("/foo/bar"),
 					Condition: Condition{},
 					Action:    Delete(),
 				},
@@ -150,7 +150,7 @@ func TestAtomicWriteValidation(t *testing.T) {
 		{
 			condacts: []ConditionalAction{
 				{
-					Key:       NewKey("foo", "bar"),
+					Key:       []byte("/foo/bar"),
 					Condition: Exists(),
 					Action:    Action{},
 				},
@@ -164,7 +164,7 @@ func TestAtomicWriteValidation(t *testing.T) {
 	var big []ConditionalAction
 	for i := 0; i < MaxAtomicWriteSize+1; i++ {
 		big = append(big, ConditionalAction{
-			Key:       NewKey("key-" + strconv.Itoa(i)),
+			Key:       []byte(fmt.Sprintf("/key-%d", i)),
 			Condition: Whatever(),
 			Action:    Delete(),
 		})

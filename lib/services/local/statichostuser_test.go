@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -129,7 +130,7 @@ func TestUpdateStaticHostUser(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	key := getStaticHostUser(0).GetMetadata().GetName()
@@ -153,7 +154,7 @@ func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	obj := getStaticHostUser(0)
 	obj.Metadata.Expires = expiry

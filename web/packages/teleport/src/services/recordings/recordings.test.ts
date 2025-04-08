@@ -32,7 +32,7 @@ test('fetch session recordings, response formatting', async () => {
   expect(response).toEqual({
     recordings: [
       {
-        createdDate: new Date('2022-07-19T17:53:50.512Z'),
+        createdDate: '2022-07-19T17:53:50.512Z',
         description: 'play',
         duration: 7535,
         durationText: '8 seconds',
@@ -43,7 +43,7 @@ test('fetch session recordings, response formatting', async () => {
         users: 'fuwa@obiki.ve, ha@fokveh.mc',
       },
       {
-        createdDate: new Date('2022-07-19T17:47:39.317Z'),
+        createdDate: '2022-07-19T17:47:39.317Z',
         description: 'non-interactive',
         duration: 85,
         durationText: '0 seconds',

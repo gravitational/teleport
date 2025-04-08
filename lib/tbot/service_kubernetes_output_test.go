@@ -162,7 +162,7 @@ func TestKubernetesOutputService_render(t *testing.T) {
 				log:            utils.NewSlogLoggerForTests(),
 			}
 
-			keyRing, err := NewClientKeyRing(
+			key, err := NewClientKey(
 				id,
 				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
 			)
@@ -171,7 +171,7 @@ func TestKubernetesOutputService_render(t *testing.T) {
 				kubernetesClusterName: k8sCluster,
 				teleportClusterName:   mockClusterName,
 				tlsServerName:         client.GetKubeTLSServerName(mockClusterName),
-				credentials:           keyRing,
+				credentials:           key,
 				clusterAddr:           fmt.Sprintf("https://%s:443", mockClusterName),
 			}
 

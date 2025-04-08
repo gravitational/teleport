@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"time"
 
@@ -100,7 +99,7 @@ func main() {
 		if err := run(*startConfigPath, *debug); err != nil {
 			lib.Bail(err)
 		} else {
-			slog.InfoContext(context.Background(), "Successfully shut down")
+			logger.Standard().Info("Successfully shut down")
 		}
 	}
 

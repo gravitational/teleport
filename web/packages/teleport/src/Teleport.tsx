@@ -20,12 +20,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
+import ThemeProvider, { updateFavicon } from 'design/ThemeProvider';
+
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
 import { Route, Router, Switch } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
@@ -49,12 +50,7 @@ import { Welcome } from './Welcome';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      networkMode: 'always',
       refetchOnWindowFocus: false,
-      retry: false,
-    },
-    mutations: {
-      networkMode: 'always',
       retry: false,
     },
   },

@@ -23,7 +23,9 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -35,8 +37,8 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -124,7 +126,7 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 
 		credentials, privateKey, err := workloadidentity.IssueX509WorkloadIdentity(
 			ctx,
-			logger,
+			slog.Default(),
 			clusterClient.AuthClient,
 			selector,
 			c.ttl,
@@ -235,7 +237,7 @@ type svidCommands struct {
 }
 
 func newSVIDCommands(app *kingpin.Application) svidCommands {
-	cmd := app.Command("svid", "Manage Teleport Workload Identity SVIDs.").Hidden()
+	cmd := app.Command("svid", "Manage Teleport Workload Identity SVIDs.")
 	cmds := svidCommands{
 		issue: newSVIDIssueCommand(cmd),
 	}
@@ -286,11 +288,6 @@ func newSVIDIssueCommand(parent *kingpin.CmdClause) *svidIssueCommand {
 }
 
 func (c *svidIssueCommand) run(cf *CLIConf) error {
-	logger.WarnContext(
-		cf.Context,
-		"The 'tsh svid issue' command is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-	)
-
 	ctx := cf.Context
 	// Validate flags
 	if c.svidType != svidTypeX509 {
@@ -311,9 +308,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		defer clusterClient.Close()
 
 		// Generate keypair to use in SVID
-		privateKey, err := cryptosuites.GenerateKey(ctx,
-			tc.GetCurrentSignatureAlgorithmSuite,
-			cryptosuites.BotSVID)
+		privateKey, err := native.GenerateRSAPrivateKey()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -348,7 +343,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		keyPath := filepath.Join(c.outputDirectory, svidKeyPEMPath)
+		keyPath := path.Join(c.outputDirectory, svidKeyPEMPath)
 		err = os.WriteFile(
 			keyPath,
 			pem.EncodeToMemory(&pem.Block{
@@ -362,7 +357,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		}
 
 		// Write SVID
-		svidPath := filepath.Join(c.outputDirectory, svidPEMPath)
+		svidPath := path.Join(c.outputDirectory, svidPEMPath)
 		err = os.WriteFile(
 			svidPath,
 			pem.EncodeToMemory(&pem.Block{
@@ -391,7 +386,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 				}
 			}
 		}
-		trustBundlePath := filepath.Join(c.outputDirectory, svidTrustBundlePEMPath)
+		trustBundlePath := path.Join(c.outputDirectory, svidTrustBundlePEMPath)
 		err = os.WriteFile(
 			trustBundlePath,
 			trustBundleBytes.Bytes(),

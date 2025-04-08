@@ -21,7 +21,6 @@ package tbot
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -193,7 +192,8 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	}
 
 	var sshConfigBuilder strings.Builder
-	err = openssh.WriteMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
+	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
+	err = sshConf.GetMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
 		AppName:         openssh.TbotApp,
 		ClusterNames:    clusterNames,
 		KnownHostsPath:  filepath.Join(absPath, ssh.KnownHostsName),
@@ -349,7 +349,7 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {
@@ -401,7 +401,7 @@ func (s *SSHMultiplexerService) identityRenewalLoop(
 			s.identity.Set(id)
 			return s.writeArtifacts(ctx, proxyHost, authClient)
 		},
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		interval:   s.botCfg.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -528,7 +528,6 @@ func (s *SSHMultiplexerService) Run(ctx context.Context) (err error) {
 				s.agentMu.Unlock()
 
 				s.log.DebugContext(egCtx, "Serving agent connection")
-				//nolint:staticcheck // SA4023. ServeAgent always returns a non-nil error. This is fine.
 				err := agent.ServeAgent(currentAgent, conn)
 				if err != nil && !utils.IsOKNetworkError(err) {
 					s.log.WarnContext(

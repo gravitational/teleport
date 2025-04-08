@@ -19,12 +19,11 @@
 package config
 
 import (
-	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/metadata"
@@ -34,12 +33,10 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
 func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
-	ctx := context.TODO()
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
@@ -60,34 +57,31 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 	if profile.IsExpired(time.Now()) {
 		if profile.GetKeyRingError != nil {
-			if errors.As(profile.GetKeyRingError, new(*client.LegacyCertPathError)) {
+			if errors.As(profile.GetKeyRingError, new(*client.FutureCertPathError)) {
 				// Intentionally avoid wrapping the error because the caller
 				// ignores NotFound errors.
-				return nil, trace.Errorf("it appears tsh v16 or older was used to log in, make sure to use tsh and tctl on the same major version\n\t%v", profile.GetKeyRingError)
+				return nil, trace.Errorf("it appears tsh v17 or newer was used to log in, make sure to use tsh and tctl on the same major version\n\t%v", profile.GetKeyRingError)
 			}
 			return nil, trace.Wrap(profile.GetKeyRingError)
 		}
-		return nil, trace.BadParameter("your credentials have expired, please log in using `tsh login`")
+		return nil, trace.BadParameter("your credentials have expired, please login using `tsh login`")
 	}
 
 	c := client.MakeDefaultConfig()
-	slog.DebugContext(ctx, "Found profile",
-		"proxy", logutils.StringerAttr(&profile.ProxyURL),
-		"user", profile.Username,
-	)
+	log.WithFields(log.Fields{"proxy": profile.ProxyURL.String(), "user": profile.Username}).Debugf("Found profile.")
 	if err := c.LoadProfile(clientStore, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	webProxyHost, _ := c.WebProxyHostPort()
-	idx := client.KeyRingIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
-	keyRing, err := clientStore.GetKeyRing(idx, client.WithSSHCerts{})
+	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
+	key, err := clientStore.GetKey(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Auth config can be created only using a key associated with the root cluster.
-	rootCluster, err := keyRing.RootClusterName()
+	rootCluster, err := key.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,13 +90,13 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 
 	authConfig := &authclient.Config{}
-	authConfig.TLS, err = keyRing.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
+	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 	authConfig.Insecure = ccf.Insecure
-	authConfig.SSH, err = keyRing.ProxyClientSSHConfig(rootCluster)
+	authConfig.SSH, err = key.ProxyClientSSHConfig(rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,11 +106,11 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		slog.DebugContext(ctx, "Setting auth server to web proxy", "web_proxy_addr", webProxyAddr)
+		log.Debugf("Setting auth server to web proxy %v.", webProxyAddr)
 		cfg.SetAuthServerAddress(*webProxyAddr)
 	}
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Logger
+	authConfig.Log = cfg.Log
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
 	if c.TLSRoutingEnabled {

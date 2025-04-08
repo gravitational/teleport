@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/servicenow"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
@@ -283,6 +284,6 @@ func (s *FakeServiceNow) getOnCall(rotationName string) []string {
 
 func panicIf(err error) {
 	if err != nil {
-		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
+		log.Panicf("%v at %v", err, string(debug.Stack()))
 	}
 }

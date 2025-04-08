@@ -25,11 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -46,7 +47,7 @@ func testOIDCIntegration(t *testing.T) *types.IntegrationV1 {
 	oidcIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: "aws-integration-1"},
 		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::account:role/role1",
+			RoleARN: "role1",
 		},
 	)
 	require.NoError(t, err)
@@ -178,6 +179,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 }
 
 func TestCredentialsCache(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -231,12 +233,17 @@ func TestCredentialsCache(t *testing.T) {
 	})
 
 	provider := c.CredentialsProvider()
+	providerV1 := c.CredentialsProviderSDKV1()
 
 	checkRetrieveCredentials := func(t require.TestingT, expectErr error) {
+		_, err = providerV1.RetrieveWithContext(ctx)
+		assert.ErrorIs(t, err, expectErr)
 		_, err := provider.Retrieve(ctx)
 		assert.ErrorIs(t, err, expectErr)
 	}
 	checkRetrieveCredentialsWithExpiry := func(t require.TestingT, expectExpiry time.Time) {
+		_, err = providerV1.RetrieveWithContext(ctx)
+		assert.NoError(t, err)
 		creds, err := provider.Retrieve(ctx)
 		assert.NoError(t, err)
 		if err == nil {

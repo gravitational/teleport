@@ -61,14 +61,10 @@ type WebSession interface {
 	SetUser(string)
 	// GetPub is returns public certificate signed by auth server
 	GetPub() []byte
-	// GetSSHPriv returns private SSH key used to auth with SSH nodes.
-	GetSSHPriv() []byte
-	// SetSSHPriv sets SSH private key.
-	SetSSHPriv([]byte)
-	// GetTLSPriv returns private TLS key.
-	GetTLSPriv() []byte
-	// SetTLSPriv sets TLS private key.
-	SetTLSPriv([]byte)
+	// GetPriv returns private OpenSSH key used to auth with SSH nodes
+	GetPriv() []byte
+	// SetPriv sets private key
+	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
 	// GetBearerToken is a special bearer token used for additional
@@ -197,7 +193,6 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	cp := *ws
 	cp.Spec.Priv = nil
-	cp.Spec.TLSPriv = nil
 	cp.Spec.SAMLSession = nil
 	cp.Spec.DeviceWebToken = nil
 	return &cp
@@ -305,30 +300,14 @@ func (ws *WebSessionV2) GetPub() []byte {
 	return ws.Spec.Pub
 }
 
-// GetSSHPriv returns private SSH key.
-func (ws *WebSessionV2) GetSSHPriv() []byte {
+// GetPriv returns private OpenSSH key used to auth with SSH nodes
+func (ws *WebSessionV2) GetPriv() []byte {
 	return ws.Spec.Priv
 }
 
-// SetSSHPriv sets private SSH key.
-func (ws *WebSessionV2) SetSSHPriv(priv []byte) {
+// SetPriv sets private key
+func (ws *WebSessionV2) SetPriv(priv []byte) {
 	ws.Spec.Priv = priv
-}
-
-// GetTLSPriv returns private TLS key.
-func (ws *WebSessionV2) GetTLSPriv() []byte {
-	// TODO(nklaassen): DELETE IN 18.0.0 when all auth servers are writing web session TLS key.
-	if ws.Spec.TLSPriv == nil {
-		// An older auth instance may have written this web session before the
-		// SSH and TLS keys were split.
-		return ws.Spec.Priv
-	}
-	return ws.Spec.TLSPriv
-}
-
-// SetTLSPriv sets private TLS key.
-func (ws *WebSessionV2) SetTLSPriv(priv []byte) {
-	ws.Spec.TLSPriv = priv
 }
 
 // GetBearerToken gets a special bearer token used for additional

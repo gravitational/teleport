@@ -322,7 +322,8 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		ctx,
 		s.client,
 		svidRequests,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		// For TTL, we use the one globally configured.
+		s.botCfg.CertificateTTL,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -645,7 +646,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 			}
 			bundleSet = newBundleSet
 			continue
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(s.botCfg.RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue

@@ -53,7 +53,7 @@ func (t *proxySitesSubsys) Wait() error {
 // Start serves a request for "proxysites" custom SSH subsystem. It builds an array of
 // service.Site structures, and writes it serialized as JSON back to the SSH client
 func (t *proxySitesSubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
-	t.srv.logger.DebugContext(ctx, "starting proxysites subsystem", "server_context", serverContext)
+	log.Debugf("proxysites.start(%v)", serverContext)
 	checker, err := t.srv.tunnelWithAccessChecker(serverContext)
 	if err != nil {
 		return trace.Wrap(err)

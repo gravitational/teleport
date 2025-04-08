@@ -1,4 +1,5 @@
-/** Teleport
+/*
+ * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,11 +19,10 @@
 package events
 
 import (
-	"context"
 	"encoding/json"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -288,8 +288,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
-	case AccessRequestExpireEvent:
-		e = &events.AccessRequestExpire{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
@@ -396,8 +394,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessGraphSettingsUpdate{}
 	case DatabaseSessionSpannerRPCEvent:
 		e = &events.SpannerRPC{}
-	case GitCommandEvent:
-		e = &events.GitCommand{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
@@ -443,7 +439,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.StaticHostUserUpdate{}
 	case StaticHostUserDeleteEvent:
 		e = &events.StaticHostUserDelete{}
-
 	case CrownJewelCreateEvent:
 		e = &events.CrownJewelCreate{}
 	case CrownJewelUpdateEvent:
@@ -457,9 +452,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UserTaskUpdate{}
 	case UserTaskDeleteEvent:
 		e = &events.UserTaskDelete{}
-
-	case SFTPSummaryEvent:
-		e = &events.SFTPSummary{}
 
 	case AutoUpdateConfigCreateEvent:
 		e = &events.AutoUpdateConfigCreate{}
@@ -475,17 +467,17 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case AutoUpdateVersionDeleteEvent:
 		e = &events.AutoUpdateVersionDelete{}
 
-	case ContactCreateEvent:
-		e = &events.ContactCreate{}
-	case ContactDeleteEvent:
-		e = &events.ContactDelete{}
-
 	case WorkloadIdentityCreateEvent:
 		e = &events.WorkloadIdentityCreate{}
 	case WorkloadIdentityUpdateEvent:
 		e = &events.WorkloadIdentityUpdate{}
 	case WorkloadIdentityDeleteEvent:
 		e = &events.WorkloadIdentityDelete{}
+
+	case ContactCreateEvent:
+		e = &events.ContactCreate{}
+	case ContactDeleteEvent:
+		e = &events.ContactDelete{}
 
 	case WorkloadIdentityX509RevocationCreateEvent:
 		e = &events.WorkloadIdentityX509RevocationCreate{}
@@ -494,27 +486,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case WorkloadIdentityX509RevocationDeleteEvent:
 		e = &events.WorkloadIdentityX509RevocationDelete{}
 
-	case StableUNIXUserCreateEvent:
-		e = &events.StableUNIXUserCreate{}
-
-	case AWSICResourceSyncSuccessEvent,
-		AWSICResourceSyncFailureEvent:
-		e = &events.AWSICResourceSync{}
-
-	case HealthCheckConfigCreateEvent:
-		e = &events.HealthCheckConfigCreate{}
-	case HealthCheckConfigUpdateEvent:
-		e = &events.HealthCheckConfigUpdate{}
-	case HealthCheckConfigDeleteEvent:
-		e = &events.HealthCheckConfigDelete{}
-
-	case WorkloadIdentityX509IssuerOverrideCreateEvent:
-		e = &events.WorkloadIdentityX509IssuerOverrideCreate{}
-	case WorkloadIdentityX509IssuerOverrideDeleteEvent:
-		e = &events.WorkloadIdentityX509IssuerOverrideDelete{}
-
 	default:
-		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}
 		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)

@@ -26,5 +26,4 @@ export type YamlStringifyRequest<T> = {
 
 export enum YamlSupportedResourceKind {
   AccessMonitoringRule = 'access_monitoring_rule',
-  Role = 'role',
 }

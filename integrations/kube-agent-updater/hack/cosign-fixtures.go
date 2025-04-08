@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"maps"
 	"strings"
 	"text/template"
 
@@ -43,6 +42,7 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	staticsign "github.com/sigstore/cosign/v2/pkg/oci/static"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -495,7 +495,7 @@ func generateSignedManifest(scenario string, signer digestedRefSigner, keys ...*
 		return
 	}
 
-	// Signing the manifest
+	// Singing the manifest
 	sigLayers, sigManifest, err := makeSignature(manifestRef, signer, keys...)
 	if err != nil {
 		return nil, nil, v1.Hash{}, trace.Wrap(err)

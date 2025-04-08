@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
+import styled from 'styled-components';
 
 import {
   Alert,
@@ -27,14 +28,14 @@ import {
   Link,
   Text,
 } from 'design';
-import { Info, Warning } from 'design/Alert/Alert';
+import { OutlineInfo, OutlineWarn } from 'design/Alert/Alert';
+import { CheckboxInput } from 'design/Checkbox';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import FieldInput from 'shared/components/FieldInput';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -42,11 +43,7 @@ import { requiredRoleArn } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import cfg from 'teleport/config';
-import {
-  AwsOidcPolicyPreset,
-  IntegrationAwsOidc,
-  IntegrationKind,
-} from 'teleport/services/integrations';
+import { Integration } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import { S3BucketConfiguration } from './Enroll/AwsOidc/S3BucketConfiguration';
@@ -54,14 +51,14 @@ import { EditableIntegrationFields } from './Operations/useIntegrationOperation'
 
 type Props = {
   close(): void;
-  edit(req: EditableIntegrationFields): Promise<void>;
-  integration: IntegrationAwsOidc;
+  edit(integration: Integration, req: EditableIntegrationFields): Promise<void>;
+  integration: Integration;
 };
 
 export function EditAwsOidcIntegrationDialog(props: Props) {
   const { close, edit, integration } = props;
   const [updateAttempt, runUpdate] = useAsync(async () => {
-    await edit({ kind: IntegrationKind.AwsOidc, roleArn });
+    await edit(integration, { roleArn });
   });
 
   const [roleArn, setRoleArn] = useState(integration.spec.roleArn);
@@ -76,10 +73,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     await runUpdate();
   }
 
-  function generateAwsOidcConfigIdpScript(
-    validator: Validator,
-    policyPreset: AwsOidcPolicyPreset
-  ) {
+  function generateAwsOidcConfigIdpScript(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
@@ -92,7 +86,6 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName: integration.name,
       roleName: arnResourceName,
-      policyPreset,
     });
 
     setScriptUrl(newScriptUrl);
@@ -108,155 +101,152 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
 
   const changeDetected = integration.spec.roleArn !== roleArn;
 
-  function actionButtons(validator: Validator) {
-    if (!scriptUrl) {
-      return (
-        <ButtonBorder
-          mr="3"
-          onClick={() =>
-            generateAwsOidcConfigIdpScript(
-              validator,
-              AwsOidcPolicyPreset.Unspecified
-            )
-          }
-          disabled={!roleArn || !showGenerateCommand}
-        >
-          Reconfigure
-        </ButtonBorder>
-      );
-    }
-
-    return (
-      <>
-        <ButtonPrimary
-          mr="3"
-          disabled={
-            isProcessing ||
-            (showGenerateCommand && !confirmed) ||
-            (!showReadonlyS3Fields && !changeDetected)
-          }
-          onClick={() => handleEdit(validator)}
-        >
-          Save
-        </ButtonPrimary>
-        <ButtonSecondary
-          mr="3"
-          onClick={() => setScriptUrl('')}
-          disabled={confirmed}
-        >
-          Edit
-        </ButtonSecondary>
-      </>
-    );
-  }
-
   return (
     <Validation>
       {({ validator }) => (
         <Dialog
+          disableEscapeKeyDown={false}
           onClose={close}
           open={true}
           dialogCss={() => ({
-            minHeight: '324px',
             maxWidth: '650px',
             width: '100%',
           })}
         >
           <DialogHeader>
-            <DialogTitle>Edit Role ARN: {integration.name}</DialogTitle>
+            <DialogTitle>Edit Integration</DialogTitle>
           </DialogHeader>
-          <DialogContent width="650px" m={0}>
+          <DialogContent width="650px">
             {updateAttempt.status === 'error' && (
               <Alert children={updateAttempt.statusText} />
             )}
             <FieldInput
-              autoFocus
-              label="Role ARN"
-              rule={requiredRoleArn}
-              value={roleArn}
-              onChange={e => setRoleArn(e.target.value)}
-              placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
-              helperText="Role ARN can be found in the format: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
-              disabled={!!scriptUrl}
+              label="Integration Name"
+              value={integration.name}
+              readonly={true}
             />
-            {showReadonlyS3Fields && !scriptUrl && (
-              <>
-                <S3BucketConfiguration
-                  s3Bucket={s3Bucket}
-                  s3Prefix={s3Prefix}
-                />
-                <Warning>
-                  Using an S3 bucket to store the OpenID Configuration is not
-                  recommended. Reconfiguring this integration is suggested (this
-                  will not break existing features).
-                </Warning>
-              </>
-            )}
-            {scriptUrl && (
-              <Box mb={2} data-testid="scriptbox">
-                <Text mb={2}>
-                  Open{' '}
-                  <Link
-                    href="https://console.aws.amazon.com/cloudshell/home"
-                    target="_blank"
-                  >
-                    AWS CloudShell
-                  </Link>{' '}
-                  and copy and paste the command that configures the permissions
-                  for you:
-                </Text>
-                <Box>
-                  <TextSelectCopyMulti
-                    lines={[
-                      {
-                        text: `bash -c "$(curl '${scriptUrl}')"`,
-                      },
-                    ]}
+            <EditableBox px={3} pt={2} mt={2}>
+              <FieldInput
+                autoFocus
+                label="Role ARN"
+                rule={requiredRoleArn}
+                value={roleArn}
+                onChange={e => setRoleArn(e.target.value)}
+                placeholder="arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>"
+                toolTipContent={
+                  <Text>
+                    Role ARN can be found in the format: <br />
+                    {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
+                  </Text>
+                }
+                disabled={scriptUrl}
+              />
+              {showReadonlyS3Fields && !scriptUrl && (
+                <>
+                  <S3BucketConfiguration
+                    s3Bucket={s3Bucket}
+                    s3Prefix={s3Prefix}
                   />
-                  {showReadonlyS3Fields && (
-                    <Info mt={3} linkColor="buttons.link.default">
-                      <Box>
-                        After running the command, delete the previous{' '}
-                        <Link
-                          target="_blank"
-                          href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${getIdpArn(
-                            {
-                              s3Bucket,
-                              s3Prefix,
-                              roleArn: integration.spec.roleArn,
-                            }
-                          )}`}
-                        >
-                          identity provider
-                        </Link>{' '}
-                        along with its{' '}
-                        <Link
-                          target="_blank"
-                          href={`https://console.aws.amazon.com/s3/buckets/${s3Bucket}`}
-                        >
-                          S3 bucket
-                        </Link>{' '}
-                        from your AWS console.
-                      </Box>
-                    </Info>
-                  )}
+                  <OutlineWarn>
+                    Using an S3 bucket to store the OpenID Configuration is not
+                    recommended. Reconfiguring this integration is suggested
+                    (this will not break existing features).
+                  </OutlineWarn>
+                </>
+              )}
+              {scriptUrl && (
+                <Box mb={5} data-testid="scriptbox">
+                  <Text mb={2}>
+                    Open{' '}
+                    <Link
+                      href="https://console.aws.amazon.com/cloudshell/home"
+                      target="_blank"
+                    >
+                      AWS CloudShell
+                    </Link>{' '}
+                    and copy and paste the command that configures the
+                    permissions for you:
+                  </Text>
+                  <Box mb={2}>
+                    <TextSelectCopyMulti
+                      lines={[
+                        {
+                          text: `bash -c "$(curl '${scriptUrl}')"`,
+                        },
+                      ]}
+                    />
+                    {showReadonlyS3Fields && (
+                      <OutlineInfo mt={3} linkColor="buttons.link.default">
+                        <Box>
+                          After running the command, delete the previous{' '}
+                          <Link
+                            target="_blank"
+                            href={`https://console.aws.amazon.com/iam/home#/identity_providers/details/OPENID/${getIdpArn({ s3Bucket, s3Prefix, roleArn: integration.spec.roleArn })}`}
+                          >
+                            identity provider
+                          </Link>{' '}
+                          along with its{' '}
+                          <Link
+                            target="_blank"
+                            href={`https://console.aws.amazon.com/s3/buckets/${s3Bucket}`}
+                          >
+                            S3 bucket
+                          </Link>{' '}
+                          from your AWS console.
+                        </Box>
+                      </OutlineInfo>
+                    )}
+                  </Box>
                 </Box>
-              </Box>
-            )}
+              )}
+              {scriptUrl && (
+                <ButtonSecondary
+                  mb={3}
+                  onClick={() => setScriptUrl('')}
+                  disabled={confirmed}
+                >
+                  Edit
+                </ButtonSecondary>
+              )}
+              {!scriptUrl && showGenerateCommand && (
+                <ButtonBorder
+                  mb={3}
+                  onClick={() => generateAwsOidcConfigIdpScript(validator)}
+                  disabled={!roleArn}
+                >
+                  Reconfigure
+                </ButtonBorder>
+              )}
+            </EditableBox>
           </DialogContent>
           <DialogFooter>
             {showGenerateCommand && scriptUrl && (
-              <FieldCheckbox
-                label="I ran the command"
-                name="checkbox"
-                checked={confirmed}
-                onChange={e => {
-                  setConfirmed(e.target.checked);
-                }}
-                disabled={isProcessing}
-              />
+              <Box mb={1}>
+                <CheckboxInput
+                  role="checkbox"
+                  type="checkbox"
+                  name="checkbox"
+                  data-testid="checkbox"
+                  checked={confirmed}
+                  onChange={e => {
+                    setConfirmed(e.target.checked);
+                  }}
+                  disabled={isProcessing}
+                />
+                I ran the command
+              </Box>
             )}
-            {actionButtons(validator)}
+            <ButtonPrimary
+              mr="3"
+              disabled={
+                isProcessing ||
+                (showGenerateCommand && !confirmed) ||
+                (!showReadonlyS3Fields && !changeDetected)
+              }
+              onClick={() => handleEdit(validator)}
+            >
+              Save
+            </ButtonPrimary>
             <ButtonSecondary disabled={isProcessing} onClick={close}>
               Cancel
             </ButtonSecondary>
@@ -266,6 +256,12 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     </Validation>
   );
 }
+
+const EditableBox = styled(Box)`
+  border-radius: ${p => p.theme.space[1]}px;
+  border: 2px solid ${p => p.theme.colors.spotBackground[1]};
+  background-color: ${p => p.theme.colors.spotBackground[0]};
+`;
 
 function getIdpArn({
   s3Bucket,

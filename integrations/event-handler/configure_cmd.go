@@ -25,6 +25,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -118,15 +119,15 @@ const (
 func RunConfigureCmd(cfg *ConfigureCmdConfig) error {
 	c := ConfigureCmd{
 		ConfigureCmdConfig: cfg,
-		caCertPath:         filepath.Join(cfg.Out, cfg.CAName) + ".crt",
-		caKeyPath:          filepath.Join(cfg.Out, cfg.CAName) + ".key",
-		serverCertPath:     filepath.Join(cfg.Out, cfg.ServerName) + ".crt",
-		serverKeyPath:      filepath.Join(cfg.Out, cfg.ServerName) + ".key",
-		clientCertPath:     filepath.Join(cfg.Out, cfg.ClientName) + ".crt",
-		clientKeyPath:      filepath.Join(cfg.Out, cfg.ClientName) + ".key",
-		roleDefPath:        filepath.Join(cfg.Out, roleDefFileName),
-		fluentdConfPath:    filepath.Join(cfg.Out, fluentdConfFileName),
-		confPath:           filepath.Join(cfg.Out, confFileName),
+		caCertPath:         path.Join(cfg.Out, cfg.CAName) + ".crt",
+		caKeyPath:          path.Join(cfg.Out, cfg.CAName) + ".key",
+		serverCertPath:     path.Join(cfg.Out, cfg.ServerName) + ".crt",
+		serverKeyPath:      path.Join(cfg.Out, cfg.ServerName) + ".key",
+		clientCertPath:     path.Join(cfg.Out, cfg.ClientName) + ".crt",
+		clientKeyPath:      path.Join(cfg.Out, cfg.ClientName) + ".key",
+		roleDefPath:        path.Join(cfg.Out, roleDefFileName),
+		fluentdConfPath:    path.Join(cfg.Out, fluentdConfFileName),
+		confPath:           path.Join(cfg.Out, confFileName),
 	}
 
 	g, err := GenerateMTLSCerts(cfg.DNSNames, cfg.IP, cfg.TTL, cfg.Length)
@@ -346,9 +347,9 @@ func (c *ConfigureCmd) writeFluentdConf(pwd string) error {
 		ServerKeyFileName  string
 		Pwd                string
 	}{
-		filepath.Base(c.caCertPath),
-		filepath.Base(c.serverCertPath),
-		filepath.Base(c.serverKeyPath),
+		path.Base(c.caCertPath),
+		path.Base(c.serverCertPath),
+		path.Base(c.serverKeyPath),
 		pwd,
 	}
 

@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -258,7 +258,7 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -293,7 +293,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -378,7 +378,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -433,7 +433,7 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -504,7 +504,7 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 		Dir:                tc.KeysDir,
 		Clock:              storageFakeClock,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -766,7 +766,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 					return nil
 				},
 			})
@@ -885,7 +885,7 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		Clock:              fakeClock,
 		WebauthnLogin:      webauthnLogin,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -948,7 +948,7 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -985,10 +985,9 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	}()
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
-	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
+	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = libutils.NewSlogLoggerForTests()
+	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -1035,7 +1034,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -1063,10 +1062,9 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
-	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
+	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = libutils.NewSlogLoggerForTests()
+	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -1265,7 +1263,7 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                tc.KeysDir,
 				InsecureSkipVerify: tc.InsecureSkipVerify,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 					return nil
 				},
 			})

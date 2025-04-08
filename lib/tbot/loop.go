@@ -103,7 +103,7 @@ func runOnInterval(ctx context.Context, cfg runOnIntervalConfig) error {
 
 	ticker := cfg.clock.NewTicker(cfg.interval)
 	defer ticker.Stop()
-	jitter := retryutils.DefaultJitter
+	jitter := retryutils.NewJitter()
 	firstRun := true
 	for {
 		if !firstRun || (firstRun && cfg.waitBeforeFirstRun) {

@@ -18,8 +18,9 @@
 
 import React, { useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonText, H2, Text } from 'design';
+import { Box, ButtonPrimary, ButtonText, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -27,8 +28,6 @@ import {
   requiredPassword,
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
-
-import { OnboardCard } from 'teleport/components/Onboard';
 
 import { SliderProps, UseTokenState } from './types';
 
@@ -82,7 +81,9 @@ export function NewPassword(props: Props) {
       {({ validator }) => (
         <OnboardCard ref={refCallback} data-testid="password">
           {mfaEnabled && <Text color="text.slightlyMuted">Step 1 of 2</Text>}
-          <H2 mb={3}>Set a Password</H2>
+          <Text typography="h4" color="text.main" mb={3}>
+            Set a Password
+          </Text>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}

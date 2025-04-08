@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonText, Flex, Text } from 'design';
@@ -30,7 +31,6 @@ export const FormPasswordless = ({
 }: Props) => (
   <Box data-testid="passwordless">
     <StyledPaswordlessBtn
-      size="large"
       py={2}
       px={3}
       border={1}
@@ -44,8 +44,8 @@ export const FormPasswordless = ({
         <Flex alignItems="center">
           <Key mr={3} size="medium" />
           <Box>
-            <Text mb={1}>Passwordless</Text>
-            <Text typography="subtitle3" color="text.slightlyMuted">
+            <Text typography="h6">Passwordless</Text>
+            <Text fontSize={1} color="text.slightlyMuted">
               Follow the prompts
             </Text>
           </Box>

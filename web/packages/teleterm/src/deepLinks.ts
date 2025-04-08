@@ -24,7 +24,6 @@ import {
   CUSTOM_PROTOCOL,
   DeepURL,
   Path,
-  VnetDeepURL,
 } from 'shared/deepLinks';
 
 export type DeepLinkParseResult =
@@ -96,8 +95,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     username: decodeURIComponent(username),
   };
 
-  const pathnameAsPath = pathname as Path;
-  switch (pathnameAsPath) {
+  switch (pathname as Path) {
     case '/connect_my_computer': {
       const url: ConnectMyComputerDeepURL = {
         ...baseUrl,
@@ -131,16 +129,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
       };
       return { status: 'success', url };
     }
-    case '/vnet': {
-      const url: VnetDeepURL = {
-        ...baseUrl,
-        pathname: '/vnet',
-        searchParams: {},
-      };
-      return { status: 'success', url };
-    }
     default:
-      pathnameAsPath satisfies never;
       return { status: 'error', reason: 'unsupported-url' };
   }
 }

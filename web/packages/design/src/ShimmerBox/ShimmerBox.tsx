@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled, { keyframes } from 'styled-components';
 
-import Box, { BoxProps } from 'design/Box';
+import { Box } from 'design';
 
 const loading = keyframes`
   0% {
@@ -51,7 +52,7 @@ const Shimmer = styled.div`
   animation: ${loading} 1.5s infinite;
 `;
 
-export const ShimmerBox = (props: BoxProps) => {
+export const ShimmerBox = props => {
   return (
     <Box {...props}>
       <ShimmerWrapper>

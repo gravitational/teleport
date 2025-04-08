@@ -19,32 +19,32 @@
 package aws
 
 import (
+	"bytes"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/stretchr/testify/require"
-
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestResolveEndpoints(t *testing.T) {
-	creds := aws.Credentials{AccessKeyID: "fakeClientKeyID", SecretAccessKey: "fakeClientSecret"}
-	signer := v4.NewSigner()
+	signer := v4.NewSigner(credentials.NewStaticCredentials("fakeClientKeyID", "fakeClientSecret", ""))
 	region := "us-east-1"
 	now := time.Now()
 
-	t.Run("unsupported SDK resolver", func(t *testing.T) {
+	t.Run("AWS SDK resolver", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://localhost", nil)
 		require.NoError(t, err)
 
-		err = signer.SignHTTP(t.Context(), creds, req, awsutils.EmptyPayloadHash, "ecr", "us-east-1", now)
+		_, err = signer.Sign(req, bytes.NewReader(nil), "ecr", "us-east-1", now)
 		require.NoError(t, err)
 
-		_, err = resolveEndpoint(req, awsutils.AuthorizationHeader)
-		require.Error(t, err)
+		endpoint, err := resolveEndpoint(req)
+		require.NoError(t, err)
+		require.Equal(t, "ecr", endpoint.SigningName)
+		require.Equal(t, "https://api.ecr.us-east-1.amazonaws.com", endpoint.URL)
 	})
 
 	t.Run("X-Forwarded-Host", func(t *testing.T) {
@@ -52,10 +52,10 @@ func TestResolveEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("X-Forwarded-Host", "some-service.us-east-1.amazonaws.com")
 
-		err = signer.SignHTTP(t.Context(), creds, req, awsutils.EmptyPayloadHash, "some-service", region, now)
+		_, err = signer.Sign(req, bytes.NewReader(nil), "some-service", region, now)
 		require.NoError(t, err)
 
-		endpoint, err := resolveEndpoint(req, awsutils.AuthorizationHeader)
+		endpoint, err := resolveEndpoint(req)
 		require.NoError(t, err)
 		require.Equal(t, "some-service", endpoint.SigningName)
 		require.Equal(t, "https://some-service.us-east-1.amazonaws.com", endpoint.URL)

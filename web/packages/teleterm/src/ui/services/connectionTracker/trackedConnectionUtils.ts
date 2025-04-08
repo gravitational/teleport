@@ -17,65 +17,26 @@
  */
 
 import {
-  Document,
   DocumentGateway,
   DocumentGatewayKube,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
-  getDocumentGatewayTargetUriKind,
   isDocumentTshNodeWithServerId,
 } from 'teleterm/ui/services/workspacesService';
 import { unique } from 'teleterm/ui/utils/uid';
 
 import {
-  TrackedConnection,
   TrackedGatewayConnection,
   TrackedKubeConnection,
   TrackedServerConnection,
 } from './types';
 
-/*
- * Getting a connection by a document.
- */
-
-/**
- *
- * getGatewayConnectionByDocument looks for a connection that has the same gateway params as the
- * document.
- *
- * ---
- *
- * This function is used in two scenarios. It's used when recreating the list of connections based
- * on open documents. If there's no connection found that matches DocumentGateway, a new connection
- * is added to the list.
- *
- * It's also used when opening new gateways for databases and apps to find an existing connection
- * and call it's `activate` handler, which is going to open an existing document. If no existing
- * connection is found, a new document is added to the workspace.
- */
-export function getGatewayConnectionByDocument(
-  document: DocumentGateway
-): (c: TrackedConnection) => boolean {
-  const targetKind = getDocumentGatewayTargetUriKind(document.targetUri);
-
-  switch (targetKind) {
-    case 'db': {
-      return c =>
-        c.kind === 'connection.gateway' &&
-        c.targetUri === document.targetUri &&
-        c.targetUser === document.targetUser;
-    }
-    case 'app': {
-      return c =>
-        c.kind === 'connection.gateway' &&
-        c.targetUri === document.targetUri &&
-        c.targetSubresourceName === document.targetSubresourceName;
-    }
-    default: {
-      targetKind satisfies never;
-    }
-  }
+export function getGatewayConnectionByDocument(document: DocumentGateway) {
+  return (i: TrackedGatewayConnection) =>
+    i.kind === 'connection.gateway' &&
+    i.targetUri === document.targetUri &&
+    i.targetUser === document.targetUser;
 }
 
 export function getServerConnectionByDocument(document: DocumentTshNode) {
@@ -99,49 +60,13 @@ export function getGatewayKubeConnectionByDocument(
     i.kind === 'connection.kube' && i.kubeUri === document.targetUri;
 }
 
-/*
- * Getting a document by a connection.
- */
-
-/**
- * getGatewayDocumentByConnection looks for a DocumentGateway that has the same gateway params as
- * the connection.
- *
- * ---
- *
- * This function is used in two scenarios. It's used when activating (clicking) a connection in the
- * connections list to find a document to open if there's already a gateway for the given connection.
- *
- * The `activate` handler is also called when the user attempts to open a gateway for a database or
- * an app. That UI action first prepares a doc with provided gateway parameters. If there's a
- * connection which matches the gateway parameters from the doc (getGatewayConnectionByDocument),
- * its `activate` handler is called.
- *
- * The second scenario is when disconnecting a connection from the connections list to find a
- * document which should be closed.
- */
 export function getGatewayDocumentByConnection(
   connection: TrackedGatewayConnection
-): (d: Document) => boolean {
-  const targetKind = getDocumentGatewayTargetUriKind(connection.targetUri);
-
-  switch (targetKind) {
-    case 'db': {
-      return d =>
-        d.kind === 'doc.gateway' &&
-        d.targetUri === connection.targetUri &&
-        d.targetUser === connection.targetUser;
-    }
-    case 'app': {
-      return d =>
-        d.kind === 'doc.gateway' &&
-        d.targetUri === connection.targetUri &&
-        d.targetSubresourceName === connection.targetSubresourceName;
-    }
-    default: {
-      targetKind satisfies never;
-    }
-  }
+) {
+  return (i: DocumentGateway) =>
+    i.kind === 'doc.gateway' &&
+    i.targetUri === connection.targetUri &&
+    i.targetUser === connection.targetUser;
 }
 
 export function getGatewayKubeDocumentByConnection(
@@ -180,6 +105,7 @@ export function createGatewayConnection(
     targetUser: document.targetUser,
     targetName: document.targetName,
     targetSubresourceName: document.targetSubresourceName,
+    gatewayUri: document.gatewayUri,
   };
 }
 

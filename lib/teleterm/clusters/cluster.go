@@ -20,10 +20,10 @@ package clusters
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -49,8 +49,8 @@ type Cluster struct {
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
-	// Logger is a component logger
-	Logger *slog.Logger
+	// Log is a component logger
+	Log *logrus.Entry
 	// dir is the directory where cluster certificates are stored
 	dir string
 	// Status is the cluster status
@@ -63,8 +63,6 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
-	// SSOHost is the host of the SSO provider used to log in.
-	SSOHost string
 }
 
 type ClusterWithDetails struct {
@@ -153,7 +151,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
-			clusterName, err := authClient.GetClusterName(groupCtx)
+			clusterName, err := authClient.GetClusterName()
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -192,7 +190,9 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return roles, nil
 	})
 	if err != nil {
-		c.Logger.WarnContext(ctx, "Failed to calculate trusted device requirement", "error", err)
+		c.Log.
+			WithError(err).
+			Warn("Failed to calculate trusted device requirement")
 	}
 
 	roleSet := services.NewRoleSet(roles...)

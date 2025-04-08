@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, ButtonPrimary, ButtonText, H1, Text } from 'design';
+import { Alert, ButtonPrimary, ButtonText, H1, Link, Text } from 'design';
 import Flex from 'design/Flex';
 import { DeviceConfirmationToken } from 'gen-proto-ts/teleport/devicetrust/v1/device_confirmation_token_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
@@ -99,53 +99,50 @@ export function DocumentAuthorizeWebSession(props: {
         <Flex flexDirection="column" gap={3}>
           {/*It's technically possible to open a deep link to authorize a session on a device that is not enrolled.*/}
           {!isDeviceTrusted && (
-            <Alert
-              mb={0}
-              details={
-                <>
-                  To authorize a web session, you must first{' '}
-                  <a
-                    href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
-                    target="_blank"
-                  >
-                    enroll your device
-                  </a>
-                  . Then log out of Teleport Connect, log back in, and try
-                  again.
-                </>
-              }
-            >
-              This device is not trusted
+            <Alert mb={0}>
+              <Text>
+                This device is not trusted.
+                <br />
+                To authorize a web session, you must first{' '}
+                <a
+                  href="https://goteleport.com/docs/admin-guides/access-controls/device-trust/guide/#step-22-enroll-device"
+                  target="_blank"
+                >
+                  enroll your device
+                </a>
+                . Then log out of Teleport Connect, log back in, and try again.
+              </Text>
             </Alert>
           )}
           {!isRequestedUserLoggedIn && (
-            <Alert
-              mb={0}
-              primaryAction={{
-                content: 'Log Out',
-                onClick: () => {
-                  ctx.commandLauncher.executeCommand('cluster-logout', {
-                    clusterUri: rootCluster.uri,
-                  });
-                },
-              }}
-              details={
-                <>
-                  You are logged in as <b>{rootCluster.loggedInUser?.name}</b>.
-                  To authorize this web session request, please log out in
-                  Teleport Connect and log in again as{' '}
-                  <b>{props.doc.webSessionRequest.username}</b>.
-                  <br />
-                  Then click Launch Teleport Connect again in the browser.
-                </>
-              }
-            >
-              Requested user is not logged in
+            <Alert mb={0}>
+              <Text>
+                Requested user is not logged in.
+                <br />
+                You are logged in as <b>{rootCluster.loggedInUser?.name}</b>. To
+                authorize this web session request, please{' '}
+                <Link
+                  css={`
+                    cursor: pointer;
+                  `}
+                  onClick={() => {
+                    ctx.commandLauncher.executeCommand('cluster-logout', {
+                      clusterUri: rootCluster.uri,
+                    });
+                  }}
+                >
+                  log out
+                </Link>{' '}
+                in Teleport Connect and log in again as{' '}
+                <b>{props.doc.webSessionRequest.username}</b>.
+                <br />
+                Then click Launch Teleport Connect again in the browser.
+              </Text>
             </Alert>
           )}
           {authorizeAttempt.status === 'error' && (
-            <Alert mb={0} details={authorizeAttempt.statusText}>
-              Could not authorize the session
+            <Alert mb={0}>
+              Could not authorize the session: {authorizeAttempt.statusText}
             </Alert>
           )}
           <Text>

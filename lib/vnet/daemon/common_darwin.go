@@ -15,10 +15,11 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
+// +build vnetdaemon
 
 package daemon
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0
+// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
 // #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include "common_darwin.h"
 import "C"

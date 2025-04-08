@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { KeyboardEvent, useEffect, useState } from 'react';
+import React, { KeyboardEvent } from 'react';
 
 import {
   Alert,
-  Box,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
@@ -34,27 +33,24 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
-import { LabelsCreater } from 'teleport/Discover/Shared';
-import { ResourceLabelTooltip } from 'teleport/Discover/Shared/ResourceLabelTooltip';
-import { ResourceLabel } from 'teleport/services/agents';
 
 import { State } from './useAddApp';
 
 export function Automatically(props: Props) {
-  const { onClose, attempt, token, labels, setLabels } = props;
+  const { onClose, attempt, token } = props;
 
-  const [name, setName] = useState('');
-  const [uri, setUri] = useState('');
-  const [cmd, setCmd] = useState('');
+  const [name, setName] = React.useState('');
+  const [uri, setUri] = React.useState('');
+  const [cmd, setCmd] = React.useState('');
 
-  useEffect(() => {
-    if (name && uri && token) {
+  React.useEffect(() => {
+    if (name && uri) {
       const cmd = createAppBashCommand(token.id, name, uri);
       setCmd(cmd);
     }
   }, [token]);
 
-  function onGenerateScript(validator: Validator) {
+  function handleRegenerate(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
@@ -62,12 +58,25 @@ export function Automatically(props: Props) {
     props.onCreate(name, uri);
   }
 
+  function handleGenerate(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    const cmd = createAppBashCommand(token.id, name, uri);
+    setCmd(cmd);
+  }
+
   function handleEnterPress(
     e: KeyboardEvent<HTMLInputElement>,
     validator: Validator
   ) {
     if (e.key === 'Enter') {
-      onGenerateScript(validator);
+      if (cmd) {
+        handleRegenerate(validator);
+      } else {
+        handleGenerate(validator);
+      }
     }
   }
 
@@ -76,7 +85,7 @@ export function Automatically(props: Props) {
       {({ validator }) => (
         <>
           <DialogContent minHeight="254px" flex="0 0 auto">
-            <Flex alignItems="top" flexDirection="row">
+            <Flex alignItems="center" flexDirection="row">
               <FieldInput
                 rule={requiredAppName}
                 label="App Name"
@@ -87,7 +96,6 @@ export function Automatically(props: Props) {
                 mr="3"
                 onKeyPress={e => handleEnterPress(e, validator)}
                 onChange={e => setName(e.target.value.toLowerCase())}
-                disabled={attempt.status === 'processing'}
               />
               <FieldInput
                 rule={requiredAppUri}
@@ -97,25 +105,8 @@ export function Automatically(props: Props) {
                 placeholder="https://localhost:4000"
                 onKeyPress={e => handleEnterPress(e, validator)}
                 onChange={e => setUri(e.target.value)}
-                disabled={attempt.status === 'processing'}
               />
             </Flex>
-            <Box mt={-3} mb={3}>
-              <Flex alignItems="center" gap={1} mb={2} mt={4}>
-                <Text bold>Add Labels (Optional)</Text>
-                <ResourceLabelTooltip
-                  toolTipPosition="top"
-                  resourceKind="app"
-                />
-              </Flex>
-              <LabelsCreater
-                labels={labels}
-                setLabels={setLabels}
-                isLabelOptional={true}
-                disableBtns={attempt.status === 'processing'}
-                noDuplicateKey={true}
-              />
-            </Box>
             {!cmd && (
               <Text mb="3">
                 Teleport can automatically set up application access. Provide
@@ -145,13 +136,24 @@ export function Automatically(props: Props) {
             )}
           </DialogContent>
           <DialogFooter>
-            <ButtonPrimary
-              mr="3"
-              disabled={attempt.status === 'processing'}
-              onClick={() => onGenerateScript(validator)}
-            >
-              {cmd ? 'Regenerate Script' : 'Generate Script'}
-            </ButtonPrimary>
+            {!cmd && (
+              <ButtonPrimary
+                mr="3"
+                disabled={attempt.status === 'processing'}
+                onClick={() => handleGenerate(validator)}
+              >
+                Generate Script
+              </ButtonPrimary>
+            )}
+            {cmd && (
+              <ButtonPrimary
+                mr="3"
+                disabled={attempt.status === 'processing'}
+                onClick={() => handleRegenerate(validator)}
+              >
+                Regenerate
+              </ButtonPrimary>
+            )}
             <ButtonSecondary
               disabled={attempt.status === 'processing'}
               onClick={onClose}
@@ -269,6 +271,4 @@ type Props = {
   onCreate(name: string, uri: string): Promise<any>;
   token: State['token'];
   attempt: Attempt;
-  labels: ResourceLabel[];
-  setLabels(r: ResourceLabel[]): void;
 };

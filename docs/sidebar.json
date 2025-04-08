@@ -30,11 +30,6 @@
           "id": "installation"
         },
         {
-          "type": "doc",
-          "label": "Teleport Feature Matrix",
-          "id": "feature-matrix"
-        },
-        {
           "type": "category",
           "label": "Upgrading",
           "collapsible": true,
@@ -46,22 +41,17 @@
             },
             {
               "type": "doc",
-              "label": "Cluster Upgrading Reference",
+              "label": "Set up Automatic Agent Updates",
+              "id": "upgrading/automatic-agent-updates"
+            },
+            {
+              "type": "doc",
+              "label": "Upgrading Reference",
               "id": "upgrading/upgrading-reference"
             },
             {
               "type": "doc",
-              "label": "Managed Updates for Agents (v1)",
-              "id": "upgrading/agent-managed-updates-v1"
-            },
-            {
-              "type": "doc",
-              "label": "Managed Updates for Agents (v2)",
-              "id": "upgrading/agent-managed-updates"
-            },
-            {
-              "type": "doc",
-              "label": "Managed Updates for Client Tools",
+              "label": "Client Tool Automatic Updates",
               "id": "upgrading/client-tools-autoupdate"
             }
           ],
@@ -154,11 +144,6 @@
           "type": "doc",
           "label": "Database GUI Clients",
           "id": "connect-your-client/gui-clients"
-        },
-        {
-          "type": "doc",
-          "label": "Notifications",
-          "id": "connect-your-client/notifications"
         }
       ]
     },

@@ -129,13 +129,9 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
-			name: "DeleteAutoUpdateConfig",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbDelete},
+			name:          "DeleteAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
 		},
 		// AutoUpdate version check.
 		{
@@ -176,13 +172,9 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
-			name: "DeleteAutoUpdateVersion",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbDelete},
+			name:          "DeleteAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
 		},
 		// AutoUpdate agent rollout check.
 		{
@@ -226,41 +218,10 @@ func TestServiceAccess(t *testing.T) {
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 		{
-			name: "DeleteAutoUpdateAgentRollout",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbDelete},
-			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
-		},
-		{
-			name: "TriggerAutoUpdateAgentGroup",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbUpdate},
-		},
-		{
-			name: "ForceAutoUpdateAgentGroup",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbUpdate},
-		},
-		{
-			name: "RollbackAutoUpdateAgentGroup",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbUpdate},
+			name:          "DeleteAutoUpdateAgentRollout",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
+			builtinRole:   &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 	}
 

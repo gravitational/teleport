@@ -70,15 +70,7 @@ export type AuthenticateWebDeviceDeepURL = BaseDeepURL & {
   searchParams: { id: string; token: string; redirect_uri?: string };
 };
 
-export type VnetDeepURL = BaseDeepURL & {
-  pathname: '/vnet';
-  searchParams: Record<string, never>;
-};
-
-export type DeepURL =
-  | ConnectMyComputerDeepURL
-  | AuthenticateWebDeviceDeepURL
-  | VnetDeepURL;
+export type DeepURL = ConnectMyComputerDeepURL | AuthenticateWebDeviceDeepURL;
 
 export const CUSTOM_PROTOCOL = 'teleport' as const;
 
@@ -101,7 +93,7 @@ export function makeDeepLinkWithSafeInput<
   username: string | undefined;
   searchParams: URL['searchParams'];
 }): string {
-  // The username in a URL should be percent-encoded. [1]
+  // The username in a URL should be percend-encoded. [1]
   //
   // What's more, Chrome 119, unlike Firefox and Safari, won't even trigger a custom protocol prompt
   // when clicking on a link that includes a username with an @ symbol that is not percent-encoded,

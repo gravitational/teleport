@@ -14,11 +14,10 @@ limitations under the License.
 package keys
 
 import (
+	"fmt"
 	"regexp"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // PrivateKeyPolicy is a requirement for client private key storage.
@@ -94,6 +93,15 @@ func (p PrivateKeyPolicy) isHardwareKeyPINVerified() bool {
 	return false
 }
 
+// Deprecated in favor of IsSatisfiedBy.
+// TODO(Joerger): delete once reference in /e is replaced.
+func (requiredPolicy PrivateKeyPolicy) VerifyPolicy(keyPolicy PrivateKeyPolicy) error {
+	if !requiredPolicy.IsSatisfiedBy(keyPolicy) {
+		return NewPrivateKeyPolicyError(requiredPolicy)
+	}
+	return nil
+}
+
 // IsHardwareKeyPolicy return true if this private key policy requires a hardware key.
 func (p PrivateKeyPolicy) IsHardwareKeyPolicy() bool {
 	switch p {
@@ -165,7 +173,7 @@ var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not (met|s
 
 func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 	// TODO(Joerger): Replace with "private key policy not satisfied" in 16.0.0
-	return trace.BadParameter("private key policy not met: %s", p)
+	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
 }
 
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy
@@ -190,12 +198,4 @@ func IsPrivateKeyPolicyError(err error) bool {
 		return false
 	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
-}
-
-// GetPromptPolicy returns this corresponding [hardwarekey.PromptPolicy].
-func (p PrivateKeyPolicy) GetPromptPolicy() hardwarekey.PromptPolicy {
-	return hardwarekey.PromptPolicy{
-		TouchRequired: p.isHardwareKeyTouchVerified(),
-		PINRequired:   p.isHardwareKeyPINVerified(),
-	}
 }

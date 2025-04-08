@@ -19,13 +19,9 @@
 import React, { useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
+import { Box, Flex, Indicator, Text } from 'design';
 import * as Icon from 'design/Icon';
-import {
-  Notification,
-  NotificationItem,
-  NotificationSeverity,
-} from 'shared/components/Notification';
+import { Notification, NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
 
@@ -35,7 +31,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import { DeviceUsage } from 'teleport/services/mfa';
+import { DeviceUsage } from 'teleport/services/auth';
 import { PasswordState } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
@@ -54,7 +50,10 @@ import { StatePill } from './StatePill';
 export interface EnterpriseComponentProps {
   // TODO(bl-nero): Consider moving the notifications to its own store and
   // unifying them between this screen and the unified resources screen.
-  addNotification: (severity: NotificationSeverity, content: string) => void;
+  addNotification: (
+    severity: NotificationItem['severity'],
+    content: string
+  ) => void;
 }
 
 export interface AccountPageProps {
@@ -102,12 +101,14 @@ export interface AccountProps extends ManageDevicesState, AccountPageProps {
 
 export function Account({
   devices,
+  token,
   onAddDevice,
   onRemoveDevice,
   onDeviceAdded,
   onDeviceRemoved,
   deviceToRemove,
   fetchDevicesAttempt,
+  createRestrictedTokenAttempt,
   addDeviceWizardVisible,
   hideRemoveDevice,
   closeAddDeviceWizard,
@@ -122,8 +123,11 @@ export function Account({
 }: AccountProps) {
   const passkeys = devices.filter(d => d.usage === 'passwordless');
   const mfaDevices = devices.filter(d => d.usage === 'mfa');
-  const disableAddPasskey = !canAddPasskeys;
-  const disableAddMfa = !canAddMfa;
+  const disableAddDevice =
+    createRestrictedTokenAttempt.status === 'processing' ||
+    fetchDevicesAttempt.status !== 'success';
+  const disableAddPasskey = disableAddDevice || !canAddPasskeys;
+  const disableAddMfa = disableAddDevice || !canAddMfa;
 
   let mfaPillState = undefined;
   if (fetchDevicesAttempt.status !== 'processing') {
@@ -132,8 +136,12 @@ export function Account({
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
+  const [prevTokenStatus, setPrevTokenStatus] = useState<Attempt['status']>('');
 
-  function addNotification(severity: NotificationSeverity, content: string) {
+  function addNotification(
+    severity: NotificationItem['severity'],
+    content: string
+  ) {
     setNotifications(n => [
       ...n,
       {
@@ -153,6 +161,13 @@ export function Account({
     setPrevFetchStatus(fetchDevicesAttempt.status);
     if (fetchDevicesAttempt.status === 'failed') {
       addNotification('error', fetchDevicesAttempt.statusText);
+    }
+  }
+
+  if (prevTokenStatus !== createRestrictedTokenAttempt.status) {
+    setPrevTokenStatus(createRestrictedTokenAttempt.status);
+    if (createRestrictedTokenAttempt.status === 'failed') {
+      addNotification('error', createRestrictedTokenAttempt.statusText);
     }
   }
 
@@ -181,7 +196,7 @@ export function Account({
 
   return (
     <Relative>
-      <FeatureBox maxWidth={1440} margin="auto">
+      <FeatureBox maxWidth={1440} m="auto">
         <FeatureHeader>
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>
         </FeatureHeader>
@@ -204,6 +219,9 @@ export function Account({
           </Box>
           {!isSso && (
             <PasswordBox
+              changeDisabled={
+                createRestrictedTokenAttempt.status === 'processing'
+              }
               devices={devices}
               passwordState={passwordState}
               onPasswordChange={onPasswordChange}
@@ -214,7 +232,7 @@ export function Account({
               header={
                 <Header
                   title={
-                    <Flex gap={2} alignItems="center">
+                    <Flex gap={2}>
                       Multi-factor Authentication
                       <StatePill
                         data-testid="mfa-state-pill"
@@ -259,6 +277,8 @@ export function Account({
         <AddAuthDeviceWizard
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
+          privilegeToken={token}
+          devices={devices}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
         />
@@ -266,6 +286,8 @@ export function Account({
 
       {deviceToRemove && (
         <DeleteAuthDeviceWizard
+          auth2faType={cfg.getAuth2faType()}
+          devices={devices}
           deviceToDelete={deviceToRemove}
           onClose={hideRemoveDevice}
           onSuccess={onDeleteDeviceSuccess}
@@ -281,9 +303,11 @@ export function Account({
       <NotificationContainer>
         {notifications.map(item => (
           <Notification
-            mb={3}
+            style={{ marginBottom: '12px' }}
             key={item.id}
             item={item}
+            Icon={notificationIcon(item.severity)}
+            getColor={notificationColor(item.severity)}
             onRemove={() => removeNotification(item.id)}
             isAutoRemovable={item.severity === 'info'}
           />
@@ -336,15 +360,16 @@ function PasskeysHeader({
         >
           <Icon.Key />
         </Box>
-        <H2 mb={1}>Passwordless sign-in using Passkeys</H2>
-        <Subtitle2
+        <Text typography="h4">Passwordless sign-in using Passkeys</Text>
+        <Text
+          typography="body1"
           color={theme.colors.text.slightlyMuted}
           textAlign="center"
           mb={3}
         >
           Passkeys are a password replacement that validates your identity using
           touch, facial recognition, a device password, or a PIN.
-        </Subtitle2>
+        </Text>
         <RelativeBox>
           {fetchDevicesAttempt.status === 'processing' && (
             // This trick allows us to maintain center alignment of the button
@@ -362,7 +387,7 @@ function PasskeysHeader({
   return (
     <Header
       title={
-        <Flex gap={2} alignItems="center">
+        <Flex gap={2}>
           Passkeys
           <StatePill
             data-testid="passwordless-state-pill"
@@ -399,3 +424,25 @@ const NotificationContainer = styled.div`
 const Relative = styled.div`
   position: relative;
 `;
+
+function notificationIcon(severity: NotificationItem['severity']) {
+  switch (severity) {
+    case 'info':
+      return Icon.Info;
+    case 'warn':
+      return Icon.Warning;
+    case 'error':
+      return Icon.WarningCircle;
+  }
+}
+
+function notificationColor(severity: NotificationItem['severity']) {
+  switch (severity) {
+    case 'info':
+      return theme => theme.colors.info;
+    case 'warn':
+      return theme => theme.colors.warning.main;
+    case 'error':
+      return theme => theme.colors.error.main;
+  }
+}

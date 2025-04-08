@@ -48,7 +48,6 @@ type Config struct {
 	Podman     PodmanAttestorConfig     `yaml:"podman"`
 	Docker     DockerAttestorConfig     `yaml:"docker"`
 	Systemd    SystemdAttestorConfig    `yaml:"systemd"`
-	Unix       UnixAttestorConfig       `yaml:"unix"`
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -61,9 +60,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if err := c.Docker.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating docker")
 	}
-	if err := c.Unix.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err, "validating unix")
-	}
 	return nil
 }
 
@@ -71,7 +67,7 @@ func (c *Config) CheckAndSetDefaults() error {
 func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	att := &Attestor{
 		log:  log,
-		unix: NewUnixAttestor(cfg.Unix, log),
+		unix: NewUnixAttestor(),
 	}
 	if cfg.Kubernetes.Enabled {
 		att.kubernetes = NewKubernetesAttestor(cfg.Kubernetes, log)

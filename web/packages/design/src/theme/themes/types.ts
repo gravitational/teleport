@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fonts } from '../fonts';
+import { fonts } from '../fonts';
 import { blueGrey } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
 
@@ -141,7 +141,6 @@ export type ThemeColors = {
 
   tooltip: {
     background: string;
-    inverseBackground: string;
   };
 
   progressBarColor: string;
@@ -321,21 +320,13 @@ export type SharedStyles = {
     small: string;
     medium: string;
     large: string;
-    700: string;
-    900: string;
-    1200: string;
   };
   topBarHeight: number[];
-  /**
-   *
-   * idx:    0  1  2   3   4   5   6   7   8   9  10  11
-   * space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
-   */
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;
   font: string;
-  fonts: Fonts;
+  fonts: typeof fonts;
   fontWeights: typeof fontWeights;
   fontSizes: typeof fontSizes;
   radii: (number | string)[];

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { ButtonPrimary, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
@@ -62,7 +64,8 @@ export default function TrustedListItem(props: Props) {
           color="text.main"
         />
         <Text
-          typography="h3"
+          bold
+          caps
           mb="1"
           textAlign="center"
           title={name}
@@ -72,7 +75,7 @@ export default function TrustedListItem(props: Props) {
         </Text>
       </Flex>
       <ButtonPrimary mt="auto" px="1" size="medium" block onClick={onClickEdit}>
-        Edit Trusted Cluster
+        EDIT TRUSTED CLUSTER
       </ButtonPrimary>
     </Flex>
   );

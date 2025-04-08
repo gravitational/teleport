@@ -48,10 +48,6 @@ type SSHMultiplexerService struct {
 	// will be automatically appended.
 	// Optional: If not provided, it will default to the `tbot` binary.
 	ProxyCommand []string `yaml:"proxy_command,omitempty"`
-
-	// CredentialLifetime contains configuration for how long credentials will
-	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (s *SSHMultiplexerService) SessionResumptionEnabled() bool {
@@ -96,8 +92,4 @@ func (s *SSHMultiplexerService) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func (o *SSHMultiplexerService) GetCredentialLifetime() CredentialLifetime {
-	return o.CredentialLifetime
 }

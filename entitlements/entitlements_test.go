@@ -267,6 +267,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(UpsellAlert):            {Enabled: false},
 				string(CloudAuditLogRetention): {Enabled: false},
 				string(LicenseAutoUpdate):      {Enabled: false},
+
 				// Identity off, fields false
 				string(Identity):     {Enabled: false},
 				string(SessionLocks): {Enabled: false},

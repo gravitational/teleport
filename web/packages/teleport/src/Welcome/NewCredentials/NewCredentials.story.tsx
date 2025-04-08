@@ -16,7 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { WelcomeWrapper } from 'teleport/components/Onboard';
+import React from 'react';
+
+import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
+
 import {
   NewMfaDevice,
   NewMfaDeviceProps,

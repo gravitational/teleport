@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !darwin && !windows
+//go:build !darwin
+// +build !darwin
 
 package dns
 
@@ -28,11 +29,14 @@ import (
 var (
 	// vnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
-
-	// Satisfy unused linter.
-	_ = withDNSPort
 )
 
-func platformLoadUpstreamNameservers(ctx context.Context) ([]string, error) {
+type OSUpstreamNameserverSource struct{}
+
+func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
+	return nil, trace.Wrap(vnetNotImplemented)
+}
+
+func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
 	return nil, trace.Wrap(vnetNotImplemented)
 }

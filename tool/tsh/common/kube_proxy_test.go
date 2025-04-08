@@ -21,14 +21,13 @@ package common
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -45,14 +44,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	// Set default kubeconfig to a non-exist file to avoid loading other things.
-	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+	t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 	// Test "tsh proxy kube root-cluster1".
 	t.Run("with kube cluster arg", func(t *testing.T) {
@@ -134,11 +132,6 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 	require.Contains(t, config.Clusters, contextName)
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
-
-	// Sanity check we're using an ECDSA client key.
-	key, err := keys.ParsePrivateKey(config.AuthInfos[contextName].ClientKeyData)
-	require.NoError(t, err)
-	require.IsType(t, (*ecdsa.PrivateKey)(nil), key.Signer)
 
 	tlsClientConfig := rest.TLSClientConfig{
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,

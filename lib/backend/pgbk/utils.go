@@ -50,7 +50,7 @@ func revisionFromString(s string) (r revision, ok bool) {
 
 // nonNilKey replaces an empty key with a non-nil one.
 func nonNilKey(b backend.Key) []byte {
-	if b.IsZero() {
+	if b == nil {
 		return []byte{}
 	}
 

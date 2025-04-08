@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LocationDescriptor } from 'history';
 import React, { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
-
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { DiscoverBox, ResourceKind } from 'teleport/Discover/Shared';
+import { ResourceSpec } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import {
   AgentMeta,
@@ -34,82 +32,50 @@ import {
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Acl, AuthType } from 'teleport/services/user';
-import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
-import TeleportContext from 'teleport/teleportContext';
-import { ThemeProvider } from 'teleport/ThemeProvider';
-import { TeleportFeature } from 'teleport/types';
 
-import {
-  APPLICATIONS,
-  KUBERNETES,
-  SAML_APPLICATIONS,
-  SelectResourceSpec,
-  SERVERS,
-} from '../SelectResource/resources';
-
-export const RequiredDiscoverProviders: React.FC<
+export const TeleportProvider: React.FC<
   PropsWithChildren<{
     agentMeta: AgentMeta;
-    resourceSpec: SelectResourceSpec;
+    resourceSpec?: ResourceSpec;
     interval?: number;
     customAcl?: Acl;
     authType?: AuthType;
-    teleportCtx?: TeleportContext;
-    discoverCtx?: DiscoverContextState;
-    features?: TeleportFeature[];
-    initialEntries?: LocationDescriptor<unknown>[];
+    resourceKind: ResourceKind;
   }>
 > = props => {
-  let ctx = createTeleportContext({ customAcl: props.customAcl });
-  if (props.teleportCtx) {
-    ctx = props.teleportCtx;
-  }
+  const ctx = createTeleportContext({ customAcl: props.customAcl });
   if (props.authType) {
     ctx.storeUser.state.authType = props.authType;
   }
-  let discoverCtx;
-  if (props.agentMeta && props.resourceSpec) {
-    discoverCtx = emptyDiscoverContext({
-      agentMeta: props.agentMeta,
-      resourceSpec: props.resourceSpec,
-    });
-  }
-  if (props.discoverCtx) {
-    discoverCtx = props.discoverCtx;
-  }
+  const discoverCtx = defaultDiscoverContext({
+    agentMeta: props.agentMeta,
+    resourceSpec: props.resourceSpec,
+  });
 
   return (
-    <MemoryRouter
-      initialEntries={
-        props.initialEntries || [{ pathname: cfg.routes.discover }]
-      }
-    >
-      <ThemeProvider>
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={props.features || []}>
-            <InfoGuidePanelProvider>
-              <DiscoverProvider mockCtx={discoverCtx}>
-                <PingTeleportProvider
-                  interval={props.interval || 100000}
-                  resourceKind={props.resourceSpec?.kind}
-                >
-                  <DiscoverBox>{props.children}</DiscoverBox>
-                </PingTeleportProvider>
-              </DiscoverProvider>
-            </InfoGuidePanelProvider>
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </ThemeProvider>
+    <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
+      <ContextProvider ctx={ctx}>
+        <FeaturesContextProvider value={[]}>
+          <DiscoverProvider mockCtx={discoverCtx}>
+            <PingTeleportProvider
+              interval={props.interval || 100000}
+              resourceKind={props.resourceKind}
+            >
+              {props.children}
+            </PingTeleportProvider>
+          </DiscoverProvider>
+        </FeaturesContextProvider>
+      </ContextProvider>
     </MemoryRouter>
   );
 };
 
-export function emptyDiscoverContext({
+export function defaultDiscoverContext({
   agentMeta,
   resourceSpec,
 }: {
   agentMeta?: AgentMeta;
-  resourceSpec?: SelectResourceSpec;
+  resourceSpec?: ResourceSpec;
 }): DiscoverContextState {
   return {
     agentMeta: agentMeta
@@ -124,48 +90,19 @@ export function emptyDiscoverContext({
     emitEvent: () => null,
     eventState: null,
     currentStep: 0,
-    nextStep: () => null,
+    nextStep: jest.fn(),
     prevStep: () => null,
     onSelectResource: () => null,
-    resourceSpec: resourceSpec ? resourceSpec : emptyResourceSpec(null),
+    resourceSpec: resourceSpec ? resourceSpec : defaultResourceSpec(null),
   };
 }
 
-export function emptyResourceSpec(kind: ResourceKind): SelectResourceSpec {
+export function defaultResourceSpec(kind: ResourceKind): ResourceSpec {
   return {
     name: '',
     kind,
     icon: null,
-    keywords: [],
+    keywords: '',
     event: null,
-    id: null,
   };
 }
-
-export const resourceSpecAwsEks = KUBERNETES.find(
-  k => k.id === DiscoverGuideId.KubernetesAwsEks
-);
-
-export const resourceSpecSelfHostedKube = KUBERNETES.find(
-  k => k.id === DiscoverGuideId.Kubernetes
-);
-
-export const resourceSpecAwsEc2Ssm = SERVERS.find(
-  s => s.id === DiscoverGuideId.ServerAwsEc2Ssm
-);
-
-export const resourceSpecServerLinuxUbuntu = SERVERS.find(
-  s => s.id === DiscoverGuideId.ServerLinuxUbuntu
-);
-
-export const resourceSpecConnectMyComputer = SERVERS.find(
-  s => s.id === DiscoverGuideId.ConnectMyComputer
-);
-
-export const resourceSpecAppAwsCliConsole = APPLICATIONS.find(
-  a => a.id === DiscoverGuideId.ApplicationAwsCliConsole
-);
-
-export const resourceSpecSamlGcp = SAML_APPLICATIONS.find(
-  s => s.id === DiscoverGuideId.ApplicationSamlWorkforceIdentityFederation
-);

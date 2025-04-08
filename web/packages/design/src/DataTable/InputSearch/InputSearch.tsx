@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FormEvent, JSX } from 'react';
+import React, { FormEvent, JSX, SetStateAction } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -35,8 +35,6 @@ export default function InputSearch({
   setSearchValue,
   children,
   bigInputSize = false,
-  autoFocus = false,
-  placeholder = 'Search...',
 }: Props) {
   function submitSearch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); // prevent form default
@@ -52,11 +50,10 @@ export default function InputSearch({
       <Form onSubmit={submitSearch}>
         <StyledInput
           bigInputSize={bigInputSize}
-          placeholder={placeholder}
+          placeholder="Search..."
           px={3}
           defaultValue={searchValue}
           name={searchInputName}
-          autoFocus={autoFocus}
         />
         <ChildWrapperBackground>
           <ChildWrapper>{children}</ChildWrapper>
@@ -68,11 +65,9 @@ export default function InputSearch({
 
 type Props = {
   searchValue: string;
-  setSearchValue: (searchValue: string) => void;
+  setSearchValue: React.Dispatch<SetStateAction<string>>;
   children?: JSX.Element;
   bigInputSize?: boolean;
-  autoFocus?: boolean;
-  placeholder?: string;
 };
 
 const ChildWrapper = styled.div`

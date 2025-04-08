@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,24 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import Validation from 'shared/components/Validation';
 
 import { Label, LabelsInput } from './LabelsInput';
 
-const meta: Meta = {
+export default {
   title: 'Teleport/LabelsInput',
-  decorators: Story => (
-    <Box width="456px">
-      <Story />
-    </Box>
-  ),
 };
-export default meta;
 
 export const Default = () => {
   const [labels, setLables] = useState<Label[]>([]);
@@ -79,6 +71,7 @@ export const Custom = () => {
           placeholder: 'custom value placeholder',
         }}
         adjective="Custom Adjective"
+        inputWidth={350}
       />
     </Validation>
   );
@@ -109,10 +102,9 @@ export const AtLeastOneRequired = () => {
   return (
     <Validation>
       <LabelsInput
-        legend="Labels"
         labels={labels}
         setLabels={setLables}
-        required={true}
+        areLabelsRequired={true}
       />
     </Validation>
   );

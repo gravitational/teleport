@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
-import {
-  getSelectedAwsPostgresDbMeta,
-  resourceSpecAwsRdsPostgres,
-} from 'teleport/Discover/Fixtures/databases';
-import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import { ComponentWrapper } from 'teleport/Discover/Fixtures/databases';
 import DatabaseService from 'teleport/services/databases/databases';
 import * as discoveryService from 'teleport/services/discovery/discovery';
 import { DISCOVERY_GROUP_CLOUD } from 'teleport/services/discovery/discovery';
@@ -226,10 +224,7 @@ const mockAwsDbs: AwsRdsDatabase[] = [
 ];
 
 const Component = () => (
-  <RequiredDiscoverProviders
-    agentMeta={getSelectedAwsPostgresDbMeta()}
-    resourceSpec={resourceSpecAwsRdsPostgres}
-  >
+  <ComponentWrapper>
     <EnrollRdsDatabase />
-  </RequiredDiscoverProviders>
+  </ComponentWrapper>
 );

@@ -33,7 +33,4 @@ FROM $BASE_IMAGE
 COPY --from=teleport /opt/staging /
 COPY --from=staging /opt/staging/root /
 COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
-# Attempt a graceful shutdown by default
-# See https://goteleport.com/docs/reference/signals/ for signal reference.
-STOPSIGNAL SIGQUIT
 ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]

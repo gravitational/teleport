@@ -22,6 +22,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"sort"
 
@@ -32,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/client"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,7 +60,23 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 
 	page, err := apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// If the error returned is due to types.KindAppOrSAMLIdPServiceProvider being unsupported, then fallback to attempting to just fetch types.AppServers.
+		// This is for backwards compatibility with leaf clusters that don't support this new type yet.
+		// DELETE IN 15.0
+		if trace.IsNotImplemented(err) {
+			req, err = convertListResourcesRequest(r, types.KindAppServer)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			appServerPage, err := apiclient.GetResourcePage[types.AppServer](r.Context(), clt, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Convert the ResourcePage returned containing AppServers to a ResourcePage containing AppServerOrSAMLIdPServiceProviders.
+			page = appServerOrSPPageFromAppServerPage(appServerPage)
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
@@ -68,7 +85,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		UseSearchAsRoles: true,
 	})
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Unable to fetch user groups while listing applications, unable to display associated user groups", "error", err)
+		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
 	}
 
 	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
@@ -93,7 +110,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			if app.IsAWSConsole() {
 				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(app)
 				if err != nil {
-					h.logger.DebugContext(r.Context(), "Unable to find allowed AWS Roles for app, skipping", "app", app.GetName())
+					h.log.Debugf("Unable to find allowed AWS Roles for app %s, skipping", app.GetName())
 					continue
 				}
 
@@ -104,7 +121,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			for _, userGroupName := range app.GetUserGroups() {
 				userGroup := userGroupLookup[userGroupName]
 				if userGroup == nil {
-					h.logger.DebugContext(r.Context(), "Unable to find user group when creating user groups, skipping", "user_group", userGroupName)
+					h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
 					continue
 				}
 
@@ -179,7 +196,7 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 		for _, required := range requiredAppNames {
 			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: required})
 			if err != nil {
-				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", required, "app", result.App.GetName())
+				h.log.Errorf("Error getting app details for %s, a required app for %s", required, result.App.GetName())
 				continue
 			}
 			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
@@ -198,10 +215,7 @@ type CreateAppSessionRequest struct {
 	// AWSRole is the AWS role ARN when accessing AWS management console.
 	AWSRole string `json:"arn,omitempty"`
 	// MFAResponse is an optional MFA response used to create an MFA verified app session.
-	MFAResponse client.MFAChallengeResponse `json:"mfaResponse"`
-	// TODO(Joerger): DELETE IN v19.0.0
-	// Backwards compatible version of MFAResponse
-	MFAResponseJSON string `json:"mfa_response"`
+	MFAResponse string `json:"mfa_response"`
 }
 
 // CreateAppSessionResponse is a response to POST /v1/webapi/sessions/app
@@ -219,7 +233,7 @@ type CreateAppSessionResponse struct {
 // POST /v1/webapi/sessions/app
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req CreateAppSessionRequest
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -228,28 +242,29 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
-	h.logger.DebugContext(r.Context(), "Creating application web session", "app_public_addr", result.App.GetPublicAddr(), "cluster", result.ClusterName)
+	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
 
 	// Ensuring proxy can handle the connection is only done when the request is
 	// coming from the WebUI.
 	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
-		h.logger.DebugContext(r.Context(), "Ensuring proxy can handle requests requests for application", "app", result.App.GetName())
+		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
 		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
 		}
 	}
 
-	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Fallback to backwards compatible mfa response.
-	if mfaResponse == nil && req.MFAResponseJSON != "" {
-		mfaResponse, err = client.ParseMFAChallengeResponse([]byte(req.MFAResponseJSON))
-		if err != nil {
+	var mfaProtoResponse *proto.MFAAuthenticateResponse
+	if req.MFAResponse != "" {
+		var resp mfaResponse
+		if err := json.Unmarshal([]byte(req.MFAResponse), &resp); err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		mfaProtoResponse = &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
+			},
 		}
 	}
 
@@ -272,7 +287,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		PublicAddr:  result.App.GetPublicAddr(),
 		ClusterName: result.ClusterName,
 		AWSRoleARN:  req.AWSRole,
-		MFAResponse: mfaResponse,
+		MFAResponse: mfaProtoResponse,
 		AppName:     result.App.GetName(),
 		URI:         result.App.GetURI(),
 		ClientAddr:  r.RemoteAddr,
@@ -324,7 +339,7 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	}
 
 	// Get a reverse tunnel proxy aware of the user's permissions.
-	proxy, err := h.ProxyWithRoles(ctx, scx)
+	proxy, err := h.ProxyWithRoles(scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -441,4 +456,29 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
+}
+
+// appServerOrSPPageFromAppServerPage converts a ResourcePage containing AppServers to a ResourcePage containing AppServerOrSAMLIdPServiceProviders.
+// DELETE IN 15.0
+//
+//nolint:staticcheck // SA1019. To be deleted along with the API in 16.0.
+func appServerOrSPPageFromAppServerPage(appServerPage apiclient.ResourcePage[types.AppServer]) apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider] {
+	resources := make([]types.AppServerOrSAMLIdPServiceProvider, len(appServerPage.Resources))
+
+	for i, appServer := range appServerPage.Resources {
+		// Create AppServerOrSAMLIdPServiceProvider object from appServer.
+		appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+				AppServer: appServer.(*types.AppServerV3),
+			},
+		}
+
+		resources[i] = appServerOrSP
+	}
+
+	return apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]{
+		Resources: resources,
+		Total:     appServerPage.Total,
+		NextKey:   appServerPage.NextKey,
+	}
 }

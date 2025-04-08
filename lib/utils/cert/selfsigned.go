@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 )
 
 // macMaxTLSCertValidityPeriod is the maximum validity period
@@ -59,7 +59,7 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 		eku = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 	}
 
-	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,7 +84,7 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 		Subject:               entity,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		ExtKeyUsage:           eku,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -104,23 +104,20 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 		template.IPAddresses = append(template.IPAddresses, ipParsed)
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, priv.Public(), priv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyBytes, err := keys.MarshalPrivateKey(priv)
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(priv.Public())
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	publicKeyBytes, err := keys.MarshalPublicKey(priv.Public())
-	if err != nil {
+		logrus.Error(err)
 		return nil, trace.Wrap(err)
 	}
 
 	return &Credentials{
-		PrivateKey: privateKeyBytes,
-		PublicKey:  publicKeyBytes,
+		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
+		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
 		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
 	}, nil
 }

@@ -46,7 +46,3 @@ export const blink = keyframes`
       opacity: 100%;
     }
   `;
-
-export const disappear = keyframes`
-to { opacity: 0; }
-`;

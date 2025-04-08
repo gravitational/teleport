@@ -45,9 +45,9 @@ func TestMergeResources(t *testing.T) {
 
 	result := MergeResources(&oldResults, &newResults)
 	expected := Resources{
-		Users:     deduplicateSlice(append(oldUsers, newUsers...), usersKey),
-		Roles:     deduplicateSlice(append(oldRoles, newRoles...), roleKey),
-		Instances: deduplicateSlice(append(oldEC2, newEC2...), instanceKey),
+		Users:     deduplicateSlice(append(oldUsers, newUsers...), usersUniqueKeyFunc),
+		Roles:     deduplicateSlice(append(oldRoles, newRoles...), roleUniqueKeyFunc),
+		Instances: deduplicateSlice(append(oldEC2, newEC2...), instancesUniqueKeyFunc),
 	}
 	require.Empty(t, cmp.Diff(&expected, result, protocmp.Transform(), cmpopts.EquateEmpty()))
 }

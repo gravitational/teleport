@@ -19,8 +19,6 @@
 package web
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,13 +27,9 @@ import (
 )
 
 // NewDebugFileSystem returns the HTTP file system implementation
-func NewDebugFileSystem(isEnterprise bool) (http.FileSystem, error) {
+func newDebugFileSystem() (http.FileSystem, error) {
 	// If the location of the UI changes on disk then this will need to be updated.
 	assetsPath := "../../webassets/teleport"
-
-	if isEnterprise {
-		assetsPath = "../../../webassets/e/teleport"
-	}
 
 	// Ensure we have the built assets available before continuing.
 	for _, af := range []string{"index.html", "/app"} {
@@ -44,7 +38,7 @@ func NewDebugFileSystem(isEnterprise bool) (http.FileSystem, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	slog.InfoContext(context.TODO(), "Using filesystem for serving web assets", "assets_path", assetsPath)
+	log.Infof("Using filesystem for serving web assets: %s.", assetsPath)
 
 	return http.Dir(assetsPath), nil
 }

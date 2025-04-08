@@ -23,7 +23,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/url"
 	"sort"
 	"strconv"
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/teleport"
@@ -255,8 +255,8 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 
 // Log is a firestore-db backed storage of events
 type Log struct {
-	// logger emits log messages
-	logger *slog.Logger
+	// Entry is a log entry
+	*log.Entry
 	// Config is a backend configuration
 	EventsConfig
 	// svc is the primary Firestore client
@@ -284,9 +284,11 @@ func New(cfg EventsConfig) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	l := log.WithFields(log.Fields{
+		teleport.ComponentKey: teleport.Component(teleport.ComponentFirestore),
+	})
+	l.Info("Initializing event backend.")
 	closeCtx, cancel := context.WithCancel(context.Background())
-	l := slog.With(teleport.ComponentKey, teleport.ComponentFirestore)
-	l.InfoContext(closeCtx, "Initializing event backend.")
 	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.DatabaseID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
 		cancel()
@@ -296,7 +298,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	b := &Log{
 		svcContext:   closeCtx,
 		svcCancel:    cancel,
-		logger:       l,
+		Entry:        l,
 		EventsConfig: cfg,
 		svc:          firestoreClient,
 	}
@@ -311,7 +313,7 @@ func New(cfg EventsConfig) (*Log, error) {
 		go firestorebk.RetryingAsyncFunctionRunner(b.svcContext, retryutils.LinearConfig{
 			Step: b.RetryPeriod / 10,
 			Max:  b.RetryPeriod,
-		}, b.logger.With("task_name", "purge_expired_events"), b.purgeExpiredEvents)
+		}, b.Logger, b.purgeExpiredEvents, "purgeExpiredEvents")
 	}
 	return b, nil
 }
@@ -389,14 +391,7 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWit
 		params.limit = batchReadLimit
 	}
 
-	g := l.logger.With(
-		"from", params.fromUTC,
-		"to", params.toUTC,
-		"namespace", params.namespace,
-		"filter", params.filter,
-		"limit", params.limit,
-		"start_key", params.lastKey,
-	)
+	g := l.WithFields(log.Fields{"From": params.fromUTC, "To": params.toUTC, "Namespace": params.namespace, "Filter": params.filter, "Limit": params.limit, "StartKey": params.lastKey})
 
 	var firestoreOrdering firestore.Direction
 	switch params.order {
@@ -459,7 +454,7 @@ func (l *Log) query(
 	lastKey string,
 	filter searchEventsFilter,
 	limit int,
-	g *slog.Logger,
+	g *log.Entry,
 ) (values []events.EventFields, _ string, err error) {
 	var (
 		checkpointTime int64
@@ -493,7 +488,7 @@ func (l *Log) query(
 			return nil, "", firestorebk.ConvertGRPCError(err)
 		}
 
-		g.DebugContext(ctx, "Query completed.", "duration", time.Since(start))
+		g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
 
 		// Iterate over the documents in the query.
 		// The iterator is limited to [limit] documents so in order to know if we
@@ -613,7 +608,7 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, l.logger, tuples, l.getIndexParent())
+	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return trace.Wrap(err)
 }
 

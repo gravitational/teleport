@@ -73,7 +73,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: crd ## Single command to generate anything CRD-related (manifests and docs)
-crd: crdgen crd-docs manifests
+crd: crdgen crd-docs
 
 .PHONY: crdgen
 crdgen: ## Generate CRDs
@@ -82,8 +82,7 @@ crdgen: ## Generate CRDs
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
-	teleport/legacy/types/types.proto \
-	teleport/machineid/v1/bot.proto
+	teleport/legacy/types/types.proto
 
 .PHONY: manifests
 manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
@@ -155,7 +154,7 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -trimpath -tags "kustomize_disable_go_plugin_support" -o bin/manager main.go namespace.go config.go
+	go build -trimpath -o bin/manager main.go namespace.go config.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -186,7 +185,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
-CONTROLLER_TOOLS_VERSION ?= v0.16.2
+CONTROLLER_TOOLS_VERSION ?= v0.14.0
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.

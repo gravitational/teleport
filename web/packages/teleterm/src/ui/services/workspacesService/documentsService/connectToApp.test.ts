@@ -42,7 +42,7 @@ describe('connectToApp', () => {
         origin: 'resource_table',
       });
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com',
+        'https://teleport-local:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000',
         '_blank',
         'noreferrer,noopener'
       );
@@ -59,7 +59,7 @@ describe('connectToApp', () => {
       });
 
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local.com:3080/enterprise/saml-idp/login/foo',
+        'https://teleport-local:3080/enterprise/saml-idp/login/foo',
         '_blank',
         'noreferrer,noopener'
       );
@@ -79,7 +79,7 @@ describe('connectToApp', () => {
         { arnForAwsApp: 'foo-arn' }
       );
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com/foo-arn',
+        'https://teleport-local:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000/foo-arn',
         '_blank',
         'noreferrer,noopener'
       );
@@ -109,7 +109,7 @@ describe('connectToApp', () => {
       status: '',
       targetName: 'foo',
       targetSubresourceName: undefined,
-      targetUri: '/clusters/teleport-local.com/apps/foo',
+      targetUri: '/clusters/teleport-local/apps/foo',
       targetUser: '',
       title: 'foo',
       uri: expect.any(String),
@@ -120,19 +120,10 @@ describe('connectToApp', () => {
 describe('setUpAppGateway', () => {
   test.each([
     {
-      name: 'creates tunnel for a single-port TCP app',
+      name: 'creates tunnel for a tcp app',
       app: makeApp({
         endpointUri: 'tcp://localhost:3000',
       }),
-    },
-    {
-      name: 'creates tunnel for a multi-port TCP app',
-      app: makeApp({
-        endpointUri: 'tcp://localhost',
-        tcpPorts: [{ port: 1234, endPort: 0 }],
-      }),
-      targetPort: 1234,
-      expectedTitle: 'foo:1234',
     },
     {
       name: 'creates tunnel for a web app',
@@ -140,14 +131,11 @@ describe('setUpAppGateway', () => {
         endpointUri: 'http://localhost:3000',
       }),
     },
-  ])('$name', async ({ app, targetPort, expectedTitle }) => {
+  ])('$name', async ({ app }) => {
     const appContext = new MockAppContext();
     setTestCluster(appContext);
 
-    await setUpAppGateway(appContext, app.uri, {
-      telemetry: { origin: 'resource_table' },
-      targetPort,
-    });
+    await setUpAppGateway(appContext, app, { origin: 'resource_table' });
     const documents = appContext.workspacesService
       .getActiveWorkspaceDocumentService()
       .getGatewayDocuments();
@@ -159,10 +147,10 @@ describe('setUpAppGateway', () => {
       port: undefined,
       status: '',
       targetName: 'foo',
-      targetSubresourceName: targetPort?.toString(),
-      targetUri: '/clusters/teleport-local.com/apps/foo',
+      targetSubresourceName: undefined,
+      targetUri: '/clusters/teleport-local/apps/foo',
       targetUser: '',
-      title: expectedTitle || 'foo',
+      title: 'foo',
       uri: expect.any(String),
     });
   });
@@ -192,4 +180,5 @@ function setTestCluster(appContext: IAppContext): void {
   });
 }
 
-const launchVnet = async () => {};
+const launchVnet = () =>
+  Promise.resolve([undefined, undefined] as [void, Error]);

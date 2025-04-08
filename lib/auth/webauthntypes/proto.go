@@ -196,10 +196,7 @@ func inputExtensionsToProto(exts AuthenticationExtensions) *wanpb.Authentication
 	if len(exts) == 0 {
 		return nil
 	}
-
 	res := &wanpb.AuthenticationExtensionsClientInputs{}
-
-	// appid (string).
 	if value, ok := exts[AppIDExtension]; ok {
 		// Type should always be string, since we are the ones setting it, but let's
 		// play it safe and check anyway.
@@ -207,13 +204,6 @@ func inputExtensionsToProto(exts AuthenticationExtensions) *wanpb.Authentication
 			res.AppId = appID
 		}
 	}
-
-	// credProps (bool).
-	if val, ok := exts[CredPropsExtension]; ok {
-		b, ok := val.(bool)
-		res.CredProps = ok && b
-	}
-
 	return res
 }
 
@@ -221,19 +211,9 @@ func outputExtensionsToProto(exts *AuthenticationExtensionsClientOutputs) *wanpb
 	if exts == nil {
 		return nil
 	}
-
-	res := &wanpb.AuthenticationExtensionsClientOutputs{
+	return &wanpb.AuthenticationExtensionsClientOutputs{
 		AppId: exts.AppID,
 	}
-
-	// credProps.
-	if credProps := exts.CredProps; credProps != nil {
-		res.CredProps = &wanpb.CredentialPropertiesOutput{
-			Rk: credProps.RK,
-		}
-	}
-
-	return res
 }
 
 func rpEntityToProto(rp RelyingPartyEntity) *wanpb.RelyingPartyEntity {
@@ -325,9 +305,6 @@ func inputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientInputs) 
 	if exts.AppId != "" {
 		res[AppIDExtension] = exts.AppId
 	}
-	if exts.CredProps {
-		res[CredPropsExtension] = true
-	}
 	return res
 }
 
@@ -335,19 +312,9 @@ func outputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientOutputs
 	if exts == nil {
 		return nil
 	}
-
-	res := &AuthenticationExtensionsClientOutputs{
+	return &AuthenticationExtensionsClientOutputs{
 		AppID: exts.AppId,
 	}
-
-	// credProps.
-	if credProps := exts.CredProps; credProps != nil {
-		res.CredProps = &CredentialPropertiesOutput{
-			RK: credProps.Rk,
-		}
-	}
-
-	return res
 }
 
 func publicKeyCredentialCreationOptionsFromProto(pubKey *wanpb.PublicKeyCredentialCreationOptions) PublicKeyCredentialCreationOptions {

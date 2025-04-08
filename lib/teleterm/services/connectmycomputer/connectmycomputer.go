@@ -21,7 +21,6 @@ package connectmycomputer
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -32,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -105,9 +105,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 
 	reloadCerts := false
 
-	logger := s.cfg.Logger.With("role", roleName)
 	if !doesRoleExist {
-		logger.InfoContext(ctx, "Creating the role")
+		s.cfg.Log.Infof("Creating the role %v.", roleName)
 
 		role, err := types.NewRole(roleName, types.RoleSpecV6{
 			Allow: types.RoleConditions{
@@ -124,7 +123,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 			return noCertsReloaded, trace.Wrap(err, "creating role %v", roleName)
 		}
 	} else {
-		logger.InfoContext(ctx, "The role already exists")
+		s.cfg.Log.Infof("The role %v already exists", roleName)
 		isRoleDirty := false
 
 		// Ensure that the current system username is in the role.
@@ -135,9 +134,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		allowedLogins := existingRole.GetLogins(types.Allow)
 
 		if !slices.Contains(allowedLogins, systemUser.Username) {
-			logger.InfoContext(ctx, "Adding username to the logins of the role",
-				"username", systemUser.Username,
-			)
+			s.cfg.Log.Infof("Adding %v to the logins of the role %v.", systemUser.Username, roleName)
 
 			existingRole.SetLogins(types.Allow, append(allowedLogins, systemUser.Username))
 			isRoleDirty = true
@@ -159,7 +156,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		expectedOwnerNodeLabelValue := []string{clusterUser.GetName()}
 
 		if !slices.Equal(ownerNodeLabelValue, expectedOwnerNodeLabelValue) {
-			logger.InfoContext(ctx, "Overwriting the owner node label in the role")
+			s.cfg.Log.Infof("Overwriting the owner node label in the role %v.", roleName)
 
 			allowedNodeLabels[types.ConnectMyComputerNodeOwnerLabel] = expectedOwnerNodeLabelValue
 			isRoleDirty = true
@@ -181,9 +178,9 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 	hasCMCRole := slices.Contains(clusterUser.GetRoles(), roleName)
 
 	if hasCMCRole {
-		logger.InfoContext(ctx, "The user already has the role", "user", clusterUser.GetName())
+		s.cfg.Log.Infof("The user %v already has the role %v.", clusterUser.GetName(), roleName)
 	} else {
-		logger.InfoContext(ctx, "Adding the role to the user", "user", clusterUser.GetName())
+		s.cfg.Log.Infof("Adding the role %v to the user %v.", roleName, clusterUser.GetName())
 		clusterUser.AddRole(roleName)
 		timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 		defer cancel()
@@ -200,7 +197,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 	}
 
 	if reloadCerts {
-		s.cfg.Logger.InfoContext(ctx, "Reissuing certs")
+		s.cfg.Log.Info("Reissuing certs.")
 		// ReissueUserCerts called with CertCacheDrop and a bogus access request ID in DropAccessRequests
 		// allows us to refresh the role list in the certs without forcing the user to relogin.
 		//
@@ -276,12 +273,12 @@ type CertManager interface {
 }
 
 type RoleSetupConfig struct {
-	Logger *slog.Logger
+	Log *logrus.Entry
 }
 
 func (c *RoleSetupConfig) CheckAndSetDefaults() error {
-	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "CMC role")
+	if c.Log == nil {
+		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(teleport.ComponentKey, "CMC role")
 	}
 
 	return nil

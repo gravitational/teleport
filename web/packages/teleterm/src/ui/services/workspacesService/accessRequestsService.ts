@@ -239,12 +239,6 @@ function getRequiredProperties({
       resource: { uri: resource.uri, hostname: resource.hostname },
     };
   }
-  if (kind === 'app') {
-    return {
-      kind,
-      resource: { uri: resource.uri, samlApp: resource.samlApp },
-    };
-  }
   return {
     kind,
     resource: { uri: resource.uri },
@@ -301,17 +295,10 @@ export type ResourceRequest =
       kind: 'app';
       resource: {
         uri: AppUri;
-        samlApp: boolean;
       };
     };
 
-type SharedResourceAccessRequestKind =
-  | 'app'
-  | 'db'
-  | 'node'
-  | 'kube_cluster'
-  | 'saml_idp_service_provider'
-  | 'aws_ic_account_assignment';
+type SharedResourceAccessRequestKind = 'app' | 'db' | 'node' | 'kube_cluster';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -332,9 +319,6 @@ export function extractResourceRequestProperties({
   switch (kind) {
     case 'app': {
       const { appId } = routing.parseAppUri(resource.uri).params;
-      if (resource.samlApp) {
-        return { kind: 'saml_idp_service_provider', id: appId, name: appId };
-      }
       return { kind: 'app', id: appId, name: appId };
     }
     case 'server': {
@@ -418,31 +402,6 @@ export function toResourceRequest({
             leafClusterId,
             appId: resourceId,
           }),
-          samlApp: false,
-        },
-        kind: 'app',
-      };
-    case 'saml_idp_service_provider':
-      return {
-        resource: {
-          uri: routing.getAppUri({
-            rootClusterId,
-            leafClusterId,
-            appId: resourceId,
-          }),
-          samlApp: true,
-        },
-        kind: 'app',
-      };
-    case 'aws_ic_account_assignment':
-      return {
-        resource: {
-          uri: routing.getAppUri({
-            rootClusterId,
-            leafClusterId,
-            appId: resourceId,
-          }),
-          samlApp: false,
         },
         kind: 'app',
       };

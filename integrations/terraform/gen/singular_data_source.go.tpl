@@ -82,12 +82,7 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
 	v, ok := state.Attrs["id"]
 	if !ok || v.IsNull() {
-{{- if .IsPlainStruct}}
-		id := {{.VarName}}.Metadata.Name
-{{- else }}
-		id := {{.VarName}}.GetName()
-{{- end}}
-		state.Attrs["id"] = types.String{Value: id}
+		state.Attrs["id"] = types.String{Value: {{.VarName}}.GetName()}
 	}
 
 	diags = resp.State.Set(ctx, &state)

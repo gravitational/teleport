@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
-import { CheckboxInput } from 'design/Checkbox';
+import { StyledCheckbox } from 'design/Checkbox';
 import { ResourceIcon } from 'design/ResourceIcon';
-import { HoverTooltip } from 'design/Tooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 
@@ -83,8 +83,6 @@ export function ResourceCard({
   useLayoutEffect(() => {
     if (!labelsInnerContainer.current) return;
 
-    // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
-    // useResizeObserver has a stable identity.
     const observer = new ResizeObserver(entries => {
       const container = entries[0];
 
@@ -176,7 +174,7 @@ export function ResourceCard({
           selected={selected}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <CheckboxInput
+            <StyledCheckbox
               css={`
                 position: absolute;
                 top: 16px;
@@ -216,7 +214,9 @@ export function ResourceCard({
             <Flex flexDirection="row" alignItems="center">
               <SingleLineBox flex="1">
                 <HoverTooltip tipContent={name} showOnlyOnOverflow>
-                  <Text typography="body1">{name}</Text>
+                  <Text typography="h5" fontWeight={300}>
+                    {name}
+                  </Text>
                 </HoverTooltip>
               </SingleLineBox>
               {hovered && <CopyButton name={name} mr={2} />}
@@ -228,14 +228,14 @@ export function ResourceCard({
               </ResTypeIconBox>
               {primaryDesc && (
                 <SingleLineBox ml={1} title={primaryDesc}>
-                  <Text typography="body3" color="text.slightlyMuted">
+                  <Text typography="body2" color="text.slightlyMuted">
                     {primaryDesc}
                   </Text>
                 </SingleLineBox>
               )}
               {secondaryDesc && (
                 <SingleLineBox ml={2} title={secondaryDesc}>
-                  <Text typography="body3" color="text.muted">
+                  <Text typography="body2" color="text.muted">
                     {secondaryDesc}
                   </Text>
                 </SingleLineBox>
@@ -311,7 +311,7 @@ const CardOuterContainer = styled(Box)<{ showAllLabels?: boolean }>`
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    &:after {
+    :after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       border-radius: ${props => props.theme.radii[3]}px;
       content: '';
@@ -340,7 +340,7 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
   border-radius: ${props => props.theme.radii[3]}px;
   background-color: ${props => getBackgroundColor(props)};
 
-  &:hover {
+  :hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }

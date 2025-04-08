@@ -167,16 +167,11 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		return nil, trace.Wrap(err, "creating memory backend")
 	}
 
-	identityService, err := local.NewTestIdentityService(bk)
-	if err != nil {
-		return nil, trace.Wrap(err, "initializing identity service")
-	}
-
 	service := struct {
 		services.Identity
 		services.Access
 	}{
-		Identity: identityService,
+		Identity: local.NewTestIdentityService(bk),
 		Access:   local.NewAccessService(bk),
 	}
 

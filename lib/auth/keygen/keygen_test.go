@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -33,10 +32,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/test"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -50,15 +48,9 @@ func setupNativeContext(ctx context.Context, _ *testing.T) *nativeContext {
 	clock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
 	tt.suite = &test.AuthSuite{
-		A: New(ctx, SetClock(clock)),
-		Keygen: func() ([]byte, []byte, error) {
-			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-			if err != nil {
-				return nil, nil, trace.Wrap(err)
-			}
-			return privateKey.PrivateKeyPEM(), privateKey.MarshalSSHPublicKey(), nil
-		},
-		Clock: clock,
+		A:      New(ctx, SetClock(clock)),
+		Keygen: native.GenerateKeyPair,
+		Clock:  clock,
 	}
 
 	return &tt
@@ -99,16 +91,14 @@ func TestBuildPrincipals(t *testing.T) {
 
 	tt := setupNativeContext(context.Background(), t)
 
-	caPrivateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
-	caSigner, err := ssh.NewSignerFromSigner(caPrivateKey)
+	caPrivateKey, _, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
-	hostKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	caSigner, err := ssh.ParsePrivateKey(caPrivateKey)
 	require.NoError(t, err)
-	hostPrivateKey, err := keys.NewSoftwarePrivateKey(hostKey)
+
+	_, hostPublicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
-	hostPublicKey := hostPrivateKey.MarshalSSHPublicKey()
 
 	tests := []struct {
 		desc               string
@@ -202,9 +192,10 @@ func TestUserCertCompatibility(t *testing.T) {
 
 	tt := setupNativeContext(context.Background(), t)
 
-	caKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	priv, _, err := native.GenerateKeyPair()
 	require.NoError(t, err)
-	caSigner, err := ssh.NewSignerFromSigner(caKey)
+
+	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -242,8 +233,6 @@ func TestUserCertCompatibility(t *testing.T) {
 					Name:  "login@github.com",
 					Value: "hello",
 				}},
-				PermitAgentForwarding: true,
-				PermitPortForwarding:  true,
 			},
 		})
 		require.NoError(t, err, comment)

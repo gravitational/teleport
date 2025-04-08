@@ -20,17 +20,15 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import session from 'teleport/services/websession';
 
-import { MfaChallengeResponse } from '../mfa';
+import { WebauthnAssertionResponse } from '../auth';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
 import makeUserContext from './makeUserContext';
 import {
-  CreateUserVariables,
   ExcludeUserField,
   ResetPasswordType,
   User,
   UserContext,
-  type UpdateUserVariables,
 } from './types';
 
 const cache = {
@@ -60,8 +58,8 @@ const service = {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 
-  fetchUsers(signal?: AbortSignal) {
-    return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
+  fetchUsers() {
+    return api.get(cfg.getUsersUrl()).then(makeUsers);
   },
 
   /**
@@ -71,7 +69,7 @@ const service = {
    * @param user
    * @returns user
    */
-  updateUser({ user, excludeUserField }: UpdateUserVariables) {
+  updateUser(user: User, excludeUserField: ExcludeUserField) {
     return api
       .put(cfg.getUsersUrl(), withExcludedField(user, excludeUserField))
       .then(makeUser);
@@ -84,13 +82,17 @@ const service = {
    * @param user
    * @returns user
    */
-  createUser({ user, excludeUserField, mfaResponse }: CreateUserVariables) {
+  createUser(
+    user: User,
+    excludeUserField: ExcludeUserField,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
     return api
       .post(
         cfg.getUsersUrl(),
         withExcludedField(user, excludeUserField),
         null,
-        mfaResponse
+        webauthnResponse
       )
       .then(makeUser);
   },
@@ -98,10 +100,15 @@ const service = {
   createResetPasswordToken(
     name: string,
     type: ResetPasswordType,
-    mfaResponse?: MfaChallengeResponse
+    webauthnResponse?: WebauthnAssertionResponse
   ) {
     return api
-      .post(cfg.api.resetPasswordTokenPath, { name, type }, null, mfaResponse)
+      .post(
+        cfg.api.resetPasswordTokenPath,
+        { name, type },
+        null,
+        webauthnResponse
+      )
       .then(makeResetToken);
   },
 

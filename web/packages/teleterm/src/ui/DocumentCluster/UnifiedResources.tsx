@@ -18,7 +18,7 @@
 
 import { memo, useCallback, useEffect, useMemo } from 'react';
 
-import { ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
+import { ButtonPrimary, Flex, Link, ResourceIcon, Text } from 'design';
 import * as icons from 'design/Icon';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
@@ -543,7 +543,9 @@ function NoResources(props: {
   if (!props.canCreate) {
     $content = (
       <>
-        <H1 mb="2">No Resources Found</H1>
+        <Text typography="h3" mb="2" fontWeight={600}>
+          No Resources Found
+        </Text>
         <Text>
           Either there are no resources in the cluster, or your roles don't
           grant you access.
@@ -559,7 +561,9 @@ function NoResources(props: {
     $content = (
       <>
         <ResourceIcon name="server" mx="auto" mb={4} height="100px" />
-        <H1 mb={2}>Add your first resource to Teleport</H1>
+        <Text typography="h3" mb={2} fontWeight={600}>
+          Add your first resource to Teleport
+        </Text>
         <Text color="text.slightlyMuted">
           {props.canUseConnectMyComputer ? (
             <>

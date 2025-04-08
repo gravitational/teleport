@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { ButtonBorder } from 'design';
 import { Cell } from 'design/DataTable';
-import { displayDateTime } from 'design/datetime';
+import { displayDateTime } from 'shared/services/loc';
 
 import { Event } from 'teleport/services/audit';
 

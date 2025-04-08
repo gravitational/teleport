@@ -18,7 +18,6 @@ package config
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
@@ -45,10 +44,6 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 				},
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
-				},
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},
@@ -79,17 +74,6 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			want: &WorkloadIdentityAPIService{
-				Selector: WorkloadIdentitySelector{
-					Name: "my-workload-identity",
-				},
-				Listen: "tcp://0.0.0.0:4040",
-				Attestors: workloadattest.Config{
-					Unix: workloadattest.UnixAttestorConfig{
-						BinaryHashMaxSizeBytes: workloadattest.DefaultBinaryHashMaxBytes,
-					},
-				},
-			},
 		},
 		{
 			name: "valid with labels",
@@ -102,19 +86,6 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					},
 					Listen: "tcp://0.0.0.0:4040",
 				}
-			},
-			want: &WorkloadIdentityAPIService{
-				Selector: WorkloadIdentitySelector{
-					Labels: map[string][]string{
-						"key": {"value"},
-					},
-				},
-				Listen: "tcp://0.0.0.0:4040",
-				Attestors: workloadattest.Config{
-					Unix: workloadattest.UnixAttestorConfig{
-						BinaryHashMaxSizeBytes: workloadattest.DefaultBinaryHashMaxBytes,
-					},
-				},
 			},
 		},
 		{

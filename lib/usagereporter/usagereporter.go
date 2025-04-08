@@ -20,12 +20,12 @@ package usagereporter
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 )
@@ -94,8 +94,8 @@ type SubmittedEvent[T any] struct {
 }
 
 type UsageReporter[T any] struct {
-	// logger  writes log messages
-	logger *slog.Logger
+	// Entry is a log entry
+	*logrus.Entry
 
 	// clock is the clock used for the main batching goroutine
 	clock clockwork.Clock
@@ -169,7 +169,7 @@ func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
 		t0 := time.Now()
 
 		if failed, err := r.submit(r, batch); err != nil {
-			r.logger.WarnContext(ctx, "failed to submit batch of usage events", "batch_size", len(batch), "error", err)
+			r.WithField("batch_size", len(batch)).Warnf("failed to submit batch of usage events: %v", err)
 			usageBatchesFailed.Inc()
 
 			var resubmit []*SubmittedEvent[T]
@@ -183,7 +183,7 @@ func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
 
 			droppedCount := len(failed) - len(resubmit)
 			if droppedCount > 0 {
-				r.logger.WarnContext(ctx, "dropping events due to error", "dropped_count", droppedCount, "error", err)
+				r.WithField("dropped_count", droppedCount).Warnf("dropping events due to error: %+v", err)
 				usageEventsDropped.Add(float64(droppedCount))
 			}
 
@@ -192,7 +192,7 @@ func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
 		} else {
 			usageBatchesSubmitted.Inc()
 
-			r.logger.DebugContext(ctx, "successfully submitted batch of usage events", "batch_size", len(batch))
+			r.WithField("batch_size", len(batch)).Debug("successfully submitted batch of usage events")
 		}
 
 		usageBatchSubmissionDuration.Observe(time.Since(t0).Seconds())
@@ -259,7 +259,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 	go r.runSubmit(ctx)
 	defer close(r.submissionQueue)
 
-	r.logger.DebugContext(ctx, "usage reporter is ready")
+	r.Debug("usage reporter is ready")
 
 	for {
 		var subQueue chan []*SubmittedEvent[T]
@@ -272,7 +272,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			if len(r.buf) > 0 {
-				r.logger.WarnContext(ctx, "dropped events due to context close", "discarded_count", len(r.buf))
+				r.WithField("discarded_count", len(r.buf)).Warn("dropped events due to context close")
 			}
 			return
 
@@ -281,11 +281,11 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 				subBatch, subRest := splitBuffer()
 				select {
 				case <-ctx.Done():
-					r.logger.WarnContext(ctx, "dropped events due to context close during graceful stop", "discarded_count", len(r.buf))
+					r.WithField("discarded_count", len(r.buf)).Warn("dropped events due to context close during graceful stop")
 					return
 				case r.submissionQueue <- subBatch:
 					usageBatchesTotal.Inc()
-					r.logger.DebugContext(ctx, "enqueued batch of usage events during graceful stop", "batch_size", len(subBatch))
+					r.WithField("batch_size", len(subBatch)).Debug("enqueued batch of usage events during graceful stop")
 					r.buf = subRest
 				}
 			}
@@ -296,7 +296,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 
 		case subQueue <- subBatch:
 			usageBatchesTotal.Inc()
-			r.logger.DebugContext(ctx, "enqueued batch of usage events", "batch_size", len(subBatch))
+			r.WithField("batch_size", len(subBatch)).Debug("enqueued batch of usage events")
 			r.buf = subRest
 			minBatchSize = r.minBatchSize
 
@@ -317,7 +317,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 					keep = 0
 				}
 
-				r.logger.WarnContext(ctx, "usage event buffer is full, events will be discarded", "discarded_count", len(events)-keep)
+				r.WithField("discarded_count", len(events)-keep).Warn("usage event buffer is full, events will be discarded")
 				events = events[:keep]
 
 				usageEventsDropped.Add(float64(len(events) - keep))
@@ -376,7 +376,7 @@ func (r *UsageReporter[T]) submitEvents(events []*SubmittedEvent[T]) {
 }
 
 type Options[T any] struct {
-	Logger *slog.Logger
+	Log logrus.FieldLogger
 	// Submit is a func that submits a batch of usage events.
 	Submit SubmitFunc[T]
 	// MinBatchSize determines the size at which a batch is sent
@@ -409,8 +409,8 @@ type Options[T any] struct {
 // NewUsageReporter creates a new usage reporter. `Run()` must be executed to
 // process incoming events.
 func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
-	if options.Logger == nil {
-		options.Logger = slog.Default()
+	if options.Log == nil {
+		options.Log = logrus.StandardLogger()
 	}
 	if options.Clock == nil {
 		options.Clock = clockwork.NewRealClock()
@@ -420,7 +420,10 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 	}
 
 	reporter := &UsageReporter[T]{
-		logger:          options.Logger.With(teleport.ComponentKey, teleport.ComponentUsageReporting),
+		Entry: options.Log.WithField(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentUsageReporting),
+		),
 		events:          make(chan []*SubmittedEvent[T], 1),
 		submissionQueue: make(chan []*SubmittedEvent[T], 1),
 		eventsClosed:    make(chan struct{}),

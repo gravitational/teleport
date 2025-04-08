@@ -15,12 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import React from 'react';
 
 import '@testing-library/jest-dom';
+
+import { ThemeProvider } from 'styled-components';
+
 import 'jest-canvas-mock';
 
-import { act, render } from 'design/utils/testing';
+import { darkTheme } from 'design/theme';
+import { act } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
@@ -58,11 +63,13 @@ describe('DocumentKubeExec', () => {
     const { ctx, consoleCtx } = getContexts();
 
     render(
-      <ContextProvider ctx={ctx}>
-        <TestLayout ctx={consoleCtx}>
-          <DocumentKubeExec doc={baseDoc} visible={true} />
-        </TestLayout>
-      </ContextProvider>
+      <ThemeProvider theme={darkTheme}>
+        <ContextProvider ctx={ctx}>
+          <TestLayout ctx={consoleCtx}>
+            <DocumentKubeExec doc={baseDoc} visible={true} />
+          </TestLayout>
+        </ContextProvider>
+      </ThemeProvider>
     );
   };
 

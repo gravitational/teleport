@@ -92,7 +92,7 @@ func (c *Config[K, V]) CheckAndSetDefaults() error {
 	}
 
 	if c.Jitter == nil {
-		c.Jitter = retryutils.SeventhJitter
+		c.Jitter = retryutils.NewSeventhJitter()
 	}
 
 	if c.MaxFailures < 1 {

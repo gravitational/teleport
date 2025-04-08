@@ -28,6 +28,7 @@ import (
 
 const (
 	defaultDisplayName = "Teleport"
+	defaultIcon        = ""
 )
 
 // webAuthnParams groups the parameters necessary for the creation of
@@ -58,25 +59,17 @@ func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 		userVerification = protocol.VerificationRequired
 	}
 
-	timeoutConfig := wan.TimeoutConfig{
-		Enforce:    true,
-		Timeout:    defaults.WebauthnChallengeTimeout,
-		TimeoutUVD: defaults.WebauthnChallengeTimeout,
-	}
-
 	return wan.New(&wan.Config{
 		RPID:                  p.rpID,
 		RPOrigins:             []string{p.origin},
 		RPDisplayName:         defaultDisplayName,
+		RPIcon:                defaultIcon,
 		AttestationPreference: attestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
 			RequireResidentKey: &p.requireResidentKey,
 			ResidentKey:        residentKeyRequirement,
 			UserVerification:   userVerification,
 		},
-		Timeouts: wan.TimeoutsConfig{
-			Login:        timeoutConfig,
-			Registration: timeoutConfig,
-		},
+		Timeout: int(defaults.WebauthnChallengeTimeout.Milliseconds()),
 	})
 }

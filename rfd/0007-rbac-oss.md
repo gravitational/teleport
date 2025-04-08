@@ -90,11 +90,7 @@ role:
    name: user
 spec:
   options:
-    ssh_port_forwarding:
-      remote:
-        enabled: true
-      local:
-        enabled: true
+    port_forwarding: true
     max_session_ttl: 30h
     forward_agent: true
     enhanced_recording: ['command', 'network']

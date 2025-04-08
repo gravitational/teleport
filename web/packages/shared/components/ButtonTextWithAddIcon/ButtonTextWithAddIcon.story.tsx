@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-
-import Flex from 'design/Flex';
+import React, { useState } from 'react';
 
 import { ButtonTextWithAddIcon } from './ButtonTextWithAddIcon';
 
@@ -29,31 +27,23 @@ export default {
 export const Button = () => {
   const [label, setLabel] = useState('Add Item (click me)');
   return (
-    <Flex gap={2} width="300px" flexWrap={'wrap'}>
-      <div>
-        <ButtonTextWithAddIcon label={'Add Item'} onClick={() => null} />
-      </div>
-      <div>
-        <ButtonTextWithAddIcon
-          label={label}
-          onClick={() => setLabel('Add More Item (click me)')}
-        />
-      </div>
-      <div>
-        <ButtonTextWithAddIcon
-          label={'Add Item Disabled'}
-          onClick={() => null}
-          disabled={true}
-        />
-      </div>
-      <div>
-        <ButtonTextWithAddIcon
-          label={'Add Item with Medium Icon Size'}
-          onClick={() => null}
-          iconSize={'medium'}
-        />
-      </div>
-    </Flex>
+    <div style={{ width: '300px' }}>
+      <ButtonTextWithAddIcon label={'Add Item'} onClick={() => null} />
+      <ButtonTextWithAddIcon
+        label={label}
+        onClick={() => setLabel('Add More Item (click me)')}
+      />
+      <ButtonTextWithAddIcon
+        label={'Add Item Disabled'}
+        onClick={() => null}
+        disabled={true}
+      />
+      <ButtonTextWithAddIcon
+        label={'Add Item with Medium Icon Size'}
+        onClick={() => null}
+        iconSize={'medium'}
+      />
+    </div>
   );
 };
 

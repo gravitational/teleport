@@ -210,7 +210,7 @@ func TestAccessListReminders_Batched(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
+				entitlements.AccessLists: {Enabled: true},
 			},
 		},
 	})
@@ -357,7 +357,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 func advanceAndLookForRecipients(t *testing.T,
 	bot *mockMessagingBot,
 	alSvc services.AccessLists,
-	clock *clockwork.FakeClock,
+	clock clockwork.FakeClock,
 	advance time.Duration,
 	accessLists []*accesslist.AccessList,
 	recipients ...string) {

@@ -69,7 +69,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
@@ -77,12 +76,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
@@ -127,7 +126,7 @@ func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 
 	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -138,34 +137,17 @@ func handleReexec() {
 	// is re-executed.
 	if addr := os.Getenv(tshBinMockHeadlessAddrEnv); addr != "" {
 		runOpts = append(runOpts, func(c *CLIConf) error {
-			c.MockHeadlessLogin = func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 				conn, err := net.Dial("tcp", addr)
 				if err != nil {
 					return nil, trace.Wrap(err, "dialing mock headless server")
 				}
 				defer conn.Close()
 
-				// send the server the SSH public key
-				_, err = conn.Write(keyRing.SSHPrivateKey.MarshalSSHPublicKey())
+				// send the server the public key
+				_, err = conn.Write(priv.MarshalSSHPublicKey())
 				if err != nil {
 					return nil, trace.Wrap(err, "writing public key to mock headless server")
-				}
-				// send 0 byte as key delimiter
-				if _, err := conn.Write([]byte{0}); err != nil {
-					return nil, trace.Wrap(err, "writing delimiter")
-				}
-				// send the server the TLS public key
-				tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				_, err = conn.Write(tlsPub)
-				if err != nil {
-					return nil, trace.Wrap(err, "writing public key to mock headless server")
-				}
-				// send 0 byte as key delimiter
-				if _, err := conn.Write([]byte{0}); err != nil {
-					return nil, trace.Wrap(err, "writing delimiter")
 				}
 				// read and decode response from server
 				reply, err := io.ReadAll(conn)
@@ -219,7 +201,7 @@ func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ module
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
-func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
+func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListGetter, _ string) ([]*accesslist.AccessList, error) {
 	return []*accesslist.AccessList{}, nil
 }
 
@@ -267,7 +249,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -439,7 +421,6 @@ func TestNoEnvVars(t *testing.T) {
 }
 
 func TestFailedLogin(t *testing.T) {
-	t.Parallel()
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -451,7 +432,7 @@ func TestFailedLogin(t *testing.T) {
 
 	// build a mock SSO login function to patch into tsh
 	loginFailed := trace.AccessDenied("login failed")
-	ssoLogin := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
+	ssoLogin := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 		return nil, loginFailed
 	}
 
@@ -620,7 +601,7 @@ func TestLoginIdentityOut(t *testing.T) {
 		{
 			name: "write identity out",
 			validationFunc: func(t *testing.T, identityPath string) {
-				_, err := identityfile.KeyRingFromIdentityFile(identityPath, "proxy.example.com", "")
+				_, err := identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
 				require.NoError(t, err)
 			},
 		},
@@ -1717,7 +1698,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
-			clusterName, err := tt.auth.GetClusterName(ctx)
+			clusterName, err := tt.auth.GetClusterName()
 			require.NoError(t, err)
 
 			user := alice
@@ -1865,56 +1846,50 @@ func TestNoRelogin(t *testing.T) {
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authProcess.GetAuthServer(), alice, connector.GetName()))
 	require.NoError(t, err)
 
-	reloginErr := errors.New("relogin failed")
-	trackingLoginFunc := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
-		return nil, reloginErr
+	var loginAttempts atomic.Int32
+	trackingLoginFunc := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
+		loginAttempts.Add(1)
+		return mockSSOLogin(authServer, alice)(ctx, connectorID, priv, protocol)
 	}
 
-	for _, tc := range []struct {
-		desc           string
-		extraArgs      []string
-		errorAssertion func(*testing.T, error)
-	}{
-		{
-			// Should try to relogin due to bad parameter without passing --relogin.
-			desc: "default",
-			errorAssertion: func(t *testing.T, err error) {
-				require.ErrorIs(t, err, reloginErr)
-			},
-		},
-		{
-			// Should try to relogin due to bad parameter when passing --relogin.
-			desc:      "relogin",
-			extraArgs: []string{"--relogin"},
-			errorAssertion: func(t *testing.T, err error) {
-				require.ErrorIs(t, err, reloginErr)
-			},
-		},
-		{
-			// Should skip relogin and fail instantly when passing --no-relogin.
-			desc:      "no relogin",
-			extraArgs: []string{"--no-relogin"},
-			errorAssertion: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.NotErrorIs(t, err, reloginErr)
-			},
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
-			tshArgs := []string{"ssh"}
-			tshArgs = append(tshArgs, tc.extraArgs...)
-			tshArgs = append(tshArgs,
-				"--insecure",
-				"--user", "alice",
-				"--proxy", proxyAddr.String(),
-				"12.12.12.12:8080",
-				"uptime",
-			)
-			err := Run(context.Background(), tshArgs, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
-			tc.errorAssertion(t, err)
-		})
-	}
+	// should try to relogin due to bad parameter without passing --relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	require.Equal(t, int32(1), loginAttempts.Load())
+
+	// should try to relogin due to bad parameter when passing --relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--relogin",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	require.Equal(t, int32(2), loginAttempts.Load())
+
+	// should skip relogin and fail instantly when passing --no-relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--no-relogin",
+		"--insecure",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	// login not called a third time
+	require.Equal(t, int32(2), loginAttempts.Load())
 }
 
 // TestSSHAccessRequest tests that a user can automatically request access to a
@@ -2543,15 +2518,18 @@ func TestSSHCommands(t *testing.T) {
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
-		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
+		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
+			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
+			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -2561,13 +2539,11 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func TestKubeCredentialsLock(t *testing.T) {
-	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	defer cancel()
 	const kubeClusterName = "kube-cluster"
 
 	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
-		t.Parallel()
 		tmpHomePath := t.TempDir()
 
 		firstErr := Run(ctx, []string{
@@ -2582,7 +2558,6 @@ func TestKubeCredentialsLock(t *testing.T) {
 	})
 
 	t.Run("kube credentials called multiple times, SSO login called only once", func(t *testing.T) {
-		t.Parallel()
 		tmpHomePath := t.TempDir()
 		connector := mockConnector(t)
 		alice, err := types.NewUser("alice@example.com")
@@ -2610,7 +2585,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 		proxyAddr, err := proxyProcess.ProxyWebAddr()
 		require.NoError(t, err)
 
-		teleportClusterName, err := authServer.GetClusterName(ctx)
+		teleportClusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
 
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
@@ -2626,24 +2601,33 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			gotNames := map[string]struct{}{}
-			for ks, err := range authServer.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				if !assert.NoError(t, err) {
-					return
+			found, _, err := authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
+				if rwl.GetKind() != types.KindKubeServer {
+					return false, nil
 				}
 
-				gotNames[ks.GetCluster().GetName()] = struct{}{}
+				ks, ok := rwl.(types.KubeServer)
+				if !ok {
+					return false, nil
+				}
 
-			}
+				return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
+			}, &proto.ListUnifiedResourcesRequest{
+				Kinds:  []string{types.KindKubeServer},
+				SortBy: types.SortBy{Field: services.SortByName},
+				Limit:  1,
+			})
 
-			assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
-		}, 15*time.Second, 100*time.Millisecond)
+			assert.NoError(t, err)
+			assert.Len(t, found, 1)
+
+		}, 10*time.Second, 100*time.Millisecond)
 
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
-		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
+		mockSSOLoginWithCountCalls := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 			ssoCalls.Add(1)
-			return mockSSOLogin(ctx, connectorID, keyRing, protocol)
+			return mockSSOLogin(ctx, connectorID, priv, protocol)
 		}
 
 		err = Run(context.Background(), []string{
@@ -3324,7 +3308,7 @@ func TestEnvFlags(t *testing.T) {
 func TestKubeConfigUpdate(t *testing.T) {
 	t.Parallel()
 	// don't need real creds for this test, just something to compare against
-	creds := &client.KeyRing{KeyRingIndex: client.KeyRingIndex{ProxyHost: "a.example.com"}}
+	creds := &client.Key{KeyIndex: client.KeyIndex{ProxyHost: "a.example.com"}}
 	tests := []struct {
 		desc           string
 		cf             *CLIConf
@@ -3871,7 +3855,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3914,13 +3898,12 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = authAddr
-	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3947,7 +3930,6 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 		IssuerURL:    "https://auth.example.com",
 		RedirectURLs: []string{"https://cluster.example.com"},
 		ClientID:     "fake-client",
-		ClientSecret: "fake-secret",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "groups",
@@ -3961,26 +3943,20 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 }
 
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
-	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName(ctx)
+		clusterName, err := authServer.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-			SSHPubKey:               keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-			TLSPubKey:               tlsPub,
-			Username:                user.GetName(),
-			TTL:                     time.Hour,
-			Compatibility:           constants.CertificateFormatStandard,
-			RouteToCluster:          clusterName.GetClusterName(),
-			SSHAttestationStatement: keyRing.SSHPrivateKey.GetAttestationStatement(),
-			TLSAttestationStatement: keyRing.TLSPrivateKey.GetAttestationStatement(),
+			Key:                  priv.MarshalSSHPublicKey(),
+			Username:             user.GetName(),
+			TTL:                  time.Hour,
+			Compatibility:        constants.CertificateFormatStandard,
+			RouteToCluster:       clusterName.GetClusterName(),
+			AttestationStatement: priv.GetAttestationStatement(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4006,15 +3982,12 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 }
 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName(ctx)
-		require.NoError(t, err)
-		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-			SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-			TLSPubKey:      tlsPub,
+			Key:            priv.MarshalSSHPublicKey(),
 			Username:       user.GetName(),
 			TTL:            time.Hour,
 			Compatibility:  constants.CertificateFormatStandard,
@@ -4996,17 +4969,10 @@ func TestSerializeMFADevices(t *testing.T) {
 	aTime := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 	expected := `
 	[
-		{"metadata":{"Name":"my device","Namespace":"default"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z","kind":"mfa_device","totp":{"key":"key"},"version":"v1"}
+		{"metadata":{"Name":"my device"},"id":"id","addedAt":"1970-01-01T00:00:00Z","lastUsed":"1970-01-01T00:00:00Z"}
 	]
 	`
-
-	dev, err := types.NewMFADevice("my device", "id", aTime, &types.MFADevice_Totp{
-		Totp: &types.TOTPDevice{
-			Key: "key",
-		},
-	})
-	require.NoError(t, err)
-
+	dev := types.NewMFADevice("my device", "id", aTime)
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeMFADevices([]*types.MFADevice{dev}, f)
 	})
@@ -5807,30 +5773,24 @@ func TestBenchmarkMySQL(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
-		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
-	})
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	privPEM, err := keys.MarshalPrivateKey(key)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	privateKey, err := keys.NewPrivateKey(key, privPEM)
 	require.NoError(t, err)
-	clientKeyRing := &client.KeyRing{
-		KeyRingIndex: client.KeyRingIndex{
+	clientKey := &client.Key{
+		KeyIndex: client.KeyIndex{
 			ProxyHost:   "proxy",
 			Username:    "user",
 			ClusterName: "cluster",
 		},
-		SSHPrivateKey: sshPriv,
-		TLSPrivateKey: tlsPriv,
+		PrivateKey: privateKey,
 	}
 	profile := &profile.Profile{
-		WebProxyAddr: clientKeyRing.ProxyHost,
-		Username:     clientKeyRing.Username,
-		SiteName:     clientKeyRing.ClusterName,
+		WebProxyAddr: clientKey.ProxyHost,
+		Username:     clientKey.Username,
+		SiteName:     clientKey.ClusterName,
 	}
 
 	for _, tt := range []struct {
@@ -5840,29 +5800,19 @@ func TestLogout(t *testing.T) {
 		{
 			name:         "normal home dir",
 			modifyKeyDir: func(t *testing.T, homePath string) {},
-		},
-		{
+		}, {
 			name: "public key missing",
 			modifyKeyDir: func(t *testing.T, homePath string) {
-				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
 				require.NoError(t, os.Remove(pubKeyPath))
 			},
-		},
-		{
-			name: "SSH private key missing",
+		}, {
+			name: "private key missing",
 			modifyKeyDir: func(t *testing.T, homePath string) {
-				privKeyPath := keypaths.UserSSHKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
+				privKeyPath := keypaths.UserKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
 				require.NoError(t, os.Remove(privKeyPath))
 			},
-		},
-		{
-			name: "TLS private key missing",
-			modifyKeyDir: func(t *testing.T, homePath string) {
-				privKeyPath := keypaths.UserTLSKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
-				require.NoError(t, os.Remove(privKeyPath))
-			},
-		},
-		{
+		}, {
 			name: "public key mismatch",
 			modifyKeyDir: func(t *testing.T, homePath string) {
 				newKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -5870,34 +5820,33 @@ func TestLogout(t *testing.T) {
 				sshPub, err := ssh.NewPublicKey(newKey.Public())
 				require.NoError(t, err)
 
-				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKeyRing.ProxyHost, clientKeyRing.Username)
+				pubKeyPath := keypaths.PublicKeyPath(homePath, clientKey.ProxyHost, clientKey.Username)
 				err = os.WriteFile(pubKeyPath, ssh.MarshalAuthorizedKey(sshPub), 0o600)
 				require.NoError(t, err)
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			tmpHomePath := t.TempDir()
 
 			store := client.NewFSClientStore(tmpHomePath)
-			err := store.AddKeyRing(clientKeyRing)
+			err = store.AddKey(clientKey)
 			require.NoError(t, err)
 			store.SaveProfile(profile, true)
 
 			tt.modifyKeyDir(t, tmpHomePath)
 
-			_, err = os.Lstat(tmpHomePath)
+			_, err := os.Lstat(tmpHomePath)
 			require.NoError(t, err)
 
 			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
-			require.NoError(t, err, trace.DebugReport(err))
+			require.NoError(t, err)
 
-			// directory should be empty.
+			// direcory should be empty.
 			f, err := os.Open(tmpHomePath)
 			require.NoError(t, err)
-			entries, err := f.ReadDir(1)
-			require.ErrorIs(t, err, io.EOF, "expected empty directory, but found %v", entries)
+			_, err = f.Readdir(1)
+			require.ErrorIs(t, err, io.EOF)
 		})
 	}
 }
@@ -6007,7 +5956,7 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, onLogin(&conf))
 
 	// Test setup: validate we got a valid identity
-	_, err = identityfile.KeyRingFromIdentityFile(identityPath, "proxy.example.com", "")
+	_, err = identityfile.KeyFromIdentityFile(identityPath, "proxy.example.com", "")
 	require.NoError(t, err)
 
 	// Test execution: flatten the identity previously obtained in a new home.

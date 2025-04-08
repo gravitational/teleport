@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import React from 'react';
 
 import * as stores from './stores/types';
 
 export default function usePageTitle(doc: stores.Document) {
   const title =
     doc && doc.title ? `${doc.title} • ${doc.clusterId}` : 'Console';
-  useEffect(() => {
+  React.useEffect(() => {
     document.title = title;
   }, [title]);
 }

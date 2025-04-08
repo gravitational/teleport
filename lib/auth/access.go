@@ -51,7 +51,7 @@ func (a *Server) CreateRole(ctx context.Context, role types.Role) (types.Role, e
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit role create event.", "error", err)
+		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
 	return created, nil
 }
@@ -74,7 +74,7 @@ func (a *Server) UpdateRole(ctx context.Context, role types.Role) (types.Role, e
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit role update event.", "error", err)
+		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
 	return created, nil
 }
@@ -97,7 +97,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, e
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit role create event.", "error", err)
+		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
 	return upserted, nil
 }
@@ -119,10 +119,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		if slices.Contains(u.GetRoles(), name) {
 			// Mask the actual error here as it could be used to enumerate users
 			// within the system.
-			a.logger.WarnContext(
-				ctx, "Failed to delete role: role is still in use by a user",
-				"role", name, "user", u.GetName(),
-			)
+			log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
 			return trace.Wrap(errDeleteRoleUser)
 		}
 	}
@@ -132,14 +129,11 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, ca := range cas {
-		if slices.Contains(ca.GetRoles(), name) {
+	for _, a := range cas {
+		if slices.Contains(a.GetRoles(), name) {
 			// Mask the actual error here as it could be used to enumerate users
 			// within the system.
-			a.logger.WarnContext(
-				ctx, "Failed to delete role: role is still in use by a user cert authority",
-				"role", name, "ca", ca.GetClusterName(),
-			)
+			log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
 			return trace.Wrap(errDeleteRoleCA)
 		}
 	}
@@ -155,27 +149,17 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 
 		for _, accessList := range accessLists {
 			if slices.Contains(accessList.Spec.Grants.Roles, name) {
-				a.logger.WarnContext(
-					ctx, "Failed to delete role: role is granted by access list",
-					"role", name, "access_list", accessList.GetName(),
-				)
+				log.Warnf("Failed to delete role: role %v is granted by access list %s", name, accessList.GetName())
 				return trace.Wrap(errDeleteRoleAccessList)
 			}
 
 			if slices.Contains(accessList.Spec.MembershipRequires.Roles, name) {
-				a.logger.WarnContext(
-					ctx, "Failed to delete role: role is required by members of access list",
-					"role", name, "access_list", accessList.GetName(),
-				)
+				log.Warnf("Failed to delete role: role %v is required by members of access list %s", name, accessList.GetName())
 				return trace.Wrap(errDeleteRoleAccessList)
 			}
 
 			if slices.Contains(accessList.Spec.OwnershipRequires.Roles, name) {
-				a.logger.WarnContext(
-					ctx,
-					"Failed to delete role: role is required by owners of access list",
-					"role", name, "access_list", accessList.GetName(),
-				)
+				log.Warnf("Failed to delete role: role %v is required by owners of access list %s", name, accessList.GetName())
 				return trace.Wrap(errDeleteRoleAccessList)
 			}
 		}
@@ -200,7 +184,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit role delete event", "error", err)
+		log.WithError(err).Warnf("Failed to emit role delete event.")
 	}
 	return nil
 }
@@ -233,7 +217,7 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 			Target: lock.Target(),
 		},
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit lock create event.", "error", err)
+		log.WithError(err).Warning("Failed to emit lock create event.")
 	}
 	return nil
 }
@@ -261,7 +245,7 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 			Target: lock.Target(),
 		},
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit lock delete event.", "error", err)
+		log.WithError(err).Warning("Failed to emit lock delete event.")
 	}
 	return nil
 }

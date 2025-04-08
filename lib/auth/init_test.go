@@ -21,7 +21,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"maps"
 	"math"
 	"path/filepath"
 	"slices"
@@ -49,19 +48,15 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -180,243 +175,6 @@ func TestBadIdentity(t *testing.T) {
 
 	_, err = state.ReadSSHIdentityFromKeyPair(priv, cert)
 	require.IsType(t, trace.BadParameter(""), err)
-}
-
-func TestSignatureAlgorithmSuite(t *testing.T) {
-	ctx := context.Background()
-
-	suiteName := func(suite types.SignatureAlgorithmSuite) string {
-		suiteName, err := suite.MarshalText()
-		require.NoError(t, err)
-		return string(suiteName)
-	}
-
-	assertSuitesEqual := func(t *testing.T, expected, actual types.SignatureAlgorithmSuite) {
-		t.Helper()
-		assert.Equal(t, suiteName(expected), suiteName(actual))
-	}
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.HSM: {Enabled: true},
-			},
-		},
-	})
-
-	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm bool) InitConfig {
-		cfg := setupConfig(t)
-		cfg.FIPS = fips
-		if hsm {
-			cfg.KeyStoreConfig = keystore.HSMTestConfig(t)
-		}
-		cfg.AuthPreference.SetOrigin(capOrigin)
-		if capOrigin != types.OriginDefaults {
-			cfg.AuthPreference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED)
-		}
-		// Pre-generate all CAs to keep tests fast esp. with SoftHSM.
-		for _, caType := range types.CertAuthTypes {
-			cfg.BootstrapResources = append(cfg.BootstrapResources, suite.NewTestCAWithConfig(suite.TestCAConfig{
-				Type:        caType,
-				ClusterName: cfg.ClusterName.GetClusterName(),
-				Clock:       cfg.Clock,
-			}))
-		}
-		return cfg
-	}
-
-	testCases := map[string]struct {
-		fips                  bool
-		hsm                   bool
-		cloud                 bool
-		expectDefaultSuite    types.SignatureAlgorithmSuite
-		expectUnallowedSuites []types.SignatureAlgorithmSuite
-	}{
-		"basic": {
-			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-		},
-		"fips": {
-			fips:               true,
-			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
-			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
-				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-			},
-		},
-		"hsm": {
-			hsm:                true,
-			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
-				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			},
-		},
-		"fips and hsm": {
-			fips:               true,
-			hsm:                true,
-			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
-			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
-				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-			},
-		},
-		"cloud": {
-			cloud:              true,
-			expectDefaultSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-			expectUnallowedSuites: []types.SignatureAlgorithmSuite{
-				types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			},
-		},
-	}
-
-	// Test the behavior of auth server init. A default signature algorithm
-	// suite should never overwrite a persisted signature algorithm suite for an
-	// existing cluster, even if that was also a default.
-	t.Run("init", func(t *testing.T) {
-		for _, origin := range []string{types.OriginDefaults, types.OriginConfigFile} {
-			t.Run(origin, func(t *testing.T) {
-				for desc, tc := range testCases {
-					t.Run(desc, func(t *testing.T) {
-						if tc.cloud {
-							modules.SetTestModules(t, &modules.TestModules{
-								TestFeatures: modules.Features{
-									Cloud: true,
-									Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-										entitlements.HSM: {Enabled: true},
-									},
-								},
-							})
-						}
-
-						// Assert that a fresh cluster with no signature_algorithm_suite
-						// configured gets the expected default suite, whether
-						// or not anything else in the cluster auth preference is set.
-						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm)
-						auth1, err := Init(ctx, cfg)
-						require.NoError(t, err)
-						t.Cleanup(func() { auth1.Close() })
-						authPref, err := auth1.GetAuthPreference(ctx)
-						require.NoError(t, err)
-						assert.Equal(t, origin, authPref.GetMetadata().Labels[types.OriginLabel])
-						assertSuitesEqual(t, tc.expectDefaultSuite, authPref.GetSignatureAlgorithmSuite())
-
-						// Start a second auth server with the same backend and
-						// config, assert that the default suite remains.
-						auth2, err := Init(ctx, cfg)
-						require.NoError(t, err)
-						t.Cleanup(func() { auth2.Close() })
-						authPref, err = auth2.GetAuthPreference(ctx)
-						require.NoError(t, err)
-						assert.Equal(t, origin, authPref.GetMetadata().Labels[types.OriginLabel])
-						assertSuitesEqual(t, tc.expectDefaultSuite, authPref.GetSignatureAlgorithmSuite())
-
-						// In the stored cluster_auth_preference, reset the
-						// signature_algorithm_suite to unspecified (still with
-						// the same origin) to mimic an older cluster with the old
-						// defaults, in the next step it will be "upgraded".
-						authPref.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED)
-						_, err = auth2.UpsertAuthPreference(ctx, authPref)
-						require.NoError(t, err)
-						authPref, err = auth2.GetAuthPreference(ctx)
-						require.NoError(t, err)
-						// Sanity check it persisted.
-						assert.Equal(t, origin, authPref.GetMetadata().Labels[types.OriginLabel])
-						assertSuitesEqual(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, authPref.GetSignatureAlgorithmSuite())
-
-						// Start a third brand new auth server sharing the same
-						// backend and config. The new auth starting up should
-						// apply the new default auth preference and persist it
-						// to the backend, but it should not modify the existing
-						// signature algorithm suite even though it's
-						// unspecified. This is meant to test that a v16 auth
-						// server upgraded to v17 will still have an unspecified
-						// signature algorithm suite and won't get a new one
-						// until explicitly opting in.
-						auth3, err := Init(ctx, cfg)
-						require.NoError(t, err)
-						t.Cleanup(func() { auth3.Close() })
-						authPref, err = auth3.GetAuthPreference(ctx)
-						require.NoError(t, err)
-						assert.Equal(t, origin, authPref.GetMetadata().Labels[types.OriginLabel])
-						assertSuitesEqual(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, authPref.GetSignatureAlgorithmSuite())
-
-						// Assert that the selected algorithm is RSA2048 when the suite is
-						// unspecified.
-						alg, err := cryptosuites.AlgorithmForKey(ctx,
-							cryptosuites.GetCurrentSuiteFromAuthPreference(auth3),
-							cryptosuites.UserTLS)
-						require.NoError(t, err)
-						assert.Equal(t, cryptosuites.RSA2048.String(), alg.String())
-					})
-				}
-			})
-		}
-	})
-
-	// Test that the auth preference cannot be upserted with a signature
-	// algorithm suite incompatible with the cluster FIPS and HSM settings.
-	t.Run("upsert", func(t *testing.T) {
-		for desc, tc := range testCases {
-			t.Run(desc, func(t *testing.T) {
-				if tc.cloud {
-					modules.SetTestModules(t, &modules.TestModules{
-						TestFeatures: modules.Features{
-							Cloud: true,
-							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-								entitlements.HSM: {Enabled: true},
-							},
-						},
-					})
-				}
-				cfg := TestAuthServerConfig{
-					Dir:  t.TempDir(),
-					FIPS: tc.fips,
-					AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-						// Cloud requires second factor enabled.
-						SecondFactor: constants.SecondFactorOn,
-						Webauthn: &types.Webauthn{
-							RPID: "teleport.example.com",
-						},
-					},
-				}
-				if tc.hsm {
-					cfg.KeystoreConfig = keystore.HSMTestConfig(t)
-				}
-				testAuthServer, err := NewTestAuthServer(cfg)
-				require.NoError(t, err)
-				tlsServer, err := testAuthServer.NewTestTLSServer()
-				require.NoError(t, err)
-				clt, err := tlsServer.NewClient(TestAdmin())
-				require.NoError(t, err)
-
-				for _, suiteValue := range types.SignatureAlgorithmSuite_value {
-					suite := types.SignatureAlgorithmSuite(suiteValue)
-					t.Run(suiteName(suite), func(t *testing.T) {
-						authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-							SignatureAlgorithmSuite: suite,
-						})
-						require.NoError(t, err)
-
-						_, err = clt.UpsertAuthPreference(ctx, authPref)
-						if slices.Contains(tc.expectUnallowedSuites, suite) {
-							var badParameterErr *trace.BadParameterError
-							assert.ErrorAs(t, err, &badParameterErr)
-							return
-						} else {
-							assert.NoError(t, err)
-						}
-
-						// Reset should go back to the default suite.
-						err = clt.ResetAuthPreference(ctx)
-						require.NoError(t, err)
-						authPref, err = clt.GetAuthPreference(ctx)
-						require.NoError(t, err)
-						assert.Equal(t, types.OriginDefaults, authPref.GetMetadata().Labels[types.OriginLabel])
-						assertSuitesEqual(t, tc.expectDefaultSuite, authPref.GetSignatureAlgorithmSuite())
-					})
-				}
-			})
-		}
-	})
 }
 
 type testDynamicallyConfigurableParams struct {
@@ -553,8 +311,7 @@ func TestAuthPreference(t *testing.T) {
 		},
 		withConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
 			fromConfigFile, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-				Type:                    constants.OIDC,
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+				Type: constants.OIDC,
 			})
 			require.NoError(t, err)
 			conf.AuthPreference = fromConfigFile
@@ -562,7 +319,6 @@ func TestAuthPreference(t *testing.T) {
 		},
 		withAnotherConfigFile: func(t *testing.T, conf *InitConfig) types.ResourceWithOrigin {
 			conf.AuthPreference = newWebauthnAuthPreferenceConfigFromFile(t)
-			conf.AuthPreference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
 			return conf.AuthPreference
 		},
 		setDynamic: func(t *testing.T, authServer *Server) {
@@ -698,22 +454,21 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	ctx := context.Background()
-	authServer, err := Init(ctx, conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName(ctx)
+	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(ctx, conf)
+	authServer, err = Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName(ctx)
+	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -721,8 +476,7 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	ctx := context.Background()
-	authServer, err := Init(ctx, conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -737,10 +491,18 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName(ctx)
+	cn, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
+}
+
+func keysIn[K comparable, V any](m map[K]V) []K {
+	result := make([]K, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
 }
 
 type failingTrustInternal struct {
@@ -989,7 +751,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, slices.Collect(maps.Keys(createdSystemRoles)), r.GetName())
+				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
 				createdSystemRoles[r.GetName()] = r
 			}).
 			Maybe().
@@ -999,8 +761,8 @@ func TestPresets(t *testing.T) {
 
 		err := createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
-		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
+		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
+		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
 		roleManager.AssertExpectations(t)
 
 		//
@@ -1122,7 +884,6 @@ func TestPresets(t *testing.T) {
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
-			teleport.SystemIdentityCenterAccessRoleName,
 		}
 
 		enterpriseUsers := []types.User{
@@ -1137,7 +898,7 @@ func TestPresets(t *testing.T) {
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
-			for range 2 {
+			for i := 0; i < 2; i++ {
 				err := createPresetRoles(ctx, as)
 				require.NoError(t, err)
 
@@ -1856,7 +1617,6 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
-	require.Equal(t, []string{"Mon", "Tue", "Wed", "Thu"}, agentWindow.Weekdays)
 
 	// change the served hour
 	mu.Lock()

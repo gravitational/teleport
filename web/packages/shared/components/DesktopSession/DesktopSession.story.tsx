@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import React, { Meta } from '@storybook/react';
 
 import DialogConfirmation from 'design/DialogConfirmation';
 import {
@@ -86,7 +86,7 @@ export const FetchError = () => (
 export const TdpError = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.ERROR, new Error('some tdp error'));
+    client.emit(TdpClientEvent.TDP_ERROR, new Error('some tdp error'));
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -99,7 +99,7 @@ export const Connected = () => {
 export const Disconnected = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE, 'session disconnected');
+    client.emit(TdpClientEvent.WS_CLOSE, 'session disconnected');
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -159,7 +159,7 @@ export const SharingDisabledRbac = () => (
 //   />
 // );
 
-export const Alerts = () => {
+export const Warnings = () => {
   const client = fakeClient();
   client.connect = async spec => {
     emitFrame(client, spec);

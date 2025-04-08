@@ -109,7 +109,7 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 
 	var r testResource
 	if err := utils.FastUnmarshal(data, &r); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -137,7 +137,7 @@ func TestGenericCRUD(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("generic_prefix"),
+		BackendPrefix: "generic_prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -287,8 +287,8 @@ func TestGenericCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Test running while locked.
-	err = service.RunWhileLocked(ctx, []string{"test-lock"}, time.Second*5, func(ctx context.Context, b backend.Backend) error {
-		item, err := b.Get(ctx, service.MakeKey(backend.NewKey(r1.GetName())))
+	err = service.RunWhileLocked(ctx, []string{"test-lock"}, time.Second*5, func(ctx context.Context, backend backend.Backend) error {
+		item, err := backend.Get(ctx, service.MakeKey(r1.GetName()))
 		require.NoError(t, err)
 
 		r, err = unmarshalResource(item.Value, services.WithRevision(item.Revision))
@@ -328,7 +328,7 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("generic_prefix"),
+		BackendPrefix: "generic_prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -371,7 +371,7 @@ func TestGenericListResourcesWithMultiplePrefixes(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("generic_prefix"),
+		BackendPrefix: "generic_prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -430,7 +430,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("generic_prefix"),
+		BackendPrefix: "generic_prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -477,7 +477,7 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("my-prefix"),
+		BackendPrefix: "my-prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -540,6 +540,7 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 }
 
 func TestGenericValidation(t *testing.T) {
+
 	ctx := context.Background()
 
 	memBackend, err := memory.New(memory.Config{
@@ -553,7 +554,7 @@ func TestGenericValidation(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("generic_prefix"),
+		BackendPrefix: "generic_prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 		ValidateFunc:  func(tr *testResource) error { return validationErr },
@@ -570,27 +571,25 @@ func TestGenericValidation(t *testing.T) {
 
 	_, err = service.UpsertResource(ctx, r1)
 	require.ErrorIs(t, err, validationErr)
+
 }
 
 func TestGenericKeyOverride(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx := context.Background()
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
-	defer memBackend.Close()
 
 	service, err := NewService(&ServiceConfig[*testResource]{
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: backend.NewKey("generic_prefix"),
+		BackendPrefix: "generic_prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-		NameKeyFunc:   func(string) string { return "llama" },
+		KeyFunc:       func(tr *testResource) string { return "llama" },
 	})
 	require.NoError(t, err)
 
@@ -655,18 +654,4 @@ func TestGenericKeyOverride(t *testing.T) {
 	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", r1.GetName()))
 	require.Error(t, err)
 	require.Nil(t, item)
-
-	// Validate that getting the resource through the service uses the overridden name
-	_, err = service.GetResource(ctx, r1.GetName())
-	require.NoError(t, err)
-	_, err = service.GetResource(ctx, "llama")
-	require.NoError(t, err)
-	_, err = service.GetResource(ctx, "notllama")
-	require.NoError(t, err)
-
-	// Validate that deleting the resource also uses the overridden name
-	err = service.DeleteResource(ctx, "notllama")
-	require.NoError(t, err)
-	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }

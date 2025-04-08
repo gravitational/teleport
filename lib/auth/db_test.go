@@ -30,7 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -90,7 +90,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			subject, issuer := getSnowflakeJWTParams(context.Background(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
+			subject, issuer := getSnowflakeJWTParams(tt.args.accountName, tt.args.userName, tt.args.publicKey)
 
 			require.Equal(t, tt.wantSubject, subject)
 			require.Equal(t, tt.wantIssuer, issuer)
@@ -110,7 +110,7 @@ func TestDBCertSigning(t *testing.T) {
 
 	ctx := context.Background()
 
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	privateKey, err := testauthority.New().GeneratePrivateKey()
 	require.NoError(t, err)
 
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{

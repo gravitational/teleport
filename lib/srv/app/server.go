@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -39,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -132,8 +132,9 @@ func (c *Config) CheckAndSetDefaults() error {
 // Server is an application server. It authenticates requests from the web
 // proxy and forwards th to internal applications.
 type Server struct {
-	c   *Config
-	log *slog.Logger
+	c         *Config
+	legacyLog *logrus.Entry
+	log       *slog.Logger
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
@@ -152,7 +153,7 @@ type Server struct {
 	reconcileCh chan struct{}
 
 	// watcher monitors changes to application resources.
-	watcher *services.GenericWatcher[types.Application, readonly.Application]
+	watcher *services.AppWatcher
 }
 
 // monitoredApps is a collection of applications from different sources
@@ -198,7 +199,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}()
 
 	s := &Server{
-		c:             c,
+		c: c,
+		// TODO(greedy52) replace with slog from Config.Logger.
+		legacyLog: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.ComponentApp,
+		}),
 		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),

@@ -138,10 +138,7 @@ func (r *Reporter) reportPrivateKeys(stream accessgraphsecretsv1pb.SecretsScanne
 					Keys: privateKeys[start:end],
 				},
 			},
-		}); err != nil && !errors.Is(err, io.EOF) {
-			// [io.EOF] indicates that the server has closed the stream.
-			// The client should handle the underlying error on the subsequent Recv call.
-			// All other errors are client-side errors and should be returned.
+		}); err != nil {
 			return trace.Wrap(err, "failed to send private keys")
 		}
 	}

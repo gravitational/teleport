@@ -39,12 +39,12 @@ type AccessMonitoringRulesService struct {
 }
 
 // NewAccessMonitoringRulesService creates a new AccessMonitoringRulesService.
-func NewAccessMonitoringRulesService(b backend.Backend) (*AccessMonitoringRulesService, error) {
+func NewAccessMonitoringRulesService(backend backend.Backend) (*AccessMonitoringRulesService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceConfig[*accessmonitoringrulesv1.AccessMonitoringRule]{
-			Backend:       b,
+		generic.ServiceWrapperConfig[*accessmonitoringrulesv1.AccessMonitoringRule]{
+			Backend:       backend,
 			ResourceKind:  types.KindAccessMonitoringRule,
-			BackendPrefix: backend.NewKey(accessMonitoringRulesPrefix),
+			BackendPrefix: accessMonitoringRulesPrefix,
 			MarshalFunc:   services.MarshalAccessMonitoringRule,
 			UnmarshalFunc: services.UnmarshalAccessMonitoringRule,
 			ValidateFunc:  services.ValidateAccessMonitoringRule,
@@ -85,7 +85,7 @@ func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Co
 
 // UpdateAccessMonitoringRule updates an existing AccessMonitoringRule resource.
 func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	updated, err := s.svc.UnconditionalUpdateResource(ctx, amr)
+	updated, err := s.svc.UpdateResource(ctx, amr)
 	return updated, trace.Wrap(err)
 }
 
@@ -106,10 +106,10 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 }
 
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
-func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(),
+func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken,
 		func(resource *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-			return match(resource, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticReviewName())
+			return match(resource, subjects, notificationName)
 		})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -117,17 +117,9 @@ func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx c
 	return resources, nextKey, nil
 }
 
-// match returns true if the provided rule matches the provided match fields.
-// The match fields are optional. If a match field is not provided, then the
-// rule matches any value for that field.
-func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationIntegration, automaticReviewIntegration string) bool {
-	if notificationIntegration != "" {
-		if rule.GetSpec().GetNotification().GetName() != notificationIntegration {
-			return false
-		}
-	}
-	if automaticReviewIntegration != "" {
-		if rule.GetSpec().GetAutomaticReview().GetIntegration() != automaticReviewIntegration {
+func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName string) bool {
+	if notificationName != "" {
+		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
 			return false
 		}
 	}

@@ -184,14 +184,7 @@ export const integrations: Integration[] = [
     name: 'azure',
     kind: IntegrationKind.AzureOidc,
     statusCode: IntegrationStatusCode.Running,
-  },
-  {
-    resourceType: 'integration',
-    name: 'github',
-    kind: IntegrationKind.GitHub,
-    statusCode: IntegrationStatusCode.Running,
-    details: 'some-detail',
-    spec: { organization: 'lsdf' },
+    spec: { roleArn: '' },
   },
 ];
 

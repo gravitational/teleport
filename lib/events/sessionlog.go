@@ -20,11 +20,48 @@ package events
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
+	"path/filepath"
 	"sync"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/session"
 )
+
+const (
+	fileTypeChunks = "chunks"
+	fileTypeEvents = "events"
+
+	// eventsSuffix is the suffix of the archive that contains session events.
+	eventsSuffix = "events.gz"
+
+	// chunksSuffix is the suffix of the archive that contains session chunks.
+	chunksSuffix = "chunks.gz"
+)
+
+// eventsFileName consists of session id and the first global event index
+// recorded. Optionally for enhanced session recording events, the event type.
+func eventsFileName(dataDir string, sessionID session.ID, eventType string, eventIndex int64) string {
+	if eventType != "" {
+		return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v-%v", sessionID.String(), eventIndex, eventType, eventsSuffix))
+	}
+	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v", sessionID.String(), eventIndex, eventsSuffix))
+}
+
+// chunksFileName consists of session id and the first global offset recorded
+func chunksFileName(dataDir string, sessionID session.ID, offset int64) string {
+	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v", sessionID.String(), offset, chunksSuffix))
+}
+
+type indexEntry struct {
+	FileName   string `json:"file_name"`
+	Type       string `json:"type"`
+	Index      int64  `json:"index"`
+	Offset     int64  `json:"offset,"`
+	authServer string
+}
 
 // gzipWriter wraps file, on close close both gzip writer and file
 type gzipWriter struct {

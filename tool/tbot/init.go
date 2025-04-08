@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -121,7 +120,7 @@ func testACL(directory string, ownerUser *user.User, opts *botfs.ACLOptions) err
 	}()
 
 	//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
-	if err := botfs.ConfigureLegacyACL(testFile, ownerUser, opts); err != nil {
+	if err := botfs.ConfigureACL(testFile, ownerUser, opts); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -211,18 +210,8 @@ func ensurePermissions(
 		return trace.Wrap(err)
 	}
 
-	uid, err := strconv.Atoi(params.ownerUser.Uid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	gid, err := strconv.Atoi(params.ownerGroup.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Correct ownership.
-	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, uid)
+	ownedByDesiredOwner, err := botfs.IsOwnedBy(stat, params.ownerUser)
 	if err != nil {
 		log.DebugContext(ctx, "Could not determine file ownership", "path", path, "error", err)
 
@@ -235,6 +224,16 @@ func ensurePermissions(
 		// If we're not running as root, this will probably fail.
 		if currentUser.Uid != RootUID && runtime.GOOS != constants.WindowsOS {
 			log.WarnContext(ctx, "Not running as root, ownership change is likely to fail")
+		}
+
+		uid, err := strconv.Atoi(params.ownerUser.Uid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		gid, err := strconv.Atoi(params.ownerGroup.Gid)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		if verboseLogging {
@@ -259,7 +258,7 @@ func ensurePermissions(
 		// are incorrect.
 
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
-		err = botfs.VerifyLegacyACL(path, params.aclOptions)
+		err = botfs.VerifyACL(path, params.aclOptions)
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
@@ -271,7 +270,7 @@ func ensurePermissions(
 				)
 			}
 
-			return trace.Wrap(botfs.ConfigureLegacyACL(path, params.ownerUser, params.aclOptions))
+			return trace.Wrap(botfs.ConfigureACL(path, params.ownerUser, params.aclOptions))
 		} else if err != nil {
 			log.ErrorContext(
 				ctx,
@@ -373,16 +372,16 @@ func getOwner(cliOwner, defaultOwner string) (*user.User, *user.Group, error) {
 // getAndTestACLOptions gets options needed to configure an ACL from CLI
 // options and attempts to configure a test ACL to validate them. Ownership is
 // not validated here.
-func getAndTestACLOptions(initCmd *cli.InitCommand, destDir string) (*user.User, *user.Group, *botfs.ACLOptions, error) {
-	if initCmd.BotUser == "" {
+func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user.Group, *botfs.ACLOptions, error) {
+	if cf.BotUser == "" {
 		return nil, nil, nil, trace.BadParameter("--bot-user must be set")
 	}
 
-	if initCmd.ReaderUser == "" {
+	if cf.ReaderUser == "" {
 		return nil, nil, nil, trace.BadParameter("--reader-user must be set")
 	}
 
-	botUser, err := user.Lookup(initCmd.BotUser)
+	botUser, err := user.Lookup(cf.BotUser)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -392,7 +391,7 @@ func getAndTestACLOptions(initCmd *cli.InitCommand, destDir string) (*user.User,
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	readerUser, err := user.Lookup(initCmd.ReaderUser)
+	readerUser, err := user.Lookup(cf.ReaderUser)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -406,7 +405,7 @@ func getAndTestACLOptions(initCmd *cli.InitCommand, destDir string) (*user.User,
 	// know the bot user definitely exists and is a reasonable owner choice.
 	defaultOwner := fmt.Sprintf("%s:%s", botUser.Username, botGroup.Name)
 
-	ownerUser, ownerGroup, err := getOwner(initCmd.Owner, defaultOwner)
+	ownerUser, ownerGroup, err := getOwner(cf.Owner, defaultOwner)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -421,21 +420,17 @@ func getAndTestACLOptions(initCmd *cli.InitCommand, destDir string) (*user.User,
 	return ownerUser, ownerGroup, &opts, nil
 }
 
-func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
-	botConfig, err := cli.LoadConfigWithMutators(globals, init)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	var err error
 	initables := botConfig.GetInitables()
 	var target config.Initable
 	// First, resolve the correct output/service. If using a config file with
 	// only 1 destination we can assume we want to init that one; otherwise,
 	// --init-dir is required.
-	if init.InitDir == "" {
+	if cf.InitDir == "" {
 		if len(initables) == 1 {
 			target = initables[0]
 		} else {
@@ -445,13 +440,13 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 		for _, v := range initables {
 			d := v.GetDestination()
 			dirDest, ok := d.(*config.DestinationDirectory)
-			if ok && dirDest.Path == init.InitDir {
+			if ok && dirDest.Path == cf.InitDir {
 				target = v
 				break
 			}
 		}
 		if target == nil {
-			return trace.NotFound("Initial directory %q must match a destination directory from the configuration file or --destination-dir parameter", init.InitDir)
+			return trace.NotFound("Initial directory %q must match a destination directory from the configuration file or --destination-dir parameter", cf.InitDir)
 		}
 	}
 
@@ -479,7 +474,7 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 		log.DebugContext(ctx, "Testing for ACL support")
 
 		// Awkward control flow here, but we want these to fail together.
-		ownerUser, ownerGroup, aclOpts, err = getAndTestACLOptions(init, destDir.Path)
+		ownerUser, ownerGroup, aclOpts, err = getAndTestACLOptions(cf, destDir.Path)
 		if err != nil {
 			if destDir.ACLs == botfs.ACLRequired {
 				// ACLs were specifically requested (vs "try" mode), so fail.
@@ -492,7 +487,7 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 
 			// We'll also need to re-fetch the owner as the defaults are
 			// different in the fallback case.
-			ownerUser, ownerGroup, err = getOwner(init.Owner, "")
+			ownerUser, ownerGroup, err = getOwner(cf.Owner, "")
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -506,7 +501,7 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 		}
 	default:
 		log.InfoContext(ctx, "ACLs disabled for this destination")
-		ownerUser, ownerGroup, err = getOwner(init.Owner, "")
+		ownerUser, ownerGroup, err = getOwner(cf.Owner, "")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -539,7 +534,7 @@ func onInit(globals *cli.GlobalArgs, init *cli.InitCommand) error {
 	}
 
 	// ... and warn about / remove any unneeded files.
-	if len(toRemove) > 0 && init.Clean {
+	if len(toRemove) > 0 && cf.Clean {
 		log.InfoContext(ctx, "Attempting to remove", "path", toRemove)
 
 		var errors []error

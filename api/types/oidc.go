@@ -20,7 +20,6 @@ import (
 	"net/netip"
 	"net/url"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -109,12 +108,6 @@ type OIDCConnector interface {
 	GetMaxAge() (time.Duration, bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
-	// GetMFASettings returns the connector's MFA settings.
-	GetMFASettings() *OIDCConnectorMFASettings
-	// IsMFAEnabled returns whether the connector has MFA enabled.
-	IsMFAEnabled() bool
-	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
-	WithMFASettings() error
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -209,9 +202,6 @@ func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 
 	o2.SetClientSecret("")
 	o2.SetGoogleServiceAccount("")
-	if o2.Spec.MFASettings != nil {
-		o2.Spec.MFASettings.ClientSecret = ""
-	}
 
 	return &o2
 }
@@ -404,14 +394,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	if o.Spec.ClientID == "" {
-		return trace.BadParameter("OIDC connector is missing required client_id")
-	}
-
-	if o.Spec.ClientSecret == "" {
-		return trace.BadParameter("OIDC connector is missing required client_secret")
-	}
-	if strings.HasPrefix(o.Spec.ClientSecret, "file://") {
-		return trace.BadParameter("the client_secret must be a literal value, file:// URLs are not supported")
+		return trace.BadParameter("ClientID: missing client id")
 	}
 
 	if len(o.GetClaimsToRoles()) == 0 {
@@ -465,17 +448,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("max_age cannot be negative")
 		}
 		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age %q is invalid, cannot have sub-second units", maxAge.String())
-		}
-	}
-
-	if o.Spec.MFASettings != nil {
-		maxAge := o.Spec.MFASettings.MaxAge.Duration()
-		if maxAge < 0 {
-			return trace.BadParameter("max_age cannot be negative")
-		}
-		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age %q invalid, cannot have sub-second units", maxAge.String())
+			return trace.BadParameter("max_age must be a multiple of seconds")
 		}
 	}
 
@@ -523,67 +496,32 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 	return o.Spec.ClientRedirectSettings
 }
 
-// GetMFASettings returns the connector's MFA settings.
-func (o *OIDCConnectorV3) GetMFASettings() *OIDCConnectorMFASettings {
-	return o.Spec.MFASettings
-}
-
-// IsMFAEnabled returns whether the connector has MFA enabled.
-func (o *OIDCConnectorV3) IsMFAEnabled() bool {
-	mfa := o.GetMFASettings()
-	return mfa != nil && mfa.Enabled
-}
-
-// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
-func (o *OIDCConnectorV3) WithMFASettings() error {
-	if !o.IsMFAEnabled() {
-		return trace.BadParameter("this connector does not have MFA enabled")
-	}
-
-	o.Spec.ClientID = o.Spec.MFASettings.ClientId
-	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
-	o.Spec.ACR = o.Spec.MFASettings.AcrValues
-	o.Spec.Prompt = o.Spec.MFASettings.Prompt
-	o.Spec.MaxAge = &MaxAge{
-		Value: o.Spec.MFASettings.MaxAge,
-	}
-	return nil
-}
-
 // Check returns nil if all parameters are great, err otherwise
-func (r *OIDCAuthRequest) Check() error {
-	switch {
-	case r.ConnectorID == "":
+func (i *OIDCAuthRequest) Check() error {
+	if i.ConnectorID == "" {
 		return trace.BadParameter("ConnectorID: missing value")
-	case r.StateToken == "":
+	}
+	if i.StateToken == "" {
 		return trace.BadParameter("StateToken: missing value")
-	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
-		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
-	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
-		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
-	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
-		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
-	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
-		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
-	// we could collapse these two checks into one, but the error message would become ambiguous.
-	case r.SSOTestFlow && r.ConnectorSpec == nil:
-		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	case !r.SSOTestFlow && r.ConnectorSpec != nil:
-		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
-	sshPubKey := r.PublicKey
-	if len(sshPubKey) == 0 {
-		sshPubKey = r.SshPublicKey
-	}
-	if len(sshPubKey) > 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
 		if err != nil {
-			return trace.BadParameter("bad SSH public key: %v", err)
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}
-	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
-		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
-		return trace.BadParameter("wrong CertTTL")
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
 	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
 	return nil
 }

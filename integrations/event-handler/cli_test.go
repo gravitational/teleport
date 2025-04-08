@@ -18,7 +18,7 @@ package main
 
 import (
 	"os"
-	"path/filepath"
+	"path"
 	"testing"
 	"time"
 
@@ -47,14 +47,14 @@ func TestStartCmdConfig(t *testing.T) {
 					FluentdConfig: FluentdConfig{
 						FluentdURL:            "https://localhost:8888/test.log",
 						FluentdSessionURL:     "https://localhost:8888/session",
-						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
-						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
-						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCert:           path.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            path.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             path.Join(wd, "testdata", "fake-file"),
 						FluentdMaxConnections: 10,
 					},
 					TeleportConfig: TeleportConfig{
 						TeleportAddr:            "localhost:3025",
-						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
+						TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
 						TeleportRefreshEnabled:  true,
 						TeleportRefreshInterval: 2 * time.Minute,
 					},
@@ -86,14 +86,14 @@ func TestStartCmdConfig(t *testing.T) {
 					FluentdConfig: FluentdConfig{
 						FluentdURL:            "https://localhost:8888/test.log",
 						FluentdSessionURL:     "https://localhost:8888/session",
-						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
-						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
-						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCert:           path.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            path.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             path.Join(wd, "testdata", "fake-file"),
 						FluentdMaxConnections: 10,
 					},
 					TeleportConfig: TeleportConfig{
 						TeleportAddr:            "localhost:3025",
-						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
+						TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
 						TeleportRefreshEnabled:  true,
 						TeleportRefreshInterval: 2 * time.Minute,
 					},
@@ -125,14 +125,14 @@ func TestStartCmdConfig(t *testing.T) {
 					FluentdConfig: FluentdConfig{
 						FluentdURL:            "https://localhost:8888/test.log",
 						FluentdSessionURL:     "https://localhost:8888/session",
-						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
-						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
-						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCert:           path.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            path.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             path.Join(wd, "testdata", "fake-file"),
 						FluentdMaxConnections: 10,
 					},
 					TeleportConfig: TeleportConfig{
 						TeleportAddr:            "localhost:3025",
-						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
+						TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
 						TeleportRefreshEnabled:  true,
 						TeleportRefreshInterval: 2 * time.Minute,
 					},

@@ -22,14 +22,12 @@ import (
 	"context"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -390,98 +388,4 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client authclient.Cli
 			"logins": allowedLogins,
 		},
 	})
-}
-
-// IsIntegrationAuthorityType returns true if provided type is an integration CA
-// type.
-func IsIntegrationAuthorityType(authType string) bool {
-	return authType == types.IntegrationSubKindGitHub
-}
-
-// ExportIntegrationAuthoritiesRequest has the required fields to create an
-// export authorities request for integrations.
-type ExportIntegrationAuthoritiesRequest struct {
-	// AuthType is the type of CA to be exported. See
-	// ExportIntegrationAuthorities for details.
-	AuthType string
-	// MatchFingerprint filters authorities using provided fingerprint if
-	// specified. Fingerprint must be the SHA256 of the Authority's public key.
-	MatchFingerprint string
-	// Integration is the name of the integration resource.
-	Integration string
-}
-
-// ExportIntegrationAuthorities exports the public keys of all authorities
-// associated with an integration.
-//
-// Integrations that require certificate authorities have their CAs saved as
-// plugin credentials per integration. This ensures compatibility with services
-// like GitHub which mandate the use of unique CAs cross all integrations.
-// In addition, unlike cluster-level CAs, integration CAs are not used between
-// Teleport clients/agents/clusters. Integration CAs should only be used by an
-// agent to authenticate the service associated with the integration.
-//
-// Exporting integration CAs requires READ access to the integration. Currently,
-// "github" is the only supported AuthType.
-//
-// "github" AuthType returns the public key of each SSH certificate authority in
-// a single line. Each line starts with key type like "ssh-rsa AA..." and can be
-// copied to the text box when configuring new CA for a GitHub organization.
-// Once a CA is added to the GitHub organization, GitHub only displays the
-// SHA256 fingerprint of the key and the date it was added. The MatchFingerprint
-// option can be used to verify whether a fingerprint corresponds to that
-// particular integration.
-func ExportIntegrationAuthorities(ctx context.Context, client authclient.ClientI, req ExportIntegrationAuthoritiesRequest) ([]*ExportedAuthority, error) {
-	if req.Integration == "" {
-		return nil, trace.BadParameter("integration name is required when exporting integration authorities")
-	}
-
-	switch req.AuthType {
-	case types.IntegrationSubKindGitHub:
-		keySet, err := fetchIntegrationCAKeySet(ctx, client, req.Integration)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ret, err := exportGitHubCAs(keySet, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return []*ExportedAuthority{
-			{Data: []byte(ret)},
-		}, nil
-
-	default:
-		return nil, trace.BadParameter("unknown integration CA type %q", req.AuthType)
-	}
-}
-
-func fetchIntegrationCAKeySet(ctx context.Context, client authclient.ClientI, integration string) (*types.CAKeySet, error) {
-	resp, err := client.IntegrationsClient().ExportIntegrationCertAuthorities(ctx, &integrationpb.ExportIntegrationCertAuthoritiesRequest{
-		Integration: integration,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp.CertAuthorities, nil
-}
-
-func exportGitHubCAs(keySet *types.CAKeySet, req ExportIntegrationAuthoritiesRequest) (string, error) {
-	ret := strings.Builder{}
-	for _, key := range keySet.SSH {
-		if req.MatchFingerprint != "" {
-			if fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey); err != nil {
-				return "", trace.Wrap(err)
-			} else if !sshutils.EqualFingerprints(req.MatchFingerprint, fingerprint) {
-				continue
-			}
-		}
-
-		// GitHub only needs the keys like "ssh-rsa xxx" so print them without
-		// cert-authority for easier copy-and-paste.
-		ret.WriteString(fmt.Sprintf("%s integration=%s\n", strings.TrimSpace(string(key.PublicKey)), req.Integration))
-	}
-	if req.MatchFingerprint != "" && ret.Len() == 0 {
-		return "", trace.NotFound("no authorities found matching the provided fingerprint")
-	}
-	return ret.String(), nil
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
@@ -140,7 +140,7 @@ export function EnrollRdsDatabase() {
   };
 
   return (
-    <>
+    <Box maxWidth="800px">
       <Header>Enroll RDS Database</Header>
       {fetchAttempt.status === 'failed' && !hasIamPermError && (
         <Danger mt={3}>{fetchAttempt.statusText}</Danger>
@@ -200,6 +200,6 @@ export function EnrollRdsDatabase() {
           key={mainContentProps.vpc?.id}
         />
       )}
-    </>
+    </Box>
   );
 }

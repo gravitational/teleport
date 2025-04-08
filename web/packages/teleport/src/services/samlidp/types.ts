@@ -39,7 +39,7 @@ export type SamlIdpServiceProviderSpec = {
   attribute_mapping: AttributeMapping[];
   entity_descriptor: string;
   entity_id: string;
-  preset: SamlServiceProviderPreset;
+  preset: string;
   relay_state: string;
 };
 
@@ -54,7 +54,6 @@ export type AttributeMapping = {
   value: string;
   name_format?: string;
 };
-
 /**
  * SamlServiceProviderPreset defines SAML service provider preset types.
  * Used to define custom or pre-defined configuration flow.
@@ -71,6 +70,7 @@ export enum SamlServiceProviderPreset {
  * preserved throughout the flow.
  */
 export type SamlGcpWorkforce = {
+  isAutoConfig: boolean;
   orgId: string;
   poolName: string;
   poolProviderName: string;

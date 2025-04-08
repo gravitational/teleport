@@ -46,7 +46,6 @@ import atlassianstatuspage from './assets/atlassianstatuspage.svg';
 import auth0Dark from './assets/auth0-dark.svg';
 import auth0Light from './assets/auth0-light.svg';
 import avalara from './assets/avalara.svg';
-import awsAccount from './assets/aws-account.svg';
 import awsDark from './assets/aws-dark.svg';
 import awsLight from './assets/aws-light.svg';
 import azure from './assets/azure.svg';
@@ -126,8 +125,6 @@ import g2 from './assets/g2.svg';
 import gable from './assets/gable.svg';
 import gemDark from './assets/gem-dark.svg';
 import gemLight from './assets/gem-light.svg';
-import gitDark from './assets/git-dark.svg';
-import gitLight from './assets/git-light.svg';
 import githubDark from './assets/github-dark.svg';
 import githubLight from './assets/github-light.svg';
 import gitlab from './assets/gitlab.svg';
@@ -211,7 +208,6 @@ import neverbounceDark from './assets/neverbounce-dark.svg';
 import neverbounceLight from './assets/neverbounce-light.svg';
 import notion from './assets/notion.svg';
 import oasisopen from './assets/oasisopen.svg';
-import oktaAlt from './assets/okta-alt.svg';
 import oktaDark from './assets/okta-dark.svg';
 import oktaLight from './assets/okta-light.svg';
 import onehundredonedomain from './assets/onehundredonedomain.svg';
@@ -339,7 +335,6 @@ export {
   avalara,
   awsDark,
   awsLight,
-  awsAccount,
   azure,
   bill,
   bonusly,
@@ -415,8 +410,6 @@ export {
   gable,
   gemDark,
   gemLight,
-  gitDark,
-  gitLight,
   githubDark,
   githubLight,
   gitlab,
@@ -504,7 +497,6 @@ export {
   oasisopen,
   oktaDark,
   oktaLight,
-  oktaAlt,
   onehundredonedomain,
   oneloginDark,
   oneloginLight,

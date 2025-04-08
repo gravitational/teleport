@@ -36,10 +36,6 @@ rules:
       - teleportopensshserversv2/status
       - teleportopenssheiceserversv2
       - teleportopenssheiceserversv2/status
-      - teleporttrustedclustersv2
-      - teleporttrustedclustersv2/status
-      - teleportbotsv1
-      - teleportbotsv1/status
     verbs:
       - get
       - list

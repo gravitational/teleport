@@ -20,7 +20,6 @@ package config
 
 import (
 	"testing"
-	"time"
 )
 
 func TestIdentityOutput_YAML(t *testing.T) {
@@ -34,10 +33,6 @@ func TestIdentityOutput_YAML(t *testing.T) {
 				Cluster:       "leaf.example.com",
 				SSHConfigMode: SSHConfigModeOff,
 				AllowReissue:  true,
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 		{

@@ -20,7 +20,7 @@ package oracle
 
 import (
 	"bytes"
-	"crypto"
+	"crypto/x509"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -42,8 +42,8 @@ import (
 // wallet.jks   - Java Wallet format used by JDBC Drivers.
 // sqlnet.ora   - Generic Oracle Client Configuration File allowing to specify Wallet Location.
 // tnsnames.ora - Oracle Net Service mapped to connections descriptors.
-func GenerateClientConfiguration(signer crypto.Signer, db tlsca.RouteToDatabase, profile *client.ProfileStatus, siteName string) error {
-	walletPath := profile.OracleWalletDir(siteName, db.ServiceName)
+func GenerateClientConfiguration(key *client.Key, db tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
+	walletPath := profile.OracleWalletDir(key.ClusterName, db.ServiceName)
 	if err := os.MkdirAll(walletPath, teleport.PrivateDirMode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func GenerateClientConfiguration(signer crypto.Signer, db tlsca.RouteToDatabase,
 		return trace.ConvertSystemError(err)
 	}
 
-	jksWalletPath, err := createClientWallet(signer, localProxyCAPem, password, walletPath)
+	jksWalletPath, err := createClientWallet(key, localProxyCAPem, password, walletPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -73,8 +73,8 @@ func GenerateClientConfiguration(signer crypto.Signer, db tlsca.RouteToDatabase,
 	return nil
 }
 
-func createClientWallet(signer crypto.Signer, certPem []byte, password string, walletPath string) (string, error) {
-	buff, err := createJKSWallet(signer, certPem, certPem, password)
+func createClientWallet(key *client.Key, certPem []byte, password string, walletPath string) (string, error) {
+	buff, err := createJKSWallet(key.PrivateKeyPEM(), certPem, certPem, password)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -85,8 +85,12 @@ func createClientWallet(signer crypto.Signer, certPem []byte, password string, w
 	return walletFile, nil
 }
 
-func createJKSWallet(signer crypto.Signer, certPEM, caPEM []byte, password string) ([]byte, error) {
-	privateKey, err := keys.MarshalSoftwarePrivateKeyPKCS8DER(signer)
+func createJKSWallet(keyPEM, certPEM, caPEM []byte, password string) ([]byte, error) {
+	key, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKey, err := x509.MarshalPKCS8PrivateKey(key.Signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -23,14 +23,12 @@ import (
 	"errors"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
 // Return a fake YubiKey private key.
-func getOrGenerateYubiKeyPrivateKey(_ context.Context, policy PrivateKeyPolicy, _ hardwarekey.PIVSlotKeyString, _ hardwarekey.Prompt) (*PrivateKey, error) {
+func getOrGenerateYubiKeyPrivateKey(_ context.Context, policy PrivateKeyPolicy, _ PIVSlot, _ HardwareKeyPrompt) (*PrivateKey, error) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -49,9 +47,13 @@ func getOrGenerateYubiKeyPrivateKey(_ context.Context, policy PrivateKeyPolicy, 
 	return NewPrivateKey(signer, keyPEM)
 }
 
-func parseYubiKeyPrivateKeyData(_ []byte, _ hardwarekey.Prompt) (*PrivateKey, error) {
+func parseYubiKeyPrivateKeyData(_ []byte, _ HardwareKeyPrompt) (*PrivateKey, error) {
 	// TODO(Joerger): add custom marshal/unmarshal logic for fakeYubiKeyPrivateKey (if necessary).
 	return nil, trace.Wrap(errPIVUnavailable)
+}
+
+func (s PIVSlot) validate() error {
+	return trace.Wrap(errPIVUnavailable)
 }
 
 type fakeYubiKeyPrivateKey struct {

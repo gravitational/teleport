@@ -20,8 +20,8 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -262,7 +261,12 @@ func calculateTTL(expiration *time.Time) time.Duration {
 }
 
 func displayAlertsJSON(alerts []types.ClusterAlert) error {
-	return utils.WriteJSONArray(os.Stdout, alerts)
+	out, err := json.MarshalIndent(alerts, "", "  ")
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal alerts")
+	}
+	fmt.Println(string(out))
+	return nil
 }
 
 func (c *AlertCommand) Create(ctx context.Context, client *authclient.Client) error {

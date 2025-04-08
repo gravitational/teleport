@@ -22,7 +22,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -47,7 +46,7 @@ func (a builtinRoleAuthorizer) Authorize(ctx context.Context) (*authz.Context, e
 
 func newOktaUser(t *testing.T) types.User {
 	t.Helper()
-	user, err := types.NewUser(uuid.NewString())
+	user, err := types.NewUser(t.Name())
 	require.NoError(t, err)
 
 	user.SetOrigin(types.OriginOkta)
@@ -87,7 +86,7 @@ func TestOktaCRUD(t *testing.T) {
 		})
 
 		t.Run("okta service creating a non-okta user in an error", func(t *testing.T) {
-			user, err := types.NewUser(uuid.NewString())
+			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 
 			_, err = env.CreateUser(oktaCtx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
@@ -124,7 +123,7 @@ func TestOktaCRUD(t *testing.T) {
 
 		t.Run("okta service updating non-Okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user
-			user, err := types.NewUser(uuid.NewString())
+			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 			user, err = env.backend.CreateUser(context.Background(), user)
 			require.NoError(t, err)
@@ -223,7 +222,7 @@ func TestOktaCRUD(t *testing.T) {
 
 		t.Run("okta service creating non-okta user is an error", func(t *testing.T) {
 			// Given a non-okta user *not* already in the Teleport user backend...
-			user, err := types.NewUser(uuid.NewString())
+			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 
 			// When I (as the Okta service) try to Upsert that user...
@@ -255,7 +254,7 @@ func TestOktaCRUD(t *testing.T) {
 
 		t.Run("okta service updating non-Okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user already in the Teleport user DB...
-			user, err := types.NewUser(uuid.NewString())
+			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 			user, err = env.backend.CreateUser(context.Background(), user)
 			require.NoError(t, err)
@@ -292,7 +291,7 @@ func TestOktaCRUD(t *testing.T) {
 		})
 
 		t.Run("non-okta service creating okta user is an error", func(t *testing.T) {
-			user, err := types.NewUser(uuid.NewString())
+			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 
 			_, err = env.UpsertUser(
@@ -370,7 +369,7 @@ func TestOktaCRUD(t *testing.T) {
 
 		t.Run("okta service deleting non-Okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user already in the Teleport user DB...
-			user, err := types.NewUser(uuid.NewString())
+			user, err := types.NewUser(t.Name())
 			require.NoError(t, err)
 			user, err = env.backend.CreateUser(context.Background(), user)
 			require.NoError(t, err)

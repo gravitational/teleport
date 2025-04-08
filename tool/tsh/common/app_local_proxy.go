@@ -19,32 +19,25 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 )
 
 // localProxyApp is a generic app that can start local proxies.
 type localProxyApp struct {
-	tc *client.TeleportClient
-	// profile is a cached profile status for the current login session.
-	profile *client.ProfileStatus
-	// routeToApp is a route to the app without TargetPort being set.
-	routeToApp proto.RouteToApp
-	// app is available only when starting a localProxyApp through newLocalProxyAppWithPortMapping.
-	app         types.Application
-	insecure    bool
-	portMapping client.PortMapping
+	tc       *client.TeleportClient
+	appInfo  *appInfo
+	insecure bool
+	port     string
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
@@ -52,65 +45,19 @@ type localProxyApp struct {
 
 type requestMatcher func(req *http.Request) bool
 
-// newLocalProxyApp creates a new generic app proxy.
-func newLocalProxyApp(tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, rawLocalPort string, insecure bool) (*localProxyApp, error) {
-	var portMapping client.PortMapping
-	if rawLocalPort != "" {
-		localPort, err := strconv.Atoi(rawLocalPort)
-		if err != nil {
-			return nil, trace.Wrap(err, "parsing port")
-		}
-		portMapping.LocalPort = localPort
-	}
-
+// newLocalProxyApp creates a new generic app.
+func newLocalProxyApp(tc *client.TeleportClient, appInfo *appInfo, port string, insecure bool) *localProxyApp {
 	return &localProxyApp{
-		tc:          tc,
-		profile:     profile,
-		routeToApp:  routeToApp,
-		portMapping: portMapping,
-		insecure:    insecure,
-	}, nil
-}
-
-// newLocalProxyAppWithPortMapping creates a new generic app proxy. Unlike newLocalProxyApp, it
-// accepts a specific port mapping as an argument.
-func newLocalProxyAppWithPortMapping(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, app types.Application, portMapping client.PortMapping, insecure bool) (*localProxyApp, error) {
-	if err := validateTargetPort(app, portMapping.TargetPort); err != nil {
-		return nil, trace.Wrap(err)
+		tc:       tc,
+		appInfo:  appInfo,
+		port:     port,
+		insecure: insecure,
 	}
-	return &localProxyApp{
-		tc:          tc,
-		profile:     profile,
-		routeToApp:  routeToApp,
-		app:         app,
-		portMapping: portMapping,
-		insecure:    insecure,
-	}, nil
-}
-
-// validateTargetPort is used in both tsh proxy app and tsh app login.
-func validateTargetPort(app types.Application, targetPort int) error {
-	if targetPort == 0 {
-		return nil
-	}
-
-	tcpPorts := app.GetTCPPorts()
-	if len(tcpPorts) == 0 {
-		return trace.BadParameter("cannot specify target port %d because app %q does not provide access to multiple ports",
-			targetPort, app.GetName())
-	}
-
-	if !tcpPorts.Contains(targetPort) {
-		return trace.BadParameter("port %d is not included in target ports of app %q; valid ports: %s",
-			targetPort, app.GetName(), tcpPorts)
-	}
-
-	return nil
 }
 
 // StartLocalProxy sets up local proxies for serving app clients.
 func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	if err := a.startLocalALPNProxy(ctx, a.portMapping, false /*withTLS*/, opts...); err != nil {
+	if err := a.startLocalALPNProxy(ctx, a.port, false /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -118,7 +65,7 @@ func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.L
 
 // StartLocalProxy sets up local proxies for serving app clients.
 func (a *localProxyApp) StartLocalProxyWithTLS(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	if err := a.startLocalALPNProxy(ctx, a.portMapping, true /*withTLS*/, opts...); err != nil {
+	if err := a.startLocalALPNProxy(ctx, a.port, true /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -126,11 +73,11 @@ func (a *localProxyApp) StartLocalProxyWithTLS(ctx context.Context, opts ...alpn
 
 // StartLocalProxy sets up local proxies for serving app clients.
 func (a *localProxyApp) StartLocalProxyWithForwarder(ctx context.Context, forwardMatcher requestMatcher, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	if err := a.startLocalALPNProxy(ctx, client.PortMapping{}, true /*withTLS*/, opts...); err != nil {
+	if err := a.startLocalALPNProxy(ctx, "", true /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := a.startLocalForwardProxy(ctx, a.portMapping.LocalPort, forwardMatcher); err != nil {
+	if err := a.startLocalForwardProxy(ctx, a.port, forwardMatcher); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -149,34 +96,22 @@ func (a *localProxyApp) Close() error {
 }
 
 // startLocalALPNProxy starts the local ALPN proxy.
-func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping client.PortMapping, withTLS bool, opts ...alpnproxy.LocalProxyConfigOpt) error {
-	routeToAppWithTargetPort := a.routeToApp
-	if portMapping.TargetPort != 0 {
-		routeToAppWithTargetPort.TargetPort = uint32(portMapping.TargetPort)
-	}
+func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, withTLS bool, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, routeToAppWithTargetPort, nil, client.WithTTL(a.tc.KeyTTL))
+	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil, client.WithTTL(a.tc.KeyTTL))
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.
-	cert, err := loadAppCertificate(a.tc, routeToAppWithTargetPort.Name)
+	cert, err := loadAppCertificate(a.tc, a.appInfo.RouteToApp.Name)
 	if err == nil {
-		if a.app != nil && len(a.app.GetTCPPorts()) > 0 {
-			// There are too many cases to cover when dealing with a multi-port app and an existing cert.
-			// We'd need to consider portMapping passed from argv and TargetPort in the cert.
-			// As tsh proxy app is not the recommended way to access multi-port apps, let's bail out of
-			// using the existing cert and instead always generate a new one.
-			fmt.Println("Warning: Ignoring existing app cert and generating a new one. Connections made through this proxy will be routed according to command arguments.")
-		} else {
-			appCertChecker.SetCert(cert)
-		}
+		appCertChecker.SetCert(cert)
 	}
 
-	listenAddr := fmt.Sprintf("localhost:%d", portMapping.LocalPort)
+	listenAddr := fmt.Sprintf("localhost:%s", cmp.Or(port, "0"))
 
 	var listener net.Listener
 	if withTLS {
-		appLocalCAPath := a.profile.AppLocalCAPath(a.tc.SiteName, routeToAppWithTargetPort.Name)
+		appLocalCAPath := a.appInfo.appLocalCAPath(a.tc.SiteName)
 		localCertGenerator, err := client.NewLocalCertGenerator(ctx, appCertChecker, appLocalCAPath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -209,7 +144,7 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping cli
 
 	go func() {
 		if err = a.localALPNProxy.Start(ctx); err != nil {
-			logger.ErrorContext(ctx, "Failed to start local ALPN proxy", "error", err)
+			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
 		}
 	}()
 	return nil
@@ -217,8 +152,8 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, portMapping cli
 
 // startLocalForwardProxy starts a local forward proxy that forwards matching requests
 // to the local ALPN proxy and unmatched requests to their original hosts.
-func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, port int, forwardMatcher requestMatcher) error {
-	listenAddr := fmt.Sprintf("localhost:%d", port)
+func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, port string, forwardMatcher requestMatcher) error {
+	listenAddr := fmt.Sprintf("localhost:%s", cmp.Or(port, "0"))
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -252,7 +187,7 @@ func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, port int, fo
 
 	go func() {
 		if err := a.localForwardProxy.Start(); err != nil {
-			logger.ErrorContext(ctx, "Failed to start local forward proxy", "error", err)
+			log.WithError(err).Errorf("Failed to start local forward proxy.")
 		}
 	}()
 	return nil

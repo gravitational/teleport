@@ -18,10 +18,7 @@
 
 package config
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestDatabaseTunnelService_YAML(t *testing.T) {
 	t.Parallel()
@@ -35,10 +32,6 @@ func TestDatabaseTunnelService_YAML(t *testing.T) {
 				Service:  "service",
 				Database: "database",
 				Username: "username",
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 	}

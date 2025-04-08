@@ -27,6 +27,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -119,28 +120,39 @@ func (p *mockALPNConnTester) isUpgradeRequired(ctx context.Context, addr string,
 func Test_renderSSHConfig(t *testing.T) {
 	tests := []struct {
 		Name        string
+		Version     string
+		Env         map[string]string
 		TLSRouting  bool
 		ALPNUpgrade bool
 	}{
 		{
-			Name:        "no tls routing, no alpn upgrade",
-			TLSRouting:  false,
-			ALPNUpgrade: false,
+			Name:       "legacy OpenSSH",
+			Version:    "6.5.0",
+			TLSRouting: true,
 		},
 		{
-			Name:        "no tls routing, alpn upgrade",
-			TLSRouting:  false,
+			Name:       "latest OpenSSH",
+			Version:    "9.0.0",
+			TLSRouting: true,
+		},
+		{
+			Name:       "latest OpenSSH no tls routing",
+			Version:    "9.0.0",
+			TLSRouting: false,
+		},
+		{
+			Name:        "latest OpenSSH with alpn upgrade",
+			Version:     "9.0.0",
 			ALPNUpgrade: true,
+			TLSRouting:  true,
 		},
 		{
-			Name:        "tls routing, no alpn upgrade",
-			TLSRouting:  true,
-			ALPNUpgrade: false,
-		},
-		{
-			Name:        "tls routing, alpn upgrade",
-			TLSRouting:  true,
-			ALPNUpgrade: true,
+			Name:    "latest OpenSSH with legacy proxycommand",
+			Version: "9.0.0",
+			Env: map[string]string{
+				sshConfigProxyModeEnv: "legacy",
+			},
+			TLSRouting: true,
 		},
 	}
 
@@ -177,6 +189,15 @@ func Test_renderSSHConfig(t *testing.T) {
 					clusterName:       mockClusterName,
 				},
 				fakeGetExecutablePath,
+				func() (*semver.Version, error) {
+					return semver.New(tc.Version), nil
+				},
+				func(key string) string {
+					if tc.Env == nil {
+						return ""
+					}
+					return tc.Env[key]
+				},
 				&mockALPNConnTester{
 					isALPNUpgradeRequired: tc.ALPNUpgrade,
 				},
@@ -205,33 +226,37 @@ func Test_renderSSHConfig(t *testing.T) {
 				t, string(golden.GetNamed(t, "ssh_config")), string(sshConfigBytes),
 			)
 
-			for clusterType, clusterName := range map[string]string{
-				"local":  mockClusterName,
-				"remote": mockRemoteClusterName,
-			} {
-				clusterKnownHostBytes, err := os.ReadFile(
-					filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.KnownHostsName)),
-				)
-				require.NoError(t, err)
-				clusterKnownHostBytes = replaceTestDir(clusterKnownHostBytes)
-				clusterSSHConfigBytes, err := os.ReadFile(
-					filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.ConfigName)),
-				)
-				require.NoError(t, err)
-				clusterSSHConfigBytes = replaceTestDir(clusterSSHConfigBytes)
+			// TODO(noah): In v17, we can move these assertions into the main
+			// block as the legacy proxycommand mode will be removed.
+			if tc.Env[sshConfigProxyModeEnv] != "legacy" {
+				for clusterType, clusterName := range map[string]string{
+					"local":  mockClusterName,
+					"remote": mockRemoteClusterName,
+				} {
+					clusterKnownHostBytes, err := os.ReadFile(
+						filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.KnownHostsName)),
+					)
+					require.NoError(t, err)
+					clusterKnownHostBytes = replaceTestDir(clusterKnownHostBytes)
+					clusterSSHConfigBytes, err := os.ReadFile(
+						filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.ConfigName)),
+					)
+					require.NoError(t, err)
+					clusterSSHConfigBytes = replaceTestDir(clusterSSHConfigBytes)
 
-				configGolden := fmt.Sprintf("%s_cluster_ssh_config", clusterType)
-				knownHostsGolden := fmt.Sprintf("%s_cluster_known_hosts", clusterType)
-				if golden.ShouldSet() {
-					golden.SetNamed(t, knownHostsGolden, clusterKnownHostBytes)
-					golden.SetNamed(t, configGolden, clusterSSHConfigBytes)
+					configGolden := fmt.Sprintf("%s_cluster_ssh_config", clusterType)
+					knownHostsGolden := fmt.Sprintf("%s_cluster_known_hosts", clusterType)
+					if golden.ShouldSet() {
+						golden.SetNamed(t, knownHostsGolden, clusterKnownHostBytes)
+						golden.SetNamed(t, configGolden, clusterSSHConfigBytes)
+					}
+					require.Equal(
+						t, string(golden.GetNamed(t, knownHostsGolden)), string(clusterKnownHostBytes),
+					)
+					require.Equal(
+						t, string(golden.GetNamed(t, configGolden)), string(clusterSSHConfigBytes),
+					)
 				}
-				require.Equal(
-					t, string(golden.GetNamed(t, knownHostsGolden)), string(clusterKnownHostBytes),
-				)
-				require.Equal(
-					t, string(golden.GetNamed(t, configGolden)), string(clusterSSHConfigBytes),
-				)
 			}
 		})
 	}

@@ -20,21 +20,19 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useFileTransferContext } from 'shared/components/FileTransfer';
 
-import cfg from 'teleport/config';
 import { DocumentSsh } from 'teleport/Console/stores';
 import { EventType } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
-import { MfaState } from 'teleport/lib/useMfa';
 import { Session } from 'teleport/services/session';
 
 import { useConsoleContext } from '../consoleContextProvider';
 import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
+import useGetScpUrl from './useGetScpUrl';
 
 export type FileTransferRequest = {
   sid: string;
   requestID: string;
   requester: string;
-  /** A list of accounts that approved this request. */
   approvers: string[];
   location: string;
   filename?: string;
@@ -52,7 +50,7 @@ export const useFileTransfer = (
   tty: Tty,
   session: Session,
   currentDoc: DocumentSsh,
-  mfa: MfaState
+  addMfaToScpUrls: boolean
 ) => {
   const { filesStore } = useFileTransferContext();
   const startTransfer = filesStore.start;
@@ -61,6 +59,8 @@ export const useFileTransfer = (
   const [fileTransferRequests, setFileTransferRequests] = useState<
     FileTransferRequest[]
   >([]);
+  const { getScpUrl, attempt: getMfaResponseAttempt } =
+    useGetScpUrl(addMfaToScpUrls);
   const { clusterId, serverId, login } = currentDoc;
 
   const download = useCallback(
@@ -69,8 +69,7 @@ export const useFileTransfer = (
       abortController: AbortController,
       moderatedSessionParams?: ModeratedSessionParams
     ) => {
-      const mfaResponse = await mfa.getChallengeResponse();
-      const url = cfg.getScpUrl({
+      const url = await getScpUrl({
         location,
         clusterId,
         serverId,
@@ -78,9 +77,7 @@ export const useFileTransfer = (
         filename: location,
         moderatedSessionId: moderatedSessionParams?.moderatedSessionId,
         fileTransferRequestId: moderatedSessionParams?.fileRequestId,
-        mfaResponse,
       });
-
       if (!url) {
         // if we return nothing here, the file transfer will not be added to the
         // file transfer list. If we add it to the list, the file will continue to
@@ -90,7 +87,7 @@ export const useFileTransfer = (
       }
       return getHttpFileTransferHandlers().download(url, abortController);
     },
-    [clusterId, login, serverId, mfa]
+    [clusterId, login, serverId, getScpUrl]
   );
 
   const upload = useCallback(
@@ -100,9 +97,7 @@ export const useFileTransfer = (
       abortController: AbortController,
       moderatedSessionParams?: ModeratedSessionParams
     ) => {
-      const mfaResponse = await mfa.getChallengeResponse();
-
-      const url = cfg.getScpUrl({
+      const url = await getScpUrl({
         location,
         clusterId,
         serverId,
@@ -110,7 +105,6 @@ export const useFileTransfer = (
         filename: file.name,
         moderatedSessionId: moderatedSessionParams?.moderatedSessionId,
         fileTransferRequestId: moderatedSessionParams?.fileRequestId,
-        mfaResponse,
       });
       if (!url) {
         // if we return nothing here, the file transfer will not be added to the
@@ -121,7 +115,7 @@ export const useFileTransfer = (
       }
       return getHttpFileTransferHandlers().upload(url, file, abortController);
     },
-    [clusterId, serverId, login, mfa]
+    [clusterId, serverId, login, getScpUrl]
   );
 
   /*
@@ -261,6 +255,7 @@ export const useFileTransfer = (
 
   return {
     fileTransferRequests,
+    getMfaResponseAttempt,
     getUploader,
     getDownloader,
   };

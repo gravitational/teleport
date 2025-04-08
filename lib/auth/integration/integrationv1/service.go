@@ -22,11 +22,10 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/apimachinery/pkg/util/validation"
 
@@ -34,18 +33,15 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // Cache is the subset of the cached resources that the Service queries.
 type Cache interface {
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
@@ -56,37 +52,22 @@ type Cache interface {
 
 	// IntegrationsGetter defines methods to access Integration resources.
 	services.IntegrationsGetter
-
-	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
-	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 }
 
 // KeyStoreManager defines methods to get signers using the server's keystore.
 type KeyStoreManager interface {
 	// GetJWTSigner selects a usable JWT keypair from the given keySet and returns a [crypto.Signer].
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
-	// NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
-	NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error)
-	// GetSSHSignerFromKeySet selects a usable SSH keypair from the provided key set.
-	GetSSHSignerFromKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error)
-}
-
-// Backend defines the interface for all the backend services that the
-// integration service needs.
-type Backend interface {
-	services.Integrations
-	services.PluginStaticCredentials
-	services.GitServers
 }
 
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
 type ServiceConfig struct {
 	Authorizer      authz.Authorizer
-	Backend         Backend
+	Backend         services.Integrations
 	Cache           Cache
 	KeyStoreManager KeyStoreManager
-	Logger          *slog.Logger
+	Logger          *logrus.Entry
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
 }
@@ -116,7 +97,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if s.Logger == nil {
-		s.Logger = slog.With(teleport.ComponentKey, "integrations.service")
+		s.Logger = logrus.WithField(teleport.ComponentKey, "integrations.service")
 	}
 
 	if s.Clock == nil {
@@ -132,8 +113,8 @@ type Service struct {
 	authorizer      authz.Authorizer
 	cache           Cache
 	keyStoreManager KeyStoreManager
-	backend         Backend
-	logger          *slog.Logger
+	backend         services.Integrations
+	logger          *logrus.Entry
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
 }
@@ -175,7 +156,6 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 
 	igs := make([]*types.IntegrationV1, len(results))
 	for i, r := range results {
-		r = r.WithoutCredentials()
 		v1, ok := r.(*types.IntegrationV1)
 		if !ok {
 			return nil, trace.BadParameter("unexpected Integration type %T", r)
@@ -204,8 +184,6 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 		return nil, trace.Wrap(err)
 	}
 
-	// Credentials are not used outside of Auth service.
-	integration = integration.WithoutCredentials()
 	igV1, ok := integration.(*types.IntegrationV1)
 	if !ok {
 		return nil, trace.BadParameter("unexpected Integration type %T", integration)
@@ -226,13 +204,6 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 	}
 
 	switch req.Integration.GetSubKind() {
-	case types.IntegrationSubKindGitHub:
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
-		}
-		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	case types.IntegrationSubKindAWSOIDC:
 		// AWS OIDC Integration can be used as source of credentials to access AWS Web/CLI.
 		// This creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
@@ -249,7 +220,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
+		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationCreate{
@@ -265,10 +236,9 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit integration create event.", "error", err)
+		s.logger.WithError(err).Warn("Failed to emit integration create event.")
 	}
 
-	ig = ig.WithoutCredentials()
 	igV1, ok := ig.(*types.IntegrationV1)
 	if !ok {
 		return nil, trace.BadParameter("unexpected Integration type %T", ig)
@@ -277,7 +247,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 	return igV1, nil
 }
 
-// UpdateIntegration updates an existing integration.
+// UpdateIntegration updates an existing Okta import rule resource.
 func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.UpdateIntegrationRequest) (*types.IntegrationV1, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -288,19 +258,14 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.maybeUpdateStaticCredentials(ctx, req.Integration); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ig, err := s.backend.UpdateIntegration(ctx, req.Integration)
+	ig, err := s.backend.UpdateIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ig = ig.WithoutCredentials()
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
+		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationUpdate{
@@ -316,7 +281,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit integration update event.", "error", err)
+		s.logger.WithError(err).Warn("Failed to emit integration update event.")
 	}
 
 	igV1, ok := ig.(*types.IntegrationV1)
@@ -328,17 +293,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 }
 
 // DeleteIntegration removes the specified Integration resource.
-//
-// This RPC may remove multiple resources in the backend:
-// - Associated resources like Git servers if DeleteAssociatedResources is set
-// - Associated plugin credentials
-// - The integration resource itself
-//
-// Note that there is no rollback if some error happens in the middle of the
-// process.
 func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) (*emptypb.Empty, error) {
-	s.logger.DebugContext(ctx, "Deleting integration", "integration", req.GetName())
-
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -353,28 +308,13 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	if req.DeleteAssociatedResources {
-		if err := s.deleteAssociatedResources(ctx, authCtx, ig); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	if err := s.ensureNoAssociatedResources(ctx, ig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.logger.DebugContext(ctx, "Deleted integration", "integration", ig, "credentials", ig.GetCredentials())
-	if err := s.removeStaticCredentials(ctx, ig); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := s.backend.DeleteIntegration(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	igMeta, err := getIntegrationMetadata(ig)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to build all integration metadata for audit event.", "error", err)
+		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationDelete{
@@ -389,7 +329,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		IntegrationMetadata: igMeta,
 		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit integration delete event.", "error", err)
+		s.logger.WithError(err).Warn("Failed to emit integration delete event.")
 	}
 
 	return &emptypb.Empty{}, nil
@@ -410,10 +350,6 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 			TenantID: ig.GetAzureOIDCIntegrationSpec().TenantID,
 			ClientID: ig.GetAzureOIDCIntegrationSpec().ClientID,
 		}
-	case types.IntegrationSubKindGitHub:
-		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
-			Organization: ig.GetGitHubIntegrationSpec().Organization,
-		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
 	}
@@ -425,52 +361,4 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 // DEPRECATED: can't delete all integrations over gRPC.
 func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
 	return nil, trace.BadParameter("DeleteAllIntegrations is deprecated")
-}
-
-func (s *Service) ensureNoAssociatedResources(ctx context.Context, ig types.Integration) error {
-	switch ig.GetSubKind() {
-	case types.IntegrationSubKindGitHub:
-		return trace.Wrap(s.ensureNoGitHubAssociatedResources(ctx, ig))
-	default:
-		// TODO support this check for other types.
-		return nil
-	}
-}
-
-func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig types.Integration) error {
-	s.logger.DebugContext(ctx, "Checking GitHub integration associated resources", "integration", ig.GetName())
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
-		if server.GetGitHub() != nil && server.GetGitHub().Integration == ig.GetName() {
-			return trace.BadParameter("git servers associated with integration %s must be deleted first", ig.GetName())
-		}
-		return nil
-	}))
-}
-
-func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
-	switch ig.GetSubKind() {
-	case types.IntegrationSubKindGitHub:
-		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
-	default:
-		return trace.NotImplemented("DeleteAssociatedResources not supported for integration kind %q", ig.GetKind())
-	}
-}
-
-func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
-	s.logger.DebugContext(ctx, "Deleting git servers associated with integration", "integration", ig.GetName())
-
-	// This RPC only attempts to delete the git server (it's not returning the
-	// git server for the caller to use), so check for types.VerbDelete and
-	// types.VerbList but skip types.Read and authCtx.Checker.CheckAccess on the
-	// resource.
-	if err := authCtx.CheckAccessToKind(types.KindGitServer, types.VerbDelete, types.VerbList); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(clientutils.IterateResources(ctx, s.backend.ListGitServers, func(server types.Server) error {
-		if server.GetGitHub() == nil || server.GetGitHub().Integration != ig.GetName() {
-			return nil
-		}
-		return trace.Wrap(s.backend.DeleteGitServer(ctx, server.GetName()))
-	}))
 }

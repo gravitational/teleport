@@ -61,6 +61,14 @@ const (
 	TeleportReportingServiceHelloTeleportProcedure = "/prehog.v1alpha.TeleportReportingService/HelloTeleport"
 )
 
+// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
+var (
+	teleportReportingServiceServiceDescriptor             = v1alpha.File_prehog_v1alpha_teleport_proto.Services().ByName("TeleportReportingService")
+	teleportReportingServiceSubmitEventMethodDescriptor   = teleportReportingServiceServiceDescriptor.Methods().ByName("SubmitEvent")
+	teleportReportingServiceSubmitEventsMethodDescriptor  = teleportReportingServiceServiceDescriptor.Methods().ByName("SubmitEvents")
+	teleportReportingServiceHelloTeleportMethodDescriptor = teleportReportingServiceServiceDescriptor.Methods().ByName("HelloTeleport")
+)
+
 // TeleportReportingServiceClient is a client for the prehog.v1alpha.TeleportReportingService
 // service.
 type TeleportReportingServiceClient interface {
@@ -90,24 +98,23 @@ type TeleportReportingServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewTeleportReportingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) TeleportReportingServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	teleportReportingServiceMethods := v1alpha.File_prehog_v1alpha_teleport_proto.Services().ByName("TeleportReportingService").Methods()
 	return &teleportReportingServiceClient{
 		submitEvent: connect.NewClient[v1alpha.SubmitEventRequest, v1alpha.SubmitEventResponse](
 			httpClient,
 			baseURL+TeleportReportingServiceSubmitEventProcedure,
-			connect.WithSchema(teleportReportingServiceMethods.ByName("SubmitEvent")),
+			connect.WithSchema(teleportReportingServiceSubmitEventMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 		submitEvents: connect.NewClient[v1alpha.SubmitEventsRequest, v1alpha.SubmitEventsResponse](
 			httpClient,
 			baseURL+TeleportReportingServiceSubmitEventsProcedure,
-			connect.WithSchema(teleportReportingServiceMethods.ByName("SubmitEvents")),
+			connect.WithSchema(teleportReportingServiceSubmitEventsMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 		helloTeleport: connect.NewClient[v1alpha.HelloTeleportRequest, v1alpha.HelloTeleportResponse](
 			httpClient,
 			baseURL+TeleportReportingServiceHelloTeleportProcedure,
-			connect.WithSchema(teleportReportingServiceMethods.ByName("HelloTeleport")),
+			connect.WithSchema(teleportReportingServiceHelloTeleportMethodDescriptor),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -163,23 +170,22 @@ type TeleportReportingServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewTeleportReportingServiceHandler(svc TeleportReportingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	teleportReportingServiceMethods := v1alpha.File_prehog_v1alpha_teleport_proto.Services().ByName("TeleportReportingService").Methods()
 	teleportReportingServiceSubmitEventHandler := connect.NewUnaryHandler(
 		TeleportReportingServiceSubmitEventProcedure,
 		svc.SubmitEvent,
-		connect.WithSchema(teleportReportingServiceMethods.ByName("SubmitEvent")),
+		connect.WithSchema(teleportReportingServiceSubmitEventMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	teleportReportingServiceSubmitEventsHandler := connect.NewUnaryHandler(
 		TeleportReportingServiceSubmitEventsProcedure,
 		svc.SubmitEvents,
-		connect.WithSchema(teleportReportingServiceMethods.ByName("SubmitEvents")),
+		connect.WithSchema(teleportReportingServiceSubmitEventsMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	teleportReportingServiceHelloTeleportHandler := connect.NewUnaryHandler(
 		TeleportReportingServiceHelloTeleportProcedure,
 		svc.HelloTeleport,
-		connect.WithSchema(teleportReportingServiceMethods.ByName("HelloTeleport")),
+		connect.WithSchema(teleportReportingServiceHelloTeleportMethodDescriptor),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/prehog.v1alpha.TeleportReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

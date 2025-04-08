@@ -19,10 +19,8 @@
 package daemon
 
 import (
-	"cmp"
 	"context"
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -40,7 +39,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -79,13 +78,11 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KubernetesCluster: params.TargetURI.GetKubeName(),
 	}
 
-	targetURI := params.TargetURI
-
 	config := gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            cmp.Or(targetURI.GetDbName(), targetURI.GetKubeName(), targetURI.GetAppName()),
+		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		Insecure:              true,
@@ -245,52 +242,6 @@ func TestGatewayCRUD(t *testing.T) {
 				require.Equal(t, wantGateway, actualGateway)
 			},
 		},
-		{
-			name:                   "CreateGateway returns error if db gateway already exists",
-			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
-			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
-				createdGateway := c.nameToGateway["gateway"]
-				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI:  createdGateway.TargetURI().String(),
-					TargetUser: createdGateway.TargetUser(),
-				})
-				require.Error(t, err)
-				require.True(t, trace.IsAlreadyExists(err))
-			},
-		},
-		{
-			name:                   "CreateGateway returns error if app gateway already exists",
-			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendApp,
-			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
-				createdGateway := c.nameToGateway["gateway"]
-				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI:             createdGateway.TargetURI().String(),
-					TargetSubresourceName: createdGateway.TargetSubresourceName(),
-				})
-				require.Error(t, err)
-				require.True(t, trace.IsAlreadyExists(err))
-			},
-		},
-		{
-			name:                   "SetTargetSubresourceName returns error if db gateway already exists",
-			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
-			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
-				createdGateway := c.nameToGateway["gateway"]
-				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI:             createdGateway.TargetURI().String(),
-					TargetSubresourceName: "4242",
-				})
-				require.NoError(t, err)
-
-				_, err = daemon.SetGatewayTargetSubresourceName(context.Background(),
-					createdGateway.URI().String(), "4242")
-				require.Error(t, err)
-				require.True(t, trace.IsAlreadyExists(err))
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -348,7 +299,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -385,7 +336,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -489,7 +440,7 @@ func TestRetryWithRelogin(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 					return nil
 				},
 			})
@@ -545,7 +496,7 @@ func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
+		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
 			return nil
 		},
 	})
@@ -775,7 +726,7 @@ func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbNa
 func (m fakeGateway) TargetUser() string            { return "alice" }
 func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeGateway) Protocol() string              { return defaults.ProtocolSQLServer }
-func (m fakeGateway) Log() *slog.Logger             { return nil }
+func (m fakeGateway) Log() *logrus.Entry            { return nil }
 func (m fakeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeGateway) LocalPort() string             { return "8888" }
@@ -791,7 +742,7 @@ func (m fakeKubeGateway) TargetName() string            { return m.targetURI.Get
 func (m fakeKubeGateway) TargetUser() string            { return "alice" }
 func (m fakeKubeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeKubeGateway) Protocol() string              { return "" }
-func (m fakeKubeGateway) Log() *slog.Logger             { return nil }
+func (m fakeKubeGateway) Log() *logrus.Entry            { return nil }
 func (m fakeKubeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeKubeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeKubeGateway) LocalPort() string             { return "8888" }

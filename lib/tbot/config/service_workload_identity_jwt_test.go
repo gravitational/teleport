@@ -18,7 +18,6 @@ package config
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
@@ -36,10 +35,6 @@ func TestWorkloadIdentityJWTService_YAML(t *testing.T) {
 					Name: "my-workload-identity",
 				},
 				Audiences: []string{"audience1", "audience2"},
-				CredentialLifetime: CredentialLifetime{
-					TTL:             time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 	}

@@ -33,10 +33,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -177,7 +176,7 @@ func TestUpdate(t *testing.T) {
 		clusterAddr = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, caCertPEM, err := genUserKeyRing("localhost")
+	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
 	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
@@ -198,7 +197,7 @@ func TestUpdate(t *testing.T) {
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
-		ClientKeyData:         creds.TLSPrivateKey.PrivateKeyPEM(),
+		ClientKeyData:         creds.PrivateKeyPEM(),
 		LocationOfOrigin:      kubeconfigPath,
 		Extensions:            map[string]runtime.Object{},
 	}
@@ -226,7 +225,7 @@ func TestUpdateWithExec(t *testing.T) {
 		namespace   = "kubeNamespace"
 	)
 
-	creds, caCertPEM, err := genUserKeyRing("localhost")
+	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -351,7 +350,7 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		home        = "/alt/home"
 	)
 	kubeconfigPath, initialConfig := setup(t)
-	creds, caCertPEM, err := genUserKeyRing("localhost")
+	creds, caCertPEM, err := genUserKey("localhost")
 	require.NoError(t, err)
 	err = Update(kubeconfigPath, Values{
 		TeleportClusterName: clusterName,
@@ -416,9 +415,9 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 		clusterAddr     = "https://1.2.3.6:3080"
 	)
 	kubeconfigPath, _ := setup(t)
-	creds, _, err := genUserKeyRing("localhost")
+	creds, _, err := genUserKey("localhost")
 	require.NoError(t, err)
-	_, leafCACertPEM, err := genUserKeyRing("example.com")
+	_, leafCACertPEM, err := genUserKey("example.com")
 	require.NoError(t, err)
 	creds.TrustedCerts[0].ClusterName = clusterName
 	creds.TrustedCerts = append(creds.TrustedCerts, authclient.TrustedCerts{
@@ -456,7 +455,7 @@ func TestRemoveByClusterName(t *testing.T) {
 	)
 	kubeconfigPath, initialConfig := setup(t)
 
-	creds, _, err := genUserKeyRing("localhost")
+	creds, _, err := genUserKey("localhost")
 	require.NoError(t, err)
 
 	// Add teleport-generated entries to kubeconfig.
@@ -519,7 +518,7 @@ func TestRemoveByServerAddr(t *testing.T) {
 	)
 
 	kubeconfigPath, initialConfig := setup(t)
-	creds, _, err := genUserKeyRing("localhost")
+	creds, _, err := genUserKey("localhost")
 	require.NoError(t, err)
 
 	// Add teleport-generated entries to kubeconfig.
@@ -552,7 +551,7 @@ func TestRemoveByServerAddr(t *testing.T) {
 	require.Equal(t, wantConfig, config)
 }
 
-func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {
+func genUserKey(hostname string) (*client.Key, []byte, error) {
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName:   hostname,
 		Organization: []string{hostname},
@@ -565,11 +564,8 @@ func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	priv, err := keys.NewSoftwarePrivateKey(key)
+	keygen := testauthority.New()
+	priv, err := keygen.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -587,9 +583,9 @@ func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return &client.KeyRing{
-		TLSPrivateKey: priv,
-		TLSCert:       tlsCert,
+	return &client.Key{
+		PrivateKey: priv,
+		TLSCert:    tlsCert,
 		TrustedCerts: []authclient.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},

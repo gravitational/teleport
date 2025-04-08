@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
@@ -59,8 +58,7 @@ type PrivateKey struct {
 	keyPEM []byte
 }
 
-// NewPrivateKey returns a new PrivateKey for the given crypto.Signer with a
-// pre-marshaled private key PEM, which may be a special PIV key PEM.
+// NewPrivateKey returns a new PrivateKey for the given crypto.Signer.
 func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -74,62 +72,14 @@ func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	}, nil
 }
 
-// NewSoftwarePrivateKey returns a new PrivateKey for a crypto.Signer.
-// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey.
-func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
-	sshPub, err := ssh.NewPublicKey(signer.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyPEM, err := MarshalPrivateKey(signer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &PrivateKey{
-		Signer: signer,
-		sshPub: sshPub,
-		keyPEM: keyPEM,
-	}, nil
-}
-
-// SSHPublicKey returns the ssh.PublicKey representation of the public key.
+// SSHPublicKey returns the ssh.PublicKey representiation of the public key.
 func (k *PrivateKey) SSHPublicKey() ssh.PublicKey {
 	return k.sshPub
 }
 
-// MarshalSSHPrivateKey returns the private key marshaled to:
-// - PEM-encoded OpenSSH format for Ed25519 or ECDSA keys
-// - PEM-encoded PKCS#1 for RSA keys
-// - a custom PEM-encoded format for PIV keys
-func (k *PrivateKey) MarshalSSHPrivateKey() ([]byte, error) {
-	switch k.Signer.(type) {
-	case ed25519.PrivateKey, *ecdsa.PrivateKey:
-		// OpenSSH largely does not support PKCS8 private keys, write these in
-		// OpenSSH format.
-		const comment = ""
-		pemBlock, err := ssh.MarshalPrivateKey(k.Signer, comment)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return pem.EncodeToMemory(pemBlock), nil
-	}
-	// Otherwise we are dealing with either a hardware key which has a custom
-	// format, or an RSA key which would already be in PKCS#1, which OpenSSH can
-	// handle.
-	return k.keyPEM, nil
-}
-
-// MarshalSSHPublicKey returns the public key marshaled to SSH authorized_keys format.
+// SSHPublicKey returns the ssh.PublicKey representiation of the public key.
 func (k *PrivateKey) MarshalSSHPublicKey() []byte {
 	return ssh.MarshalAuthorizedKey(k.sshPub)
-}
-
-// MarshalTLSPublicKey returns a PEM encoding of the public key. Encodes RSA keys
-// in PKCS1 format for backward compatibility. All other key types are encoded
-// in PKIX, ASN.1 DER form. Only supports *rsa.PublicKey, *ecdsa.PublicKey, and
-// ed25519.PublicKey.
-func (k *PrivateKey) MarshalTLSPublicKey() ([]byte, error) {
-	return MarshalPublicKey(k.Signer.Public())
 }
 
 // PrivateKeyPEM returns PEM encoded private key data. This may be data necessary
@@ -142,17 +92,11 @@ func (k *PrivateKey) PrivateKeyPEM() []byte {
 	return k.keyPEM
 }
 
-// TLSCertificate parses the given TLS certificate(s) paired with the private
-// key to return a tls.Certificate, ready to be used in a TLS handshake.
+// TLSCertificate parses the given TLS certificate(s) paired with the private key
+// to rerturn a tls.Certificate, ready to be used in a TLS handshake.
 func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error) {
-	return TLSCertificateForSigner(k.Signer, certPEMBlock)
-}
-
-// TLSCertificate parses the given TLS certificate(s) paired with the given
-// signer to return a tls.Certificate, ready to be used in a TLS handshake.
-func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Certificate, error) {
 	cert := tls.Certificate{
-		PrivateKey: signer,
+		PrivateKey: k.Signer,
 	}
 
 	// Parse the certificate and verify it is valid.
@@ -162,8 +106,7 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 	}
 	cert.Certificate = rawCerts
 
-	// Check that the certificate's public key matches this private key.
-	if keyPub, ok := signer.Public().(cryptoPublicKeyI); !ok {
+	if keyPub, ok := k.Public().(cryptoPublicKeyI); !ok {
 		return tls.Certificate{}, trace.BadParameter("private key does not contain a valid public key")
 	} else if !keyPub.Equal(x509Cert.PublicKey) {
 		return tls.Certificate{}, trace.BadParameter("private key does not match certificate's public key")
@@ -174,22 +117,27 @@ func TLSCertificateForSigner(signer crypto.Signer, certPEMBlock []byte) (tls.Cer
 
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *PrivateKey) PPKFile() ([]byte, error) {
-	ppkFile, err := ppk.ConvertToPPK(k.Signer, k.sshPub)
-	return ppkFile, trace.Wrap(err)
+	rsaKey, ok := k.Signer.(*rsa.PrivateKey)
+	if !ok {
+		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
+	}
+	ppkFile, err := ppk.ConvertToPPK(rsaKey, k.MarshalSSHPublicKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ppkFile, nil
 }
 
-// SoftwarePrivateKeyPEM returns the PEM encoding of the private key. If the key
-// is not a raw software RSA, ECDSA, or Ed25519 key, then an error will be returned.
+// RSAPrivateKeyPEM returns a PEM encoded RSA private key for the given key.
+// If the given key is not an RSA key, then an error will be returned.
 //
-// This is used by some integrations which currently only support raw software
-// private keys as opposed to hardware keys (yubikeys), like Kubernetes,
-// MongoDB, and PPK files for windows.
-func (k *PrivateKey) SoftwarePrivateKeyPEM() ([]byte, error) {
-	switch k.Signer.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, *ed25519.PrivateKey:
-		return k.keyPEM, nil
+// This is used by some integrations which currently only support raw RSA private keys,
+// like Kubernetes, MongoDB, and PPK files for windows.
+func (k *PrivateKey) RSAPrivateKeyPEM() ([]byte, error) {
+	if _, ok := k.Signer.(*rsa.PrivateKey); !ok {
+		return nil, trace.BadParameter("cannot get rsa key PEM for private key of type %T", k.Signer)
 	}
-	return nil, trace.BadParameter("cannot get software key PEM for private key of type %T", k.Signer)
+	return k.keyPEM, nil
 }
 
 // LoadPrivateKey returns the PrivateKey for the given key file.
@@ -211,14 +159,14 @@ type ParsePrivateKeyOptions struct {
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt hardwarekey.Prompt
+	CustomHardwareKeyPrompt HardwareKeyPrompt
 }
 
 // ParsePrivateKeyOpt applies configuration options.
 type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 
 // WithCustomPrompt sets a custom hardware key prompt.
-func WithCustomPrompt(prompt hardwarekey.Prompt) ParsePrivateKeyOpt {
+func WithCustomPrompt(prompt HardwareKeyPrompt) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
 		o.CustomHardwareKeyPrompt = prompt
 	}
@@ -317,7 +265,7 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 }
 
 // LoadKeyPair returns the PrivateKey for the given private and public key files.
-func LoadKeyPair(privFile, sshPubFile string, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
+func LoadKeyPair(privFile, sshPubFile string, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
 	privPEM, err := os.ReadFile(privFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -336,7 +284,7 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt hardwarekey.Prompt) (
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
+func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
 	priv, err := ParsePrivateKey(privPEM, WithCustomPrompt(customPrompt))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -387,24 +335,29 @@ func X509KeyPair(certPEMBlock, keyPEMBlock []byte) (tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-// AssertSoftwarePrivateKey returns nil if the given private key PEM looks like a
-// raw software private key as opposed to a hardware key (yubikey).
-// This function does a similar check to ParsePrivateKey, followed by
-// key.SoftwarePrivateKeyPEM() without parsing the private fully into a
-// crypto.Signer. This reduces the time it takes to check if a private key is
-// a software private key and improves the performance compared to
-// ParsePrivateKey by a factor of 20.
-func AssertSoftwarePrivateKey(privKey []byte) error {
+// IsRSAPrivateKey returns true if the given private key is an RSA private key.
+// This function does a similar check to ParsePrivateKey, followed by key.RSAPrivateKeyPEM()
+// without parsing the private fully into a crypto.Signer.
+// This reduces the time it takes to check if a private key is an RSA private key
+// and improves the performance compared to ParsePrivateKey by a factor of 20.
+func IsRSAPrivateKey(privKey []byte) bool {
 	block, _ := pem.Decode(privKey)
 	if block == nil {
-		return trace.BadParameter("no valid PEM block found")
+		return false
 	}
 	switch block.Type {
-	case PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType:
-		return nil
+	case PKCS1PrivateKeyType:
+		return true
+	case PKCS8PrivateKeyType:
+		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return false
+		}
+		_, ok := priv.(*rsa.PrivateKey)
+		return ok
+	default:
+		return false
 	}
-	return trace.BadParameter("found PEM block with type %q, only the following types are supported: %v",
-		block.Type, []string{PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType})
 }
 
 // X509Certificate takes a PEM-encoded file containing one or more certificates, extracts all certificates, and parses
@@ -438,16 +391,4 @@ func X509Certificate(certPEMBlock []byte) (*x509.Certificate, [][]byte, error) {
 		return nil, rawCerts, trace.Wrap(err, "failed to parse certificate")
 	}
 	return x509Cert, rawCerts, nil
-}
-
-// MarshalSoftwarePrivateKeyPKCS8DER marshals the provided private key as PKCS#8 DER.
-func MarshalSoftwarePrivateKeyPKCS8DER(signer crypto.Signer) ([]byte, error) {
-	switch k := signer.(type) {
-	case *PrivateKey:
-		return MarshalSoftwarePrivateKeyPKCS8DER(k.Signer)
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		return x509.MarshalPKCS8PrivateKey(k)
-	default:
-		return nil, trace.BadParameter("unsupported key type: %T", signer)
-	}
 }

@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 const (
@@ -55,13 +54,6 @@ const (
 	// based on the specified group. e.g. some groups might need to update
 	// before others.
 	AgentUpdateGroupParameter = "group"
-
-	// AgentUpdateIDParameter is the parameter used to specify the updater
-	// ID during a Ping() or Find() query.
-	// The proxy server will modulate the auto_update part of the PingResponse
-	// based on the specified update ID. e.g. canary hosts might need to update
-	// before others.
-	AgentUpdateIDParameter = "update_id"
 )
 
 // Config specifies information when building requests with the
@@ -86,11 +78,8 @@ type Config struct {
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
 	// UpdateGroup is used to vary the webapi response based on the
-	// client's Managed Update group.
+	// client's auto-update group.
 	UpdateGroup string
-	// UpdateID is used to vary the webapi response based on the
-	// client's Managed Update ID.
-	UpdateID string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -201,14 +190,11 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		Host:   cfg.ProxyAddr,
 		Path:   "/webapi/find",
 	}
-	query := url.Values{}
 	if cfg.UpdateGroup != "" {
-		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
+		endpoint.RawQuery = url.Values{
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
+		}.Encode()
 	}
-	if cfg.UpdateID != "" {
-		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
-	}
-	endpoint.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
@@ -253,14 +239,12 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		Host:   cfg.ProxyAddr,
 		Path:   "/webapi/ping",
 	}
-	query := url.Values{}
 	if cfg.UpdateGroup != "" {
-		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
+		endpoint.RawQuery = url.Values{
+			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
+		}.Encode()
 	}
-	if cfg.UpdateID != "" {
-		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
-	}
-	endpoint.RawQuery = query.Encode()
+
 	if cfg.ConnectorName != "" {
 		endpoint = endpoint.JoinPath(cfg.ConnectorName)
 	}
@@ -545,7 +529,7 @@ type AuthenticationSettings struct {
 	// PrivateKeyPolicy contains the cluster-wide private key policy.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
-	PIVSlot hardwarekey.PIVSlotKeyString `json:"piv_slot"`
+	PIVSlot keys.PIVSlot `json:"piv_slot"`
 	// DeviceTrust holds cluster-wide device trust settings.
 	DeviceTrust DeviceTrustSettings `json:"device_trust,omitempty"`
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
@@ -557,9 +541,6 @@ type AuthenticationSettings struct {
 	// DefaultSessionTTL is the TTL requested for user certs if
 	// a TTL is not otherwise specified.
 	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
-	// SignatureAlgorithmSuite is the configured signature algorithm suite for
-	// the cluster.
-	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.
@@ -588,8 +569,6 @@ type SAMLSettings struct {
 	Display string `json:"display"`
 	// SingleLogoutEnabled is whether SAML SLO (single logout) is enabled for this auth connector.
 	SingleLogoutEnabled bool `json:"singleLogoutEnabled,omitempty"`
-	// SSO is the URL of the identity provider's SSO service.
-	SSO string
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.
@@ -598,8 +577,6 @@ type OIDCSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
-	// Issuer URL is the endpoint of the provider
-	IssuerURL string
 }
 
 // GithubSettings contains the Name and Display string for Github connector.
@@ -608,8 +585,6 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
-	// EndpointURL is the endpoint URL.
-	EndpointURL string
 }
 
 // DeviceTrustSettings holds cluster-wide device trust settings that are liable

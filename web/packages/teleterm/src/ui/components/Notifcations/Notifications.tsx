@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
+import { Info, Warning } from 'design/Icon';
 import {
   Notification,
   type NotificationItem,
@@ -29,15 +31,37 @@ interface NotificationsProps {
   onRemoveItem(id: string): void;
 }
 
+const notificationConfig: Record<
+  NotificationItem['severity'],
+  { Icon: React.ElementType; getColor(theme): string; isAutoRemovable: boolean }
+> = {
+  error: {
+    Icon: Warning,
+    getColor: theme => theme.colors.error.main,
+    isAutoRemovable: false,
+  },
+  warn: {
+    Icon: Warning,
+    getColor: theme => theme.colors.warning.main,
+    isAutoRemovable: true,
+  },
+  info: {
+    Icon: Info,
+    getColor: theme => theme.colors.info,
+    isAutoRemovable: true,
+  },
+};
+
 export function Notifications(props: NotificationsProps) {
   return (
     <Container>
       {props.items.map(item => (
         <Notification
-          mb={3}
+          style={{ marginBottom: '12px' }}
           key={item.id}
           item={item}
           onRemove={() => props.onRemoveItem(item.id)}
+          {...notificationConfig[item.severity]}
         />
       ))}
     </Container>

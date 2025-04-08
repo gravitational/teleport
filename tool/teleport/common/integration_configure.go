@@ -64,6 +64,24 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 	return trace.Wrap(awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, confReq))
 }
 
+func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConfEICEIAM) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	clt, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	confReq := awsoidc.EICEIAMConfigureRequest{
+		Region:          params.Region,
+		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
+	}
+	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, clt, confReq))
+}
+
 func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationConfEC2SSMIAM) error {
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
@@ -134,12 +152,11 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 	}
 
 	confReq := awsoidc.IdPIAMConfigureRequest{
-		Cluster:                 clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
-		IntegrationName:         clf.IntegrationConfAWSOIDCIdPArguments.Name,
-		IntegrationRole:         clf.IntegrationConfAWSOIDCIdPArguments.Role,
-		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
-		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
-		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
+		Cluster:            clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
+		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
+		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
+		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		AutoConfirm:        clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -221,22 +238,6 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 		AutoConfirm:     params.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
-}
-
-func onIntegrationConfAccessGraphAzureSync(ctx context.Context, params config.IntegrationConfAccessGraphAzureSync) error {
-	// Ensure we print output to the user. LogLevel at this point was set to Error.
-	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
-	confReq := azureoidc.AccessGraphAzureConfigureRequest{
-		ManagedIdentity: params.ManagedIdentity,
-		RoleName:        params.RoleName,
-		SubscriptionID:  params.SubscriptionID,
-		AutoConfirm:     params.AutoConfirm,
-	}
-	clt, err := azureoidc.NewAzureConfigClient(params.SubscriptionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(azureoidc.ConfigureAccessGraphSyncAzure(ctx, clt, confReq))
 }
 
 func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.IntegrationConfAzureOIDC) error {

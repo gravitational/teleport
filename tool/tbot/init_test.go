@@ -30,11 +30,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -106,24 +104,19 @@ func getACLOptions() (*botfs.ACLOptions, error) {
 	}, nil
 }
 
+// testConfigFromCLI creates a BotConfig from the given CLI config.
+func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
+	cfg, err := config.FromCLIConf(cf)
+	require.NoError(t, err)
+
+	return cfg
+}
+
 // testConfigFromString parses a YAML config file from a string.
-func testConfigFromString(t *testing.T, yamlStr string) *config.BotConfig {
-	// Load YAML to validate syntax.
-	cfg, err := config.ReadConfig(strings.NewReader(yamlStr), false)
+func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
+	cfg, err := config.ReadConfig(strings.NewReader(yaml), false)
 	require.NoError(t, err)
 	require.NoError(t, cfg.CheckAndSetDefaults())
-
-	// Reencode as a string
-	out := &strings.Builder{}
-	enc := yaml.NewEncoder(out)
-	enc.SetIndent(2)
-	err = enc.Encode(cfg)
-	require.NoError(t, err)
-
-	// Load and return the static config
-	globalArgs := cli.NewGlobalArgsWithStaticConfig(out.String())
-	cfg, err = cli.LoadConfigWithMutators(globalArgs)
-	require.NoError(t, err)
 
 	return cfg
 }
@@ -151,18 +144,14 @@ func validateFileDestination(t *testing.T, svc config.Initable) *config.Destinat
 // specified, this never tries to use ACLs.
 func TestInit(t *testing.T) {
 	dir := t.TempDir()
-	cmd := &cli.InitCommand{
-		LegacyDestinationDirArgs: &cli.LegacyDestinationDirArgs{
-			DestinationDir: dir,
-		},
-		AuthProxyArgs: cli.NewStaticAuthServer("example.com"),
+	cf := &config.CLIConf{
+		AuthServer:     "example.com",
+		DestinationDir: dir,
 	}
+	cfg := testConfigFromCLI(t, cf)
 
 	// Run init.
-	require.NoError(t, onInit(&cli.GlobalArgs{}, cmd))
-
-	cfg, err := cli.LoadConfigWithMutators(&cli.GlobalArgs{}, cmd)
-	require.NoError(t, err)
+	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
 	_ = validateFileDestination(t, cfg.GetInitables()[0])
@@ -196,25 +185,20 @@ func TestInitMaybeACLs(t *testing.T) {
 	// Note: we'll use the current user as owner as that's the only way to
 	// guarantee ACL write access.
 	dir := t.TempDir()
-	cmd := &cli.InitCommand{
-		LegacyDestinationDirArgs: &cli.LegacyDestinationDirArgs{
-			DestinationDir: dir,
-		},
-		BotUser:    opts.BotUser.Username,
-		ReaderUser: opts.ReaderUser.Username,
+	cf := &config.CLIConf{
+		AuthServer:     "example.com",
+		DestinationDir: dir,
+		BotUser:        opts.BotUser.Username,
+		ReaderUser:     opts.ReaderUser.Username,
 
 		// This isn't a default, but unfortunately we need to specify a
 		// non-nobody owner for CI purposes.
 		Owner: fmt.Sprintf("%s:%s", currentUser.Username, currentGroup.Name),
-
-		AuthProxyArgs: cli.NewStaticAuthServer("example.com"),
 	}
-
-	cfg, err := cli.LoadConfigWithMutators(&cli.GlobalArgs{}, cmd)
-	require.NoError(t, err)
+	cfg := testConfigFromCLI(t, cf)
 
 	// Run init.
-	require.NoError(t, onInit(&cli.GlobalArgs{}, cmd))
+	require.NoError(t, onInit(cfg, cf))
 
 	// Make sure everything was created.
 	destDir := validateFileDestination(t, cfg.GetInitables()[0])
@@ -254,18 +238,14 @@ func TestInitSymlink(t *testing.T) {
 	require.NoError(t, os.Symlink(realPath, dataDir))
 
 	// Should fail due to symlink in path.
-	cfgStr := fmt.Sprintf(testInitSymlinksTemplate, dataDir, botfs.SymlinksSecure)
-	globals := cli.NewGlobalArgsWithStaticConfig(cfgStr)
-	require.Error(t, onInit(globals, &cli.InitCommand{}))
+	cfg := testConfigFromString(t, fmt.Sprintf(testInitSymlinksTemplate, dataDir, botfs.SymlinksSecure))
+	require.Error(t, onInit(cfg, &config.CLIConf{}))
 
 	// Should succeed when writing to the dir directly.
-	cfgStr = fmt.Sprintf(testInitSymlinksTemplate, realPath, botfs.SymlinksSecure)
-	globals = cli.NewGlobalArgsWithStaticConfig(cfgStr)
-	require.NoError(t, onInit(globals, &cli.InitCommand{}))
+	cfg = testConfigFromString(t, fmt.Sprintf(testInitSymlinksTemplate, realPath, botfs.SymlinksSecure))
+	require.NoError(t, onInit(cfg, &config.CLIConf{}))
 
-	// Make sure everything was created. We'll have to rebuild the config from
-	// scratch since we don't have a copy available.
-	cfg := testConfigFromString(t, cfgStr)
+	// Make sure everything was created.
 	_ = validateFileDestination(t, cfg.GetInitables()[0])
 }
 
@@ -278,7 +258,6 @@ func TestInitSymlinkInsecure(t *testing.T) {
 	require.NoError(t, os.Symlink(realPath, dataDir))
 
 	// Should succeed due to SymlinksInsecure
-
-	globals := cli.NewGlobalArgsWithStaticConfig(fmt.Sprintf(testInitSymlinksTemplate, dataDir, botfs.SymlinksInsecure))
-	require.Error(t, onInit(globals, &cli.InitCommand{}))
+	cfg := testConfigFromString(t, fmt.Sprintf(testInitSymlinksTemplate, dataDir, botfs.SymlinksInsecure))
+	require.Error(t, onInit(cfg, &config.CLIConf{}))
 }

@@ -19,9 +19,8 @@
 package tbot
 
 import (
-	"cmp"
 	"context"
-	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -35,7 +34,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -94,9 +93,9 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
-	jitter := retryutils.DefaultJitter
+	jitter := retryutils.NewJitter()
 	var res *machineidv1pb.SignX509SVIDsResponse
-	var privateKey crypto.Signer
+	var privateKey *rsa.PrivateKey
 	var jwtSVIDs map[string]string
 	var failures int
 	firstRun := make(chan struct{}, 1)
@@ -135,7 +134,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 				privateKey = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(s.botCfg.RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			res = nil
 			privateKey = nil
@@ -164,7 +163,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 	ctx context.Context,
 ) (
 	*machineidv1pb.SignX509SVIDsResponse,
-	crypto.Signer,
+	*rsa.PrivateKey,
 	map[string]string,
 	error,
 ) {
@@ -179,20 +178,19 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		return nil, nil, nil, trace.Wrap(err, "fetching roles")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		effectiveLifetime.TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, s.botCfg.CertificateTTL, s.botCfg.RenewalInterval)
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
@@ -207,7 +205,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		ctx,
 		impersonatedClient,
 		[]config.SVIDRequest{s.cfg.SVID},
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
@@ -218,7 +216,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		impersonatedClient,
 		s.cfg.SVID,
 		s.cfg.JWTs,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL)
+		s.botCfg.CertificateTTL)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
 	}
@@ -230,7 +228,7 @@ func (s *SPIFFESVIDOutputService) render(
 	ctx context.Context,
 	bundleSet *workloadidentity.BundleSet,
 	res *machineidv1pb.SignX509SVIDsResponse,
-	privateKey crypto.Signer,
+	privateKey *rsa.PrivateKey,
 	jwtSVIDs map[string]string,
 ) error {
 	ctx, span := tracer.Start(
@@ -366,15 +364,13 @@ func generateSVID(
 	clt *authclient.Client,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
-) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
+) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"generateSVID",
 	)
 	defer span.End()
-	privateKey, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
-		cryptosuites.BotSVID)
+	privateKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

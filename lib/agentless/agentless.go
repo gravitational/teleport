@@ -29,10 +29,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -50,14 +49,9 @@ type CertGenerator interface {
 	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
 }
 
-// LocalAccessPoint should be a cache of the local cluster auth preference.
-type LocalAccessPoint interface {
-	GetAuthPreference(context.Context) (types.AuthPreference, error)
-}
-
 // SignerCreator returns an [ssh.Signer] that can be used to authenticate
 // with an agentless node.
-type SignerCreator func(ctx context.Context, localAccessPoint LocalAccessPoint, certGen CertGenerator) (ssh.Signer, error)
+type SignerCreator func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error)
 
 // SignerFromSSHIdentity returns a function that attempts to
 // create a [ssh.Signer] for the Identity in the provided [ssh.Certificate]
@@ -66,7 +60,7 @@ type SignerCreator func(ctx context.Context, localAccessPoint LocalAccessPoint, 
 // passed into the returned function must be connected to the same cluster
 // as the target node.
 func SignerFromSSHIdentity(ident *sshca.Identity, authClient AuthProvider, clusterName, teleportUser string) SignerCreator {
-	return func(ctx context.Context, localAccessPoint LocalAccessPoint, certGen CertGenerator) (ssh.Signer, error) {
+	return func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error) {
 		u, err := authClient.GetUser(ctx, teleportUser, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -94,7 +88,7 @@ func SignerFromSSHIdentity(ident *sshca.Identity, authClient AuthProvider, clust
 			roles:        roles,
 			ttl:          ttl,
 		}
-		signer, err := createAuthSigner(ctx, params, localAccessPoint, certGen)
+		signer, err := createAuthSigner(ctx, params, certGen)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -110,7 +104,7 @@ func SignerFromSSHIdentity(ident *sshca.Identity, authClient AuthProvider, clust
 // passed into the returned function must be connected to the same cluster
 // as the target node.
 func SignerFromAuthzContext(authzCtx *authz.Context, authClient AuthProvider, clusterName string) SignerCreator {
-	return func(ctx context.Context, localAccessPoint LocalAccessPoint, certGen CertGenerator) (ssh.Signer, error) {
+	return func(ctx context.Context, certGen CertGenerator) (ssh.Signer, error) {
 		u, ok := authzCtx.User.(*types.UserV2)
 		if !ok {
 			return nil, trace.BadParameter("unsupported user type %T", u)
@@ -136,7 +130,7 @@ func SignerFromAuthzContext(authzCtx *authz.Context, authClient AuthProvider, cl
 			roles:        roles,
 			ttl:          time.Until(identity.Expires),
 		}
-		signer, err := createAuthSigner(ctx, params, localAccessPoint, certGen)
+		signer, err := createAuthSigner(ctx, params, certGen)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -171,13 +165,9 @@ type certParams struct {
 
 // createAuthSigner creates a [ssh.Signer] that is signed with
 // OpenSSH CA and can be used to authenticate to agentless nodes.
-func createAuthSigner(ctx context.Context, params certParams, localAccessPoint LocalAccessPoint, certGen CertGenerator) (ssh.Signer, error) {
+func createAuthSigner(ctx context.Context, params certParams, certGen CertGenerator) (ssh.Signer, error) {
 	// generate a new key pair
-	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(localAccessPoint), cryptosuites.UserSSH)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	priv, err := keys.NewSoftwarePrivateKey(key)
+	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -17,7 +17,13 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import api from 'teleport/services/api';
 import {
   DiscoverEvent,
@@ -28,11 +34,11 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
-import { RequiredDiscoverProviders } from './Fixtures/fixtures';
 import { SERVERS } from './SelectResource/resources';
-import { useDiscover } from './useDiscover';
+import { DiscoverProvider, useDiscover } from './useDiscover';
 
 describe('emitting events', () => {
+  const ctx = createTeleportContext();
   let wrapper;
 
   beforeEach(() => {
@@ -42,9 +48,13 @@ describe('emitting events', () => {
       .mockResolvedValue(null as never); // return value does not matter but required by ts
 
     wrapper = ({ children }) => (
-      <RequiredDiscoverProviders agentMeta={undefined} resourceSpec={undefined}>
-        {children}
-      </RequiredDiscoverProviders>
+      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
+        <ContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={[]}>
+            <DiscoverProvider>{children}</DiscoverProvider>
+          </FeaturesContextProvider>
+        </ContextProvider>
+      </MemoryRouter>
     );
   });
 

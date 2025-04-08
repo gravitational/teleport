@@ -1,4 +1,5 @@
 //go:build bpf && !386
+// +build bpf,!386
 
 /*
  * Teleport
@@ -34,6 +35,7 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 
 	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -41,7 +43,6 @@ import (
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 //go:embed bytecode
@@ -95,7 +96,7 @@ type Service struct {
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
-	argsCache *utils.FnCache
+	argsCache *ttlmap.TTLMap
 
 	// closeContext is used to signal the BPF service is shutting down to all
 	// goroutines.
@@ -122,18 +123,20 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeContext, closeFunc := context.WithCancel(context.Background())
-
 	// If BPF-based auditing is not enabled, don't configure anything return
 	// right away.
 	if !config.Enabled {
-		logger.DebugContext(closeContext, "Enhanced session recording is not enabled, skipping")
+		log.Debugf("Enhanced session recording is not enabled, skipping.")
 		return &NOP{}, nil
 	}
 
+	closeContext, closeFunc := context.WithCancel(context.Background())
+
 	s := &Service{
-		BPFConfig:    config,
-		watch:        NewSessionWatch(),
+		BPFConfig: config,
+
+		watch: NewSessionWatch(),
+
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
 	}
@@ -149,20 +152,19 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	defer func() {
 		if err != nil {
 			if err := s.cgroup.Close(true); err != nil {
-				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
+				log.WithError(err).Warn("Failed to close cgroup")
 			}
 		}
 	}()
 
-	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL: 24 * time.Hour,
-	})
+	// Create args cache used by the exec BPF program.
+	s.argsCache, err = ttlmap.New(ArgsCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	start := time.Now()
-	logger.DebugContext(closeContext, "Starting enhanced session recording")
+	log.Debugf("Starting enhanced session recording.")
 
 	// Compile and start BPF programs if they are enabled (buffer size given).
 	s.exec, err = startExec(*config.CommandBufferSize)
@@ -180,13 +182,10 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(closeContext, "Started enhanced session recording",
-		"command_buffer_size", *s.CommandBufferSize,
-		"disk_buffer_size", *s.DiskBufferSize,
-		"network_buffer_size", *s.NetworkBufferSize,
-		"cgroup_mount_path", s.CgroupPath,
-		"elapsed", time.Since(start),
-	)
+	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+		"disk=%v, network=%v) and cgroup mount path: %v. Took %v.",
+		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
+		s.CgroupPath, time.Since(start))
 
 	go s.processNetworkEvents()
 
@@ -215,7 +214,7 @@ func (s *Service) Close(restarting bool) error {
 	// we're restarting.
 	skipCgroupUnmount := restarting
 	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
-		logger.WarnContext(s.closeContext, "Failed to close cgroup", "error", err)
+		log.WithError(err).Warn("Failed to close cgroup")
 	}
 
 	// Signal to the processAccessEvents pulling events off the perf buffer to shutdown.
@@ -249,7 +248,7 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 			// Clean up all already opened modules.
 			for _, closer := range initializedModClosures {
 				if closeErr := closer.endSession(cgroupID); closeErr != nil {
-					logger.DebugContext(s.closeContext, "failed to close session", "error", closeErr)
+					log.Debugf("failed to close session: %v", closeErr)
 				}
 			}
 			return 0, trace.Wrap(err)
@@ -345,7 +344,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	var event rawExecEvent
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -365,34 +364,27 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// Args are sent in their own event by execsnoop to save stack space. Store
 	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
-		key := strconv.FormatUint(event.PID, 10)
-
-		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
-			return make([]string, 0), nil
-		})
-		if err != nil {
-			logger.WarnContext(s.closeContext, "Unable to retrieve args from FnCache - this is a bug!", "error", err)
-			args = []string{}
+		var buf []string
+		buffer, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
+		if !ok {
+			buf = make([]string, 0)
+		} else {
+			buf = buffer.([]string)
 		}
 
 		argv := (*C.char)(unsafe.Pointer(&event.Argv))
-		args = append(args, C.GoString(argv))
-
-		s.argsCache.SetWithTTL(key, args, 24*time.Hour)
+		buf = append(buf, C.GoString(argv))
+		s.argsCache.Set(strconv.FormatUint(event.PID, 10), buf, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
-		key := strconv.FormatUint(event.PID, 10)
-
-		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
-			return nil, trace.NotFound("args missing")
-		})
-
-		if err != nil {
-			logger.DebugContext(s.closeContext, "Got event with missing args, skipping")
+		args, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
+		if !ok {
+			log.Debugf("Got event with missing args: skipping.")
 			lostCommandEvents.Add(float64(1))
 			return
 		}
+		argv := args.([]string)
 
 		// Emit "command" event.
 		sessionCommandEvent := &apievents.SessionCommand{
@@ -420,15 +412,15 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			},
 			PPID:       event.PPID,
 			ReturnCode: event.ReturnCode,
-			Path:       args[0],
-			Argv:       args[1:],
+			Path:       argv[0],
+			Argv:       argv[1:],
 		}
 		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
-			logger.WarnContext(ctx.Context, "Failed to emit command event", "error", err)
+			log.WithError(err).Warn("Failed to emit command event.")
 		}
 
 		// Now that the event has been processed, remove from cache.
-		s.argsCache.Remove(key)
+		s.argsCache.Remove(strconv.FormatUint(event.PID, 10))
 	}
 }
 
@@ -438,7 +430,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 	var event rawOpenEvent
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -491,7 +483,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	var event rawConn4Event
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -538,7 +530,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		TCPVersion: 4,
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
-		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
+		log.WithError(err).Warn("Failed to emit network event.")
 	}
 }
 
@@ -548,7 +540,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	var event rawConn6Event
 	err := unmarshalEvent(eventBytes, &event)
 	if err != nil {
-		logger.DebugContext(s.closeContext, "Failed to read binary data", "error", err)
+		log.Debugf("Failed to read binary data: %v.", err)
 		return
 	}
 
@@ -595,7 +587,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		TCPVersion: 6,
 	}
 	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
-		logger.WarnContext(ctx.Context, "Failed to emit network event", "error", err)
+		log.WithError(err).Warn("Failed to emit network event.")
 	}
 }
 

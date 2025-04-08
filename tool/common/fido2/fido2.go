@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -33,6 +32,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
@@ -161,10 +161,7 @@ func (c *AttobjCommand) Run() error {
 
 				cert, err := x509.ParseCertificate(certDER)
 				if err != nil {
-					slog.WarnContext(context.Background(), "Failed to parse X.509 from x5c, continuing",
-						"index", i,
-						"error", err,
-					)
+					log.WithError(err).Warnf("Failed to parse X.509 from x5c[%v], continuing", i)
 					continue
 				}
 

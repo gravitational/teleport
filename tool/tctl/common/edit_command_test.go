@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -90,10 +91,6 @@ func TestEditResources(t *testing.T) {
 		{
 			kind: types.KindAutoUpdateVersion,
 			edit: testEditAutoUpdateVersion,
-		},
-		{
-			kind: types.KindDynamicWindowsDesktop,
-			edit: testEditDynamicWindowsDesktop,
 		},
 	}
 
@@ -286,7 +283,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		}
 
 		expected.SetRevision(initial.GetRevision())
-		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
+		expected.SetSecondFactor(constants.SecondFactorOff)
 
 		collection := &authPrefCollection{authPref: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
@@ -299,7 +296,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 
 	actual, err := clt.GetAuthPreference(ctx)
 	require.NoError(t, err, "retrieving cap after edit")
-	assert.NotEqual(t, initial.GetSecondFactors(), actual.GetSecondFactors(), "second factors should have been modified by edit")
+	assert.NotEqual(t, initial.GetSecondFactor(), actual.GetSecondFactor(), "second factor should have been modified by edit")
 	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Labels")))
 	assert.Equal(t, types.OriginDynamic, actual.Origin())
 
@@ -638,36 +635,4 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	assert.NotEqual(t, initial.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion(),
 		"tools_autoupdate should have been modified by edit")
 	assert.Equal(t, expected.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion())
-}
-
-func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
-	ctx := context.Background()
-
-	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
-		Addr: "test",
-	})
-	require.NoError(t, err)
-	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, expected)
-	require.NoError(t, err)
-
-	editor := func(name string) error {
-		f, err := os.Create(name)
-		if err != nil {
-			return trace.Wrap(err, "opening file to edit")
-		}
-
-		expected.SetRevision(created.GetRevision())
-		expected.Spec.Addr = "test2"
-
-		collection := &dynamicWindowsDesktopCollection{desktops: []types.DynamicWindowsDesktop{expected}}
-		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-	}
-
-	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))
-	require.NoError(t, err)
-
-	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, expected.GetName())
-	require.NoError(t, err)
-	expected.SetRevision(actual.GetRevision())
-	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
 }

@@ -218,16 +218,12 @@ func Run(args []string) int {
 		err = cmdUnlinkPackage(ctx, &ccfg)
 	case setupCmd.FullCommand():
 		err = cmdSetup(ctx, &ccfg)
+	case statusCmd.FullCommand():
+		err = cmdStatus(ctx, &ccfg)
 	case uninstallCmd.FullCommand():
 		err = cmdUninstall(ctx, &ccfg)
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
-	case statusCmd.FullCommand():
-		err = cmdStatus(ctx, &ccfg)
-		if errors.Is(err, autoupdate.ErrNotInstalled) {
-			plog.ErrorContext(ctx, "Teleport is not installed by teleport-update with this suffix.")
-			return 1
-		}
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.Errorf("command %s not configured", command)
@@ -471,6 +467,10 @@ func cmdStatus(ctx context.Context, ccfg *cliConfig) error {
 	status, err := updater.Status(ctx)
 	if err != nil {
 		return trace.Wrap(err, "failed to get status")
+	}
+	if errors.Is(err, autoupdate.ErrNotInstalled) {
+		plog.InfoContext(ctx, "Teleport is not installed by teleport-update with this suffix.")
+		return nil
 	}
 	enc := yaml.NewEncoder(os.Stdout)
 	return trace.Wrap(enc.Encode(status))

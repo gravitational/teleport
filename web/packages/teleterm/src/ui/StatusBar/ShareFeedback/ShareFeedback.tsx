@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef } from 'react';
+import React, { useRef } from 'react';
 import styled from 'styled-components';
 
-import { ButtonText, Popover } from 'design';
+import { ButtonIcon, Popover } from 'design';
 import { ChatBubble } from 'design/Icon';
 
 import { ShareFeedbackForm } from './ShareFeedbackForm';
@@ -40,18 +40,18 @@ export function ShareFeedback() {
 
   return (
     <>
-      <ButtonText
+      <ButtonIcon
         css={`
           position: relative;
         `}
         setRef={buttonRef}
         title="Share feedback"
-        size="small"
+        size={0}
         onClick={openShareFeedback}
       >
         {!hasBeenShareFeedbackOpened && <NotOpenedYetIndicator />}
-        <ChatBubble size="small" />
-      </ButtonText>
+        <ChatBubble size="small" mb={1} />
+      </ButtonIcon>
       <Popover
         open={isShareFeedbackOpened}
         anchorEl={buttonRef.current}

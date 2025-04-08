@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -192,7 +193,9 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: teleport.ComponentAuth,
+	})
 
 	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
@@ -210,8 +213,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream-when-proxy-recording",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -231,8 +234,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream--when-proxy-sync-recording",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -252,8 +255,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -292,8 +295,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "best-effort-err-new-audit-writer-succeeds",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -339,8 +342,8 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "audit-writer",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -381,7 +384,9 @@ func TestSession_newRecorder(t *testing.T) {
 func TestSession_emitAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	logger := utils.NewSlogLoggerForTests()
+	logger := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: teleport.ComponentAuth,
+	})
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
 		srv := newMockServer(t)
@@ -393,8 +398,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		t.Cleanup(func() { reg.Close() })
 
 		sess := &session{
-			id:     "test",
-			logger: logger,
+			id:  "test",
+			log: logger,
 			recorder: &mockRecorder{
 				SessionPreparerRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
 				done:                    true,
@@ -731,15 +736,7 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-
-	// TODO(Joerger): Closing the host party's server context will result in the terminal
-	// shell being killed, and the session ending for all parties. Once this bug is
-	// fixed, we can re-enable this section of the test. For now just close the party.
-	// https://github.com/gravitational/teleport/issues/46308
-	//
-	// require.NoError(t, p.ctx.Close())
-
-	require.NoError(t, p.Close())
+	require.NoError(t, p.ctx.Close())
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -782,7 +779,7 @@ func TestParties(t *testing.T) {
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	scx := newTestServerContext(t, reg.Srv, nil)
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(context.Background(), sess, sshChanOpen)
+	scx.setSession(sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -1076,8 +1073,8 @@ func TestTrackingSession(t *testing.T) {
 			}
 
 			sess := &session{
-				id:     rsession.NewID(),
-				logger: utils.NewSlogLoggerForTests().With(teleport.ComponentKey, "test-session"),
+				id:  rsession.NewID(),
+				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
 					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
@@ -1387,6 +1384,7 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 		require.Fail(t, "timeout while waiting for the SSH session")
 		return nil
 	}
+
 }
 
 func TestUpsertHostUser(t *testing.T) {
@@ -1395,15 +1393,14 @@ func TestUpsertHostUser(t *testing.T) {
 	cases := []struct {
 		name string
 
-		identityContext   IdentityContext
-		hostUsers         *fakeHostUsersBackend
-		createHostUser    bool
-		obtainFallbackUID ObtainFallbackUIDFunc
+		identityContext IdentityContext
+		hostUsers       *fakeHostUsersBackend
+		createHostUser  bool
 
 		expectCreated     bool
 		expectErrIs       error
 		expectErrContains string
-		expectUsers       map[string]fakeUser
+		expectUsers       map[string][]string
 	}{
 		{
 			name:           "should upsert existing user with permission",
@@ -1416,14 +1413,14 @@ func TestUpsertHostUser(t *testing.T) {
 					},
 				},
 			},
-			hostUsers: &fakeHostUsersBackend{users: map[string]fakeUser{
+			hostUsers: &fakeHostUsersBackend{users: map[string][]string{
 				username: {},
 			}},
 
 			expectCreated: true,
 
-			expectUsers: map[string]fakeUser{
-				username: {groups: []string{"foo", "bar"}},
+			expectUsers: map[string][]string{
+				username: {"foo", "bar"},
 			},
 		},
 		{
@@ -1440,8 +1437,8 @@ func TestUpsertHostUser(t *testing.T) {
 			hostUsers: &fakeHostUsersBackend{},
 
 			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {groups: []string{"foo", "bar"}},
+			expectUsers: map[string][]string{
+				username: {"foo", "bar"},
 			},
 		},
 		{
@@ -1449,14 +1446,14 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser:  true,
 			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
 			hostUsers: &fakeHostUsersBackend{
-				users: map[string]fakeUser{
+				users: map[string][]string{
 					username: {},
 				},
 			},
 
 			expectCreated: false,
 			expectErrIs:   trace.AccessDenied("test"),
-			expectUsers: map[string]fakeUser{
+			expectUsers: map[string][]string{
 				username: {},
 			},
 		},
@@ -1467,7 +1464,7 @@ func TestUpsertHostUser(t *testing.T) {
 			hostUsers:       &fakeHostUsersBackend{},
 
 			expectCreated:     false,
-			expectUsers:       nil,
+			expectUsers:       make(map[string][]string),
 			expectErrIs:       trace.AccessDenied("test"),
 			expectErrContains: "insufficient permissions for host user creation",
 		},
@@ -1478,96 +1475,7 @@ func TestUpsertHostUser(t *testing.T) {
 			hostUsers:       &fakeHostUsersBackend{},
 
 			expectCreated: false,
-			expectUsers:   nil,
-		},
-		{
-			name:           "should use fallback UIDs in keep mode",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessChecker: &fakeAccessChecker{
-					hostInfo: services.HostUsersInfo{
-						Mode: services.HostUserModeKeep,
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 1, true, nil
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {uid: "1", gid: "1"},
-			},
-		},
-		{
-			name:           "should only use fallback UIDs in keep mode",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessChecker: &fakeAccessChecker{
-					hostInfo: services.HostUsersInfo{
-						Mode: services.HostUserModeDrop,
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 0, false, trace.BadParameter("not reached")
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {},
-			},
-		},
-		{
-			name:           "should only use fallback UIDs for users that don't exist",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessChecker: &fakeAccessChecker{
-					hostInfo: services.HostUsersInfo{
-						Mode: services.HostUserModeKeep,
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{
-				users: map[string]fakeUser{
-					username: {},
-				},
-			},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 0, false, trace.BadParameter("not reached")
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {},
-			},
-		},
-		{
-			name:           "should not override a configured GID",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessChecker: &fakeAccessChecker{
-					hostInfo: services.HostUsersInfo{
-						Mode: services.HostUserModeKeep,
-						GID:  "set",
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 1, true, nil
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {uid: "1", gid: "set"},
-			},
+			expectUsers:   make(map[string][]string),
 		},
 	}
 
@@ -1581,7 +1489,7 @@ func TestUpsertHostUser(t *testing.T) {
 				users: c.hostUsers,
 			}
 
-			userCreated, _, err := registry.UpsertHostUser(c.identityContext, c.obtainFallbackUID)
+			userCreated, _, err := registry.UpsertHostUser(c.identityContext)
 
 			if c.expectErrIs != nil {
 				assert.ErrorIs(t, err, c.expectErrIs)
@@ -1597,12 +1505,10 @@ func TestUpsertHostUser(t *testing.T) {
 
 			assert.Equal(t, c.expectCreated, userCreated)
 
-			for name, user := range c.hostUsers.users {
-				expectedUser, ok := c.expectUsers[name]
+			for name, groups := range c.hostUsers.users {
+				expectedGroups, ok := c.expectUsers[name]
 				assert.True(t, ok, "user must be present in expected users")
-				assert.ElementsMatch(t, expectedUser.groups, user.groups)
-				assert.Equal(t, expectedUser.uid, user.uid)
-				assert.Equal(t, expectedUser.gid, user.gid)
+				assert.ElementsMatch(t, expectedGroups, groups)
 			}
 		})
 	}
@@ -1719,34 +1625,29 @@ func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo
 	return &f.hostInfo, f.err
 }
 
-type fakeUser struct {
-	groups []string
-	uid    string
-	gid    string
-}
-
 type fakeHostUsersBackend struct {
 	HostUsers
 
-	users map[string]fakeUser
+	users map[string][]string
 }
 
 func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
 	if f.users == nil {
-		f.users = make(map[string]fakeUser)
+		f.users = make(map[string][]string)
 	}
 
-	f.users[name] = fakeUser{
-		groups: hostRoleInfo.Groups,
-		uid:    hostRoleInfo.UID,
-		gid:    hostRoleInfo.GID,
-	}
+	f.users[name] = hostRoleInfo.Groups
 	return nil, nil
 }
 
 func (f *fakeHostUsersBackend) UserExists(name string) error {
-	if _, exists := f.users[name]; !exists {
-		return trace.NotFound("%v", name)
+	if f.users == nil {
+		return trace.NotFound(name)
+	}
+
+	_, exists := f.users[name]
+	if !exists {
+		return trace.NotFound(name)
 	}
 
 	return nil

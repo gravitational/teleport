@@ -277,24 +277,24 @@ func resolveTargetHostWithClient(
 
 func parseIdentity(destPath, proxy, cluster string, insecure, fips bool) (*identity.Facade, agent.ExtendedAgent, error) {
 	identityPath := filepath.Join(destPath, config.IdentityFilePath)
-	keyRing, err := identityfile.KeyRingFromIdentityFile(identityPath, proxy, cluster)
+	key, err := identityfile.KeyFromIdentityFile(identityPath, proxy, cluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	i, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: keyRing.SSHPrivateKey.PrivateKeyPEM(),
-		PublicKeyBytes:  keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		PrivateKeyBytes: key.PrivateKeyPEM(),
+		PublicKeyBytes:  key.MarshalSSHPublicKey(),
 	}, &proto.Certs{
-		SSH:        keyRing.Cert,
-		TLS:        keyRing.TLSCert,
-		TLSCACerts: keyRing.TLSCAs(),
+		SSH:        key.Cert,
+		TLS:        key.TLSCert,
+		TLSCACerts: key.TLSCAs(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	agentKey, err := keyRing.AsAgentKey()
+	agentKey, err := key.AsAgentKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

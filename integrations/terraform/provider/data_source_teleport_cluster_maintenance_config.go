@@ -76,8 +76,7 @@ func (r dataSourceTeleportClusterMaintenanceConfig) Read(ctx context.Context, re
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
 	v, ok := state.Attrs["id"]
 	if !ok || v.IsNull() {
-		id := clusterMaintenanceConfig.GetName()
-		state.Attrs["id"] = types.String{Value: id}
+		state.Attrs["id"] = types.String{Value: clusterMaintenanceConfig.GetName()}
 	}
 
 	diags = resp.State.Set(ctx, &state)

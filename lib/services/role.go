@@ -31,27 +31,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
@@ -74,14 +72,10 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindApp, RO()),
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
-	types.NewRule(types.KindDynamicWindowsDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
 	types.NewRule(types.KindSPIFFEFederation, RO()),
-	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
-	types.NewRule(types.KindIdentityCenter, RO()),
-	types.NewRule(types.KindGitServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -135,6 +129,9 @@ func NewImplicitRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
+				// Explicitly disable options that default to true, otherwise the option
+				// will always be enabled, as this implicit role is part of every role set.
+				PortForwarding: types.NewBoolOption(false),
 				RecordSession: &types.RecordSession{
 					Desktop: types.NewBoolOption(false),
 				},
@@ -250,7 +247,7 @@ func withWarningReporter(f func(error)) validateRoleOption {
 	}
 }
 
-// ValidateRole parses, validates, and sets default values on a role.
+// ValidateRole parses validates the role, and sets default values.
 func ValidateRole(r types.Role, opts ...validateRoleOption) error {
 	options := defaultValidateRoleOptions()
 	for _, opt := range opts {
@@ -317,26 +314,6 @@ func validateRoleExpressions(r types.Role) error {
 			}
 		}
 
-		for _, ks := range r.GetKubeResources(condition.condition) {
-			_, err := parse.NewTraitsTemplateExpression(ks.Namespace)
-			if err != nil {
-				err = trace.BadParameter("parsing %s.kubernetes_resources.namespace expression: %v", condition.name, err)
-				errs = append(errs, err)
-			}
-			_, err = parse.NewTraitsTemplateExpression(ks.Name)
-			if err != nil {
-				err = trace.BadParameter("parsing %s.kubernetes_resources.name expression: %v", condition.name, err)
-				errs = append(errs, err)
-			}
-			for _, verb := range ks.Verbs {
-				_, err = parse.NewTraitsTemplateExpression(verb)
-				if err != nil {
-					err = trace.BadParameter("parsing %s.kubernetes_resources.verbs expression: %v", condition.name, err)
-					errs = append(errs, err)
-				}
-			}
-		}
-
 		for _, labels := range []struct {
 			name string
 			kind string
@@ -348,7 +325,6 @@ func validateRoleExpressions(r types.Role) error {
 			{"db_labels", types.KindDatabase},
 			{"db_service_labels", types.KindDatabaseService},
 			{"windows_desktop_labels", types.KindWindowsDesktop},
-			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
@@ -512,39 +488,6 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
-		githubPermissions := r.GetGitHubPermissions(condition)
-		for i, perm := range githubPermissions {
-			githubPermissions[i].Organizations = applyValueTraitsSlice(perm.Organizations, traits, "github organizations")
-		}
-		r.SetGitHubPermissions(condition, githubPermissions)
-
-		var out []types.KubernetesResource
-		// we access the resources in the role using the role conditions
-		// to avoid receiving the compatibility resources added in GetKubernetesResources
-		// for roles <v7
-		for _, rec := range r.GetRoleConditions(condition).KubernetesResources {
-			namespaces := applyValueTraitsSlice([]string{rec.Namespace}, traits, "kubernetes resource namespace")
-			if rec.Namespace == "" {
-				namespaces = []string{""}
-			}
-			names := applyValueTraitsSlice([]string{rec.Name}, traits, "kubernetes resource name")
-			if rec.Name == "" {
-				names = []string{""}
-			}
-			verbs := applyValueTraitsSlice(rec.Verbs, traits, "kubernetes resource verb")
-			for _, namespace := range namespaces {
-				for _, name := range names {
-					out = append(out, types.KubernetesResource{
-						Kind:      rec.Kind,
-						Namespace: namespace,
-						Name:      name,
-						Verbs:     verbs,
-					})
-				}
-			}
-		}
-		r.SetKubeResources(condition, out)
-
 		for _, kind := range []string{
 			types.KindRemoteCluster,
 			types.KindNode,
@@ -684,8 +627,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, constants.TraitJWT,
-				constants.TraitGitHubOrgs:
+				constants.TraitGCPServiceAccounts, constants.TraitJWT:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -1557,9 +1499,11 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 
 // CheckAccessToSAMLIdP checks access to the SAML IdP.
 //
+// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
+//
 //nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state AccessState) error {
-	ctx := context.Background()
+func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, states ...AccessState) error {
+	_, debugf := rbacDebugLogger()
 
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
@@ -1567,8 +1511,13 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state 
 		}
 	}
 
+	var state AccessState
+	if len(states) == 1 {
+		state = states[0]
+	}
+
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
-		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, cluster requires per-session MFA")
+		debugf("Access to SAML IdP denied, cluster requires per-session MFA")
 		return trace.Wrap(ErrSessionMFARequired)
 	}
 
@@ -1588,10 +1537,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, state 
 		}
 
 		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, role requires per-session MFA",
-				slog.String("role", role.GetName()),
-			)
-
+			debugf("Access to SAML IdP denied, role %q requires per-session MFA", role.GetName())
 			return trace.Wrap(ErrSessionMFARequired)
 		}
 	}
@@ -2503,38 +2449,31 @@ type AccessCheckable interface {
 	GetAllLabels() map[string]string
 }
 
-var rbacLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentRBAC)
+// rbacDebugLogger creates a debug logger for Teleport's RBAC component.
+// It also returns a flag indicating whether debug logging is enabled,
+// allowing the RBAC system to generate more verbose errors in debug mode.
+func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
+	debugEnabled = log.IsLevelEnabled(log.TraceLevel)
+	debugf = func(format string, args ...interface{}) {}
 
-// resourceRequiresLabelMatching decides if a resource requires lapel matching
-// when making RBAC access decisions.
-func resourceRequiresLabelMatching(r AccessCheckable) bool {
-	// Some resources do not need label matching when assessing whether the user
-	// should be granted access. Enable it by default, but turn it off in the
-	// special cases.
-	switch r.GetKind() {
-	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
-		return false
+	if debugEnabled {
+		debugf = log.WithField(teleport.ComponentKey, teleport.ComponentRBAC).Tracef
 	}
-	return true
+
+	return
 }
 
 func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
-	// Note: logging in this function only happens in trace mode. This is because
+	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
-	ctx := context.Background()
-	logger := rbacLogger
-	isLoggingEnabled := logger.Handler().Enabled(ctx, logutils.TraceLevel)
-	if isLoggingEnabled {
-		logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
-	}
+	isDebugEnabled, debugf := rbacDebugLogger()
 
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
-		logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
+		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
 	}
 
-	requiresLabelMatching := resourceRequiresLabelMatching(r)
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
 
 	// Additional message depending on kind of resource
@@ -2557,23 +2496,18 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		if !matchNamespace {
 			continue
 		}
-		if requiresLabelMatching {
-			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isLoggingEnabled)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if matchLabels {
-				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
-					slog.String("role", role.GetName()),
-					slog.String("namespace_message", namespaceMessage),
-					slog.String("label_message", labelsMessage),
-				)
-				return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
-					r.GetKind(), additionalDeniedMessage)
-			}
-		} else {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Role label matching skipped")
+
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isDebugEnabled)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		if matchLabels {
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
+				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+				r.GetKind(), additionalDeniedMessage)
+		}
+
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
@@ -2581,10 +2515,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			return trace.Wrap(err)
 		}
 		if matchMatchers {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
-				slog.String("role", role.GetName()),
-				slog.Any("matcher_message", matchersMessage),
-			)
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
+				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
 			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
@@ -2602,28 +2534,24 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
 		if !matchNamespace {
-			if isLoggingEnabled {
+			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(namespace=%v)",
 					role.GetName(), namespaceMessage))
 			}
 			continue
 		}
 
-		if requiresLabelMatching {
-			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isLoggingEnabled)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-			if !matchLabels {
-				if isLoggingEnabled {
-					errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
-						role.GetName(), labelsMessage))
-				}
-				continue
+		if !matchLabels {
+			if isDebugEnabled {
+				errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
+					role.GetName(), labelsMessage))
 			}
-		} else {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Role label matching skipped for resource")
+			continue
 		}
 
 		// Allow rules are not greedy. They will match only if all of the
@@ -2633,7 +2561,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			return trace.Wrap(err)
 		}
 		if !matchMatchers {
-			if isLoggingEnabled {
+			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
 					role.GetName(), matchers))
 			}
@@ -2651,43 +2579,37 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// ensure the access is permitted.
 
 		if mfaAllowed && deviceAllowed {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
-				slog.String("role", role.GetName()),
-			)
+			debugf("Access to %v %q granted, allow rule in role %q matched.",
+				r.GetKind(), r.GetName(), role.GetName())
 			return nil
 		}
 
 		// MFA verification.
 		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
-				slog.String("role", role.GetName()),
-			)
+			debugf("Access to %v %q denied, role %q requires per-session MFA",
+				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
 		}
 
 		// Device verification.
 		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
-				slog.String("role", role.GetName()),
-			)
+			debugf("Access to %v %q denied, role %q requires a trusted device",
+				r.GetKind(), r.GetName(), role.GetName())
 			return ErrTrustedDeviceRequired
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
 		// setting.
 		allowed = true
-		logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
-			slog.String("role", role.GetName()),
-		)
+		debugf("Access to %v %q granted, allow rule in role %q matched.",
+			r.GetKind(), r.GetName(), role.GetName())
 	}
 
 	if allowed {
 		return nil
 	}
 
-	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
-		slog.Any("errors", errs),
-	)
+	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
 	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
 }
@@ -2814,65 +2736,14 @@ func (set RoleSet) CanForwardAgents() bool {
 	return false
 }
 
-// SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet. Port forwarding is implicitly allowed, but explicit denies take
-// precedence of explicit allows when using SSHPortForwarding. The legacy PortForwarding field prefers explicit allows for backwards
-// compatibility reasons, but is only evaluated in the absence of an SSHPortForwarding config on the same role.
-func (set RoleSet) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
-	var denyRemote, denyLocal, legacyDeny bool
-	legacyCanDeny := true
-
-	for _, role := range set {
-		config := role.GetOptions().SSHPortForwarding
-		// only consider legacy allows when config isn't provided on the same role
-		if config == nil {
-			//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
-			if legacy := role.GetOptions().PortForwarding; legacy != nil {
-				if legacy.Value {
-					return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
-				}
-				legacyDeny = true
-			}
-
-			continue
-		}
-
-		if config.Remote != nil && config.Remote.Enabled != nil {
-			if !config.Remote.Enabled.Value {
-				denyRemote = true
-			}
-
-			// an explicit legacy deny is only possible if no explicit SSHPortForwarding config has been provided
-			legacyCanDeny = false
-		}
-
-		if config.Local != nil && config.Local.Enabled != nil {
-			if !config.Local.Enabled.Value {
-				denyLocal = true
-			}
-
-			// an explicit legacy deny is only possible if no explicit SSHPortForwarding config has been provided
-			legacyCanDeny = false
-		}
-	}
-
-	// enforcing implicit allow and preferring allow over explicit deny
-	switch {
-	case denyRemote && denyLocal:
-		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
-	case legacyDeny && legacyCanDeny:
-		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
-	case denyRemote:
-		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL
-	case denyLocal:
-		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE
-	default:
-		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
-	}
-}
-
-// CanPortForward returns true if the RoleSet allows both local and remote port forwarding.
+// CanPortForward returns true if a role in the RoleSet allows port forwarding.
 func (set RoleSet) CanPortForward() bool {
-	return set.SSHPortForwardMode() == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
+	for _, role := range set {
+		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
+			return true
+		}
+	}
+	return false
 }
 
 // RecordDesktopSession returns true if the role set has enabled desktop
@@ -3164,8 +3035,6 @@ func (a *accessExplicitlyDenied) Unwrap() error {
 }
 
 func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
-	ctx := context.Background()
-
 	// Every unknown error, which could be due to a bad role or an expression
 	// that can't parse, should be considered an explicit denial.
 	explicitDeny := true
@@ -3189,13 +3058,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 				return trace.Wrap(err)
 			}
 			if matched {
-				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, deny rule matched",
-					slog.String("verb", p.verb),
-					slog.String("resource", p.resource),
-					slog.String("namespace", p.namespace),
-					slog.String("role", role.GetName()),
-				)
-
+				log.WithFields(log.Fields{
+					teleport.ComponentKey: teleport.ComponentRBAC,
+				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
+					p.verb, p.resource, p.namespace, role.GetName())
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
@@ -3215,12 +3081,10 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 		}
 	}
 
-	rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, no allow rule matched",
-		slog.String("verb", p.verb),
-		slog.String("resource", p.resource),
-		slog.String("namespace", p.namespace),
-		slog.Any("set", set),
-	)
+	log.WithFields(log.Fields{
+		teleport.ComponentKey: teleport.ComponentRBAC,
+	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
+		p.verb, p.resource, p.namespace, set)
 
 	// At this point no deny rule has matched and there are no more unknown
 	// errors, so this is only an implicit denial.
@@ -3477,7 +3341,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 
 	var role types.RoleV6
 	if err := utils.FastUnmarshal(bytes, &role); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if role.Version != version {
 		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
@@ -3513,30 +3377,4 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
-}
-
-// AuthPreferenceGetter defines an interface for getting the authentication
-// preferences.
-type AuthPreferenceGetter interface {
-	// GetAuthPreference fetches the cluster authentication preferences.
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-}
-
-// AccessStateFromSSHIdentity populates access state based on user's SSH
-// identity and auth preference.
-func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
-	authPref, err := authPrefGetter.GetAuthPreference(ctx)
-	if err != nil {
-		return AccessState{}, trace.Wrap(err)
-	}
-	state := checker.GetAccessState(authPref)
-	state.MFAVerified = ident.MFAVerified != ""
-	// Certain hardware-key based private key policies are treated as MFA verification.
-	if ident.PrivateKeyPolicy.MFAVerified() {
-		state.MFAVerified = true
-	}
-
-	state.EnableDeviceVerification = true
-	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
-	return state, nil
 }

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import { forwardRef } from 'react';
+import React from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,14 +50,13 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export const CheckThick = forwardRef<HTMLSpanElement, IconProps>(
-  ({ size = 24, color, ...otherProps }, ref) => (
+export function CheckThick({ size = 24, color, ...otherProps }: IconProps) {
+  return (
     <Icon
       size={size}
       color={color}
       className="icon icon-checkthick"
       {...otherProps}
-      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -65,5 +64,5 @@ export const CheckThick = forwardRef<HTMLSpanElement, IconProps>(
         d="M21.4571 5.29289C21.8476 5.68342 21.8476 6.31658 21.4571 6.70711L9.45711 18.7071C9.06658 19.0976 8.43342 19.0976 8.04289 18.7071L2.79289 13.4571C2.40237 13.0666 2.40237 12.4334 2.79289 12.0429C3.18342 11.6524 3.81658 11.6524 4.20711 12.0429L8.75 16.5858L20.0429 5.29289C20.4334 4.90237 21.0666 4.90237 21.4571 5.29289Z"
       />
     </Icon>
-  )
-);
+  );
+}

@@ -27,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -79,7 +80,7 @@ func TestMFAAuthenticateChallenge_IsMFARequiredApp(t *testing.T) {
 				},
 				Spec: types.AuthPreferenceSpecV2{
 					AllowPasswordless: types.NewBoolOption(true),
-					SecondFactors:     []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN},
+					SecondFactor:      constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},

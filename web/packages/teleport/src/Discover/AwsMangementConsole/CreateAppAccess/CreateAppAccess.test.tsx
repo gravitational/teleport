@@ -16,29 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
 import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  RequiredDiscoverProviders,
-  resourceSpecAppAwsCliConsole,
-} from 'teleport/Discover/Fixtures/fixtures';
-import { AgentMeta } from 'teleport/Discover/useDiscover';
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   integrationService,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { userEventService } from 'teleport/services/userEvent';
-import { ProxyRequiresUpgrade } from 'teleport/services/version/unsupported';
+import {
+  DiscoverEventResource,
+  userEventService,
+} from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { CreateAppAccess } from './CreateAppAccess';
 
 beforeEach(() => {
-  jest
-    .spyOn(userEventService, 'captureDiscoverEvent')
-    .mockResolvedValue(undefined as never);
-  jest.spyOn(integrationService, 'createAwsAppAccessV2').mockResolvedValue(app);
+  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
   jest
     .spyOn(userEventService, 'captureDiscoverEvent')
     .mockResolvedValue(undefined as never);
@@ -49,56 +56,80 @@ afterEach(() => {
 });
 
 test('create app access', async () => {
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
+  const { ctx, discoverCtx } = getMockedContexts();
 
-  renderCreateAppAccess();
+  renderCreateAppAccess(ctx, discoverCtx);
   await screen.findByText(/bash/i);
 
-  await userEvent.click(screen.getByRole('button', { name: /next/i }));
+  userEvent.click(screen.getByRole('button', { name: /next/i }));
   await screen.findByText(/aws-console/i);
-  expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
-  expect(integrationService.createAwsAppAccess).not.toHaveBeenCalled();
-});
-
-test('create app access with v1 endpoint auto retry', async () => {
-  jest
-    .spyOn(integrationService, 'createAwsAppAccessV2')
-    .mockRejectedValueOnce(new Error(ProxyRequiresUpgrade));
-  jest.spyOn(integrationService, 'createAwsAppAccess').mockResolvedValue(app);
-
-  renderCreateAppAccess();
-  await screen.findByText(/bash/i);
-
-  await userEvent.click(screen.getByRole('button', { name: /next/i }));
-  await screen.findByText(/aws-console/i);
-
-  expect(integrationService.createAwsAppAccessV2).toHaveBeenCalledTimes(1);
   expect(integrationService.createAwsAppAccess).toHaveBeenCalledTimes(1);
 });
 
-const agentMeta: AgentMeta = {
-  resourceName: 'aws-console',
-  agentMatcherLabels: [],
-  awsIntegration: {
-    kind: IntegrationKind.AwsOidc,
-    name: 'some-oidc-name',
-    resourceType: 'integration',
-    spec: {
-      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-      issuerS3Bucket: '',
-      issuerS3Prefix: '',
+function getMockedContexts() {
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'aws-console',
+      agentMatcherLabels: [],
+      awsIntegration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-oidc-name',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
     },
-    statusCode: IntegrationStatusCode.Running,
-  },
-};
+    currentStep: 0,
+    nextStep: jest.fn(),
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {
+      kind: ResourceKind.Application,
+      appMeta: { awsConsole: true },
+      name: '',
+      icon: undefined,
+      keywords: '',
+      event: DiscoverEventResource.ApplicationHttp,
+    },
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: jest.fn(),
+    eventState: null,
+  };
 
-function renderCreateAppAccess() {
+  jest
+    .spyOn(userEventService, 'captureDiscoverEvent')
+    .mockResolvedValue(undefined as never);
+
+  return { ctx, discoverCtx };
+}
+
+function renderCreateAppAccess(
+  ctx: TeleportContext,
+  discoverCtx: DiscoverContextState
+) {
   return render(
-    <RequiredDiscoverProviders
-      agentMeta={agentMeta}
-      resourceSpec={resourceSpecAppAwsCliConsole}
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'application' } },
+      ]}
     >
-      <CreateAppAccess />
-    </RequiredDiscoverProviders>
+      <ContextProvider ctx={ctx}>
+        <FeaturesContextProvider value={[]}>
+          <DiscoverProvider mockCtx={discoverCtx}>
+            <CreateAppAccess />
+          </DiscoverProvider>
+        </FeaturesContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 }

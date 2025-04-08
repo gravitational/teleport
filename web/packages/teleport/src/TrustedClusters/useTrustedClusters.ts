@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-
+import { useEffect, useState } from 'shared/hooks';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { Resource } from 'teleport/services/resources';

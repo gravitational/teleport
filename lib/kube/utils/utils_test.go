@@ -22,13 +22,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 func TestGetAgentVersion(t *testing.T) {
@@ -41,7 +39,7 @@ func TestGetAgentVersion(t *testing.T) {
 		ping            func(ctx context.Context) (proto.PingResponse, error)
 		clusterFeatures proto.Features
 		channelVersion  string
-		expectedVersion *semver.Version
+		expectedVersion string
 		errorAssert     require.ErrorAssertionFunc
 	}{
 		{
@@ -49,7 +47,7 @@ func TestGetAgentVersion(t *testing.T) {
 			ping: func(ctx context.Context) (proto.PingResponse, error) {
 				return proto.PingResponse{}, trace.BadParameter("ping error")
 			},
-			expectedVersion: nil,
+			expectedVersion: "",
 			errorAssert:     require.Error,
 		},
 		{
@@ -57,7 +55,7 @@ func TestGetAgentVersion(t *testing.T) {
 			ping: func(ctx context.Context) (proto.PingResponse, error) {
 				return proto.PingResponse{ServerVersion: "1.2.3"}, nil
 			},
-			expectedVersion: semver.Must(version.EnsureSemver("1.2.3")),
+			expectedVersion: "1.2.3",
 			errorAssert:     require.NoError,
 		},
 		{
@@ -67,7 +65,7 @@ func TestGetAgentVersion(t *testing.T) {
 			},
 			clusterFeatures: proto.Features{AutomaticUpgrades: true, Cloud: true},
 			channelVersion:  "v1.2.3",
-			expectedVersion: semver.Must(version.EnsureSemver("1.2.3")),
+			expectedVersion: "1.2.3",
 			errorAssert:     require.NoError,
 		},
 	}
@@ -75,6 +73,7 @@ func TestGetAgentVersion(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
 			p := &pinger{pingFn: tt.ping}
+
 			var channel *automaticupgrades.Channel
 			if tt.channelVersion != "" {
 				channel = &automaticupgrades.Channel{StaticVersion: tt.channelVersion}

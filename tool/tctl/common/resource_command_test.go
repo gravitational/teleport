@@ -46,7 +46,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
-	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -693,11 +692,7 @@ version: v3
 metadata:
   name: foo
 spec:
-  uri: "tcp://localhost1"
-  tcp_ports:
-  - port: 1234
-  - port: 30000
-    end_port: 30768
+  uri: "localhost1"
 ---
 kind: app
 version: v3
@@ -1204,11 +1199,7 @@ func TestAppResource(t *testing.T) {
 		Name:   "foo",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
-		URI: "tcp://localhost1",
-		TCPPorts: []*types.PortRange{
-			&types.PortRange{Port: 1234},
-			&types.PortRange{Port: 30000, EndPort: 30768},
-		},
+		URI: "localhost1",
 	})
 	require.NoError(t, err)
 	appFooBar1, err := types.NewAppV3(types.Metadata{
@@ -1409,10 +1400,6 @@ func TestCreateResources(t *testing.T) {
 			},
 		},
 		{
-			kind:   "empty-doc",
-			create: testCreateWithEmptyDocument,
-		},
-		{
 			kind:   types.KindDatabaseObjectImportRule,
 			create: testCreateDatabaseObjectImportRule,
 		},
@@ -1457,10 +1444,6 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindAutoUpdateAgentRollout,
 			create: testCreateAutoUpdateAgentRollout,
-		},
-		{
-			kind:   types.KindDynamicWindowsDesktop,
-			create: testCreateDynamicWindowsDesktop,
 		},
 	}
 
@@ -1680,22 +1663,6 @@ spec:
 	require.NoError(t, err)
 }
 
-func testCreateWithEmptyDocument(t *testing.T, clt *authclient.Client) {
-	const userYAML = `
----
-kind: user
-version: v2
-metadata:
-  name: llama2
-spec:
-  roles: ["access"]
-`
-	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
-	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
-	_, err := runResourceCommand(t, clt, []string{"create", userYAMLPath})
-	require.NoError(t, err)
-}
-
 func testCreateUser(t *testing.T, clt *authclient.Client) {
 	// Ensure that our test user does not exist
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindUser + "/llama", "--format=json"})
@@ -1891,7 +1858,7 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factors: [otp, sso]
+  second_factor: off
   type: local
 version: v2
 `
@@ -1908,18 +1875,16 @@ version: v2
 	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
 
-	expectInitialSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP} // second factors defaults to [otp]
-	require.Equal(t, expectInitialSecondFactors, initial.GetSecondFactors())
+	var expected types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
 
-	var revised types.AuthPreferenceV2
-	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &revised))
-	expectRevisedSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO}
-	require.Equal(t, expectRevisedSecondFactors, revised.GetSecondFactors())
+	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
+	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.
-	revised.SetRevision(uuid.NewString())
-	raw, err := services.MarshalAuthPreference(&revised, services.PreserveRevision())
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&expected, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
 
@@ -2496,35 +2461,6 @@ version: v1
 	require.ErrorContains(t, err, "autoupdate_agent_rollout \"autoupdate-agent-rollout\" doesn't exist")
 }
 
-func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
-	const resourceYAML = `kind: dynamic_windows_desktop
-metadata:
-  name: test
-  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
-spec:
-  addr: test
-version: v1
-`
-
-	// Create the resource.
-	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
-	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
-	_, err := runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
-	require.NoError(t, err)
-
-	// Get the resource
-	buf, err := runResourceCommand(t, clt, []string{"get", types.KindDynamicWindowsDesktop, "--format=json"})
-	require.NoError(t, err)
-	resources := mustDecodeJSON[[]types.DynamicWindowsDesktopV1](t, buf)
-	require.Len(t, resources, 1)
-
-	var expected types.DynamicWindowsDesktopV1
-	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
-	expected.SetRevision(resources[0].GetRevision())
-
-	require.Empty(t, cmp.Diff([]types.DynamicWindowsDesktopV1{expected}, resources, protocmp.Transform()))
-}
-
 func TestPluginResourceWrapper(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -2533,8 +2469,6 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "okta",
 			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2560,8 +2494,6 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "slack",
 			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2577,58 +2509,6 @@ func TestPluginResourceWrapper(t *testing.T) {
 						Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
 							AccessToken:  "token",
 							RefreshToken: "refresh_token",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "identity center",
-			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
-				Metadata: types.Metadata{
-					Name: apicommon.OriginAWSIdentityCenter,
-					Labels: map[string]string{
-						"teleport.dev/hosted-plugin": "true",
-					},
-				},
-				Spec: types.PluginSpecV1{
-					Settings: &types.PluginSpecV1_AwsIc{
-						AwsIc: &types.PluginAWSICSettings{
-							Credentials: &types.AWSICCredentials{
-								Source: &types.AWSICCredentials_System{
-									System: &types.AWSICCredentialSourceSystem{},
-								},
-							},
-							Region: "ap-south-2",
-							Arn:    "some:arn",
-							ProvisioningSpec: &types.AWSICProvisioningSpec{
-								BaseUrl: "https://scim.example.com/v2",
-							},
-							AccessListDefaultOwners: []string{"root"},
-							UserSyncFilters: []*types.AWSICUserSyncFilter{
-								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
-								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
-							},
-							GroupSyncFilters: []*types.AWSICResourceFilter{
-								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Group #\\d+$`}},
-								{Include: &types.AWSICResourceFilter_Id{Id: "42"}},
-							},
-							AwsAccountsFilters: []*types.AWSICResourceFilter{
-								{Include: &types.AWSICResourceFilter_Id{Id: "314159"}},
-								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Account #\\d+$`}},
-							},
-						},
-					},
-				},
-				Status: types.PluginStatusV1{
-					Code: types.PluginStatusCode_RUNNING,
-					Details: &types.PluginStatusV1_AwsIc{
-						AwsIc: &types.PluginAWSICStatusV1{
-							GroupImportStatus: &types.AWSICGroupImportStatus{
-								StatusCode: types.AWSICGroupImportStatusCode_DONE,
-							},
 						},
 					},
 				},

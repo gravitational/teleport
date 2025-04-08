@@ -18,26 +18,16 @@
 
 import React from 'react';
 
-import {
-  Box,
-  ButtonIcon,
-  ButtonPrimary,
-  Flex,
-  H2,
-  Indicator,
-  Text,
-} from 'design';
+import { Box, ButtonIcon, Indicator, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
-import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
-import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
-import { outermostPadding } from '../spacing';
 import LoginForm from './FormLogin';
 import useClusterLogin, { Props, State } from './useClusterLogin';
 
@@ -54,7 +44,6 @@ export type ClusterLoginPresentationProps = State & {
 export function ClusterLoginPresentation({
   title,
   initAttempt,
-  init,
   loginAttempt,
   clearLoginAttempt,
   onLoginWithLocal,
@@ -64,54 +53,36 @@ export function ClusterLoginPresentation({
   onAbort,
   loggedInUserName,
   shouldPromptSsoStatus,
-  passwordlessLoginState,
+  webauthnLogin,
   reason,
-  shouldSkipVersionCheck,
-  disableVersionCheck,
-  platform,
 }: ClusterLoginPresentationProps) {
   return (
     <>
-      <DialogHeader px={outermostPadding}>
-        <H2>
+      <DialogHeader px={4} pt={4} mb={0}>
+        <Text typography="h4">
           Log in to <b>{title}</b>
-        </H2>
+        </Text>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
           <Icons.Cross size="medium" />
         </ButtonIcon>
       </DialogHeader>
-      <DialogContent mb={0} gap={2}>
-        {reason && (
-          <Box px={outermostPadding}>
-            <Reason reason={reason} />
-          </Box>
-        )}
+      <DialogContent mb={0}>
+        {reason && <Reason reason={reason} />}
 
         {initAttempt.status === 'error' && (
-          <Flex
-            px={outermostPadding}
-            flexDirection="column"
-            alignItems="flex-start"
-            gap={3}
-          >
-            <Alerts.Danger
-              details={initAttempt.statusText}
-              margin={0}
-              width="100%"
-            >
-              Unable to retrieve cluster auth preferences
-            </Alerts.Danger>
-            <ButtonPrimary onClick={init}>Retry</ButtonPrimary>
-          </Flex>
+          <Alerts.Danger m={4}>
+            Unable to retrieve cluster auth preferences,{' '}
+            {initAttempt.statusText}
+          </Alerts.Danger>
         )}
         {initAttempt.status === 'processing' && (
-          <Box px={outermostPadding} textAlign="center">
+          <Box textAlign="center" m={4}>
             <Indicator delay="none" />
           </Box>
         )}
         {initAttempt.status === 'success' && (
           <LoginForm
-            authSettings={initAttempt.data}
+            {...initAttempt.data}
             primaryAuthType={getPrimaryAuthType(initAttempt.data)}
             loggedInUserName={loggedInUserName}
             onLoginWithSso={onLoginWithSso}
@@ -121,10 +92,7 @@ export function ClusterLoginPresentation({
             loginAttempt={loginAttempt}
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
-            passwordlessLoginState={passwordlessLoginState}
-            shouldSkipVersionCheck={shouldSkipVersionCheck}
-            disableVersionCheck={disableVersionCheck}
-            platform={platform}
+            webauthnLogin={webauthnLogin}
           />
         )}
       </DialogContent>
@@ -149,7 +117,7 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
   const $targetDesc = getTargetDesc(reason);
 
   return (
-    <Text>
+    <Text px={4} pt={2} mb={0}>
       You tried to connect to {$targetDesc} but your session has expired. Please
       log in to refresh the session.
     </Text>
@@ -177,7 +145,7 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
       }
     }
     case 'reason.vnet-cert-expired': {
-      return <strong>{publicAddrWithTargetPort(reason.routeToApp)}</strong>;
+      return <strong>{reason.publicAddr}</strong>;
     }
     default: {
       reason satisfies never;

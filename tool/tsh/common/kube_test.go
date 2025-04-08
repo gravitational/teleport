@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -75,7 +76,7 @@ func TestKubeLogin(t *testing.T) {
 
 	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
 		// Set default kubeconfig to a non-exist file to avoid loading other things.
-		t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+		t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 		// Test "tsh proxy kube root-cluster1".
 
@@ -166,22 +167,15 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
-			// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
-			var foundRoot1, foundRoot2, foundLeaf bool
-			for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
-				foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
-			}
-
-			for ks := range s.leaf.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				foundLeaf = foundLeaf || ks.GetCluster().GetName() == leafKubeCluster
-			}
-
-			return foundRoot1 && foundRoot2 && foundLeaf
+			rootClusters, err := s.root.GetAuthServer().UnifiedResourceCache.GetKubernetesServers(ctx)
+			require.NoError(t, err)
+			leafClusters, err := s.leaf.GetAuthServer().UnifiedResourceCache.GetKubernetesServers(ctx)
+			require.NoError(t, err)
+			return len(rootClusters) >= 2 && len(leafClusters) >= 1
 		}),
 	)
 
-	mustLoginSetEnvLegacy(t, s)
+	mustLoginSetEnv(t, s)
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
@@ -558,9 +552,9 @@ func TestKubeSelection(t *testing.T) {
 				t.Parallel()
 				// login for each parallel test to avoid races when multiple tsh
 				// clients work in the same profile dir.
-				tshHome, _ := mustLoginLegacy(t, s)
+				tshHome, _ := mustLogin(t, s)
 				// Set kubeconfig to a non-exist file to avoid loading other things.
-				kubeConfigPath := filepath.Join(tshHome, "kube-config")
+				kubeConfigPath := path.Join(tshHome, "kube-config")
 				var cmdRunner func(*exec.Cmd) error
 				if len(test.wantProxied) > 0 {
 					cmdRunner = func(cmd *exec.Cmd) error {
@@ -598,7 +592,7 @@ func TestKubeSelection(t *testing.T) {
 			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
-				tshHome, kubeConfigPath := mustLoginLegacy(t, s)
+				tshHome, kubeConfigPath := mustLogin(t, s)
 				err := Run(
 					context.Background(),
 					append([]string{"kube", "login", "--insecure"},
@@ -683,7 +677,7 @@ func TestKubeSelection(t *testing.T) {
 	t.Run("access request", func(t *testing.T) {
 		t.Parallel()
 		// login as the user.
-		tshHome, kubeConfig := mustLoginLegacy(t, s)
+		tshHome, kubeConfig := mustLogin(t, s)
 
 		// Run the login command in a goroutine so we can check if the access
 		// request was created and approved.

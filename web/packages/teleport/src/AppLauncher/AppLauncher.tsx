@@ -16,18 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useLocation, useParams } from 'react-router';
 
 import { Flex, Indicator } from 'design';
 import { AccessDenied } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import AuthnDialog from 'teleport/components/AuthnDialog';
-import { CreateAppSessionParams, UrlLauncherParams } from 'teleport/config';
-import { useMfa } from 'teleport/lib/useMfa';
+import { UrlLauncherParams } from 'teleport/config';
 import service from 'teleport/services/apps';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function AppLauncher() {
   const { attempt, setAttempt } = useAttempt('processing');
@@ -36,19 +33,6 @@ export function AppLauncher() {
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
   const isRedirectFlow = queryParams.get('required-apps');
-
-  const mfa = useMfa({
-    req: {
-      scope: MfaChallengeScope.USER_SESSION,
-      isMfaRequiredRequest: {
-        app: {
-          fqdn: pathParams.fqdn,
-          cluster_name: pathParams.clusterId,
-          public_addr: pathParams.publicAddr,
-        },
-      },
-    },
-  });
 
   const createAppSession = useCallback(async (params: UrlLauncherParams) => {
     let fqdn = params.fqdn;
@@ -114,15 +98,7 @@ export function AppLauncher() {
       if (params.arn) {
         params.arn = decodeURIComponent(params.arn);
       }
-
-      const createAppSessionParams: CreateAppSessionParams = {
-        fqdn: params.fqdn,
-        cluster_name: params.clusterId,
-        public_addr: params.publicAddr,
-        arn: params.arn,
-        mfaResponse: await mfa.getChallengeResponse(),
-      };
-      const session = await service.createAppSession(createAppSessionParams);
+      const session = await service.createAppSession(params);
 
       // Set all the fields expected by server to validate request.
       const url = getXTeleportAuthUrl({ fqdn, port });
@@ -163,16 +139,11 @@ export function AppLauncher() {
     createAppSession(pathParams);
   }, [pathParams]);
 
-  return (
-    <div>
-      {attempt.status === 'failed' ? (
-        <AppLauncherAccessDenied statusText={attempt.statusText} />
-      ) : (
-        <AppLauncherProcessing />
-      )}
-      <AuthnDialog mfaState={mfa}></AuthnDialog>
-    </div>
-  );
+  if (attempt.status === 'failed') {
+    return <AppLauncherAccessDenied statusText={attempt.statusText} />;
+  }
+
+  return <AppLauncherProcessing />;
 }
 
 export function AppLauncherProcessing() {

@@ -27,7 +27,6 @@ import (
 	"log/slog"
 	"net"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,15 +46,12 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
-	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
-	gitserverclient "github.com/gravitational/teleport/api/client/gitserver"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -77,11 +73,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
-	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
-	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -91,11 +83,9 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
-	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -672,9 +662,6 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
-	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
-	// If nil, the client will not prompt for MFA.
-	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -739,11 +726,6 @@ func (c *Client) GetConnection() *grpc.ClientConn {
 // SetMFAPromptConstructor sets the MFA prompt constructor for this client.
 func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
-}
-
-// SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
-func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
-	c.c.SSOMFACeremonyConstructor = scc
 }
 
 // Close closes the Client connection to the auth server.
@@ -901,12 +883,6 @@ func (c *Client) WorkloadIdentityRevocationServiceClient() workloadidentityv1pb.
 // identity service.
 func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient {
 	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
-}
-
-// WorkloadIdentityX509OverridesClient returns an unadorned client for the
-// teleport.workloadidentity.v1.X509OverridesService service.
-func (c *Client) WorkloadIdentityX509OverridesClient() workloadidentityv1pb.X509OverridesServiceClient {
-	return workloadidentityv1pb.NewX509OverridesServiceClient(c.conn)
 }
 
 // PresenceServiceClient returns an unadorned client for the presence service.
@@ -1099,23 +1075,6 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 func (c *Client) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 	certs, err := c.grpc.GenerateUserCerts(ctx, &req)
 	if err != nil {
-		// Try to print a nicer error message when newer clients connect to
-		// older auth servers that don't recognize the new public key fields.
-		// This could be a v17+ client connecting to a v16- auth (which we
-		// officially don't support), or a difference between commits on master
-		// during the v17 dev cycle.
-		usingLegacyPubKey := req.PublicKey != nil //nolint:staticcheck // SA1019: intentional reference to deprecated field.
-		usingNewPubKey := req.TLSPublicKey != nil || req.SSHPublicKey != nil
-		if !usingLegacyPubKey && usingNewPubKey && strings.Contains(err.Error(), "ssh: no key found") {
-			authVersion := "unknown"
-			if pingResp, err := c.Ping(ctx); err == nil && pingResp.ServerVersion != "" {
-				authVersion = pingResp.ServerVersion
-			}
-			return nil, trace.Wrap(err, "auth server did not recognize new public key fields, "+
-				"client version (%s) is likely newer than your auth server version (%s), "+
-				"consider downgrading your client or upgrading your auth server",
-				api.Version, authVersion)
-		}
 		return nil, trace.Wrap(err)
 	}
 	return certs, nil
@@ -1822,6 +1781,11 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	for {
 		rsp, err := c.ListRoles(ctx, &req)
 		if err != nil {
+			if trace.IsNotImplemented(err) {
+				// fallback to calling the old non-paginated role API.
+				roles, err = c.getRoles(ctx)
+				return roles, trace.Wrap(err)
+			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -1834,6 +1798,21 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 		}
 	}
 
+	return roles, nil
+}
+
+// getRoles calls the old non-paginated GetRoles method.
+//
+// DELETE IN 17.0
+func (c *Client) getRoles(ctx context.Context) ([]types.Role, error) {
+	resp, err := c.grpc.GetRoles(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roles := make([]types.Role, 0, len(resp.GetRoles()))
+	for _, role := range resp.GetRoles() {
+		roles = append(roles, role)
+	}
 	return roles, nil
 }
 
@@ -2306,56 +2285,12 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
-//
-// Deprecated: Use [Client.UpsertTrustedClusterV2] instead.
-func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
+	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
 	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trustedCluster)
+		return nil, trace.BadParameter("invalid type %T", trusedCluster)
 	}
-	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedClusterV2)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// UpsertTrustedClusterV2 creates or updates a Trusted Cluster.
-func (c *Client) UpsertTrustedClusterV2(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trustedCluster)
-	}
-	req := &trustpb.UpsertTrustedClusterRequest{TrustedCluster: trustedClusterV2}
-	resp, err := c.TrustClient().UpsertTrustedCluster(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// CreateTrustedCluster creates a Trusted Cluster.
-func (c *Client) CreateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trustedCluster)
-	}
-	req := &trustpb.CreateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
-	resp, err := c.TrustClient().CreateTrustedCluster(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// UpdateTrustedCluster updates a Trusted Cluster.
-func (c *Client) UpdateTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	trustedClusterV2, ok := trustedCluster.(*types.TrustedClusterV2)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", trustedCluster)
-	}
-	req := &trustpb.UpdateTrustedClusterRequest{TrustedCluster: trustedClusterV2}
-	resp, err := c.TrustClient().UpdateTrustedCluster(ctx, req)
+	resp, err := c.grpc.UpsertTrustedCluster(ctx, trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2669,7 +2604,17 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 
 	stream, err := c.grpc.StreamUnstructuredSessionEvents(ctx, request)
 	if err != nil {
-		e <- trace.Wrap(err)
+		if trace.IsNotImplemented(trace.Wrap(err)) {
+			// If the server does not support the unstructured events API,
+			// fallback to the legacy API.
+			// This code patch shouldn't be triggered because the server
+			// returns the error only if the client calls Recv() on the stream.
+			// However, we keep this code patch here just in case there is a bug
+			// on the client grpc side.
+			c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
+		} else {
+			e <- trace.Wrap(err)
+		}
 		return ch, e
 	}
 	go func() {
@@ -2677,6 +2622,20 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 			event, err := stream.Recv()
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
+					// If the server does not support the unstructured events API, it will
+					// return an error with code Unimplemented. This error is received
+					// the first time the client calls Recv() on the stream.
+					// If the client receives this error, it should fallback to the legacy
+					// API that spins another goroutine to convert the events to the
+					// unstructured format and sends them to the channel ch.
+					// Once we decide to spin the goroutine, we can leave this loop without
+					// reporting any error to the caller.
+					if trace.IsNotImplemented(trace.Wrap(err)) {
+						// If the server does not support the unstructured events API,
+						// fallback to the legacy API.
+						go c.streamUnstructuredSessionEventsFallback(ctx, sessionID, startIndex, ch, e)
+						return
+					}
 					e <- trace.Wrap(err)
 				} else {
 					close(ch)
@@ -2694,6 +2653,64 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 	}()
 
 	return ch, e
+}
+
+// streamUnstructuredSessionEventsFallback is a fallback implementation of the
+// StreamUnstructuredSessionEvents method that is used when the server does not
+// support the unstructured events API. This method uses the old API to stream
+// events from the server and converts them to the unstructured format. This
+// method converts the events at event handler plugin side, which can cause
+// the plugin to miss some events if the plugin is not updated to the latest
+// version.
+// NOTE(tigrato): This code was reintroduced in 15.0.0 because the gRPC method was renamed
+// incorrectly in 13.1-14.3 which caused the server to return Unimplemented
+// error to the client and the client to fallback to the legacy API.
+// TODO(tigrato): DELETE IN 16.0.0
+func (c *Client) streamUnstructuredSessionEventsFallback(ctx context.Context, sessionID string, startIndex int64, ch chan *auditlogpb.EventUnstructured, e chan error) {
+	request := &proto.StreamSessionEventsRequest{
+		SessionID:  sessionID,
+		StartIndex: int32(startIndex),
+	}
+
+	stream, err := c.grpc.StreamSessionEvents(ctx, request)
+	if err != nil {
+		e <- trace.Wrap(err)
+		return
+	}
+
+	go func() {
+		for {
+			oneOf, err := stream.Recv()
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					e <- trace.Wrap(err)
+				} else {
+					close(ch)
+				}
+
+				return
+			}
+
+			event, err := events.FromOneOf(*oneOf)
+			if err != nil {
+				e <- trace.Wrap(err)
+				return
+			}
+
+			unstructedEvent, err := events.ToUnstructured(event)
+			if err != nil {
+				e <- trace.Wrap(err)
+				return
+			}
+
+			select {
+			case ch <- unstructedEvent:
+			case <-ctx.Done():
+				e <- trace.Wrap(ctx.Err())
+				return
+			}
+		}
+	}()
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
@@ -2721,10 +2738,6 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 	}
 
 	return decodedEvents, response.LastKey, nil
-}
-
-func (c *Client) DynamicDesktopClient() *dynamicwindows.Client {
-	return dynamicwindows.NewClient(dynamicwindowsv1.NewDynamicWindowsServiceClient(c.conn))
 }
 
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
@@ -2894,6 +2907,10 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// An old server would send PIVSlot instead of HardwareKey.PIVSlot
+		// TODO(Joerger): DELETE IN 17.0.0
+		pref.CheckSetPIVSlot()
 	}
 
 	return pref, trace.Wrap(err)
@@ -2908,6 +2925,10 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 		return trace.BadParameter("invalid type %T", authPref)
 	}
 
+	// An old server would expect PIVSlot instead of HardwareKey.PIVSlot
+	// TODO(Joerger): DELETE IN 17.0.0
+	authPrefV2.CheckSetPIVSlot()
+
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2)
 	return trace.Wrap(err)
 }
@@ -2915,6 +2936,10 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 // setAuthPreference sets cluster auth preference via the legacy mechanism.
 // TODO(tross) DELETE IN v18.0.0
 func (c *Client) setAuthPreference(ctx context.Context, authPref *types.AuthPreferenceV2) (types.AuthPreference, error) {
+	// An old server would expect PIVSlot instead of HardwareKey.PIVSlot
+	// TODO(Joerger): DELETE IN 17.0.0
+	authPref.CheckSetPIVSlot()
+
 	_, err := c.grpc.SetAuthPreference(ctx, authPref)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3133,33 +3158,6 @@ func (c *Client) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
 	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
 	_, err := client.DeleteAutoUpdateAgentRollout(ctx, &autoupdatev1pb.DeleteAutoUpdateAgentRolloutRequest{})
 	return trace.Wrap(err)
-}
-
-func (c *Client) TriggerAutoUpdateAgentGroup(ctx context.Context, groups []string, state autoupdatev1pb.AutoUpdateAgentGroupState) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, &autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest{Groups: groups, DesiredState: state})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rollout, nil
-}
-
-func (c *Client) ForceAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	rollout, err := client.ForceAutoUpdateAgentGroup(ctx, &autoupdatev1pb.ForceAutoUpdateAgentGroupRequest{Groups: groups})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rollout, nil
-}
-
-func (c *Client) RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string, allStartedGroups bool) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	rollout, err := client.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{Groups: groups, AllStartedGroups: allStartedGroups})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rollout, nil
 }
 
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
@@ -3907,12 +3905,6 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		case types.KindSAMLIdPServiceProvider:
 			resources[i] = respResource.GetSAMLIdPServiceProvider()
-		case types.KindIdentityCenterAccount:
-			resources[i] = respResource.GetAppServer()
-		case types.KindIdentityCenterAccountAssignment:
-			src := respResource.GetIdentityCenterAccountAssignment()
-			dst := proto.UnpackICAccountAssignment(src)
-			resources[i] = dst
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3999,10 +3991,8 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
-	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
-	} else if r := resource.GetGitServer(); r != nil {
+	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
@@ -4876,18 +4866,6 @@ func (c *Client) GenerateAWSOIDCToken(ctx context.Context, integration string) (
 	return resp.GetToken(), nil
 }
 
-// GenerateAzureOIDCToken generates a token to be used when executing an Azure OIDC Integration action.
-func (c *Client) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
-	resp, err := c.integrationsClient().GenerateAzureOIDCToken(ctx, &integrationpb.GenerateAzureOIDCTokenRequest{
-		Integration: integration,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return resp.GetToken(), nil
-}
-
 // PluginsClient returns an unadorned Plugins client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -4999,21 +4977,6 @@ func (c *Client) UserLoginStateClient() *userloginstate.Client {
 // (as per the default gRPC behavior).
 func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
 	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
-}
-
-// GitServerClient returns a client for managing Git servers
-func (c *Client) GitServerClient() *gitserverclient.Client {
-	return gitserverclient.NewClient(gitserverpb.NewGitServerServiceClient(c.conn))
-}
-
-// GitServerReadOnlyClient returns the read-only client for Git servers.
-func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
-	return c.GitServerClient()
-}
-
-// StableUNIXUsersClient returns a client for the stable UNIX users API.
-func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient {
-	return stableunixusersv1.NewStableUNIXUsersServiceClient(c.conn)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
@@ -5266,16 +5229,16 @@ func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClien
 }
 
 // UpdateRemoteCluster updates remote cluster from the specified value.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
+// TODO(noah): In v17.0.0 this method should switch to call UpdateRemoteCluster
+// on the presence service client.
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
 	rcV3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		return nil, trace.BadParameter("unsupported remote cluster type %T", rcV3)
+		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
 	}
 
-	res, err := c.PresenceServiceClient().UpdateRemoteCluster(ctx, &presencepb.UpdateRemoteClusterRequest{
-		RemoteCluster: rcV3,
-	})
-	return res, trace.Wrap(err)
+	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
+	return trace.Wrap(err)
 }
 
 // ListRemoteClusters returns a page of remote clusters.
@@ -5310,164 +5273,8 @@ func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.Remot
 	return rc, trace.Wrap(err)
 }
 
-// ListReverseTunnels returns a page of remote clusters.
-func (c *Client) ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error) {
-	res, err := c.PresenceServiceClient().ListReverseTunnels(ctx, &presencepb.ListReverseTunnelsRequest{
-		PageSize:  int32(pageSize),
-		PageToken: nextToken,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	rcs := make([]types.ReverseTunnel, 0, len(res.ReverseTunnels))
-	for _, rc := range res.ReverseTunnels {
-		rcs = append(rcs, rc)
-	}
-	return rcs, res.NextPageToken, nil
-}
-
-// DeleteReverseTunnel deletes a reverse tunnel resource
-func (c *Client) DeleteReverseTunnel(ctx context.Context, name string) error {
-	_, err := c.PresenceServiceClient().DeleteReverseTunnel(ctx, &presencepb.DeleteReverseTunnelRequest{
-		Name: name,
-	})
-	return trace.Wrap(err)
-}
-
-// UpsertReverseTunnel creates or updates reverse tunnel resource
-func (c *Client) UpsertReverseTunnel(ctx context.Context, rt types.ReverseTunnel) (types.ReverseTunnel, error) {
-	rtV3, ok := rt.(*types.ReverseTunnelV2)
-	if !ok {
-		return nil, trace.BadParameter("unsupported reverse tunnel type %T", rt)
-	}
-	res, err := c.PresenceServiceClient().UpsertReverseTunnel(ctx, &presencepb.UpsertReverseTunnelRequest{
-		ReverseTunnel: rtV3,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
-}
-
-// GetRemoteClusters returns all remote clusters.
-// Deprecated: use ListRemoteClusters instead.
-func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	var rcs []types.RemoteCluster
-	pageToken := ""
-	for {
-		page, nextToken, err := c.ListRemoteClusters(ctx, 0, pageToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		rcs = append(rcs, page...)
-		if nextToken == "" {
-			return rcs, nil
-		}
-		pageToken = nextToken
-	}
-}
-
-// IdentityCenterClient returns Identity Center service client using an underlying
-// gRPC connection.
-func (c *Client) IdentityCenterClient() identitycenterv1.IdentityCenterServiceClient {
-	return identitycenterv1.NewIdentityCenterServiceClient(c.conn)
-}
-
-// ProvisioningServiceClient returns provisioning service client using
-// an underlying gRPC connection.
-func (c *Client) ProvisioningServiceClient() provisioningv1.ProvisioningServiceClient {
-	return provisioningv1.NewProvisioningServiceClient(c.conn)
-}
-
-// IntegrationsClient returns integrations client.
-func (c *Client) IntegrationsClient() integrationpb.IntegrationServiceClient {
-	return c.integrationsClient()
-}
-
 // DecisionClient returns an unadorned DecisionService client using the
 // underlying Auth gRPC connection.
 func (c *Client) DecisionClient() decisionpb.DecisionServiceClient {
 	return decisionpb.NewDecisionServiceClient(c.conn)
-}
-
-// GetClusterName returns the name of the cluster.
-func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	cn, err := c.ClusterConfigClient().GetClusterName(ctx, &clusterconfigpb.GetClusterNameRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return cn, nil
-}
-
-// HealthCheckConfigClient returns an
-// [healthcheckconfigv1.HealthCheckConfigServiceClient].
-func (c *Client) HealthCheckConfigClient() healthcheckconfigv1.HealthCheckConfigServiceClient {
-	return healthcheckconfigv1.NewHealthCheckConfigServiceClient(c.conn)
-}
-
-// GetHealthCheckConfig fetches a health check config by name.
-func (c *Client) GetHealthCheckConfig(ctx context.Context, name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
-	cc := c.HealthCheckConfigClient()
-	resp, err := cc.GetHealthCheckConfig(ctx,
-		&healthcheckconfigv1.GetHealthCheckConfigRequest{
-			Name: name,
-		},
-	)
-	return resp, trace.Wrap(err)
-}
-
-// ListHealthCheckConfigs lists health check configs with pagination.
-func (c *Client) ListHealthCheckConfigs(ctx context.Context, limit int, startKey string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error) {
-	cc := c.HealthCheckConfigClient()
-	resp, err := cc.ListHealthCheckConfigs(ctx,
-		&healthcheckconfigv1.ListHealthCheckConfigsRequest{
-			PageSize:  int32(limit),
-			PageToken: startKey,
-		},
-	)
-	return resp.GetConfigs(), resp.GetNextPageToken(), trace.Wrap(err)
-}
-
-// CreateHealthCheckConfig creates a new health check config.
-func (c *Client) CreateHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
-	cc := c.HealthCheckConfigClient()
-	resp, err := cc.CreateHealthCheckConfig(ctx,
-		&healthcheckconfigv1.CreateHealthCheckConfigRequest{
-			Config: in,
-		},
-	)
-	return resp, trace.Wrap(err)
-}
-
-// UpdateHealthCheckConfig updates an existing health check config.
-func (c *Client) UpdateHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
-	cc := c.HealthCheckConfigClient()
-	resp, err := cc.UpdateHealthCheckConfig(ctx,
-		&healthcheckconfigv1.UpdateHealthCheckConfigRequest{
-			Config: in,
-		},
-	)
-	return resp, trace.Wrap(err)
-}
-
-// UpsertHealthCheckConfig creates or updates a health check config.
-func (c *Client) UpsertHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
-	cc := c.HealthCheckConfigClient()
-	resp, err := cc.UpsertHealthCheckConfig(ctx,
-		&healthcheckconfigv1.UpsertHealthCheckConfigRequest{
-			Config: in,
-		},
-	)
-	return resp, trace.Wrap(err)
-}
-
-// DeleteHealthCheckConfig deletes a health check config.
-func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error {
-	cc := c.HealthCheckConfigClient()
-	_, err := cc.DeleteHealthCheckConfig(ctx,
-		&healthcheckconfigv1.DeleteHealthCheckConfigRequest{
-			Name: name,
-		},
-	)
-	return trace.Wrap(err)
 }

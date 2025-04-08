@@ -14,15 +14,19 @@ enhancing the permission model within your AWS environment. This functionality e
 - Which resources can be reached via identities associated with EC2 instances?
 - What AWS resources can Teleport users access when connecting to EC2 nodes?
 
-Utilizing the Access Graph to analyze IAM permissions within an AWS account necessitates the setup of the Access Graph
+Utilizing the Access Graph to analyze IAM permissions within an AWS account necessitates the setup of the Access Graph (AG)
 service, a Discovery Service, and integration with your AWS account.
 
-(!docs/pages/includes/policy/access-graph.mdx!)
+Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product that is 
+available to Teleport Enterprise customers.
+
+After logging in to the Teleport UI, go to the Management tab. If enabled, 
+Access Graph options can be found under the Permission Management section.
 
 ## How it works
 
 Access Graph discovers AWS access patterns, synchronizes various AWS resources,
-including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases.
+including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases. 
 These resources are then visualized using the graph representation detailed in the
 [Identity Security usage page](../policy-how-to-use.mdx).
 
@@ -30,7 +34,7 @@ The importing process involves two primary steps:
 
 ### Polling Cloud APIs
 
-The Teleport Discovery Service continuously scans the configured AWS accounts.
+The Teleport Discovery Service continuously scans the configured AWS accounts. 
 At intervals of 15 minutes, it retrieves the following resources from your AWS account:
 
 - Users
@@ -43,7 +47,7 @@ At intervals of 15 minutes, it retrieves the following resources from your AWS a
 - RDS Databases
 - S3 Buckets
 
-Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the
+Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the 
 Access Graph, ensuring that it remains updated with the latest information from your AWS environment.
 
 ### Importing resources
@@ -68,20 +72,22 @@ how to set up Access Graph.
 
 <Admonition type="warning">
 
-If you have a cloud-hosted Teleport Enterprise cluster, you can disregard
-this step, as cloud-hosted Teleport Enterprise already operates a properly configured
+If you have a managed Teleport Enterprise cluster, you can disregard
+this step, as managed Teleport Enterprise already operates a properly configured 
 Discovery Service within your cluster.
 </Admonition>
 
-To activate the Teleport Discovery Service, add a top level discovery_service section to the teleport.yaml
-config used by the Auth Service. This service monitors dynamic `discovery_config` resources that are set up
-with the `discovery_group` matching.
+To activate the Teleport Discovery Service,
+add the provided snippet to your Auth Service configuration. 
+This service monitors dynamic `discovery_config` resources
+that are set up with the `discovery_group` matching 
+<Var name="access-graph-disc" />.
 
-<Var name="discovery-group" />.
+
 ```yaml
 discovery_service:
   enabled: true
-  discovery_group: <Var name="discovery-group" />
+  discovery_group: <Var name="access-graph-disc" />
 ```
 
 Notice that if you already operate a Discovery Service within your cluster,
@@ -94,11 +100,14 @@ it's possible to reuse it as long as the following requirements are met:
 ## Step 2/2. Set up Access Graph AWS Sync
 
 To initiate the setup wizard for configuring AWS Sync, access the Teleport UI,
-click the Policy sidebar button, and then click Integrations.
+navigate to the Management tab, and choose the Access Graph option within the
+Permission Management section.
 
-Click the "Setup new integration" button, and then select "AWS". You'll be prompted
-to create a new Teleport AWS integration if you haven't configured one already.
-Alternatively, you can opt for a previously established integration.
+If both Teleport and Access Graph support AWS sync, you'll notice a new button
+adjacent to the Access Graph navigation bar labeled `Analyze AWS IAM policies with Access Graph`.
+
+You'll be prompted to create a new Teleport AWS integration if you haven't configured
+one already. Alternatively, you can opt for a previously established integration.
 
 Upon selecting or creating the integration, you'll be instructed to execute a
 bash script within your AWS Cloud Shell to configure the necessary permissions.

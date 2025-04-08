@@ -53,7 +53,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	uploadPath := h.uploadPath(upload)
 
-	h.logger.DebugContext(ctx, "Creating upload", "path", uploadPath)
+	h.Logger.Debugf("Creating upload at %s", uploadPath)
 	// Make sure we don't overwrite an existing upload
 	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(uploadPath).Attrs(ctx)
 	if !errors.Is(err, storage.ErrObjectNotExist) {
@@ -134,7 +134,8 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	objects := h.partsToObjects(upload, parts)
 	for len(objects) > maxParts {
-		h.logger.DebugContext(ctx, "Merging multiple objects for upload", "objects", len(objects), "upload", upload)
+		h.Logger.Debugf("Got %v objects for upload %v, performing temp merge.",
+			len(objects), upload)
 		objectsToMerge := objects[:maxParts]
 		mergeID := hashOfNames(objectsToMerge)
 		mergePath := h.mergePath(upload, mergeID)
@@ -151,7 +152,8 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	if err != nil {
 		return convertGCSError(err)
 	}
-	h.logger.DebugContext(ctx, "Completed upload after merging multiple objects", "objects", len(objects), "upload", upload)
+	h.Logger.Debugf("Got %v objects for upload %v, performed merge.",
+		len(objects), upload)
 	return h.cleanupUpload(ctx, upload)
 }
 

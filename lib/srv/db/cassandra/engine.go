@@ -309,8 +309,8 @@ func (e *Engine) getAuth(sessionCtx *common.Session) (handshakeHandler, error) {
 	switch {
 	case sessionCtx.Database.IsAWSHosted():
 		return &authAWSSigV4Auth{
-			ses:       sessionCtx,
-			awsConfig: e.AWSConfigProvider,
+			cloudClients: e.CloudClients,
+			ses:          sessionCtx,
 		}, nil
 	default:
 		return &basicHandshake{ses: sessionCtx}, nil

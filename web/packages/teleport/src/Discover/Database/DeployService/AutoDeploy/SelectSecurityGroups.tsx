@@ -22,7 +22,7 @@ import { Box, ButtonSecondary, Flex, Indicator, Subtitle3, Text } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import * as Icons from 'design/Icon';
 import { P, P3 } from 'design/Text/Text';
-import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
@@ -126,7 +126,7 @@ export const SelectSecurityGroups = ({
     <>
       <Flex alignItems="center" gap={1} mb={2}>
         <Subtitle3>Select ECS Security Groups</Subtitle3>
-        <IconTooltip>
+        <ToolTipInfo>
           <Text>
             Select ECS security group(s) based on the following requirements:
             <ul>
@@ -141,7 +141,7 @@ export const SelectSecurityGroups = ({
               </li>
             </ul>
           </Text>
-        </IconTooltip>
+        </ToolTipInfo>
       </Flex>
 
       <P mb={2}>
@@ -179,7 +179,7 @@ export const SelectSecurityGroups = ({
           <Flex alignItems="center" gap={3} mt={2}>
             <HoverTooltip
               tipContent="Refreshing security groups will reset selections"
-              placement="top-start"
+              anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
             >
               <ButtonSecondary
                 onClick={() => fetchSecurityGroups({ refresh: true })}

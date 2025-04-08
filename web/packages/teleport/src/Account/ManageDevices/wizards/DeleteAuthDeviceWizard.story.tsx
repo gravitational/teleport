@@ -16,18 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Dialog from 'design/Dialog';
-import { makeEmptyAttempt } from 'shared/hooks/useAsync';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
 
-import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
+import Dialog from 'design/Dialog';
+
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import {
-  MFA_OPTION_SSO_DEFAULT,
-  MFA_OPTION_TOTP,
-  MFA_OPTION_WEBAUTHN,
-  MfaDevice,
-} from 'teleport/services/mfa';
+import { MfaDevice } from 'teleport/services/mfa';
 
 import {
   DeleteAuthDeviceWizardStepProps,
@@ -37,6 +33,7 @@ import { ReauthenticateStep } from './ReauthenticateStep';
 
 export default {
   title: 'teleport/Account/Manage Devices/Delete Device Wizard',
+  loaders: [mswLoader],
   decorators: [
     Story => {
       const ctx = createTeleportContext();
@@ -50,6 +47,8 @@ export default {
     },
   ],
 };
+
+initialize();
 
 export function Reauthenticate() {
   return <ReauthenticateStep {...stepProps} stepIndex={0} />;
@@ -104,17 +103,12 @@ const stepProps: DeleteAuthDeviceWizardStepProps = {
   flowLength: 2,
   refCallback: () => {},
 
-  // Reauth props
-  reauthState: {
-    mfaOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP, MFA_OPTION_SSO_DEFAULT],
-    submitWithMfa: async () => null,
-    submitAttempt: makeEmptyAttempt(),
-    clearSubmitAttempt: () => {},
-  } as ReauthState,
-
-  // Delete props
+  // Other props
+  devices: [dummyHardwareDevice, dummyPasskey],
   deviceToDelete: dummyPasskey,
   privilegeToken: 'privilege-token',
+  auth2faType: 'optional',
+  onAuthenticated: () => {},
   onClose: () => {},
   onSuccess: () => {},
 };

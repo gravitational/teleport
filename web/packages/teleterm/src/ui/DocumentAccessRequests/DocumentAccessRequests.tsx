@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
 import { Attempt } from 'shared/hooks/useAsync';
 import { AccessRequest } from 'shared/services/accessRequests';
@@ -45,6 +47,7 @@ export function DocumentAccessRequests(props: DocumentProps) {
 }
 
 export function DocumentAccessRequestsViews({
+  accessRequests,
   attempt,
   doc,
   assumeRole,
@@ -72,6 +75,7 @@ export function DocumentAccessRequestsViews({
     <RequestList
       assumeRole={accessRequest => assumeRole(accessRequest.id)}
       attempt={attempt}
+      requests={accessRequests}
       getFlags={getFlags}
       getRequests={getRequests}
       viewRequest={(id: string) => onViewRequest(id)}

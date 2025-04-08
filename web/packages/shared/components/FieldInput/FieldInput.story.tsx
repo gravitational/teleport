@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary, Text } from 'design';
-import { EmailSolid } from 'design/Icon';
+import React from 'react';
+
+import { Text } from 'design';
 
 import Validation from '../../components/Validation';
-import { requiredEmailLike, requiredField } from '../Validation/rules';
 import FieldInput from './FieldInput';
 
 export default {
@@ -29,19 +29,18 @@ export default {
 
 export const Fields = () => (
   <Validation>
-    {({ validator }) => (
+    {() => (
       <>
         <FieldInput
+          mb="6"
           label="Label"
-          helperText="Optional helper text"
+          labelTip="Optional tabel tip"
           name="optional name"
           onChange={() => {}}
           value={'value'}
-          icon={EmailSolid}
-          size="large"
-          rule={requiredEmailLike}
         />
         <FieldInput
+          mb="6"
           label="Label with placeholder"
           name="optional name"
           onChange={() => {}}
@@ -49,6 +48,7 @@ export const Fields = () => (
           value={''}
         />
         <FieldInput
+          mb="6"
           label="Label with tooltip"
           name="optional name"
           onChange={() => {}}
@@ -57,25 +57,21 @@ export const Fields = () => (
           toolTipContent={<Text>Hello world</Text>}
         />
         <FieldInput
-          label="Label with helper text and tooltip"
-          helperText="Helper text"
+          mb="6"
+          label="Label with labeltip and tooltip"
+          labelTip="the label tip"
           toolTipContent={<Text>Hello world</Text>}
           name="optional name"
           onChange={() => {}}
           placeholder="placeholder"
           value={''}
         />
-        <FieldInput placeholder="without label" onChange={() => {}} />
         <FieldInput
-          label="Required"
-          rule={requiredField('So required. Much mandatory.')}
-          required
+          mb="6"
+          placeholder="without label"
+          validator={() => false}
           onChange={() => {}}
-          value=""
         />
-        <ButtonPrimary onClick={() => validator.validate()}>
-          Validate
-        </ButtonPrimary>
       </>
     )}
   </Validation>

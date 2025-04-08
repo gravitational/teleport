@@ -314,7 +314,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "Logger", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}

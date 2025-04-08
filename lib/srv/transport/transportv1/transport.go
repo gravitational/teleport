@@ -22,12 +22,12 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"net/netip"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Dialer is the interface that groups basic dialing methods.
@@ -64,7 +63,7 @@ type ServerConfig struct {
 	// to run in FIPS mode.
 	FIPS bool
 	// Logger provides a mechanism to log output.
-	Logger *slog.Logger
+	Logger logrus.FieldLogger
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
@@ -94,7 +93,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "transport")
+		c.Logger = utils.NewLogger().WithField(teleport.ComponentKey, "transport")
 	}
 
 	if c.agentGetterFn == nil {
@@ -248,7 +247,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			req, err := stream.Recv()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-					s.cfg.Logger.ErrorContext(ctx, "ssh stream terminated unexpectedly", "error", err)
+					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
 
 				return
@@ -263,7 +262,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			case *transportv1pb.ProxySSHRequest_Agent:
 				agentStream.incomingC <- frame.Agent.Payload
 			default:
-				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(frame))
+				s.cfg.Logger.Errorf("received unexpected ssh frame: %T", frame)
 				continue
 			}
 		}

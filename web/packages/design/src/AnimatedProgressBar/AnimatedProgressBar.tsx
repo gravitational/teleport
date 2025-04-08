@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import Flex from '../Flex';
@@ -65,7 +66,7 @@ const Bar = styled.span`
   overflow: hidden;
   width: 118px;
 
-  &::after {
+  ::after {
     content: '';
     position: absolute;
     top: 0;

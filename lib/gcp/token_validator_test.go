@@ -20,7 +20,8 @@ package gcp
 
 import (
 	"context"
-	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -31,20 +32,17 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type fakeIDP struct {
-	t         *testing.T
-	signer    jose.Signer
-	publicKey crypto.PublicKey
-	server    *httptest.Server
+	t          *testing.T
+	signer     jose.Signer
+	privateKey *rsa.PrivateKey
+	server     *httptest.Server
 }
 
 func newFakeIDP(t *testing.T) *fakeIDP {
-	// GCP uses RSA, prefer to test with it.
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -54,9 +52,9 @@ func newFakeIDP(t *testing.T) *fakeIDP {
 	require.NoError(t, err)
 
 	f := &fakeIDP{
-		signer:    signer,
-		publicKey: privateKey.Public(),
-		t:         t,
+		signer:     signer,
+		privateKey: privateKey,
+		t:          t,
 	}
 
 	providerMux := http.NewServeMux()
@@ -108,7 +106,7 @@ func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
 	jwks := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Key: f.publicKey,
+				Key: &f.privateKey.PublicKey,
 			},
 		},
 	}

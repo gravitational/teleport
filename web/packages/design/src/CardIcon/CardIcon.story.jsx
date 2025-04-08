@@ -16,15 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Apple } from '../Icon';
+import React from 'react';
+
 import CardIcon from './index';
 
 export default {
-  title: 'Design/Card',
+  title: 'Design/Card/Icon',
 };
 
-export const WithIcon = () => (
-  <CardIcon title="Card Icon Title" icon={<Apple />}>
-    Some Children
-  </CardIcon>
-);
+export const Cards = () => <CardIcon />;

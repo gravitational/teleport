@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -38,11 +37,10 @@ import (
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/parquet-go/parquet-go"
-	"go.opentelemetry.io/otel"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -75,7 +73,7 @@ const (
 // consumer is responsible for receiving messages from SQS, batching them up to
 // certain size or interval, and writes to s3 as parquet file.
 type consumer struct {
-	logger              *slog.Logger
+	logger              log.FieldLogger
 	backend             backend.Backend
 	storeLocationPrefix string
 	storeLocationBucket string
@@ -123,26 +121,14 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		t.MaxIdleConns = defaults.HTTPMaxIdleConns
 		t.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
 	})
-	sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig,
-		func(o *sqs.Options) {
-			o.HTTPClient = sqsHTTPClient
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		})
+	sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) { o.HTTPClient = sqsHTTPClient })
 
 	s3HTTPClient := awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
 		t.MaxIdleConns = defaults.HTTPMaxIdleConns
 		t.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
 	})
-	publisherS3Client := s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig,
-		func(o *s3.Options) {
-			o.HTTPClient = s3HTTPClient
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		})
-	storerS3Client := s3.NewFromConfig(*cfg.StorerQuerierAWSConfig,
-		func(o *s3.Options) {
-			o.HTTPClient = s3HTTPClient
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		})
+	publisherS3Client := s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) { o.HTTPClient = s3HTTPClient })
+	storerS3Client := s3.NewFromConfig(*cfg.StorerQuerierAWSConfig, func(o *s3.Options) { o.HTTPClient = s3HTTPClient })
 
 	collectCfg := sqsCollectConfig{
 		sqsReceiver: sqsClient,
@@ -153,7 +139,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
 		batchMaxItems:     cfg.BatchMaxItems,
 		errHandlingFn:     errHandlingFnFromSQS(&cfg),
-		logger:            cfg.Logger,
+		logger:            cfg.LogEntry,
 		metrics:           cfg.metrics,
 	}
 	err := collectCfg.CheckAndSetDefaults()
@@ -166,7 +152,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 	}
 
 	return &consumer{
-		logger:              cfg.Logger,
+		logger:              cfg.LogEntry,
 		backend:             cfg.Backend,
 		storeLocationPrefix: cfg.locationS3Prefix,
 		storeLocationBucket: cfg.locationS3Bucket,
@@ -205,7 +191,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 func (c *consumer) run(ctx context.Context) {
 	defer func() {
 		close(c.finished)
-		c.logger.DebugContext(ctx, "Consumer finished")
+		c.logger.Debug("Consumer finished")
 	}()
 	c.runContinuouslyOnSingleAuth(ctx, c.processEventsContinuously)
 }
@@ -235,14 +221,14 @@ func (c *consumer) processEventsContinuously(ctx context.Context) {
 			if ctx.Err() != nil {
 				return false
 			}
-			c.logger.ErrorContext(ctx, "Batcher single run failed", "error", err)
+			c.logger.Errorf("Batcher single run failed: %v", err)
 			return false
 		}
 		return reachedMaxBatch
 	}
 
-	c.logger.DebugContext(ctx, "Processing of events started on this instance")
-	defer c.logger.DebugContext(ctx, "Processing of events finished on this instance")
+	c.logger.Debug("Processing of events started on this instance")
+	defer c.logger.Debug("Processing of events finished on this instance")
 
 	// If batch took 90% of specified interval, we don't want to wait just little bit.
 	// It's mainly to avoid cases when we will wait like 10ms.
@@ -265,7 +251,7 @@ func (c *consumer) processEventsContinuously(ctx context.Context) {
 // Backend locking is used to make sure that only single auth is running consumer.
 func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProcessorFn func(context.Context)) {
 	// for 1 minute it will be 5s sleep before retry which seems like reasonable value.
-	waitTimeAfterLockingError := retryutils.SeventhJitter(c.batchMaxInterval / 12)
+	waitTimeAfterLockingError := retryutils.NewSeventhJitter()(c.batchMaxInterval / 12)
 	for {
 		select {
 		case <-ctx.Done():
@@ -296,7 +282,7 @@ func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProces
 				}
 				// Ending up here means something went wrong in the backend while locking/waiting
 				// for lock. What we can do is log and retry whole operation.
-				c.logger.WarnContext(ctx, "Could not get consumer to run with lock", "error", err)
+				c.logger.WithError(err).Warn("Could not get consumer to run with lock")
 				select {
 				// Use wait to make sure we won't spam CPU with a lot requests
 				// if something goes wrong during acquire lock.
@@ -392,7 +378,7 @@ type sqsCollectConfig struct {
 	// noOfWorkers defines how many workers are processing messages from queue.
 	noOfWorkers int
 
-	logger        *slog.Logger
+	logger        log.FieldLogger
 	errHandlingFn func(ctx context.Context, errC chan error)
 
 	metrics *athenaMetrics
@@ -433,7 +419,9 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 		cfg.noOfWorkers = 5
 	}
 	if cfg.logger == nil {
-		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
+		cfg.logger = log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.ComponentAthena,
+		})
 	}
 	if cfg.errHandlingFn == nil {
 		return trace.BadParameter("errHandlingFn is not specified")
@@ -517,7 +505,7 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 				if isOverBatch || isOverMaximumUniqueDays {
 					fullBatchMetadataMu.Unlock()
 					cancel()
-					s.cfg.logger.DebugContext(ctx, "Batcher aborting early", "max_size", isOverBatch, "max_unique_days", isOverMaximumUniqueDays)
+					s.cfg.logger.Debugf("Batcher aborting early because of maxSize: %v, or maxUniqueDays %v", isOverBatch, isOverMaximumUniqueDays)
 					return
 				}
 				fullBatchMetadataMu.Unlock()
@@ -639,7 +627,7 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 		}
 		messageSentTimestamp, err := getMessageSentTimestamp(msg)
 		if err != nil {
-			s.cfg.logger.DebugContext(ctx, "Failed to get sentTimestamp", "error", err)
+			s.cfg.logger.Debugf("Failed to get sentTimestamp: %v", err)
 		}
 		singleReceiveMetadata.MergeWithEvent(event, messageSentTimestamp)
 	}
@@ -725,7 +713,7 @@ func errHandlingFnFromSQS(cfg *Config) func(ctx context.Context, errC chan error
 
 		defer func() {
 			if errorsCount > maxErrorCountForLogsOnSQSReceive {
-				cfg.Logger.ErrorContext(ctx, "Got errors from SQS collector", "error_count", errorsCount)
+				cfg.LogEntry.Errorf("Got %d errors from SQS collector, printed only first %d", errorsCount, maxErrorCountForLogsOnSQSReceive)
 			}
 			cfg.metrics.consumerNumberOfErrorsFromSQSCollect.Add(float64(errorsCount))
 		}()
@@ -741,7 +729,7 @@ func errHandlingFnFromSQS(cfg *Config) func(ctx context.Context, errC chan error
 				}
 				errorsCount++
 				if errorsCount <= maxErrorCountForLogsOnSQSReceive {
-					cfg.Logger.ErrorContext(ctx, "Failure processing SQS messages", "error", err)
+					cfg.LogEntry.WithError(err).Error("Failure processing SQS messages")
 				}
 			}
 		}
@@ -762,7 +750,7 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 	path := s3Payload.GetPath()
 	versionID := s3Payload.GetVersionId()
 
-	s.cfg.logger.DebugContext(ctx, "Downloading event from S3", "bucket", s.cfg.payloadBucket, "path", path, "version", versionID)
+	s.cfg.logger.Debugf("Downloading %v %v [%v].", s.cfg.payloadBucket, path, versionID)
 
 	var versionIDPtr *string
 	if versionID != "" {
@@ -803,7 +791,7 @@ eventLoop:
 			}
 			pqtEvent, err := auditEventToParquet(eventAndAckID.event)
 			if err != nil {
-				c.logger.ErrorContext(ctx, "Could not convert event to parquet format", "error", err)
+				c.logger.WithError(err).Error("Could not convert event to parquet format")
 				continue
 			}
 			date := pqtEvent.EventTime.Format(time.DateOnly)

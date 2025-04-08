@@ -19,10 +19,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -52,7 +52,7 @@ type TeleportSearchEventsClient interface {
 
 // newClient performs teleport api client setup, including credentials loading, validation, and
 // setup of credentials refresh if needed.
-func newClient(ctx context.Context, log *slog.Logger, c *StartCmdConfig) (*client.Client, error) {
+func newClient(ctx context.Context, c *StartCmdConfig) (*client.Client, error) {
 	var creds []client.Credentials
 	switch {
 	case c.TeleportIdentityFile != "" && !c.TeleportRefreshEnabled:
@@ -70,13 +70,13 @@ func newClient(ctx context.Context, log *slog.Logger, c *StartCmdConfig) (*clien
 	}
 
 	if validCred, err := credentials.CheckIfExpired(creds); err != nil {
-		log.WarnContext(ctx, "Encountered error when checking credentials", "error", err)
+		log.Warn(err)
 		if !validCred {
 			return nil, trace.BadParameter(
 				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
 			)
 		}
-		log.InfoContext(ctx, "At least one non-expired credential has been found, continuing startup")
+		log.Info("At least one non-expired credential has been found, continuing startup")
 	}
 
 	clientConfig := client.Config{

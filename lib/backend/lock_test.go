@@ -31,13 +31,13 @@ func TestLockKey(t *testing.T) {
 	t.Run("empty parts", func(t *testing.T) {
 		key := lockKey()
 		assert.Equal(t, ".locks", key.String())
-		assert.Equal(t, []string{".locks"}, key.Components())
+		assert.Equal(t, [][]byte{[]byte(".locks")}, key.Components())
 	})
 
 	t.Run("with parts", func(t *testing.T) {
 		key := lockKey("test", "llama")
 		assert.Equal(t, ".locks/test/llama", key.String())
-		assert.Equal(t, []string{".locks", "test", "llama"}, key.Components())
+		assert.Equal(t, [][]byte{[]byte(".locks"), []byte("test"), []byte("llama")}, key.Components())
 	})
 }
 
@@ -87,10 +87,10 @@ func TestLockConfiguration_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "missing Backend",
 		},
 		{
-			name: "missing lock components",
+			name: "missing lock name",
 			in: LockConfiguration{
-				Backend:            mockBackend{},
-				LockNameComponents: nil,
+				Backend:  mockBackend{},
+				LockName: "",
 			},
 			wantErr: "missing LockName",
 		},
@@ -158,6 +158,7 @@ func TestRunWhileLockedConfigCheckAndSetDefaults(t *testing.T) {
 			name: "errors from LockConfiguration is passed",
 			input: func() RunWhileLockedConfig {
 				cfg := minimumValidConfig
+				cfg.LockName = ""
 				cfg.LockNameComponents = nil
 				return cfg
 			},

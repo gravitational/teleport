@@ -21,6 +21,7 @@ import React, { useState } from 'react';
 import { Box, ButtonPrimary, Flex, Image, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 import { RadioGroup } from 'design/RadioGroup';
 import { StepHeader } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
@@ -31,7 +32,6 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 import createMfaOptions from 'shared/utils/createMfaOptions';
 
-import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 
 export interface NewMfaDeviceFormProps {
@@ -161,7 +161,7 @@ export function NewMfaDeviceForm({
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="body2" color="text.main" mb={1}>
+          <Text typography="subtitle1" color="text.main" mb={1}>
             Multi-factor type
           </Text>
           <Box mb={3}>
@@ -264,7 +264,7 @@ export function NewMfaDeviceForm({
             onClick={e => onBtnClick(e, validator)}
           >
             {mfaType.value === 'webauthn' && !credential
-              ? 'Create an MFA Method'
+              ? 'Create an MFA method'
               : submitButtonText}
           </ButtonPrimary>
         </OnboardCard>

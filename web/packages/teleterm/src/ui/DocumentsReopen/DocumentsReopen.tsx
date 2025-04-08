@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2 } from 'design';
+import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
-import { P } from 'design/Text/Text';
 import { pluralize } from 'shared/utils/text';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -65,7 +66,9 @@ export function DocumentsReopen(props: {
           mb={0}
           alignItems="baseline"
         >
-          <H2 mb={4}>Reopen previous session</H2>
+          <Text typography="h4" bold>
+            Reopen previous session
+          </Text>
           <ButtonIcon
             type="button"
             onClick={props.onDiscard}
@@ -76,10 +79,11 @@ export function DocumentsReopen(props: {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <P color="text.slightlyMuted">
+          <Text typography="body1" color="text.slightlyMuted">
             Do you want to reopen tabs from the previous session?
-          </P>
-          <P
+          </Text>
+          <Text
+            typography="body1"
             color="text.slightlyMuted"
             // Split long continuous cluster names into separate lines.
             css={`
@@ -98,14 +102,14 @@ export function DocumentsReopen(props: {
               {pluralize(props.numberOfDocuments, 'tab')}
             </strong>{' '}
             open in <strong>{clusterName}</strong>.
-          </P>
+          </Text>
         </DialogContent>
         <DialogFooter>
           <ButtonPrimary autoFocus mr={3} type="submit">
             Reopen
           </ButtonPrimary>
           <ButtonSecondary type="button" onClick={props.onDiscard}>
-            Start New Session
+            Start new session
           </ButtonSecondary>
         </DialogFooter>
       </form>

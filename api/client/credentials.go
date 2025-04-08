@@ -41,6 +41,10 @@ import (
 // also provide other functionality, such as automatic address discovery and
 // ssh connectivity.
 //
+// Note: starting with v17, all Credentials must have an Expiry method.
+// For compatibility guarantees, the future interface is optional and called
+// CredentialsWithExpiry.
+//
 // See the examples below for an example of each loader.
 type Credentials interface {
 	// TLSConfig returns TLS configuration used to authenticate the client.
@@ -48,6 +52,14 @@ type Credentials interface {
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
 	SSHClientConfig() (*ssh.ClientConfig, error)
+}
+
+// CredentialsWithExpiry are credentials implementing the Expiry() function.
+// This interface is here to avoid breaking changes in v15 and v16. Starting with
+// v17, Expiry() will be part of the Credentials interface.
+type CredentialsWithExpiry interface {
+	Credentials
+
 	// Expiry returns the Credentials expiry if it's possible to know its expiry.
 	// When expiry can be determined returns true, else returns false.
 	// If the Credentials don't expire, returns the zero time.
@@ -66,6 +78,17 @@ type CredentialsWithDefaultAddrs interface {
 	// explicitly configured with an address to connect to. It may return a
 	// slice of addresses to be tried.
 	DefaultAddrs() ([]string, error)
+}
+
+// Expiry checks if the Credentials has an Expiry function and invokes it.
+// Starting with v17, this is part of the Credentials interface but we must be backward compatible with v16 and below.
+// If the Credentials don't implement Expiry, returns false.
+func Expiry(c Credentials) (time.Time, bool) {
+	credsWithExpiry, ok := c.(CredentialsWithExpiry)
+	if !ok {
+		return time.Time{}, false
+	}
+	return credsWithExpiry.Expiry()
 }
 
 // LoadTLS is used to load Credentials directly from a *tls.Config.
@@ -424,7 +447,7 @@ func configureTLS(c *tls.Config) *tls.Config {
 	// This logic still appears to be necessary to force client to always send
 	// a certificate regardless of the server setting. Otherwise the client may pick
 	// not to send the client certificate by looking at certificate request.
-	if len(tlsConfig.Certificates) > 0 && tlsConfig.GetClientCertificate == nil {
+	if len(tlsConfig.Certificates) > 0 {
 		cert := tlsConfig.Certificates[0]
 		tlsConfig.Certificates = nil
 		tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {

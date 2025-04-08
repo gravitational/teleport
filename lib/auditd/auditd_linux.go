@@ -20,10 +20,8 @@ package auditd
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"errors"
-	"log/slog"
 	"math"
 	"os"
 	"strconv"
@@ -34,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
+	log "github.com/sirupsen/logrus"
 )
 
 // featureStatus is a 3 state boolean yes/no/unknown type.
@@ -93,7 +92,7 @@ func IsLoginUIDSet() bool {
 	client := NewClient(Message{})
 	defer func() {
 		if err := client.Close(); err != nil {
-			slog.WarnContext(context.TODO(), "Failed to close auditd client", "error", err)
+			log.WithError(err).Warn("Failed to close auditd client.")
 		}
 	}()
 	// We don't need to acquire the internal client mutex as the connection is
@@ -109,7 +108,7 @@ func IsLoginUIDSet() bool {
 
 	loginuid, err := getSelfLoginUID()
 	if err != nil {
-		slog.DebugContext(context.TODO(), "Failed to read login UID", "error", err)
+		log.WithError(err).Debug("failed to read login UID")
 		return false
 	}
 
@@ -143,7 +142,7 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	defer func() {
 		err := client.Close()
 		if err != nil {
-			slog.ErrorContext(context.TODO(), "Failed to close auditd client", "error", err)
+			log.WithError(err).Error("failed to close auditd client")
 		}
 	}()
 
@@ -207,7 +206,7 @@ func NewClient(msg Message) *Client {
 
 	execName, err := os.Executable()
 	if err != nil {
-		slog.WarnContext(context.TODO(), "Failed to get executable name", "error", err)
+		log.WithError(err).Warn("failed to get executable name")
 		execName = UnknownValue
 	}
 

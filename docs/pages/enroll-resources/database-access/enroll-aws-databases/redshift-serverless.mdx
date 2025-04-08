@@ -16,10 +16,10 @@ This guide will help you to:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Enroll Redshift with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_selfhosted_serverless.png)
+![Teleport Database Access Redshift Self-Hosted](../../../../img/database-access/guides/redshift_selfhosted_serverless.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Enroll Redshift with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_cloud_serverless.png)
+![Teleport Database Access Redshift Cloud](../../../../img/database-access/guides/redshift_cloud_serverless.png)
 </TabItem>
 
 </Tabs>
@@ -190,8 +190,6 @@ $ tctl create -f redshift-role.yaml
 role 'redshift-serverless-access' has been created
 ```
 
-(!docs/pages/includes/create-role-using-web.mdx!)
-
 (!docs/pages/includes/add-role-to-user.mdx role="redshift-serverless-access"!)
 
 ## Step 5/5. Connect
@@ -220,8 +218,6 @@ Type "help" for help.
 
 dev=>
 ```
-
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 To log out of the database and remove credentials:
 

@@ -22,11 +22,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -44,7 +44,7 @@ type CertReloaderConfig struct {
 // CertReloader periodically reloads a list of cert key-pair paths.
 // This allows new certificates to be used without a full reload of Teleport.
 type CertReloader struct {
-	logger *slog.Logger
+	*log.Entry
 	// cfg is the certificate reloader configuration.
 	cfg CertReloaderConfig
 
@@ -57,15 +57,17 @@ type CertReloader struct {
 // NewCertReloader initializes a new certificate reloader.
 func NewCertReloader(cfg CertReloaderConfig) *CertReloader {
 	return &CertReloader{
-		logger: slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "certreloader")),
-		cfg:    cfg,
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.Component(teleport.ComponentProxy, "certreloader"),
+		}),
+		cfg: cfg,
 	}
 }
 
 // Run tries to load certificates and then spawns the certificate reloader.
 func (c *CertReloader) Run(ctx context.Context) error {
 	// Synchronously load initially configured certificates.
-	if err := c.loadCertificates(ctx); err != nil {
+	if err := c.loadCertificates(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -76,9 +78,9 @@ func (c *CertReloader) Run(ctx context.Context) error {
 
 	// Spawn the certificate reloader.
 	go func() {
-		c.logger.InfoContext(ctx, "Starting periodic reloading of certificate key pairs", "reload_interval", c.cfg.KeyPairsReloadInterval)
+		c.Infof("Starting periodic reloading of certificate key pairs every %s.", c.cfg.KeyPairsReloadInterval)
 		defer func() {
-			c.logger.InfoContext(ctx, "Stopped periodic reloading of certificate key pairs")
+			c.Info("Stopped periodic reloading of certificate key pairs.")
 		}()
 
 		t := time.NewTicker(c.cfg.KeyPairsReloadInterval)
@@ -86,8 +88,8 @@ func (c *CertReloader) Run(ctx context.Context) error {
 		for {
 			select {
 			case <-t.C:
-				if err := c.loadCertificates(ctx); err != nil {
-					c.logger.WarnContext(ctx, "Failed to load certificates", "error", err)
+				if err := c.loadCertificates(); err != nil {
+					c.WithError(err).Warn("Failed to load certificates")
 				}
 			case <-ctx.Done():
 				return
@@ -100,13 +102,10 @@ func (c *CertReloader) Run(ctx context.Context) error {
 // loadCertificates loads certificate keys pairs.
 // It returns an error if any of the certificate key pairs fails to load.
 // If any of the key pairs fails to load, none of the certificates are updated.
-func (c *CertReloader) loadCertificates(ctx context.Context) error {
+func (c *CertReloader) loadCertificates() error {
 	certs := make([]tls.Certificate, 0, len(c.cfg.KeyPairs))
 	for _, pair := range c.cfg.KeyPairs {
-		c.logger.DebugContext(ctx, "Loading TLS certificate",
-			"public_key", pair.Certificate,
-			"private_key", pair.PrivateKey,
-		)
+		c.Debugf("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
 
 		certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
 		if err != nil {

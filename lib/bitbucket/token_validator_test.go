@@ -22,6 +22,8 @@ import (
 	"cmp"
 	"context"
 	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,8 +34,6 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type fakeIDP struct {
@@ -45,7 +45,7 @@ type fakeIDP struct {
 }
 
 func newFakeIDP(t *testing.T, audience string) *fakeIDP {
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(

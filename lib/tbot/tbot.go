@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
@@ -336,10 +337,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
 		case *config.SPIFFEWorkloadAPIService:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
 			clientCredential := &config.UnstableClientCredentialOutput{}
 			svcIdentity := &ClientCredentialOutputService{
 				botAuthClient:     b.botIdentitySvc.GetClient(),
@@ -418,26 +415,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
-		case *config.KubernetesV2Output:
-			svc := &KubernetesV2OutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				proxyPingCache:    proxyPingCache,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
-				executablePath:    os.Executable,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			services = append(services, svc)
 		case *config.SPIFFESVIDOutput:
-			b.log.WarnContext(
-				ctx,
-				"The 'spiffe-svid' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-			)
 			svc := &SPIFFESVIDOutputService{
 				botAuthClient:  b.botIdentitySvc.GetClient(),
 				botCfg:         b.cfg,
@@ -504,6 +482,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
 				executablePath:    os.Executable,
+				getEnv:            os.Getenv,
 				alpnUpgradeCache:  alpnUpgradeCache,
 				proxyPingCache:    proxyPingCache,
 			}
@@ -611,19 +590,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				resolver:         resolver,
 				trustBundleCache: tbCache,
 				crlCache:         crlCache,
-			}
-			svc.log = b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
-			)
-			services = append(services, svc)
-		case *config.WorkloadIdentityAWSRAService:
-			svc := &WorkloadIdentityAWSRAService{
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				resolver:          resolver,
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -800,9 +766,9 @@ func clientForFacade(
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
-		Log:                   log,
+		Log:                   logrus.StandardLogger(),
 		InsecureSkipTLSVerify: cfg.Insecure,
-		GetClusterCAs:         client.ClusterCAsFromCertPool(tlsConfig.RootCAs),
+		ClusterCAs:            tlsConfig.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -814,7 +780,7 @@ func clientForFacade(
 		// TODO(noah): It'd be ideal to distinguish the proxy addr and auth addr
 		// here to avoid pointlessly hitting the address as an auth server.
 		AuthServers: []utils.NetAddr{*parsedAddr},
-		Log:         log,
+		Log:         logrus.StandardLogger(),
 		Insecure:    cfg.Insecure,
 		ProxyDialer: dialer,
 		DialOpts: []grpc.DialOption{

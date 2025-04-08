@@ -7,5 +7,3 @@
 
 # Ignore WASM generated files:
 **/ironrdp/pkg/**
-# Ignore generated mockServiceWorker file
-web/.storybook/public/mockServiceWorker.js

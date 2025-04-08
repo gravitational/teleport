@@ -81,7 +81,7 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 	t.Helper()
 
 	fs := eventstest.NewFakeStreamer(events, streamInterval)
-	log := utils.NewSlogLoggerForTests()
+	log := utils.NewLoggerForTests()
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{

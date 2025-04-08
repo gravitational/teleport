@@ -31,7 +31,7 @@ export class HeadlessAuthenticationService {
     private configService: ConfigService
   ) {}
 
-  async sendPendingHeadlessAuthentication(
+  sendPendingHeadlessAuthentication(
     request: SendPendingHeadlessAuthenticationRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
@@ -40,7 +40,7 @@ export class HeadlessAuthenticationService {
     // If the user wants to skip the confirmation step, then don't force the window.
     // Instead, they can just tap their blinking yubikey with the window in the background.
     if (!skipConfirm) {
-      await this.mainProcessClient.forceFocusWindow();
+      this.mainProcessClient.forceFocusWindow();
     }
 
     return new Promise(resolve => {

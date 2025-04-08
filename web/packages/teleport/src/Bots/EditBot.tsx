@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Alert, ButtonSecondary, ButtonWarning } from 'design';
 import Dialog, {
   DialogContent,
@@ -65,6 +67,7 @@ export function EditBot({
             placeholder="Click to select roles"
             isSearchable
             isMulti
+            isSimpleValue
             isClearable={false}
             value={selectedRoles.map(r => ({
               value: r,

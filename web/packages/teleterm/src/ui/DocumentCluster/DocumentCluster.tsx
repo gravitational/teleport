@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 
-import { Alert, Box, ButtonPrimary, Flex, H2, Text } from 'design';
+import { Alert, Box, ButtonPrimary, Flex, Text } from 'design';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import { Cluster } from 'teleterm/services/tshd/types';
@@ -185,7 +185,6 @@ function PrintState(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
-      px={4}
       css={`
         top: 11%;
         position: relative;
@@ -194,7 +193,9 @@ function PrintState(props: {
       {props.action && props.action.attempt.status === 'error' && (
         <Alert>{props.action.attempt.statusText}</Alert>
       )}
-      <H2 mb={1}>{props.clusterName}</H2>
+      <Text typography="h4" bold>
+        {props.clusterName}
+      </Text>
       <Text>{props.clusterState}</Text>
       {props.action && (
         <ButtonPrimary

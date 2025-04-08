@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { ButtonPrimary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -39,7 +41,9 @@ export function Reconnect(props: {
       mt={100}
       px="2"
     >
-      <Text typography="h2">{message}</Text>
+      <Text typography="h5" color="text.main">
+        {message}
+      </Text>
       <Flex flexDirection="column" alignItems="center" mx="auto">
         <Danger mb={3}>
           <Text

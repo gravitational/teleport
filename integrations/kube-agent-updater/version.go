@@ -21,5 +21,3 @@ package kubeversionupdater
 import "github.com/gravitational/teleport/api"
 
 const Version = api.Version
-
-var SemVersion = api.SemVersion

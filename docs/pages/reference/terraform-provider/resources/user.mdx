@@ -7,9 +7,6 @@ description: This page describes the supported values of the teleport_user resou
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-This page describes the supported values of the teleport_user resource of the Teleport Terraform provider.
-
-
 
 
 ## Example Usage
@@ -105,7 +102,6 @@ Optional:
 
 - `connector_id` (String) ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
 - `samlSingleLogoutUrl` (String) SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
-- `user_id` (String) UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.
 - `username` (String) Username is username supplied by external identity provider
 
 
@@ -115,7 +111,6 @@ Optional:
 
 - `connector_id` (String) ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
 - `samlSingleLogoutUrl` (String) SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
-- `user_id` (String) UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.
 - `username` (String) Username is username supplied by external identity provider
 
 
@@ -125,7 +120,6 @@ Optional:
 
 - `connector_id` (String) ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
 - `samlSingleLogoutUrl` (String) SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
-- `user_id` (String) UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.
 - `username` (String) Username is username supplied by external identity provider
 
 
@@ -136,3 +130,4 @@ Optional:
 
 - `mfa_weakest_device` (Number) mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a "best effort" property, in that it can be UNSPECIFIED.
 - `password_state` (Number) password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!
+

@@ -21,7 +21,7 @@ package keystore
 import (
 	"context"
 	"crypto"
-	"crypto/elliptic"
+	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -88,7 +87,7 @@ func (p *pkcs11KeyStore) keyTypeDescription() string {
 	return fmt.Sprintf("PKCS#11 HSM keys created by %s", p.hostUUID)
 }
 
-func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
+func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
 	if !p.isYubiHSM {
 		id, err := uuid.NewRandom()
 		if err != nil {
@@ -122,58 +121,37 @@ func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
 	return keyID{}, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
 }
 
-// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
+// generateRSA creates a new RSAprivate key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	// The key identifiers are not created in a thread safe
+func (p *pkcs11KeyStore) generateRSA(ctx context.Context, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+	// the key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
-	select {
-	case p.semaphore <- struct{}{}:
-	case <-ctx.Done():
-		return nil, nil, trace.Wrap(ctx.Err())
-	}
+	p.semaphore <- struct{}{}
 	defer func() {
 		<-p.semaphore
 	}()
 
-	id, err := p.findUnusedID(ctx)
+	id, err := p.findUnusedID()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	rawTeleportID, err := id.marshal()
+	p.log.DebugContext(ctx, "Creating new HSM keypair.", "id", id)
+
+	ckaID, err := id.pkcs11Key(p.isYubiHSM)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, []byte(p.hostUUID), constants.RSAKeySize)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "generating RSA key pair")
+	}
 
-	rawPKCS11ID, err := id.pkcs11Key(p.isYubiHSM)
+	keyID, err := id.marshal()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	p.log.InfoContext(ctx, "Creating new HSM keypair.", "id", id, "algorithm", alg.String())
-
-	label := []byte(p.hostUUID)
-	switch alg {
-	case cryptosuites.RSA2048:
-		signer, err := p.generateRSA2048(rawPKCS11ID, label)
-		return rawTeleportID, signer, trace.Wrap(err, "generating RSA2048 key")
-	case cryptosuites.ECDSAP256:
-		signer, err := p.generateECDSAP256(rawPKCS11ID, label)
-		return rawTeleportID, signer, trace.Wrap(err, "generating ECDSAP256 key")
-	default:
-		return nil, nil, trace.BadParameter("unsupported key algorithm for PKCS#11 HSM: %v", alg)
-	}
-}
-
-func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto.Signer, error) {
-	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, constants.RSAKeySize)
-	return signer, trace.Wrap(err)
-}
-
-func (p *pkcs11KeyStore) generateECDSAP256(ckaID, label []byte) (crypto.Signer, error) {
-	signer, err := p.ctx.GenerateECDSAKeyPairWithLabel(ckaID, label, elliptic.P256())
-	return signer, trace.Wrap(err)
+	return keyID, signer, nil
 }
 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
@@ -255,7 +233,7 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	// It's necessary to fetch all PublicKeys for the known activeKeys in order to
 	// compare with the signers returned by FindKeyPairs below. We have no way
 	// to find the CKA_ID of an unused key if it is not known.
-	var activePublicKeys []publicKey
+	var activePublicKeys []*rsa.PublicKey
 	for _, activeKey := range activeKeys {
 		if keyType(activeKey) != types.PrivateKeyType_PKCS11 {
 			continue
@@ -281,20 +259,20 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		publicKey, ok := signer.Public().(publicKey)
+		rsaPublicKey, ok := signer.Public().(*rsa.PublicKey)
 		if !ok {
 			return trace.BadParameter("unknown public key type: %T", signer.Public())
 		}
-		activePublicKeys = append(activePublicKeys, publicKey)
+		activePublicKeys = append(activePublicKeys, rsaPublicKey)
 	}
 	keyIsActive := func(signer crypto.Signer) bool {
-		publicKey, ok := signer.Public().(publicKey)
+		rsaPublicKey, ok := signer.Public().(*rsa.PublicKey)
 		if !ok {
 			// unknown key type... we don't know what this is, so don't delete it
 			return true
 		}
 		for _, k := range activePublicKeys {
-			if publicKey.Equal(k) {
+			if rsaPublicKey.Equal(k) {
 				return true
 			}
 		}
@@ -317,10 +295,6 @@ func (p *pkcs11KeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]by
 		}
 	}
 	return nil
-}
-
-type publicKey interface {
-	Equal(other crypto.PublicKey) bool
 }
 
 type keyID struct {

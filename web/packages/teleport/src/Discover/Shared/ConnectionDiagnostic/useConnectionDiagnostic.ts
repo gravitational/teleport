@@ -31,7 +31,7 @@ import {
   type ConnectionDiagnosticRequest,
 } from 'teleport/services/agents';
 import auth from 'teleport/services/auth/auth';
-import type { MfaChallengeResponse } from 'teleport/services/mfa';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
@@ -62,7 +62,7 @@ export function useConnectionDiagnostic() {
    */
   async function runConnectionDiagnostic(
     req: ConnectionDiagnosticRequest,
-    mfaAuthnResponse?: MfaChallengeResponse
+    mfaAuthnResponse?: MfaAuthnResponse
   ): Promise<{ mfaRequired: boolean }> {
     setDiagnosis(null); // reset since user's can re-test connection.
     setRanDiagnosis(true);

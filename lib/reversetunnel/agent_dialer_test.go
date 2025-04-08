@@ -20,16 +20,18 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -80,7 +82,7 @@ func TestAgentCertChecker(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, sshServer.Close()) })
 			require.NoError(t, sshServer.Start())
 
-			priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+			priv, err := rsa.GenerateKey(rand.Reader, 2048)
 			require.NoError(t, err)
 
 			signer, err := ssh.NewSignerFromKey(priv)
@@ -89,7 +91,7 @@ func TestAgentCertChecker(t *testing.T) {
 			dialer := agentDialer{
 				client:      &fakeClient{caKey: ca.PublicKey()},
 				authMethods: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				logger:      utils.NewSlogLoggerForTests(),
+				log:         logrus.New(),
 			}
 
 			_, err = dialer.DialContext(context.Background(), *utils.MustParseAddr(sshServer.Addr()))

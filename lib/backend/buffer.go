@@ -19,9 +19,9 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"sync"
 	"time"
@@ -29,10 +29,10 @@ import (
 	radix "github.com/armon/go-radix"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type bufferConfig struct {
@@ -85,7 +85,7 @@ func BufferClock(c clockwork.Clock) BufferOption {
 // of predefined size, that is capable of fan-out of the backend events.
 type CircularBuffer struct {
 	sync.Mutex
-	logger       *slog.Logger
+	*log.Entry
 	cfg          bufferConfig
 	init, closed bool
 	watchers     *watcherTree
@@ -103,7 +103,9 @@ func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
 		opt(&cfg)
 	}
 	return &CircularBuffer{
-		logger:   slog.With(teleport.ComponentKey, teleport.ComponentBuffer),
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.ComponentBuffer,
+		}),
 		cfg:      cfg,
 		watchers: newWatcherTree(),
 	}
@@ -155,7 +157,7 @@ func (c *CircularBuffer) SetInit() {
 	})
 
 	for _, watcher := range watchersToDelete {
-		c.logger.WarnContext(context.Background(), "Closing watcher, failed to send init event.", "watcher", logutils.StringerAttr(watcher))
+		c.Warningf("Closing %v, failed to send init event.", watcher)
 		watcher.closeWatcher()
 		c.watchers.rm(watcher)
 	}
@@ -201,7 +203,7 @@ func (c *CircularBuffer) emit(r Event) {
 
 func (c *CircularBuffer) fanOutEvent(r Event) {
 	var watchersToDelete []*BufferWatcher
-	c.watchers.walkPath(r.Item.Key.String(), func(watcher *BufferWatcher) {
+	c.watchers.walkPath(string(r.Item.Key), func(watcher *BufferWatcher) {
 		if watcher.MetricComponent != "" {
 			watcherQueues.WithLabelValues(watcher.MetricComponent).Set(float64(len(watcher.eventsC)))
 		}
@@ -211,7 +213,7 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	})
 
 	for _, watcher := range watchersToDelete {
-		c.logger.WarnContext(context.Background(), "Closing watcher, buffer overflow", "watcher", logutils.StringerAttr(watcher), "events", len(watcher.eventsC), "backlog", watcher.backlogLen())
+		c.Warningf("Closing %v, buffer overflow at %v (backlog=%v).", watcher, len(watcher.eventsC), watcher.backlogLen())
 		watcher.closeWatcher()
 		c.watchers.rm(watcher)
 	}
@@ -224,13 +226,13 @@ func RemoveRedundantPrefixes(prefixes []Key) []Key {
 	}
 	// group adjacent prefixes together
 	sort.Slice(prefixes, func(i, j int) bool {
-		return prefixes[i].Compare(prefixes[j]) == -1
+		return bytes.Compare(prefixes[i], prefixes[j]) == -1
 	})
 	// j increments only for values with non-redundant prefixes
 	j := 0
 	for i := 1; i < len(prefixes); i++ {
 		// skip keys that have first key as a prefix
-		if prefixes[i].HasPrefix(prefixes[j]) {
+		if bytes.HasPrefix(prefixes[i], prefixes[j]) {
 			continue
 		}
 		j++
@@ -256,7 +258,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	if len(watch.Prefixes) == 0 {
 		// if watcher has no prefixes, assume it will match anything
 		// starting from the separator (what includes all keys in backend invariant, see Keys function)
-		watch.Prefixes = append(watch.Prefixes, Key{})
+		watch.Prefixes = append(watch.Prefixes, []byte{Separator})
 	} else {
 		// if watcher's prefixes are redundant, keep only shorter prefixes
 		// to avoid double fan out
@@ -273,10 +275,10 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 		cancel:   cancel,
 		capacity: watch.QueueSize,
 	}
-	c.logger.DebugContext(ctx, "Adding watcher", "watcher", logutils.StringerAttr(w))
+	c.Debugf("Add %v.", w)
 	if c.init {
 		if ok := w.init(); !ok {
-			c.logger.WarnContext(ctx, "Closing watcher, failed to send init event.", "watcher", logutils.StringerAttr(w))
+			c.Warningf("Closing %v, failed to send init event.", w)
 			return nil, trace.BadParameter("failed to send init event")
 		}
 	}
@@ -285,17 +287,16 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 }
 
 func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
-	ctx := context.Background()
 	c.Lock()
 	defer c.Unlock()
 	if watcher == nil {
-		c.logger.WarnContext(ctx, "Internal logic error, empty watcher")
+		c.Warningf("Internal logic error: %v.", trace.DebugReport(trace.BadParameter("empty watcher")))
 		return
 	}
-	c.logger.DebugContext(ctx, "Removing watcher via external close.", "watcher", logutils.StringerAttr(watcher))
+	c.Debugf("Removing watcher %v (%p) via external close.", watcher.Name, watcher)
 	found := c.watchers.rm(watcher)
 	if !found {
-		c.logger.DebugContext(ctx, "Could not find watcher", "watcher", watcher.Name)
+		c.Debugf("Could not find watcher %v.", watcher.Name)
 	}
 }
 
@@ -448,7 +449,7 @@ type watcherTree struct {
 // add adds buffer watcher to the tree
 func (t *watcherTree) add(w *BufferWatcher) {
 	for _, p := range w.Prefixes {
-		prefix := p.String()
+		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)
 		var watchers []*BufferWatcher
 		if ok {
@@ -466,7 +467,7 @@ func (t *watcherTree) rm(w *BufferWatcher) bool {
 	}
 	var found bool
 	for _, p := range w.Prefixes {
-		prefix := p.String()
+		prefix := string(p)
 		val, ok := t.Tree.Get(prefix)
 		if !ok {
 			continue

@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-
 import type { Shell } from 'teleterm/mainProcess/shell';
 import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
@@ -31,7 +29,6 @@ import {
 } from 'teleterm/ui/uri';
 import { unique } from 'teleterm/ui/utils/uid';
 
-import { getDocumentGatewayTitle } from './documentsUtils';
 import {
   CreateAccessRequestDocumentOpts,
   CreateGatewayDocumentOpts,
@@ -50,8 +47,6 @@ import {
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
-  DocumentVnetDiagReport,
-  DocumentVnetInfo,
   WebSessionRequest,
 } from './types';
 
@@ -79,23 +74,11 @@ export class DocumentsService {
     opts: CreateAccessRequestDocumentOpts
   ): DocumentAccessRequests {
     const uri = routing.getDocUri({ docId: unique() });
-    let title: string;
-    switch (opts.state) {
-      case 'creating':
-        title = 'New Role Request';
-        break;
-      case 'reviewing':
-        title = `Access Request: ${opts.requestId.slice(-5)}`;
-        break;
-      case 'browsing':
-      default:
-        title = 'Access Requests';
-    }
     return {
       uri,
       clusterUri: opts.clusterUri,
       requestId: opts.requestId,
-      title,
+      title: opts.title || 'Access Requests',
       kind: 'doc.access_requests',
       state: opts.state,
     };
@@ -172,8 +155,9 @@ export class DocumentsService {
       origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
+    const title = targetUser ? `${targetUser}@${targetName}` : targetName;
 
-    const doc: DocumentGateway = {
+    return {
       uri,
       kind: 'doc.gateway',
       targetUri,
@@ -181,13 +165,11 @@ export class DocumentsService {
       targetName,
       targetSubresourceName,
       gatewayUri,
-      title: undefined,
+      title,
       port,
       origin,
       status: '',
     };
-    doc.title = getDocumentGatewayTitle(doc);
-    return doc;
   }
 
   createGatewayCliDocument({
@@ -252,39 +234,6 @@ export class DocumentsService {
       title: 'Authorize Web Session',
       rootClusterUri: params.rootClusterUri,
       webSessionRequest: params.webSessionRequest,
-    };
-  }
-
-  createVnetDiagReportDocument(opts: {
-    rootClusterUri: RootClusterUri;
-    report: Report;
-  }): DocumentVnetDiagReport {
-    const uri = routing.getDocUri({ docId: unique() });
-
-    return {
-      uri,
-      kind: 'doc.vnet_diag_report',
-      title: 'VNet Diagnostic Report',
-      rootClusterUri: opts.rootClusterUri,
-      report: opts.report,
-    };
-  }
-
-  createVnetInfoDocument(opts: {
-    rootClusterUri: RootClusterUri;
-    app?: {
-      targetAddress: string;
-      isMultiPort: boolean;
-    };
-  }): DocumentVnetInfo {
-    const uri = routing.getDocUri({ docId: unique() });
-
-    return {
-      uri,
-      kind: 'doc.vnet_info',
-      title: 'VNet',
-      rootClusterUri: opts.rootClusterUri,
-      app: opts.app,
     };
   }
 
@@ -496,28 +445,6 @@ export class DocumentsService {
 
   filter(uri: string) {
     return this.getState().documents.filter(i => i.uri !== uri);
-  }
-
-  /**
-   * Finds an existing doc using findExisting and opens it. If there's no existing doc, uses
-   * createNew to add a new doc and then opens it.
-   *
-   * Returns the URI of the doc that was opened.
-   */
-  openExistingOrAddNew(
-    findExisting: (doc: Document) => boolean,
-    createNew: () => Document
-  ): DocumentUri {
-    const existingDoc = this.getDocuments().find(findExisting);
-    if (existingDoc) {
-      this.open(existingDoc.uri);
-      return existingDoc.uri;
-    }
-
-    const newDoc = createNew();
-    this.add(newDoc);
-    this.open(newDoc.uri);
-    return newDoc.uri;
   }
 
   getTshNodeDocuments() {

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -33,6 +33,7 @@ type AwsMatcherTypes = 'rds' | 'eks' | 'ec2';
 
 export enum InstallParamEnrollMode {
   Script = 1,
+  Eice = 2,
 }
 
 // AWSMatcher matches AWS EC2 instances, AWS EKS clusters and AWS Databases

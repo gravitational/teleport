@@ -17,7 +17,6 @@
 package tbot
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -72,7 +71,7 @@ func (s *WorkloadIdentityJWTService) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting trust bundle set")
 	}
 
-	jitter := retryutils.DefaultJitter
+	jitter := retryutils.NewJitter()
 	var cred *workloadidentityv1pb.Credential
 	var failures int
 	firstRun := make(chan struct{}, 1)
@@ -112,7 +111,7 @@ func (s *WorkloadIdentityJWTService) Run(ctx context.Context) error {
 				cred = nil
 			}
 			bundleSet = newBundleSet
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(s.botCfg.RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			cred = nil
 		case <-firstRun:
@@ -158,7 +157,7 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {
@@ -173,21 +172,20 @@ func (s *WorkloadIdentityJWTService) requestJWTSVID(
 	}
 	defer impersonatedClient.Close()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	credentials, err := workloadidentity.IssueJWTWorkloadIdentity(
 		ctx,
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
 		s.cfg.Audiences,
-		effectiveLifetime.TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating JWT SVID")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, s.botCfg.CertificateTTL, s.botCfg.RenewalInterval)
 
 	var credential *workloadidentityv1pb.Credential
 	switch len(credentials) {

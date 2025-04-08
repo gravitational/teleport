@@ -19,6 +19,7 @@ package workloadidentityv1_test
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -51,14 +52,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
@@ -139,8 +140,7 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	require.NoError(t, err)
 	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(ctx, jwtCA)
 	require.NoError(t, err)
-	kid, err := libjwt.KeyID(jwtSigner.Public())
-	require.NoError(t, err)
+	kid := libjwt.KeyID(jwtSigner.Public().(*rsa.PublicKey))
 
 	return &issuanceTestPack{
 		srv:                srv,
@@ -273,6 +273,12 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	// With the basic setup complete, we can now "fake" a join.
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
 	botCerts, err := join.Register(ctx, join.RegisterParams{
 		Token:      token.GetName(),
 		JoinMethod: types.JoinMethodKubernetes,
@@ -283,24 +289,19 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 		KubernetesReadFileFunc: func(name string) ([]byte, error) {
 			return []byte(fakePSAT), nil
 		},
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: publicKey,
 	})
 	require.NoError(t, err)
 
 	// We now have to actually impersonate the role cert to be able to issue
 	// a workload identity.
-	privateKeyPEM, err := keys.MarshalPrivateKey(botCerts.PrivateKey)
-	require.NoError(t, err)
-	tlsCert, err := tls.X509KeyPair(botCerts.Certs.TLS, privateKeyPEM)
-	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(botCerts.PrivateKey.Public())
-	require.NoError(t, err)
-	tlsPub, err := keys.MarshalPublicKey(botCerts.PrivateKey.Public())
+	tlsCert, err := tls.X509KeyPair(botCerts.TLS, privateKey)
 	require.NoError(t, err)
 	botClient := tp.srv.NewClientWithCert(tlsCert)
 	certs, err := botClient.GenerateUserCerts(ctx, apiproto.UserCertsRequest{
-		SSHPublicKey: ssh.MarshalAuthorizedKey(sshPub),
-		TLSPublicKey: tlsPub,
-		Username:     "bot-my-bot",
+		PublicKey: publicKey,
+		Username:  "bot-my-bot",
 		RoleRequests: []string{
 			role.GetName(),
 		},
@@ -308,12 +309,12 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 		Expires:         tp.clock.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
-	roleTLSCert, err := tls.X509KeyPair(certs.TLS, privateKeyPEM)
+	roleTLSCert, err := tls.X509KeyPair(certs.TLS, privateKey)
 	require.NoError(t, err)
 	roleClient := tp.srv.NewClientWithCert(roleTLSCert)
 
 	// Generate a keypair to generate x509 SVIDs for.
-	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	workloadKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
 	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
 	require.NoError(t, err)
@@ -395,7 +396,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate a keypair to generate x509 SVIDs for.
-	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	workloadKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
 	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
 	require.NoError(t, err)
@@ -599,7 +600,6 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"JTI",
-						"Attributes",
 					),
 				))
 			},
@@ -744,7 +744,6 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
-						"Attributes",
 					),
 				))
 			},
@@ -858,7 +857,6 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
-						"Attributes",
 					),
 				))
 			},
@@ -956,7 +954,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate a keypair to generate x509 SVIDs for.
-	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	workloadKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
 	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
 	require.NoError(t, err)
@@ -3183,7 +3181,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	// Create new revocations
 	createRevocation(t, "ff")
 	createRevocation(t, "aa")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	fakeClock.BlockUntil(2)
 	t.Log("Advancing fake clock to pass debounce period")
 	fakeClock.Advance(6 * time.Second)
 	// The client should now receive a new CRL
@@ -3203,7 +3201,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	// Add another revocation, delete one revocation
 	createRevocation(t, "bb")
 	deleteRevocation(t, "aa")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	fakeClock.BlockUntil(2)
 	t.Log("Advancing fake clock to pass debounce period")
 	fakeClock.Advance(6 * time.Second)
 	// The client should now receive a new CRL
@@ -3223,7 +3221,7 @@ func TestRevocationService_CRL(t *testing.T) {
 	// Delete all remaining CRL
 	deleteRevocation(t, "bb")
 	deleteRevocation(t, "ff")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
+	fakeClock.BlockUntil(2)
 	t.Log("Advancing fake clock to pass debounce period")
 	fakeClock.Advance(6 * time.Second)
 	// The client should now receive a new CRL

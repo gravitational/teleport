@@ -23,7 +23,7 @@ import { Danger } from 'design/Alert';
 import { CheckboxInput } from 'design/Checkbox';
 import Table, { Cell } from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
-import { IconTooltip } from 'design/Tooltip';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
@@ -164,13 +164,13 @@ export const SecurityGroupPicker = ({
                     if (sg.recommended && sg.tips?.length) {
                       return (
                         <Cell>
-                          <IconTooltip>
+                          <ToolTipInfo>
                             <ul>
                               {sg.tips.map((tip, index) => (
                                 <li key={index}>{tip}</li>
                               ))}
                             </ul>
-                          </IconTooltip>
+                          </ToolTipInfo>
                         </Cell>
                       );
                     }
@@ -211,6 +211,7 @@ function CheckboxCell({
     <Cell width="20px">
       <Flex alignItems="center" my={2} justifyContent="center">
         <CheckboxInput
+          type="checkbox"
           id={item.id}
           onChange={e => {
             onChange(item, e);

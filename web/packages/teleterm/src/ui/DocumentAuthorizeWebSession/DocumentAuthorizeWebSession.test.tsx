@@ -95,7 +95,17 @@ test('authorizing a session opens its URL and closes document', async () => {
     loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
   });
   const appContext = new MockAppContext();
-  appContext.addRootClusterWithDoc(rootCluster, doc);
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootCluster.uri, rootCluster);
+  });
+  appContext.workspacesService.setState(draftState => {
+    draftState.workspaces[rootCluster.uri] = {
+      localClusterUri: rootCluster.uri,
+      documents: [doc],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -110,7 +120,7 @@ test('authorizing a session opens its URL and closes document', async () => {
 
   expect(await screen.findByText(/Session Authorized/)).toBeVisible();
   expect(window.open).toHaveBeenCalledWith(
-    'https://teleport-local.com:3080/webapi/devices/webconfirm?id=123456789&token=7c8e7438-abe1-4cbc-b3e6-bd233bba967c'
+    'https://teleport-local:3080/webapi/devices/webconfirm?id=123456789&token=7c8e7438-abe1-4cbc-b3e6-bd233bba967c'
   );
   expect(
     appContext.workspacesService

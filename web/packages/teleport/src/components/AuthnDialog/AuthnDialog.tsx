@@ -16,99 +16,51 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonIcon, ButtonSecondary, Flex, H2, Text } from 'design';
+import React from 'react';
+
+import { ButtonPrimary, ButtonSecondary, Text } from 'design';
 import { Danger } from 'design/Alert';
-import Dialog, { DialogContent } from 'design/Dialog';
-import { Cross, FingerprintSimple } from 'design/Icon';
-import { guessProviderType } from 'shared/components/ButtonSso';
-import { SSOIcon } from 'shared/components/ButtonSso/ButtonSso';
-
-import { MfaState, shouldShowMfaPrompt } from 'teleport/lib/useMfa';
-import { MFA_OPTION_TOTP } from 'teleport/services/mfa';
-
-export type Props = {
-  mfaState: MfaState;
-  // onClose is an optional function to perform additional operations
-  // upon closing the dialog. e.g. close a shell session
-  onClose?: () => void;
-};
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
 
 export default function AuthnDialog({
-  mfaState: { options, challenge, submit, attempt, cancelAttempt },
-  onClose = () => {},
+  onContinue,
+  onCancel,
+  errorText,
 }: Props) {
-  if (!shouldShowMfaPrompt({ challenge, attempt })) return;
-
-  // TODO(Joerger): TOTP should be pretty easy to support here with a small button -> form flow.
-  const onlyTotpAvailable =
-    options?.length === 1 && options[0] === MFA_OPTION_TOTP;
-
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
-      <Flex justifyContent="space-between" alignItems="center" mb={4}>
-        <H2>Verify Your Identity</H2>
-        <ButtonIcon
-          data-testid="close-dialog"
-          onClick={() => {
-            cancelAttempt();
-            onClose();
-          }}
-        >
-          <Cross color="text.slightlyMuted" />
-        </ButtonIcon>
-      </Flex>
-      <DialogContent mb={5}>
-        {onlyTotpAvailable && (
-          <Danger data-testid="danger-alert" mt={2} width="100%">
-            {
-              'Authenticator app is not currently supported for this action, please register a passkey or a security key to continue.'
-            }
+      <DialogHeader style={{ flexDirection: 'column' }}>
+        <DialogTitle textAlign="center">
+          Multi-factor authentication
+        </DialogTitle>
+      </DialogHeader>
+      <DialogContent mb={6}>
+        {errorText && (
+          <Danger mt={2} width="100%">
+            {errorText}
           </Danger>
         )}
-        {attempt.status === 'error' && (
-          <Danger data-testid="danger-alert" mt={2} width="100%">
-            {attempt.statusText}
-          </Danger>
-        )}
-        <Text color="text.slightlyMuted">
-          {options?.length > 1
-            ? 'Select one of the following methods to verify your identity:'
-            : 'Select the method below to verify your identity:'}
+        <Text textAlign="center">
+          Re-enter your multi-factor authentication in the browser to continue.
         </Text>
       </DialogContent>
-      {challenge && (
-        <Flex textAlign="center" width="100%" flexDirection="column" gap={2}>
-          {challenge.ssoChallenge && (
-            <ButtonSecondary
-              size="extra-large"
-              onClick={() => submit('sso')}
-              gap={2}
-              block
-            >
-              <SSOIcon
-                type={guessProviderType(
-                  challenge.ssoChallenge.device.displayName ||
-                    challenge.ssoChallenge.device.connectorId,
-                  challenge.ssoChallenge.device.connectorType
-                )}
-              />
-              {challenge.ssoChallenge.device.displayName ||
-                challenge.ssoChallenge.device.connectorId}
-            </ButtonSecondary>
-          )}
-          {challenge.webauthnPublicKey && (
-            <ButtonSecondary
-              size="extra-large"
-              onClick={() => submit('webauthn')}
-              gap={2}
-              block
-            >
-              <FingerprintSimple />
-              Passkey or MFA Device
-            </ButtonSecondary>
-          )}
-        </Flex>
-      )}
+      <DialogFooter textAlign="center">
+        <ButtonPrimary onClick={onContinue} autoFocus mr={3} width="130px">
+          {errorText ? 'Retry' : 'OK'}
+        </ButtonPrimary>
+        <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
+      </DialogFooter>
     </Dialog>
   );
 }
+
+export type Props = {
+  onContinue: () => void;
+  onCancel: () => void;
+  errorText: string;
+};

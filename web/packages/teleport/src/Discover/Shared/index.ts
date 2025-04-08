@@ -45,6 +45,6 @@ export {
   RadioCell,
   StatusCell,
 } from './Aws';
-export { StyledBox, DiscoverBox } from './StyledBox';
+export { StyledBox } from './StyledBox';
 
 export type { DiscoverLabel } from './LabelsCreater';

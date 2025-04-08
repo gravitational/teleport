@@ -35,7 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -63,12 +63,12 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
-	rsaKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Also important: rdpclient expects the private key to be in PKCS1 format.
-	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey.(*rsa.PrivateKey))
+	keyDER := x509.MarshalPKCS1PrivateKey(rsaKey)
 
 	// Generate the Windows-compatible certificate, see
 	// https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
@@ -97,13 +97,6 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 			return nil, trace.Wrap(err)
 		}
 		csr.ExtraExtensions = append(csr.ExtraExtensions, createUser)
-	}
-
-	if req.AD {
-		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
-			Id:    tlsca.ADStatusOID,
-			Value: []byte("AD"),
-		})
 	}
 
 	if req.ActiveDirectorySID != "" {
@@ -159,7 +152,7 @@ type AuthInterface interface {
 	// GetCertAuthority returns a types.CertAuthority interface
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns a types.ClusterName interface
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // GenerateCredentialsRequest are the request parameters for
@@ -194,9 +187,6 @@ type GenerateCredentialsRequest struct {
 	// CRL Distribution Point (CDP). CDPs are required in user certificates
 	// for RDP, but they can be omitted for certs that are used for LDAP binds.
 	OmitCDP bool
-
-	// AD is true if we're connecting to a domain-joined desktop.
-	AD bool
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given

@@ -37,6 +37,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -439,16 +440,20 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	var history []apievents.AuditEvent
 	ctx := context.Background()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:  loginTime.Add(-1 * time.Hour),
 			To:    loginTime.Add(time.Hour),
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, history, 1)
-	}, 30*time.Second, 500*time.Millisecond)
+		if err != nil {
+			t.Logf("Retrying searching of events because of: %v", err)
+		}
+		return err
+	})
+	require.NoError(t, err)
+	require.Len(t, history, 1)
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
@@ -491,17 +496,20 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// search for the session event.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
 			To:    s.Clock.Now().UTC().Add(time.Hour),
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-
-		assert.NoError(t, err)
-		assert.Len(t, history, 3)
-	}, 30*time.Second, 500*time.Millisecond)
+		if err != nil {
+			t.Logf("Retrying searching of events because of: %v", err)
+		}
+		return err
+	})
+	require.NoError(t, err)
+	require.Len(t, history, 3)
 
 	require.Equal(t, events.SessionStartEvent, history[1].GetType())
 	require.Equal(t, events.SessionEndEvent, history[2].GetType())

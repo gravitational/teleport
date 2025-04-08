@@ -16,16 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import { alignSelf, color, space } from 'design/system';
 
-import { buttonSizes } from './constants';
+const sizeMap = {
+  0: {
+    fontSize: '12px',
+    height: '24px',
+    width: '24px',
+  },
+  1: {
+    fontSize: '16px',
+    height: '32px',
+    width: '32px',
+  },
+  2: {
+    fontSize: '24px',
+    height: '48px',
+    width: '48px',
+  },
+};
 
-const defaultSize = buttonSizes[1];
+const defaultSize = sizeMap[1];
 
 const size = props => {
-  return buttonSizes[props.size] || defaultSize;
+  return sizeMap[props.size] || defaultSize;
 };
 
 const ButtonIcon = props => {

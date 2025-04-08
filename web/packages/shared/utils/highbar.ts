@@ -60,75 +60,40 @@ export function mergeDeep(target: MergeTarget, ...sources: Array<MergeTarget>) {
   return mergeDeep(target, ...sources);
 }
 
-/** Recursively compares two arrays. */
+type CompareArray = Array<Record<string, unknown>>;
+
 export function arrayObjectIsEqual(
-  arr1: unknown[],
-  arr2: unknown[],
-  options?: {
-    /**
-     * If `true`, treats fields set to `undefined` as equal to fields that
-     * don't exist at all. Doesn't apply to the array itself, but recursively
-     * to its elements.
-     */
-    ignoreUndefined?: boolean;
-  }
+  arr1: CompareArray,
+  arr2: CompareArray
 ): boolean {
-  return (
+  const compareArrays = (arr1, arr2) =>
     arr1.length === arr2.length &&
-    arr1.every((obj, idx) => equalsDeep(obj, arr2[idx], options))
-  );
-}
+    arr1.every((obj, idx) => compareObjects(obj, arr2[idx]));
 
-/** Recursively compares two values. */
-export function equalsDeep(
-  val1: unknown,
-  val2: unknown,
-  options?: {
-    /**
-     * If `true`, treats fields set to `undefined` as equal to fields that
-     * don't exist at all.
-     */
-    ignoreUndefined?: boolean;
-  }
-) {
-  if (!isObject(val1) || !isObject(val2)) {
-    return val1 === val2;
-  }
-
-  if (Array.isArray(val1) && Array.isArray(val2)) {
-    return arrayObjectIsEqual(val1, val2, options);
-  }
-
-  const obj1 = options?.ignoreUndefined ? onlyDefined(val1) : val1;
-  const obj2 = options?.ignoreUndefined ? onlyDefined(val2) : val2;
-
-  if (Object.keys(obj1).length !== Object.keys(obj2).length) {
-    return false;
-  }
-  return Object.keys(obj1).every(key => {
-    // This check prevents a false positive where lengths of objects are the
-    // same, because there are equal numbers of undefined fields on both
-    // compared objects, but it just so happens that only differences are
-    // between undefined and missing fields.
-    if (!Object.hasOwn(obj2, key)) {
-      return false;
+  const compareObjects = (obj1, obj2) => {
+    if (!isObject(obj1)) {
+      return obj1 === obj2;
     }
-    return equalsDeep(obj1[key], obj2[key], options);
-  });
-}
 
-/** Returns an object with undefined fields filtered out. */
-function onlyDefined(obj: object): object {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, value]) => value !== undefined)
-  );
+    if (Object.keys(obj1).length) {
+      if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+        return false;
+      }
+      return Object.keys(obj1).every(key => {
+        return compareObjects(obj1[key], obj2[key]);
+      });
+    } else {
+      return true;
+    }
+  };
+  return compareArrays(arr1, arr2);
 }
 
 export function isInteger(checkVal: any): boolean {
   return Number.isInteger(checkVal) || checkVal == parseInt(checkVal);
 }
 
-export function isObject(checkVal: unknown): checkVal is object {
+export function isObject(checkVal: unknown): boolean {
   const type = typeof checkVal;
   return checkVal != null && (type == 'object' || type == 'function');
 }

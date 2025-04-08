@@ -16,16 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, useState } from 'react';
+import { format } from 'date-fns';
+import React, { useState } from 'react';
 
 import { Box, ButtonIcon, ButtonPrimary, Menu, Text } from 'design';
-import { displayDateWithPrefixedTime } from 'design/datetime';
 import { Info } from 'design/Icon';
-import * as Icon from 'design/Icon';
-import { IconProps } from 'design/Icon/Icon';
-import { HoverTooltip } from 'design/Tooltip';
-import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest';
-import { formattedName } from 'shared/components/AccessRequests/ReviewRequests';
+import { HoverTooltip } from 'shared/components/ToolTip';
+import cfg from 'shared/config';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 export function PromotedMessage({
@@ -120,7 +117,7 @@ export const ButtonPromotedInfo = ({
 };
 
 export function getAssumeStartTimeTooltipText(startTime: Date) {
-  const formattedDate = displayDateWithPrefixedTime(startTime);
+  const formattedDate = format(startTime, cfg.dateWithPrefixedTime);
   return `Access is not available until the approved time of ${formattedDate}`;
 }
 
@@ -132,7 +129,8 @@ export const BlockedByStartTimeButton = ({
   return (
     <HoverTooltip
       tipContent={getAssumeStartTimeTooltipText(assumeStartTime)}
-      placement="top-end"
+      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
     >
       <ButtonPrimary disabled={true} size="small">
         Assume Roles
@@ -140,51 +138,3 @@ export const BlockedByStartTimeButton = ({
     </HoverTooltip>
   );
 };
-
-/** Returns a list of requested roles or resources. */
-export function getResourcesOrRolesFromRequest(
-  request: Pick<AccessRequest, 'resources' | 'roles'>
-): { Icon: ComponentType<IconProps>; name: string; title: string }[] {
-  return request.resources.length
-    ? request.resources.map(c => {
-        const name = formattedName(c);
-        return {
-          Icon: getIcon(c.id.kind),
-          name,
-          title: `${c.id.kind}: ${name}`,
-        };
-      })
-    : request.roles.map(c => ({
-        Icon: getIcon('role'),
-        name: c,
-        title: `role: ${c}`,
-      }));
-}
-
-function getIcon(item: RequestableResourceKind): ComponentType<IconProps> {
-  switch (item) {
-    case 'app':
-    case 'saml_idp_service_provider':
-    case 'aws_ic_account_assignment':
-      return Icon.Application;
-    case 'node':
-      return Icon.Server;
-    case 'db':
-      return Icon.Database;
-    case 'kube_cluster':
-    case 'namespace':
-      return Icon.Kubernetes;
-    case 'role':
-      return Icon.ClipboardUser;
-    case 'user_group':
-      return Icon.Server;
-    case 'git_server':
-      return Icon.GitHub;
-    case 'windows_desktop':
-      return Icon.Desktop;
-    case 'resource': // This probably never shows in the UI.
-      return Icon.Server;
-    default:
-      item satisfies never;
-  }
-}

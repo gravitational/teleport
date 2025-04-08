@@ -27,15 +27,8 @@ variable "deploy_teleport" {
   nullable    = false
   description = "Install the Teleport helm release"
 }
-
 variable "teleport_version" {
   type        = string
   nullable    = false
   description = "Version of Teleport"
-}
-
-variable "subscription_id" {
-  type        = string
-  nullable    = false
-  description = "The Azure subscription_id"
 }

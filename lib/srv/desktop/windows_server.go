@@ -36,6 +36,7 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -59,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -217,8 +217,6 @@ type WindowsServiceConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
-	// ResourceMatchers match dynamic Windows desktop resources.
-	ResourceMatchers []services.ResourceMatcher
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -329,7 +327,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		cfg.Logger.WarnContext(context.Background(), insecureSkipVerifyWarning)
 	}
 
-	clusterName, err := cfg.AccessPoint.GetClusterName(context.TODO())
+	clusterName, err := cfg.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching cluster name")
 	}
@@ -355,7 +353,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		}
 	}
 
-	clustername, err := cfg.AccessPoint.GetClusterName(context.TODO())
+	clustername, err := cfg.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -381,8 +379,8 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 
 	s.ca = windows.NewCertificateStoreClient(windows.CertificateStoreConfig{
 		AccessPoint: s.cfg.AccessPoint,
+		Log:         logrus.NewEntry(logrus.StandardLogger()),
 		Domain:      cmp.Or(s.cfg.PKIDomain, s.cfg.Domain),
-		Logger:      slog.Default(),
 		ClusterName: s.clusterName,
 		LC:          s.lc,
 	})
@@ -409,10 +407,6 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	if err := s.startStaticHostHeartbeats(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := s.startDynamicReconciler(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1003,7 +997,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Clock:                 s.cfg.Clock,
 		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		DisconnectExpiredCert: authCtx.GetDisconnectCertExpiry(authPref),
-		Logger:                s.cfg.Logger,
+		Entry:                 logrus.NewEntry(logrus.StandardLogger()),
 		Emitter:               s.cfg.Emitter,
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
@@ -1057,7 +1051,7 @@ func (s *WindowsService) makeTDPSendHandler(
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypeRDPConnectionInitialized), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
-			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeAlert):
+			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,
@@ -1143,7 +1137,7 @@ func (s *WindowsService) makeTDPReceiveHandler(
 			if e.Size() > libevents.MaxProtoMessageSizeBytes {
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
-				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", logutils.TypeAttr(m))
+				s.cfg.Logger.WarnContext(ctx, "refusing to record message", "len", len(b), "type", fmt.Sprintf("%T", m))
 			} else {
 				if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
 					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
@@ -1312,7 +1306,6 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
 		domain:             desktop.GetDomain(),
-		ad:                 !desktop.NonAD(),
 		ttl:                ttl,
 		activeDirectorySID: activeDirectorySID,
 		createUser:         createUsers,
@@ -1326,8 +1319,6 @@ type generateCredentialsRequest struct {
 	username string
 	// domain is the Windows domain
 	domain string
-	// ad is true if we're connecting to a domain-joined desktop
-	ad bool
 	// ttl for the certificate
 	ttl time.Duration
 	// activeDirectorySID is the SID of the Windows user
@@ -1352,7 +1343,6 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 		Username:           request.username,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,
-		AD:                 request.ad,
 		TTL:                request.ttl,
 		ClusterName:        s.clusterName,
 		ActiveDirectorySID: request.activeDirectorySID,

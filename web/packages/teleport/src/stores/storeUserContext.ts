@@ -215,10 +215,6 @@ export default class StoreUserContext extends Store<UserContext> {
     );
   }
 
-  getDiscoveryConfigAccess() {
-    return this.state.acl.discoverConfigs;
-  }
-
   getPluginsAccess() {
     return this.state.acl.plugins;
   }
@@ -257,9 +253,5 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getContactsAccess() {
     return this.state.acl.contacts;
-  }
-
-  getGitServersAccess() {
-    return this.state.acl.gitServers;
   }
 }

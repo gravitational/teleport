@@ -16,27 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  createContext,
-  FC,
-  PropsWithChildren,
-  useCallback,
-  useContext,
-} from 'react';
+import React, { PropsWithChildren } from 'react';
 
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { AccessRequestsService } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
 
-const WorkspaceContext = createContext<{
+const WorkspaceContext = React.createContext<{
   rootClusterUri: RootClusterUri;
   localClusterUri: ClusterUri;
   documentsService: DocumentsService;
   accessRequestsService: AccessRequestsService;
 }>(null);
 
-export const WorkspaceContextProvider: FC<
+export const WorkspaceContextProvider: React.FC<
   PropsWithChildren<{
     value: {
       rootClusterUri: RootClusterUri;
@@ -46,29 +40,12 @@ export const WorkspaceContextProvider: FC<
     };
   }>
 > = props => {
-  // Re-render the context provider whenever the state of the relevant workspace changes. The
-  // context provider cannot re-render only when its props change.
-  // For example, if a new document gets added, none of the props are going to change, but the
-  // callsite that uses useWorkspaceContext might want to get re-rendered in this case, as
-  // technically documentsService returned from useWorkspaceContext might return new state.
-  useStoreSelector(
-    'workspacesService',
-    useCallback(
-      state => state.workspaces[props.value.rootClusterUri],
-      [props.value.rootClusterUri]
-    )
-  );
   return <WorkspaceContext.Provider {...props} />;
 };
 
 export const useWorkspaceContext = () => {
-  const context = useContext(WorkspaceContext);
+  const ctx = useAppContext();
+  ctx.workspacesService.useState();
 
-  if (!context) {
-    throw new Error(
-      'useWorkspaceContext must be used within a WorkspaceContextProvider'
-    );
-  }
-
-  return context;
+  return React.useContext(WorkspaceContext);
 };

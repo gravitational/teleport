@@ -17,24 +17,24 @@
 package kube
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKubeClient)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentKubeClient,
+})
 
 // CheckIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
 // to access kubeCluster has at least one kubernetes_user or kubernetes_group
 // defined. If not, it returns an error.
 // This is a safety check in order to print a better message to the user even
 // before hitting Teleport Kubernetes Proxy.
-func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, teleportCluster, kubeCluster string) error {
+func CheckIfCertsAreAllowedToAccessCluster(k *client.Key, rootCluster, teleportCluster, kubeCluster string) error {
 	// This is a safety check in order to print a better message to the user even
 	// before hitting Teleport Kubernetes Proxy.
 	// We only enforce this check for root clusters, since we don't have knowledge
@@ -42,19 +42,21 @@ func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, telep
 	if rootCluster != teleportCluster {
 		return nil
 	}
-	if cred, ok := k.KubeTLSCredentials[kubeCluster]; ok {
-		log.DebugContext(context.Background(), "Got TLS cert for Kubernetes cluster", "kubernetes_cluster", kubeCluster)
-		exist, err := checkIfCertHasKubeGroupsAndUsers(cred.Cert)
+	for k8sCluster, cert := range k.KubeTLSCerts {
+		if k8sCluster != kubeCluster {
+			continue
+		}
+		log.Debugf("Got TLS cert for Kubernetes cluster %q", k8sCluster)
+		exist, err := checkIfCertHasKubeGroupsAndUsers(cert)
 		if err != nil {
 			return trace.Wrap(err)
-		}
-		if exist {
+		} else if exist {
 			return nil
 		}
 	}
 	errMsg := "Your user's Teleport role does not allow Kubernetes access." +
 		" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
-	return trace.AccessDenied("%s", errMsg)
+	return trace.AccessDenied(errMsg)
 }
 
 // checkIfCertHasKubeGroupsAndUsers checks if the certificate has Kubernetes groups or users

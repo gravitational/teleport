@@ -17,7 +17,6 @@
 package tbot
 
 import (
-	"cmp"
 	"context"
 	"crypto/x509"
 	"fmt"
@@ -370,7 +369,7 @@ func (s *WorkloadIdentityAPIService) FetchX509SVID(
 			log.DebugContext(ctx, "CRL set has been updated, distributing to client")
 			crlSet = newCRLSet
 			continue
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(s.botCfg.RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			svids = nil
 			continue
@@ -439,7 +438,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		log,
 		s.client,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		attest,
 	)
 	if err != nil {
@@ -521,7 +520,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 		s.client,
 		s.cfg.Selector,
 		req.Audience,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		attr,
 	)
 	if err != nil {

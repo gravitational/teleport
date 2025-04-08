@@ -27,13 +27,13 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
-	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const staticHostUserWatcherTimeout = 30 * time.Second
@@ -89,10 +89,10 @@ func NewStaticHostUserHandler(cfg StaticHostUserHandlerConfig) (*StaticHostUserH
 		cfg.clock = clockwork.NewRealClock()
 	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  retryutils.FullJitter(defaults.MaxWatcherBackoff / 10),
+		First:  utils.FullJitter(defaults.MaxWatcherBackoff / 10),
 		Step:   defaults.MaxWatcherBackoff / 5,
 		Max:    defaults.MaxWatcherBackoff,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  cfg.clock,
 	})
 	if err != nil {
@@ -185,13 +185,16 @@ func (s *StaticHostUserHandler) run(ctx context.Context) error {
 			if event.Type != types.OpPut {
 				continue
 			}
-			r, ok := event.Resource.(types.Resource153UnwrapperT[*userprovisioningv2.StaticHostUser])
+			r, ok := event.Resource.(types.Resource153Unwrapper)
 			if !ok {
 				slog.WarnContext(ctx, "Unexpected resource type.", "resource", event.Resource)
 				continue
 			}
-			hostUser := r.UnwrapT()
-
+			hostUser, ok := r.Unwrap().(*userprovisioningpb.StaticHostUser)
+			if !ok {
+				slog.WarnContext(ctx, "Unexpected resource type.", "resource", event.Resource)
+				continue
+			}
 			if err := s.handleNewHostUser(ctx, hostUser); err != nil {
 				// Log the error so we don't stop the handler.
 				slog.WarnContext(ctx, "Error handling static host user.", "error", err, "login", hostUser.GetMetadata().Name)
@@ -242,7 +245,7 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 				slog.Group("first_match", "labels", createUser.NodeLabels, "expression", createUser.NodeLabelsExpression),
 				slog.Group("second_match", "labels", matcher.NodeLabels, "expression", matcher.NodeLabelsExpression),
 			)
-			return trace.BadParameter("%s", msg)
+			return trace.BadParameter(msg)
 		}
 		createUser = matcher
 	}

@@ -17,10 +17,10 @@
  */
 
 import { formatRelative } from 'date-fns';
-import { Fragment, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
-import { Button, Label as Pill } from 'design';
+import { ButtonPrimary, Label as Pill } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -86,13 +86,7 @@ export function Locks() {
       <FeatureBox>
         <FeatureHeader>
           <FeatureHeaderTitle>Session & Identity Locks</FeatureHeaderTitle>
-          <Button
-            intent="primary"
-            fill={
-              attempt.status === 'success' && locks.length === 0
-                ? 'filled'
-                : 'border'
-            }
+          <ButtonPrimary
             as={NavLink}
             to={cfg.getNewLocksRoute()}
             ml="auto"
@@ -104,7 +98,7 @@ export function Locks() {
             }
           >
             Add New Lock
-          </Button>
+          </ButtonPrimary>
         </FeatureHeader>
         {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
         <Table
@@ -181,7 +175,7 @@ export function Locks() {
 function getFormattedDate(d: string): string {
   try {
     return formatRelative(new Date(d), Date.now());
-  } catch {
+  } catch (e) {
     return '';
   }
 }
@@ -205,10 +199,13 @@ export function Pills({ targets }: { targets: LockTarget[] }) {
   const pills = targets.map((target, index) => {
     const labelText = `${target.kind}: ${target.name}`;
     return (
-      <Fragment key={`${target.kind}${target.name}${index}`}>
-        {index > 0 && ' '}
-        <Pill kind="secondary">{labelText}</Pill>
-      </Fragment>
+      <Pill
+        key={`${target.kind}${target.name}${index}`}
+        mr="1"
+        kind="secondary"
+      >
+        {labelText}
+      </Pill>
     );
   });
 

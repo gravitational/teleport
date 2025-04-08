@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { ContextProvider } from 'teleport';
 import { LockedAccessRequests } from 'teleport/AccessRequests/LockedAccessRequests/LockedAccessRequests';
 import { createTeleportContext } from 'teleport/mocks/contexts';

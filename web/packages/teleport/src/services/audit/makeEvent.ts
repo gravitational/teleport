@@ -377,6 +377,86 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
+  [eventCodes.SFTP_CLOSE]: {
+    type: 'sftp',
+    desc: 'SFTP Close',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] closed file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_CLOSE_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Close Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to close file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_READ]: {
+    type: 'sftp',
+    desc: 'SFTP Read',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] read from file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_READ_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Read Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to read from file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_WRITE]: {
+    type: 'sftp',
+    desc: 'SFTP Write',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] wrote to file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_WRITE_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Write Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to write to file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_LSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Lstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_LSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Lstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_FSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Fstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_FSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Fstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
   [eventCodes.SFTP_SETSTAT]: {
     type: 'sftp',
     desc: 'SFTP Setstat',
@@ -388,6 +468,22 @@ export const formatters: Formatters = {
   [eventCodes.SFTP_SETSTAT_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Setstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to change attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_FSETSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Fsetstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] changed attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_FSETSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Fsetstat Failed',
     format: ({ user, path, error, ...rest }) =>
       `User [${user}] failed to change attributes of file [${path}] on node [${
         rest['server_hostname'] || rest['addr.local']
@@ -473,6 +569,38 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
+  [eventCodes.SFTP_REALPATH]: {
+    type: 'sftp',
+    desc: 'SFTP Realpath',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried absolute path of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_REALPATH_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Realpath Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query absolute path of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_STAT]: {
+    type: 'sftp',
+    desc: 'SFTP Stat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_STAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Stat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
   [eventCodes.SFTP_RENAME]: {
     type: 'sftp',
     desc: 'SFTP Rename',
@@ -486,6 +614,22 @@ export const formatters: Formatters = {
     desc: 'SFTP Rename Failed',
     format: ({ user, path, error, ...rest }) =>
       `User [${user}] failed to rename file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_READLINK]: {
+    type: 'sftp',
+    desc: 'SFTP Readlink',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] read symbolic link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_READLINK_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Readlink Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to read symbolic link [${path}] on node [${
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
@@ -1481,20 +1625,6 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a Workload Identity [${name}]`;
     },
   },
-  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: {
-    type: 'workload_identity_x509_issuer_override.create',
-    desc: 'Workload Identity X.509 Issuer Override Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a Workload Identity X.509 Issuer Override [${name}]`;
-    },
-  },
-  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: {
-    type: 'workload_identity_x509_issuer_override.delete',
-    desc: 'Workload Identity X.509 Issuer Override Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a Workload Identity X.509 Issuer Override [${name}]`;
-    },
-  },
   [eventCodes.LOGIN_RULE_CREATE]: {
     type: 'login_rule.create',
     desc: 'Login Rule Created',
@@ -1953,13 +2083,6 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a user task [${name}]`;
     },
   },
-  [eventCodes.SFTP_SUMMARY]: {
-    type: 'sftp_summary',
-    desc: 'File Transfer Completed',
-    format: ({ user, server_hostname }) => {
-      return `User [${user}] completed a file transfer on [${server_hostname}]`;
-    },
-  },
   [eventCodes.PLUGIN_CREATE]: {
     type: 'plugin.create',
     desc: 'Plugin Created',
@@ -2000,71 +2123,6 @@ export const formatters: Formatters = {
     desc: 'Unknown Event',
     format: ({ unknown_type, unknown_code }) =>
       `Unknown '${unknown_type}' event (${unknown_code})`,
-  },
-  [eventCodes.GIT_COMMAND]: {
-    type: 'git.command',
-    desc: 'Git Command',
-    format: ({ user, service, path, actions }) => {
-      // "git-upload-pack" are fetches like "git fetch", "git pull".
-      if (service === 'git-upload-pack') {
-        return `User [${user}] has fetched from [${path}]`;
-      }
-      // "git-receive-pack" are pushes. Usually it should have one action.
-      if (service === 'git-receive-pack') {
-        if (actions && actions.length == 1) {
-          switch (actions[0].action) {
-            case 'delete':
-              return `User [${user}] has deleted [${actions[0].reference}] from [${path}]`;
-            case 'create':
-              return `User [${user}] has created [${actions[0].reference}] on [${path}]`;
-            case 'update':
-              return `User [${user}] has updated [${actions[0].reference}] to [${actions[0].new.substring(0, 7)}] on [${path}]`;
-          }
-        }
-        return `User [${user}] has attempted a push to [${path}]`;
-      }
-      if (service && path) {
-        return `User [${user}] has executed a Git Command [${service}] at [${path}]`;
-      }
-      return `User [${user}] has executed a Git Command`;
-    },
-  },
-  [eventCodes.GIT_COMMAND_FAILURE]: {
-    type: 'git.command',
-    desc: 'Git Command Failed',
-    format: ({ user, exitError, service, path }) => {
-      return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
-    },
-  },
-  [eventCodes.STABLE_UNIX_USER_CREATE]: {
-    type: 'stable_unix_user.create',
-    desc: 'Stable UNIX user created',
-    format: ({ stable_unix_user: { username } }) => {
-      return `Stable UNIX user for username [${username}] was created`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
-    type: 'aws_identity_center.resource_sync.success',
-    desc: 'AWS IAM Identity Center Resource Sync Completed',
-    format: ({
-      total_user_groups,
-      total_accounts,
-      total_account_assignments,
-      total_permission_sets,
-    }) => {
-      // user groups only imported once.
-      if (total_user_groups > 0) {
-        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
-      }
-      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
-    type: 'aws_identity_center.resource_sync.failed',
-    desc: 'AWS IAM Identity Center Resource Sync Failed',
-    format: ({ message }) => {
-      return message;
-    },
   },
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
     type: 'auto_update_config.create',
@@ -2108,27 +2166,6 @@ export const formatters: Formatters = {
       return `User ${user} deleted the Automatic Update Version`;
     },
   },
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
-    type: 'health_check_config.create',
-    desc: 'Health Check Config Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
-    type: 'health_check_config.update',
-    desc: 'Health Check Config Updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
-    type: 'health_check_config.delete',
-    desc: 'Health Check Config Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a health check config [${name}]`;
-    },
-  },
 };
 
 const unknownFormatter = {
@@ -2148,7 +2185,7 @@ export default function makeEvent(json: any): Event {
     id: getId(json),
     code: json.code,
     user: json.user,
-    time: new Date(json.time),
+    time: json.time,
     raw: json,
   };
 }

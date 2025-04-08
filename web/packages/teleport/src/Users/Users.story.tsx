@@ -16,20 +16,57 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { StoryObj } from '@storybook/react';
-import { delay } from 'msw';
-
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import {
-  errorGetUsers,
-  handleGetUsers,
-  successGetUsers,
-} from 'teleport/test/helpers/users';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Users } from './Users';
 
 export default {
   title: 'Teleport/Users',
+};
+
+export const Processing = () => {
+  const attempt = {
+    isProcessing: true,
+    isFailed: false,
+    isSuccess: false,
+    message: '',
+  };
+  return (
+    <MemoryRouter>
+      <Users {...sample} attempt={attempt} />
+    </MemoryRouter>
+  );
+};
+
+export const Loaded = () => {
+  return (
+    <MemoryRouter>
+      <Users {...sample} />
+    </MemoryRouter>
+  );
+};
+
+export const UsersNotEqualMauNotice = () => {
+  return (
+    <MemoryRouter>
+      <Users {...sample} showMauInfo={true} />
+    </MemoryRouter>
+  );
+};
+
+export const Failed = () => {
+  const attempt = {
+    isProcessing: false,
+    isFailed: true,
+    isSuccess: false,
+    message: 'some error message',
+  };
+  return (
+    <MemoryRouter>
+      <Users {...sample} attempt={attempt} />
+    </MemoryRouter>
+  );
 };
 
 const users = [
@@ -77,66 +114,6 @@ const users = [
     isBot: true,
   },
 ];
-
-export const Loaded: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [successGetUsers(users)],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
-  },
-};
-
-export const UsersNotEqualMauNotice: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [successGetUsers(users)],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} showMauInfo={true} />
-      </TeleportProviderBasic>
-    );
-  },
-};
-
-export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleGetUsers(async () => await delay('infinite'))],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
-  },
-};
-
-export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [errorGetUsers('Something went wrong')],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
-  },
-};
 
 const roles = ['admin', 'testrole'];
 

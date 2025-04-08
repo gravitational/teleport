@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import {
   Box,
   ButtonLink,
@@ -101,7 +103,7 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
       <Text bold as="span">
         Step 2
       </Text>
-      {' - Log in to Teleport'}
+      {' - Login to Teleport'}
       <TextSelectCopy mt="2" text={tshLoginCmd} />
     </Box>
     <Box mb={4}>

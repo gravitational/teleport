@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import { Text } from 'design';
@@ -88,7 +89,7 @@ export function KeyboardShortcutsPanel() {
 function Entry(props: { title: string; accelerator: string }) {
   return (
     <>
-      <Text textAlign="right" typography="body2" py="4px">
+      <Text textAlign="right" typography="subtitle1" py="4px">
         {props.title}
       </Text>
       <MonoText

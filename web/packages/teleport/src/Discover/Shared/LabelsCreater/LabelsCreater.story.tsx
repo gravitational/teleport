@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import Validation from 'shared/components/Validation';
 
@@ -73,21 +73,6 @@ export const DisabledAddButton = () => {
   return (
     <Validation>
       <LabelsCreater labels={labels} setLabels={setLabels} disableBtns={true} />
-    </Validation>
-  );
-};
-
-export const NoDuplicates = () => {
-  const [labels, setLabels] = useState([]);
-
-  return (
-    <Validation>
-      <LabelsCreater
-        labels={labels}
-        setLabels={setLabels}
-        isLabelOptional={true}
-        noDuplicateKey
-      />
     </Validation>
   );
 };

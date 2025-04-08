@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import Table, { LabelCell } from 'design/DataTable';
 
@@ -64,8 +64,8 @@ export function BotList({
             key: 'roles',
             headerText: 'Roles',
             isSortable: true,
-            onSort: (a, b) =>
-              a.roles.toString().localeCompare(b.roles.toString()),
+            onSort: (a: string[], b: string[]) =>
+              a.toString().localeCompare(b.toString()),
             render: ({ roles }) => <LabelCell data={roles} />,
           },
           {

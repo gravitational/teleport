@@ -16,12 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
-  forwardRef,
-  HTMLAttributes,
-  HTMLInputAutoCompleteAttribute,
-} from 'react';
-import styled, { css, useTheme } from 'styled-components';
+import PropTypes from 'prop-types';
+import styled from 'styled-components';
 import {
   color,
   ColorProps,
@@ -33,278 +29,60 @@ import {
   WidthProps,
 } from 'styled-system';
 
-import Box from 'design/Box';
-import * as Icon from 'design/Icon';
-import { IconProps } from 'design/Icon/Icon';
-import { Theme } from 'design/theme/themes/types';
-
-export type InputSize = 'large' | 'medium' | 'small';
-export type InputType =
-  | 'email'
-  | 'text'
-  | 'password'
-  | 'number'
-  | 'date'
-  | 'week';
-export type InputMode = HTMLAttributes<'input'>['inputMode'];
-
-interface InputProps extends ColorProps, SpaceProps, WidthProps, HeightProps {
-  size?: InputSize;
-  hasError?: boolean;
-  icon?: React.ComponentType<IconProps>;
-
-  // Input properties
-  autoFocus?: boolean;
-  disabled?: boolean;
-  id?: string;
-  name?: string;
-  readOnly?: boolean;
-  role?: string;
-  type?: InputType;
-  value?: string;
-  defaultValue?: string;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-  autoComplete?: HTMLInputAutoCompleteAttribute;
-  inputMode?: InputMode;
-  spellCheck?: boolean;
-  style?: React.CSSProperties;
-  required?: boolean;
-
-  'aria-invalid'?: HTMLAttributes<'input'>['aria-invalid'];
-  'aria-describedby'?: HTMLAttributes<'input'>['aria-describedby'];
-
-  onChange?: React.ChangeEventHandler<HTMLInputElement>;
-  onKeyPress?: React.KeyboardEventHandler<HTMLInputElement>;
-  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
-  onFocus?: React.FocusEventHandler<HTMLInputElement>;
-  onBlur?: React.FocusEventHandler<HTMLInputElement>;
-  onClick?: React.MouseEventHandler<HTMLInputElement>;
-}
-
-export const inputGeometry: {
-  [s in InputSize]: {
-    height: number;
-    iconSize: number;
-    horizontalGap: number;
-    typography: keyof Theme['typography'];
-  };
-} = {
-  large: {
-    height: 48,
-    iconSize: 20,
-    horizontalGap: 12,
-    typography: 'body1',
-  },
-  medium: {
-    height: 40,
-    iconSize: 18,
-    horizontalGap: 8,
-    typography: 'body2',
-  },
-  small: {
-    height: 32,
-    iconSize: 16,
-    horizontalGap: 8,
-    typography: 'body3',
-  },
-};
-
-const borderSize = 1;
-const baseHorizontalPadding = 16;
-const errorIconHorizontalPadding = 8;
-
-function error({ hasError, theme }: { hasError?: boolean; theme: Theme }) {
+function error({ hasError, theme }) {
   if (!hasError) {
     return;
   }
 
   return {
-    borderColor: theme.colors.interactive.solid.danger.default,
-    '&:hover': {
-      borderColor: theme.colors.interactive.solid.danger.default,
+    border: `2px solid ${theme.colors.error.main}`,
+    '&:hover, &:focus': {
+      border: `2px solid ${theme.colors.error.main}`,
     },
+    padding: '10px 14px',
   };
 }
 
-function padding({
-  hasError,
-  hasIcon,
-  inputSize,
-}: {
+interface InputProps extends ColorProps, SpaceProps, WidthProps, HeightProps {
   hasError?: boolean;
-  hasIcon: boolean;
-  inputSize: InputSize;
-}) {
-  const { iconSize, horizontalGap } = inputGeometry[inputSize];
-  const paddingRight = hasError
-    ? errorIconHorizontalPadding + horizontalGap + iconSize
-    : baseHorizontalPadding;
-  const paddingLeft = hasIcon
-    ? baseHorizontalPadding + horizontalGap + iconSize
-    : baseHorizontalPadding;
-  return css`
-    padding: 0 ${paddingRight}px 0 ${paddingLeft}px;
-  `;
 }
 
-const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
-  const {
-    size = 'medium',
-    hasError,
-    icon: IconComponent,
-
-    autoFocus,
-    disabled,
-    id,
-    name,
-    readOnly,
-    role,
-    type,
-    value,
-    defaultValue,
-    placeholder,
-    min,
-    max,
-    autoComplete,
-    inputMode,
-    spellCheck,
-    style,
-    required,
-
-    'aria-invalid': ariaInvalid,
-    'aria-describedby': ariaDescribedBy,
-
-    onChange,
-    onKeyPress,
-    onKeyDown,
-    onFocus,
-    onBlur,
-    onClick,
-    ...wrapperProps
-  } = props;
-  const theme = useTheme();
-  const { iconSize } = inputGeometry[size];
-  return (
-    <InputWrapper inputSize={size} {...wrapperProps}>
-      {IconComponent && (
-        <IconWrapper>
-          <IconComponent
-            role="graphics-symbol"
-            size={iconSize}
-            color={
-              disabled
-                ? theme.colors.text.disabled
-                : theme.colors.text.slightlyMuted
-            }
-          />
-        </IconWrapper>
-      )}
-      <StyledInput
-        ref={ref}
-        hasIcon={!!IconComponent}
-        inputSize={size}
-        {...{
-          hasError,
-
-          autoFocus,
-          disabled,
-          id,
-          name,
-          readOnly,
-          role,
-          type,
-          value,
-          defaultValue,
-          placeholder,
-          min,
-          max,
-          autoComplete,
-          inputMode,
-          spellCheck,
-          style,
-          required,
-
-          'aria-invalid': ariaInvalid,
-          'aria-describedby': ariaDescribedBy,
-
-          onChange,
-          onKeyPress,
-          onKeyDown,
-          onFocus,
-          onBlur,
-          onClick,
-        }}
-      />
-      {hasError && (
-        <ErrorIcon size={iconSize} role="graphics-symbol" aria-label="Error" />
-      )}
-    </InputWrapper>
-  );
-});
-
-const InputWrapper = styled(Box)<{ inputSize: InputSize }>`
-  position: relative;
-  height: ${props => inputGeometry[props.inputSize].height}px;
-`;
-
-const IconWrapper = styled.div`
-  position: absolute;
-  left: ${borderSize + baseHorizontalPadding}px;
-  top: 0;
-  bottom: 0;
-  display: flex; // For vertical centering.
-`;
-
-const StyledInput = styled.input<{ hasIcon: boolean; inputSize: InputSize }>`
+const Input = styled.input<InputProps>`
   appearance: none;
-  border: ${borderSize}px solid;
-  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
+  border: 1px solid ${props => props.theme.colors.text.muted};
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
-  height: 100%;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
   outline: none;
   width: 100%;
-  background-color: transparent;
+  background: ${props => props.theme.colors.levels.surface};
   color: ${props => props.theme.colors.text.main};
 
-  ${props => props.theme.typography[inputGeometry[props.inputSize].typography]}
-  ${padding}
-
-  &:hover {
-    border: 1px solid ${props => props.theme.colors.text.muted};
+  &:hover,
+  &:focus,
+  &:active {
+    border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   }
 
-  &:focus-visible {
-    border-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default};
-  }
-
-  &::-ms-clear {
+  ::-ms-clear {
     display: none;
   }
 
-  &::placeholder {
+  ::placeholder {
     color: ${props => props.theme.colors.text.muted};
     opacity: 1;
   }
 
-  &:disabled::placeholder {
-    color: ${props => props.theme.colors.text.disabled};
-    opacity: 1;
-  }
-
-  &:read-only {
+  :read-only {
     cursor: not-allowed;
   }
 
-  &:disabled {
-    background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0]};
+  :disabled {
     color: ${props => props.theme.colors.text.disabled};
-    border-color: transparent;
+    border-color: ${props => props.theme.colors.text.disabled};
   }
 
   ${color}
@@ -314,12 +92,11 @@ const StyledInput = styled.input<{ hasIcon: boolean; inputSize: InputSize }>`
   ${error}
 `;
 
-const ErrorIcon = styled(Icon.WarningCircle)`
-  position: absolute;
-  right: ${errorIconHorizontalPadding + borderSize}px;
-  color: ${props => props.theme.colors.interactive.solid.danger.default};
-  top: 0;
-  bottom: 0;
-`;
+Input.displayName = 'Input';
+
+Input.propTypes = {
+  placeholder: PropTypes.string,
+  hasError: PropTypes.bool,
+};
 
 export default Input;

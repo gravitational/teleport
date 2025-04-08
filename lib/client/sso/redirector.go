@@ -79,11 +79,6 @@ const (
 
 	// DefaultLoginURL is the default login page.
 	DefaultLoginURL = "/web/login"
-
-	// WebMFARedirect is the landing page for SSO MFA in the WebUI. The WebUI set up a listener
-	// on this page in order to capture the SSO MFA response regardless of what page the challenge
-	// was requested from.
-	WebMFARedirect = "/web/sso_confirm"
 )
 
 // RedirectorConfig is configuration for an sso redirector.

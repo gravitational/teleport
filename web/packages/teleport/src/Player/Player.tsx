@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';

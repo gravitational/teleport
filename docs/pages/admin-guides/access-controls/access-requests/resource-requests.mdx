@@ -25,19 +25,18 @@ available in Teleport Enterprise.
 ## Step 1/6. Grant roles to users
 
 The built-in `requester` and `reviewer` roles have permissions to, respectively,
-open and review Access Requests. Grant the `requester` and `reviewer` roles to
-existing users, or create new users to test this feature. Make sure the
+open and review Access Requests.  Grant the `requester` and `reviewer` roles to
+existing users, or create new users to test this feature.  Make sure the
 requester has a valid `login` so that they can view and access SSH nodes.
+
+```code
+$ tctl users add alice --roles requester --logins alice
+$ tctl users add bob --roles reviewer
+```
 
 For the rest of the guide we will assume that the `requester` role has been
 granted to a user named `alice` and the `reviewer` role has been granted to a
 user named `bob`.
-
-1. Assign the `requester` role to a user named `alice`:
-
-   (!docs/pages/includes/add-role-to-user.mdx role="requester" user="\`alice\`"!)
-
-1. Repeat these steps to assign the `reviewer` role to a user named `bob`.
 
 <Admonition type="tip">
 
@@ -409,6 +408,11 @@ in the cluster.
 
 ##### Restrict Access Requests to specific Kubernetes resource kinds
 
+<Admonition type="note">
+The `request.kubernetes_resources` field was released in Teleport 16.4.7.
+All Auth Service instances must be on version 16.4.7+ before the Kubernetes resource restrictions will be enforced.
+</Admonition>
+
 The `request.kubernetes_resources` field allows you to restrict what kinds of Kubernetes 
 resources a user can request access to. Configuring this field to any value will disallow
 requesting access to the entire Kubernetes cluster.
@@ -544,7 +548,7 @@ spec:
 ### Request access to Kubernetes resources
 
 Teleport users can request access to a Kubernetes resources by running the following
-command, where <Var name="resource-id" /> is the ID of the resource:
+command:
 
 ```code
 $ tsh request create <Var name="resource-id" />
@@ -626,10 +630,8 @@ spec:
 
 #### Search for Kubernetes resources
 
-If a user has no access to a Kubernetes cluster, they can search the list of
-resources in the cluster by running the following command, replacing 
-<Var name="kube-cluster" /> with the name of the Kubernetes cluster and 
-<Var name="namespace" /> with the name of a Kubernetes namespace:
+If a user has no access to a Kubernetes cluster, they can search the list of resources
+in the cluster by running the following command:
 
 ```code
 $ tsh request search --kind=<kind> --kube-cluster=<Var name="kube-cluster" /> \

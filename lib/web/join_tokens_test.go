@@ -50,8 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	libui "github.com/gravitational/teleport/lib/ui"
-	utils "github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -334,71 +333,6 @@ func TestDeleteToken(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1 /* only static again */)
 	require.Empty(t, cmp.Diff(resp.Items, []ui.JoinToken{staticUIToken}, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
-}
-
-func TestCreateTokenForDiscovery(t *testing.T) {
-	ctx := context.Background()
-	username := "test-user@example.com"
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, username, nil /* roles */)
-
-	match := func(resp nodeJoinToken, userLabels types.Labels) {
-		if len(userLabels) > 0 {
-			require.Empty(t, cmp.Diff([]libui.Label{{Name: "env"}, {Name: "teleport.internal/resource-id"}}, resp.SuggestedLabels, cmpopts.SortSlices(
-				func(a, b libui.Label) bool {
-					return a.Name < b.Name
-				},
-			), cmpopts.IgnoreFields(libui.Label{}, "Value")))
-		} else {
-			require.Empty(t, cmp.Diff([]libui.Label{{Name: "teleport.internal/resource-id"}}, resp.SuggestedLabels, cmpopts.IgnoreFields(libui.Label{}, "Value")))
-		}
-		require.NotEmpty(t, resp.ID)
-		require.NotEmpty(t, resp.Expiry)
-		require.Equal(t, types.JoinMethodToken, resp.Method)
-	}
-
-	tt := []struct {
-		name string
-		req  types.ProvisionTokenSpecV2
-	}{
-		{
-			name: "with suggested labels",
-			req: types.ProvisionTokenSpecV2{
-				Roles:           []types.SystemRole{types.RoleNode},
-				SuggestedLabels: types.Labels{"env": []string{"testing"}},
-			},
-		},
-		{
-			name: "without suggested labels",
-			req: types.ProvisionTokenSpecV2{
-				Roles:           []types.SystemRole{types.RoleNode},
-				SuggestedLabels: nil,
-			},
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(fmt.Sprintf("v1 %s", tc.name), func(t *testing.T) {
-			endpointV1 := pack.clt.Endpoint("v1", "webapi", "token")
-			re, err := pack.clt.PostJSON(ctx, endpointV1, tc.req)
-			require.NoError(t, err)
-
-			resp := nodeJoinToken{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			match(resp, tc.req.SuggestedLabels)
-		})
-
-		t.Run(fmt.Sprintf("v2 %s", tc.name), func(t *testing.T) {
-			endpointV2 := pack.clt.Endpoint("v2", "webapi", "token")
-			re, err := pack.clt.PostJSON(ctx, endpointV2, tc.req)
-			require.NoError(t, err)
-
-			resp := nodeJoinToken{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			match(resp, tc.req.SuggestedLabels)
-		})
-	}
 }
 
 func TestGenerateAzureTokenName(t *testing.T) {
@@ -797,55 +731,6 @@ func TestGetNodeJoinScript(t *testing.T) {
 			},
 		},
 		{
-			desc:     "app server labels",
-			settings: scriptSettings{token: validToken, appInstallMode: true, appName: "app-name", appURI: "app-uri"},
-			token: &types.ProvisionTokenV2{
-				Metadata: types.Metadata{
-					Name: validToken,
-				},
-				Spec: types.ProvisionTokenSpecV2{
-					SuggestedLabels: types.Labels{
-						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
-					},
-				},
-			},
-			errAssert: require.NoError,
-			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, `APP_NAME='app-name'`)
-				require.Contains(t, script, `APP_URI='app-uri'`)
-				require.Contains(t, script, `public_addr`)
-				require.Contains(t, script, fmt.Sprintf("    labels:\n      %s: %s", types.InternalResourceIDLabel, internalResourceID))
-			},
-		},
-		{
-			desc:     "app server labels with shell injection attempt",
-			settings: scriptSettings{token: validToken, appInstallMode: true, appName: "app-name", appURI: "app-uri"},
-			token: &types.ProvisionTokenV2{
-				Metadata: types.Metadata{
-					Name: validToken,
-				},
-				Spec: types.ProvisionTokenSpecV2{
-					SuggestedLabels: types.Labels{
-						types.InternalResourceIDLabel:   apiutils.Strings{internalResourceID},
-						"env":                           []string{"bad label value | ; & $ > < ' !"},
-						"bad label key | ; & $ > < ' !": []string{"env"},
-					},
-				},
-			},
-			errAssert: require.NoError,
-			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, `APP_NAME='app-name'`)
-				require.Contains(t, script, `APP_URI='app-uri'`)
-				require.Contains(t, script, `public_addr`)
-				require.Contains(t, script, `
-    labels:
-      bad label key | ; & $ > < ' !: env
-      env: bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!
-      teleport.internal/resource-id: `+internalResourceID,
-				)
-			},
-		},
-		{
 			desc:     "attempt to shell injection using suggested labels",
 			settings: scriptSettings{token: validToken},
 			token: &types.ProvisionTokenV2{
@@ -1145,7 +1030,6 @@ func TestGetAppJoinScript(t *testing.T) {
 
 func TestGetDatabaseJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
-	emptySuggestedAgentMatcherLabelsToken := "f18da1c9f6630a51e8daf121e7451000"
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 	hostname := "test.example.com"
 	port := 1234
@@ -1168,7 +1052,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 
 	noMatcherToken := &types.ProvisionTokenV2{
 		Metadata: types.Metadata{
-			Name: emptySuggestedAgentMatcherLabelsToken,
+			Name: validToken,
 		},
 		Spec: types.ProvisionTokenSpecV2{
 			SuggestedLabels: types.Labels{
@@ -1221,6 +1105,10 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 		},
 		{
 			desc: "discover flow with wildcard label matcher",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
 			token: &types.ProvisionTokenV2{
 				Metadata: types.Metadata{
 					Name: validToken,
@@ -1234,14 +1122,11 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 					},
 				},
 			},
-			settings: scriptSettings{
-				databaseInstallMode: true,
-				token:               validToken,
-			},
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
+				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1280,6 +1165,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
+				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1302,11 +1188,11 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 			token: noMatcherToken,
 			settings: scriptSettings{
 				databaseInstallMode: true,
-				token:               emptySuggestedAgentMatcherLabelsToken,
+				token:               validToken,
 			},
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
+				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")

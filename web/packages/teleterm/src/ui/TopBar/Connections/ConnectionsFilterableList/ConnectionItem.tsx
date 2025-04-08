@@ -89,7 +89,7 @@ export function ConnectionItem(props: {
           `}
         >
           <Text
-            typography="body2"
+            typography="body1"
             bold
             color="text.main"
             title={props.item.title}
@@ -122,7 +122,7 @@ export function ConnectionItem(props: {
           {props.showClusterName && (
             <Text
               color="text.slightlyMuted"
-              typography="body3"
+              typography="body2"
               title={props.item.clusterName}
             >
               {props.item.clusterName}

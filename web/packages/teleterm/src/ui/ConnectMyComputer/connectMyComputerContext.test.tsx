@@ -19,6 +19,7 @@
 import { EventEmitter } from 'node:events';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
 
 import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
@@ -32,6 +33,7 @@ import {
 } from 'teleterm/services/tshd/testHelpers';
 import type { Cluster } from 'teleterm/services/tshd/types';
 import * as resourcesContext from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import type { IAppContext } from 'teleterm/ui/types';
@@ -65,7 +67,19 @@ function getMocks() {
   const appContext = new MockAppContext({
     appVersion: rootCluster.proxyVersion,
   });
-  appContext.addRootCluster(rootCluster);
+
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootCluster.uri, rootCluster);
+  });
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootCluster.uri;
+    draftState.workspaces[rootCluster.uri] = {
+      documents: [],
+      location: undefined,
+      localClusterUri: rootCluster.uri,
+      accessRequests: undefined,
+    };
+  });
 
   return { appContext, rootCluster };
 }
@@ -77,11 +91,13 @@ function renderUseConnectMyComputerContextHook(
   return renderHook(() => useConnectMyComputerContext(), {
     wrapper: ({ children }) => (
       <MockAppContextProvider appContext={appContext}>
-        <resourcesContext.ResourcesContextProvider>
-          <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            {children}
-          </ConnectMyComputerContextProvider>
-        </resourcesContext.ResourcesContextProvider>
+        <WorkspaceContextProvider value={null}>
+          <resourcesContext.ResourcesContextProvider>
+            <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
+              {children}
+            </ConnectMyComputerContextProvider>
+          </resourcesContext.ResourcesContextProvider>
+        </WorkspaceContextProvider>
       </MockAppContextProvider>
     ),
   });
@@ -307,13 +323,15 @@ describe('canUse', () => {
       const { result } = renderHook(() => useConnectMyComputerContext(), {
         wrapper: ({ children }) => (
           <MockAppContextProvider appContext={appContext}>
-            <resourcesContext.ResourcesContextProvider>
-              <ConnectMyComputerContextProvider
-                rootClusterUri={rootCluster.uri}
-              >
-                {children}
-              </ConnectMyComputerContextProvider>
-            </resourcesContext.ResourcesContextProvider>
+            <WorkspaceContextProvider value={null}>
+              <resourcesContext.ResourcesContextProvider>
+                <ConnectMyComputerContextProvider
+                  rootClusterUri={rootCluster.uri}
+                >
+                  {children}
+                </ConnectMyComputerContextProvider>
+              </resourcesContext.ResourcesContextProvider>
+            </WorkspaceContextProvider>
           </MockAppContextProvider>
         ),
       });

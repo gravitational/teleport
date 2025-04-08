@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { SharedUnifiedResource } from 'shared/components/UnifiedResources';
 
 import type * as tsh from 'teleterm/services/tshd/types';
@@ -102,47 +101,15 @@ export interface DocumentTshKube extends DocumentBase {
   origin: DocumentOrigin;
 }
 
-/**
- * DocumentGateway is used for database and app gateways. The two are distinguished by the kind of
- * resource that targetUri points to.
- */
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
-  /** status is used merely to show a progress bar when the gateway is being set up. */
+  // status is used merely to show a progress bar when the gateway is being set up.
   status: '' | 'connecting' | 'connected' | 'error';
-  /**
-   * gatewayUri is not present until the gateway described by the document is created.
-   */
   gatewayUri?: uri.GatewayUri;
   targetUri: uri.DatabaseUri | uri.AppUri;
-  /**
-   * targetUser is used only for db gateways and must contain the db user. Connect allows only a
-   * single doc.gateway to exist per targetUri + targetUser combo.
-   */
   targetUser: string;
-  /**
-   * targetName contains the name of the target resource as shown in the UI. This field could be
-   * removed in favor of targetUri, which always includes the target name anyway.
-   */
   targetName: string;
-  /**
-   * targetSubresourceName contains database name for db gateways and target port for TCP app
-   * gateways. A DocumentGateway created for a multi-port TCP app is expected to always have this
-   * field present.
-   *
-   * For app gateways, Connect allows only a single doc.gateway to exist per targetUri +
-   * targetSubresourceName combo.
-   *
-   * For db gateways, targetSubresourceName is not taken into account when considering document
-   * "uniqueness".
-   */
-  targetSubresourceName: string | undefined;
-  /**
-   * port is the local port on which the gateway accepts connections.
-   *
-   * If empty, tshd is going to created a listener on a random port and then this field will be
-   * updated to match that random port.
-   */
+  targetSubresourceName?: string;
   port?: string;
   origin: DocumentOrigin;
 }
@@ -253,46 +220,6 @@ export interface DocumentConnectMyComputer extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
 }
 
-export interface DocumentVnetDiagReport extends DocumentBase {
-  kind: 'doc.vnet_diag_report';
-  // VNet itself is not bound to any workspace, but a document must belong to a workspace. Also, it
-  // must be possible to determine the relation between a document and a cluster just by looking at
-  // the document fields, hence why rootClusterUri is defined here.
-  rootClusterUri: uri.RootClusterUri;
-  report: Report;
-}
-
-export interface DocumentVnetInfo extends DocumentBase {
-  kind: 'doc.vnet_info';
-  // VNet itself is not bound to any workspace, but a document must belong to a workspace. Also, it
-  // must be possible to determine the relation between a document and a cluster just by looking at
-  // the document fields, hence why rootClusterUri is defined here.
-  rootClusterUri: uri.RootClusterUri;
-  /**
-   * Details of the app if the doc was opened by selecting a specific TCP app.
-   *
-   * This field is needed to facilitate a scenario where a first-time user clicks "Connect" next to
-   * a TCP app, which opens this doc. Once the user clicks "Start VNet" in the doc, Connect should
-   * continue the regular flow of connecting to a TCP app through VNet, which means it should copy
-   * the address of the app to the clipboard, hence this field.
-   *
-   * app is removed when restoring persisted state. Let's say the user opens the doc through the
-   * "Connect" button of a specific app. If they close the app and then reopen the docs, we don't
-   * want the "Start VNet" button to copy the address of the app from the prev session.
-   */
-  app:
-    | {
-        /**
-         * The address that's going to be copied to the clipboard after user starts VNet for the
-         * first time through this document.
-         *
-         */
-        targetAddress: string | undefined;
-        isMultiPort: boolean;
-      }
-    | undefined;
-}
-
 /**
  * Document to authorize a web session with device trust.
  * Unlike other documents, it is not persisted on disk.
@@ -327,14 +254,8 @@ export type Document =
   | DocumentCluster
   | DocumentTerminal
   | DocumentConnectMyComputer
-  | DocumentVnetDiagReport
-  | DocumentVnetInfo
   | DocumentAuthorizeWebSession;
 
-/**
- * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.
- * See the comment for DocumentTshNodeWithLoginHost for more details.
- */
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
 ): doc is DocumentTshNodeWithLoginHost {
@@ -343,10 +264,6 @@ export function isDocumentTshNodeWithLoginHost(
   return doc.kind === 'doc.terminal_tsh_node' && !('serverId' in doc);
 }
 
-/**
- * @deprecated DocumentTshNode is supposed to be simplified to just DocumentTshNodeWithServerId.
- * See the comment for DocumentTshNodeWithLoginHost for more details.
- */
 export function isDocumentTshNodeWithServerId(
   doc: Document
 ): doc is DocumentTshNodeWithServerId {
@@ -385,6 +302,7 @@ export type CreateTshKubeDocumentOptions = {
 export type CreateAccessRequestDocumentOpts = {
   clusterUri: uri.ClusterUri;
   state: AccessRequestDocumentState;
+  title?: string;
   requestId?: string;
 };
 

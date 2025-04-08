@@ -108,11 +108,6 @@ func (c *clientConn) maxRoleLength() int {
 	return mysqlMaxUsernameLength
 }
 
-// Close calls conn.Quit to send COM_QUIT then close the conn.
-func (c *clientConn) Close() error {
-	return trace.Wrap(c.Conn.Quit())
-}
-
 // ActivateUser creates or enables the database user.
 func (e *Engine) ActivateUser(ctx context.Context, sessionCtx *common.Session) error {
 	if sessionCtx.Database.GetAdminUser().Name == "" {

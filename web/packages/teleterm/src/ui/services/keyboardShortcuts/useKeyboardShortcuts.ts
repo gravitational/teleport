@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import { useEffect } from '@gravitational/shared/hooks';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 

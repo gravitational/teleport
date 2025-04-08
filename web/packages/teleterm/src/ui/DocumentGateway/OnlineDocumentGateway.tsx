@@ -16,28 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 
-import { Alert, Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Alerts from 'design/Alert';
-import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import Validation from 'shared/components/Validation';
-import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
 import { CliCommand } from './CliCommand';
+import { DocumentGatewayProps } from './DocumentGateway';
 
-export function OnlineDocumentGateway(props: {
-  changeDbName: (name: string) => RunFuncReturnValue<void>;
-  changeDbNameAttempt: Attempt<void>;
-  changePort: (port: string) => RunFuncReturnValue<void>;
-  changePortAttempt: Attempt<void>;
-  disconnect: () => RunFuncReturnValue<void>;
-  disconnectAttempt: Attempt<void>;
-  gateway: Gateway;
-  runCliCommand: () => void;
-}) {
+type OnlineDocumentGatewayProps = Pick<
+  DocumentGatewayProps,
+  | 'changeDbNameAttempt'
+  | 'changePortAttempt'
+  | 'disconnect'
+  | 'changeDbName'
+  | 'changePort'
+  | 'gateway'
+  | 'runCliCommand'
+>;
+
+export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
     props.changePortAttempt.status === 'processing';
@@ -64,13 +65,14 @@ export function OnlineDocumentGateway(props: {
   const $errors = hasError && (
     <Flex flexDirection="column" gap={2} mb={3}>
       {props.changeDbNameAttempt.status === 'error' && (
-        <Alerts.Danger mb={0} details={props.changeDbNameAttempt.statusText}>
-          Could not change the database name
+        <Alerts.Danger mb={0}>
+          Could not change the database name:{' '}
+          {props.changeDbNameAttempt.statusText}
         </Alerts.Danger>
       )}
       {props.changePortAttempt.status === 'error' && (
-        <Alerts.Danger mb={0} details={props.changePortAttempt.statusText}>
-          Could not change the port number
+        <Alerts.Danger mb={0}>
+          Could not change the port number: {props.changePortAttempt.statusText}
         </Alerts.Danger>
       )}
     </Flex>
@@ -79,19 +81,14 @@ export function OnlineDocumentGateway(props: {
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
-        <H1>Database Connection</H1>
+        <Text typography="h3">Database Connection</Text>
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
       </Flex>
-
-      {props.disconnectAttempt.status === 'error' && (
-        <Alert details={props.disconnectAttempt.statusText}>
-          Could not close the connection
-        </Alert>
-      )}
-
-      <H2 mb={2}>Connect with CLI</H2>
+      <Text typography="h4" mb={1}>
+        Connect with CLI
+      </Text>
       <Flex as="form" ref={formRef}>
         <Validation>
           <PortFieldInput
@@ -116,10 +113,9 @@ export function OnlineDocumentGateway(props: {
         onButtonClick={props.runCliCommand}
       />
       {$errors}
-
-      <H2 mt={3} mb={2}>
+      <Text typography="h4" mt={3} mb={1}>
         Connect with GUI
-      </H2>
+      </Text>
       <Text
         // Break long usernames rather than putting an ellipsis.
         css={`

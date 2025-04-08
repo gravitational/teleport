@@ -402,16 +402,14 @@ func (c *configV1) migrate() (*BotConfig, error) {
 	return &BotConfig{
 		Version: V2,
 
-		Onboarding: c.Onboarding,
-		Debug:      c.Debug,
-		AuthServer: c.AuthServer,
-		CredentialLifetime: CredentialLifetime{
-			TTL:             c.CertificateTTL,
-			RenewalInterval: c.RenewalInterval,
-		},
-		Oneshot:  c.Oneshot,
-		FIPS:     c.FIPS,
-		DiagAddr: c.DiagAddr,
+		Onboarding:      c.Onboarding,
+		Debug:           c.Debug,
+		AuthServer:      c.AuthServer,
+		CertificateTTL:  c.CertificateTTL,
+		RenewalInterval: c.RenewalInterval,
+		Oneshot:         c.Oneshot,
+		FIPS:            c.FIPS,
+		DiagAddr:        c.DiagAddr,
 
 		Storage:  storage,
 		Services: outputs,

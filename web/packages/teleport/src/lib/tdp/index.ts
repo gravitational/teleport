@@ -17,4 +17,3 @@
  */
 
 export { PlayerClient } from './playerClient';
-export { adaptWebSocketToTdpTransport } from './webSocketTransportAdapter';

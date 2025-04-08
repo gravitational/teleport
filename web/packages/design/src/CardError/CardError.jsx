@@ -17,9 +17,10 @@
  */
 
 import PropTypes from 'prop-types';
+import React from 'react';
 import styled from 'styled-components';
 
-import { Alert, Card, H1, P1 } from 'design';
+import { Alert, Card, Text } from 'design';
 
 export default function CardError(props) {
   return (
@@ -36,7 +37,7 @@ export default function CardError(props) {
 }
 
 const Header = props => (
-  <H1 mb={4} textAlign="center" children={props.children} />
+  <Text typography="h2" mb={4} textAlign="center" children={props.children} />
 );
 
 const Content = ({ message = '', desc = null }) => {
@@ -76,7 +77,13 @@ export const Failed = ({ message, ...rest }) => (
 export const Offline = ({ message, title }) => (
   <CardError>
     <Header>{title}</Header>
-    <Content desc={<P1 textAlign="center">{message}</P1>} />
+    <Content
+      desc={
+        <Text typography="paragraph" textAlign="center">
+          {message}
+        </Text>
+      }
+    />
   </CardError>
 );
 
@@ -91,9 +98,9 @@ export const LoginFailed = ({ message, loginUrl }) => (
     <Content
       message={message}
       desc={
-        <P1 textAlign="center">
+        <Text typography="paragraph" textAlign="center">
           <HyperLink href={loginUrl}>Please attempt to log in again.</HyperLink>
-        </P1>
+        </Text>
       }
     />
   </CardError>
@@ -110,9 +117,9 @@ export const LogoutFailed = ({ message, loginUrl }) => (
     <Content
       message={message}
       desc={
-        <P1 textAlign="center">
+        <Text typography="paragraph" textAlign="center">
           <HyperLink href={loginUrl}>Return to login.</HyperLink>
-        </P1>
+        </Text>
       }
     />
   </CardError>

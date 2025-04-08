@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -48,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
@@ -71,7 +71,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		Logger:                 utils.NewSlogLoggerForTests(),
+		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,
@@ -106,13 +106,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 
 	scx.killShellr, scx.killShellw, err = os.Pipe()
 	require.NoError(t, err)
-	scx.AddCloser(scx.killShellw)
 
-	// TODO (joerger): check the error coming from Close once the logic around
-	// closing open files has been fixed to fail with "close |1: file already closed".
-	// Note that outside of tests, we never check the error form scx.Close because this
-	// error is a part of normal execution currently.
-	t.Cleanup(func() { scx.Close() })
+	t.Cleanup(func() { require.NoError(t, scx.Close()) })
 
 	return scx
 }
@@ -164,7 +159,7 @@ type mockServer struct {
 	datadir   string
 	auth      *auth.Server
 	component string
-	clock     clocki.FakeClock
+	clock     clockwork.FakeClock
 	bpf       bpf.BPF
 }
 

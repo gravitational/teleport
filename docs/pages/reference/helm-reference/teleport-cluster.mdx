@@ -16,7 +16,7 @@ The `teleport-cluster` chart runs three Teleport services, split into two sets o
 | Teleport service | Running in | Purpose | Documentation |
 | - | - | - | - |
 | `auth_service` | auth `Deployment` | Authenticates users and hosts, and issues certificates. | [Auth documentation](../architecture/authentication.mdx)
-| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Enrolling Kubernetes clusters](../../enroll-resources/kubernetes-access/introduction.mdx) |
+| `kubernetes_service` | auth `Deployment` | Provides secure access to the Kubernetes<br/>cluster where the Teleport cluster is hosted. | [Kubernetes Access documentation](../../enroll-resources/kubernetes-access/introduction.mdx) |
 | `proxy_service` | proxy `Deployment` | Runs the externally-facing parts of a Teleport<br/>cluster, such as the web UI, SSH proxy and reverse tunnel service. | [Proxy documentation](../architecture/proxy.mdx) |
 
 <Admonition type="tip" title="Additional Kubernetes Clusters and Teleport Services">
@@ -40,6 +40,12 @@ Get started with a guide for each mode:
 | `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../admin-guides/deploy-a-cluster/helm-deployments/gcp.mdx) |
 | `azure` | Leverages Azure managed services to store data. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../admin-guides/deploy-a-cluster/helm-deployments/azure.mdx) |
 | `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../admin-guides/deploy-a-cluster/helm-deployments/custom.mdx) |
+
+<Admonition type="note" title="Custom mode removal">
+`custom` mode has been removed in Teleport version 12. See the [version 12
+migration guide](../../admin-guides/deploy-a-cluster/helm-deployments/migration-v12.mdx) for
+more information.
+</Admonition>
 
 <Admonition type="warning" title="Version Compatibility">
 The chart is versioned with Teleport. No compatibility guarantees are ensured
@@ -71,7 +77,7 @@ You will need to manually add a DNS A record pointing `teleport.example.com` to
 the IP, or a CNAME record pointing to the hostname of the Kubernetes load balancer.
 
 <details>
-<summary>Enrolling applications with Teleport?</summary>
+<summary>Using Application Access?</summary>
 
 (!docs/pages/includes/dns-app-access.mdx!)
 
@@ -302,16 +308,12 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 
 ### `authentication.secondFactor`
 
-<Admonition type="warning">
-Deprecated, you should use [`authentication.secondFactors`](#authenticationsecondfactors) instead.
-</Admonition>
-
 | Type     | Default value | Required? | `teleport.yaml` equivalent                  |
 |----------|---------------|-----------|---------------------------------------------|
-| `string` | none          | Yes       | `auth_service.authentication.second_factor` |
+| `string` | `otp`         | Yes       | `auth_service.authentication.second_factor` |
 
-`authentication.secondFactor` configures multi-factor authentication for local users.
-Possible values supported by this chart are `on`, `otp`, and `webauthn`.
+`authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
+are `on`, `otp`, and `webauthn`.
 
 When set to `on` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
 The configured `rp_id` defaults to `clusterName`.
@@ -334,40 +336,9 @@ For example, if users are accessing the cluster with the domain
 Changing the RP ID will invalidate all already registered webauthn second factors.
 </Admonition>
 
-### `authentication.secondFactors`
-
-| Type    | Default value         | Required? | `teleport.yaml` equivalent                   |
-|---------|-----------------------|-----------|----------------------------------------------|
-| `array` | `["otp", "webauthn"]` | No        | `auth_service.authentication.second_factors` |
-
-`authentication.secondFactors` configures multi-factor authentication types.
-Supported item values are `otp`, `sso`, and `webauthn`.
-
-`authentication.secondFactors` takes precedence over any value that is set in `authentication.secondFactor`.
-If `webauthn` is passed, the `authentication.webauthn` section can also be used.
-The configured `rp_id` defaults to `clusterName`.
-
-<Admonition type="warning">
-If you set `publicAddr` for users to access the cluster under a domain different
-to [`clusterName`](#clusterName), you must manually set the webauthn [Relying
-Party Identifier (RP
-ID)](https://www.w3.org/TR/webauthn-2/#relying-party-identifier). If you don't,
-RP ID will default to `clusterName` and users will fail to register second
-factors.
-
-You can do this by setting the value
-`auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
-
-RP ID must be both a valid domain, and part of the full domain users are connecting to.
-For example, if users are accessing the cluster with the domain
-"teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
-
-Changing the RP ID will invalidate all already registered webauthn second factors.
-</Admonition>
-
 ### `authentication.webauthn`
 
-See [Harden your Cluster Against IdP Compromises](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
+See [Second Factor - WebAuthn](../../admin-guides/access-controls/guides/webauthn.mdx) for more details.
 
 #### `authentication.webauthn.attestationAllowedCas`
 
@@ -1025,7 +996,7 @@ to inject your custom configuration.
 
 `podMonitor` controls [the PodMonitor CR (from monitoring.coreos.com/v1)
 ](https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#monitoring.coreos.com/v1.PodMonitor)
-that monitors the workload (Auth Service and Proxy Service) deployed by the chart.
+that monitors the workload (Auth and Proxy Services) deployed by the chart.
 This custom resource configures Prometheus and makes it scrape Teleport metrics.
 
 The CRD is deployed by the prometheus-operator and allows workload to
@@ -1721,42 +1692,6 @@ Kubernetes affinity to set for pod assignments.
             values:
             - teleport
   ```
-
-## `disableTopologySpreadConstraints`
-
-| Type      | Default value | Required? |
-|-----------|---------------|-----------|
-| `boolean` | `false`       | No        |
-
-Turns off the topology spread constraints.
-The feature is automatically turned off on Kubernetes versions below 1.18.
-
-## `topologySpreadConstraints`
-
-| Type   | Default value   | Required? |
-|--------|-----------------|-----------|
-| `list` | see description | No        |
-
-Configures custom [Pod topology spread constraints
-](https://kubernetes.io/fr/docs/concepts/workloads/pods/pod-topology-spread-constraints/)
-
-When unset, the chart defaults to a soft topology spread constraint
-that tries to spread pods across hosts and zones.
-
-Default value:
-```
-topologySpreadConstraints
-  - maxSkew: 1
-    topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels: # dynamically computed
-  - maxSkew: 1
-    topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: ScheduleAnyway
-    labelSelector:
-      matchLabels: # dynamically computed
-```
 
 ## `annotations`
 ### `annotations.config`

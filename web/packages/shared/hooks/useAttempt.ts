@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useState } from 'react';
+import React from 'react';
 
 import Logger from 'shared/libs/logger';
 
@@ -32,11 +32,11 @@ const defaultState = {
 export default function useAttempt(
   initialState: Partial<State>
 ): [State, Actions] {
-  const [attempt, setState] = useState(() => ({
+  const [attempt, setState] = React.useState(() => ({
     ...defaultState,
     ...initialState,
   }));
-  const actions = useMemo(() => makeActions(setState), [setState]);
+  const actions = React.useMemo(() => makeActions(setState), [setState]);
   return [attempt, actions];
 }
 

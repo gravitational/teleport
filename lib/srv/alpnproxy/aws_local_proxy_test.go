@@ -19,18 +19,17 @@
 package alpnproxy
 
 import (
-	"bytes"
 	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
-	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
-	"github.com/gravitational/trace"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/private/protocol"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/stretchr/testify/require"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -40,19 +39,19 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	t.Parallel()
 
 	assumedRoleARN := "arn:aws:sts::123456789012:assumed-role/role-name/role-session-name"
-	localCred := aws.Credentials{AccessKeyID: "local-proxy", SecretAccessKey: "local-proxy-secret"}
-	assumedRoleCred := aws.Credentials{AccessKeyID: "assumed-role", SecretAccessKey: "assumed-role-secret", SessionToken: "assumed-role-token"}
-
-	m := &AWSAccessMiddleware{
-		AWSCredentialsProvider: credentials.NewStaticCredentialsProvider("local-proxy", "local-proxy-secret", ""),
-	}
-	require.NoError(t, m.CheckAndSetDefaults())
+	localProxyCred := credentials.NewStaticCredentials("local-proxy", "local-proxy-secret", "")
+	assumedRoleCred := credentials.NewStaticCredentials("assumed-role", "assumed-role-secret", "assumed-role-token")
 
 	stsRequestByLocalProxyCred := httptest.NewRequest(http.MethodPost, "http://sts.us-east-2.amazonaws.com", nil)
-	awsutils.NewSigner("sts").SignHTTP(t.Context(), localCred, stsRequestByLocalProxyCred, awsutils.EmptyPayloadHash, "sts", "us-west-1", time.Now())
+	v4.NewSigner(localProxyCred).Sign(stsRequestByLocalProxyCred, nil, "sts", "us-west-1", time.Now())
 
 	requestByAssumedRole := httptest.NewRequest(http.MethodGet, "http://s3.amazonaws.com", nil)
-	awsutils.NewSigner("s3").SignHTTP(t.Context(), assumedRoleCred, requestByAssumedRole, awsutils.EmptyPayloadHash, "s3", "us-west-1", time.Now())
+	v4.NewSigner(assumedRoleCred).Sign(requestByAssumedRole, nil, "s3", "us-west-1", time.Now())
+
+	m := &AWSAccessMiddleware{
+		AWSCredentials: localProxyCred,
+	}
+	require.NoError(t, m.CheckAndSetDefaults())
 
 	t.Run("request no authorization", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
@@ -99,101 +98,34 @@ func TestAWSAccessMiddleware(t *testing.T) {
 	})
 }
 
-func TestUnmarshalAssumeRoleResponse(t *testing.T) {
-	want := &sts.AssumeRoleOutput{
-		AssumedRoleUser: &ststypes.AssumedRoleUser{
-			Arn: aws.String("some-arn"),
-		},
-		Credentials: &ststypes.Credentials{
-			AccessKeyId:     aws.String("some-access-key-id"),
-			SecretAccessKey: aws.String("some-secret-access-key"),
-			SessionToken:    aws.String("some-session-token"),
-			Expiration:      aws.Time(time.Unix(1234567890, 0).UTC()),
-		},
-	}
-
-	body := []byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
-  <AssumeRoleResult>
-    <Credentials>
-      <SecretAccessKey>some-secret-access-key</SecretAccessKey>
-      <SessionToken>some-session-token</SessionToken>
-      <AccessKeyId>some-access-key-id</AccessKeyId>
-      <Expiration>2009-02-13T23:31:30Z</Expiration>
-    </Credentials>
-    <AssumedRoleUser>
-      <Arn>some-arn</Arn>
-    </AssumedRoleUser>
-  </AssumeRoleResult>
-  <ResponseMetadata>
-    <StatusCode>200</StatusCode>
-    <RequestID>some-request-id</RequestID>
-  </ResponseMetadata>
-</AssumeRoleResponse>`)
-
-	actual, err := unmarshalAssumeRoleResponse(body)
-	require.NoError(t, err)
-	require.Equal(t, want, actual)
-
-	t.Run("invalid xml", func(t *testing.T) {
-		_, err := unmarshalAssumeRoleResponse([]byte(""))
-		require.Error(t, err)
-	})
-}
-
-// IdentityResult represents the identitiy result of an AWS response.
-type IdentityResult struct {
-	ARN string `xml:"Arn"`
-}
-
-// ResponseMetadata contains the metadata of a AWS response.
-type ResponseMetadata struct {
-	RequestID  string `xml:"RequestID"`
-	StatusCode int    `xml:"StatusCode"`
-}
-
-// AssumeRoleResult contains the assume role result.
-type AssumeRoleResult struct {
-	// AssumedRoleUser is the assumed user.
-	AssumedRoleUser IdentityResult `xml:"AssumedRoleUser"`
-	// Credentials is the generated credentials.
-	Credentials ststypes.Credentials `xml:"Credentials"`
-}
-
-// AssumeRoleResponse is the response of assume role.
-type AssumeRoleResponse struct {
-	// AssumeRoleResult is the resulting response from assume role.
-	AssumeRoleResult AssumeRoleResult `xml:"AssumeRoleResult"`
-	// Response is the response metadata.
-	Response ResponseMetadata `xml:"ResponseMetadata"`
-}
-
-// GetCallerIdentityResponse is the response of get caller identity call.
-type GetCallerIdentityResponse struct {
-	// AssumeRoleResult is the resulting response from assume role.
-	GetCallerIdentityResult IdentityResult `xml:"GetCallerIdentityResult"`
-	// Response is the response metadata.
-	Response ResponseMetadata `xml:"ResponseMetadata"`
-}
-
-func assumeRoleResponse(t *testing.T, roleARN string, creds aws.Credentials) *http.Response {
+func assumeRoleResponse(t *testing.T, roleARN string, cred *credentials.Credentials) *http.Response {
 	t.Helper()
 
-	body, err := marshalXML("AssumeRoleResponse", "https://sts.amazonaws.com/doc/2011-06-15/", AssumeRoleResponse{
-		AssumeRoleResult: AssumeRoleResult{
-			AssumedRoleUser: IdentityResult{
-				ARN: roleARN,
+	credValue, err := cred.Get()
+	require.NoError(t, err)
+
+	body, err := awsutils.MarshalXML(
+		xml.Name{
+			Local: "AssumeRoleResponse",
+			Space: "https://sts.amazonaws.com/doc/2011-06-15/",
+		},
+		map[string]any{
+			"AssumeRoleResult": sts.AssumeRoleOutput{
+				AssumedRoleUser: &sts.AssumedRoleUser{
+					Arn: aws.String(roleARN),
+				},
+				Credentials: &sts.Credentials{
+					AccessKeyId:     aws.String(credValue.AccessKeyID),
+					SecretAccessKey: aws.String(credValue.SecretAccessKey),
+					SessionToken:    aws.String(credValue.SessionToken),
+				},
 			},
-			Credentials: ststypes.Credentials{
-				AccessKeyId:     aws.String(creds.AccessKeyID),
-				SecretAccessKey: aws.String(creds.SecretAccessKey),
-				SessionToken:    aws.String(creds.SessionToken),
+			"ResponseMetadata": protocol.ResponseMetadata{
+				StatusCode: http.StatusOK,
+				RequestID:  "22222222-3333-3333-3333-333333333333",
 			},
 		},
-		Response: ResponseMetadata{
-			StatusCode: http.StatusOK,
-			RequestID:  "22222222-3333-3333-3333-333333333333",
-		},
-	})
+	)
 	require.NoError(t, err)
 	return fakeHTTPResponse(http.StatusOK, body)
 }
@@ -201,15 +133,21 @@ func assumeRoleResponse(t *testing.T, roleARN string, creds aws.Credentials) *ht
 func getCallerIdentityResponse(t *testing.T, roleARN string) *http.Response {
 	t.Helper()
 
-	body, err := marshalXML("GetCallerIdentityResponse", "https://sts.amazonaws.com/doc/2011-06-15/", GetCallerIdentityResponse{
-		GetCallerIdentityResult: IdentityResult{
-			ARN: roleARN,
+	body, err := awsutils.MarshalXML(
+		xml.Name{
+			Local: "GetCallerIdentityResponse",
+			Space: "https://sts.amazonaws.com/doc/2011-06-15/",
 		},
-		Response: ResponseMetadata{
-			StatusCode: http.StatusOK,
-			RequestID:  "22222222-3333-3333-3333-333333333333",
+		map[string]any{
+			"GetCallerIdentityResult": sts.GetCallerIdentityOutput{
+				Arn: aws.String(roleARN),
+			},
+			"ResponseMetadata": protocol.ResponseMetadata{
+				StatusCode: http.StatusOK,
+				RequestID:  "22222222-3333-3333-3333-333333333333",
+			},
 		},
-	})
+	)
 	require.NoError(t, err)
 	return fakeHTTPResponse(http.StatusOK, body)
 }
@@ -219,22 +157,4 @@ func fakeHTTPResponse(code int, body []byte) *http.Response {
 	recorder.Write(body)
 	recorder.WriteHeader(code)
 	return recorder.Result()
-}
-
-// marshalXML marshals the provided root name and a map of children in XML with
-// default indent (prefix "", indent "  ").
-func marshalXML(root string, namespace string, v any) ([]byte, error) {
-	var buf bytes.Buffer
-	encoder := xml.NewEncoder(&buf)
-	encoder.Indent("", "  ")
-	err := encoder.EncodeElement(v, xml.StartElement{
-		Name: xml.Name{Local: root},
-		Attr: []xml.Attr{
-			{Name: xml.Name{Local: "xmlns"}, Value: namespace},
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return buf.Bytes(), nil
 }

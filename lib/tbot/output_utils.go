@@ -24,7 +24,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"path/filepath"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -75,9 +75,9 @@ type BotConfigWriter struct {
 // WriteFile writes the file to the Destination. Only the basename of the path
 // is used. Specified permissions are ignored.
 func (b *BotConfigWriter) WriteFile(name string, data []byte, _ os.FileMode) error {
-	p := filepath.Base(name)
+	p := path.Base(name)
 	if b.subpath != "" {
-		p = filepath.Join(b.subpath, p)
+		p = path.Join(b.subpath, p)
 	}
 
 	return trace.Wrap(b.dest.Write(b.ctx, p, data))
@@ -102,34 +102,32 @@ func (b *BotConfigWriter) ReadFile(name string) ([]byte, error) {
 // identityfile.ConfigWriter interface
 var _ identityfile.ConfigWriter = (*BotConfigWriter)(nil)
 
-// NewClientKeyRing returns a sane client.KeyRing for the given bot identity.
-func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.KeyRing, error) {
+// NewClientKey returns a sane client.Key for the given bot identity.
+func NewClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
 	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &client.KeyRing{
-		KeyRingIndex: client.KeyRingIndex{
+	return &client.Key{
+		KeyIndex: client.KeyIndex{
 			ClusterName: ident.ClusterName,
 		},
-		// tbot identities use a single private key for SSH and TLS.
-		SSHPrivateKey: pk,
-		TLSPrivateKey: pk,
-		Cert:          ident.CertBytes,
-		TLSCert:       ident.TLSCertBytes,
-		TrustedCerts:  authclient.AuthoritiesToTrustedCerts(hostCAs),
+		PrivateKey:   pk,
+		Cert:         ident.CertBytes,
+		TLSCert:      ident.TLSCertBytes,
+		TrustedCerts: authclient.AuthoritiesToTrustedCerts(hostCAs),
 
 		// Note: these fields are never used or persisted with identity files,
 		// so we won't bother to set them. (They may need to be reconstituted
 		// on tsh's end based on cert fields, though.)
-		KubeTLSCredentials: make(map[string]client.TLSCredential),
-		DBTLSCredentials:   make(map[string]client.TLSCredential),
+		KubeTLSCerts: make(map[string][]byte),
+		DBTLSCerts:   make(map[string][]byte),
 	}, nil
 }
 
 func writeIdentityFile(
-	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -140,7 +138,7 @@ func writeIdentityFile(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.IdentityFilePath,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		KeyRing:    keyRing,
+		Key:        key,
 		Format:     identityfile.FormatFile,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -161,7 +159,7 @@ func writeIdentityFile(
 // useful when writing out TLS certificates with alternative prefix and file
 // extensions for application compatibility reasons.
 func writeIdentityFileTLS(
-	ctx context.Context, log *slog.Logger, keyRing *client.KeyRing, dest bot.Destination,
+	ctx context.Context, log *slog.Logger, key *client.Key, dest bot.Destination,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -172,7 +170,7 @@ func writeIdentityFileTLS(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultTLSPrefix,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		KeyRing:    keyRing,
+		Key:        key,
 		Format:     identityfile.FormatTLS,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -230,6 +228,26 @@ func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, da
 	}
 
 	return nil
+}
+
+// generateKeys generates TLS and SSH keypairs.
+func generateKeys() (private, sshpub, tlspub []byte, err error) {
+	privateKey, publicKey, err := native.GenerateKeyPair()
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	return privateKey, publicKey, tlsPublicKey, nil
 }
 
 // describeTLSIdentity generates an informational message about the given
@@ -301,7 +319,16 @@ func generateIdentity(
 	//   This should be ignored if a renewal has been triggered manually or
 	//   by a CA rotation.
 
+	// Generate a fresh keypair for the impersonated identity. We don't care to
+	// reuse keys here: impersonated certs might not be as well-protected so
+	// constantly rotating private keys
+	privateKey, publicKey, err := native.GenerateKeyPair()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req := proto.UserCertsRequest{
+		PublicKey:      publicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
 		Expires:        time.Now().Add(ttl),
 		RoleRequests:   roles,
@@ -315,34 +342,6 @@ func generateIdentity(
 
 	if configurator != nil {
 		configurator(&req)
-	}
-
-	keyPurpose := cryptosuites.BotImpersonatedIdentity
-	if req.RouteToDatabase.ServiceName != "" {
-		// We still used RSA for all database clients, all other bot
-		// impersonated identities can use ECDSA.
-		keyPurpose = cryptosuites.DatabaseClient
-	}
-
-	// Generate a fresh keypair for the impersonated identity. We don't care to
-	// reuse keys here, constantly rotate private keys to limit their effective
-	// lifetime.
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
-		keyPurpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	req.SSHPublicKey = ssh.MarshalAuthorizedKey(sshPub)
-
-	req.TLSPublicKey, err = keys.MarshalPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// First, ask the auth server to generate a new set of certs with a new
@@ -380,14 +379,9 @@ func generateIdentity(
 	// Instead, copy the SSHCACerts from the primary identity.
 	certs.SSHCACerts = currentIdentity.SSHCACertBytes
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  req.SSHPublicKey,
+		PrivateKeyBytes: privateKey,
+		PublicKeyBytes:  publicKey,
 	}, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -407,17 +401,18 @@ func warnOnEarlyExpiration(
 	ctx context.Context,
 	log *slog.Logger,
 	ident *identity.Identity,
-	lifetime config.CredentialLifetime,
+	ttl time.Duration,
+	renewalInterval time.Duration,
 ) {
 	// Calculate a rough TTL, assuming this was called shortly after the
 	// identity was returned. We'll add a minute buffer to compensate and avoid
 	// superfluous warning messages.
 	effectiveTTL := time.Until(ident.TLSIdentity.Expires) + time.Minute
 
-	if effectiveTTL < lifetime.TTL {
+	if effectiveTTL < ttl {
 		l := log.With(
-			"requested_ttl", lifetime.TTL,
-			"renewal_interval", lifetime.RenewalInterval,
+			"requested_ttl", ttl,
+			"renewal_interval", renewalInterval,
 			"effective_ttl", effectiveTTL,
 			"expires", ident.TLSIdentity.Expires,
 			"roles", ident.TLSIdentity.Groups,
@@ -427,7 +422,7 @@ func warnOnEarlyExpiration(
 		// without explicit permission, and could determine which role in
 		// particular limited the TTL.
 
-		if effectiveTTL < lifetime.RenewalInterval {
+		if effectiveTTL < renewalInterval {
 			//nolint:sloglint // multiline string is actually constant
 			l.WarnContext(ctx, "The server returned an identity shorter than "+
 				"expected and below the configured renewal interval, probably "+
@@ -482,7 +477,7 @@ func chooseOneResource[T types.ResourceWithLabels](resources []T, name, resDesc 
 	default:
 		var out T
 		errMsg := formatAmbiguousMessage(name, resDesc, matches)
-		return out, trace.BadParameter("%s", errMsg)
+		return out, trace.BadParameter(errMsg)
 	}
 }
 

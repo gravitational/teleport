@@ -87,6 +87,8 @@ async function initializeServer(
       if (error) {
         return logger.error(error.message);
       }
+
+      server.start();
     });
   } catch (e) {
     logger.error('Could not start shared server', e);

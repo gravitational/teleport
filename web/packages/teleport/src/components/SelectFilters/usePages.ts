@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React from 'react';
 
 export default function usePages({ pageSize, data }) {
-  const [startFrom, setFrom] = useState(0);
+  const [startFrom, setFrom] = React.useState(0);
 
   // set current page to 0 when data source length changes
-  useEffect(() => {
+  React.useEffect(() => {
     setFrom(0);
   }, [data.length]);
 

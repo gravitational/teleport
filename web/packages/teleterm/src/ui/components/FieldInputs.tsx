@@ -16,26 +16,42 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { forwardRef } from 'react';
 import styled from 'styled-components';
 
-import FieldInput from 'shared/components/FieldInput';
+import FieldInput, { FieldInputProps } from 'shared/components/FieldInput';
 
-export const ConfigFieldInput = styled(FieldInput).attrs({ size: 'small' })`
+export const ConfigFieldInput = styled(FieldInput)`
   input {
-    &:invalid,
-    &:invalid:hover {
-      border-color: ${props =>
-        props.theme.colors.interactive.solid.danger.default};
+    background: inherit;
+    font-size: 14px;
+    height: 34px;
+  }
+`;
+
+const ConfigFieldInputWithoutStepper = styled(ConfigFieldInput)`
+  input {
+    ::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    ::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
   }
 `;
 
-export const PortFieldInput = styled(ConfigFieldInput).attrs({
-  type: 'number',
-  min: 1,
-  max: 65535,
-  // Without a min width, the stepper controls end up being to close to a long port number such
-  // as 65535. minWidth instead of width allows the field to grow with the label, so that e.g.
-  // a custom label of "Local Port (optional)" is displayed on a single line.
-  minWidth: '110px',
-})``;
+export const PortFieldInput = forwardRef<HTMLInputElement, FieldInputProps>(
+  (props, ref) => (
+    <ConfigFieldInputWithoutStepper
+      type="number"
+      min={1}
+      max={65535}
+      ref={ref}
+      {...props}
+      width="110px"
+    />
+  )
+);

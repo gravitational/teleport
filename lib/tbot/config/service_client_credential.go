@@ -33,8 +33,8 @@ import (
 const UnstableClientCredentialOutputType = "unstable_client_credential"
 
 var (
-	_ ServiceConfig      = &UnstableClientCredentialOutput{}
-	_ client.Credentials = &UnstableClientCredentialOutput{}
+	_ ServiceConfig                = &UnstableClientCredentialOutput{}
+	_ client.CredentialsWithExpiry = &UnstableClientCredentialOutput{}
 )
 
 // UnstableClientCredentialOutput is an experimental tbot output which is
@@ -147,8 +147,4 @@ func (o *UnstableClientCredentialOutput) MarshalYAML() (interface{}, error) {
 // Type returns a human readable description of this output.
 func (o *UnstableClientCredentialOutput) Type() string {
 	return UnstableClientCredentialOutputType
-}
-
-func (o *UnstableClientCredentialOutput) GetCredentialLifetime() CredentialLifetime {
-	return CredentialLifetime{}
 }

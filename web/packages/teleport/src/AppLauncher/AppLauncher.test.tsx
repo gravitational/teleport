@@ -17,6 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
+import React from 'react';
 import { Router } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
@@ -93,17 +94,11 @@ describe('app launcher path is properly formed', () => {
     });
 
     delete window.location;
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = { ...realLocation, replace: assignMock };
   });
 
   afterEach(() => {
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = realLocation;
     assignMock.mockClear();
   });
 
@@ -268,17 +263,11 @@ describe('fqdn is matched', () => {
     jest.spyOn(api, 'post').mockResolvedValue({});
 
     delete window.location;
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = { ...realLocation, replace: assignMock };
   });
 
   afterEach(() => {
-    window.location = {
-      ...realLocation,
-      replace: assignMock,
-    } as unknown as string & Location;
+    window.location = realLocation;
     assignMock.mockClear();
   });
 
@@ -307,8 +296,8 @@ describe('fqdn is matched', () => {
       await waitFor(() => {
         expect(service.createAppSession).toHaveBeenCalledWith({
           fqdn: expectedFqdn,
-          cluster_name: 'test.teleport',
-          public_addr: expectedPublicAddr,
+          clusterId: 'test.teleport',
+          publicAddr: expectedPublicAddr,
           arn: expectedArn,
         });
       });

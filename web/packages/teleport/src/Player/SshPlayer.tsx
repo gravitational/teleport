@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -101,11 +101,11 @@ const StyledPlayer = styled.div`
 `;
 
 function useStreamingSshPlayer(clusterId: string, sid: string) {
-  const [playerStatus, setPlayerStatus] = useState(StatusEnum.LOADING);
-  const [statusText, setStatusText] = useState('');
-  const [time, setTime] = useState(0);
+  const [playerStatus, setPlayerStatus] = React.useState(StatusEnum.LOADING);
+  const [statusText, setStatusText] = React.useState('');
+  const [time, setTime] = React.useState(0);
 
-  const tty = useMemo(() => {
+  const tty = React.useMemo(() => {
     const url = cfg.api.ttyPlaybackWsAddr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
@@ -114,7 +114,7 @@ function useStreamingSshPlayer(clusterId: string, sid: string) {
     return new TtyPlayer({ url, setPlayerStatus, setStatusText, setTime });
   }, [clusterId, sid, setPlayerStatus, setStatusText, setTime]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     tty.connect();
     tty.play();
 

@@ -24,7 +24,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"testing"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -40,7 +40,7 @@ func TestInstallSystemdCmd(t *testing.T) {
 
 	// Create pre-existing file to test --force
 	preExistingDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(preExistingDir, "tbot.service"), []byte("pre-existing"), 0644)
+	err := os.WriteFile(path.Join(preExistingDir, "tbot.service"), []byte("pre-existing"), 0644)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -128,14 +128,14 @@ func TestInstallSystemdCmd(t *testing.T) {
 			if tt.wantStdout {
 				// Ensure that in dry run, no actual output is written!
 				_, err = os.ReadFile(
-					filepath.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
+					path.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
 				)
 				require.ErrorIs(t, err, os.ErrNotExist)
 				data = stdout.Bytes()
 				data = bytes.ReplaceAll(data, []byte(dirPath), []byte("/test/dir"))
 			} else {
 				data, err = os.ReadFile(
-					filepath.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
+					path.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
 				)
 				require.NoError(t, err)
 			}

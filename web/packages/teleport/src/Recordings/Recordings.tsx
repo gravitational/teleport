@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
-import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
   FeatureBox,

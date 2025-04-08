@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, Banner } from './Alert';
+import Alert from './Alert';
 import Box from './Box';
-import {
-  Button,
+import Button, {
   ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
@@ -31,12 +30,13 @@ import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
+import DocumentTitle from './DocumentTitle';
 import Flex from './Flex';
 import Image from './Image';
-import { Indicator } from './Indicator';
+import Indicator from './Indicator';
 import Input from './Input';
 import Label from './Label';
-import { LabelInput } from './LabelInput';
+import LabelInput from './LabelInput';
 import LabelState from './LabelState';
 import Link from './Link';
 import { Mark } from './Mark';
@@ -44,6 +44,7 @@ import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { ResourceIcon } from './ResourceIcon';
+import SideNav, { SideNavItem } from './SideNav';
 import { StepSlider } from './StepSlider';
 import Text, {
   H1,
@@ -64,52 +65,53 @@ import TopNav from './TopNav';
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
-  Banner,
   Box,
   Button,
-  ButtonBorder,
   ButtonIcon,
   ButtonLink,
+  ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
-  ButtonText,
   ButtonWarning,
   ButtonWithMenu,
+  ButtonText,
   Card,
   CardSuccess,
   CardSuccessLogin,
+  DocumentTitle,
   Flex,
   H1,
   H2,
   H3,
   H4,
-  Image,
   Indicator,
   Input,
   Label,
   LabelInput,
   LabelState,
-  Link,
   Mark,
+  Link,
+  Pill,
+  Popover,
+  Image,
+  ResourceIcon,
+  SideNav,
+  SideNavItem,
+  StepSlider,
+  Text,
+  TopNav,
   Menu,
   MenuItem,
   MenuItemIcon,
   P1,
   P2,
   P3,
-  Pill,
-  Popover,
-  ResourceIcon,
-  StepSlider,
+  TextArea,
+  Toggle,
   Subtitle1,
   Subtitle2,
   Subtitle3,
-  Text,
-  TextArea,
-  Toggle,
-  TopNav,
 };
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
-export { Stack } from './Flex';
 export { breakpointsPx } from './theme';

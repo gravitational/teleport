@@ -42,7 +42,7 @@ type Config struct {
 	DatabaseObjectClient *databaseobject.Client
 	ImportRules          ImportRulesReader
 	Auth                 common.Auth
-	GCPClients           cloud.GCPClients
+	CloudClients         cloud.Clients
 
 	// ScanInterval specifies how often the database is scanned.
 	// A higher ScanInterval reduces the load on the database and database agent,
@@ -117,8 +117,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if c.Auth == nil {
 		return trace.BadParameter("missing parameter Auth")
 	}
-	if c.GCPClients == nil {
-		return trace.BadParameter("missing parameter GCPClients")
+	if c.CloudClients == nil {
+		return trace.BadParameter("missing parameter CloudClients")
 	}
 	if c.Log == nil {
 		c.Log = slog.Default().With(teleport.ComponentKey, "db:obj_importer")

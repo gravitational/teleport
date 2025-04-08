@@ -32,10 +32,8 @@ const (
 	PKIXPublicKeyType = "PUBLIC KEY"
 )
 
-// MarshalPublicKey returns a PEM encoding of the given public key. Encodes RSA
-// keys in PKCS1 format for backward compatibility. All other key types are
-// encoded in PKIX, ASN.1 DER form. Only supports *rsa.PublicKey,
-// *ecdsa.PublicKey, and ed25519.PublicKey.
+// MarshalPublicKey returns a PEM encoding of the given public key. Encodes RSA keys in PKCS1 format for
+// backward compatibility. Only supports *rsa.PublicKey, *ecdsa.PublicKey, and ed25519.PublicKey.
 func MarshalPublicKey(pub crypto.PublicKey) ([]byte, error) {
 	switch pubKey := pub.(type) {
 	case *rsa.PublicKey:

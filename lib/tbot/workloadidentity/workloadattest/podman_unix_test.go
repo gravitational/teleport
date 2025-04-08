@@ -44,7 +44,6 @@ func TestPodmanAttestor(t *testing.T) {
 				Image:  "nginx:latest",
 				Labels: map[string]string{"region": "eu"},
 			},
-			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
 		}),
 		podman.WithPod(podman.Pod{
 			ID:     "5ffc3df0af9a6dd0f92668fc949734aad2ad41a5670b7218196d377d55ca32c5",
@@ -79,10 +78,9 @@ func TestPodmanAttestor(t *testing.T) {
 	expected := &workloadidentityv1.WorkloadAttrsPodman{
 		Attested: true,
 		Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
-			Name:        "web-server",
-			Image:       "nginx:latest",
-			Labels:      map[string]string{"region": "eu"},
-			ImageDigest: "sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099",
+			Name:   "web-server",
+			Image:  "nginx:latest",
+			Labels: map[string]string{"region": "eu"},
 		},
 		Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
 			Name:   "billing-system",

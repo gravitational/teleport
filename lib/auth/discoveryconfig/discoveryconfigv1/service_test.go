@@ -501,8 +501,7 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc, err := local.NewTestIdentityService(backend)
-	require.NoError(t, err)
+	userSvc := local.NewTestIdentityService(backend)
 
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)

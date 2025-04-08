@@ -1,4 +1,5 @@
 //go:build !darwin && !linux
+// +build !darwin,!linux
 
 /*
  * Teleport
@@ -21,18 +22,19 @@
 package metadata
 
 import (
-	"context"
-	"log/slog"
+	"runtime"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // fetchOSVersion returns "" if not on linux and not on darwin.
 func (c *fetchConfig) fetchOSVersion() string {
-	slog.WarnContext(context.Background(), "fetchOSVersion is not implemented")
+	log.Warningf("fetchOSVersion is not implemented for %s", runtime.GOOS)
 	return ""
 }
 
 // fetchGlibcVersion returns "" if not on linux and not on darwin.
 func (c *fetchConfig) fetchGlibcVersion() string {
-	slog.WarnContext(context.Background(), "fetchGlibcVersion is not implemented")
+	log.Warningf("fetchGlibcVersion is not implemented for %s", runtime.GOOS)
 	return ""
 }

@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -42,7 +42,7 @@ type mockCAandAuthPrefGetter struct {
 	AccessPoint
 
 	authPref types.AuthPreference
-	cas      map[types.CertAuthType][]types.CertAuthority
+	cas      map[types.CertAuthType]types.CertAuthority
 }
 
 func (m mockCAandAuthPrefGetter) GetAuthPreference(s_12345678 context.Context) (types.AuthPreference, error) {
@@ -50,12 +50,12 @@ func (m mockCAandAuthPrefGetter) GetAuthPreference(s_12345678 context.Context) (
 }
 
 func (m mockCAandAuthPrefGetter) GetCertAuthorities(_ context.Context, caType types.CertAuthType, _ bool) ([]types.CertAuthority, error) {
-	cas, ok := m.cas[caType]
+	ca, ok := m.cas[caType]
 	if !ok {
 		return nil, trace.NotFound("CA not found")
 	}
 
-	return cas, nil
+	return []types.CertAuthority{ca}, nil
 }
 
 type mockLoginChecker struct {
@@ -102,64 +102,45 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
-		Addr:     "1.2.3.4:22",
-		Hostname: "testie",
-	}, nil)
-	require.NoError(t, err)
-
-	openSSHNode, err := types.NewNode("openssh", types.SubKindOpenSSHNode, types.ServerSpecV2{
-		Addr:     "1.2.3.4:22",
-		Hostname: "openssh",
-	}, nil)
-	require.NoError(t, err)
-
-	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
-		Integration:  "org",
-		Organization: "org",
-	})
-	require.NoError(t, err)
-
 	tests := []struct {
 		name            string
 		component       string
-		targetServer    types.Server
+		nodeExists      bool
+		openSSHNode     bool
 		assertRBACCheck require.BoolAssertionFunc
 	}{
 		{
 			name:            "teleport node, regular server",
 			component:       teleport.ComponentNode,
-			targetServer:    node,
+			nodeExists:      true,
+			openSSHNode:     false,
 			assertRBACCheck: require.True,
 		},
 		{
 			name:            "teleport node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			targetServer:    node,
+			nodeExists:      true,
+			openSSHNode:     false,
 			assertRBACCheck: require.False,
 		},
 		{
 			name:            "registered openssh node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			targetServer:    openSSHNode,
+			nodeExists:      true,
+			openSSHNode:     true,
 			assertRBACCheck: require.True,
 		},
 		{
 			name:            "unregistered openssh node, forwarding server",
 			component:       teleport.ComponentForwardingNode,
-			targetServer:    nil,
-			assertRBACCheck: require.False,
-		},
-		{
-			name:            "forwarding git",
-			component:       teleport.ComponentForwardingGit,
-			targetServer:    gitServer,
+			nodeExists:      false,
 			assertRBACCheck: require.False,
 		},
 	}
 
 	// create User CA
-	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	userTA := testauthority.New()
+	userCAPriv, err := userTA.GeneratePrivateKey()
 	require.NoError(t, err)
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -189,19 +170,36 @@ func TestRBAC(t *testing.T) {
 	accessPoint := mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
 		authPref:    types.DefaultAuthPreference(),
-		cas: map[types.CertAuthType][]types.CertAuthority{
-			types.UserCA: {userCA},
+		cas: map[types.CertAuthType]types.CertAuthority{
+			types.UserCA: userCA,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// create node resource
+			var target types.Server
+			if tt.nodeExists {
+				n, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
+					Addr:     "1.2.3.4:22",
+					Hostname: "testie",
+					Version:  types.V2,
+				})
+				require.NoError(t, err)
+				server, ok := n.(*types.ServerV2)
+				require.True(t, ok)
+				if tt.openSSHNode {
+					server.SubKind = types.SubKindOpenSSHNode
+				}
+				target = server
+			}
+
 			config := &AuthHandlerConfig{
 				Server:       server,
 				Component:    tt.component,
 				Emitter:      &eventstest.MockRecorderEmitter{},
 				AccessPoint:  accessPoint,
-				TargetServer: tt.targetServer,
+				TargetServer: target,
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
@@ -213,7 +211,7 @@ func TestRBAC(t *testing.T) {
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
 			keygen := testauthority.New()
-			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			privateKey, err := native.GeneratePrivateKey()
 			require.NoError(t, err)
 
 			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
@@ -238,132 +236,6 @@ func TestRBAC(t *testing.T) {
 	}
 }
 
-// TestForwardingGitLocalOnly verifies that remote identities are categorically rejected
-// by UserKeyAuth when the auth handler is running as a ForwardingGit component.
-func TestForwardingGitLocalOnly(t *testing.T) {
-	t.Parallel()
-
-	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
-		Integration:  "org",
-		Organization: "org",
-	})
-	require.NoError(t, err)
-
-	// create local User CA
-	localCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	localCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.UserCA,
-		ClusterName: "localhost",
-		ActiveKeys: types.CAKeySet{
-			SSH: []*types.SSHKeyPair{
-				{
-					PublicKey:      localCAPriv.MarshalSSHPublicKey(),
-					PrivateKey:     localCAPriv.PrivateKeyPEM(),
-					PrivateKeyType: types.PrivateKeyType_RAW,
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// create remote User CA
-	remoteCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	remoteCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.UserCA,
-		ClusterName: "remotehost",
-		ActiveKeys: types.CAKeySet{
-			SSH: []*types.SSHKeyPair{
-				{
-					PublicKey:      remoteCAPriv.MarshalSSHPublicKey(),
-					PrivateKey:     remoteCAPriv.PrivateKeyPEM(),
-					PrivateKeyType: types.PrivateKeyType_RAW,
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// create mock SSH server and add a cluster name
-	server := newMockServer(t)
-	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterName: "localhost",
-		ClusterID:   "cluster_id",
-	})
-	require.NoError(t, err)
-	err = server.auth.SetClusterName(clusterName)
-	require.NoError(t, err)
-
-	accessPoint := mockCAandAuthPrefGetter{
-		AccessPoint: server.auth,
-		authPref:    types.DefaultAuthPreference(),
-		cas: map[types.CertAuthType][]types.CertAuthority{
-			types.UserCA: {remoteCA, localCA},
-		},
-	}
-
-	config := &AuthHandlerConfig{
-		Server:       server,
-		Component:    teleport.ComponentForwardingGit,
-		Emitter:      &eventstest.MockRecorderEmitter{},
-		AccessPoint:  accessPoint,
-		TargetServer: gitServer,
-	}
-	ah, err := NewAuthHandlers(config)
-	require.NoError(t, err)
-
-	lc := mockLoginChecker{}
-	ah.loginChecker = &lc
-
-	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-
-	keygen := testauthority.New()
-
-	// create local SSH certificate
-	localCASigner, err := ssh.NewSignerFromKey(localCAPriv)
-	require.NoError(t, err)
-
-	localCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
-		CASigner:      localCASigner,
-		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-		Identity: sshca.Identity{
-			Username:   "testuser",
-			Principals: []string{"testuser"},
-		},
-	})
-	require.NoError(t, err)
-
-	localCert, err := sshutils.ParseCertificate(localCertRaw)
-	require.NoError(t, err)
-
-	// create remote SSH certificate
-	remoteCASigner, err := ssh.NewSignerFromKey(remoteCAPriv)
-	require.NoError(t, err)
-
-	remoteCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
-		CASigner:      remoteCASigner,
-		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-		Identity: sshca.Identity{
-			Username:   "testuser",
-			Principals: []string{"testuser"},
-		},
-	})
-	require.NoError(t, err)
-
-	remoteCert, err := sshutils.ParseCertificate(remoteCertRaw)
-	require.NoError(t, err)
-
-	// verify that authentication succeeds for local cert but is rejected categorically for remote
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
-	require.NoError(t, err)
-
-	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
-}
-
 // TestRBACJoinMFA tests that MFA is enforced correctly when joining
 // sessions depending on the cluster auth preference and roles presented.
 func TestRBACJoinMFA(t *testing.T) {
@@ -373,7 +245,8 @@ func TestRBACJoinMFA(t *testing.T) {
 	const username = "testuser"
 
 	// create User CA
-	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	userTA := testauthority.New()
+	userCAPriv, err := userTA.GeneratePrivateKey()
 	require.NoError(t, err)
 	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.UserCA,
@@ -403,8 +276,8 @@ func TestRBACJoinMFA(t *testing.T) {
 
 	accessPoint := &mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
-		cas: map[types.CertAuthType][]types.CertAuthority{
-			types.UserCA: {userCA},
+		cas: map[types.CertAuthType]types.CertAuthority{
+			types.UserCA: userCA,
 		},
 	}
 
@@ -510,15 +383,15 @@ func TestRBACJoinMFA(t *testing.T) {
 			accessPoint.authPref = tt.authPref
 
 			// create SSH certificate
-			caSigner, err := ssh.NewSignerFromSigner(userCAPriv.Signer)
+			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
 			require.NoError(t, err)
-			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			keygen := testauthority.New()
+			privateKey, err := native.GeneratePrivateKey()
 			require.NoError(t, err)
 
-			keygen := testauthority.New()
 			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:          caSigner,
-				PublicUserKey:     privateKey.MarshalSSHPublicKey(),
+				PublicUserKey:     ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 				CertificateFormat: constants.CertificateFormatStandard,
 				Identity: sshca.Identity{
 					Username:   username,

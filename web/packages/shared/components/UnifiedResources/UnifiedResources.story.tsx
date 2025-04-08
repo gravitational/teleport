@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { ButtonBorder } from 'design';
 import {
@@ -28,13 +28,12 @@ import {
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { makeErrorAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
-import { apps, moreApps } from 'teleport/Apps/fixtures';
+import { apps } from 'teleport/Apps/fixtures';
 import { UrlResourcesParams } from 'teleport/config';
-import { databases, moreDatabases } from 'teleport/Databases/fixtures';
-import { desktops, moreDesktops } from 'teleport/Desktops/fixtures';
-import { gitServers } from 'teleport/GitServers/fixtures';
-import { kubes, moreKubes } from 'teleport/Kubes/fixtures';
-import { moreNodes, nodes } from 'teleport/Nodes/fixtures';
+import { databases } from 'teleport/Databases/fixtures';
+import { desktops } from 'teleport/Desktops/fixtures';
+import { kubes } from 'teleport/Kubes/fixtures';
+import { nodes } from 'teleport/Nodes/fixtures';
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { SharedUnifiedResource, UnifiedResourcesQueryParams } from './types';
@@ -63,12 +62,11 @@ const allResources = [
   ...kubes,
   ...desktops,
   ...nodes,
-  ...moreApps,
-  ...moreDatabases,
-  ...moreKubes,
-  ...moreDesktops,
-  ...moreNodes,
-  ...gitServers,
+  ...apps,
+  ...databases,
+  ...kubes,
+  ...desktops,
+  ...nodes,
 ];
 
 const story = ({

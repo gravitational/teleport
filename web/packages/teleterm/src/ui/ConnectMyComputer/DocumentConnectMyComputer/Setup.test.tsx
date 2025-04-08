@@ -131,7 +131,16 @@ function setupAppContext(): {
   const appContext = new MockAppContext({
     appVersion: cluster.proxyVersion,
   });
-  appContext.addRootCluster(cluster);
+  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces[cluster.uri] = {
+      localClusterUri: cluster.uri,
+      documents: [],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
 
   jest
     .spyOn(appContext.mainProcessClient, 'isAgentConfigFileCreated')

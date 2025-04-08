@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { ButtonPrimary, Flex, Text } from 'design';
@@ -50,10 +50,10 @@ export const DocumentGatewayCliClient = (props: {
   const { doc, visible } = props;
   const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
 
-  const gateway = clustersService.findGatewayByConnectionParams({
-    targetUri: doc.targetUri,
-    targetUser: doc.targetUser,
-  });
+  const gateway = clustersService.findGatewayByConnectionParams(
+    doc.targetUri,
+    doc.targetUser
+  );
 
   // Once we render the terminal, we want to keep it visible. Otherwise removing the gateway would
   // mean that this document would immediately unmount DocumentTerminal and close the PTY.
@@ -156,6 +156,6 @@ export const WaitingForGatewayContent = ({
 );
 
 const StyledText = styled(Text).attrs({
-  typography: 'body1',
+  typography: 'h5',
   textAlign: 'center',
 })``;

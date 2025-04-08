@@ -56,15 +56,11 @@ func oidcTest(c *authclient.Client, connector types.OIDCConnector) (*AuthRequest
 	requestInfo := &AuthRequestInfo{}
 
 	makeRequest := func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error) {
-		if err := req.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		oidcRequest := types.OIDCAuthRequest{
 			ConnectorID:       req.ConnectorID + "-" + connector.GetName(),
 			Type:              constants.OIDC,
 			CheckUser:         false,
-			SshPublicKey:      req.SSHPubKey,
-			TlsPublicKey:      req.TLSPubKey,
+			PublicKey:         req.PublicKey,
 			CertTTL:           defaults.OIDCAuthRequestTTL,
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,

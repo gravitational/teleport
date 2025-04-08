@@ -20,6 +20,8 @@ package token
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"testing"
 	"time"
@@ -42,7 +44,6 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 const (
@@ -437,10 +438,10 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 }
 
 func testSigner(t *testing.T) ([]byte, jose.Signer) {
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.ES256, Key: key},
+		jose.SigningKey{Algorithm: jose.RS256, Key: key},
 		(&jose.SignerOptions{}).
 			WithType("JWT").
 			WithHeader("kid", "foo"),
@@ -451,7 +452,7 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 		{
 			Key:       key.Public(),
 			Use:       "sig",
-			Algorithm: string(jose.ES256),
+			Algorithm: string(jose.RS256),
 			KeyID:     "foo",
 		},
 	}}

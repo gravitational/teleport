@@ -35,11 +35,11 @@ export class ReloginService {
     private clustersService: ClustersService
   ) {}
 
-  async relogin(
+  relogin(
     request: ReloginRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
-    await this.mainProcessClient.forceFocusWindow();
+    this.mainProcessClient.forceFocusWindow();
     const reason = this.getReason(request);
 
     return new Promise((resolve, reject) => {
@@ -86,7 +86,8 @@ export class ReloginService {
 
         return {
           kind: 'reason.vnet-cert-expired',
-          ...request.reason.vnetCertExpired,
+          targetUri: request.reason.vnetCertExpired.targetUri,
+          publicAddr: request.reason.vnetCertExpired.publicAddr,
         };
       }
       default: {

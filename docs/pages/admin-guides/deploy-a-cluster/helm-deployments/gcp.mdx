@@ -78,7 +78,7 @@ Go to the "Roles" section of Google Cloud IAM & Admin.
    ![DNS updater role](../../../../img/helm/gcp/3-addpermissions@1.5x.png)
 
 4. Use the "Filter" box to find each of the following permissions in the list
-   and add it.  You can type things like `dns.resourceRecordSets.*` to quickly
+   and add it.  You can type things like `dns.resourceRecordSets.*` to
    filter the list.
 
    ```console
@@ -363,7 +363,7 @@ replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 You'll need to set up a DNS `A` record for `teleport.example.com`.
 
 <details>
-<summary>Enrolling applications with Teleport?</summary>
+<summary>Using Application Access?</summary>
 
 (!docs/pages/includes/dns-app-access.mdx!)
 
@@ -389,7 +389,7 @@ $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 
 ## Step 6/6. Create a Teleport user
 
-Create a user to be able to log into Teleport. This needs to be done on the Teleport Auth Service,
+Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
 <Tabs>

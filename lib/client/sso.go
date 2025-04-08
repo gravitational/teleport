@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,27 +60,23 @@ func (tc *TeleportClient) ssoRedirectorConfig(ctx context.Context, connectorDisp
 	}, nil
 }
 
-func (tc *TeleportClient) ssoLoginInitFn(keyRing *KeyRing, connectorID, connectorType string) sso.CeremonyInit {
+func (tc *TeleportClient) ssoLoginInitFn(priv *keys.PrivateKey, connectorID, connectorType string) sso.CeremonyInit {
 	return func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
-		sshLogin, err := tc.NewSSHLogin(keyRing)
+		sshLogin, err := tc.NewSSHLogin(priv)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
 
 		// initiate SSO login through the Proxy.
 		req := SSOLoginConsoleReq{
-			RedirectURL: clientCallbackURL,
-			SSOUserPublicKeys: SSOUserPublicKeys{
-				SSHPubKey:               sshLogin.SSHPubKey,
-				TLSPubKey:               sshLogin.TLSPubKey,
-				SSHAttestationStatement: sshLogin.SSHAttestationStatement,
-				TLSAttestationStatement: sshLogin.TLSAttestationStatement,
-			},
-			CertTTL:           sshLogin.TTL,
-			ConnectorID:       connectorID,
-			Compatibility:     sshLogin.Compatibility,
-			RouteToCluster:    sshLogin.RouteToCluster,
-			KubernetesCluster: sshLogin.KubernetesCluster,
+			RedirectURL:          clientCallbackURL,
+			PublicKey:            sshLogin.PubKey,
+			AttestationStatement: sshLogin.AttestationStatement,
+			CertTTL:              sshLogin.TTL,
+			ConnectorID:          connectorID,
+			Compatibility:        sshLogin.Compatibility,
+			RouteToCluster:       sshLogin.RouteToCluster,
+			KubernetesCluster:    sshLogin.KubernetesCluster,
 		}
 
 		clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)

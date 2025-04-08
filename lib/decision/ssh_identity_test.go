@@ -75,8 +75,6 @@ func TestSSHIdentityConversion(t *testing.T) {
 		DeviceID:               "device",
 		DeviceAssetTag:         "asset",
 		DeviceCredentialID:     "cred",
-		GitHubUserID:           "github",
-		GitHubUsername:         "ghuser",
 	}
 
 	ignores := []string{

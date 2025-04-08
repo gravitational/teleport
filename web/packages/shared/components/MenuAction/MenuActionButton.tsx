@@ -17,9 +17,8 @@
  */
 
 import React, { PropsWithChildren } from 'react';
-import styled from 'styled-components';
 
-import { Button, ButtonBorder } from 'design';
+import { ButtonBorder } from 'design';
 import { ChevronDown } from 'design/Icon';
 import Menu from 'design/Menu';
 
@@ -28,11 +27,8 @@ import { AnchorProps, MenuProps } from './types';
 type Props = MenuProps & {
   defaultOpen?: boolean;
   buttonProps?: AnchorProps;
-  buttonText?: React.ReactNode;
+  buttonText?: string;
   menuProps?: MenuProps;
-
-  // If present, button text is not used, and a square icon button is rendered instead of a border button
-  icon?: React.ReactNode;
 };
 
 export default class MenuActionIcon extends React.Component<
@@ -60,29 +56,19 @@ export default class MenuActionIcon extends React.Component<
 
   render() {
     const { open } = this.state;
-    const { children, menuProps, buttonProps, icon } = this.props;
+    const { children, menuProps, buttonProps } = this.props;
     return (
       <>
-        {icon ? (
-          <FilledButtonIcon
-            intent="neutral"
-            setRef={e => (this.anchorEl = e)}
-            onClick={this.onOpen}
-            {...buttonProps}
-          >
-            {icon}
-          </FilledButtonIcon>
-        ) : (
-          <ButtonBorder
-            size="small"
-            setRef={e => (this.anchorEl = e)}
-            onClick={this.onOpen}
-            {...buttonProps}
-          >
-            {this.props.buttonText || 'Options'}
-            <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-          </ButtonBorder>
-        )}
+        <ButtonBorder
+          height="24px"
+          size="small"
+          setRef={e => (this.anchorEl = e)}
+          onClick={this.onOpen}
+          {...buttonProps}
+        >
+          {this.props.buttonText || 'OPTIONS'}
+          <ChevronDown ml={2} mr={-2} size="small" color="text.slightlyMuted" />
+        </ButtonBorder>
         <Menu
           getContentAnchorEl={null}
           menuListCss={menuListCss}
@@ -127,10 +113,4 @@ export default class MenuActionIcon extends React.Component<
 
 const menuListCss = () => `
   min-width: 100px;
-`;
-
-const FilledButtonIcon = styled(Button)`
-  width: 32px;
-  height: 32px;
-  padding: 0;
 `;

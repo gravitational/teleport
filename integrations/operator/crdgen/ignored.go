@@ -44,7 +44,4 @@ var ignoredFields = map[string]stringSet{
 		// allows remote exec on agentful nodes.
 		"CmdLabels": struct{}{},
 	},
-	"TrustedClusterSpecV2": {
-		"Roles": struct{}{}, // Deprecated, use RoleMap instead.
-	},
 }

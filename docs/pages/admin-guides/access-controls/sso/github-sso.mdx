@@ -200,10 +200,8 @@ spec.
 <details>
 <summary>Self-hosting GitHub Enterprise?</summary>
 
-For self-hosted GitHub Enterprise servers, you can specify the server instance
-endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters, replacing
-<Var name="github-enterprise-server-address"/> with your endpoint URL and 
-<Var name="api-github-enterprise-server-address"/> with your API endpoint URL:
+For self-hosted GitHub Enterprise servers, you can specify the server
+instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
 
 ```code
 $ tctl sso configure github \
@@ -338,7 +336,9 @@ GitHub OAuth app:
 Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
 [GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
 
-After logging in, you will receive a "Login Successful" window, which you can then close.
+After logging in successfully, you will see the following:
+
+![Login success view](../../../../img/login-success.png)
 
 You will receive the details of your user session within the CLI:
 

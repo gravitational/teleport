@@ -101,10 +101,6 @@ type IdentityOutput struct {
 	//
 	// Defaults to false.
 	AllowReissue bool `yaml:"allow_reissue,omitempty"`
-
-	// CredentialLifetime contains configuration for how long credentials will
-	// last and the frequency at which they'll be renewed.
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
 }
 
 func (o *IdentityOutput) Init(ctx context.Context) error {
@@ -194,8 +190,4 @@ func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *IdentityOutput) Type() string {
 	return IdentityOutputType
-}
-
-func (o *IdentityOutput) GetCredentialLifetime() CredentialLifetime {
-	return o.CredentialLifetime
 }

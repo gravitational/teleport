@@ -80,15 +80,14 @@ export interface Gateway {
      */
     localPort: string;
     /**
-     * protocol is the protocol used by the gateway. For databases, it matches the type of the
-     * database that the gateway targets. For apps, it's either "HTTP" or "TCP".
+     * protocol is the gateway protocol
      *
      * @generated from protobuf field: string protocol = 7;
      */
     protocol: string;
     /**
      * target_subresource_name points at a subresource of the remote resource, for example a
-     * database name on a database server or a target port of a multi-port TCP app.
+     * database name on a database server.
      *
      * @generated from protobuf field: string target_subresource_name = 9;
      */

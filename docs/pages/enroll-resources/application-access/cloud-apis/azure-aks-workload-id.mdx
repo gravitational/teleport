@@ -170,8 +170,8 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 ### Start the Teleport Application Service
 
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
-to the value of the join token you retrieved above, <Var
-name="example.teleport.sh:443" /> to the host **and port** of your Teleport
+to the value of the join token you retrieved above, 
+<Var name="example.teleport.sh:443" /> to the host **and port** of your Teleport
 Proxy Service (e.g., `teleport.example.com:443`):
 
 ```code
@@ -194,13 +194,13 @@ extraLabels:
 EOF
 ```
 
-Install the Helm chart for Teleport Agent services, `teleport-kube-agent`:
+Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 ```code
 $ helm -n <Var name="teleport-ns" /> install teleport-azure-access-agent \
   teleport/teleport-kube-agent --values azure_access_agent.values.yaml
 ```
 
-Make sure that the Teleport Agent pod is running. You should see one
+Make sure that the Teleport agent pod is running. You should see one
 `teleport-azure-access-agent` pod with a single ready container:
 
 ```code

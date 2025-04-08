@@ -17,12 +17,12 @@
  */
 
 import { endOfDay, isAfter, isSameDay, startOfDay } from 'date-fns';
-import { forwardRef, useState } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { addToRange, DateRange, DayPicker } from 'react-day-picker';
 
 import 'react-day-picker/dist/style.css';
 
-import { StyledDateRange } from 'design/DatePicker';
+import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 
 /**
  * Allows user to select any range "from" (no limit)

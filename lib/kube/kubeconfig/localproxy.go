@@ -20,10 +20,9 @@ package kubeconfig
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -63,7 +62,7 @@ func (s LocalProxyClusters) TeleportClusters() []string {
 	for _, cluster := range s {
 		teleportClusters[cluster.TeleportCluster] = struct{}{}
 	}
-	return slices.Collect(maps.Keys(teleportClusters))
+	return maps.Keys(teleportClusters)
 }
 
 // LocalProxyValues contains values for generating local proxy kubeconfig

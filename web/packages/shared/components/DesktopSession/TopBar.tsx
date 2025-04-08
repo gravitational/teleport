@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { useTheme } from 'styled-components';
 
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
 import type { NotificationItem } from 'shared/components/Notification';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import ActionMenu from './ActionMenu';
-import { AlertDropdown } from './AlertDropdown';
+import { WarningDropdown } from './WarningDropdown';
 
 export default function TopBar(props: Props) {
   const {
@@ -66,14 +67,19 @@ export default function TopBar(props: Props) {
               canShareDirectory,
               isSharingDirectory
             )}
-            placement="bottom"
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
           >
             <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
           </HoverTooltip>
-          <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
+          <HoverTooltip
+            tipContent={clipboardSharingMessage}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
             <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
           </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          <WarningDropdown warnings={alerts} onRemoveWarning={onRemoveAlert} />
         </Flex>
         <ActionMenu
           onDisconnect={onDisconnect}

@@ -113,7 +113,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := serverConn.Quit()
+		err := serverConn.Close()
 		if err != nil {
 			e.Log.ErrorContext(ctx, "Failed to close connection to MySQL server.", "error", err)
 		}
@@ -222,9 +222,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		return nil, trace.Wrap(err)
 	}
 	user := sessionCtx.DatabaseUser
-	connectOpt := func(conn *client.Conn) error {
+	connectOpt := func(conn *client.Conn) {
 		conn.SetTLSConfig(tlsConfig)
-		return nil
 	}
 
 	var dialer client.Dialer
@@ -237,7 +236,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		}
 	case sessionCtx.Database.IsCloudSQL():
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := e.GCPClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -257,19 +256,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// the instance requires SSL. Also use a TLS dialer instead of
 		// the default net dialer when GCP requires SSL.
 		if requireSSL {
-			err = cloud.AppendGCPClientCert(ctx, &cloud.AppendGCPClientCertRequest{
-				GCPClient:   gcpClient,
-				GenerateKey: e.Auth.GenerateDatabaseClientKey,
-				Expiry:      sessionCtx.GetExpiry(),
-				Database:    sessionCtx.Database,
-				TLSConfig:   tlsConfig,
-			})
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, gcpClient, tlsConfig)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			connectOpt = func(*client.Conn) error {
-				return nil
-			}
+			connectOpt = func(*client.Conn) {}
 			dialer = newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
@@ -306,12 +297,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	return conn, nil
 }
 
-func withClientCapabilities(caps ...uint32) func(conn *client.Conn) error {
-	return func(conn *client.Conn) error {
+func withClientCapabilities(caps ...uint32) func(conn *client.Conn) {
+	return func(conn *client.Conn) {
 		for _, cap := range caps {
 			conn.SetCapability(cap)
 		}
-		return nil
 	}
 }
 

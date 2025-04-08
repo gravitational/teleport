@@ -20,7 +20,6 @@ import { PropsWithChildren } from 'react';
 
 import renderHook from 'design/utils/renderHook';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
@@ -56,7 +55,6 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'foo',
-      targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
     },
@@ -68,7 +66,6 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'bar',
-      targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
     },
@@ -108,7 +105,15 @@ function getTestSetup({ documents }: { documents: Document[] }) {
       eventEmitter = null;
     });
 
-  appContext.addRootClusterWithDoc(makeRootCluster(), documents);
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = rootClusterUri;
+    draft.workspaces[rootClusterUri] = {
+      documents,
+      location: documents[0]?.uri,
+      localClusterUri: rootClusterUri,
+      accessRequests: undefined,
+    };
+  });
 
   const docsService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();

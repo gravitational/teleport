@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useAsync } from 'shared/hooks/useAsync';

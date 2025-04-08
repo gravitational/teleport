@@ -16,22 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import Dialog from 'design/Dialog';
-import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
 import { ContextProvider } from 'teleport';
-import { ReauthState } from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import {
-  MFA_OPTION_SSO_DEFAULT,
-  MFA_OPTION_TOTP,
-  MFA_OPTION_WEBAUTHN,
-  WebauthnAssertionResponse,
-} from 'teleport/services/mfa';
+import { MfaDevice } from 'teleport/services/mfa';
 
 import {
   ChangePasswordStep,
-  ChangePasswordWizardStepProps,
+  createReauthOptions,
   ReauthenticateStep,
 } from './ChangePasswordWizard';
 
@@ -63,16 +58,44 @@ export function ChangePasswordWithPasswordlessVerification() {
 }
 
 export function ChangePasswordWithMfaDeviceVerification() {
-  return <ChangePasswordStep {...stepProps} reauthMethod="webauthn" />;
+  return <ChangePasswordStep {...stepProps} reauthMethod="mfaDevice" />;
 }
 
 export function ChangePasswordWithOtpVerification() {
-  return <ChangePasswordStep {...stepProps} reauthMethod="totp" />;
+  return <ChangePasswordStep {...stepProps} reauthMethod="otp" />;
 }
 
-export function ChangePasswordWithSsoVerification() {
-  return <ChangePasswordStep {...stepProps} reauthMethod="sso" />;
-}
+const devices: MfaDevice[] = [
+  {
+    id: '1',
+    description: 'Hardware Key',
+    name: 'touch_id',
+    registeredDate: new Date(1628799417000),
+    lastUsedDate: new Date(1628799417000),
+    type: 'webauthn',
+    usage: 'passwordless',
+  },
+  {
+    id: '2',
+    description: 'Hardware Key',
+    name: 'solokey',
+    registeredDate: new Date(1623722252000),
+    lastUsedDate: new Date(1623981452000),
+    type: 'webauthn',
+    usage: 'mfa',
+  },
+  {
+    id: '3',
+    description: 'Authenticator App',
+    name: 'iPhone',
+    registeredDate: new Date(1618711052000),
+    lastUsedDate: new Date(1626472652000),
+    type: 'totp',
+    usage: 'mfa',
+  },
+];
+
+const defaultReauthOptions = createReauthOptions('optional', true, devices);
 
 const stepProps = {
   // StepComponentProps
@@ -83,22 +106,12 @@ const stepProps = {
   flowLength: 2,
   refCallback: () => {},
 
-  // Shared props
-  reauthMethod: 'passwordless',
+  // Other props
+  reauthOptions: defaultReauthOptions,
+  reauthMethod: defaultReauthOptions[0].value,
+  credential: { id: '', type: '' },
+  onReauthMethodChange() {},
+  onAuthenticated() {},
   onClose() {},
   onSuccess() {},
-
-  // ReauthenticateStepProps
-  hasPasswordless: true,
-  setReauthMethod: () => {},
-  reauthState: {
-    initAttempt: { status: 'success' },
-    mfaOptions: [MFA_OPTION_WEBAUTHN, MFA_OPTION_TOTP, MFA_OPTION_SSO_DEFAULT],
-    submitWithMfa: async () => null,
-    submitAttempt: makeEmptyAttempt(),
-    clearSubmitAttempt: () => {},
-  } as ReauthState,
-
-  // ChangePasswordStepProps
-  webauthnResponse: {} as WebauthnAssertionResponse,
-} satisfies ChangePasswordWizardStepProps;
+};

@@ -18,10 +18,7 @@
 
 package config
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestDatabaseOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
@@ -35,10 +32,6 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 				Service:     "my-database-service",
 				Database:    "my-database",
 				Username:    "my-username",
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 		{

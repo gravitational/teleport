@@ -106,7 +106,6 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 			ActiveRequests:  loggedInUser.ActiveRequests,
 			IsDeviceTrusted: cluster.HasDeviceTrustExtensions(),
 		},
-		SsoHost: cluster.SSOHost,
 	}
 
 	if cluster.GetProfileStatusError() != nil {

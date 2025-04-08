@@ -18,10 +18,7 @@
 
 package config
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestApplicationTunnelService_YAML(t *testing.T) {
 	t.Parallel()
@@ -32,10 +29,6 @@ func TestApplicationTunnelService_YAML(t *testing.T) {
 			in: ApplicationTunnelService{
 				Listen:  "tcp://0.0.0.0:3621",
 				AppName: "my-app",
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 	}

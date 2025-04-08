@@ -233,27 +233,6 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 		assert.Equal(t, devTag, sshCert.Extensions[teleport.CertExtensionDeviceAssetTag], "AssetTag mismatch")
 		assert.Equal(t, devCred, sshCert.Extensions[teleport.CertExtensionDeviceCredentialID], "CredentialID mismatch")
 	})
-
-	t.Run("github identity", func(t *testing.T) {
-		githubUserID := "1234567"
-		githubUsername := "github-user"
-		certRaw, err := s.A.GenerateUserCert(sshca.UserCertificateRequest{
-			CASigner:      caSigner, // Required.
-			PublicUserKey: pub,      // Required.
-			Identity: sshca.Identity{
-				Username:       "llama",           // Required.
-				Principals:     []string{"llama"}, // Required.
-				GitHubUserID:   githubUserID,
-				GitHubUsername: githubUsername,
-			},
-		})
-		require.NoError(t, err, "GenerateUserCert failed")
-
-		sshCert, err := sshutils.ParseCertificate(certRaw)
-		require.NoError(t, err, "ParseCertificate failed")
-		assert.Equal(t, githubUserID, sshCert.Extensions[teleport.CertExtensionGitHubUserID])
-		assert.Equal(t, githubUsername, sshCert.Extensions[teleport.CertExtensionGitHubUsername])
-	})
 }
 
 func checkCertExpiry(cert []byte, after, before time.Time) error {

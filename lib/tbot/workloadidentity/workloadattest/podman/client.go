@@ -148,9 +148,6 @@ type Container struct {
 
 	// Config contains the initial configuration of the container.
 	Config ContainerConfig `json:"Config"`
-
-	// ImageDigest is the hash of the container image.
-	ImageDigest string `json:"ImageDigest"`
 }
 
 // ContainerConfig is the initial configuration of a container.

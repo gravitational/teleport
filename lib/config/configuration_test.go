@@ -20,11 +20,15 @@ package config
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -47,11 +51,9 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1827,7 +1829,8 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: false,
 				},
 				Limiter: limiter.Config{
-					MaxConnections: defaults.LimiterMaxConnections,
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -1854,7 +1857,8 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections: defaults.LimiterMaxConnections,
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2176,7 +2180,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections: defaults.LimiterMaxConnections,
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2204,7 +2209,8 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections: defaults.LimiterMaxConnections,
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2386,8 +2392,8 @@ func TestWindowsDesktopService(t *testing.T) {
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
-		name           string
-		outErr         require.ErrorAssertionFunc
+		inComment      string
+		outError       bool
 	}{
 		{
 			inConfigString: `
@@ -2402,8 +2408,8 @@ app_service:
   - labels:
       '*': '*'
 `,
-			name:   "app and wildcard resources",
-			outErr: require.NoError,
+			inComment: "config is valid",
+			outError:  false,
 		},
 		{
 			inConfigString: `
@@ -2414,8 +2420,8 @@ app_service:
       public_addr: "foo.example.com"
       uri: "http://127.0.0.1:8080"
 `,
-			name:   "config is missing name",
-			outErr: require.Error,
+			inComment: "config is missing name",
+			outError:  true,
 		},
 		{
 			inConfigString: `
@@ -2426,8 +2432,8 @@ app_service:
       name: foo
       uri: "http://127.0.0.1:8080"
 `,
-			name:   "app",
-			outErr: require.NoError,
+			inComment: "config is valid",
+			outError:  false,
 		},
 		{
 			inConfigString: `
@@ -2438,8 +2444,8 @@ app_service:
       name: foo
       public_addr: "foo.example.com"
 `,
-			name:   "config is missing internal address",
-			outErr: require.Error,
+			inComment: "config is missing internal address",
+			outError:  true,
 		},
 		{
 			inConfigString: `
@@ -2456,75 +2462,19 @@ app_service:
     aws:
       assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
 `,
-			name:   "assume_role_arn is not supported",
-			outErr: require.Error,
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    - name: foo
-      uri: "tcp://127.0.0.1"
-      tcp_ports:
-      - port: 1234
-      - port: 30000
-        end_port: 30768
-`,
-			name:   "TCP app with ports",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    - name: foo
-      uri: "tcp://127.0.0.1"
-      tcp_ports:
-      - end_port: 30000
-`,
-			name:   "TCP app with only end port",
-			outErr: require.Error,
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    -
-      name: foo
-      use_any_proxy_public_addr: true
-      uri: "http://127.0.0.1:8080"
-`,
-			name:   "app with use_any_proxy_public_addr",
-			outErr: require.NoError,
-		},
-		{
-			inConfigString: `
-app_service:
-  enabled: true
-  apps:
-    - name: foo
-      uri: "tcp://127.0.0.1"
-      tcp_ports:
-      - port: 78787
-`,
-			name:   "TCP app with port bigger than 65535",
-			outErr: require.Error,
+			inComment: "assume_role_arn is not supported",
+			outError:  true,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			clf := CommandLineFlags{
-				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
-			}
-			cfg := servicecfg.MakeDefaultConfig()
+		clf := CommandLineFlags{
+			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+		}
+		cfg := servicecfg.MakeDefaultConfig()
 
-			err := Configure(&clf, cfg, false)
-			tt.outErr(t, err)
-		})
+		err := Configure(&clf, cfg, false)
+		require.Equal(t, err != nil, tt.outError, tt.inComment)
 	}
 }
 
@@ -3051,7 +3001,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 
 func TestTLSCert(t *testing.T) {
 	tmpDir := t.TempDir()
-	tmpCA := filepath.Join(tmpDir, "ca.pem")
+	tmpCA := path.Join(tmpDir, "ca.pem")
 
 	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
 	require.NoError(t, err)
@@ -3501,10 +3451,8 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-				},
-				Credentials: &servicecfg.JamfCredentials{
-					Username: "llama",
-					Password: password,
+					Username:    "llama",
+					Password:    password,
 				},
 			},
 		},
@@ -3517,11 +3465,9 @@ jamf_service:
   client_secret_file: %v`, passwordFile),
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
-					Enabled:     true,
-					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-				},
-				Credentials: &servicecfg.JamfCredentials{
-					ClientID:     "llama-UUID",
+					Enabled:      true,
+					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
+					ClientId:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3544,6 +3490,8 @@ jamf_service:
 					Name:        "jamf2",
 					SyncDelay:   types.Duration(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
@@ -3554,10 +3502,6 @@ jamf_service:
 						},
 						{},
 					},
-				},
-				Credentials: &servicecfg.JamfCredentials{
-					Username: "llama",
-					Password: password,
 				},
 				ExitOnSync: true,
 			},
@@ -3991,7 +3935,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				},
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_endpoint is specified"))
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_endpoint is specified`))
 			},
 		},
 		{
@@ -4017,7 +3961,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `http://`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no host"))
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no host`))
 			},
 		},
 		{
@@ -4030,7 +3974,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: `//hostname`,
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("api_endpoint has no scheme"))
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no scheme`))
 			},
 		},
 		{
@@ -4042,7 +3986,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APIEndpoint: "https://test-endpoint",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("okta_service is enabled but no api_token_path is specified"))
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_token_path is specified`))
 			},
 		},
 		{
@@ -4055,7 +3999,7 @@ func TestApplyOktaConfig(t *testing.T) {
 				APITokenPath: "/non-existent/path",
 			},
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("error trying to find file %s", i...))
+				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
 			},
 		},
 		{
@@ -4193,7 +4137,8 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections: defaults.LimiterMaxConnections,
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
 				},
 			},
 		},
@@ -4240,7 +4185,8 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections: defaults.LimiterMaxConnections,
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
 				},
 			},
 		},
@@ -5066,7 +5012,7 @@ func TestDiscoveryConfig(t *testing.T) {
 func TestProxyUntrustedCert(t *testing.T) {
 	t.Parallel()
 
-	caPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	caPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	// Generate a CA for the test that will not be trusted.
@@ -5082,7 +5028,7 @@ func TestProxyUntrustedCert(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate a leaf cert signed by the untrusted CA.
-	leafPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	leafPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	leafCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		PublicKey: leafPriv.Public(),
@@ -5165,96 +5111,6 @@ debug_service:
 			conf := servicecfg.MakeDefaultConfig()
 			require.NoError(t, Configure(tc.commandLineFlags, conf, false))
 			require.Equal(t, tc.expectDebugServiceEnabled, conf.DebugService.Enabled)
-		})
-	}
-}
-
-func TestSignatureAlgorithmSuite(t *testing.T) {
-	for desc, tc := range map[string]struct {
-		fips            bool
-		hsm             bool
-		cloud           bool
-		configuredSuite types.SignatureAlgorithmSuite
-		expectErr       string
-	}{
-		"empty": {},
-		"hsm with no configured suite": {
-			hsm: true,
-		},
-		"hsm with balanced-v1": {
-			hsm:             true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			expectErr:       `configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS`,
-		},
-		"hsm with hsm-v1": {
-			hsm:             true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-		},
-		"hsm with fips-v1": {
-			hsm:             true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
-		},
-		"hsm with legacy": {
-			hsm:             true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
-		},
-		"fips with no configured suite": {
-			fips: true,
-		},
-		"fips with balanced-v1": {
-			fips:            true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			expectErr:       `non-FIPS compliant authentication setting: "signature_algorithm_suite" must be "fips-v1" or "legacy"`,
-		},
-		"fips with fips-v1": {
-			fips:            true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
-		},
-		"fips with legacy": {
-			fips:            true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
-		},
-		"cloud with no configured suite": {
-			cloud: true,
-		},
-		"cloud with balanced-v1": {
-			cloud:           true,
-			configuredSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			expectErr:       `configured "signature_algorithm_suite" is unsupported in Teleport Cloud`,
-		},
-	} {
-		t.Run(desc, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
-			clf := &CommandLineFlags{
-				FIPS: tc.fips,
-			}
-			cfg := servicecfg.MakeDefaultConfig()
-			if tc.fips {
-				servicecfg.ApplyFIPSDefaults(cfg)
-			}
-			if tc.hsm {
-				cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
-					AWSAccount: "123456789012",
-					AWSRegion:  "us-west-2",
-				}
-			} else {
-				cfg.Auth.KeyStore = servicecfg.KeystoreConfig{}
-			}
-			if tc.configuredSuite != types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
-				cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
-				cfg.Auth.Preference.SetSignatureAlgorithmSuite(tc.configuredSuite)
-			}
-			err := Configure(clf, cfg, false)
-			if tc.expectErr != "" {
-				require.Error(t, err)
-				require.ErrorContains(t, err, tc.expectErr)
-				return
-			}
-			require.NoError(t, err)
 		})
 	}
 }

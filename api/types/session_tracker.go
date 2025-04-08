@@ -39,7 +39,6 @@ const (
 	DatabaseSessionKind       SessionKind = "db"
 	AppSessionKind            SessionKind = "app"
 	WindowsDesktopSessionKind SessionKind = "desktop"
-	GitSessionKind            SessionKind = "git"
 	UnknownSessionKind        SessionKind = ""
 )
 

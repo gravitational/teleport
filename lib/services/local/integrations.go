@@ -53,12 +53,12 @@ func WithIntegrationsServiceCacheMode(cacheMode bool) func(*IntegrationsService)
 }
 
 // NewIntegrationsService creates a new IntegrationsService.
-func NewIntegrationsService(b backend.Backend, opts ...IntegrationsServiceOption) (*IntegrationsService, error) {
+func NewIntegrationsService(backend backend.Backend, opts ...IntegrationsServiceOption) (*IntegrationsService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.Integration]{
-		Backend:       b,
+		Backend:       backend,
 		PageLimit:     defaults.MaxIterationLimit,
 		ResourceKind:  types.KindIntegration,
-		BackendPrefix: backend.NewKey(integrationsPrefix),
+		BackendPrefix: integrationsPrefix,
 		MarshalFunc:   services.MarshalIntegration,
 		UnmarshalFunc: services.UnmarshalIntegration,
 	})
@@ -67,7 +67,7 @@ func NewIntegrationsService(b backend.Backend, opts ...IntegrationsServiceOption
 	}
 	integrationsSvc := &IntegrationsService{
 		svc:     *svc,
-		backend: b,
+		backend: backend,
 	}
 	for _, opt := range opts {
 		opt(integrationsSvc)
@@ -127,44 +127,22 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 		return trace.Wrap(err)
 	}
 
-	deleteConditions, err := integrationDeletionConditions(ctx, s.backend, name)
+	conditionalActions, err := notReferencedByEAS(ctx, s.backend, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	deleteConditions = append(deleteConditions, backend.ConditionalAction{
-		Key:       s.svc.MakeKey(backend.NewKey(name)),
+	conditionalActions = append(conditionalActions, backend.ConditionalAction{
+		Key:       s.svc.MakeKey(name),
 		Condition: backend.Exists(),
 		Action:    backend.Delete(),
 	})
-	_, err = s.backend.AtomicWrite(ctx, deleteConditions)
+	_, err = s.backend.AtomicWrite(ctx, conditionalActions)
 	return trace.Wrap(err)
 }
 
-// integrationDeletionConditions returns a BadParameter error if the integration is referenced by another
-// Teleport service. If it does not find any direct reference, the backend.ConditionalAction is returned
-// with the current state of reference, which should be added to AtomicWrite to ensure that the current
-// reference state remains unchanged until the integration is completely deleted.
-// Service may have zero or multiple ConditionalActions returned.
-func integrationDeletionConditions(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
-	var deleteConditionalActions []backend.ConditionalAction
-	easDeleteConditions, err := integrationReferencedByEAS(ctx, bk, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	deleteConditionalActions = append(deleteConditionalActions, easDeleteConditions...)
-
-	awsIcDeleteCondition, err := integrationReferencedByAWSICPlugin(ctx, bk, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	deleteConditionalActions = append(deleteConditionalActions, awsIcDeleteCondition...)
-
-	return deleteConditionalActions, nil
-}
-
-// integrationReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that
+// notReferencedByEAS returns a slice of ConditionalActions to use with a backend.AtomicWrite to ensure that
 // integration [name] is not referenced by any EAS (External Audit Storage) integration.
-func integrationReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
+func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
 	var conditionalActions []backend.ConditionalAction
 	for _, key := range []backend.Key{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
 		condition := backend.ConditionalAction{
@@ -192,44 +170,6 @@ func integrationReferencedByEAS(ctx context.Context, bk backend.Backend, name st
 
 		conditionalActions = append(conditionalActions, condition)
 	}
-	return conditionalActions, nil
-}
-
-// integrationReferencedByAWSICPlugin returns an error if the integration name is referenced
-// by an existing AWS Identity Center plugin. In case the AWS Identity Center plugin exists
-// but does not reference this integration, a conditional action is returned with a revision
-// of the plugin to ensure that plugin hasn't changed during deletion of the AWS OIDC integration.
-func integrationReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, name string) ([]backend.ConditionalAction, error) {
-	var conditionalActions []backend.ConditionalAction
-	pluginService := NewPluginsService(bk)
-	plugins, err := pluginService.GetPlugins(ctx, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	for _, p := range plugins {
-		pluginV1, ok := p.(*types.PluginV1)
-		if !ok {
-			continue
-		}
-		if pluginV1.GetType() != types.PluginType(types.PluginTypeAWSIdentityCenter) {
-			continue
-		}
-		if awsIC := pluginV1.Spec.GetAwsIc(); awsIC != nil {
-			switch awsIC.IntegrationName {
-			case name:
-				return nil, trace.BadParameter("cannot delete AWS OIDC integration currently referenced by AWS Identity Center integration %q", pluginV1.GetName())
-			default:
-				conditionalActions = append(conditionalActions, backend.ConditionalAction{
-					Key:       backend.NewKey(pluginsPrefix, name),
-					Action:    backend.Nop(),
-					Condition: backend.Revision(pluginV1.GetRevision()),
-				})
-				return conditionalActions, nil
-			}
-		}
-	}
-
 	return conditionalActions, nil
 }
 

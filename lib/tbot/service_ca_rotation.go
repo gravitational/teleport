@@ -147,7 +147,7 @@ func (s *caRotationService) Run(ctx context.Context) error {
 		f:              s.reloadBroadcaster.broadcast,
 		debouncePeriod: time.Second * 10,
 	}
-	jitter := retryutils.DefaultJitter
+	jitter := retryutils.NewJitter()
 
 	for {
 		err := s.watchCARotations(ctx, rd.attempt)

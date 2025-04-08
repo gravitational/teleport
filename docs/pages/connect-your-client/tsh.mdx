@@ -774,10 +774,6 @@ $ tsh status
   Extensions:         permit-X11-forwarding
 ```
 
-## Proxying Git commands
-
-(!docs/pages/connect-your-client/includes/tsh-git.mdx!)
-
 ## Custom aliases and defaults
 
 You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily.
@@ -1078,7 +1074,7 @@ proxy_templates:
 In the configuration above, `query` accepts an predicate expression.  This has
 priority over search but will be ignored if a host is provided.  See the
 [predicate language
-documentation](../reference/predicate-language.mdx#resource-filtering) for
+documentation](../reference/predicate-language.mdx#resource-filtering for
 predicate expression examples.
 
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the

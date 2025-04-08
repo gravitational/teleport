@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { Link } from 'react-router-dom';
 
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
 import Image from 'design/Image';
-import Text, { H2 } from 'design/Text';
+import Text from 'design/Text';
 
 import cfg from 'teleport/config';
 import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
@@ -44,9 +45,9 @@ export function Finish() {
       `}
     >
       <Image width="120px" height="120px" src={celebratePamPng} />
-      <H2 mt={3} mb={2}>
+      <Text mt={3} mb={2} typography="h4" bold>
         Your Bot is Added to Teleport
-      </H2>
+      </Text>
       <Text mb={3}>
         Bot {createBotRequest.botName} has been successfully added to this
         Teleport Cluster. You can see {createBotRequest.botName} in the Bots

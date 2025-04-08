@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MfaChallengeResponse } from '../mfa';
 import api, {
   defaultRequestOptions,
   getAuthHeaders,
@@ -25,41 +24,34 @@ import api, {
 } from './api';
 
 describe('api.fetch', () => {
-  let mockedFetch: jest.SpiedFunction<typeof fetch>;
-  beforeEach(() => {
-    mockedFetch = jest
-      .spyOn(global, 'fetch')
-      .mockResolvedValue({ json: async () => ({}), ok: true } as Response); // we don't care about response
-  });
+  const mockedFetch = jest.spyOn(global, 'fetch').mockResolvedValue({} as any); // we don't care about response
 
-  afterEach(() => {
-    jest.resetAllMocks();
-  });
-
-  const mfaResp: MfaChallengeResponse = {
-    webauthn_response: {
-      id: 'some-id',
-      type: 'some-type',
-      extensions: {
-        appid: false,
-      },
-      rawId: 'some-raw-id',
-      response: {
-        authenticatorData: 'authen-data',
-        clientDataJSON: 'client-data-json',
-        signature: 'signature',
-        userHandle: 'user-handle',
-      },
+  const webauthnResp = {
+    id: 'some-id',
+    type: 'some-type',
+    extensions: {
+      appid: false,
+    },
+    rawId: 'some-raw-id',
+    response: {
+      authenticatorData: 'authen-data',
+      clientDataJSON: 'client-data-json',
+      signature: 'signature',
+      userHandle: 'user-handle',
     },
   };
 
-  const customOpts: RequestInit = {
+  const customOpts = {
     method: 'POST',
     // Override the default header from `defaultRequestOptions`.
     headers: {
       Accept: 'application/json',
     },
   };
+
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
 
   test('default (no optional params provided)', async () => {
     await api.fetch('/something');
@@ -76,14 +68,6 @@ describe('api.fetch', () => {
         ...getAuthHeaders(),
       },
     });
-  });
-
-  test('no json in response', async () => {
-    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
-    const resp = await api.fetch('/something');
-    expect(mockedFetch).toHaveBeenCalledTimes(1);
-
-    expect(resp).toStrictEqual({ ok: true });
   });
 
   test('with customOptions', async () => {
@@ -104,7 +88,7 @@ describe('api.fetch', () => {
   });
 
   test('with webauthnResponse', async () => {
-    await api.fetch('/something', undefined, mfaResp);
+    await api.fetch('/something', undefined, webauthnResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
     const firstCall = mockedFetch.mock.calls[0];
@@ -116,15 +100,14 @@ describe('api.fetch', () => {
         ...defaultRequestOptions.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
-          ...mfaResp,
-          webauthnAssertionResponse: mfaResp.webauthn_response,
+          webauthnAssertionResponse: webauthnResp,
         }),
       },
     });
   });
 
   test('with customOptions and webauthnResponse', async () => {
-    await api.fetch('/something', customOpts, mfaResp);
+    await api.fetch('/something', customOpts, webauthnResp);
     expect(mockedFetch).toHaveBeenCalledTimes(1);
 
     const firstCall = mockedFetch.mock.calls[0];
@@ -137,8 +120,7 @@ describe('api.fetch', () => {
         ...customOpts.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
-          ...mfaResp,
-          webauthnAssertionResponse: mfaResp.webauthn_response,
+          webauthnAssertionResponse: webauthnResp,
         }),
       },
     });
@@ -170,7 +152,7 @@ describe('api.fetch', () => {
   });
 });
 
-// The code below should guard us from changes to api.fetchJsonWithMfaAuthnRetry which would cause it to lose type
+// The code below should guard us from changes to api.fetchJson which would cause it to lose type
 // information, for example by returning `any`.
 
 const fooService = {
@@ -185,17 +167,16 @@ const makeFoo = (): { foo: string } => {
 
 // This is a bogus test to satisfy Jest. We don't even need to execute the code that's in the async
 // function, we're interested only in the type system checking the code.
-test('fetchJsonWithMfaAuthnRetry does not return any', () => {
-  const bogusFunction = async () => {
+test('fetchJson does not return any', () => {
+  async () => {
     const result = await fooService.doSomething();
     // Reading foo is correct. We add a bogus expect to satisfy Jest.
-    JSON.stringify(result.foo);
+    result.foo;
 
-    // @ts-expect-error If there's no error here, it means that api.fetchJsonWithMfaAuthnRetry returns any, which it
+    // @ts-expect-error If there's no error here, it means that api.fetchJson returns any, which it
     // shouldn't.
-    JSON.stringify(result.bar);
+    result.bar;
   };
-  bogusFunction.toString(); // Just to satisfy the linter
 
   expect(true).toBe(true);
 });

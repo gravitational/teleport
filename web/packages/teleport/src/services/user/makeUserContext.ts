@@ -53,7 +53,6 @@ function makeAccessCapabilities(json): AccessCapabilities {
   return {
     requestableRoles: json.requestableRoles || [],
     suggestedReviewers: json.suggestedReviewers || [],
-    requireReason: json.requireReason || false,
   };
 }
 

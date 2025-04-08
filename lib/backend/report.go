@@ -21,7 +21,6 @@ package backend
 import (
 	"context"
 	"errors"
-	"iter"
 	"log/slog"
 	"math"
 	"slices"
@@ -32,6 +31,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
@@ -132,8 +132,8 @@ func (s *Reporter) GetRange(ctx context.Context, startKey, endKey Key, limit int
 		"backend/GetRange",
 		oteltrace.WithAttributes(
 			attribute.Int("limit", limit),
-			attribute.String("start_key", startKey.String()),
-			attribute.String("end_key", endKey.String()),
+			attribute.String("start_key", string(startKey)),
+			attribute.String("end_key", string(endKey)),
 		),
 	)
 	defer span.End()
@@ -147,47 +147,14 @@ func (s *Reporter) GetRange(ctx context.Context, startKey, endKey Key, limit int
 	} else {
 		reads.WithLabelValues(s.Component).Add(float64(len(res.Items)))
 	}
-	s.trackRequest(ctx, types.OpGet, startKey, endKey)
+	s.trackRequest(types.OpGet, startKey, endKey)
 	end := s.Clock().Now()
 	if d := end.Sub(start); d > time.Second*3 {
 		if s.slowRangeLogLimiter.AllowN(end, 1) {
-			slog.WarnContext(ctx, "slow GetRange request", "start_key", startKey.String(), "end_key", endKey.String(), "limit", limit, "duration", logutils.StringerAttr(d))
+			slog.WarnContext(ctx, "slow GetRange request", "start_key", string(startKey), "end_key", string(endKey), "limit", limit, "duration", logutils.StringerAttr(d))
 		}
 	}
 	return res, err
-}
-
-func (s *Reporter) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
-	ctx, span := s.Tracer.Start(
-		ctx,
-		"backend/Items",
-		oteltrace.WithAttributes(
-			attribute.Int("limit", params.Limit),
-			attribute.String("start_key", params.StartKey.String()),
-			attribute.String("end_key", params.EndKey.String()),
-		),
-	)
-	defer span.End()
-
-	return func(yield func(Item, error) bool) {
-		var count int
-		defer func() {
-			s.trackRequest(ctx, types.OpGet, params.StartKey, params.EndKey)
-			streamingRequests.WithLabelValues(s.Component).Inc()
-			reads.WithLabelValues(s.Component).Add(float64(count))
-
-		}()
-		for item, err := range s.Backend.Items(ctx, params) {
-			if err != nil {
-				streamingRequestsFailed.WithLabelValues(s.Component).Inc()
-			}
-
-			count++
-			if !yield(item, err) || err != nil {
-				return
-			}
-		}
-	}
 }
 
 // Create creates item if it does not exist
@@ -197,7 +164,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 		"backend/Create",
 		oteltrace.WithAttributes(
 			attribute.String("revision", i.Revision),
-			attribute.String("key", i.Key.String()),
+			attribute.String("key", string(i.Key)),
 		),
 	)
 	defer span.End()
@@ -214,7 +181,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpPut, i.Key, Key{})
+	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -226,7 +193,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 		"backend/Put",
 		oteltrace.WithAttributes(
 			attribute.String("revision", i.Revision),
-			attribute.String("key", i.Key.String()),
+			attribute.String("key", string(i.Key)),
 		),
 	)
 	defer span.End()
@@ -240,7 +207,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpPut, i.Key, Key{})
+	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -251,7 +218,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 		"backend/Update",
 		oteltrace.WithAttributes(
 			attribute.String("revision", i.Revision),
-			attribute.String("key", i.Key.String()),
+			attribute.String("key", string(i.Key)),
 		),
 	)
 	defer span.End()
@@ -268,7 +235,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpPut, i.Key, Key{})
+	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -279,7 +246,7 @@ func (s *Reporter) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error
 		"backend/ConditionalUpdate",
 		oteltrace.WithAttributes(
 			attribute.String("revision", i.Revision),
-			attribute.String("key", i.Key.String()),
+			attribute.String("key", string(i.Key)),
 		),
 	)
 	defer span.End()
@@ -296,7 +263,7 @@ func (s *Reporter) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpPut, i.Key, Key{})
+	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -306,7 +273,7 @@ func (s *Reporter) Get(ctx context.Context, key Key) (*Item, error) {
 		ctx,
 		"backend/Get",
 		oteltrace.WithAttributes(
-			attribute.String("key", key.String()),
+			attribute.String("key", string(key)),
 		),
 	)
 	defer span.End()
@@ -319,7 +286,7 @@ func (s *Reporter) Get(ctx context.Context, key Key) (*Item, error) {
 	if err != nil && !trace.IsNotFound(err) {
 		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpGet, key, Key{})
+	s.trackRequest(types.OpGet, key, nil)
 	return item, err
 }
 
@@ -330,7 +297,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 		ctx,
 		"backend/CompareAndSwap",
 		oteltrace.WithAttributes(
-			attribute.String("key", expected.Key.String()),
+			attribute.String("key", string(expected.Key)),
 		),
 	)
 	defer span.End()
@@ -347,7 +314,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpPut, expected.Key, Key{})
+	s.trackRequest(types.OpPut, expected.Key, nil)
 	return lease, err
 }
 
@@ -357,7 +324,7 @@ func (s *Reporter) Delete(ctx context.Context, key Key) error {
 		ctx,
 		"backend/Delete",
 		oteltrace.WithAttributes(
-			attribute.String("key", key.String()),
+			attribute.String("key", string(key)),
 		),
 	)
 	defer span.End()
@@ -374,7 +341,7 @@ func (s *Reporter) Delete(ctx context.Context, key Key) error {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpDelete, key, Key{})
+	s.trackRequest(types.OpDelete, key, nil)
 	return err
 }
 
@@ -385,7 +352,7 @@ func (s *Reporter) ConditionalDelete(ctx context.Context, key Key, revision stri
 		"backend/ConditionalDelete",
 		oteltrace.WithAttributes(
 			attribute.String("revision", revision),
-			attribute.String("key", key.String()),
+			attribute.String("key", string(key)),
 		),
 	)
 	defer span.End()
@@ -402,7 +369,7 @@ func (s *Reporter) ConditionalDelete(ctx context.Context, key Key, revision stri
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpDelete, key, Key{})
+	s.trackRequest(types.OpDelete, key, nil)
 	return err
 }
 
@@ -444,10 +411,10 @@ func (s *Reporter) AtomicWrite(ctx context.Context, condacts []ConditionalAction
 		switch ca.Action.Kind {
 		case KindPut:
 			writeTotal++
-			s.trackRequest(ctx, types.OpPut, ca.Key, Key{})
+			s.trackRequest(types.OpPut, ca.Key, nil)
 		case KindDelete:
 			writeTotal++
-			s.trackRequest(ctx, types.OpDelete, ca.Key, Key{})
+			s.trackRequest(types.OpDelete, ca.Key, nil)
 		default:
 			// ignore other variants
 		}
@@ -465,8 +432,8 @@ func (s *Reporter) DeleteRange(ctx context.Context, startKey, endKey Key) error 
 		ctx,
 		"backend/DeleteRange",
 		oteltrace.WithAttributes(
-			attribute.String("start_key", startKey.String()),
-			attribute.String("end_key", endKey.String()),
+			attribute.String("start_key", string(startKey)),
+			attribute.String("end_key", string(endKey)),
 		),
 	)
 	defer span.End()
@@ -478,7 +445,7 @@ func (s *Reporter) DeleteRange(ctx context.Context, startKey, endKey Key) error 
 	if err != nil && !trace.IsNotFound(err) {
 		batchWriteRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpDelete, startKey, endKey)
+	s.trackRequest(types.OpDelete, startKey, endKey)
 	return err
 }
 
@@ -492,7 +459,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 		"backend/KeepAlive",
 		oteltrace.WithAttributes(
 			attribute.String("revision", lease.Revision),
-			attribute.String("key", lease.Key.String()),
+			attribute.String("key", string(lease.Key)),
 		),
 	)
 	defer span.End()
@@ -509,7 +476,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(ctx, types.OpPut, lease.Key, Key{})
+	s.trackRequest(types.OpPut, lease.Key, nil)
 	return err
 }
 
@@ -554,13 +521,13 @@ type topRequestsCacheKey struct {
 }
 
 // trackRequests tracks top requests, endKey is supplied for ranges
-func (s *Reporter) trackRequest(ctx context.Context, opType types.OpType, key Key, endKey Key) {
-	if len(key.s) == 0 {
+func (s *Reporter) trackRequest(opType types.OpType, key Key, endKey Key) {
+	if len(key) == 0 {
 		return
 	}
-	keyLabel := buildKeyLabel(key.String(), sensitiveBackendPrefixes, singletonBackendPrefixes, len(endKey.s) != 0)
+	keyLabel := buildKeyLabel(string(key), sensitiveBackendPrefixes, singletonBackendPrefixes, len(endKey) != 0)
 	rangeSuffix := teleport.TagFalse
-	if len(endKey.s) != 0 {
+	if len(endKey) != 0 {
 		// Range denotes range queries in stat entry
 		rangeSuffix = teleport.TagTrue
 	}
@@ -584,7 +551,7 @@ func (s *Reporter) trackRequest(ctx context.Context, opType types.OpType, key Ke
 
 	counter, err := requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
 	if err != nil {
-		slog.WarnContext(ctx, "Failed to get prometheus counter", "error", err)
+		log.Warningf("Failed to get counter: %v", err)
 		return
 	}
 	counter.Inc()
@@ -813,24 +780,6 @@ var (
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendFailedReadRequests,
 			Help: "Number of failed read requests to the backend",
-		},
-		[]string{teleport.ComponentLabel},
-	)
-	streamingRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: "backend",
-			Name:      "stream_requests",
-			Help:      "Number of inflight stream requests to the backend",
-		},
-		[]string{teleport.ComponentLabel},
-	)
-	streamingRequestsFailed = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: "backend",
-			Name:      "stream_requests_failed",
-			Help:      "Number of failed stream requests to the backend",
 		},
 		[]string{teleport.ComponentLabel},
 	)

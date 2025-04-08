@@ -18,10 +18,7 @@
 
 package config
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestKubernetesOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}
@@ -32,10 +29,6 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 				Destination:       dest,
 				Roles:             []string{"access"},
 				KubernetesCluster: "k8s.example.com",
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 		{

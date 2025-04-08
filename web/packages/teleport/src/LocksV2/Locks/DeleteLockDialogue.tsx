@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonSecondary, ButtonWarning, P1 } from 'design';
+import React from 'react';
+
+import { ButtonSecondary, ButtonWarning, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import Dialog, {
   DialogContent,
@@ -52,10 +54,12 @@ export function DeleteLockDialogue(props: Props) {
       </DialogHeader>
       <DialogContent width="540px">
         {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-        <P1>
-          Are you sure you want to delete lock for{' '}
+        <Flex alignItems="center" flexWrap="wrap">
+          <Text typography="paragraph" as="span" mr={1}>
+            Are you sure you want to delete lock for{' '}
+          </Text>
           <Pills targets={lock.targets} />?
-        </P1>
+        </Flex>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>

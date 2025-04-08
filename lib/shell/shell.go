@@ -19,10 +19,8 @@
 package shell
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -37,7 +35,7 @@ func GetLoginShell(username string) (string, error) {
 	shellcmd, err = getLoginShell(username)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			slog.WarnContext(context.Background(), "No shell specified for user, using default", "username", username, "default_shell", DefaultShell)
+			logrus.Warnf("No shell specified for %v, using default %v.", username, DefaultShell)
 			return DefaultShell, nil
 		}
 		return "", trace.Wrap(err)

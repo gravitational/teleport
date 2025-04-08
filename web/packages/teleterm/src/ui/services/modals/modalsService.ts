@@ -261,7 +261,6 @@ export interface DialogReAuthenticate {
   kind: 'reauthenticate';
   promptMfaRequest: tshdEventsApi.PromptMFARequest;
   onSuccess(totpCode: string): void;
-  onSsoContinue(redirectUrl: string): void;
   onCancel(): void;
 }
 

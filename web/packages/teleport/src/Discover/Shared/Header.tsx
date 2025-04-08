@@ -18,15 +18,17 @@
 
 import React, { PropsWithChildren } from 'react';
 
-import { ButtonIcon, Flex, H1, H2, Subtitle1 } from 'design';
+import { ButtonIcon, Flex, Text } from 'design';
 import { ArrowBack } from 'design/Icon';
 
 export const Header: React.FC<PropsWithChildren<unknown>> = ({ children }) => (
-  <H1 my={1}>{children}</H1>
+  <Text my={1} fontSize="18px" bold>
+    {children}
+  </Text>
 );
 
 export const HeaderSubtitle: React.FC<PropsWithChildren> = ({ children }) => (
-  <Subtitle1 mb={5}>{children}</Subtitle1>
+  <Text mb={5}>{children}</Text>
 );
 
 export const HeaderWithBackBtn: React.FC<
@@ -36,6 +38,8 @@ export const HeaderWithBackBtn: React.FC<
     <ButtonIcon size={1} title="Go Back" onClick={onPrev} ml={-2}>
       <ArrowBack size="large" />
     </ButtonIcon>
-    <H2 my={1}>{children}</H2>
+    <Text my={1} fontSize="18px" bold>
+      {children}
+    </Text>
   </Flex>
 );

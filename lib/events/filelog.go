@@ -25,7 +25,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -43,7 +43,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // FileLogConfig is a configuration for file log
@@ -104,7 +103,9 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 	}
 	f := &FileLog{
 		FileLogConfig: cfg,
-		logger:        slog.With(teleport.ComponentKey, teleport.ComponentAuditLog),
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.ComponentAuditLog,
+		}),
 	}
 	return f, nil
 }
@@ -112,7 +113,7 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 // FileLog is a file local audit events log,
 // logs all events to the local file in json encoded form
 type FileLog struct {
-	logger *slog.Logger
+	*log.Entry
 	FileLogConfig
 	// rw protects the file from rotation during concurrent
 	// event emission.
@@ -146,7 +147,7 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 		l.rw.Unlock()
 		l.rw.RLock()
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to emit audit event", "error", err)
+			log.Error(err)
 		}
 	}
 
@@ -194,7 +195,7 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 //
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
+	l.Debugf("SearchEvents(%v, %v,  eventType=%v, limit=%v)", req.From, req.To, req.EventTypes, req.Limit)
 	return l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 }
 
@@ -345,11 +346,7 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 }
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	var whereExp types.WhereExpr
-	if req.Cond != nil {
-		whereExp = *req.Cond
-	}
-	l.logger.DebugContext(ctx, "SearchSessionEvents", "from", req.From, "to", req.To, "order", req.Order, "limit", req.Limit, "cond", logutils.StringerAttr(whereExp))
+	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", req.From, req.To, req.Order, req.Limit, req.Cond)
 	filter := searchEventsFilter{eventTypes: SessionRecordingEvents}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)
@@ -415,7 +412,7 @@ func (l *FileLog) rotateLog() (err error) {
 	openLogFile := func() error {
 		l.file, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
 		if err != nil {
-			l.logger.ErrorContext(context.Background(), "failed to open log file", "error", err, "file", logFilename)
+			log.Error(err)
 		}
 		l.fileTime = fileTime
 		return trace.Wrap(err)
@@ -484,7 +481,7 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder
 			}
 			fd, err := ParseFileTime(fi.Name())
 			if err != nil {
-				l.logger.WarnContext(context.Background(), "Failed to parse audit log file format", "file", fi.Name(), "error", err)
+				l.Warningf("Failed to parse audit log file %q format: %v", fi.Name(), err)
 				continue
 			}
 			// File rounding in current logs is non-deterministic,
@@ -524,7 +521,7 @@ func ParseFileTime(filename string) (time.Time, error) {
 
 // findInFile scans a given log file and returns events that fit the criteria.
 func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFields, error) {
-	l.logger.DebugContext(context.Background(), "Called findInFile", "path", path, "filter", filter)
+	l.Debugf("Called findInFile(%s, %+v).", path, filter)
 
 	// open the log file:
 	lf, err := os.OpenFile(path, os.O_RDONLY, 0)
@@ -561,7 +558,7 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		// in the query:
 		var ef EventFields
 		if err := utils.FastUnmarshal(scanner.Bytes(), &ef); err != nil {
-			l.logger.WarnContext(context.Background(), "invalid JSON in line found", "file", path, "line_number", lineNo)
+			l.Warnf("invalid JSON in %s line %d", path, lineNo)
 			continue
 		}
 		accepted := len(filter.eventTypes) == 0
@@ -587,9 +584,11 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 	if err := scanner.Err(); err != nil {
 		switch {
 		case errors.Is(err, bufio.ErrTooLong):
-			l.logger.WarnContext(context.Background(), "FileLog contains very large entries. Scan operation will return partial result.", "path", path, "line", lineNo)
+			fields := log.Fields{"path": path, "line": lineNo}
+			l.WithFields(fields).
+				Warnf("FileLog contains very large entries. Scan operation will return partial result.")
 		default:
-			l.logger.ErrorContext(context.Background(), "Failed to scan AuditLog.", "error", err)
+			l.WithError(err).Errorf("Failed to scan AuditLog.")
 
 		}
 	}

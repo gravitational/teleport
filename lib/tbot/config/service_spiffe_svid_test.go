@@ -20,7 +20,6 @@ package config
 
 import (
 	"testing"
-	"time"
 )
 
 func TestSPIFFESVIDOutput_YAML(t *testing.T) {
@@ -50,10 +49,6 @@ func TestSPIFFESVIDOutput_YAML(t *testing.T) {
 						Audience: "2.example.com",
 						FileName: "bar",
 					},
-				},
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
 				},
 			},
 		},

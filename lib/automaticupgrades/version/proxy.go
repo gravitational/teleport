@@ -21,7 +21,6 @@ package version
 import (
 	"context"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -37,14 +36,14 @@ type proxyVersionClient struct {
 	client Finder
 }
 
-func (b *proxyVersionClient) Get(_ context.Context) (*semver.Version, error) {
+func (b *proxyVersionClient) Get(_ context.Context) (string, error) {
 	resp, err := b.client.Find()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	// We check if a version is advertised to know if the proxy implements RFD-184 or not.
 	if resp.AutoUpdate.AgentVersion == "" {
-		return nil, trace.NotImplemented("proxy does not seem to implement RFD-184")
+		return "", trace.NotImplemented("proxy does not seem to implement RFD-184")
 	}
 	return EnsureSemver(resp.AutoUpdate.AgentVersion)
 }
@@ -54,11 +53,11 @@ func (b *proxyVersionClient) Get(_ context.Context) (*semver.Version, error) {
 // The Getter returns trace.NotImplementedErr when running against a proxy that does not seem to
 // expose automatic update instructions over the /find endpoint (proxy too old).
 type ProxyVersionGetter struct {
-	cachedGetter func(context.Context) (*semver.Version, error)
+	cachedGetter func(context.Context) (string, error)
 }
 
 // GetVersion implements Getter
-func (g ProxyVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+func (g ProxyVersionGetter) GetVersion(ctx context.Context) (string, error) {
 	return g.cachedGetter(ctx)
 }
 
@@ -69,5 +68,5 @@ func NewProxyVersionGetter(clt *webclient.ReusableClient) Getter {
 		client: clt,
 	}
 
-	return ProxyVersionGetter{cache.NewTimedMemoize[*semver.Version](versionClient.Get, constants.CacheDuration).Get}
+	return ProxyVersionGetter{cache.NewTimedMemoize[string](versionClient.Get, constants.CacheDuration).Get}
 }

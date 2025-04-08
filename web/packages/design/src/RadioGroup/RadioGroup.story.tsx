@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Box, Flex } from 'design';
 
 import { RadioGroup } from './RadioGroup';
@@ -26,8 +28,8 @@ export default {
 
 export const Default = () => {
   return (
-    <Flex flexDirection="column">
-      <Box>
+    <Flex flexDirection="row">
+      <Box mr={6}>
         <h4>String options</h4>
         <RadioGroup
           name="example1"
@@ -39,7 +41,7 @@ export const Default = () => {
           ]}
         />
       </Box>
-      <Box>
+      <Box mr={6}>
         <h4>With value set</h4>
         <RadioGroup
           name="example2"
@@ -47,7 +49,7 @@ export const Default = () => {
           value={'Second option'}
         />
       </Box>
-      <Box>
+      <Box mr={6}>
         <h4>Object options with value set</h4>
         <RadioGroup
           name="example3"
@@ -64,7 +66,7 @@ export const Default = () => {
       <Box>
         <h4>With a disabled value</h4>
         <RadioGroup
-          name="example4"
+          name="example3"
           options={[
             { value: '1', label: 'First option' },
             {
@@ -73,32 +75,6 @@ export const Default = () => {
               disabled: true,
             },
           ]}
-        />
-      </Box>
-      <Box>
-        <h4>With a helper text</h4>
-        <RadioGroup
-          name="example5"
-          options={[
-            {
-              value: '1',
-              label: 'First option',
-              helperText: 'First option helper text',
-            },
-            {
-              value: '2',
-              label: 'Second option',
-              helperText: 'Second option helper text',
-            },
-          ]}
-        />
-      </Box>
-      <Box>
-        <h4>Small</h4>
-        <RadioGroup
-          name="example6"
-          size="small"
-          options={['First option', 'Second option']}
         />
       </Box>
     </Flex>

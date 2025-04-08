@@ -515,10 +515,6 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
-func (m *AccessRequestExpire) TrimToMaxSize(maxSize int) AuditEvent {
-	return m
-}
-
 func (m *AccessRequestResourceSearch) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
@@ -2338,32 +2334,6 @@ func (m *UserTaskDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
-func (m *SFTPSummary) TrimToMaxSize(maxSize int) AuditEvent {
-	size := m.Size()
-	if size <= maxSize {
-		return m
-	}
-
-	out := utils.CloneProtoMsg(m)
-
-	var customFieldsCount int
-	for i := range out.FileTransferStats {
-		if out.FileTransferStats[i].Path != "" {
-			customFieldsCount++
-			out.FileTransferStats[i].Path = ""
-		}
-	}
-
-	maxSize = adjustedMaxSize(out, maxSize)
-	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-
-	for i := range out.FileTransferStats {
-		out.FileTransferStats[i].Path = trimStr(out.FileTransferStats[i].Path, maxFieldsSize)
-	}
-
-	return out
-}
-
 func (m *AutoUpdateConfigCreate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
@@ -2385,14 +2355,6 @@ func (m *AutoUpdateVersionUpdate) TrimToMaxSize(_ int) AuditEvent {
 }
 
 func (m *AutoUpdateVersionDelete) TrimToMaxSize(_ int) AuditEvent {
-	return m
-}
-
-func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
-	return m
-}
-
-func (m *ContactDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
@@ -2480,47 +2442,10 @@ func (m *WorkloadIdentityX509RevocationDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
-func (m *GitCommand) TrimToMaxSize(_ int) AuditEvent {
+func (m *ContactCreate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
-// TrimToMaxSize implements [AuditEvent].
-func (m *StableUNIXUserCreate) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *AWSICResourceSync) TrimToMaxSize(maxSize int) AuditEvent {
-	size := m.Size()
-	if size <= maxSize {
-		return m
-	}
-	out := utils.CloneProtoMsg(m)
-	out.Status = Status{}
-	maxSize = adjustedMaxSize(out, maxSize)
-	customFieldsCount := m.Status.nonEmptyStrs()
-	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
-	return out
-}
-
-func (m *HealthCheckConfigCreate) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *HealthCheckConfigUpdate) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *HealthCheckConfigDelete) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-// TrimToMaxSize implements [AuditEvent].
-func (m *WorkloadIdentityX509IssuerOverrideCreate) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-// TrimToMaxSize implements [AuditEvent].
-func (m *WorkloadIdentityX509IssuerOverrideDelete) TrimToMaxSize(int) AuditEvent {
+func (m *ContactDelete) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }

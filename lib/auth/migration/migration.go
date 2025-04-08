@@ -22,15 +22,16 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -49,6 +50,10 @@ func withMigrations(m []migration) func(c *applyConfig) {
 		c.migrations = m
 	}
 }
+
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentAuth,
+})
 
 var tracer = tracing.NewTracer("migrations")
 
@@ -72,7 +77,7 @@ type migration interface {
 }
 
 // Apply executes any outstanding registered migrations.
-func Apply(ctx context.Context, log *slog.Logger, b backend.Backend, opts ...func(c *applyConfig)) (err error) {
+func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig)) (err error) {
 	cfg := applyConfig{
 		migrations: []migration{
 			createDBAuthority{},
@@ -115,8 +120,7 @@ func Apply(ctx context.Context, log *slog.Logger, b backend.Backend, opts ...fun
 			continue
 		}
 
-		log := log.With("version", version, "name", m.Name())
-		log.InfoContext(ctx, "Starting migration.")
+		log.Infof("Starting migration %d %s", version, m.Name())
 		span.AddEvent("Starting migration", oteltrace.WithAttributes(attribute.Int("migration", version)))
 
 		started := time.Now().UTC()
@@ -136,7 +140,7 @@ func Apply(ctx context.Context, log *slog.Logger, b backend.Backend, opts ...fun
 			return trace.Wrap(err)
 		}
 
-		log.InfoContext(ctx, "Completed migration.")
+		log.Infof("Completed migration %d %s", version, m.Name())
 		span.AddEvent("Completed migration", oteltrace.WithAttributes(attribute.Int("migration", version)))
 	}
 

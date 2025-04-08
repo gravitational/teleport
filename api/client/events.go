@@ -23,11 +23,9 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -62,85 +60,75 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		return &out, nil
 	}
 	switch r := in.Resource.(type) {
-	case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
-		out.Resource = &proto.Event_KubernetesWaitingContainer{
-			KubernetesWaitingContainer: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*notificationsv1.Notification]:
-		out.Resource = &proto.Event_UserNotification{
-			UserNotification: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]:
-		out.Resource = &proto.Event_GlobalNotification{
-			GlobalNotification: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]:
-		out.Resource = &proto.Event_AccessMonitoringRule{
-			AccessMonitoringRule: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
-		out.Resource = &proto.Event_CrownJewel{
-			CrownJewel: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
-		out.Resource = &proto.Event_DatabaseObject{
-			DatabaseObject: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
-		out.Resource = &proto.Event_BotInstance{
-			BotInstance: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]:
-		out.Resource = &proto.Event_AccessGraphSettings{
-			AccessGraphSettings: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]:
-		out.Resource = &proto.Event_SPIFFEFederation{
-			SPIFFEFederation: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
-		out.Resource = &proto.Event_StaticHostUserV2{
-			StaticHostUserV2: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
-		out.Resource = &proto.Event_AutoUpdateConfig{
-			AutoUpdateConfig: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]:
-		out.Resource = &proto.Event_AutoUpdateVersion{
-			AutoUpdateVersion: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*usertasksv1.UserTask]:
-		out.Resource = &proto.Event_UserTask{
-			UserTask: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*provisioningv1.PrincipalState]:
-		out.Resource = &proto.Event_ProvisioningPrincipalState{
-			ProvisioningPrincipalState: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]:
-		out.Resource = &proto.Event_AutoUpdateAgentRollout{
-			AutoUpdateAgentRollout: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*identitycenterv1.Account]:
-		out.Resource = &proto.Event_IdentityCenterAccount{
-			IdentityCenterAccount: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
-		out.Resource = &proto.Event_IdentityCenterPrincipalAssignment{
-			IdentityCenterPrincipalAssignment: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
-		out.Resource = &proto.Event_IdentityCenterAccountAssignment{
-			IdentityCenterAccountAssignment: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentity]:
-		out.Resource = &proto.Event_WorkloadIdentity{
-			WorkloadIdentity: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentityX509Revocation]:
-		out.Resource = &proto.Event_WorkloadIdentityX509Revocation{
-			WorkloadIdentityX509Revocation: r.UnwrapT(),
+	case types.Resource153Unwrapper:
+		switch r := r.Unwrap().(type) {
+		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
+			out.Resource = &proto.Event_KubernetesWaitingContainer{
+				KubernetesWaitingContainer: r,
+			}
+		case *notificationsv1.Notification:
+			out.Resource = &proto.Event_UserNotification{
+				UserNotification: r,
+			}
+		case *notificationsv1.GlobalNotification:
+			out.Resource = &proto.Event_GlobalNotification{
+				GlobalNotification: r,
+			}
+		case *accessmonitoringrulesv1.AccessMonitoringRule:
+			out.Resource = &proto.Event_AccessMonitoringRule{
+				AccessMonitoringRule: r,
+			}
+		case *crownjewelv1.CrownJewel:
+			out.Resource = &proto.Event_CrownJewel{
+				CrownJewel: r,
+			}
+		case *dbobjectv1.DatabaseObject:
+			out.Resource = &proto.Event_DatabaseObject{
+				DatabaseObject: r,
+			}
+		case *machineidv1.BotInstance:
+			out.Resource = &proto.Event_BotInstance{
+				BotInstance: r,
+			}
+		case *machineidv1.SPIFFEFederation:
+			out.Resource = &proto.Event_SPIFFEFederation{
+				SPIFFEFederation: r,
+			}
+		case *clusterconfigpb.AccessGraphSettings:
+			out.Resource = &proto.Event_AccessGraphSettings{
+				AccessGraphSettings: r,
+			}
+		case *userprovisioningpb.StaticHostUser:
+			out.Resource = &proto.Event_StaticHostUserV2{
+				StaticHostUserV2: r,
+			}
+		case *usertasksv1.UserTask:
+			out.Resource = &proto.Event_UserTask{
+				UserTask: r,
+			}
+		case *autoupdate.AutoUpdateConfig:
+			out.Resource = &proto.Event_AutoUpdateConfig{
+				AutoUpdateConfig: r,
+			}
+		case *autoupdate.AutoUpdateVersion:
+			out.Resource = &proto.Event_AutoUpdateVersion{
+				AutoUpdateVersion: r,
+			}
+		case *workloadidentityv1pb.WorkloadIdentity:
+			out.Resource = &proto.Event_WorkloadIdentity{
+				WorkloadIdentity: r,
+			}
+		case *workloadidentityv1pb.WorkloadIdentityX509Revocation:
+			out.Resource = &proto.Event_WorkloadIdentityX509Revocation{
+				WorkloadIdentityX509Revocation: r,
+			}
+		case *autoupdate.AutoUpdateAgentRollout:
+			out.Resource = &proto.Event_AutoUpdateAgentRollout{
+				AutoUpdateAgentRollout: r,
+			}
+
+		default:
+			return nil, trace.BadParameter("resource type %T is not supported", r)
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -275,10 +263,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_WindowsDesktop{
 			WindowsDesktop: r,
 		}
-	case *types.DynamicWindowsDesktopV1:
-		out.Resource = &proto.Event_DynamicWindowsDesktop{
-			DynamicWindowsDesktop: r,
-		}
 	case *types.InstallerV1:
 		out.Resource = &proto.Event_Installer{
 			Installer: r,
@@ -346,10 +330,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *accesslist.Review:
 		out.Resource = &proto.Event_AccessListReview{
 			AccessListReview: accesslistv1conv.ToReviewProto(r),
-		}
-	case *types.PluginStaticCredentialsV1:
-		out.Resource = &proto.Event_PluginStaticCredentials{
-			PluginStaticCredentials: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -473,9 +453,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetWindowsDesktop(); r != nil {
 		out.Resource = r
 		return &out, nil
-	} else if r := in.GetDynamicWindowsDesktop(); r != nil {
-		out.Resource = r
-		return &out, nil
 	} else if r := in.GetKubernetesServer(); r != nil {
 		out.Resource = r
 		return &out, nil
@@ -584,13 +561,16 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetAccessGraphSettings(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
 	} else if r := in.GetSPIFFEFederation(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetAccessGraphSettings(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetStaticHostUserV2(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetUserTask(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateConfig(); r != nil {
@@ -601,24 +581,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetAutoUpdateAgentRollout(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetUserTask(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetProvisioningPrincipalState(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetIdentityCenterAccount(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetIdentityCenterPrincipalAssignment(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetIdentityCenterAccountAssignment(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetPluginStaticCredentials(); r != nil {
-		out.Resource = r
 		return &out, nil
 	} else if r := in.GetWorkloadIdentity(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)

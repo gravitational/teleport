@@ -9,6 +9,9 @@ docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
 ## Building and packaging
 
+**Note: At the moment, the OSS build of Connect is broken. Please refer to
+[#17706](https://github.com/gravitational/teleport/issues/17706) for a temporary workaround.**
+
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
 
 To get started, first we need to build `tsh`.
@@ -45,26 +48,16 @@ To launch `teleterm` in development mode:
 
 ```sh
 cd teleport
-# By default, the dev version assumes that the tsh binary is at build/tsh.
 pnpm start-term
 
-# You can provide a different absolute path to the tsh binary though the CONNECT_TSH_BIN_PATH env var.
+# By default, the dev version assumes that the tsh binary is at build/tsh.
+# You can provide a different absolute path to a tsh binary though the CONNECT_TSH_BIN_PATH env var.
 CONNECT_TSH_BIN_PATH=$PWD/build/tsh pnpm start-term
 ```
 
-To automatically restart the app when tsh gets rebuilt or
-[when the main process or preload scripts change](https://electron-vite.org/guide/hot-reloading),
-use [watchexec](https://github.com/watchexec/watchexec):
-
-```sh
-watchexec --restart --watch build --filter tsh --no-project-ignore -- pnpm start-term -w
-```
-
-This can be combined with a tool like [gow](https://github.com/mitranim/gow) to automatically rebuild tsh:
-
-```sh
-gow -s -S '✅\n' -g make build/tsh
-```
+For a quick restart which restarts the Electron app and the tsh daemon, press `F6` while the
+Electron window is open. If you recompiled tsh, this is going to pick up any new changes as well as
+any changes introduced to the main process of the Electron app.
 
 ### Development-only tools
 
@@ -134,14 +127,6 @@ When running `pnpm package-term`, you need to provide these environment variable
 - `TEAMID`
 
 The details behind those vars are described below.
-
-### Windows
-
-Packaging Connect on Windows requires wintun.dll, which VNet uses to create a
-virtual network interface.
-A zip file containing the DLL can be downloaded from https://www.wintun.net/builds/wintun-0.14.1.zip
-Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
-with the `CONNECT_WINTUN_DLL_PATH` environment variable.
 
 #### tsh.app
 
@@ -256,34 +241,7 @@ resource availability as possible.
 
 ### PTY communication overview (Renderer Process <=> Shared Process)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant DT as Document Terminal
-    participant PS as PTY Service
-    participant PHS as PTY Host Service
-    participant PP as PTY Process
-
-    DT->>PS: wants new PTY
-    Note over PS,PHS: gRPC communication
-    PS->>PHS: createPtyProcess(options)
-    PHS->>PP: new PtyProcess()
-    PHS-->>PS: ptyId of the process is returned
-    PS->>PHS: establishExchangeEvents(ptyId) channel
-    Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
-    PS-->>DT: pty process object
-    DT->>PS: start()
-    PS->>PHS: exchangeEvents.start()
-    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
-    PHS->>PP: start()
-    PP-->>PHS: onOpen()
-    PHS-->>PS: exchangeEvents.onOpen()
-    PS-->>DT: onOpen()
-    DT->>PS: dispose()
-    PS->>PHS: end exchangeEvents channel
-    PHS->>PP: dispose process and remove it
-
-```
+![PTY communication](docs/ptyCommunication.png)
 
 ### Overview of a deep link launch process
 

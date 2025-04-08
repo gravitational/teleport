@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -147,7 +147,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 	})
 
 	t.Run("mysql", func(t *testing.T) {
-		dbConns := make([]mysql.TestClientConn, 0)
+		dbConns := make([]*client.Conn, 0)
 		t.Cleanup(func() {
 			// Disconnect all clients.
 			for _, dbConn := range dbConns {
@@ -256,7 +256,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 // Most testing code should NOT need to use this function.
 //
 // In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
-func advanceInSteps(clock *clockwork.FakeClock, total time.Duration) {
+func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
 	step := total / 100
 	if step <= 0 {
 		step = 1
@@ -442,46 +442,32 @@ func TestShutdown(t *testing.T) {
 			// Validate that the server is proxying db0 after start.
 			require.Equal(t, types.Databases{db0}, server.getProxiedDatabases())
 
-			// Validate that the heartbeat is eventually emitted and that
-			// the configured databases exist in the inventory.
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, dbServers, 1) {
-					return
-				}
-				if !assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
-					return
-				}
-			}, 10*time.Second, 100*time.Millisecond)
+			// Validate heartbeat is present after start.
+			server.ForceHeartbeat()
+			dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, dbServers, 1)
+			require.Equal(t, dbServers[0].GetDatabase(), db0)
 
-			require.NoError(t, server.Shutdown(ctx))
-
-			// Send a Goodbye to simulate process shutdown.
-			if !test.hasForkedChild {
-				require.NoError(t, server.cfg.InventoryHandle.SendGoodbye(ctx))
+			// Shutdown should not return error.
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			t.Cleanup(cancel)
+			if test.hasForkedChild {
+				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
 			}
 
-			require.NoError(t, server.cfg.InventoryHandle.Close())
+			require.NoError(t, server.Shutdown(shutdownCtx))
 
-			// Validate db servers based on the test.
+			// Validate that the server is not proxying db0 after close.
+			require.Empty(t, server.getProxiedDatabases())
+
+			// Validate database servers based on the test.
+			dbServersAfterShutdown, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
 			if test.wantDatabaseServersAfterShutdown {
-				dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-				require.NoError(t, err)
-				require.Len(t, dbServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Equal(t, dbServers, dbServersAfterShutdown)
 			} else {
-				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-					if !assert.NoError(t, err) {
-						return
-					}
-					if !assert.Empty(t, dbServersAfterShutdown) {
-						return
-					}
-				}, 10*time.Second, 100*time.Millisecond)
+				require.Empty(t, dbServersAfterShutdown)
 			}
 		})
 	}

@@ -21,7 +21,6 @@ package athena
 import (
 	"context"
 	"io"
-	"log/slog"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -33,6 +32,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -135,8 +136,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator.
 	UIDGenerator utils.UID
-	// Logger emits log messages.
-	Logger *slog.Logger
+	// LogEntry is a log entry.
+	LogEntry *log.Entry
 
 	// PublisherConsumerAWSConfig is an AWS config which can be used to
 	// construct AWS Clients using aws-sdk-go-v2, used by the publisher and
@@ -281,8 +282,10 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
-	if cfg.Logger == nil {
-		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
+	if cfg.LogEntry == nil {
+		cfg.LogEntry = log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.ComponentAthena,
+		})
 	}
 
 	if cfg.PublisherConsumerAWSConfig == nil {
@@ -295,6 +298,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
+		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 		cfg.PublisherConsumerAWSConfig = &awsCfg
 	}
 
@@ -450,6 +454,7 @@ func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAu
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 	cfg.StorerQuerierAWSConfig = &awsCfg
 
 	cfg.ObserveWriteEventsError = externalAuditStorage.ErrorCounter.ObserveEmitError
@@ -487,7 +492,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
 		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
 		awsCfg:                       cfg.StorerQuerierAWSConfig,
-		logger:                       cfg.Logger,
+		logger:                       cfg.LogEntry,
 		clock:                        cfg.Clock,
 		tracer:                       cfg.Tracer,
 	})
@@ -617,7 +622,7 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 			prometheus.HistogramOpts{
 				Namespace: teleport.MetricNamespace,
 				Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
-				Help:      "Duration of deletion of events on SQS in parquetlog",
+				Help:      "Duration of delation of events on SQS in parquetlog",
 				// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 				// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 				Buckets:     prometheus.ExponentialBuckets(0.001, 2, 16),

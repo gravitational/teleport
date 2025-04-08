@@ -24,6 +24,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -115,10 +116,10 @@ func Extract(reader io.Reader, options ExtractOptions) error {
 			if strip > len(parts)-1 {
 				strip = len(parts) - 1
 			}
-			outFileName = filepath.Join(parts[strip:]...)
+			outFileName = path.Join(parts[strip:]...)
 		}
 
-		outFilePath := filepath.Join(outDir, outFileName)
+		outFilePath := path.Join(outDir, outFileName)
 		outFilePerm := os.FileMode(header.Mode).Perm()
 
 		// fail if the outFilePath is outside outDir, see the "zip slip" vulnerability

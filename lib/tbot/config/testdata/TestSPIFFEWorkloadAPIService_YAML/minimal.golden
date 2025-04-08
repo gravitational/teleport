@@ -11,4 +11,3 @@ attestors:
     enabled: false
   systemd:
     enabled: false
-  unix: {}

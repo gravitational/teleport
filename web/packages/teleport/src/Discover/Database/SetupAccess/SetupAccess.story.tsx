@@ -16,149 +16,180 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
 
 import cfg from 'teleport/config';
 import {
-  getSelectedAwsPostgresDbMeta,
-  resourceSpecAwsRdsMySql,
-  resourceSpecAwsRdsPostgres,
-  resourceSpecSelfHostedMysql,
-  resourceSpecSelfHostedPostgres,
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
-import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import { getAcl, noAccess } from 'teleport/mocks/contexts';
 
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 import SetupAccess from './SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Database/SetupAccess',
+  loaders: [mswLoader],
   parameters: {
     msw: {
       handlers: {
-        fetchUser: http.get(cfg.api.userWithUsernamePath, () =>
-          HttpResponse.json({
-            name: 'llama',
-            roles: ['access'],
-            traits: dynamicTraits,
-          })
+        fetchUser: rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+          res(
+            ctx.json({
+              name: 'llama',
+              roles: ['access'],
+              traits: dynamicTraits,
+            })
+          )
         ),
       },
     },
   },
 };
 
+initialize();
+
 export const NoTraits = () => {
-  const meta = getSelectedAwsPostgresDbMeta();
+  const meta = getDbMeta();
   meta.db.users = [];
   meta.db.names = [];
   return (
-    <RequiredDiscoverProviders
+    <TeleportProvider
       agentMeta={meta}
-      resourceSpec={resourceSpecAwsRdsPostgres}
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
     >
       <SetupAccess />
-    </RequiredDiscoverProviders>
+    </TeleportProvider>
   );
 };
 NoTraits.parameters = {
   msw: {
     handlers: {
       fetchUser: [
-        http.get(cfg.api.userWithUsernamePath, () => HttpResponse.json({})),
+        rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+          res(ctx.json({}))
+        ),
       ],
     },
   },
 };
 
 export const WithTraitsAwsPostgres = () => (
-  <RequiredDiscoverProviders
-    resourceSpec={resourceSpecAwsRdsPostgres}
-    agentMeta={getSelectedAwsPostgresDbMeta()}
+  <TeleportProvider
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
   >
     <SetupAccess />
-  </RequiredDiscoverProviders>
+  </TeleportProvider>
 );
 
 export const WithTraitsAwsPostgresAutoEnroll = () => {
-  const meta = getSelectedAwsPostgresDbMeta();
+  const meta = getDbMeta();
   meta.db = undefined;
   return (
-    <RequiredDiscoverProviders
-      resourceSpec={resourceSpecAwsRdsPostgres}
-      agentMeta={{
-        ...meta,
-        autoDiscovery: {
-          config: {
-            name: 'some-name',
-            discoveryGroup: 'some-group',
-            aws: [
-              {
-                types: ['rds'],
-                regions: ['us-east-1'],
-                tags: {},
-                integration: 'some-integration',
-              },
-            ],
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
+      agentMeta={
+        {
+          ...meta,
+          autoDiscovery: {
+            config: {
+              name: 'some-name',
+              discoveryGroup: 'some-group',
+              aws: [
+                {
+                  types: ['rds'],
+                  regions: ['us-east-1'],
+                  tags: {},
+                  integration: 'some-integration',
+                },
+              ],
+            },
           },
-        },
-        serviceDeploy: {
-          method: 'auto',
-          selectedSecurityGroups: ['sg-1', 'sg-2'],
-          selectedSubnetIds: ['subnet1', 'subnet2'],
-        },
-      }}
+        } as any
+      }
     >
       <SetupAccess />
-    </RequiredDiscoverProviders>
+    </TeleportProvider>
   );
 };
 
 export const WithTraitsAwsMySql = () => (
-  <RequiredDiscoverProviders
-    resourceSpec={resourceSpecAwsRdsMySql}
-    agentMeta={getSelectedAwsPostgresDbMeta()}
-  >
+  <ComponentWrapper>
     <SetupAccess />
-  </RequiredDiscoverProviders>
+  </ComponentWrapper>
 );
 
 export const WithTraitsPostgres = () => (
-  <RequiredDiscoverProviders
-    resourceSpec={resourceSpecSelfHostedPostgres}
-    agentMeta={getSelectedAwsPostgresDbMeta()}
+  <ComponentWrapper>
+    <SetupAccess />
+  </ComponentWrapper>
+);
+
+export const WithTraitsMongo = () => (
+  <TeleportProvider
+    resourceSpec={getDbResourceSpec(DatabaseEngine.MongoDb)}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
   >
     <SetupAccess />
-  </RequiredDiscoverProviders>
+  </TeleportProvider>
 );
 
 export const WithTraitsMySql = () => (
-  <RequiredDiscoverProviders
-    resourceSpec={resourceSpecSelfHostedMysql}
-    agentMeta={getSelectedAwsPostgresDbMeta()}
+  <TeleportProvider
+    resourceSpec={getDbResourceSpec(DatabaseEngine.MySql)}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
   >
     <SetupAccess />
-  </RequiredDiscoverProviders>
+  </TeleportProvider>
 );
 
 export const NoAccess = () => (
-  <RequiredDiscoverProviders
+  <TeleportProvider
     customAcl={{ ...getAcl(), users: noAccess }}
-    agentMeta={getSelectedAwsPostgresDbMeta()}
-    resourceSpec={resourceSpecAwsRdsPostgres}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
   >
     <SetupAccess />
-  </RequiredDiscoverProviders>
+  </TeleportProvider>
 );
 
 export const SsoUser = () => (
-  <RequiredDiscoverProviders
+  <TeleportProvider
     authType="sso"
-    agentMeta={getSelectedAwsPostgresDbMeta()}
-    resourceSpec={resourceSpecAwsRdsPostgres}
+    agentMeta={getDbMeta()}
+    resourceKind={ResourceKind.Database}
+    resourceSpec={getDbResourceSpec(
+      DatabaseEngine.Postgres,
+      DatabaseLocation.Aws
+    )}
   >
     <SetupAccess />
-  </RequiredDiscoverProviders>
+  </TeleportProvider>
 );
 
 const dynamicTraits = {

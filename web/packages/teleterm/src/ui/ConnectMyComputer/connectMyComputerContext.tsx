@@ -434,7 +434,7 @@ export const ConnectMyComputerContextProvider: FC<
       (async () => {
         try {
           await downloadAndStartAgent();
-        } catch {
+        } catch (error) {
           // Turn off autostart if it fails, otherwise the user wouldn't be able to turn it off by
           // themselves.
           workspacesService.setConnectMyComputerAutoStart(

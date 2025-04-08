@@ -187,7 +187,7 @@ type ConditionalAction struct {
 
 // Check validates the basic correctness of the conditional action.
 func (c *ConditionalAction) Check() error {
-	if len(c.Key.s) == 0 {
+	if len(c.Key) == 0 {
 		return trace.BadParameter("conditional action missing required parameter 'Key'")
 	}
 
@@ -248,7 +248,7 @@ func ValidateAtomicWrite(condacts []ConditionalAction) error {
 
 		containsWrite = containsWrite || condacts[i].Action.IsWrite()
 
-		key := condacts[i].Key.String()
+		key := string(condacts[i].Key)
 
 		if _, ok := keys[key]; ok {
 			return trace.BadParameter("multiple conditional actions target key %q", key)

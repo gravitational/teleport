@@ -28,7 +28,7 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -70,7 +70,6 @@ func WorkloadIdentitiesLogValue(credentials []*workloadidentityv1pb.Credential) 
 
 type authClient interface {
 	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
-	cryptosuites.AuthPreferenceGetter
 }
 
 // IssueX509WorkloadIdentity uses a given client and selector to issue a single
@@ -88,9 +87,7 @@ func IssueX509WorkloadIdentity(
 		"IssueX509WorkloadIdentity",
 	)
 	defer span.End()
-	privateKey, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
-		cryptosuites.BotSVID)
+	privateKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

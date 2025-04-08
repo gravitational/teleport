@@ -19,10 +19,8 @@
 package sshutils
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -43,7 +41,7 @@ type DirectTCPIPReq struct {
 func ParseDirectTCPIPReq(data []byte) (*DirectTCPIPReq, error) {
 	var r DirectTCPIPReq
 	if err := ssh.Unmarshal(data, &r); err != nil {
-		slog.InfoContext(context.Background(), "failed to parse Direct TCP IP request", "error", err)
+		log.Infof("failed to parse Direct TCP IP request: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	return &r, nil
@@ -62,7 +60,7 @@ type TCPIPForwardReq struct {
 func ParseTCPIPForwardReq(data []byte) (*TCPIPForwardReq, error) {
 	var r TCPIPForwardReq
 	if err := ssh.Unmarshal(data, &r); err != nil {
-		slog.InfoContext(context.Background(), "failed to parse TCP IP Forward request", "error", err)
+		log.Infof("failed to parse TCP IP Forward request: %v", err)
 		return nil, trace.Wrap(err)
 	}
 	return &r, nil

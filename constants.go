@@ -25,6 +25,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// WebAPIVersion is a current webapi version
+const WebAPIVersion = "v1"
+
 const (
 	// SSHAuthSock is the environment variable pointing to the
 	// Unix socket the SSH agent is running on.
@@ -292,12 +295,6 @@ const (
 	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
 	ComponentRolloutController = "rollout-controller"
 
-	// ComponentGit represents git proxy related services.
-	ComponentGit = "git"
-
-	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
-	ComponentForwardingGit = "git:forward"
-
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -321,7 +318,7 @@ const (
 	DataDirParameterName = "data_dir"
 
 	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
-	// a server keep pinging each other with it.
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like
@@ -420,6 +417,12 @@ const (
 	// Syslog is a mode for syslog logging
 	Syslog = "syslog"
 
+	// HumanDateFormat is a human readable date formatting
+	HumanDateFormat = "Jan _2 15:04 UTC"
+
+	// HumanDateFormatMilli is a human readable date formatting with milliseconds
+	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
+
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
 
@@ -427,7 +430,7 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
-	// todo(tross): DELETE WHEN ABLE TO
+	// todo(lxea): DELETE IN 17
 	EnvVarAllowNoSecondFactor = "TELEPORT_ALLOW_NO_SECOND_FACTOR"
 )
 
@@ -527,12 +530,6 @@ const (
 	// from which this certificate is accepted for authentication.
 	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 	CertCriticalOptionSourceAddress = "source-address"
-	// CertExtensionGitHubUserID indicates the GitHub user ID identified by the
-	// GitHub connector.
-	CertExtensionGitHubUserID = "github-id@goteleport.com"
-	// CertExtensionGitHubUsername indicates the GitHub username identified by
-	// the GitHub connector.
-	CertExtensionGitHubUsername = "github-login@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -652,10 +649,6 @@ const (
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
-
-	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
-	// organizations for GitHub integrations.
-	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
 )
 
 // SCP is Secure Copy.
@@ -726,11 +719,6 @@ const (
 	// access to Okta resources. This will be used by the Okta requester role to
 	// search for Okta resources.
 	SystemOktaAccessRoleName = "okta-access"
-
-	// SystemIdentityCenterAccessRoleName specifies the name of a system role
-	// that grants a user access to AWS Identity Center resources via
-	// Access Requests.
-	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 
 	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
 	// that includes the permissions necessary to issue workload identity
@@ -888,10 +876,13 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
-	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
-	// or x11 forwarding.
-	NetworkingSubCommand = "networking"
+	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for local port forwarding.
+	LocalForwardSubCommand = "forwardv2"
+
+	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for remote port forwarding.
+	RemoteForwardSubCommand = "remoteforward"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.

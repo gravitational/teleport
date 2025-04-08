@@ -23,7 +23,6 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,9 +32,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
@@ -108,7 +107,7 @@ type Profile struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
 
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
-	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot"`
+	PIVSlot keys.PIVSlot `yaml:"piv_slot"`
 
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.
@@ -120,11 +119,6 @@ type Profile struct {
 
 	// SSHDialTimeout is the timeout value that should be used for SSH connections.
 	SSHDialTimeout time.Duration `yaml:"ssh_dial_timeout,omitempty"`
-
-	// SSOHost is the host of the SSO provider used to log in. Clients can check this value, along
-	// with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
-	// Connect in the proxy host allow list.
-	SSOHost string `yaml:"sso_host,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -148,7 +142,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserTLSKeyPath())
+	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -257,7 +251,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	priv, err := keys.LoadPrivateKey(p.UserSSHKeyPath())
+	priv, err := keys.LoadPrivateKey(p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -360,7 +354,7 @@ func defaultProfilePath() string {
 	}
 
 	home = os.TempDir()
-	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, profileDir)
@@ -455,14 +449,9 @@ func (p *Profile) ProxyKeyDir() string {
 	return keypaths.ProxyKeyDir(p.Dir, p.Name())
 }
 
-// UserSSHKeyPath returns the path to the profile's SSH private key.
-func (p *Profile) UserSSHKeyPath() string {
-	return keypaths.UserSSHKeyPath(p.Dir, p.Name(), p.Username)
-}
-
-// UserTLSKeyPath returns the path to the profile's TLS private key.
-func (p *Profile) UserTLSKeyPath() string {
-	return keypaths.UserTLSKeyPath(p.Dir, p.Name(), p.Username)
+// UserKeyPath returns the path to the profile's private key.
+func (p *Profile) UserKeyPath() string {
+	return keypaths.UserKeyPath(p.Dir, p.Name(), p.Username)
 }
 
 // TLSCertPath returns the path to the profile's TLS certificate.
@@ -515,11 +504,4 @@ func (p *Profile) KnownHostsPath() string {
 // is no guarantee that there is an actual certificate at that location.
 func (p *Profile) AppCertPath(appName string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
-}
-
-// AppKeyPath returns the path to the profile's private key for a given
-// application. Note that this function merely constructs the path - there
-// is no guarantee that there is an actual key at that location.
-func (p *Profile) AppKeyPath(appName string) string {
-	return keypaths.AppKeyPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
 }

@@ -19,7 +19,6 @@
 package tbot
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -131,7 +130,7 @@ func (s *DatabaseTunnelService) buildLocalProxyConfig(ctx context.Context) (lpCf
 			defer span.End()
 
 			// Check if the certificate needs reissuing, if so, reissue.
-			if err := lp.CheckDBCert(ctx, tlsca.RouteToDatabase{
+			if err := lp.CheckDBCert(tlsca.RouteToDatabase{
 				ServiceName: routeToDatabase.ServiceName,
 				Protocol:    routeToDatabase.Protocol,
 				Database:    routeToDatabase.Database,
@@ -241,7 +240,7 @@ func (s *DatabaseTunnelService) getRouteToDatabaseWithImpersonation(ctx context.
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {
@@ -281,7 +280,7 @@ func (s *DatabaseTunnelService) issueCert(
 		s.botClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})

@@ -16,43 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment, ReactNode } from 'react';
+import React from 'react';
 import { useTheme } from 'styled-components';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
+import * as SvgIcons from '.';
 import Flex from '../Flex';
 import Text from '../Text';
-import { SVGIconProps } from './common';
-import { TeleportGearIcon } from './TeleportGearIcon';
 
 export default {
   title: 'Design/Icon',
 };
 
 export const CustomIcons = () => {
-  const icons = Object.entries({ TeleportGearIcon });
+  const icons = Object.keys(SvgIcons);
   return (
     <Flex flexWrap="wrap">
-      {icons.map(([icon, S]) => {
+      {icons.map(icon => {
+        const S = SvgIcons[icon];
         const size = 64;
 
         return (
-          <Fragment key={icon}>
+          <>
             <IconBox text={icon}>
               <IconContainer Icon={S} size={size} />
             </IconBox>
             <IconBox text={icon}>
               <IconCircle Icon={S} size={size} />
             </IconBox>
-          </Fragment>
+          </>
         );
       })}
     </Flex>
   );
 };
 
-const IconBox = ({ children, text }: { children: ReactNode; text: string }) => {
+const IconBox = ({ children, text }) => {
   const theme = useTheme();
 
   return (
@@ -68,21 +68,21 @@ const IconBox = ({ children, text }: { children: ReactNode; text: string }) => {
       <Flex justifyContent="center" p={2}>
         {children}
       </Flex>
-      <Text typography="body3" mt={2}>
+      <Text typography="paragraph2" mt={2}>
         {text}
       </Text>
     </Flex>
   );
 };
 
-const IconContainer = ({
-  Icon,
-  size,
-}: {
-  Icon: React.ComponentType<SVGIconProps>;
-  size: number;
-}) => {
+const IconContainer = ({ Icon, size }) => {
   const theme = useTheme();
 
-  return <Icon size={size} fill={theme.colors.text.main} />;
+  return (
+    <Icon
+      size={size}
+      bg={theme.colors.spotBackground[0]}
+      fill={theme.colors.text.main}
+    />
+  );
 };

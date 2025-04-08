@@ -41,7 +41,7 @@ import (
 )
 
 type testPack struct {
-	clock *clockwork.FakeClock
+	clock clockwork.FakeClock
 	mem   *memory.Memory
 }
 
@@ -87,7 +87,7 @@ type fakeAuthServer struct {
 	rotateCertAuthorityData map[string]error
 }
 
-func (f *fakeAuthServer) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (f *fakeAuthServer) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return f.clusterName, nil
 }
 
@@ -98,18 +98,6 @@ func (f *fakeAuthServer) GenerateHostCert(ctx context.Context, hostPublicKey []b
 
 func (f *fakeAuthServer) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
 	return f.rotateCertAuthorityData[string(req.Type)]
-}
-
-func (f *fakeAuthServer) UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return tc, nil
-}
-
-func (f *fakeAuthServer) CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return tc, nil
-}
-
-func (f *fakeAuthServer) UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-	return tc, nil
 }
 
 type fakeChecker struct {

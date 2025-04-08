@@ -122,7 +122,7 @@ func (s *SessionTracker) retryUpdate(ctx context.Context, clock clockwork.Clock)
 		Max:    3 * time.Minute,
 		First:  time.Minute,
 		Step:   time.Minute,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

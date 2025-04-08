@@ -21,7 +21,6 @@ import { wait } from 'shared/utils/wait';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 
 import { VnetSliderStepHeader } from './VnetConnectionItem';
 import { VnetContextProvider } from './vnetContext';
@@ -31,14 +30,9 @@ describe('VnetSliderStepHeader', () => {
     const user = userEvent.setup();
     render(
       <MockAppContextProvider>
-        <ConnectionsContextProvider>
-          <VnetContextProvider>
-            <VnetSliderStepHeader
-              goBack={() => {}}
-              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
-            />
-          </VnetContextProvider>
-        </ConnectionsContextProvider>
+        <VnetContextProvider>
+          <VnetSliderStepHeader goBack={() => {}} />
+        </VnetContextProvider>
       </MockAppContextProvider>
     );
 
@@ -46,7 +40,7 @@ describe('VnetSliderStepHeader', () => {
     const openDocumentationButton = screen.getByTitle(
       'Open VNet documentation'
     );
-    const toggleButton = screen.getByText('Start VNet');
+    const toggleButton = screen.getByTitle('Start VNet');
     expect(document.body).toHaveFocus();
 
     await user.tab();
@@ -73,14 +67,9 @@ describe('VnetSliderStepHeader', () => {
     const user = userEvent.setup();
     render(
       <MockAppContextProvider appContext={appContext}>
-        <ConnectionsContextProvider>
-          <VnetContextProvider>
-            <VnetSliderStepHeader
-              goBack={() => {}}
-              runDiagnosticsFromVnetPanel={() => Promise.resolve()}
-            />
-          </VnetContextProvider>
-        </ConnectionsContextProvider>
+        <VnetContextProvider>
+          <VnetSliderStepHeader goBack={() => {}} />
+        </VnetContextProvider>
       </MockAppContextProvider>
     );
 
@@ -89,16 +78,16 @@ describe('VnetSliderStepHeader', () => {
     await user.tab();
     await user.tab();
     await user.tab();
-    expect(await screen.findByText('Start VNet')).toHaveFocus();
+    expect(await screen.findByTitle('Start VNet')).toHaveFocus();
 
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByText('Starting…')).toHaveFocus();
-    expect(await screen.findByText('Stop VNet')).toHaveFocus();
+    expect(await screen.findByTitle('Starting VNet')).toHaveFocus();
+    expect(await screen.findByTitle('Stop VNet')).toHaveFocus();
 
     await user.keyboard('{Enter}');
 
-    expect(await screen.findByText('Stopping…')).toHaveFocus();
-    expect(await screen.findByText('Start VNet')).toHaveFocus();
+    expect(await screen.findByTitle('Stopping VNet')).toHaveFocus();
+    expect(await screen.findByTitle('Start VNet')).toHaveFocus();
   });
 });

@@ -16,17 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  ComponentPropsWithoutRef,
-  ComponentType,
-  ElementType,
-  ReactElement,
-  useRef,
-  useState,
-} from 'react';
+import { ComponentType, ReactElement, useRef, useState } from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
-import { ButtonSize } from 'design/Button';
 import * as icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 
@@ -53,24 +45,20 @@ import { IconProps } from 'design/Icon/Icon';
  *   <MenuItem>Bar</MenuItem>
  * </ButtonWithMenu>
  */
-export const ButtonWithMenu = <Element extends ElementType = 'button'>(
-  props: {
-    text: string;
-    children: MenuItemComponent | MenuItemComponent[];
-    MenuIcon?: ComponentType<IconProps>;
-    size?: ButtonSize;
-    forwardedAs?: Element;
-  } & ComponentPropsWithoutRef<typeof ButtonBorder<Element>>
-) => {
+export const ButtonWithMenu = (props: {
+  text: string;
+  children: MenuItemComponent | MenuItemComponent[];
+  MenuIcon?: ComponentType<IconProps>;
+  [buttonBorderProp: string]: any;
+}) => {
   const {
     text,
     MenuIcon = icons.MoreVert,
     children,
-    size = 'medium',
     ...buttonBorderProps
   } = props;
 
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -80,7 +68,6 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
         `}
-        size={size}
         {...buttonBorderProps}
       >
         {text}
@@ -88,7 +75,7 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
       <ButtonBorder
         setRef={moreButtonRef}
         px={1}
-        size={size}
+        size={buttonBorderProps.size}
         onClick={() => setIsOpen(true)}
         css={`
           border-left: none;
@@ -97,7 +84,10 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
         `}
         title="Open menu"
       >
-        <MenuIcon size={size} color="text.slightlyMuted" />
+        <MenuIcon
+          size={menuIconSize[buttonBorderProps.size]}
+          color="text.slightlyMuted"
+        />
       </ButtonBorder>
       <Menu
         anchorEl={moreButtonRef.current}
@@ -119,6 +109,12 @@ export const ButtonWithMenu = <Element extends ElementType = 'button'>(
       </Menu>
     </Flex>
   );
+};
+
+const menuIconSize = {
+  large: 28,
+  medium: 24,
+  small: 16,
 };
 
 // TODO(ravicious): At the moment, this doesn't accomplish much – it only prevents ButtonWithMenu

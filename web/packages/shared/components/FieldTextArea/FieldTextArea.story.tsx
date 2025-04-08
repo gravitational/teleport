@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary, Text } from 'design';
+import React from 'react';
 
 import Validation from '../../components/Validation';
-import { requiredField } from '../Validation/rules';
 import { FieldTextArea } from './FieldTextArea';
 
 export default {
@@ -28,53 +27,25 @@ export default {
 
 export const Fields = () => (
   <Validation>
-    {({ validator }) => (
+    {() => (
       <>
         <FieldTextArea
+          mb="6"
           label="Label"
-          helperText="Optional helper text"
+          labelTip="Optional label tip"
           name="optional name"
           onChange={() => {}}
           value={'value'}
-          size="large"
         />
         <FieldTextArea
+          mb="6"
           label="Label with placeholder"
           name="optional name"
           onChange={() => {}}
           placeholder="placeholder"
           value={''}
-          rule={requiredField('So required. Much mandatory.')}
-          required
         />
-        <FieldTextArea
-          label="Label with tooltip"
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-          tooltipContent={<Text>Hello world</Text>}
-        />
-        <FieldTextArea
-          label="Label with helper text and tooltip"
-          helperText="Helper text"
-          tooltipContent={<Text>Hello world</Text>}
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-        />
-        <FieldTextArea placeholder="without label" onChange={() => {}} />
-        <FieldTextArea
-          label="Required"
-          required
-          rule={requiredField('So required. Much mandatory.')}
-          onChange={() => {}}
-          value=""
-        />
-        <ButtonPrimary onClick={() => validator.validate()}>
-          Validate
-        </ButtonPrimary>
+        <FieldTextArea mb="6" placeholder="without label" onChange={() => {}} />
       </>
     )}
   </Validation>

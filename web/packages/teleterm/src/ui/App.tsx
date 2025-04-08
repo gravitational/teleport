@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ComponentPropsWithoutRef } from 'react';
+import React from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
@@ -26,16 +26,12 @@ import AppContext from './appContext';
 import AppContextProvider from './appContextProvider';
 import { StyledApp } from './components/App';
 import { CatchError } from './components/CatchError';
-import { DeepLinks } from './DeepLinks';
 import { ResourcesContextProvider } from './DocumentCluster/resourcesContext';
 import { ThemeProvider } from './ThemeProvider';
 import { ConnectionsContextProvider } from './TopBar/Connections/connectionsContext';
 import { VnetContextProvider } from './Vnet/vnetContext';
 
-export const App: React.FC<{
-  ctx: AppContext;
-  launchDeepLink?: ComponentPropsWithoutRef<typeof DeepLinks>['launchDeepLink'];
-}> = ({ ctx, launchDeepLink }) => {
+export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   return (
     <CatchError>
       <StyledApp>
@@ -45,8 +41,6 @@ export const App: React.FC<{
               <ConnectionsContextProvider>
                 <VnetContextProvider>
                   <ThemeProvider>
-                    <DeepLinks launchDeepLink={launchDeepLink} />
-
                     <AppInitializer />
                   </ThemeProvider>
                 </VnetContextProvider>

@@ -137,6 +137,7 @@ export function DesktopSession({
     [setClipboardSharingState, setDirectorySharingState]
   );
   useListener(client.onError, handleFatalError);
+  useListener(client.onClientError, handleFatalError);
 
   const addWarning = useCallback(
     (warning: string) => {
@@ -164,7 +165,7 @@ export function DesktopSession({
   );
 
   useListener(
-    client.onTransportClose,
+    client.onWsClose,
     useCallback(
       statusText => {
         setTdpConnectionStatus({ status: 'disconnected', message: statusText });
@@ -174,7 +175,7 @@ export function DesktopSession({
     )
   );
   useListener(
-    client.onTransportOpen,
+    client.onWsOpen,
     useCallback(() => {
       setTdpConnectionStatus({ status: 'connected' });
     }, [setTdpConnectionStatus])

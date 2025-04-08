@@ -56,11 +56,7 @@ func TestMFADevice_CheckAndSetDefaults(t *testing.T) {
 				Id:       "otp-0001",
 				AddedAt:  now,
 				LastUsed: now,
-				Device: &types.MFADevice_Totp{
-					Totp: &types.TOTPDevice{
-						Key: "key",
-					},
-				},
+				Device:   &types.MFADevice_Totp{}, // validated elsewhere
 			},
 		},
 		{

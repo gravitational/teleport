@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonIcon, ButtonPrimary, Flex, H2, Link } from 'design';
+import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { Cross } from 'design/Icon';
 import Validation from 'shared/components/Validation';
@@ -56,7 +58,9 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
             }}
           >
             <Flex justifyContent="space-between" mb={2}>
-              <H2>Provide your feedback</H2>
+              <Text typography="h4" bold color="text.main">
+                Provide your feedback
+              </Text>
               <ButtonIcon
                 type="button"
                 onClick={props.onClose}

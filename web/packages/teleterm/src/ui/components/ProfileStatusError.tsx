@@ -21,20 +21,12 @@ import { Warning } from 'design/Icon';
 
 export function ProfileStatusError(props: {
   error: string;
-  className?: string;
-}): JSX.Element {
+  mb?: number | string;
+}) {
   return (
-    <Flex className={props.className}>
+    <Flex mb={props.mb}>
       <Warning color="error.main" size="small" mr={1} />
-      <P3
-        color="text.slightlyMuted"
-        css={`
-          text-wrap: auto;
-          line-height: 1.3;
-        `}
-      >
-        {toWellFormattedConnectionError(props.error)}
-      </P3>
+      <P3>{toWellFormattedConnectionError(props.error)}</P3>
     </Flex>
   );
 }

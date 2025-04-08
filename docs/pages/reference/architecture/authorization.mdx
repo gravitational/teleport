@@ -245,9 +245,8 @@ Reference](../access-controls/roles.mdx).
 
 **How role templates are evaluated**
 
-Every Teleport component - whether a Proxy Service instance, Auth Service
-instance, or Agent -has up to date copy of all roles.  Teleport components
-evaluate role templates at the time of access to any resource. 
+Role templates are evaluated at the time of access to any resource either by proxy or node.
+Every Teleport component - proxy, auth server or node has up to date copy of all roles.
 
 Let's review a case with the following role template:
 

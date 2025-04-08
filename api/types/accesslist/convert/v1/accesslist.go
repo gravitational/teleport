@@ -68,10 +68,13 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
-		owners[i] = FromOwnerProto(owner)
-		// Set IneligibleStatus to empty as default.
-		// Must provide as options to set it with the provided value.
-		owners[i].IneligibleStatus = ""
+		owners[i] = accesslist.Owner{
+			Name:        owner.Name,
+			Description: owner.Description,
+			// Set it to empty as default.
+			// Must provide as options to set it with the provided value.
+			IneligibleStatus: "",
+		}
 	}
 
 	var ownerGrants accesslist.Grants
@@ -91,23 +94,9 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	var memberCount *uint32
-	var memberListCount *uint32
 	if msg.Status != nil && msg.Status.MemberCount != nil {
 		memberCount = new(uint32)
 		*memberCount = *msg.Status.MemberCount
-	}
-	if msg.Status != nil && msg.Status.MemberListCount != nil {
-		memberListCount = new(uint32)
-		*memberListCount = *msg.Status.MemberListCount
-	}
-
-	var ownerOf []string
-	var memberOf []string
-	if msg.Status != nil && msg.Status.OwnerOf != nil {
-		ownerOf = msg.Status.OwnerOf
-	}
-	if msg.Status != nil && msg.Status.MemberOf != nil {
-		memberOf = msg.Status.MemberOf
 	}
 
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
@@ -137,10 +126,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		return nil, trace.Wrap(err)
 	}
 	accessList.Status = accesslist.Status{
-		MemberCount:     memberCount,
-		MemberListCount: memberListCount,
-		OwnerOf:         ownerOf,
-		MemberOf:        memberOf,
+		MemberCount: memberCount,
 	}
 
 	for _, opt := range opts {
@@ -154,7 +140,15 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	owners := make([]*accesslistv1.AccessListOwner, len(accessList.Spec.Owners))
 	for i, owner := range accessList.Spec.Owners {
-		owners[i] = ToOwnerProto(owner)
+		var ineligibleStatus accesslistv1.IneligibleStatus
+		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
+			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+		}
+		owners[i] = &accesslistv1.AccessListOwner{
+			Name:             owner.Name,
+			Description:      owner.Description,
+			IneligibleStatus: ineligibleStatus,
+		}
 	}
 
 	var ownerGrants *accesslistv1.AccessListGrants
@@ -179,23 +173,9 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	}
 
 	var memberCount *uint32
-	var memberListCount *uint32
 	if accessList.Status.MemberCount != nil {
 		memberCount = new(uint32)
 		*memberCount = *accessList.Status.MemberCount
-	}
-	if accessList.Status.MemberListCount != nil {
-		memberListCount = new(uint32)
-		*memberListCount = *accessList.Status.MemberListCount
-	}
-
-	var ownerOf []string
-	var memberOf []string
-	if accessList.Status.OwnerOf != nil {
-		ownerOf = accessList.Status.OwnerOf
-	}
-	if accessList.Status.MemberOf != nil {
-		memberOf = accessList.Status.MemberOf
 	}
 
 	return &accesslistv1.AccessList{
@@ -229,50 +209,8 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			OwnerGrants: ownerGrants,
 		},
 		Status: &accesslistv1.AccessListStatus{
-			MemberCount:     memberCount,
-			MemberListCount: memberListCount,
-			OwnerOf:         ownerOf,
-			MemberOf:        memberOf,
+			MemberCount: memberCount,
 		},
-	}
-}
-
-// ToOwnerProto converts an internal access list owner into a v1 access list owner object.
-func ToOwnerProto(owner accesslist.Owner) *accesslistv1.AccessListOwner {
-	var ineligibleStatus accesslistv1.IneligibleStatus
-	if owner.IneligibleStatus != "" {
-		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
-			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
-		}
-	} else {
-		ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED
-	}
-
-	var kind accesslistv1.MembershipKind
-	if enumVal, ok := accesslistv1.MembershipKind_value[owner.MembershipKind]; ok {
-		kind = accesslistv1.MembershipKind(enumVal)
-	}
-
-	return &accesslistv1.AccessListOwner{
-		Name:             owner.Name,
-		Description:      owner.Description,
-		IneligibleStatus: ineligibleStatus,
-		MembershipKind:   kind,
-	}
-}
-
-// FromOwnerProto converts a v1 access list owner into an internal access list owner object.
-func FromOwnerProto(protoOwner *accesslistv1.AccessListOwner) accesslist.Owner {
-	ineligibleStatus := ""
-	if protoOwner.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
-		ineligibleStatus = protoOwner.IneligibleStatus.String()
-	}
-
-	return accesslist.Owner{
-		Name:             protoOwner.Name,
-		Description:      protoOwner.Description,
-		IneligibleStatus: ineligibleStatus,
-		MembershipKind:   protoOwner.MembershipKind.String(),
 	}
 }
 

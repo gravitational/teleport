@@ -25,7 +25,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -46,7 +45,7 @@ type changePasswordReq struct {
 // changePassword updates users password based on the old password.
 func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req *changePasswordReq
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -92,9 +91,6 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 			Username: ctx.GetUser(),
 			Password: []byte(req.Pass),
 		}},
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
-		},
 	})
 	if err != nil && trace.IsAccessDenied(err) {
 		// logout in case of access denied
@@ -108,5 +104,5 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal, "" /*channelID*/), nil
+	return makeAuthenticateChallenge(chal), nil
 }

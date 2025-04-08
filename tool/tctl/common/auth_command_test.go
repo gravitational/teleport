@@ -39,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -399,7 +399,7 @@ type mockClient struct {
 	crl            []byte
 }
 
-func (c *mockClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 
@@ -499,7 +499,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		cas: []types.CertAuthority{dbCA},
 	}
 
-	keyRing, err := generateKeyRing(context.Background(), authClient, cryptosuites.DatabaseClient)
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -523,7 +523,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "postgres.example.com"},
 			outServerNames: []string{"postgres.example.com"},
 			wantFiles: map[string][]byte{
-				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"db.key": key.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -537,7 +537,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "mysql.external.net"},
 			outServerNames: []string{"mysql.external.net", "mysql.internal.net", "192.168.1.1"},
 			wantFiles: map[string][]byte{
-				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"db.key": key.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -551,7 +551,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "mongo.example.com", Organization: []string{"example.com"}},
 			outServerNames: []string{"mongo.example.com"},
 			wantFiles: map[string][]byte{
-				"mongo.crt": append(certBytes, keyRing.TLSPrivateKey.PrivateKeyPEM()...),
+				"mongo.crt": append(certBytes, key.PrivateKeyPEM()...),
 				"mongo.cas": dbClientCABytes,
 			},
 		},
@@ -563,7 +563,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "node"},
 			outServerNames: []string{"node", "localhost", "roach1"}, // "node" principal should always be added
 			wantFiles: map[string][]byte{
-				"node.key":      keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"node.key":      key.PrivateKeyPEM(),
 				"node.crt":      certBytes,
 				"ca.crt":        dbServerCABytes,
 				"ca-client.crt": dbClientCABytes,
@@ -578,7 +578,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "localhost"},
 			outServerNames: []string{"localhost", "redis1", "172.0.0.1"},
 			wantFiles: map[string][]byte{
-				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"db.key": key.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -603,7 +603,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 				genTTL:        time.Hour,
 			}
 
-			err = ac.generateDatabaseKeysForKeyRing(context.Background(), authClient, keyRing)
+			err = ac.generateDatabaseKeysForKey(context.Background(), authClient, key)
 			if test.genKeyErrMsg == "" {
 				require.NoError(t, err)
 			} else {

@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary, Flex, H2, Image, Text } from 'design';
+import React from 'react';
+
+import { ButtonPrimary, Flex, Image, Text } from 'design';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import shieldCheck from 'teleport/assets/shield-check.png';
-import { OnboardCard } from 'teleport/components/Onboard';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import { RegisterSuccessProps } from './types';
@@ -45,9 +47,14 @@ export function RegisterSuccess({
 
   return (
     <OnboardCard center>
-      <H2 mb={3} style={{ textTransform: 'capitalize' }}>
+      <Text
+        typography="h4"
+        color="text"
+        mb={3}
+        style={{ textTransform: 'capitalize' }}
+      >
         {actionTxt} successful
-      </H2>
+      </Text>
       <Flex justifyContent="center" mb={3}>
         <Image src={shieldCheck} width="200px" height="143px" />
       </Flex>

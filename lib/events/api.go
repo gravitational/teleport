@@ -205,8 +205,6 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
-	// AccessRequestExpirEvent is emitted when an access request expires.
-	AccessRequestExpireEvent = "access_request.expire"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestResourceSearch is emitted when a user searches for
@@ -290,8 +288,6 @@ const (
 	// SFTPEvent means a user attempted a file operation
 	SFTPEvent = "sftp"
 	SFTPPath  = "path"
-	// SFTPSummaryEvent is emitted at the end of an SFTP transfer.
-	SFTPSummaryEvent = "sftp_summary"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
@@ -847,17 +843,17 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
-	// ContactCreateEvent is emitted when a Contact resource is created.
-	ContactCreateEvent = "contact.create"
-	// ContactDeleteEvent is emitted when a Contact resource is deleted.
-	ContactDeleteEvent = "contact.delete"
-
 	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
 	WorkloadIdentityCreateEvent = "workload_identity.create"
 	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 
 	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is created.
@@ -868,38 +864,16 @@ const (
 	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is deleted.
 	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
-	// WorkloadIdentityX509IssuerOverrideCreateEvent is emitted when a
-	// workload_identity_x509_issuer_override is written.
-	WorkloadIdentityX509IssuerOverrideCreateEvent = "workload_identity_x509_issuer_override.create"
-	// WorkloadIdentityX509IssuerOverrideDeleteEvent is emitted when a
-	// workload_identity_x509_issuer_override is deleted.
-	WorkloadIdentityX509IssuerOverrideDeleteEvent = "workload_identity_x509_issuer_override.delete"
-
-	// GitCommandEvent is emitted when a Git command is executed.
-	GitCommandEvent = "git.command"
-
-	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
-	StableUNIXUserCreateEvent = "stable_unix_user.create"
-
-	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
-	// and reconciled to Teleport.
-	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
-	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
-	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
-
-	// HealthCheckConfigCreateEvent is emitted when a health check config
-	// resource is created.
-	HealthCheckConfigCreateEvent = "health_check_config.create"
-	// HealthCheckConfigUpdateEvent is emitted when a health check config
-	// resource is updated.
-	HealthCheckConfigUpdateEvent = "health_check_config.update"
-	// HealthCheckConfigDeleteEvent is emitted when a health check config
-	// resource is deleted.
-	HealthCheckConfigDeleteEvent = "health_check_config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
 // a new event name here.
+
+const (
+	// MaxChunkBytes defines the maximum size of a session stream chunk that
+	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB
+	MaxChunkBytes = 1024 * 1024 * 5
+)
 
 const (
 	// V1 is the V1 version of slice chunks API,
@@ -1083,6 +1057,19 @@ type AuditLogSessionStreamer interface {
 
 // SessionStreamer supports streaming session chunks or events.
 type SessionStreamer interface {
+	// GetSessionChunk returns a reader which can be used to read a byte stream
+	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
+	// beginning) up to maxBytes bytes.
+	//
+	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
+	GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
+
+	// Returns all events that happen during a session sorted by time
+	// (oldest first).
+	//
+	// after is used to return events after a specified cursor ID
+	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
+
 	// StreamSessionEvents streams all events from a given session recording. An
 	// error is returned on the first channel if one is encountered. Otherwise
 	// the event channel is closed when the stream ends. The event channel is

@@ -19,7 +19,6 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"reflect"
@@ -127,10 +126,7 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
-			logger.WarnContext(context.Background(), "Failed to get DatabaseAutoUserMode for database",
-				"database", database.GetName(),
-				"error", err,
-			)
+			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)
 			return ""
 		} else if !autoUser.IsEnabled() {
 			return ""
@@ -138,10 +134,7 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		roles, err := accessChecker.CheckDatabaseRoles(database, nil)
 		if err != nil {
-			logger.WarnContext(context.Background(), "Failed to CheckDatabaseRoles for database",
-				"database", database.GetName(),
-				"error", err,
-			)
+			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
 			return ""
 		}
 		return fmt.Sprintf("%v", roles)

@@ -18,6 +18,8 @@
 
 import { debounce } from 'shared/utils/highbar';
 
+import { parseDeepLink } from 'teleterm/deepLinks';
+import Logger from 'teleterm/logger';
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
 import {
@@ -28,6 +30,7 @@ import {
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
+import { DeepLinksService } from 'teleterm/ui/services/deepLinks';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
@@ -46,6 +49,7 @@ import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
 
 export default class AppContext implements IAppContext {
+  private logger: Logger;
   clustersService: ClustersService;
   modalsService: ModalsService;
   notificationsService: NotificationsService;
@@ -78,12 +82,14 @@ export default class AppContext implements IAppContext {
   usageService: UsageService;
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
+  deepLinksService: DeepLinksService;
   private _unexpectedVnetShutdownListener:
     | UnexpectedVnetShutdownListener
     | undefined;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
+    this.logger = new Logger('AppContext');
     this.tshd = tshClient;
     this.vnet = config.vnetClient;
     this.setupTshdEventContextBridgeService =
@@ -154,6 +160,13 @@ export default class AppContext implements IAppContext {
       tshClient,
       this.configService
     );
+    this.deepLinksService = new DeepLinksService(
+      this.mainProcessClient.getRuntimeSettings(),
+      this.clustersService,
+      this.workspacesService,
+      this.modalsService,
+      this.notificationsService
+    );
   }
 
   async pullInitialState(): Promise<void> {
@@ -161,6 +174,7 @@ export default class AppContext implements IAppContext {
       createTshdEventsContextBridgeService(this)
     );
 
+    this.subscribeToDeepLinkLaunch();
     this.notifyMainProcessAboutClusterListChanges();
     void this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
@@ -196,6 +210,23 @@ export default class AppContext implements IAppContext {
   // directly on appContext, we use a getter which exposes a private property.
   get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
     return this._unexpectedVnetShutdownListener;
+  }
+
+  private subscribeToDeepLinkLaunch() {
+    this.mainProcessClient.subscribeToDeepLinkLaunch(result => {
+      this.deepLinksService.launchDeepLink(result).catch(error => {
+        this.logger.error('Error when launching a deep link', error);
+      });
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      window['deepLinkLaunch'] = (url: string) => {
+        const result = parseDeepLink(url);
+        this.deepLinksService.launchDeepLink(result).catch(error => {
+          this.logger.error('Error when launching a deep link', error);
+        });
+      };
+    }
   }
 
   private notifyMainProcessAboutClusterListChanges() {

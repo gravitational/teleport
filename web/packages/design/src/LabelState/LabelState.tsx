@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import {
@@ -100,7 +101,7 @@ const LabelState = styled.span<LabelStateProps>`
   min-height: 16px;
   line-height: 1.4;
   padding: 0 8px;
-  font-size: ${props => props.theme.fontSizes[0]}px;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
   ${space}
@@ -109,20 +110,13 @@ const LabelState = styled.span<LabelStateProps>`
   ${color}
   ${fontSize}
 `;
+LabelState.defaultProps = {
+  fontSize: 0,
+  shadow: false,
+};
 
 export default LabelState;
-
-type LabelStatePropsWithoutKind = Omit<LabelStateProps, 'kind'>;
-
-export const StateDanger = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="danger" {...props} />
-);
-export const StateInfo = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="secondary" {...props} />
-);
-export const StateWarning = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="warning" {...props} />
-);
-export const StateSuccess = (props: LabelStatePropsWithoutKind) => (
-  <LabelState kind="success" {...props} />
-);
+export const StateDanger = props => <LabelState kind="danger" {...props} />;
+export const StateInfo = props => <LabelState kind="secondary" {...props} />;
+export const StateWarning = props => <LabelState kind="warning" {...props} />;
+export const StateSuccess = props => <LabelState kind="success" {...props} />;

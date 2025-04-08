@@ -7,9 +7,6 @@ description: This page describes the supported values of the teleport_provision_
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
-This page describes the supported values of the teleport_provision_token resource of the Teleport Terraform provider.
-
-
 
 
 ## Example Usage
@@ -80,7 +77,6 @@ Optional:
 - `gitlab` (Attributes) GitLab allows the configuration of options specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
 - `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
 - `kubernetes` (Attributes) Kubernetes allows the configuration of options specific to the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
-- `oracle` (Attributes) Oracle allows the configuration of options specific to the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
 - `spacelift` (Attributes) Spacelift allows the configuration of options specific to the "spacelift" join method. (see [below for nested schema](#nested-schema-for-specspacelift))
 - `suggested_agent_matcher_labels` (Map of List of String) SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.
 - `suggested_labels` (Map of List of String) SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.
@@ -241,22 +237,6 @@ Optional:
 
 
 
-### Nested Schema for `spec.oracle`
-
-Optional:
-
-- `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specoracleallow))
-
-### Nested Schema for `spec.oracle.allow`
-
-Optional:
-
-- `parent_compartments` (List of String) ParentCompartments is a list of the OCIDs of compartments an instance is allowed to join from. Only direct parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
-- `regions` (List of String) Regions is a list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1") and abbreviations ("phx") are allowed. If empty, any region is allowed.
-- `tenancy` (String) Tenancy is the OCID of the instance's tenancy. Required.
-
-
-
 ### Nested Schema for `spec.spacelift`
 
 Optional:
@@ -323,3 +303,4 @@ Optional:
 - `expires` (String) Expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) Labels is a set of labels
 - `name` (String, Sensitive) Name is an object name
+

@@ -20,8 +20,8 @@ package controller
 
 import (
 	"context"
+	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/distribution/reference"
 	"github.com/gravitational/trace"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,7 +44,7 @@ type VersionUpdater struct {
 // validating the new image signature.
 // If all steps are successfully executed and there's a new version, it returns
 // a digested reference to the new image that should be deployed.
-func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, currentVersion *semver.Version) (img.NamedTaggedDigested, error) {
+func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, currentVersion string) (img.NamedTaggedDigested, error) {
 	// Those are debug logs only
 	log := ctrllog.FromContext(ctx).V(1)
 
@@ -68,7 +68,7 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 
 	log.Info("Version change is valid, building img candidate")
 	// We tag our img candidate with the version
-	image, err := reference.WithTag(r.baseImage, nextVersion.String())
+	image, err := reference.WithTag(r.baseImage, strings.TrimPrefix(nextVersion, "v"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

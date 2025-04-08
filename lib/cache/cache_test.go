@@ -21,7 +21,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"slices"
 	"strconv"
@@ -34,8 +33,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -48,15 +49,11 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -107,7 +104,7 @@ type testPack struct {
 	eventsS        *proxyEvents
 	trustS         services.Trust
 	provisionerS   services.Provisioner
-	clusterConfigS services.ClusterConfigurationInternal
+	clusterConfigS services.ClusterConfiguration
 
 	usersS                  services.UsersService
 	accessS                 services.Access
@@ -124,7 +121,6 @@ type testPack struct {
 	webSessionS             types.WebSessionInterface
 	webTokenS               types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
-	dynamicWindowsDesktops  services.DynamicWindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
 	okta                    services.Okta
@@ -142,23 +138,18 @@ type testPack struct {
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
 	autoUpdateService       services.AutoUpdateService
-	provisioningStates      services.ProvisioningStates
-	identityCenter          services.IdentityCenter
-	pluginStaticCredentials *local.PluginStaticCredentialsService
-	gitServers              services.GitServers
 	workloadIdentity        *local.WorkloadIdentityService
 }
 
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T types.Resource] struct {
-	newResource    func(string) (T, error)
-	create         func(context.Context, T) error
-	list           func(context.Context) ([]T, error)
-	cacheGet       func(context.Context, string) (T, error)
-	cacheList      func(context.Context) ([]T, error)
-	update         func(context.Context, T) error
-	deleteAll      func(context.Context) error
-	changeResource func(T)
+	newResource func(string) (T, error)
+	create      func(context.Context, T) error
+	list        func(context.Context) ([]T, error)
+	cacheGet    func(context.Context, string) (T, error)
+	cacheList   func(context.Context) ([]T, error)
+	update      func(context.Context, T) error
+	deleteAll   func(context.Context) error
 }
 
 // testFuncs153 are functions to support testing an RFD153-style resource in a cache.
@@ -182,12 +173,16 @@ func (t *testPack) Close() {
 		errors = append(errors, t.cache.Close())
 	}
 	if err := trace.NewAggregate(errors...); err != nil {
-		slog.WarnContext(context.Background(), "Failed to close", "error", err)
+		log.Warningf("Failed to close %v", err)
 	}
 }
 
 func newPackForAuth(t *testing.T) *testPack {
 	return newTestPack(t, ForAuth)
+}
+
+func newPackForProxy(t *testing.T) *testPack {
+	return newTestPack(t, ForProxy)
 }
 
 func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
@@ -268,15 +263,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	idService, err := local.NewTestIdentityService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dynamicWindowsDesktopService, err := local.NewDynamicWindowsDesktopService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	idService := local.NewTestIdentityService(p.backend)
 
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
@@ -297,7 +284,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
-	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -399,28 +385,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	p.provisioningStates, err = local.NewProvisioningStateService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	p.identityCenter, err = local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: p.backend,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	p.pluginStaticCredentials, err = local.NewPluginStaticCredentialsService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	p.gitServers, err = local.NewGitServerService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return p, nil
 }
 
@@ -454,7 +418,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -472,10 +435,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		DatabaseObjects:         p.databaseObjects,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStates,
-		IdentityCenter:          p.identityCenter,
-		PluginStaticCredentials: p.pluginStaticCredentials,
-		GitServers:              p.gitServers,
 		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -687,7 +646,6 @@ func TestNodeCAFiltering(t *testing.T) {
 		WebSession:              p.cache.webSessionCache,
 		WebToken:                p.cache.webTokenCache,
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
-		DynamicWindowsDesktops:  p.cache.dynamicWindowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		StaticHostUsers:         p.staticHostUsers,
@@ -869,7 +827,6 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseServices:        p.databaseServices,
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
-			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
@@ -887,13 +844,9 @@ func TestCompletenessInit(t *testing.T) {
 			SPIFFEFederations:       p.spiffeFederations,
 			StaticHostUsers:         p.staticHostUsers,
 			AutoUpdateService:       p.autoUpdateService,
-			ProvisioningStates:      p.provisioningStates,
 			WorkloadIdentity:        p.workloadIdentity,
 			MaxRetryPeriod:          200 * time.Millisecond,
-			IdentityCenter:          p.identityCenter,
-			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
-			GitServers:              p.gitServers,
 		}))
 		require.NoError(t, err)
 
@@ -956,7 +909,6 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -974,13 +926,9 @@ func TestCompletenessReset(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStates,
-		IdentityCenter:          p.identityCenter,
-		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1063,7 +1011,9 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 		}
 	}
 
-	for b.Loop() {
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
 		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 		require.Len(b, nodes, nodeCount)
@@ -1109,7 +1059,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
 		for _, totalCount := range []bool{true, false} {
 			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
-				for b.Loop() {
+				for n := 0; n < b.N; n++ {
 					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
 						ResourceType: types.KindNode,
 						Namespace:    apidefaults.Namespace,
@@ -1167,7 +1117,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1185,14 +1134,10 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStates,
-		IdentityCenter:          p.identityCenter,
-		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
-		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1265,7 +1210,6 @@ func initStrategy(t *testing.T) {
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
-		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1283,13 +1227,9 @@ func initStrategy(t *testing.T) {
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
 		AutoUpdateService:       p.autoUpdateService,
-		ProvisioningStates:      p.provisioningStates,
-		IdentityCenter:          p.identityCenter,
-		PluginStaticCredentials: p.pluginStaticCredentials,
 		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		GitServers:              p.gitServers,
 	}))
 	require.NoError(t, err)
 
@@ -1576,7 +1516,6 @@ func TestClusterAuditConfig(t *testing.T) {
 
 func TestClusterName(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
@@ -1596,10 +1535,70 @@ func TestClusterName(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	outName, err := p.cache.GetClusterName(ctx)
+	outName, err := p.cache.GetClusterName()
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+// TestNamespaces tests caching of namespaces
+func TestNamespaces(t *testing.T) {
+	t.Parallel()
+
+	p := newPackForProxy(t)
+	t.Cleanup(p.Close)
+
+	v, err := types.NewNamespace("universe")
+	require.NoError(t, err)
+	ns := &v
+	err = p.presenceS.UpsertNamespace(*ns)
+	require.NoError(t, err)
+
+	ns, err = p.presenceS.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	out, err := p.cache.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// update namespace metadata
+	ns.Metadata.Labels = map[string]string{"a": "b"}
+	require.NoError(t, err)
+	err = p.presenceS.UpsertNamespace(*ns)
+	require.NoError(t, err)
+
+	ns, err = p.presenceS.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetNamespace(ns.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ns, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = p.presenceS.DeleteNamespace(ns.GetName())
+	require.NoError(t, err)
+
+	select {
+	case <-p.eventsC:
+	case <-time.After(time.Second):
+		t.Fatalf("timeout waiting for event")
+	}
+
+	_, err = p.cache.GetNamespace(ns.GetName())
+	require.True(t, trace.IsNotFound(err))
 }
 
 // TestUsers tests caching of users
@@ -1666,6 +1665,32 @@ func TestRoles(t *testing.T) {
 		},
 		deleteAll: func(ctx context.Context) error {
 			return p.accessS.DeleteAllRoles(ctx)
+		},
+	})
+}
+
+// TestReverseTunnels tests reverse tunnels caching
+func TestReverseTunnels(t *testing.T) {
+	t.Parallel()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.ReverseTunnel]{
+		newResource: func(name string) (types.ReverseTunnel, error) {
+			return types.NewReverseTunnel(name, []string{"example.com:2023"})
+		},
+		create: modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
+			return p.presenceS.GetReverseTunnels(ctx)
+		},
+		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
+			return p.cache.GetReverseTunnels(ctx)
+		},
+		update: modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllReverseTunnels()
 		},
 	})
 }
@@ -2294,11 +2319,11 @@ func TestUserTasks(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		cacheList: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
 		deleteAll: p.userTasks.DeleteAllUserTasks,
@@ -2559,17 +2584,16 @@ func TestAccessListMembers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	count, listCount, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
+	count, err := p.accessLists.CountAccessListMembers(ctx, al.GetName())
 	require.NoError(t, err)
 	require.Equal(t, uint32(40), count)
-	require.Equal(t, uint32(0), listCount)
 
 	// Eventually, this should be reflected in the cache.
 	require.Eventually(t, func() bool {
 		// Make sure the cache has a single resource in it.
-		count, listCount, err := p.cache.CountAccessListMembers(ctx, al.GetName())
+		count, err := p.cache.CountAccessListMembers(ctx, al.GetName())
 		assert.NoError(t, err)
-		return count == uint32(40) && listCount == uint32(0)
+		return count == uint32(40)
 	}, time.Second*2, time.Millisecond*250)
 }
 
@@ -2899,20 +2923,10 @@ func TestStaticHostUsers(t *testing.T) {
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
-	if funcs.changeResource == nil {
-		funcs.changeResource = func(t T) {
-			if t.Expiry().IsZero() {
-				t.SetExpiry(time.Now().Add(30 * time.Minute))
-			} else {
-				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
-			}
-		}
-	}
-
 	// Create a resource.
 	r, err := funcs.newResource("test-sp")
 	require.NoError(t, err)
-	funcs.changeResource(r)
+	r.SetExpiry(time.Now().Add(30 * time.Minute))
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
@@ -2946,7 +2960,7 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
 		// Update the resource and upsert it into the backend again.
-		funcs.changeResource(r)
+		r.SetExpiry(r.Expiry().Add(30 * time.Minute))
 		err = funcs.update(ctx, r)
 		require.NoError(t, err)
 	}
@@ -3001,18 +3015,8 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			out, err := funcs.cacheList(ctx)
 			assert.NoError(collect, err)
-
-			// If the cache is expected to be empty, then test explicitly for
-			// *that* rather than do an equality test. An equality test here
-			// would be overly-pedantic about a service returning `nil` rather
-			// than an empty slice.
-			if len(expected) == 0 {
-				assert.Empty(collect, out)
-				return
-			}
-
 			assert.Empty(collect, cmp.Diff(expected, out, cmpOpts...))
-		}, 2*time.Second, 10*time.Millisecond)
+		}, 2*time.Second, 250*time.Millisecond)
 	}
 
 	// Check that the resource is now in the backend.
@@ -3217,6 +3221,7 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 		c.Clock = clock
 		c.target = "llama"
 		c.Watches = []types.WatchKind{
+			{Kind: types.KindNamespace},
 			{Kind: types.KindNode},
 			{Kind: types.KindCertAuthority},
 		}
@@ -3435,77 +3440,70 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 	}
 
 	events := map[string]types.Resource{
-		types.KindCertAuthority:                     &types.CertAuthorityV2{},
-		types.KindClusterName:                       &types.ClusterNameV2{},
-		types.KindClusterAuditConfig:                types.DefaultClusterAuditConfig(),
-		types.KindClusterNetworkingConfig:           types.DefaultClusterNetworkingConfig(),
-		types.KindClusterAuthPreference:             types.DefaultAuthPreference(),
-		types.KindSessionRecordingConfig:            types.DefaultSessionRecordingConfig(),
-		types.KindUIConfig:                          &types.UIConfigV1{},
-		types.KindStaticTokens:                      &types.StaticTokensV2{},
-		types.KindToken:                             &types.ProvisionTokenV2{},
-		types.KindUser:                              &types.UserV2{},
-		types.KindRole:                              &types.RoleV6{Version: types.V4},
-		types.KindNamespace:                         &types.Namespace{},
-		types.KindNode:                              &types.ServerV2{},
-		types.KindProxy:                             &types.ServerV2{},
-		types.KindAuthServer:                        &types.ServerV2{},
-		types.KindReverseTunnel:                     &types.ReverseTunnelV2{},
-		types.KindTunnelConnection:                  &types.TunnelConnectionV2{},
-		types.KindAccessRequest:                     &types.AccessRequestV3{},
-		types.KindAppServer:                         &types.AppServerV3{},
-		types.KindApp:                               &types.AppV3{},
-		types.KindWebSession:                        &types.WebSessionV2{SubKind: types.KindWebSession},
-		types.KindAppSession:                        &types.WebSessionV2{SubKind: types.KindAppSession},
-		types.KindSnowflakeSession:                  &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
-		types.KindSAMLIdPSession:                    &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
-		types.KindWebToken:                          &types.WebTokenV3{},
-		types.KindRemoteCluster:                     &types.RemoteClusterV3{},
-		types.KindKubeServer:                        &types.KubernetesServerV3{},
-		types.KindDatabaseService:                   &types.DatabaseServiceV1{},
-		types.KindDatabaseServer:                    &types.DatabaseServerV3{},
-		types.KindDatabase:                          &types.DatabaseV3{},
-		types.KindNetworkRestrictions:               &types.NetworkRestrictionsV4{},
-		types.KindLock:                              &types.LockV2{},
-		types.KindWindowsDesktopService:             &types.WindowsDesktopServiceV3{},
-		types.KindWindowsDesktop:                    &types.WindowsDesktopV3{},
-		types.KindDynamicWindowsDesktop:             &types.DynamicWindowsDesktopV1{},
-		types.KindInstaller:                         &types.InstallerV1{},
-		types.KindKubernetesCluster:                 &types.KubernetesClusterV3{},
-		types.KindSAMLIdPServiceProvider:            &types.SAMLIdPServiceProviderV1{},
-		types.KindUserGroup:                         &types.UserGroupV1{},
-		types.KindOktaImportRule:                    &types.OktaImportRuleV1{},
-		types.KindOktaAssignment:                    &types.OktaAssignmentV1{},
-		types.KindIntegration:                       &types.IntegrationV1{},
-		types.KindDiscoveryConfig:                   newDiscoveryConfig(t, "discovery-config"),
-		types.KindHeadlessAuthentication:            &types.HeadlessAuthentication{},
-		types.KindUserLoginState:                    newUserLoginState(t, "user-login-state"),
-		types.KindAuditQuery:                        newAuditQuery(t, "audit-query"),
-		types.KindSecurityReport:                    newSecurityReport(t, "security-report"),
-		types.KindSecurityReportState:               newSecurityReport(t, "security-report-state"),
-		types.KindAccessList:                        newAccessList(t, "access-list", clock),
-		types.KindAccessListMember:                  newAccessListMember(t, "access-list", "member"),
-		types.KindAccessListReview:                  newAccessListReview(t, "access-list", "review"),
-		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
-		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
-		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
-		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
-		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
-		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
-		types.KindSPIFFEFederation:                  types.Resource153ToLegacy(newSPIFFEFederation("test")),
-		types.KindStaticHostUser:                    types.Resource153ToLegacy(newStaticHostUser(t, "test")),
-		types.KindAutoUpdateConfig:                  types.Resource153ToLegacy(newAutoUpdateConfig(t)),
-		types.KindAutoUpdateVersion:                 types.Resource153ToLegacy(newAutoUpdateVersion(t)),
-		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
-		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
-		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
-		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
-		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
-		types.KindIdentityCenterPrincipalAssignment: types.Resource153ToLegacy(newIdentityCenterPrincipalAssignment("some_principal_assignment")),
-		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
-		types.KindGitServer:                         &types.ServerV2{},
-		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
+		types.KindCertAuthority:           &types.CertAuthorityV2{},
+		types.KindClusterName:             &types.ClusterNameV2{},
+		types.KindClusterAuditConfig:      types.DefaultClusterAuditConfig(),
+		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
+		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
+		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		types.KindUIConfig:                &types.UIConfigV1{},
+		types.KindStaticTokens:            &types.StaticTokensV2{},
+		types.KindToken:                   &types.ProvisionTokenV2{},
+		types.KindUser:                    &types.UserV2{},
+		types.KindRole:                    &types.RoleV6{Version: types.V4},
+		types.KindNamespace:               &types.Namespace{},
+		types.KindNode:                    &types.ServerV2{},
+		types.KindProxy:                   &types.ServerV2{},
+		types.KindAuthServer:              &types.ServerV2{},
+		types.KindReverseTunnel:           &types.ReverseTunnelV2{},
+		types.KindTunnelConnection:        &types.TunnelConnectionV2{},
+		types.KindAccessRequest:           &types.AccessRequestV3{},
+		types.KindAppServer:               &types.AppServerV3{},
+		types.KindApp:                     &types.AppV3{},
+		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
+		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
+		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindSAMLIdPSession:          &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
+		types.KindWebToken:                &types.WebTokenV3{},
+		types.KindRemoteCluster:           &types.RemoteClusterV3{},
+		types.KindKubeServer:              &types.KubernetesServerV3{},
+		types.KindDatabaseService:         &types.DatabaseServiceV1{},
+		types.KindDatabaseServer:          &types.DatabaseServerV3{},
+		types.KindDatabase:                &types.DatabaseV3{},
+		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
+		types.KindLock:                    &types.LockV2{},
+		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
+		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+		types.KindInstaller:               &types.InstallerV1{},
+		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
+		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
+		types.KindUserGroup:               &types.UserGroupV1{},
+		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
+		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
+		types.KindIntegration:             &types.IntegrationV1{},
+		types.KindDiscoveryConfig:         newDiscoveryConfig(t, "discovery-config"),
+		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
+		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
+		types.KindAuditQuery:              newAuditQuery(t, "audit-query"),
+		types.KindSecurityReport:          newSecurityReport(t, "security-report"),
+		types.KindSecurityReportState:     newSecurityReport(t, "security-report-state"),
+		types.KindAccessList:              newAccessList(t, "access-list", clock),
+		types.KindAccessListMember:        newAccessListMember(t, "access-list", "member"),
+		types.KindAccessListReview:        newAccessListReview(t, "access-list", "review"),
+		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
+		types.KindNotification:            types.Resource153ToLegacy(newUserNotification(t, "test")),
+		types.KindGlobalNotification:      types.Resource153ToLegacy(newGlobalNotification(t, "test")),
+		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
+		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
+		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
+		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
+		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
+		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t)),
+		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
+		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindAutoUpdateAgentRollout:  types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
+		types.KindWorkloadIdentity:        types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 	}
 
 	for name, cfg := range cases {
@@ -3524,43 +3522,19 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				require.NoError(t, err)
 
 				// unwrap the RFD 153 resource if necessary
-				switch uw := event.Resource.(type) {
-				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*identitycenterv1.Account]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.Account]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*provisioningv1.PrincipalState]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*provisioningv1.PrincipalState]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*usertasksv1.UserTask]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*usertasksv1.UserTask]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*notificationsv1.Notification]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.Notification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				switch r := resource.(type) {
+				case types.Resource153Unwrapper:
+					eventResource, ok := event.Resource.(types.Resource153Unwrapper)
+					require.True(t, ok)
+
+					// if the resource is a protobuf message, pass an option so
+					// attempting to compare the messages does not result in a panic
+					switch r := r.Unwrap().(type) {
+					case protobuf.Message:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
+					default:
+						require.Empty(t, cmp.Diff(r, eventResource.Unwrap()))
+					}
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

@@ -17,7 +17,6 @@
 package tbot
 
 import (
-	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -99,7 +98,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 		return trace.Wrap(err, "getting CRL set from cache")
 	}
 
-	jitter := retryutils.DefaultJitter
+	jitter := retryutils.NewJitter()
 	var x509Cred *workloadidentityv1pb.Credential
 	var privateKey crypto.Signer
 	var failures int
@@ -146,7 +145,7 @@ func (s *WorkloadIdentityX509Service) Run(ctx context.Context) error {
 			}
 			crlSet = newCRLSet
 			s.log.DebugContext(ctx, "CRL set has been updated, will regenerate output")
-		case <-time.After(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval):
+		case <-time.After(s.botCfg.RenewalInterval):
 			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
 			x509Cred = nil
 			privateKey = nil
@@ -191,20 +190,19 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		return nil, nil, trace.Wrap(err, "fetching roles")
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		effectiveLifetime.TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, s.botCfg.CertificateTTL, s.botCfg.RenewalInterval)
 
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
@@ -220,7 +218,7 @@ func (s *WorkloadIdentityX509Service) requestSVID(
 		s.log,
 		impersonatedClient,
 		s.cfg.Selector,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {

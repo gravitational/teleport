@@ -21,12 +21,12 @@ package srv
 import (
 	"context"
 	"io"
-	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -76,7 +76,7 @@ type SessionControllerConfig struct {
 	// have different flows
 	Component string
 	// Logger is used to emit log entries
-	Logger *slog.Logger
+	Logger *logrus.Entry
 	// TracerProvider creates a tracer so that spans may be emitted
 	TracerProvider oteltrace.TracerProvider
 	// ServerID is the UUID of the server
@@ -115,7 +115,7 @@ func (c *SessionControllerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "SessionCtrl")
+		c.Logger = logrus.WithField(teleport.ComponentKey, "SessionCtrl")
 	}
 
 	if c.Clock == nil {
@@ -202,7 +202,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cfg.AccessPoint.GetClusterName(ctx)
+	clusterName, err := s.cfg.AccessPoint.GetClusterName()
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
@@ -231,7 +231,7 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	}
 
 	// Device Trust: authorize device extensions.
-	if err := dtauthz.VerifySSHUser(ctx, authPref.GetDeviceTrust(), identity.UnmappedIdentity); err != nil {
+	if err := dtauthz.VerifySSHUser(authPref.GetDeviceTrust(), identity.UnmappedIdentity); err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
@@ -337,6 +337,6 @@ func (s *SessionController) emitRejection(ctx context.Context, userMetadata apie
 		Reason:  reason,
 		Maximum: max,
 	}); err != nil {
-		s.cfg.Logger.WarnContext(ctx, "Failed to emit session reject event", "error", err)
+		s.cfg.Logger.WithError(err).Warn("Failed to emit session reject event.")
 	}
 }

@@ -22,7 +22,6 @@ import styled from 'styled-components';
 import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
-import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
 import {
@@ -521,7 +520,7 @@ type SearchResultItem<T> = {
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   return (
     <IconAndContent Icon={icons.Lan} iconColor="text.slightlyMuted">
-      <Text typography="body2">
+      <Text typography="body1">
         Search only in{' '}
         <strong>
           <Highlight
@@ -543,7 +542,7 @@ function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
         flexWrap="wrap"
         gap={1}
       >
-        <Text typography="body2">
+        <Text typography="body1">
           Display {props.searchResult.value ? 'search' : 'all'} results{' '}
           {props.searchResult.value && (
             <>
@@ -561,7 +560,7 @@ function DisplayResultsItem(props: SearchResultItem<DisplayResults>) {
             : ' in a new tab'}
         </Text>
         <Box ml="auto">
-          <Text typography="body4">
+          <Text typography="body2" fontSize={0}>
             {props.getOptionalClusterName(props.searchResult.clusterUri)}
           </Text>
         </Box>
@@ -592,7 +591,7 @@ function ResourceTypeFilterItem(
       Icon={resourceIcons[props.searchResult.resource]}
       iconColor="text.slightlyMuted"
     >
-      <Text typography="body2">
+      <Text typography="body1">
         Search for{' '}
         <strong>
           <Highlight
@@ -624,7 +623,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
         flexWrap="wrap"
         gap={1}
       >
-        <Text typography="body2">
+        <Text typography="body1">
           {props.searchResult.requiresRequest
             ? 'Request access to server '
             : 'Connect over SSH to '}
@@ -633,7 +632,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
           </strong>
         </Text>
         <Box ml="auto">
-          <Text typography="body4">
+          <Text typography="body2" fontSize={0}>
             {props.getOptionalClusterName(server.uri)}
           </Text>
         </Box>
@@ -704,7 +703,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
         flexWrap="wrap"
         gap={1}
       >
-        <Text typography="body2">
+        <Text typography="body1">
           {props.searchResult.requiresRequest
             ? 'Request access to db '
             : 'Set up a db connection to '}
@@ -713,7 +712,9 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
           </strong>
         </Text>
         <Box ml="auto">
-          <Text typography="body4">{props.getOptionalClusterName(db.uri)}</Text>
+          <Text typography="body2" fontSize={0}>
+            {props.getOptionalClusterName(db.uri)}
+          </Text>
         </Box>
       </Flex>
 
@@ -785,7 +786,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
         flexWrap="wrap"
         gap={1}
       >
-        <Text typography="body2">
+        <Text typography="body1">
           {getAppItemCopy(
             $appName,
             app,
@@ -794,7 +795,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
           )}
         </Text>
         <Box ml="auto">
-          <Text typography="body4">
+          <Text typography="body2" fontSize={0}>
             {props.getOptionalClusterName(app.uri)}
           </Text>
         </Box>
@@ -817,7 +818,7 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
 
 function getAppItemCopy(
   $appName: React.JSX.Element,
-  app: App,
+  app: tsh.App,
   requiresRequest: boolean,
   isVnetSupported: boolean
 ) {
@@ -853,7 +854,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
         flexWrap="wrap"
         gap={1}
       >
-        <Text typography="body2">
+        <Text typography="body1">
           {props.searchResult.requiresRequest
             ? 'Request access to Kubernetes cluster '
             : 'Log in to Kubernetes cluster '}
@@ -862,7 +863,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
           </strong>
         </Text>
         <Box ml="auto">
-          <Text typography="body4">
+          <Text typography="body2" fontSize={0}>
             {props.getOptionalClusterName(searchResult.resource.uri)}
           </Text>
         </Box>
@@ -898,9 +899,9 @@ export function NoResultsItem(props: {
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
         <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
-          <Text typography="body2">No matching results found.</Text>
+          <Text typography="body1">No matching results found.</Text>
         </ContentAndAdvancedSearch>
-        {expiredCertsCopy && <Text typography="body3">{expiredCertsCopy}</Text>}
+        {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </IconAndContent>
     </NonInteractiveItem>
   );
@@ -916,7 +917,7 @@ export function TypeToSearchItem({
   return (
     <NonInteractiveItem>
       <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
-        <Text typography="body3">
+        <Text typography="body2">
           Enter space-separated search terms.
           {hasNoRemainingFilterActions ||
             ' Select a filter to narrow down the search.'}
@@ -934,7 +935,7 @@ export function AdvancedSearchEnabledItem({
   return (
     <NonInteractiveItem>
       <ContentAndAdvancedSearch advancedSearch={advancedSearch}>
-        <Text typography="body3">
+        <Text typography="body2">
           Enter the query using the predicate language. Inline results are not
           available in this mode.
         </Text>
@@ -969,7 +970,7 @@ export function ResourceSearchErrorsItem(props: {
     <NonInteractiveItem>
       <IconAndContent Icon={icons.Warning} iconColor="warning.main">
         <ContentAndAdvancedSearch advancedSearch={props.advancedSearch}>
-          <Text typography="body2">
+          <Text typography="body1">
             Some of the search results are incomplete.
           </Text>
         </ContentAndAdvancedSearch>
@@ -982,7 +983,7 @@ export function ResourceSearchErrorsItem(props: {
               overflow: hidden;
             `}
           >
-            <Text typography="body3">{shortDescription}</Text>
+            <Text typography="body2">{shortDescription}</Text>
           </span>
 
           <ButtonBorder
@@ -1125,7 +1126,7 @@ function FilterButton(props: { text: string; onClick(): void }) {
           cursor: pointer;
           border-radius: ${props => props.theme.radii[1]}px;
 
-          &:hover {
+          :hover {
             background: ${props => props.theme.colors.spotBackground[1]};
           }
 

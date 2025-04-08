@@ -37,6 +37,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,6 +61,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -146,10 +148,10 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 	cluster := meta.GetClusterName()
 	kubeCluster := meta.GetKubeCluster()
-	var k *client.KeyRing
+	var k *client.Key
 
 	// Try loading existing keys.
-	k, err = tc.LocalAgent().GetKeyRing(cluster, client.WithKubeCerts{})
+	k, err = tc.LocalAgent().GetKey(cluster, client.WithKubeCerts{})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -162,7 +164,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for kubernetes cluster", "cluster", kubeCluster)
+			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
@@ -179,7 +181,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			}
 
 			// Cache the new cert on disk for reuse.
-			if err := tc.LocalAgent().AddKubeKeyRing(k); err != nil {
+			if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -231,7 +233,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 				return authClientCloser{ClientI: auth, clusterClient: clt}, nil
 			},
-			Ceremony: tc.NewMFACeremony(),
+			Ceremony: tc.NewMFAPrompt(mfa.WithQuiet()),
 			Stdin:    tc.Config.Stdin,
 			Stdout:   tc.Config.Stdout,
 			Stderr:   tc.Config.Stderr,
@@ -472,9 +474,7 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	}
 
 	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
-	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
-	// kube-namespace exists for backwards compatibility.
-	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
 	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
 	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
@@ -628,7 +628,7 @@ func takeKubeCredLock(ctx context.Context, homePath, proxy string, lockTimeout t
 	// If kube credentials lockfile already exists, it means last time kube credentials was called
 	// we had an error while trying to issue certificate, return an error asking user to login manually.
 	if _, err := os.Stat(kubeCredLockfilePath); err == nil {
-		logger.DebugContext(ctx, "Kube credentials lock file was found, aborting", "lock_file", kubeCredLockfilePath)
+		log.Debugf("Kube credentials lockfile was found at %q, aborting.", kubeCredLockfilePath)
 		return nil, trace.Wrap(errKubeCredLockfileFound)
 	}
 
@@ -638,7 +638,7 @@ func takeKubeCredLock(ctx context.Context, homePath, proxy string, lockTimeout t
 	// Take a lock while we're trying to issue certificate and possibly relogin
 	unlock, err := utils.FSTryWriteLockTimeout(ctx, kubeCredLockfilePath, lockTimeout)
 	if err != nil {
-		logger.DebugContext(ctx, "could not take kube credentials lock", "error", err)
+		log.Debugf("could not take kube credentials lock: %v", err.Error())
 		return nil, trace.Wrap(errKubeCredLockfileFound)
 	}
 
@@ -646,17 +646,14 @@ func takeKubeCredLock(ctx context.Context, homePath, proxy string, lockTimeout t
 		// We must unlock the lockfile before removing it, otherwise unlock operation will fail
 		// on Windows.
 		if err := unlock(); err != nil {
-			logger.WarnContext(ctx, "could not unlock kube credentials lock", "error", err)
+			log.WithError(err).Warnf("could not unlock kube credentials lock")
 		}
 		if !removeFile {
 			return
 		}
 		// Remove kube credentials lockfile.
 		if err = os.Remove(kubeCredLockfilePath); err != nil && !os.IsNotExist(err) {
-			logger.WarnContext(ctx, "could not remove kube credentials lock file",
-				"lock_file", kubeCredLockfilePath,
-				"error", err,
-			)
+			log.WithError(err).Warnf("could not remove kube credentials lockfile %q", kubeCredLockfilePath)
 		}
 	}, nil
 }
@@ -677,23 +674,22 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
-	// it removes all transversals, it still has to read 2 different files from
-	// the disk and acquire a read lock on the key file:
-	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.crt
-	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.key
+	// it removes all transversals, it still has to read 2 different files from the disk:
+	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
+	// - $TSH_HOME/keys/$PROXY/$USER
 	//
 	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
 	// cf.GetProfile call above.
-	if keyPEM, certPEM, err := client.LoadKeysToKubeFromStore(
+	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
 		profile,
 		cf.HomePath,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
-		crt, _ := tlsca.ParseCertificatePEM(certPEM)
+		crt, _ := tlsca.ParseCertificatePEM(kubeCert)
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
-			return c.writeByteResponse(cf.Stdout(), certPEM, keyPEM, crt.NotAfter)
+			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
+			return c.writeByteResponse(cf.Stdout(), kubeCert, privKey, crt.NotAfter)
 		}
 	}
 
@@ -711,7 +707,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 
 	_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
 	// Try loading existing keys.
-	k, err := tc.LocalAgent().GetKeyRing(c.teleportCluster, client.WithKubeCerts{})
+	k, err := tc.LocalAgent().GetKey(c.teleportCluster, client.WithKubeCerts{})
 	span.End()
 
 	if err != nil && !trace.IsNotFound(err) {
@@ -727,7 +723,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
 
 			return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 		}
@@ -735,7 +731,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		// a new one.
 	}
 
-	logger.DebugContext(cf.Context, "Requesting TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+	log.Debugf("Requesting TLS cert for Kubernetes cluster %q", c.kubeCluster)
 	var unlockKubeCred func(bool)
 	deleteKubeCredsLock := false
 	defer func() {
@@ -816,7 +812,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.
-	if err := tc.LocalAgent().AddKubeKeyRing(k); err != nil {
+	if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -838,8 +834,8 @@ func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Pro
 	return nil
 }
 
-func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *client.KeyRing, kubeClusterName string) error {
-	crt, err := keyRing.KubeX509Cert(kubeClusterName)
+func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
+	crt, err := key.KubeX509Cert(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -850,39 +846,34 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
-	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
-	if !ok {
-		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
-	}
-
-	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
-	// hardware private keys for kube credentials (if possible)
-	keyPEM, err := cred.PrivateKey.SoftwarePrivateKeyPEM()
+	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
+	// private keys for kube credentials (if possible)
+	rsaKeyPEM, err := key.PrivateKey.RSAPrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.writeResponse(output, cred.Cert, keyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, key.KubeTLSCerts[kubeClusterName], rsaKeyPEM, expiry))
 }
 
 // writeByteResponse writes the exec credential response to the output stream.
-func (c *kubeCredentialsCommand) writeByteResponse(output io.Writer, kubeTLSCert, keyPEM []byte, expiry time.Time) error {
+func (c *kubeCredentialsCommand) writeByteResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
 	// Indicate slightly earlier expiration to avoid the cert expiring
 	// mid-request, if possible.
 	if time.Until(expiry) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
-	return trace.Wrap(c.writeResponse(output, kubeTLSCert, keyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, kubeTLSCert, rsaKeyPEM, expiry))
 }
 
 // writeResponse writes the exec credential response to the output stream.
-func (c *kubeCredentialsCommand) writeResponse(output io.Writer, kubeTLSCert, keyPEM []byte, expiry time.Time) error {
+func (c *kubeCredentialsCommand) writeResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(kubeTLSCert),
-			ClientKeyData:         string(keyPEM),
+			ClientKeyData:         string(rsaKeyPEM),
 		},
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(kubeGroupVersion), resp)
@@ -1096,7 +1087,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		group.Go(func() error {
 			kc, err := kubeutils.ListKubeClustersWithFilters(groupCtx, cluster.auth, cluster.req)
 			if err != nil {
-				logger.ErrorContext(groupCtx, "Failed to get kube clusters", "error", err)
+				logrus.Errorf("Failed to get kube clusters: %v.", err)
 				mu.Lock()
 				errors = append(errors, trace.ConnectionProblem(err, "failed to list kube clusters for cluster %s: %v", cluster.name, err))
 				mu.Unlock()
@@ -1214,9 +1205,8 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
-	// kube-namespace exists for backwards compatibility.
-	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
-	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
 	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
 		// Use the default context name template if --set-context-name is not set.
@@ -1288,7 +1278,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 			if trace.IsNotFound(err) {
 				// rewrap not found errors as access denied, so we can retry
 				// fetching clusters with an access request.
-				return trace.AccessDenied("%s", err)
+				return trace.AccessDenied(err.Error())
 			}
 			return trace.Wrap(err)
 		}
@@ -1366,10 +1356,10 @@ func checkClusterSelection(cf *CLIConf, clusters types.KubeClusters, name string
 		query:  cf.PredicateExpression,
 	}
 	if len(clusters) == 0 {
-		return trace.NotFound("%s", formatKubeNotFound(cf.SiteName, selectors))
+		return trace.NotFound(formatKubeNotFound(cf.SiteName, selectors))
 	}
 	errMsg := formatAmbiguousKubeCluster(cf, selectors, clusters)
-	return trace.BadParameter("%s", errMsg)
+	return trace.BadParameter(errMsg)
 }
 
 func (c *kubeLoginCommand) getSelectors() resourceSelectors {
@@ -1492,7 +1482,7 @@ type kubernetesStatus struct {
 	clusterAddr         string
 	teleportClusterName string
 	kubeClusters        []types.KubeCluster
-	credentials         *client.KeyRing
+	credentials         *client.Key
 	tlsServerName       string
 }
 
@@ -1502,7 +1492,7 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	kubeStatus := &kubernetesStatus{
 		clusterAddr: tc.KubeClusterAddr(),
 	}
-	kubeStatus.credentials, err = tc.LocalAgent().GetCoreKeyRing()
+	kubeStatus.credentials, err = tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1545,7 +1535,7 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus, overrideCo
 	if len(kubeStatus.kubeClusters) == 0 {
 		// If there are no registered k8s clusters, we may have an older teleport cluster.
 		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
-		logger.DebugContext(cf.Context, "Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters")
+		log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
 		return v, nil
 	}
 

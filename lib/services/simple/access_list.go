@@ -23,7 +23,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/backend"
@@ -44,6 +46,7 @@ const (
 
 // AccessListService is a simple access list backend service for use specifically by the cache.
 type AccessListService struct {
+	log           logrus.FieldLogger
 	service       *generic.Service[*accesslist.AccessList]
 	memberService *generic.Service[*accesslist.AccessListMember]
 	reviewService *generic.Service[*accesslist.Review]
@@ -52,12 +55,12 @@ type AccessListService struct {
 // NewAccessListService creates a new AccessListService. This is a simple, cache focused
 // backend service that doesn't perform any of the validation that the main backend service
 // does.
-func NewAccessListService(b backend.Backend) (*AccessListService, error) {
+func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
 	service, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
-		Backend:       b,
+		Backend:       backend,
 		PageLimit:     accessListMaxPageSize,
 		ResourceKind:  types.KindAccessList,
-		BackendPrefix: backend.NewKey(accessListPrefix),
+		BackendPrefix: accessListPrefix,
 		MarshalFunc:   services.MarshalAccessList,
 		UnmarshalFunc: services.UnmarshalAccessList,
 	})
@@ -66,10 +69,10 @@ func NewAccessListService(b backend.Backend) (*AccessListService, error) {
 	}
 
 	memberService, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessListMember]{
-		Backend:       b,
+		Backend:       backend,
 		PageLimit:     accessListMemberMaxPageSize,
 		ResourceKind:  types.KindAccessListMember,
-		BackendPrefix: backend.NewKey(accessListMemberPrefix),
+		BackendPrefix: accessListMemberPrefix,
 		MarshalFunc:   services.MarshalAccessListMember,
 		UnmarshalFunc: services.UnmarshalAccessListMember,
 	})
@@ -78,10 +81,10 @@ func NewAccessListService(b backend.Backend) (*AccessListService, error) {
 	}
 
 	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
-		Backend:       b,
+		Backend:       backend,
 		PageLimit:     accessListReviewMaxPageSize,
 		ResourceKind:  types.KindAccessListReview,
-		BackendPrefix: backend.NewKey(accessListReviewPrefix),
+		BackendPrefix: accessListReviewPrefix,
 		MarshalFunc:   services.MarshalAccessListReview,
 		UnmarshalFunc: services.UnmarshalAccessListReview,
 	})
@@ -90,6 +93,7 @@ func NewAccessListService(b backend.Backend) (*AccessListService, error) {
 	}
 
 	return &AccessListService{
+		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "access-list:simple-service"}),
 		service:       service,
 		memberService: memberService,
 		reviewService: reviewService,
@@ -128,24 +132,9 @@ func (a *AccessListService) DeleteAllAccessLists(ctx context.Context) error {
 }
 
 // CountAccessListMembers will count all access list members.
-func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
-	members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
-	if err != nil {
-		return 0, 0, trace.Wrap(err)
-	}
-
-	var count uint32
-	var listCount uint32
-
-	for _, member := range members {
-		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			listCount++
-		} else {
-			count++
-		}
-	}
-
-	return count, listCount, nil
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+	count, err := a.memberService.WithPrefix(accessListName).CountResources(ctx)
+	return uint32(count), trace.Wrap(err)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -199,28 +188,4 @@ func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) erro
 func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	members, nextToken, err := a.memberService.ListResources(ctx, pageSize, pageToken)
 	return members, nextToken, trace.Wrap(err)
-}
-
-// UnconditionalUpsertAccessList creates or updates an Access List resource without any validation.
-// It should only ever be used by the cache.
-func (a *AccessListService) UnconditionalUpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	return a.service.UpsertResource(ctx, accessList)
-}
-
-// UnconditionalDeleteAccessList removes the specified Access List resource without any validation.
-// It should only ever be used by the cache.
-func (a *AccessListService) UnconditionalDeleteAccessList(ctx context.Context, name string) error {
-	return a.service.DeleteResource(ctx, name)
-}
-
-// UnconditionalUpsertAccessListMember creates or updates an Access List Member resource without any validation.
-// It should only ever be used by the cache.
-func (a *AccessListService) UnconditionalUpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
-	return a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)
-}
-
-// UnconditionalDeleteAccessListMember removes the specified Access List Member resource without any validation.
-// It should only ever be used by the cache.
-func (a *AccessListService) UnconditionalDeleteAccessListMember(ctx context.Context, accessList, memberName string) error {
-	return a.memberService.WithPrefix(accessList).DeleteResource(ctx, memberName)
 }

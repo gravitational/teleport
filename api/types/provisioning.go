@@ -77,9 +77,6 @@ const (
 	// JoinMethodBitbucket indicates that the node will join using the Bitbucket
 	// join method. See lib/bitbucket for more.
 	JoinMethodBitbucket JoinMethod = "bitbucket"
-	// JoinMethodOracle indicates that the node will join using the Oracle join
-	// method.
-	JoinMethodOracle JoinMethod = "oracle"
 )
 
 var JoinMethods = []JoinMethod{
@@ -96,7 +93,6 @@ var JoinMethods = []JoinMethod{
 	JoinMethodToken,
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
-	JoinMethodOracle,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -381,17 +377,6 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bitbucket: failed validation")
-		}
-	case JoinMethodOracle:
-		providerCfg := p.Spec.Oracle
-		if providerCfg == nil {
-			return trace.BadParameter(
-				"spec.oracle: must be configured for the join method %q",
-				JoinMethodOracle,
-			)
-		}
-		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "spec.oracle: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -918,23 +903,5 @@ func (a *ProvisionTokenSpecV2Bitbucket) checkAndSetDefaults() error {
 		}
 	}
 
-	return nil
-}
-
-// checkAndSetDefaults checks and sets defaults on the Oracle spec. This only
-// covers basics like the presence of required fields; more complex validation
-// (e.g. requiring the Oracle SDK) is in auth.validateOracleJoinToken.
-func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
-	if len(a.Allow) == 0 {
-		return trace.BadParameter("the %q join method requires at least one allow rule", JoinMethodOracle)
-	}
-	for i, rule := range a.Allow {
-		if rule.Tenancy == "" {
-			return trace.BadParameter(
-				"allow[%d]: tenancy must be set",
-				i,
-			)
-		}
-	}
 	return nil
 }

@@ -16,19 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { CSSProp } from 'styled-components';
-
-import 'react';
+import 'styled-components';
 
 import { Theme } from 'design/theme/themes/types';
 
 declare module 'styled-components' {
   export interface DefaultTheme extends Theme {}
-}
-
-// https://styled-components.com/docs/api#usage-with-typescript
-declare module 'react' {
-  interface Attributes {
-    css?: CSSProp | undefined;
-  }
 }

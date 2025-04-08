@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2024 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -66,7 +65,6 @@ func defaultHTTPClient() (*http.Client, error) {
 
 	return &http.Client{
 		Transport: transport,
-		Timeout:   apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
@@ -203,7 +201,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
-			lastErr = trace.Errorf("%s", resp.Status)
+			lastErr = trace.Errorf(resp.Status)
 		}
 		if !isRetriable(resp.StatusCode) {
 			break
@@ -229,16 +227,8 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 }
 
 func (c *Client) endpointURI(segments ...string) *url.URL {
-	escapedSegments := make([]string, 0, cap(segments))
-	for _, s := range segments {
-		// Handling of slash vs escaped slash (%2F) in paths is ambiguous and inconsistent.
-		// See e.g.: https://stackoverflow.com/questions/1957115/is-a-slash-equivalent-to-an-encoded-slash-2f-in-the-path-portion-of-a
-		// We do not expect slashes to be needed within a single path segment,
-		// so we just remove slashes from each segment.
-		escapedSegments = append(escapedSegments, url.PathEscape(strings.ReplaceAll(s, "/", "")))
-	}
 	uri := c.baseURL
-	uri = uri.JoinPath(escapedSegments...)
+	uri = uri.JoinPath(segments...)
 	return uri
 }
 
@@ -334,17 +324,6 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 		return nil, trace.Wrap(err)
 	}
 	return out.Value, nil
-}
-
-// GetServicePrincipal returns the service principal for the given principal ID.
-// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
-func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
-	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
-	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return out, nil
 }
 
 // GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.

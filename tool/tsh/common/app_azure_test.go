@@ -27,7 +27,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -87,14 +87,14 @@ func TestAzure(t *testing.T) {
 
 	// Log into the "azure-api" app.
 	// Verify `tsh az login ...` gets called.
-	run([]string{"app", "login", "--insecure", "--azure-identity", "dummy_azure_identity", "azure-api"},
+	run([]string{"app", "login", "--azure-identity", "dummy_azure_identity", "azure-api"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
 		}))
 
 	// Log into the "azure-api" app -- now with --debug flag.
-	run([]string{"app", "login", "--insecure", "azure-api", "--debug"},
+	run([]string{"app", "login", "azure-api", "--debug"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"--debug", "az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
@@ -161,9 +161,9 @@ func TestAzure(t *testing.T) {
 				return ""
 			}
 
-			require.Equal(t, filepath.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue("AZURE_CONFIG_DIR"))
+			require.Equal(t, path.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue("AZURE_CONFIG_DIR"))
 			require.Equal(t, "https://azure-msi.teleport.dev/very-secret", getEnvValue("MSI_ENDPOINT"))
-			require.Equal(t, filepath.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
+			require.Equal(t, path.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue("REQUESTS_CA_BUNDLE"))
 			require.True(t, strings.HasPrefix(getEnvValue("HTTPS_PROXY"), "http://127.0.0.1:"))
 
 			// Validate MSI endpoint can be reached

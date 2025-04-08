@@ -73,7 +73,7 @@ func ReadOrCreateFile(dataDir string, opts ...func(*options)) (string, error) {
 			First:  100 * time.Millisecond,
 			Driver: retryutils.NewLinearDriver(100 * time.Millisecond),
 			Max:    time.Second,
-			Jitter: retryutils.FullJitter,
+			Jitter: retryutils.NewFullJitter(),
 		},
 		iterationLimit: 3,
 	}

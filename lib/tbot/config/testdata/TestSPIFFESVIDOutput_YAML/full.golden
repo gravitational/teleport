@@ -16,5 +16,3 @@ jwts:
     audience: example.com
   - file_name: bar
     audience: 2.example.com
-credential_ttl: 1m0s
-renewal_interval: 30s

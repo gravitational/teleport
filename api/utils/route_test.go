@@ -15,7 +15,6 @@
 package utils
 
 import (
-	"cmp"
 	"context"
 	"testing"
 
@@ -325,7 +324,10 @@ func TestSSHRouteMatcherScoring(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			name := cmp.Or(tt.name, uuid.NewString())
+			name := tt.name
+			if name == "" {
+				name = uuid.NewString()
+			}
 			score := matcher.RouteToServerScore(mockRouteableServer{
 				name:       name,
 				hostname:   tt.hostname,

@@ -17,22 +17,17 @@
  */
 
 import { screen } from '@testing-library/react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-import * as Icon from 'design/Icon';
 import { render, userEvent } from 'design/utils/testing';
 
-import { SlideTabs, SlideTabsProps } from './SlideTabs';
+import { SlideTabs } from './SlideTabs';
 
 describe('design/SlideTabs', () => {
   it('renders the supplied number of tabs(3)', () => {
     render(
       <SlideTabs
-        tabs={[
-          { key: 'aws', title: 'aws' },
-          { key: 'automatically', title: 'automatically' },
-          { key: 'manually', title: 'manually' },
-        ]}
+        tabs={['aws', 'automatically', 'manually']}
         onChange={() => {}}
         activeIndex={0}
       />
@@ -40,21 +35,15 @@ describe('design/SlideTabs', () => {
 
     expect(screen.getAllByRole('tab')).toHaveLength(3);
 
-    expect(getTab('aws')).toBeInTheDocument();
-    expect(getTab('automatically')).toBeInTheDocument();
-    expect(getTab('manually')).toBeInTheDocument();
+    expect(screen.getByLabelText('aws')).toBeInTheDocument();
+    expect(screen.getByLabelText('automatically')).toBeInTheDocument();
+    expect(screen.getByLabelText('manually')).toBeInTheDocument();
   });
 
   it('renders the supplied number of tabs(5)', () => {
     render(
       <SlideTabs
-        tabs={[
-          { key: 'aws', title: 'aws' },
-          { key: 'automatically', title: 'automatically' },
-          { key: 'manually', title: 'manually' },
-          { key: 'apple', title: 'apple' },
-          { key: 'purple', title: 'purple' },
-        ]}
+        tabs={['aws', 'automatically', 'manually', 'apple', 'purple']}
         onChange={() => {}}
         activeIndex={0}
       />
@@ -62,75 +51,44 @@ describe('design/SlideTabs', () => {
 
     expect(screen.getAllByRole('tab')).toHaveLength(5);
 
-    expect(getTab('aws')).toBeInTheDocument();
-    expect(getTab('automatically')).toBeInTheDocument();
-    expect(getTab('manually')).toBeInTheDocument();
-    expect(getTab('apple')).toBeInTheDocument();
-    expect(getTab('purple')).toBeInTheDocument();
+    expect(screen.getByLabelText('aws')).toBeInTheDocument();
+    expect(screen.getByLabelText('automatically')).toBeInTheDocument();
+    expect(screen.getByLabelText('manually')).toBeInTheDocument();
+    expect(screen.getByLabelText('apple')).toBeInTheDocument();
+    expect(screen.getByLabelText('purple')).toBeInTheDocument();
+  });
+
+  it('respects a custom form name', () => {
+    const { container } = render(
+      <SlideTabs
+        name="pineapple"
+        tabs={['aws', 'automatically', 'manually']}
+        onChange={() => {}}
+        activeIndex={0}
+      />
+    );
+
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    expect(container.querySelectorAll('input[name=pineapple]')).toHaveLength(3);
   });
 
   test('onChange highlights the tab clicked', async () => {
     render(<Component />);
 
     // First tab is selected by default.
-    expect(getTab('first')).toHaveClass('selected');
+    expect(screen.getByRole('tab', { name: 'first' })).toHaveClass('selected');
 
     // Select the second tab.
     await userEvent.click(screen.getByText('second'));
-    expect(getTab('second')).toHaveClass('selected');
+    expect(screen.getByRole('tab', { name: 'second' })).toHaveClass('selected');
 
-    expect(getTab('first')).not.toHaveClass('selected');
-  });
-
-  test('keyboard navigation and accessibility', async () => {
-    const user = userEvent.setup();
-    render(
-      <Component
-        tabs={[
-          { key: 'id1', title: 'first', controls: 'tabpanel-1' },
-          {
-            key: 'id2',
-            icon: Icon.Check,
-            ariaLabel: 'second',
-            controls: 'tabpanel-2',
-          },
-        ]}
-      />
+    expect(screen.getByRole('tab', { name: 'first' })).not.toHaveClass(
+      'selected'
     );
-    expect(getTab('first')).not.toHaveFocus();
-    expect(getTab('second')).not.toHaveFocus();
-
-    getTab('first').focus();
-    expect(getTab('first')).toHaveAttribute('aria-selected', 'true');
-    expect(getTab('first')).toHaveAttribute('aria-controls', 'tabpanel-1');
-    expect(getTab('second')).toHaveAttribute('aria-selected', 'false');
-    expect(getTab('second')).toHaveAttribute('aria-controls', 'tabpanel-2');
-
-    await user.keyboard('{Right}');
-    expect(getTab('first')).toHaveAttribute('aria-selected', 'false');
-    expect(getTab('second')).toHaveAttribute('aria-selected', 'true');
-    expect(getTab('second')).toHaveFocus();
-
-    // Should be a no-op.
-    await user.keyboard('{Right}');
-    expect(getTab('first')).toHaveAttribute('aria-selected', 'false');
-    expect(getTab('second')).toHaveAttribute('aria-selected', 'true');
-    expect(getTab('second')).toHaveFocus();
-
-    await user.keyboard('{Left}');
-    expect(getTab('first')).toHaveAttribute('aria-selected', 'true');
-    expect(getTab('second')).toHaveAttribute('aria-selected', 'false');
-    expect(getTab('first')).toHaveFocus();
-
-    // Should be a no-op.
-    await user.keyboard('{Left}');
-    expect(getTab('first')).toHaveAttribute('aria-selected', 'true');
-    expect(getTab('second')).toHaveAttribute('aria-selected', 'false');
-    expect(getTab('first')).toHaveFocus();
   });
 });
 
-const Component = (props: Partial<SlideTabsProps>) => {
+const Component = () => {
   const [activeIndex, setActiveIndex] = useState(0);
 
   return (
@@ -138,9 +96,6 @@ const Component = (props: Partial<SlideTabsProps>) => {
       onChange={setActiveIndex}
       tabs={['first', 'second']}
       activeIndex={activeIndex}
-      {...props}
     />
   );
 };
-
-const getTab = (name: string) => screen.getByRole('tab', { name });

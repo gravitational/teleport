@@ -19,7 +19,7 @@
 package concurrentqueue
 
 import (
-	"math/rand/v2"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -35,7 +35,7 @@ func TestOrdering(t *testing.T) {
 	q := New(func(v int) int {
 		// introduce a short random delay to ensure that work
 		// completes out of order.
-		time.Sleep(rand.N(time.Millisecond * 12))
+		time.Sleep(time.Duration(rand.Int63n(int64(time.Millisecond * 12))))
 		return v
 	}, Workers(10))
 	t.Cleanup(func() { require.NoError(t, q.Close()) })
@@ -183,7 +183,9 @@ func BenchmarkQueue(b *testing.B) {
 	q := New(workfn, Workers(workers))
 	defer q.Close()
 
-	for b.Loop() {
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
 		collected := make(chan struct{})
 		go func() {
 			for i := 0; i < iters; i++ {

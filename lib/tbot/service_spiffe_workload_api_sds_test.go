@@ -20,7 +20,6 @@ package tbot
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -28,6 +27,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -112,9 +112,7 @@ func TestSDS_FetchSecrets(t *testing.T) {
 		},
 	}
 	botConfig := &config.BotConfig{
-		CredentialLifetime: config.CredentialLifetime{
-			RenewalInterval: time.Minute,
-		},
+		RenewalInterval: time.Minute,
 	}
 
 	tests := []struct {
@@ -295,10 +293,20 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	botConfig.Oneshot = false
 	b := New(botConfig, log)
 
-	// Run bot in the background for the remainder of the test.
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-		Name: "bot",
-		Task: b.Run,
+	// Spin up goroutine for bot to run in
+	botCtx, cancelBot := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := b.Run(botCtx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancelBot()
+	}()
+	t.Cleanup(func() {
+		// Shut down bot and make sure it exits.
+		cancelBot()
+		wg.Wait()
 	})
 
 	// Wait for the socket to come up.
@@ -348,11 +356,8 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 		require.NotNil(t, tlsCert.PrivateKey)
 		privateKeyBytes := tlsCert.PrivateKey.GetInlineBytes()
 		require.NotEmpty(t, privateKeyBytes)
-		goTLSCert, err := tls.X509KeyPair(tlsCertBytes, privateKeyBytes)
+		_, err = tls.X509KeyPair(tlsCertBytes, privateKeyBytes)
 		require.NoError(t, err)
-		// Sanity check we generated an ECDSA key (testenv cluster uses
-		// balanced-v1 algorithm suite)
-		require.IsType(t, &ecdsa.PrivateKey{}, goTLSCert.PrivateKey)
 	}
 	checkSVID(findSecret(t, resp.Resources, "spiffe://root/foo"))
 
@@ -367,11 +372,8 @@ func Test_E2E_SPIFFE_SDS(t *testing.T) {
 	require.Equal(t, "root", spiffeValidatorConfig.TrustDomains[0].Name)
 	block, _ := pem.Decode(spiffeValidatorConfig.TrustDomains[0].TrustBundle.GetInlineBytes())
 	require.Equal(t, "CERTIFICATE", block.Type)
-	x509Cert, err := x509.ParseCertificate(block.Bytes)
+	_, err = x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
-	// Sanity check we generated an ECDSA key (testenv cluster uses balanced-v1
-	// algorithm suite)
-	require.IsType(t, &ecdsa.PublicKey{}, x509Cert.PublicKey)
 
 	// We should send the response ACK we expect envoy to send.
 	err = stream.Send(&discoveryv3pb.DiscoveryRequest{

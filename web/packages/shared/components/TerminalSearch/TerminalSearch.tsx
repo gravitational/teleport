@@ -135,7 +135,6 @@ export const TerminalSearch = ({
       <Input
         ref={searchInputRef}
         data-testid="terminal-search"
-        size="small"
         autoFocus
         onFocus={e => e.target.select()}
         value={searchValue}

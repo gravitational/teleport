@@ -25,9 +25,6 @@ import (
 
 // FromProto converts an array of v1 traits into a map of string to string array.
 func FromProto(traits []*traitv1.Trait) trait.Traits {
-	if traits == nil {
-		return nil
-	}
 	out := map[string][]string{}
 	for _, trait := range traits {
 		out[trait.Key] = trait.Values
@@ -35,11 +32,8 @@ func FromProto(traits []*traitv1.Trait) trait.Traits {
 	return out
 }
 
-// ToProto converts a map of string to string array to an array of v1 traits.
+// ToV1 converts a map of string to string array to an array of v1 traits.
 func ToProto(traits trait.Traits) []*traitv1.Trait {
-	if traits == nil {
-		return nil
-	}
 	out := make([]*traitv1.Trait, 0, len(traits))
 	sortedKeys := make([]string, 0, len(traits))
 

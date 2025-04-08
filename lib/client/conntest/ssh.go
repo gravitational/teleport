@@ -33,12 +33,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 )
 
@@ -108,19 +106,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(s.cfg.UserClient),
-		cryptosuites.UserSSH)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyRing := client.NewKeyRing(privateKey, privateKey)
-
-	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,8 +122,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 
 	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey:           keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-		TLSPublicKey:           tlsPub,
+		PublicKey:              key.MarshalSSHPublicKey(),
 		Username:               currentUser.GetName(),
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
@@ -147,8 +132,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing.Cert = certs.SSH
-	keyRing.TLSCert = certs.TLS
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
 
 	certAuths, err := s.cfg.UserClient.GetCertAuthorities(ctx, types.HostCA, false /* loadKeys */)
 	if err != nil {
@@ -160,24 +145,24 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
 
-	keyAuthMethod, err := keyRing.AsAuthMethod()
+	keyAuthMethod, err := key.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cfg.UserClient.GetClusterName(ctx)
+	clusterName, err := s.cfg.UserClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clientConfTLS, err := keyRing.TeleportClientTLSConfig(nil, []string{clusterName.GetClusterName()})
+	clientConfTLS, err := key.TeleportClientTLSConfig(nil, []string{clusterName.GetClusterName()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing.KeyRingIndex = client.KeyRingIndex{
+	key.KeyIndex = client.KeyIndex{
 		Username:    req.SSHPrincipal,
 		ProxyHost:   s.webProxyAddr,
 		ClusterName: clusterName.GetClusterName(),

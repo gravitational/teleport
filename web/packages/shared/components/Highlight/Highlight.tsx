@@ -17,6 +17,7 @@
  */
 
 import { findAll } from 'highlight-words-core';
+import React from 'react';
 
 /**
  * Highlight wraps the keywords found in the text in <mark> tags.

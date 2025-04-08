@@ -26,12 +26,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/events"
@@ -213,9 +213,6 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 				sessionCtx.DatabaseName = value
 			case "user":
 				sessionCtx.DatabaseUser = value
-			// https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-CONNECT-APPLICATION-NAME
-			case "application_name":
-				sessionCtx.UserAgent = value
 			default:
 				sessionCtx.StartupParameters[key] = value
 			}
@@ -505,9 +502,9 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 
 func (e *Engine) newConnector(sessionCtx *common.Session) *connector {
 	conn := &connector{
-		auth:       e.Auth,
-		gcpClients: e.GCPClients,
-		log:        e.Log,
+		auth:         e.Auth,
+		cloudClients: e.CloudClients,
+		log:          e.Log,
 
 		certExpiry:    sessionCtx.GetExpiry(),
 		database:      sessionCtx.Database,
@@ -533,6 +530,9 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	// Instead, use the pgconn config string parser for convenience and dial
 	// db host:port ourselves.
 	network, address := pgconn.NetworkAddress(config.Host, config.Port)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	dialer := net.Dialer{Timeout: defaults.DefaultIOTimeout}
 	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {
@@ -584,10 +584,8 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BIND
 	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-FUNCTIONCALL
 	if len(formatCodes) > 1 && len(formatCodes) != len(parameters) {
-		slog.WarnContext(context.Background(), "Postgres parameter format codes and parameters don't match",
-			"parameters", parameters,
-			"format_codes", formatCodes,
-		)
+		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v %#v.",
+			parameters, formatCodes)
 		return formatted
 	}
 	for i, p := range parameters {
@@ -616,7 +614,8 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 			formatted = append(formatted, base64.StdEncoding.EncodeToString(p))
 		default:
 			// Should never happen but...
-			slog.WarnContext(context.Background(), "Unknown Postgres parameter format code", "format_code", formatCode)
+			logrus.Warnf("Unknown Postgres parameter format code: %#v.",
+				formatCode)
 			formatted = append(formatted, "<unknown>")
 		}
 	}

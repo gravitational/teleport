@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,4 +17,3 @@
  */
 
 export { Navigation } from './Navigation';
-export { NavigationCategory } from './categories';

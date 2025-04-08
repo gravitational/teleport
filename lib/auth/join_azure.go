@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"log/slog"
 	"net/url"
 	"slices"
 	"strings"
@@ -253,7 +252,6 @@ func verifyVMIdentity(
 	subscriptionID,
 	vmID string,
 	requestStart time.Time,
-	logger *slog.Logger,
 ) (joinAttrs *workloadidentityv1pb.JoinAttrsAzure, err error) {
 	tokenClaims, err := cfg.verify(ctx, accessToken)
 	if err != nil {
@@ -296,8 +294,7 @@ func verifyVMIdentity(
 		}
 		return azureJoinToAttrs(vmSubscription, vmResourceGroup), nil
 	}
-	logger.WarnContext(ctx, "Failed to parse VM identifiers from claims. Retrying with Azure VM API.",
-		"error", err)
+	log.WithError(err).Warn("Failed to parse VM identifiers from claims. Retrying with Azure VM API.")
 
 	tokenCredential := azure.NewStaticCredential(azcore.AccessToken{
 		Token:     accessToken,
@@ -420,7 +417,7 @@ func (a *Server) checkAzureRequest(
 		return nil, trace.Wrap(err)
 	}
 
-	attrs, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart, a.logger)
+	attrs, err := verifyVMIdentity(ctx, cfg, req.AccessToken, subID, vmID, requestStart)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -436,13 +433,13 @@ func generateAzureChallenge() (string, error) {
 	return challenge, trace.Wrap(err)
 }
 
-// RegisterUsingAzureMethodWithOpts registers the caller using the Azure join method
+// RegisterUsingAzureMethod registers the caller using the Azure join method
 // and returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *proto.RegisterUsingAzureMethodRequest with a signed attested data document
 // including the challenge as a nonce.
-func (a *Server) RegisterUsingAzureMethodWithOpts(
+func (a *Server) RegisterUsingAzureMethod(
 	ctx context.Context,
 	challengeResponse client.RegisterAzureChallengeResponseFunc,
 	opts ...azureRegisterOption,
@@ -452,7 +449,9 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
-			a.handleJoinFailure(ctx, err, provisionToken, nil, joinRequest)
+			a.handleJoinFailure(
+				err, provisionToken, nil, joinRequest,
+			)
 		}
 	}()
 
@@ -507,19 +506,6 @@ func (a *Server) RegisterUsingAzureMethodWithOpts(
 		nil,
 	)
 	return certs, trace.Wrap(err)
-}
-
-// RegisterUsingAzureMethod registers the caller using the Azure join method
-// and returns signed certs to join the cluster.
-//
-// The caller must provide a ChallengeResponseFunc which returns a
-// *proto.RegisterUsingAzureMethodRequest with a signed attested data document
-// including the challenge as a nonce.
-func (a *Server) RegisterUsingAzureMethod(
-	ctx context.Context,
-	challengeResponse client.RegisterAzureChallengeResponseFunc,
-) (certs *proto.Certs, err error) {
-	return a.RegisterUsingAzureMethodWithOpts(ctx, challengeResponse)
 }
 
 // fixAzureSigningAlgorithm fixes a mismatch between the object IDs of the

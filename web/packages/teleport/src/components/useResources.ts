@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useState } from 'shared/hooks';
 
 import { Kind, Resource } from 'teleport/services/resources';
 

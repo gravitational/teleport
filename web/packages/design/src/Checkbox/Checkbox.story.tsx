@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import { Flex } from '..';
-import { CheckboxInput } from './Checkbox';
+import { StyledCheckbox } from './Checkbox';
 
 export default {
   title: 'Design/Checkbox',
@@ -43,88 +44,88 @@ export const Checkbox = () => (
         <th rowSpan={4}>Enabled</th>
         <th>Default</th>
         <td>
-          <CheckboxInput type="checkbox" />
-          <CheckboxInput checked />
+          <StyledCheckbox type="checkbox" />
+          <StyledCheckbox checked />
         </td>
         <td>
-          <CheckboxInput size="small" />
-          <CheckboxInput size="small" checked />
+          <StyledCheckbox size="small" />
+          <StyledCheckbox size="small" checked />
         </td>
       </tr>
       <tr className="teleport-checkbox__force-hover">
         <th>Hover</th>
         <td>
-          <CheckboxInput type="checkbox" />
-          <CheckboxInput checked />
+          <StyledCheckbox type="checkbox" />
+          <StyledCheckbox checked />
         </td>
         <td>
-          <CheckboxInput size="small" />
-          <CheckboxInput size="small" checked />
+          <StyledCheckbox size="small" />
+          <StyledCheckbox size="small" checked />
         </td>
       </tr>
       <tr className="teleport-checkbox__force-active">
         <th>Active</th>
         <td>
-          <CheckboxInput type="checkbox" />
-          <CheckboxInput checked />
+          <StyledCheckbox type="checkbox" />
+          <StyledCheckbox checked />
         </td>
         <td>
-          <CheckboxInput size="small" />
-          <CheckboxInput size="small" checked />
+          <StyledCheckbox size="small" />
+          <StyledCheckbox size="small" checked />
         </td>
       </tr>
       <tr className="teleport-checkbox__force-focus-visible">
         <th>Focus</th>
         <td>
-          <CheckboxInput type="checkbox" />
-          <CheckboxInput checked />
+          <StyledCheckbox type="checkbox" />
+          <StyledCheckbox checked />
         </td>
         <td>
-          <CheckboxInput size="small" />
-          <CheckboxInput size="small" checked />
+          <StyledCheckbox size="small" />
+          <StyledCheckbox size="small" checked />
         </td>
       </tr>
       <tr>
         <th rowSpan={4}>Disabled</th>
         <th>Default</th>
         <td>
-          <CheckboxInput disabled />
-          <CheckboxInput disabled checked />
+          <StyledCheckbox disabled />
+          <StyledCheckbox disabled checked />
         </td>
         <td>
-          <CheckboxInput size="small" disabled />
-          <CheckboxInput size="small" disabled checked />
+          <StyledCheckbox size="small" disabled />
+          <StyledCheckbox size="small" disabled checked />
         </td>
       </tr>
       <tr className="teleport-checkbox__force-hover">
         <th>Hover</th>
         <td>
-          <CheckboxInput disabled />
-          <CheckboxInput disabled checked />
+          <StyledCheckbox disabled />
+          <StyledCheckbox disabled checked />
         </td>
         <td>
-          <CheckboxInput size="small" disabled />
-          <CheckboxInput size="small" disabled checked />
+          <StyledCheckbox size="small" disabled />
+          <StyledCheckbox size="small" disabled checked />
         </td>
       </tr>
       <tr className="teleport-checkbox__force-active">
         <th>Active</th>
         <td>
-          <CheckboxInput disabled />
-          <CheckboxInput disabled checked />
+          <StyledCheckbox disabled />
+          <StyledCheckbox disabled checked />
         </td>
         <td>
-          <CheckboxInput size="small" disabled />
-          <CheckboxInput size="small" disabled checked />
+          <StyledCheckbox size="small" disabled />
+          <StyledCheckbox size="small" disabled checked />
         </td>
       </tr>
     </Table>
     <label>
-      <CheckboxInput size="small" defaultChecked={false} /> Uncontrolled
+      <StyledCheckbox size="small" defaultChecked={false} /> Uncontrolled
       checkbox, unchecked
     </label>
     <label>
-      <CheckboxInput size="small" defaultChecked={true} /> Uncontrolled
+      <StyledCheckbox size="small" defaultChecked={true} /> Uncontrolled
       checkbox, checked
     </label>
   </Flex>

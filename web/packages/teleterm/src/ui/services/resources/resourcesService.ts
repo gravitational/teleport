@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-
 import {
   resourceOneOfIsApp,
   resourceOneOfIsDatabase,
@@ -40,6 +38,13 @@ export class ResourcesService {
 
   constructor(private tshClient: TshdClient) {}
 
+  async fetchServers(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getServers(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
+  }
+
   // TODO(ravicious): Refactor it to use logic similar to that in the Web UI.
   // https://github.com/gravitational/teleport/blob/2a2b08dbfdaf71706a5af3812d3a7ec843d099b4/lib/web/apiserver.go#L2471
   async getServerByHostname(
@@ -47,22 +52,39 @@ export class ResourcesService {
     hostname: string
   ): Promise<types.Server | undefined> {
     const query = `name == "${hostname}"`;
-    const {
-      response: { agents: servers },
-    } = await this.tshClient.getServers(
-      makeGetResourcesParamsRequest({
-        clusterUri,
-        query,
-        limit: 2,
-        sort: null,
-      })
-    );
+    const { agents: servers } = await this.fetchServers({
+      clusterUri,
+      query,
+      limit: 2,
+      sort: null,
+    });
 
     if (servers.length > 1) {
       throw new AmbiguousHostnameError(hostname);
     }
 
     return servers[0];
+  }
+
+  async fetchDatabases(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getDatabases(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
+  }
+
+  async fetchKubes(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getKubes(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
+  }
+
+  async fetchApps(params: types.GetResourcesParams) {
+    const { response } = await this.tshClient.getApps(
+      makeGetResourcesParamsRequest(params)
+    );
+    return response;
   }
 
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
@@ -231,7 +253,7 @@ export type SearchResultKube = {
 };
 export type SearchResultApp = {
   kind: 'app';
-  resource: App & { addrWithProtocol: string };
+  resource: types.App & { addrWithProtocol: string };
   requiresRequest: boolean;
 };
 
@@ -273,4 +295,4 @@ export type UnifiedResourceResponse =
       requiresRequest: boolean;
     }
   | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
-  | { kind: 'app'; resource: App; requiresRequest: boolean };
+  | { kind: 'app'; resource: types.App; requiresRequest: boolean };

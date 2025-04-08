@@ -19,11 +19,14 @@
 package srv
 
 import (
+	"bytes"
 	"context"
+	"os/user"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -34,6 +37,19 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
+
+// TestDecodeChildError ensures that child error message marshaling
+// and unmarshaling returns the original values.
+func TestDecodeChildError(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, DecodeChildError(&buf))
+
+	targetErr := trace.NotFound(user.UnknownUserError("test").Error())
+
+	writeChildError(&buf, targetErr)
+
+	require.ErrorIs(t, DecodeChildError(&buf), targetErr)
+}
 
 func TestCheckSFTPAllowed(t *testing.T) {
 	srv := newMockServer(t)
@@ -359,7 +375,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 				ctx.SetEnv(sshutils.SessionEnvVar, tt.sessionID)
 			}
 
-			err = ctx.CreateOrJoinSession(context.Background(), registry)
+			err = ctx.CreateOrJoinSession(registry)
 			require.NoError(t, err)
 			require.False(t, ctx.sessionID.IsZero())
 			if tt.wantSameSessionID {

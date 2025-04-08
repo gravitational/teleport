@@ -23,13 +23,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
@@ -58,18 +58,18 @@ const (
 // Due to a protocol limitation, WebSockets do not support multiplexing nor
 // concurrent requests.
 func runPortForwardingWebSocket(req portForwardRequest) error {
-	// When dialing to the upstream server (Teleport or Kubernetes API server),
-	// Teleport uses the SPDY implementation instead of WebSockets.
-	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
-	if err != nil {
-		return trace.Wrap(err, "error dialing to upstream connection")
-	}
-	defer targetConn.Close()
-
 	ports, err := extractTargetPortsFromStrings(req.ports)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// When dialing to the upstream server (Teleport or Kubernetes API server),
+	// Teleport uses the SPDY implementation instead of WebSockets.
+	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
+	if err != nil {
+		return trace.ConnectionProblem(err, "error dialing to upstream connection")
+	}
+	defer targetConn.Close()
 
 	// One pair of (Data,Error) channels per port.
 	channels := make([]wsstream.ChannelType, 2*len(ports))
@@ -148,10 +148,10 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 		podName:       req.podName,
 		targetConn:    targetConn,
 		onPortForward: req.onPortForward,
-		logger: slog.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
-			events.RemoteAddr, req.httpRequest.RemoteAddr,
-		),
+		FieldLogger: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.Component(teleport.ComponentProxyKube),
+			events.RemoteAddr:     req.httpRequest.RemoteAddr,
+		}),
 		context: req.context,
 	}
 	// run the portforward request until termination.
@@ -213,8 +213,8 @@ type websocketPortforwardHandler struct {
 	podName       string
 	targetConn    httpstream.Connection
 	onPortForward portForwardCallback
-	logger        *slog.Logger
-	context       context.Context
+	logrus.FieldLogger
+	context context.Context
 }
 
 // run invokes the targetConn SPDY connection and copies the client data into
@@ -237,12 +237,10 @@ func (h *websocketPortforwardHandler) run() {
 
 // portForward copies the client and upstream streams.
 func (h *websocketPortforwardHandler) portForward(p *websocketChannelPair) {
-	logger := h.logger.With("request_id", p.requestID, "port", p.port)
-
-	logger.DebugContext(h.context, "Forwarding port")
+	h.Debugf("Forwarding port %v -> %v.", p.requestID, p.port)
 	h.forwardStreamPair(p)
 
-	logger.DebugContext(h.context, "Completed forwarding port")
+	h.Debugf("Completed forwarding port %v -> %v.", p.requestID, p.port)
 }
 
 func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair) {
@@ -271,7 +269,7 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	go func() {
 		defer wg.Done()
 		if err := utils.ProxyConn(h.context, p.errorStream, targetErrorStream); err != nil {
-			h.logger.DebugContext(h.context, "Unable to proxy portforward error-stream", "error", err)
+			h.WithError(err).Debugf("Unable to proxy portforward error-stream.")
 		}
 	}()
 
@@ -294,15 +292,15 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	go func() {
 		defer wg.Done()
 		if err := utils.ProxyConn(h.context, p.dataStream, targetDataStream); err != nil {
-			h.logger.DebugContext(h.context, "Unable to proxy portforward data-stream", "error", err)
+			h.WithError(err).Debugf("Unable to proxy portforward data-stream.")
 		}
 	}()
 
-	h.logger.DebugContext(h.context, "Streams have been created, Waiting for copy to complete")
+	h.Debugf("Streams have been created, Waiting for copy to complete.")
 	// Wait until every goroutine exits.
 	wg.Wait()
 
-	h.logger.DebugContext(h.context, "Port forwarding pair completed")
+	h.Debugf("Port forwarding pair completed.")
 }
 
 // runPortForwardingTunneledHTTPStreams handles a port-forwarding request that uses SPDY protocol
@@ -310,7 +308,7 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "error upgrading target connection")
 	}
 	defer targetConn.Close()
 
@@ -334,7 +332,7 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 		req.pingPeriod,
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "error upgrading connection")
 	}
 
 	if conn == nil {
@@ -343,10 +341,10 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 	defer conn.Close()
 
 	h := &portForwardProxy{
-		logger: slog.With(
-			teleport.ComponentKey, teleport.Component(teleport.ComponentProxyKube),
-			events.RemoteAddr, req.httpRequest.RemoteAddr,
-		),
+		Entry: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.Component(teleport.ComponentProxyKube),
+			events.RemoteAddr:     req.httpRequest.RemoteAddr,
+		}),
 		portForwardRequest:    req,
 		sourceConn:            spdyConn,
 		streamChan:            streamChan,
@@ -356,7 +354,7 @@ func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
 	}
 	defer h.Close()
 
-	h.logger.DebugContext(context.Background(), "Setting port forwarding streaming connection idle timeout to", "idle_timeout", req.idleTimeout)
+	h.Debugf("Setting port forwarding streaming connection idle timeout to %s.", req.idleTimeout)
 	spdyConn.SetIdleTimeout(adjustIdleTimeoutForConn(req.idleTimeout))
 
 	h.run()

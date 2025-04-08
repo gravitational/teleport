@@ -16,16 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MutableRefObject, useMemo } from 'react';
+import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
 import { Text } from 'design';
 
-import {
-  AccessRequestsContextProvider,
-  AccessRequestsMenu,
-} from 'teleterm/ui/AccessRequests';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   ConnectMyComputerContextProvider,
@@ -36,7 +32,7 @@ import Document from 'teleterm/ui/Document';
 import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests';
 import { DocumentAuthorizeWebSession } from 'teleterm/ui/DocumentAuthorizeWebSession';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
-import { DocumentGateway } from 'teleterm/ui/DocumentGateway';
+import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
@@ -47,15 +43,12 @@ import {
   Workspace,
 } from 'teleterm/ui/services/workspacesService';
 import { isAppUri, isDatabaseUri, RootClusterUri } from 'teleterm/ui/uri';
-import { DocumentVnetDiagReport } from 'teleterm/ui/Vnet/DocumentVnetDiagReport';
-import { DocumentVnetInfo } from 'teleterm/ui/Vnet/DocumentVnetInfo';
 
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { WorkspaceContextProvider } from './workspaceContext';
 
 export function DocumentsRenderer(props: {
-  topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
-  topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
+  topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
 
@@ -94,30 +87,18 @@ export function DocumentsRenderer(props: {
             <ConnectMyComputerContextProvider
               rootClusterUri={workspace.rootClusterUri}
             >
-              <AccessRequestsContextProvider
-                rootClusterUri={workspace.rootClusterUri}
-              >
-                {workspace.documentsService.getDocuments().length ? (
-                  renderDocuments(workspace.documentsService)
-                ) : (
-                  <KeyboardShortcutsPanel />
+              {workspace.documentsService.getDocuments().length ? (
+                renderDocuments(workspace.documentsService)
+              ) : (
+                <KeyboardShortcutsPanel />
+              )}
+              {workspace.rootClusterUri ===
+                workspacesService.getRootClusterUri() &&
+                props.topBarContainerRef.current &&
+                createPortal(
+                  <ConnectMyComputerNavigationMenu />,
+                  props.topBarContainerRef.current
                 )}
-                {workspace.rootClusterUri ===
-                  workspacesService.getRootClusterUri() && (
-                  <>
-                    {props.topBarConnectMyComputerRef.current &&
-                      createPortal(
-                        <ConnectMyComputerNavigationMenu />,
-                        props.topBarConnectMyComputerRef.current
-                      )}
-                    {props.topBarAccessRequestRef.current &&
-                      createPortal(
-                        <AccessRequestsMenu />,
-                        props.topBarAccessRequestRef.current
-                      )}
-                  </>
-                )}
-              </AccessRequestsContextProvider>
             </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
@@ -173,12 +154,7 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentConnectMyComputer doc={doc} visible={visible} />;
       case 'doc.authorize_web_session':
         return <DocumentAuthorizeWebSession doc={doc} visible={visible} />;
-      case 'doc.vnet_diag_report':
-        return <DocumentVnetDiagReport doc={doc} visible={visible} />;
-      case 'doc.vnet_info':
-        return <DocumentVnetInfo doc={doc} visible={visible} />;
       default:
-        doc satisfies types.DocumentBlank;
         return (
           <Document visible={visible}>
             <Text m="auto" mt={10} textAlign="center">

@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -92,22 +92,15 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 	// signed by the same private key and having the same subject (happens in tests)
 	config.Entity.SerialNumber = serialNumber.String()
 
-	// Note: KeyUsageCRLSign is set only to generate empty CRLs for Desktop
-	// Access authentication with Windows.
-	keyUsage := x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign
-	if _, isRSA := config.Signer.Public().(*rsa.PublicKey); isRSA {
-		// The KeyEncipherment bit is necessary for RSA key exchanges
-		// https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.3
-		keyUsage |= x509.KeyUsageKeyEncipherment
-	}
-
 	template := x509.Certificate{
-		SerialNumber:          serialNumber,
-		Issuer:                config.Entity,
-		Subject:               config.Entity,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              keyUsage,
+		SerialNumber: serialNumber,
+		Issuer:       config.Entity,
+		Subject:      config.Entity,
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+		// Note: KeyUsageCRLSign is set only to generate empty CRLs for Desktop
+		// Access authentication with Windows.
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		DNSNames:              config.DNSNames,
@@ -123,17 +116,14 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 	return certPEM, nil
 }
 
-// GenerateSelfSignedCA generates self-signed certificate authority used for tests.
+// GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	keyPEM, err := keys.MarshalPrivateKey(signer)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	certPEM, err := GenerateSelfSignedCAWithSigner(signer, entity, dnsNames, ttl)
+	certPEM, err := GenerateSelfSignedCAWithSigner(priv, entity, dnsNames, ttl)
 	return keyPEM, certPEM, err
 }
 
@@ -145,7 +135,7 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 	}
 	csr, err := x509.ParseCertificateRequest(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	return csr, nil
 }
@@ -177,7 +167,7 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	return cert, nil
 }
@@ -197,7 +187,7 @@ func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 	for _, block := range blocks {
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, trace.BadParameter("%s", err)
+			return nil, trace.BadParameter(err.Error())
 		}
 		certs = append(certs, cert)
 	}

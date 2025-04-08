@@ -20,14 +20,13 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -84,7 +83,8 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.Auth.Enabled)
 		require.True(t, conf.SSH.Enabled)
 		require.True(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelError))
+		require.Equal(t, os.Stdout, conf.Console)
+		require.Equal(t, log.ErrorLevel, log.GetLevel())
 	})
 
 	t.Run("RolesFlag", func(t *testing.T) {
@@ -125,7 +125,7 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.SSH.Enabled)
 		require.False(t, conf.Auth.Enabled)
 		require.False(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelDebug))
+		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
 
 		token, err := conf.Token()

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -68,7 +69,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
-	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
+	case types.JWTSigner, types.OIDCIdPCA:
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
@@ -203,6 +204,7 @@ func checkJWTKeys(cai types.CertAuthority) error {
 			return trace.Wrap(err)
 		}
 		cfg := &jwt.Config{
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: ca.GetClusterName(),
 			PrivateKey:  privateKey,
 			PublicKey:   publicKey,
@@ -250,6 +252,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  signer,
 	})
@@ -332,7 +335,7 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 	case types.V2:
 		var ca types.CertAuthorityV2
 		if err := utils.FastUnmarshal(bytes, &ca); err != nil {
-			return nil, trace.BadParameter("%s", err)
+			return nil, trace.BadParameter(err.Error())
 		}
 
 		if err := ValidateCertAuthority(&ca); err != nil {

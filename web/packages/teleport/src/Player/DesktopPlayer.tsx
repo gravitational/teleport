@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
@@ -50,9 +56,8 @@ export const DesktopPlayer = ({
     statusText,
     time,
 
-    clientOnTransportOpen,
-    clientOnTransportClose,
-    clientOnError,
+    clientOnWsClose,
+    clientOnTdpError,
     clientOnTdpInfo,
   } = useDesktopPlayer({
     sid,
@@ -60,10 +65,11 @@ export const DesktopPlayer = ({
   });
   const canvasRendererRef = useRef<CanvasRendererRef>(null);
 
-  useListener(playerClient?.onError, clientOnError);
+  useListener(playerClient?.onError, clientOnTdpError);
+  useListener(playerClient?.onClientError, clientOnTdpError);
+  useListener(playerClient?.onClientError, clientOnTdpError);
   useListener(playerClient?.onInfo, clientOnTdpInfo);
-  useListener(playerClient?.onTransportOpen, clientOnTransportOpen);
-  useListener(playerClient?.onTransportClose, clientOnTransportClose);
+  useListener(playerClient?.onWsClose, clientOnWsClose);
   useListener(
     playerClient?.onPngFrame,
     canvasRendererRef.current?.renderPngFrame
@@ -88,7 +94,7 @@ export const DesktopPlayer = ({
 
   return (
     <StyledPlayer>
-      {isError && <DesktopPlayerAlert my={4}>{statusText}</DesktopPlayerAlert>}
+      {isError && <DesktopPlayerAlert my={4} children={statusText} />}
       {isLoading && (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -132,17 +138,13 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
   }, [clusterId, sid]);
 
-  const clientOnTransportOpen = useCallback(() => {
-    setPlayerStatus(StatusEnum.PLAYING);
-  }, []);
-
-  const clientOnTransportClose = useCallback(() => {
+  const clientOnWsClose = useCallback(() => {
     if (playerClient) {
       playerClient.cancelTimeUpdate();
     }
   }, [playerClient]);
 
-  const clientOnError = useCallback((error: Error) => {
+  const clientOnTdpError = useCallback((error: Error) => {
     setPlayerStatus(StatusEnum.ERROR);
     setStatusText(error.message || error.toString());
   }, []);
@@ -168,9 +170,8 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     playerStatus,
     statusText,
 
-    clientOnTransportOpen,
-    clientOnTransportClose,
-    clientOnError,
+    clientOnWsClose,
+    clientOnTdpError,
     clientOnTdpInfo,
   };
 };

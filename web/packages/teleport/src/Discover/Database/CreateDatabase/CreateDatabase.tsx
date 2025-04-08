@@ -16,16 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Box, Flex, Mark, Text } from 'design';
-import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import TextEditor from 'shared/components/TextEditor';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { ResourceLabelTooltip } from 'teleport/Discover/Shared/ResourceLabelTooltip';
 import type { ResourceLabel } from 'teleport/services/agents';
 
 import {
@@ -103,18 +101,19 @@ export function CreateDatabaseView({
   return (
     <Validation>
       {({ validator }) => (
-        <>
+        <Box maxWidth="800px">
           <Header>Register a Database</Header>
           <HeaderSubtitle>
             Create a new database resource for the database server.
           </HeaderSubtitle>
           {!canCreateDatabase && (
             <Box>
-              <P>You don't have permission to register a database.</P>
-              <P>
+              <Text>
+                You don't have permission to register a database.
+                <br />
                 Please ask your Teleport administrator to update your role and
                 add the <Mark>db</Mark> rule:
-              </P>
+              </Text>
               <Flex minHeight="195px" mt={3}>
                 <TextEditor
                   readOnly={true}
@@ -163,13 +162,13 @@ export function CreateDatabaseView({
                     />
                   </Flex>
                   <Box mt={3}>
-                    <Flex alignItems="center" gap={1} mb={2}>
-                      <Text bold>Labels (optional)</Text>
-                      <ResourceLabelTooltip
-                        toolTipPosition="top"
-                        resourceKind="db"
-                      />
-                    </Flex>
+                    <Text bold>Labels (optional)</Text>
+                    <Text mb={2}>
+                      Labels make this new database discoverable by the database
+                      service. <br />
+                      Not defining labels is equivalent to asterisks (any
+                      database service can discover this database).
+                    </Text>
                     <LabelsCreater
                       labels={labels}
                       setLabels={setLabels}
@@ -204,7 +203,7 @@ export function CreateDatabaseView({
               next={nextStep}
             />
           )}
-        </>
+        </Box>
       )}
     </Validation>
   );

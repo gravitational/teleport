@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { KindAuthConnectors } from 'teleport/services/resources';
+import React from 'react';
 
 import DeleteDialog from './DeleteConnectorDialog';
 
@@ -26,17 +26,10 @@ export default {
 
 export const Loaded = () => <DeleteDialog {...props} />;
 
-export const LoadedDefault = () => (
-  <DeleteDialog {...props} isDefault={true} nextDefault="okta" />
-);
-
 const props = {
   name: 'sample-connector-role',
-  kind: 'github' as KindAuthConnectors,
   onDelete: () => {
     return Promise.reject(new Error('server error'));
   },
   onClose: () => null,
-  isDefault: false,
-  nextDefault: 'okta',
 };

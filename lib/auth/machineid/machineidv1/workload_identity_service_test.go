@@ -20,6 +20,7 @@ package machineidv1_test
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
@@ -93,7 +94,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	privateKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
 	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
 	require.NoError(t, err)
@@ -286,8 +287,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(ctx, jwtCA)
 	require.NoError(t, err)
 
-	kid, err := libjwt.KeyID(jwtSigner.Public())
-	require.NoError(t, err)
+	kid := libjwt.KeyID(jwtSigner.Public().(*rsa.PublicKey))
 
 	// Upsert a fake proxy to ensure we have a public address to use for the
 	// issuer.

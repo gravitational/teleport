@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
@@ -64,7 +63,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					resetYubikey(t, y)
 					setupPINPrompt(t, y)
 
-					var slot hardwarekey.PIVSlotKeyString = ""
+					var slot keys.PIVSlot = ""
 					if customSlot {
 						slot = "9a"
 					}
@@ -111,8 +110,9 @@ func TestOverwritePrompt(t *testing.T) {
 
 	t.Cleanup(func() { resetYubikey(t, y) })
 
-	// Get the default slot used for hardware_key_touch.
-	touchSlot := piv.SlotSignature
+	// Use a custom slot.
+	pivSlot, err := keys.GetDefaultKeySlot(keys.PrivateKeyPolicyHardwareKeyTouch)
+	require.NoError(t, err)
 
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
@@ -130,7 +130,7 @@ func TestOverwritePrompt(t *testing.T) {
 		resetYubikey(t, y)
 
 		// Set a non-teleport certificate in the slot.
-		err = y.SetMetadataCertificate(touchSlot, pkix.Name{Organization: []string{"not-teleport"}})
+		err = y.SetMetadataCertificate(pivSlot, pkix.Name{Organization: []string{"not-teleport"}})
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)
@@ -140,7 +140,7 @@ func TestOverwritePrompt(t *testing.T) {
 		resetYubikey(t, y)
 
 		// Generate a key that does not require touch in the slot that Teleport expects to require touch.
-		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, hardwarekey.PIVSlotKeyString(touchSlot.String()), nil)
+		_, err := keys.GetYubiKeyPrivateKey(ctx, keys.PrivateKeyPolicyHardwareKey, keys.PIVSlot(pivSlot.String()), nil)
 		require.NoError(t, err)
 
 		testOverwritePrompt(t)

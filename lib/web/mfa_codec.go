@@ -76,10 +76,10 @@ type tdpMFACodec struct{}
 
 func (tdpMFACodec) Encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
 	switch envelopeType {
-	case defaults.WebsocketMFAChallenge:
+	case defaults.WebsocketWebauthnChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"received envelope type %v, expected %v (MFAChallenge)", envelopeType, defaults.WebsocketMFAChallenge)
+			"received envelope type %v, expected %v (WebAuthn)", envelopeType, defaults.WebsocketWebauthnChallenge)
 	}
 
 	tdpMsg := tdp.MFA{

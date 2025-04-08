@@ -19,6 +19,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"io"
 	"net"
 	"os"
@@ -28,8 +30,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // TestChConn validates that reads from the channel connection can be
@@ -89,10 +92,13 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 	require.NoError(t, err)
 	t.Cleanup(func() { nConn.Close() })
 
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
-	signer, err := ssh.NewSignerFromSigner(privateKey)
+	private, err := keys.MarshalPrivateKey(privateKey)
+	require.NoError(t, err)
+
+	signer, err := ssh.ParsePrivateKey(private)
 	require.NoError(t, err)
 
 	config := &ssh.ServerConfig{NoClientAuth: true}

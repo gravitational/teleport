@@ -58,9 +58,9 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 	var resourceIDs []types.ResourceID
 	for _, resourceID := range ids {
 		// We're interested in hostname or friendly name details. These apply to
-		// nodes, app servers, user groups and Identity Center resources.
+		// nodes, app servers, and user groups.
 		switch resourceID.Kind {
-		case types.KindNode, types.KindApp, types.KindUserGroup, types.KindIdentityCenterAccount:
+		case types.KindNode, types.KindApp, types.KindUserGroup:
 			resourceIDs = append(resourceIDs, resourceID)
 		}
 	}

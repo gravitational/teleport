@@ -45,7 +45,7 @@ Things it doesn't do (yet):
   - Architectures
     - x86_64
     - aarch64
-  - macOS 11.0+
+  - MacOS 10.15+
     - uses `.tar.gz` tarball package
 
 ## Arguments

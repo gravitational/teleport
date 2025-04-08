@@ -30,7 +30,6 @@ interface PingTeleportContextState<T> {
   active: boolean;
   start: (tokenOrTerm: JoinToken | string) => void;
   result: T | null;
-  stop: () => void;
 }
 
 const pingTeleportContext =
@@ -118,7 +117,6 @@ export function PingTeleportProvider<T>(props: {
         active,
         start,
         result,
-        stop: () => setActive(false),
       }}
     >
       {props.children}
@@ -139,8 +137,6 @@ export function usePingTeleport<T>(tokenOrTerm: JoinToken | string) {
     if (!ctx.active && !ctx.result) {
       ctx.start(tokenOrTerm);
     }
-
-    return () => ctx.stop();
   }, []);
 
   return ctx;

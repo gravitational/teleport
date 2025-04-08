@@ -18,7 +18,6 @@ package config
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 )
@@ -36,10 +35,6 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 					Name: "my-workload-identity",
 				},
 				IncludeFederatedTrustBundles: true,
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 		{

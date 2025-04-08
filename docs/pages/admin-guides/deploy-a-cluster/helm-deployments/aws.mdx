@@ -442,13 +442,13 @@ replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
 
 <details>
-<summary>Enrolling applications with Teleport?</summary>
+<summary>Using Application Access?</summary>
 
 (!docs/pages/includes/dns-app-access.mdx!)
 
 </details>
 
-Here's how to do this in a hosted zone with Amazon Route 53:
+Here's how to do this in a hosted zone with AWS Route 53:
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -578,7 +578,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 
 ## Step 7/7. Create a Teleport user
 
-Create a user to be able to log into Teleport. This needs to be done on the Teleport Auth Service,
+Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
 <Tabs>

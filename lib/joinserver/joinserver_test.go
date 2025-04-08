@@ -49,7 +49,6 @@ type mockJoinServiceClient struct {
 	gotAzureChallengeResponse *proto.RegisterUsingAzureMethodRequest
 	gotTPMChallengeResponse   *proto.RegisterUsingTPMMethodChallengeResponse
 	gotTPMInitReq             *proto.RegisterUsingTPMMethodInitialRequest
-	gotRegisterUsingTokenReq  *types.RegisterUsingTokenRequest
 }
 
 func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
@@ -83,22 +82,6 @@ func (c *mockJoinServiceClient) RegisterUsingTPMMethod(
 		return nil, trace.Wrap(err)
 	}
 	c.gotTPMChallengeResponse = resp
-	return c.returnCerts, c.returnError
-}
-
-func (c *mockJoinServiceClient) RegisterUsingOracleMethod(
-	ctx context.Context,
-	tokenReq *types.RegisterUsingTokenRequest,
-	challengeResponse client.RegisterOracleChallengeResponseFunc,
-) (*proto.Certs, error) {
-	return c.returnCerts, c.returnError
-}
-
-func (c *mockJoinServiceClient) RegisterUsingToken(
-	ctx context.Context,
-	req *types.RegisterUsingTokenRequest,
-) (*proto.Certs, error) {
-	c.gotRegisterUsingTokenReq = req
 	return c.returnCerts, c.returnError
 }
 
@@ -340,88 +323,6 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 	}
 }
 
-func TestJoinServiceGRPCServer_RegisterUsingToken(t *testing.T) {
-	t.Parallel()
-	testPack := newTestPack(t)
-
-	testCases := []struct {
-		desc    string
-		req     *types.RegisterUsingTokenRequest
-		wantReq *types.RegisterUsingTokenRequest
-		authErr string
-		certs   *proto.Certs
-	}{
-		{
-			desc: "unauthenticated pass case",
-			req: &types.RegisterUsingTokenRequest{
-				Token: "xyzzy",
-			},
-			wantReq: &types.RegisterUsingTokenRequest{
-				Token:      "xyzzy",
-				RemoteAddr: "bufconn",
-			},
-			certs: &proto.Certs{SSH: []byte("qux")},
-		},
-		{
-			desc: "unauthenticated - faked metadata ignored",
-			req: &types.RegisterUsingTokenRequest{
-				Token:         "xyzzy",
-				RemoteAddr:    "mauahahh",
-				BotInstanceID: "123-456",
-				BotGeneration: 1337,
-			},
-			wantReq: &types.RegisterUsingTokenRequest{
-				Token:      "xyzzy",
-				RemoteAddr: "bufconn",
-			},
-			certs: &proto.Certs{SSH: []byte("qux")},
-		},
-		{
-			desc: "auth error",
-			req: &types.RegisterUsingTokenRequest{
-				Token: "xyzzy",
-			},
-			wantReq: &types.RegisterUsingTokenRequest{
-				Token:      "xyzzy",
-				RemoteAddr: "bufconn",
-			},
-			authErr: "test auth error",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			testPack.mockAuthServer.returnCerts = tc.certs
-			if tc.authErr != "" {
-				testPack.mockAuthServer.returnError = errors.New(tc.authErr)
-			}
-
-			for suffix, clt := range map[string]*client.JoinServiceClient{
-				"_auth":  testPack.authClient,
-				"_proxy": testPack.proxyClient,
-			} {
-				t.Run(tc.desc+suffix, func(t *testing.T) {
-					certs, err := clt.RegisterUsingToken(
-						context.Background(),
-						tc.req,
-					)
-					if tc.authErr != "" {
-						require.ErrorContains(t, err, tc.authErr, "authErr mismatch")
-						return
-					}
-					if assert.NoError(t, err) {
-						assert.Equal(t, tc.certs, certs)
-					}
-					assert.Equal(
-						t,
-						tc.wantReq,
-						testPack.mockAuthServer.gotRegisterUsingTokenReq,
-					)
-				})
-			}
-		})
-	}
-}
-
 func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 	t.Parallel()
 	testPack := newTestPack(t)
@@ -609,7 +510,7 @@ func TestTimeout(t *testing.T) {
 			//
 			// Make sure the request is automatically timed out on the server and all
 			// connections are closed shortly after the timeout.
-			fakeClock.Advance(joinRequestTimeout)
+			fakeClock.Advance(iamJoinRequestTimeout)
 			require.Eventually(t, func() bool {
 				return testPack.streamConnectionCount.Load() == 0
 			}, 10*time.Second, 1*time.Millisecond)

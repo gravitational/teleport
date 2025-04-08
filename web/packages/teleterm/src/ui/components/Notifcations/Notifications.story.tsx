@@ -16,12 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-import type {
-  NotificationItem,
-  NotificationSeverity,
-} from '@gravitational/shared/components/Notification';
+import type { NotificationItem } from '@gravitational/shared/components/Notification';
 import { ButtonPrimary, Flex } from 'design';
 
 import { unique } from 'teleterm/ui/utils/uid';
@@ -45,7 +42,7 @@ function useNotifications() {
 export const TitleAndDescriptionContent = () => {
   const { setItems, removeItem, items } = useNotifications();
 
-  function notify(severity: NotificationSeverity) {
+  function notify(severity: NotificationItem['severity']) {
     setItems(prevItems => [
       ...prevItems,
       {
@@ -79,7 +76,7 @@ export const TitleAndDescriptionContent = () => {
 export const StringContent = () => {
   const { setItems, removeItem, items } = useNotifications();
 
-  function notify(severity: NotificationSeverity) {
+  function notify(severity: NotificationItem['severity']) {
     setItems(prevItems => [
       ...prevItems,
       {

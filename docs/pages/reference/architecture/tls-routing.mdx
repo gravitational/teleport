@@ -143,7 +143,7 @@ Starting from version `13.0`, TLS routing can now be enabled allowing the
 Teleport Proxy Service to serve a single port behind a layer 7 load balancer or
 reverse proxy.
 
-![Layer 7 load balancer setup](../../../img/architecture/tls-routing-alb.png)
+![Layer 7 load balancer setup](../../../img/architecture/tls-routing-alb.svg)
 
 It is expected that the layer 7 load balancer or reverse proxy will terminate
 TLS with a public certificate, such as using ACM for AWS ALB. This means that
@@ -160,7 +160,7 @@ uses the same connection upgrade principle as WebSockets. Starting from version
 15.1, Teleport clients will send native WebSocket upgrades to extend its
 compatibility with more load balancers and reverse proxies.
 
-![Connection upgrade](../../../img/architecture/tls-routing-connection-upgrade.png)
+![Connection upgrade](../../../img/architecture/tls-routing-connection-upgrade.svg)
 
 Non-Teleport clients should require local proxies that can perform the
 special connection upgrades.
@@ -243,10 +243,8 @@ For Teleport version before 15.1, the reverse proxy must support custom
 upgrades](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Upgrade)
 and long-lived connections.
 
-You can set up the Teleport Proxy Service behind the reverse proxy and run the
-following command to test the connection, assigning 
-<Var name="teleport.example.com" /> to the domain name of the Proxy Service:
-
+You can set up a Teleport Proxy Service behind the reverse proxy and run the
+following command to test the connection:
 ```code
 $ curl -v https://<Var name="teleport.example.com" />/webapi/connectionupgrade -H "Connection: Upgrade" -H "Upgrade: alpn-ping" --no-alpn
 ```

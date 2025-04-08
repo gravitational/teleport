@@ -16,36 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
 import { createMemoryHistory } from 'history';
+import React from 'react';
 
 import { Flex } from 'design';
 
-import { ContextProvider } from 'teleport';
 import { Route, Router } from 'teleport/components/Router';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Player } from './Player';
 
-const meta: Meta = {
+export default {
   title: 'Teleport/Player',
-  decorators: Story => {
-    const ctx = createTeleportContext();
-
-    return (
-      <ContextProvider ctx={ctx}>
-        <Story />
-      </ContextProvider>
-    );
-  },
 };
-export default meta;
 
 export const SSH = () => {
   const history = createMemoryHistory({
-    initialEntries: [
-      '/web/cluster/localhost/session/123?recordingType=ssh&durationMs=1234',
-    ],
+    initialEntries: ['/web/cluster/localhost/session/123?recordingType=ssh'],
     initialIndex: 0,
   });
 
@@ -59,11 +45,6 @@ export const SSH = () => {
     </Router>
   );
 };
-
-// SSH player attempts to write to a web socket, and currently, there's no
-// official support for web sockets in MSW (see
-// https://github.com/mswjs/msw/issues/156).
-SSH.tags = ['skip-test'];
 
 export const Desktop = () => {
   const history = createMemoryHistory({

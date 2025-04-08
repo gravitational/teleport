@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React from 'react';
 
-import { Alert, ButtonPrimary, ButtonSecondary, P2, Text } from 'design';
+import { Alert, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -27,7 +27,6 @@ import Dialog, {
 } from 'design/Dialog';
 import { useAttemptNext } from 'shared/hooks';
 
-import cfg from 'teleport/config';
 import { ResetToken } from 'teleport/services/user';
 
 import UserTokenLink from './../UserTokenLink';
@@ -62,29 +61,14 @@ export function UserReset({
         {attempt.status === 'failed' && (
           <Alert kind="danger">{attempt.statusText}</Alert>
         )}
-        <P2>
-          You are about to reset authentication for user{' '}
-          <Text bold as="strong">
-            {username}
+        <Text mb={4} mt={1}>
+          You are about to reset authentication for user
+          <Text bold as="span">
+            {` ${username} `}
           </Text>
-          . This will generate a&nbsp;temporary URL which can be used to set up
-          new authentication.
-        </P2>
-        {cfg.isMfaEnabled() && (
-          <P2>
-            All{' '}
-            {cfg.isPasswordlessEnabled()
-              ? 'passkeys and MFA methods'
-              : 'MFA methods'}{' '}
-            of this user will be removed. The user will be able to set up{' '}
-            {cfg.isPasswordlessEnabled() ? (
-              <>a&nbsp;new passkey or an MFA method</>
-            ) : (
-              <>a&nbsp;new method</>
-            )}{' '}
-            after following the URL.
-          </P2>
-        )}
+          . This will generate a temporary URL which can be used to set up new
+          authentication.
+        </Text>
       </DialogContent>
       <DialogFooter>
         <ButtonPrimary
@@ -102,7 +86,7 @@ export function UserReset({
 
 function useDialog(props: Props) {
   const { attempt, run } = useAttemptNext();
-  const [token, setToken] = useState<ResetToken>(null);
+  const [token, setToken] = React.useState<ResetToken>(null);
 
   function onReset() {
     run(() => props.onReset(props.username).then(setToken));

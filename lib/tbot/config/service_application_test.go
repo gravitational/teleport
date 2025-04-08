@@ -20,7 +20,6 @@ package config
 
 import (
 	"testing"
-	"time"
 )
 
 func TestApplicationOutput_YAML(t *testing.T) {
@@ -32,10 +31,6 @@ func TestApplicationOutput_YAML(t *testing.T) {
 				Destination: dest,
 				Roles:       []string{"access"},
 				AppName:     "my-app",
-				CredentialLifetime: CredentialLifetime{
-					TTL:             1 * time.Minute,
-					RenewalInterval: 30 * time.Second,
-				},
 			},
 		},
 		{

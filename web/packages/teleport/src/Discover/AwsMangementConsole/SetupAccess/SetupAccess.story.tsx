@@ -16,29 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { AwsRole } from 'shared/services/apps';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  RequiredDiscoverProviders,
-  resourceSpecAppAwsCliConsole,
-} from 'teleport/Discover/Fixtures/fixtures';
-import { getAcl } from 'teleport/mocks/contexts';
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { app } from '../fixtures';
 import { SetupAccess } from './SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Application/AwsConsole/SetupAccess',
+  loaders: [mswLoader],
 };
+
+initialize();
 
 const awsRoles: AwsRole[] = [
   {
@@ -55,17 +62,19 @@ const awsRoles: AwsRole[] = [
   },
 ];
 
-const defaultUserGet = http.get(cfg.api.userWithUsernamePath, () =>
-  HttpResponse.json({
-    name: 'user-1',
-    roles: [],
-    authType: 'local',
-    isLocal: true,
-    traits: {
-      awsRoleArns: [],
-    },
-    allTraits: {},
-  })
+const defaultUserGet = rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+  res(
+    ctx.json({
+      name: 'user-1',
+      roles: [],
+      authType: 'local',
+      isLocal: true,
+      traits: {
+        awsRoleArns: [],
+      },
+      allTraits: {},
+    })
+  )
 );
 
 export const NoTraits = () => (
@@ -91,17 +100,19 @@ export const WithTraits = () => (
 WithTraits.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.api.userWithUsernamePath, () =>
-        HttpResponse.json({
-          name: 'user-1',
-          roles: [],
-          authType: 'local',
-          isLocal: true,
-          traits: {
-            awsRoleArns: ['arn:aws:iam::123456789012:role/dynamic1'],
-          },
-          allTraits: {},
-        })
+      rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+        res(
+          ctx.json({
+            name: 'user-1',
+            roles: [],
+            authType: 'local',
+            isLocal: true,
+            traits: {
+              awsRoleArns: ['arn:aws:iam::123456789012:role/dynamic1'],
+            },
+            allTraits: {},
+          })
+        )
       ),
     ],
   },
@@ -144,30 +155,62 @@ const Provider = ({
   noAccess?: boolean;
   isSso?: boolean;
 }) => {
+  const ctx = createTeleportContext();
+  if (noAccess) {
+    ctx.storeUser.state.acl = getAcl({ noAccess: true });
+  }
+  if (isSso) {
+    ctx.storeUser.state.authType = 'sso';
+  }
+  const discoverCtx: DiscoverContextState = {
+    prevStep: () => {},
+    nextStep: () => {},
+    agentMeta: {
+      app: {
+        ...app,
+        awsRoles,
+      },
+      awsIntegration: {
+        resourceType: 'integration',
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-aws-oidc-name',
+        statusCode: IntegrationStatusCode.Running,
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/some-iam-role-name',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+      },
+    },
+    currentStep: 0,
+    onSelectResource: () => null,
+    resourceSpec: {
+      kind: ResourceKind.Application,
+      appMeta: { awsConsole: true },
+      name: '',
+      icon: undefined,
+      keywords: '',
+      event: DiscoverEventResource.ApplicationHttp,
+    },
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
+
   return (
-    <RequiredDiscoverProviders
-      agentMeta={{
-        app: {
-          ...app,
-          awsRoles,
-        },
-        awsIntegration: {
-          resourceType: 'integration',
-          kind: IntegrationKind.AwsOidc,
-          name: 'some-aws-oidc-name',
-          statusCode: IntegrationStatusCode.Running,
-          spec: {
-            roleArn: 'arn:aws:iam::123456789012:role/some-iam-role-name',
-            issuerS3Bucket: '',
-            issuerS3Prefix: '',
-          },
-        },
-      }}
-      resourceSpec={resourceSpecAppAwsCliConsole}
-      authType={isSso ? 'sso' : undefined}
-      customAcl={noAccess ? getAcl({ noAccess: true }) : undefined}
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'server' } },
+      ]}
     >
-      {children}
-    </RequiredDiscoverProviders>
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };

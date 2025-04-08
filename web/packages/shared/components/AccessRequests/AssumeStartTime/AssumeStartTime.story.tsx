@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { format } from 'date-fns';
+import React, { useState } from 'react';
 
 import { Box, Text } from 'design';
-import { displayDateTime } from 'design/datetime';
 import { Option } from 'shared/components/Select';
+import cfg from 'shared/config';
 
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
 import { dryRunResponse } from '../fixtures';
@@ -39,11 +40,12 @@ export const NewRequest = () => {
       <Box mb={4}>
         <Text>Sample Dry Run Access Requeset Response:</Text>
         <Text>
-          <b>Created Date:</b> {displayDateTime(dryRunResponse.created)}
+          <b>Created Date:</b>{' '}
+          {format(dryRunResponse.created, cfg.dateTimeFormat)}
         </Text>
         <Text>
           <b>Max Duration Date:</b>{' '}
-          {displayDateTime(dryRunResponse.maxDuration)}
+          {format(dryRunResponse.maxDuration, cfg.dateTimeFormat)}
         </Text>
       </Box>
       <AssumeStartTime
@@ -68,11 +70,12 @@ export const CreatedRequestWithoutStart = () => {
       <Box mb={4}>
         <Text>Sample Access Request:</Text>
         <Text>
-          <b>Created Date:</b> {displayDateTime(dryRunResponse.created)}
+          <b>Created Date:</b>{' '}
+          {format(dryRunResponse.created, cfg.dateTimeFormat)}
         </Text>
         <Text>
           <b>Max Duration Date:</b>{' '}
-          {displayDateTime(dryRunResponse.maxDuration)}
+          {format(dryRunResponse.maxDuration, cfg.dateTimeFormat)}
         </Text>
       </Box>
       <AssumeStartTime
@@ -102,10 +105,11 @@ export const CreatedRequestWithStart = () => {
       <Box mb={4}>
         <Text>Sample Access Request:</Text>
         <Text>
-          <b>Created Date:</b> {displayDateTime(withStart.created)}
+          <b>Created Date:</b> {format(withStart.created, cfg.dateTimeFormat)}
         </Text>
         <Text>
-          <b>Max Duration Date:</b> {displayDateTime(withStart.maxDuration)}
+          <b>Max Duration Date:</b>{' '}
+          {format(withStart.maxDuration, cfg.dateTimeFormat)}
         </Text>
       </Box>
       <AssumeStartTime

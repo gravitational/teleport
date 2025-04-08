@@ -37,11 +37,6 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
   const server = makeServer();
   const app1 = makeApp();
   const app2 = makeApp({ uri: `${rootClusterUri}/apps/foo2`, name: 'foo2' });
-  const samlApp = makeApp({
-    uri: `${rootClusterUri}/samlapp`,
-    name: 'samlapp',
-    samlApp: true,
-  });
   const kube = makeKube();
   const database = makeDatabase();
 
@@ -53,7 +48,6 @@ function getMockPendingResourceAccessRequest(): PendingAccessRequest {
       [app2.uri, { kind: 'app', resource: app2 }],
       [kube.uri, { kind: 'kube', resource: kube }],
       [database.uri, { kind: 'database', resource: database }],
-      [samlApp.uri, { kind: 'app', resource: samlApp }],
     ]),
   };
 }
@@ -119,7 +113,7 @@ test('getAddedItemsCount() returns added resource count for pending request', ()
   const { accessRequestsService: service } = getTestSetup(
     getMockPendingResourceAccessRequest()
   );
-  expect(service.getAddedItemsCount()).toBe(6);
+  expect(service.getAddedItemsCount()).toBe(5);
   service.clearPendingAccessRequest();
   expect(service.getAddedItemsCount()).toBe(0);
 });

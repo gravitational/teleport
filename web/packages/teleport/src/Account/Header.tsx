@@ -24,9 +24,8 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
-  H2,
   Indicator,
-  Subtitle2,
+  Text,
 } from 'design';
 
 export interface HeaderProps {
@@ -58,10 +57,10 @@ export function Header({
         {icon}
       </Box>
       <Box flex="1">
-        <H2>{title}</H2>
-        <Subtitle2 color={theme.colors.text.slightlyMuted}>
+        <Text typography="h4">{title}</Text>
+        <Text typography="body1" color={theme.colors.text.slightlyMuted}>
           {description}
-        </Subtitle2>
+        </Text>
       </Box>
       {/* Indicator is always in the layout so that the description text doesn't
           reflow if visibility changes. */}

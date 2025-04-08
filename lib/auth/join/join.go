@@ -18,37 +18,31 @@ package join
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
 	"log/slog"
-	"net/http"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
-	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/circleci"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
@@ -91,6 +85,10 @@ type RegisterParams struct {
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
 	DNSNames []string
+	// PublicTLSKey is a server's public key to sign
+	PublicTLSKey []byte
+	// PublicSSHKey is a server's public SSH key to sign
+	PublicSSHKey []byte
 	// CipherSuites is a list of cipher suites to use for TLS client connection
 	// Ignored if AuthClient is provided.
 	CipherSuites []uint16
@@ -100,8 +98,7 @@ type RegisterParams struct {
 	// CAPath is the path to the CA file.
 	// Ignored if AuthClient is provided.
 	CAPath string
-	// GetHostCredentials is a client that can be used to register via the
-	// proxy web API.
+	// GetHostCredentials is a client that can fetch host credentials.
 	// Ignored if AuthClient is provided.
 	GetHostCredentials HostCredentials
 	// Clock specifies the time provider. Will be used to override the time anchor
@@ -181,22 +178,11 @@ func (r *RegisterParams) verifyAuthOrProxyAddress() error {
 	return nil
 }
 
-// RegisterResult contains the certificates and the private key generated during
-// the registration process.
-type RegisterResult struct {
-	// Certs holds the certificates issued and signed by the Auth server.
-	Certs *proto.Certs
-	// PrivateKey is the subject key of the certificates in [Certs]. It is
-	// generated according to the current signature algorithm suite configured
-	// in the cluster.
-	PrivateKey crypto.Signer
-}
-
-// Register is used to get signed certificates when a node, proxy, or bot is
-// running on a different host than the auth server. This method requires a
-// provision token that will be used to authenticate as an identity that should
-// be allowed to join the cluster.
-func Register(ctx context.Context, params RegisterParams) (result *RegisterResult, err error) {
+// Register is used to generate host keys when a node or proxy are running on
+// different hosts than the auth server. This method requires provisioning
+// tokens to prove a valid auth server was used to issue the joining request
+// as well as a method for the node to validate the auth server.
+func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, err error) {
 	ctx, span := tracer.Start(ctx, "Register")
 	defer func() { tracing.EndSpan(span, err) }()
 
@@ -269,18 +255,18 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	// If an explicit AuthClient has been provided, we want to go straight to
 	// using that rather than trying both proxy and auth dialing.
 	if params.AuthClient != nil {
-		slog.InfoContext(ctx, "Attempting registration with existing auth client.")
-		result, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
+		log.Info("Attempting registration with existing auth client.")
+		certs, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
 		if err != nil {
-			slog.ErrorContext(ctx, "Registration with existing auth client failed.", "error", err)
+			log.WithError(err).Error("Registration with existing auth client failed.")
 			return nil, trace.Wrap(err)
 		}
-		slog.InfoContext(ctx, "Successfully registered with existing auth client.")
-		return result, nil
+		log.Info("Successfully registered with existing auth client.")
+		return certs, nil
 	}
 
 	type registerMethod struct {
-		call func(ctx context.Context, token string, params RegisterParams) (*RegisterResult, error)
+		call func(ctx context.Context, token string, params RegisterParams) (*proto.Certs, error)
 		desc string
 	}
 
@@ -290,36 +276,36 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
 
 	if !params.ProxyServer.IsEmpty() {
-		slog.DebugContext(ctx, "Registering node to the cluster.", "proxy_server", params.ProxyServer)
+		log.WithField("proxy-server", params.ProxyServer).Debugf("Registering node to the cluster.")
 
 		registerMethods = []registerMethod{registerThroughProxy}
 
 		if proxyServerIsAuth(params.ProxyServer) {
-			slog.DebugContext(ctx, "The specified proxy server appears to be an auth server.")
+			log.Debugf("The specified proxy server appears to be an auth server.")
 		}
 	} else {
-		slog.DebugContext(ctx, "Registering node to the cluster.", "auth_servers", params.AuthServers)
+		log.WithField("auth-servers", params.AuthServers).Debugf("Registering node to the cluster.")
 
 		if params.GetHostCredentials == nil {
-			slog.DebugContext(ctx, "Missing client, it is not possible to register through proxy.")
+			log.Debugf("Missing client, it is not possible to register through proxy.")
 			registerMethods = []registerMethod{registerThroughAuth}
 		} else if authServerIsProxy(params.AuthServers) {
-			slog.DebugContext(ctx, "The first specified auth server appears to be a proxy.")
+			log.Debugf("The first specified auth server appears to be a proxy.")
 			registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
 		}
 	}
 
 	var collectedErrs []error
 	for _, method := range registerMethods {
-		slog.InfoContext(ctx, "Attempting registration.", "method", method.desc)
-		result, err := method.call(ctx, token, params)
+		log.Infof("Attempting registration %s.", method.desc)
+		certs, err := method.call(ctx, token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
-			slog.DebugContext(ctx, "Registration failed.", "method", method.desc, "error", err)
+			log.WithError(err).Debugf("Registration %s failed.", method.desc)
 			continue
 		}
-		slog.InfoContext(ctx, "Successfully registered.", "method", method.desc)
-		return result, nil
+		log.Infof("Successfully registered %s.", method.desc)
+		return certs, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
 }
@@ -346,27 +332,17 @@ func registerThroughProxy(
 	ctx context.Context,
 	token string,
 	params RegisterParams,
-) (result *RegisterResult, err error) {
+) (certs *proto.Certs, err error) {
 	ctx, span := tracer.Start(ctx, "registerThroughProxy")
 	defer func() { tracing.EndSpan(span, err) }()
 
-	proxyAddr := getHostAddresses(params)[0]
-	hostKeys, err := generateHostKeysForProxy(ctx, params.Insecure, proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs *proto.Certs
 	switch params.JoinMethod {
-	case types.JoinMethodIAM,
-		types.JoinMethodAzure,
-		types.JoinMethodTPM,
-		types.JoinMethodOracle:
-		// These join methods require gRPC client
+	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
+		// IAM and Azure join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
 			proxyinsecureclient.ConnectionConfig{
-				ProxyServer:  proxyAddr,
+				ProxyServer:  getHostAddresses(params)[0],
 				CipherSuites: params.CipherSuites,
 				Clock:        params.Clock,
 				Insecure:     params.Insecure,
@@ -381,42 +357,49 @@ func registerThroughProxy(
 		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
 		switch params.JoinMethod {
 		case types.JoinMethodIAM:
-			certs, err = registerUsingIAMMethod(ctx, joinServiceClient, token, hostKeys, params)
+			certs, err = registerUsingIAMMethod(ctx, joinServiceClient, token, params)
 		case types.JoinMethodAzure:
-			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, hostKeys, params)
+			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, params)
 		case types.JoinMethodTPM:
-			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, hostKeys, params)
-		case types.JoinMethodOracle:
-			certs, err = registerUsingOracleMethod(ctx, joinServiceClient, token, hostKeys, params)
+			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, params)
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
-		// The rest of the join methods use GetHostCredentials function passed
-		// through params to call proxy HTTP endpoint.
+		// The rest of the join methods use GetHostCredentials function passed through
+		// params to call proxy HTTP endpoint
 		var err error
 		certs, err = params.GetHostCredentials(ctx,
-			proxyAddr,
+			getHostAddresses(params)[0],
 			params.Insecure,
-			*registerUsingTokenRequestForParams(token, hostKeys, params))
+			types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
+				Expires:              params.Expires,
+			})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	return &RegisterResult{
-		Certs:      certs,
-		PrivateKey: hostKeys.privateKey,
-	}, nil
+	return certs, nil
 }
 
 // registerThroughAuth is used to register through the auth server.
 func registerThroughAuth(
 	ctx context.Context, token string, params RegisterParams,
-) (result *RegisterResult, err error) {
+) (certs *proto.Certs, err error) {
 	ctx, span := tracer.Start(ctx, "registerThroughAuth")
 	defer func() { tracing.EndSpan(span, err) }()
 
@@ -425,27 +408,30 @@ func registerThroughAuth(
 	// depending on the configured values for Insecure, CAPins and CAPath.
 	switch {
 	case params.Insecure:
-		slog.WarnContext(ctx, "Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
-		client, err = insecureRegisterClient(ctx, params)
+		log.Warnf("Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
+		client, err = insecureRegisterClient(params)
 	case len(params.CAPins) != 0:
 		// CAPins takes precedence over CAPath
 		client, err = pinRegisterClient(ctx, params)
 	case params.CAPath != "":
-		client, err = caPathRegisterClient(ctx, params)
+		client, err = caPathRegisterClient(params)
 	default:
 		// We fall back to insecure mode here - this is a little odd but is
 		// necessary to preserve the behavior of registration. At a later date,
 		// we may consider making this an error asking the user to provide
 		// Insecure, CAPins or CAPath.
-		client, err = insecureRegisterClient(ctx, params)
+		client, err = insecureRegisterClient(params)
 	}
 	if err != nil {
-		return nil, trace.Wrap(err, "building auth client")
+		return nil, trace.Wrap(err)
 	}
 	defer client.Close()
 
-	result, err = registerThroughAuthClient(ctx, token, params, client)
-	return result, trace.Wrap(err, "registering through auth client")
+	certs, err = registerThroughAuthClient(ctx, token, params, client)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs, nil
 }
 
 // AuthJoinClient is a client that allows access to the Auth Servers join
@@ -453,7 +439,6 @@ func registerThroughAuth(
 type AuthJoinClient interface {
 	joinServiceClient
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
-	Ping(ctx context.Context) (proto.PingResponse, error)
 }
 
 func registerThroughAuthClient(
@@ -461,33 +446,35 @@ func registerThroughAuthClient(
 	token string,
 	params RegisterParams,
 	client AuthJoinClient,
-) (result *RegisterResult, err error) {
-	hostKeys, err := generateHostKeysForAuth(ctx, client)
-	if err != nil {
-		return nil, trace.Wrap(err, "generating host keys")
-	}
-
-	var certs *proto.Certs
+) (certs *proto.Certs, err error) {
 	switch params.JoinMethod {
 	// IAM and Azure methods use unique gRPC endpoints
 	case types.JoinMethodIAM:
-		certs, err = registerUsingIAMMethod(ctx, client, token, hostKeys, params)
+		certs, err = registerUsingIAMMethod(ctx, client, token, params)
 	case types.JoinMethodAzure:
-		certs, err = registerUsingAzureMethod(ctx, client, token, hostKeys, params)
+		certs, err = registerUsingAzureMethod(ctx, client, token, params)
 	case types.JoinMethodTPM:
-		certs, err = registerUsingTPMMethod(ctx, client, token, hostKeys, params)
+		certs, err = registerUsingTPMMethod(ctx, client, token, params)
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
-		certs, err = client.RegisterUsingToken(ctx, registerUsingTokenRequestForParams(token, hostKeys, params))
+		certs, err = client.RegisterUsingToken(
+			ctx,
+			&types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				EC2IdentityDocument:  params.ec2IdentityDocument,
+				IDToken:              params.IDToken,
+				Expires:              params.Expires,
+			})
 	}
-	if err != nil {
-		return nil, trace.Wrap(err, "registering with %s method", params.JoinMethod)
-	}
-	return &RegisterResult{
-		Certs:      certs,
-		PrivateKey: hostKeys.privateKey,
-	}, nil
+	return certs, trace.Wrap(err)
 }
 
 func getHostAddresses(params RegisterParams) []string {
@@ -501,13 +488,12 @@ func getHostAddresses(params RegisterParams) []string {
 // insecureRegisterClient attempts to connects to the Auth Server using the
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
-func insecureRegisterClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
-	const msg = "Joining cluster without validating the identity of the Auth " +
+func insecureRegisterClient(params RegisterParams) (*authclient.Client, error) {
+	log.Warnf("Joining cluster without validating the identity of the Auth " +
 		"Server. This may open you up to a Man-In-The-Middle (MITM) attack if an " +
 		"attacker can gain privileged network access. To remedy this, use the CA pin " +
 		"value provided when join token was generated to validate the identity of " +
-		"the Auth Server or point to a valid Certificate via the CA Path option."
-	slog.WarnContext(ctx, msg)
+		"the Auth Server or point to a valid Certificate via the CA Path option.")
 
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
@@ -519,10 +505,9 @@ func insecureRegisterClient(ctx context.Context, params RegisterParams) (*authcl
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: params.CircuitBreakerConfig,
-		Context:              ctx,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating insecure auth client")
+		return nil, trace.Wrap(err)
 	}
 
 	return client, nil
@@ -547,7 +532,6 @@ func pinRegisterClient(
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: params.CircuitBreakerConfig,
-		Context:              ctx,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -581,7 +565,7 @@ func pinRegisterClient(
 		}
 
 	}
-	slog.InfoContext(ctx, "Joining remote cluster with CA pin.", "cluster", certs[0].Subject.CommonName)
+	log.Infof("Joining remote cluster %v with CA pin.", certs[0].Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
@@ -599,7 +583,6 @@ func pinRegisterClient(
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: params.CircuitBreakerConfig,
-		Context:              ctx,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -608,7 +591,7 @@ func pinRegisterClient(
 	return authClient, nil
 }
 
-func caPathRegisterClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
+func caPathRegisterClient(params RegisterParams) (*authclient.Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
@@ -622,15 +605,15 @@ func caPathRegisterClient(ctx context.Context, params RegisterParams) (*authclie
 	// we may wish to consider changing this to return an error - but this is a
 	// breaking change.
 	if trace.IsNotFound(err) {
-		slog.WarnContext(ctx, "Falling back to insecurely joining because a missing or empty CA Path was provided.")
-		return insecureRegisterClient(ctx, params)
+		log.Warnf("Falling back to insecurely joining because a missing or empty CA Path was provided.")
+		return insecureRegisterClient(params)
 	}
 
 	certPool := x509.NewCertPool()
 	certPool.AddCert(cert)
 	tlsConfig.RootCAs = certPool
 
-	slog.InfoContext(ctx, "Joining remote cluster, validating connection with certificate on disk.", "cluster", cert.Subject.CommonName)
+	log.Infof("Joining remote cluster %v, validating connection with certificate on disk.", cert.Subject.CommonName)
 
 	client, err := authclient.NewClient(client.Config{
 		Addrs: getHostAddresses(params),
@@ -638,7 +621,6 @@ func caPathRegisterClient(ctx context.Context, params RegisterParams) (*authclie
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: params.CircuitBreakerConfig,
-		Context:              ctx,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -655,14 +637,9 @@ type joinServiceClient interface {
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
 	) (*proto.Certs, error)
-	RegisterUsingOracleMethod(
-		ctx context.Context,
-		tokenReq *types.RegisterUsingTokenRequest,
-		challengeResponse client.RegisterOracleChallengeResponseFunc,
-	) (*proto.Certs, error)
 }
 
-func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
+func registerUsingTokenRequestForParams(token string, params RegisterParams) *types.RegisterUsingTokenRequest {
 	return &types.RegisterUsingTokenRequest{
 		Token:                token,
 		HostID:               params.ID.HostUUID,
@@ -670,10 +647,8 @@ func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, par
 		Role:                 params.ID.Role,
 		AdditionalPrincipals: params.AdditionalPrincipals,
 		DNSNames:             params.DNSNames,
-		PublicTLSKey:         hostKeys.tlsPub,
-		PublicSSHKey:         hostKeys.sshPub,
-		EC2IdentityDocument:  params.ec2IdentityDocument,
-		IDToken:              params.IDToken,
+		PublicTLSKey:         params.PublicTLSKey,
+		PublicSSHKey:         params.PublicSSHKey,
 		Expires:              params.Expires,
 	}
 }
@@ -681,38 +656,39 @@ func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, par
 // registerUsingIAMMethod is used to register using the IAM join method. It is
 // able to register through a proxy or through the auth server directly.
 func registerUsingIAMMethod(
-	ctx context.Context, joinServiceClient joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
+	ctx context.Context, joinServiceClient joinServiceClient, token string, params RegisterParams,
 ) (*proto.Certs, error) {
-	slog.InfoContext(ctx, "Attempting to register with IAM method using region STS endpoint.", "role", params.ID.Role)
+	log.Infof("Attempting to register %s with IAM method using regional STS endpoint", params.ID.Role)
 	// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
 		signedRequest, err := iam.CreateSignedSTSIdentityRequest(ctx, challenge,
 			iam.WithFIPSEndpoint(params.FIPS),
+			iam.WithRegionalEndpoint(true),
 		)
 		if err != nil {
-			return nil, trace.Wrap(err, "creating signed sts:GetCallerIdentity request")
+			return nil, trace.Wrap(err)
 		}
 
 		// send the register request including the challenge response
 		return &proto.RegisterUsingIAMMethodRequest{
-			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
 			StsIdentityRequest:        signedRequest,
 		}, nil
 	})
 	if err != nil {
-		slog.InfoContext(ctx, "Failed to register using regional STS endpoint", "role", params.ID.Role, "error", err)
-		return nil, trace.Wrap(err, "registering via IAM method streaming RPC")
+		log.WithError(err).Infof("Failed to register %s using regional STS endpoint", params.ID.Role)
+		return nil, trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Successfully registered with IAM method using regional STS endpoint.", "role", params.ID.Role)
+	log.Infof("Successfully registered %s with IAM method using regional STS endpoint", params.ID.Role)
 	return certs, nil
 }
 
 // registerUsingAzureMethod is used to register using the Azure join method. It
 // is able to register through a proxy or through the auth server directly.
 func registerUsingAzureMethod(
-	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
+	ctx context.Context, client joinServiceClient, token string, params RegisterParams,
 ) (*proto.Certs, error) {
 	certs, err := client.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 		imds := azure.NewInstanceMetadataClient()
@@ -729,7 +705,7 @@ func registerUsingAzureMethod(
 		}
 
 		return &proto.RegisterUsingAzureMethodRequest{
-			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
 			AttestedData:              ad,
 			AccessToken:               accessToken,
 		}, nil
@@ -743,13 +719,12 @@ func registerUsingTPMMethod(
 	ctx context.Context,
 	client joinServiceClient,
 	token string,
-	hostKeys *newHostKeys,
 	params RegisterParams,
 ) (*proto.Certs, error) {
 	log := slog.Default()
 
 	initReq := &proto.RegisterUsingTPMMethodInitialRequest{
-		JoinRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
+		JoinRequest: registerUsingTokenRequestForParams(token, params),
 	}
 
 	attestation, close, err := tpm.Attest(ctx, log)
@@ -813,33 +788,6 @@ func registerUsingTPMMethod(
 	return certs, trace.Wrap(err)
 }
 
-func mapFromHeader(header http.Header) map[string]string {
-	out := make(map[string]string, len(header))
-	for k := range header {
-		out[k] = header.Get(k)
-	}
-	return out
-}
-
-func registerUsingOracleMethod(
-	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
-) (*proto.Certs, error) {
-	certs, err := client.RegisterUsingOracleMethod(
-		ctx,
-		registerUsingTokenRequestForParams(token, hostKeys, params),
-		func(challenge string) (*proto.OracleSignedRequest, error) {
-			innerHeaders, outerHeaders, err := oracle.CreateSignedRequest(challenge)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &proto.OracleSignedRequest{
-				Headers:        mapFromHeader(outerHeaders),
-				PayloadHeaders: mapFromHeader(innerHeaders),
-			}, nil
-		})
-	return certs, trace.Wrap(err)
-}
-
 // readCA will read in CA that will be used to validate the certificate that
 // the Auth Server presents.
 func readCA(path string) (*x509.Certificate, error) {
@@ -852,56 +800,4 @@ func readCA(path string) (*x509.Certificate, error) {
 		return nil, trace.Wrap(err, "failed to parse certificate at %v", path)
 	}
 	return cert, nil
-}
-
-type newHostKeys struct {
-	privateKey crypto.Signer
-	sshPub     []byte
-	tlsPub     []byte
-}
-
-func generateHostKeysForProxy(ctx context.Context, insecure bool, proxyAddr string) (*newHostKeys, error) {
-	getSuite := func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
-		pr, err := webclient.Find(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: proxyAddr,
-			Insecure:  insecure,
-		})
-		if err != nil {
-			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err, "pinging proxy to determine signature algorithm suite")
-		}
-		return pr.Auth.SignatureAlgorithmSuite, nil
-	}
-	return generateHostKeys(ctx, getSuite)
-}
-
-func generateHostKeysForAuth(ctx context.Context, authClient AuthJoinClient) (*newHostKeys, error) {
-	getSuite := func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
-		pr, err := authClient.Ping(ctx)
-		if err != nil {
-			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err, "pinging auth to determine signature algorithm suite")
-		}
-		return pr.SignatureAlgorithmSuite, nil
-	}
-	return generateHostKeys(ctx, getSuite)
-}
-
-func generateHostKeys(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (*newHostKeys, error) {
-	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.HostIdentity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPub, err := keys.MarshalPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &newHostKeys{
-		privateKey: key,
-		sshPub:     ssh.MarshalAuthorizedKey(sshPub),
-		tlsPub:     tlsPub,
-	}, nil
 }

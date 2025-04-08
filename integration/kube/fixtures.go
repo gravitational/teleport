@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,7 +57,7 @@ type ProxyConfig struct {
 func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	ctx := context.Background()
 	authServer := cfg.T.Process.GetAuthServer()
-	clusterName, err := authServer.GetClusterName(ctx)
+	clusterName, err := authServer.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -88,11 +88,11 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	privPEM, _, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	privPEM, err := keys.MarshalPrivateKey(priv)
+	priv, err := keys.ParsePrivateKey(privPEM)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

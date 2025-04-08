@@ -45,7 +45,7 @@ export function encodeUrlQueryParams({
     urlParams.append('sort', `${sort.fieldName}:${sort.dir.toLowerCase()}`);
   }
 
-  if (pinnedOnly !== undefined) {
+  if (pinnedOnly) {
     urlParams.append('pinnedOnly', `${pinnedOnly}`);
   }
 

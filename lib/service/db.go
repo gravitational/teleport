@@ -90,7 +90,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -98,17 +98,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	clusterName := conn.ClusterName()
+	clusterName := conn.ServerIdentity.ClusterName
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,7 +137,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ServerID:       process.Config.HostUUID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.logger,
+		Logger:         process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -164,7 +164,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentDatabase),
 		ConnectionMonitor:    connMonitor,
 		ConnectedProxyGetter: proxyGetter,
-		InventoryHandle:      process.inventoryHandle,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -183,12 +182,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
 			Component:            teleport.ComponentDatabase,
-			HostUUID:             conn.HostID(),
+			HostUUID:             conn.ServerIdentity.ID.HostUUID,
 			Resolver:             tunnelAddrResolver,
 			Client:               conn.Client,
 			Server:               dbService,
 			AccessPoint:          conn.Client,
-			AuthMethods:          conn.ClientAuthMethods(),
+			HostSigner:           conn.ServerIdentity.KeySigner,
 			Cluster:              clusterName,
 			FIPS:                 process.Config.FIPS,
 			ConnectedProxyGetter: proxyGetter,

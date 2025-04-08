@@ -21,13 +21,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE. */
 
 import { render } from '@testing-library/react';
-import React, { forwardRef, useImperativeHandle } from 'react';
+import * as React from 'react';
 
 import { mergeRefs } from './mergeRefs';
 
 test('mergeRefs', () => {
-  const Dummy = forwardRef(function Dummy(_, ref) {
-    useImperativeHandle(ref, () => 'refValue');
+  const Dummy = React.forwardRef(function Dummy(_, ref) {
+    React.useImperativeHandle(ref, () => 'refValue');
     return null;
   });
   const refAsFunc = jest.fn();
@@ -46,8 +46,8 @@ test('mergeRefs', () => {
 });
 
 test('mergeRefs with undefined and null refs', () => {
-  const Dummy = forwardRef(function Dummy(_, ref) {
-    useImperativeHandle(ref, () => 'refValue');
+  const Dummy = React.forwardRef(function Dummy(_, ref) {
+    React.useImperativeHandle(ref, () => 'refValue');
     return null;
   });
   const refAsFunc = jest.fn();

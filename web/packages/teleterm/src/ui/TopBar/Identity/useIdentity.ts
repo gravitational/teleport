@@ -16,63 +16,75 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
-
-import { Cluster } from 'teleterm/services/tshd/types';
+import { Cluster, LoggedInUser } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import {
-  useWorkspaceServiceState,
-  WorkspaceColor,
-} from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 export function useIdentity() {
   const ctx = useAppContext();
 
   ctx.clustersService.useState();
-  useWorkspaceServiceState();
+  ctx.workspacesService.useState();
 
   async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
-  const addCluster = useCallback(() => {
+  function addCluster(): void {
     ctx.commandLauncher.executeCommand('cluster-connect', {});
-  }, [ctx.commandLauncher]);
-
-  function refreshCluster(clusterUri: RootClusterUri): void {
-    ctx.commandLauncher.executeCommand('cluster-connect', { clusterUri });
   }
 
   function logout(clusterUri: RootClusterUri): void {
     ctx.commandLauncher.executeCommand('cluster-logout', { clusterUri });
   }
 
-  const activeClusterUri = ctx.workspacesService.getRootClusterUri();
   function getActiveRootCluster(): Cluster | undefined {
-    return ctx.clustersService.findCluster(activeClusterUri);
-  }
-
-  function changeColor(color: WorkspaceColor): undefined {
     const clusterUri = ctx.workspacesService.getRootClusterUri();
     if (!clusterUri) {
       return;
     }
-    ctx.workspacesService.changeWorkspaceColor(clusterUri, color);
+    return ctx.clustersService.findCluster(clusterUri);
   }
 
-  const rootClusters = ctx.clustersService
+  function getLoggedInUser(): LoggedInUser | undefined {
+    const clusterUri = ctx.workspacesService.getRootClusterUri();
+    if (!clusterUri) {
+      return;
+    }
+    const cluster = ctx.clustersService.findCluster(clusterUri);
+    if (!cluster) {
+      return;
+    }
+    return cluster.loggedInUser;
+  }
+
+  const rootClusters: IdentityRootCluster[] = ctx.clustersService
     .getClusters()
     .filter(c => !c.leaf)
-    .filter(c => c.uri !== activeClusterUri);
+    .map(cluster => ({
+      active: cluster.uri === ctx.workspacesService.getRootClusterUri(),
+      clusterName: cluster.name,
+      userName: cluster.loggedInUser?.name,
+      uri: cluster.uri,
+      connected: cluster.connected,
+      profileStatusError: cluster.profileStatusError,
+    }));
 
   return {
     changeRootCluster,
     addCluster,
-    refreshCluster,
     logout,
-    changeColor,
+    loggedInUser: getLoggedInUser(),
     activeRootCluster: getActiveRootCluster(),
     rootClusters,
   };
+}
+
+export interface IdentityRootCluster {
+  active: boolean;
+  clusterName: string;
+  userName: string;
+  uri: RootClusterUri;
+  connected: boolean;
+  profileStatusError: string;
 }

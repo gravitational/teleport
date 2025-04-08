@@ -38,7 +38,7 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 
 	var uiconfig types.UIConfigV1
 	if err := utils.FastUnmarshal(data, &uiconfig); err != nil {
-		return nil, trace.BadParameter("%s", err)
+		return nil, trace.BadParameter(err.Error())
 	}
 	if err := uiconfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

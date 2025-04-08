@@ -19,9 +19,6 @@
 package services
 
 import (
-	"context"
-	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -141,9 +138,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 NewPresetAccessRole().GetRules(types.Allow),
-						GitHubPermissions: []types.GitHubPermission{{
-							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
-						}},
 					},
 				},
 			},
@@ -176,9 +170,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						GitHubPermissions: []types.GitHubPermission{{
-							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
-						}},
 					},
 				},
 			},
@@ -194,9 +185,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						GitHubPermissions: []types.GitHubPermission{{
-							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
-						}},
 					},
 				},
 			},
@@ -213,9 +201,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						GitHubPermissions: []types.GitHubPermission{{
-							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
-						}},
 					},
 				},
 			},
@@ -365,41 +350,13 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						ReviewRequests: &types.AccessReviewConditions{
-							Roles:          []string{"some-role"},
-							PreviewAsRoles: []string{"preview-role"},
+							Roles: []string{"some-role"},
 						},
 					},
 				},
 			},
-			enterprise:     true,
-			expectedErr:    require.NoError,
-			reviewNotEmpty: true,
-			expected: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetReviewerRoleName,
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						ReviewRequests: &types.AccessReviewConditions{
-							Roles: []string{
-								teleport.PresetAccessRoleName,
-								teleport.SystemIdentityCenterAccessRoleName,
-								teleport.PresetGroupAccessRoleName,
-								"some-role",
-							},
-							PreviewAsRoles: []string{
-								teleport.PresetAccessRoleName,
-								teleport.SystemIdentityCenterAccessRoleName,
-								teleport.PresetGroupAccessRoleName,
-								"preview-role",
-							},
-						},
-					},
-				},
-			},
+			enterprise:  true,
+			expectedErr: noChange,
 		},
 		{
 			name: "requester (not enterprise)",
@@ -464,36 +421,13 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
-							Roles:         []string{"some-role"},
-							SearchAsRoles: []string{"search-as-role"},
-						},
-					},
-				},
-			},
-			enterprise:             true,
-			expectedErr:            require.NoError,
-			accessRequestsNotEmpty: true,
-			expected: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetRequesterRoleName,
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Request: &types.AccessRequestConditions{
 							Roles: []string{"some-role"},
-							SearchAsRoles: []string{
-								teleport.PresetAccessRoleName,
-								teleport.SystemIdentityCenterAccessRoleName,
-								teleport.PresetGroupAccessRoleName,
-								"search-as-role",
-							},
 						},
 					},
 				},
 			},
+			enterprise:  true,
+			expectedErr: noChange,
 		},
 		{
 			name: "okta resources (not enterprise)",
@@ -622,28 +556,8 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
-			enterprise:             true,
-			expectedErr:            require.NoError,
-			accessRequestsNotEmpty: true,
-			expected: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.SystemOktaRequesterRoleName,
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.SystemResource,
-						types.OriginLabel:                  types.OriginOkta,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Request: &types.AccessRequestConditions{
-							Roles: []string{"some-role"},
-							SearchAsRoles: []string{
-								teleport.SystemOktaAccessRoleName,
-							},
-						},
-					},
-				},
-			},
+			enterprise:  true,
+			expectedErr: noChange,
 		},
 		{
 			// This test is here to validate that we properly fix a bug previously introduced in the TF role preset.
@@ -746,12 +660,8 @@ func TestAddRoleDefaults(t *testing.T) {
 							},
 							// The missing resources got added as individual rules
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
-							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
 							types.NewRule(types.KindWorkloadIdentity, RW()),
-							types.NewRule(types.KindGitServer, RW()),
-							types.NewRule(types.KindAutoUpdateConfig, RW()),
-							types.NewRule(types.KindAutoUpdateVersion, RW()),
 						},
 					},
 				},
@@ -767,68 +677,15 @@ func TestAddRoleDefaults(t *testing.T) {
 				})
 			}
 
-			role, err := AddRoleDefaults(context.Background(), test.role)
+			role, err := AddRoleDefaults(test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))
 
 			if test.expected != nil {
-				require.Equal(t, test.reviewNotEmpty,
-					!role.GetAccessReviewConditions(types.Allow).IsEmpty(),
-					"Expected populated Access Review Conditions (%t)",
-					test.reviewNotEmpty)
-
-				require.Equal(t, test.accessRequestsNotEmpty,
-					!role.GetAccessRequestConditions(types.Allow).IsEmpty(),
-					"Expected populated Access Request Conditions (%t)",
-					test.accessRequestsNotEmpty)
+				require.Equal(t, test.reviewNotEmpty, !role.GetAccessReviewConditions(types.Allow).IsEmpty())
+				require.Equal(t, test.accessRequestsNotEmpty, !role.GetAccessRequestConditions(types.Allow).IsEmpty())
 			}
 		})
 	}
-}
-
-func TestPresetRolesDumped(t *testing.T) {
-	// This test ensures that the most recent version of selected preset roles
-	// has been correctly dumped to a generated JSON file. We use a generated
-	// file, because it's simpler to load it from a TypeScript test this way,
-	// rather than calling a Go binary.
-
-	// First, get the required roles, as defined in our codebase, and set their
-	// defaults.
-	access := NewPresetAccessRole()
-	editor := NewPresetEditorRole()
-	auditor := NewPresetAuditorRole()
-	rolesByName := map[string]types.Role{
-		access.GetName():  access,
-		editor.GetName():  editor,
-		auditor.GetName(): auditor,
-	}
-	for _, r := range rolesByName {
-		err := CheckAndSetDefaults(r)
-		require.NoError(t, err)
-	}
-
-	// Next, dump them all to JSON and parse them back again. This step is
-	// necessary, because unmarshaling isn't precisely the opposite of
-	// marshaling, and comparing raw roles to their unmarshaled counterparts
-	// still lead to some discrepancies. We can't also directly compare JSON
-	// blobs, as it's hard to reason whether this process is entirely
-	// deterministic.
-	bytes, err := json.Marshal(rolesByName)
-	require.NoError(t, err)
-	var recreatedRolesByName map[string]types.RoleV6
-	err = json.Unmarshal(bytes, &recreatedRolesByName)
-	require.NoError(t, err)
-
-	// Read the roles defined in the generated file.
-	bytes, err = os.ReadFile("../../gen/preset-roles.json")
-	require.NoError(t, err)
-	var rolesFromFile map[string]types.RoleV6
-	err = json.Unmarshal(bytes, &rolesFromFile)
-	require.NoError(t, err)
-
-	// Finally, compare the roles.
-	require.Equal(t, rolesFromFile, recreatedRolesByName,
-		"The dumped preset roles differ from their representation in code. Please run:\n"+
-			"make dump-preset-roles")
 }

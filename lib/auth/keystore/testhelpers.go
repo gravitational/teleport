@@ -19,7 +19,6 @@
 package keystore
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,8 +30,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -215,20 +212,5 @@ func NewSoftwareKeystoreForTests(_ *testing.T, opts ...TestKeystoreOption) *Mana
 	return &Manager{
 		backendForNewKeys:     softwareBackend,
 		usableSigningBackends: []backend{softwareBackend},
-		currentSuiteGetter: cryptosuites.GetSuiteFunc(func(context.Context) (types.SignatureAlgorithmSuite, error) {
-			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
-		}),
 	}
-}
-
-type fakeAuthPreferenceGetter struct {
-	suite types.SignatureAlgorithmSuite
-}
-
-func (f *fakeAuthPreferenceGetter) GetAuthPreference(context.Context) (types.AuthPreference, error) {
-	return &types.AuthPreferenceV2{
-		Spec: types.AuthPreferenceSpecV2{
-			SignatureAlgorithmSuite: f.suite,
-		},
-	}, nil
 }

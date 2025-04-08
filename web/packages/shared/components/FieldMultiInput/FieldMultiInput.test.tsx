@@ -17,36 +17,22 @@
  */
 
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-import { act, render, screen } from 'design/utils/testing';
-import Validation, { Validator } from 'shared/components/Validation';
+import { render, screen } from 'design/utils/testing';
 
-import { arrayOf, requiredField } from '../Validation/rules';
 import { FieldMultiInput, FieldMultiInputProps } from './FieldMultiInput';
 
 const TestFieldMultiInput = ({
   onChange,
-  refValidator,
   ...rest
-}: Partial<FieldMultiInputProps> & {
-  refValidator?: (v: Validator) => void;
-}) => {
+}: Partial<FieldMultiInputProps>) => {
   const [items, setItems] = useState<string[]>([]);
   const handleChange = (it: string[]) => {
     setItems(it);
     onChange?.(it);
   };
-  return (
-    <Validation>
-      {({ validator }) => {
-        refValidator?.(validator);
-        return (
-          <FieldMultiInput value={items} onChange={handleChange} {...rest} />
-        );
-      }}
-    </Validation>
-  );
+  return <FieldMultiInput value={items} onChange={handleChange} {...rest} />;
 };
 
 test('adding, editing, and removing items', async () => {
@@ -82,36 +68,4 @@ test('keyboard handling', async () => {
   await user.click(screen.getAllByRole('textbox')[0]);
   await user.keyboard('{Enter}bananas');
   expect(onChange).toHaveBeenLastCalledWith(['apples', 'bananas', 'oranges']);
-});
-
-test('validation', async () => {
-  const user = userEvent.setup();
-  let validator: Validator;
-  render(
-    <TestFieldMultiInput
-      refValidator={v => {
-        validator = v;
-      }}
-      rule={arrayOf(requiredField('required'))}
-    />
-  );
-
-  act(() => validator.validate());
-  expect(validator.state.valid).toBe(true);
-  expect(screen.getByRole('textbox')).toHaveAccessibleDescription('');
-
-  await user.click(screen.getByRole('button', { name: 'Add More' }));
-  await user.type(screen.getAllByRole('textbox')[1], 'foo');
-  act(() => validator.validate());
-  expect(validator.state.valid).toBe(false);
-  expect(screen.getAllByRole('textbox')[0]).toHaveAccessibleDescription(
-    'required'
-  );
-  expect(screen.getAllByRole('textbox')[1]).toHaveAccessibleDescription('');
-
-  await user.type(screen.getAllByRole('textbox')[0], 'foo');
-  act(() => validator.validate());
-  expect(validator.state.valid).toBe(true);
-  expect(screen.getAllByRole('textbox')[0]).toHaveAccessibleDescription('');
-  expect(screen.getAllByRole('textbox')[1]).toHaveAccessibleDescription('');
 });

@@ -52,7 +52,6 @@ func TestReporter(t *testing.T) {
 	tests := []struct {
 		name              string
 		preReconcileError error
-		preAssertError    error
 		assertErr         require.ErrorAssertionFunc
 		report            []*accessgraphsecretsv1pb.PrivateKey
 		want              []*accessgraphsecretsv1pb.PrivateKey
@@ -62,14 +61,6 @@ func TestReporter(t *testing.T) {
 			report:    newPrivateKeys(t, deviceID),
 			want:      newPrivateKeys(t, deviceID),
 			assertErr: require.NoError,
-		},
-		{
-			name:           "pre-assert error",
-			preAssertError: errors.New("pre-assert error"),
-			report:         newPrivateKeys(t, deviceID),
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "pre-assert error")
-			},
 		},
 		{
 			name:              "pre-reconcile error",
@@ -89,7 +80,6 @@ func TestReporter(t *testing.T) {
 				t,
 				withDevice(deviceID, device),
 				withPreReconcileError(tt.preReconcileError),
-				withPreAssertError(tt.preAssertError),
 			)
 
 			ctx := context.Background()

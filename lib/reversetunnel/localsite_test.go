@@ -38,12 +38,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 
 	os.Exit(m.Run())
 }
@@ -58,16 +60,14 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	clt := &mockLocalSiteClient{}
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
-			Logger:    utils.NewSlogLoggerForTests(),
+			Log:       utils.NewLoggerForTests(),
 			Clock:     clock,
-			Client:    clt,
+			Client:    &mockLocalSiteClient{},
 		},
-		ProxyGetter: clt,
-		ProxiesC:    make(chan []types.Server, 2),
+		ProxiesC: make(chan []types.Server, 2),
 	})
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
@@ -77,7 +77,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
 		localAuthClient:  &mockLocalSiteClient{},
-		logger:           utils.NewSlogLoggerForTests(),
+		log:              utils.NewLoggerForTests(),
 		offlineThreshold: time.Second,
 		proxyWatcher:     watcher,
 	}
@@ -85,6 +85,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	site, err := newLocalSite(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
 		withProxySyncInterval(time.Hour),
+		withCertificateCache(&certificateCache{}),
 	)
 	require.NoError(t, err)
 
@@ -102,7 +103,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// terminated by too many missed heartbeats
 	go func() {
-		site.handleHeartbeat(ctx, conn1, nil, reqs)
+		site.handleHeartbeat(conn1, nil, reqs)
 		cancel()
 	}()
 
@@ -155,6 +156,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 
 	site, err := newLocalSite(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
+		withCertificateCache(&certificateCache{}),
 	)
 	require.NoError(t, err)
 
@@ -251,19 +253,17 @@ func TestProxyResync(t *testing.T) {
 	proxy2, err := types.NewServer(uuid.NewString(), types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
 
-	clt := &mockLocalSiteClient{
-		proxies: []types.Server{proxy1, proxy2},
-	}
 	// set up the watcher and wait for it to be initialized
 	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
-			Logger:    utils.NewSlogLoggerForTests(),
+			Log:       utils.NewLoggerForTests(),
 			Clock:     clock,
-			Client:    clt,
+			Client: &mockLocalSiteClient{
+				proxies: []types.Server{proxy1, proxy2},
+			},
 		},
-		ProxyGetter: clt,
-		ProxiesC:    make(chan []types.Server, 2),
+		ProxiesC: make(chan []types.Server, 2),
 	})
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
@@ -273,13 +273,14 @@ func TestProxyResync(t *testing.T) {
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
 		localAuthClient:  &mockLocalSiteClient{},
-		logger:           utils.NewSlogLoggerForTests(),
+		log:              utils.NewLoggerForTests(),
 		offlineThreshold: 24 * time.Hour,
 		proxyWatcher:     watcher,
 	}
 	site, err := newLocalSite(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
 		withPeriodicFunctionInterval(24*time.Hour),
+		withCertificateCache(&certificateCache{}),
 	)
 	require.NoError(t, err)
 
@@ -312,7 +313,7 @@ func TestProxyResync(t *testing.T) {
 
 	// terminated by canceled context
 	go func() {
-		site.handleHeartbeat(ctx, conn1, nil, reqs)
+		site.handleHeartbeat(conn1, nil, reqs)
 	}()
 
 	expected := []types.Server{proxy1, proxy2}

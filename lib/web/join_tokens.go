@@ -142,7 +142,7 @@ func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params
 	}
 
 	var yaml CreateTokenRequest
-	if err := httplib.ReadResourceJSON(r, &yaml); err != nil {
+	if err := httplib.ReadJSON(r, &yaml); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -194,7 +194,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}
 
 	var req upsertTokenHandleRequest
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -202,14 +202,11 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.BadParameter("renaming tokens is not supported")
 	}
 
-	var expires time.Time
-	switch req.JoinMethod {
-	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle:
-		// IAM, GCP, and Oracle tokens should never expire.
+	// set expires time to default node join token TTL
+	expires := time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+	// IAM and GCP tokens should never expire
+	if req.JoinMethod == types.JoinMethodGCP || req.JoinMethod == types.JoinMethodIAM {
 		expires = time.Now().UTC().AddDate(1000, 0, 0)
-	default:
-		// Set expires time to default node join token TTL.
-		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
 	name := req.Name
@@ -244,8 +241,6 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 	return uiToken, nil
 }
 
-// createTokenForDiscoveryHandle creates tokens used during guided discover flows.
-// V2 endpoint processes "suggestedLabels" field.
 func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -253,7 +248,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	}
 
 	var req types.ProvisionTokenSpecV2
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -334,10 +329,9 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	// We create an ID and return it as part of the Token, so the UI can use this ID to query the Node that joined using this token
 	// WebUI can then query the resources by this id and answer the question:
 	//   - Which Node joined the cluster from this token Y?
-	if req.SuggestedLabels == nil {
-		req.SuggestedLabels = make(types.Labels)
+	req.SuggestedLabels = types.Labels{
+		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
 	}
-	req.SuggestedLabels[types.InternalResourceIDLabel] = apiutils.Strings{uuid.NewString()}
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
@@ -377,14 +371,14 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -397,20 +391,14 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "name",
-			"error", err,
-		)
+		log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	uri, err := url.QueryUnescape(queryValues.Get("uri"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "uri",
-			"error", err,
-		)
+		log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -424,14 +412,14 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Info("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -448,14 +436,14 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Info("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Debug("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
@@ -469,17 +457,12 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script",
-			"error", err,
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 	if discoveryGroup == "" {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script. Missing required fields",
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).Debug("Failed to return the discovery install script. Missing required fields.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -492,14 +475,14 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Info("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 

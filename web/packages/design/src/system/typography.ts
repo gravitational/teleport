@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Property } from 'csstype';
-import { WebTarget } from 'styled-components';
+import PropTypes from 'prop-types';
+import { ResponsiveValue } from 'styled-system';
 
 import { SharedStyles, Theme } from 'design/theme/themes/types';
-import { shouldForwardProp } from 'design/ThemeProvider';
 
 export interface TypographyProps {
   caps?: boolean;
@@ -28,7 +27,7 @@ export interface TypographyProps {
   italic?: boolean;
   mono?: boolean;
   breakAll?: boolean;
-  typography?: keyof SharedStyles['typography'];
+  typography?: ResponsiveValue<keyof SharedStyles['typography']>;
 }
 
 interface TypographyPropsWithTheme extends TypographyProps {
@@ -38,7 +37,7 @@ interface TypographyPropsWithTheme extends TypographyProps {
 function getTypography(props: TypographyPropsWithTheme) {
   const { typography, theme } = props;
   return {
-    ...(typography ? theme.typography[typography] : undefined),
+    ...theme.typography[typography],
     ...caps(props),
     ...breakAll(props),
     ...bold(props),
@@ -46,44 +45,27 @@ function getTypography(props: TypographyPropsWithTheme) {
   };
 }
 
-const typographyProps: Required<{ [k in keyof TypographyProps]: boolean }> = {
-  caps: true,
-  bold: true,
-  italic: true,
-  mono: true,
-  breakAll: true,
-  typography: true,
-};
-
-/**
- * Determines whether a property with a given name should be forwarded down as
- * an attribute to an underlying HTML tag. To be used along with styled-components
- */
-export function shouldForwardTypographyProp(
-  propName: string,
-  target: WebTarget
-) {
-  return !(propName in typographyProps) && shouldForwardProp(propName, target);
-}
-
-function caps(props: TypographyProps): {
-  textTransform: Property.TextTransform;
-} | null {
-  return props.caps ? { textTransform: 'uppercase' as const } : null;
+function caps(props: TypographyProps) {
+  return props.caps ? { textTransform: 'uppercase' } : null;
 }
 
 function mono(props: TypographyPropsWithTheme) {
   return props.mono ? { fontFamily: props.theme.fonts.mono } : null;
 }
 
-function breakAll(
-  props: TypographyProps
-): { wordBreak: Property.WordBreak } | null {
+function breakAll(props: TypographyProps) {
   return props.breakAll ? { wordBreak: 'break-all' } : null;
 }
 
 function bold(props: TypographyPropsWithTheme) {
   return props.bold ? { fontWeight: props.theme.fontWeights.bold } : null;
 }
+
+getTypography.propTypes = {
+  caps: PropTypes.bool,
+  bold: PropTypes.bool,
+  italic: PropTypes.bool,
+  color: PropTypes.string,
+};
 
 export default getTypography;

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Link, Pill, Popover, Text } from 'design';
@@ -86,6 +86,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
               />
             </div>
             <Popover
+              id="simple-popper"
               open={showTooltip}
               anchorOrigin={{
                 vertical: 'bottom',

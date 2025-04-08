@@ -23,18 +23,17 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	"net/url"
 	"os"
 	"os/user"
 	"path"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -106,7 +105,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command(teleport.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	networking := app.Command(teleport.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
+	forward := app.Command(teleport.LocalForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
+	remoteForward := app.Command(teleport.RemoteForwardSubCommand, "Used internally by Teleport to re-exec itself to remote port forward.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
 	app.HelpFlag.Short('h')
@@ -146,7 +146,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
 	start.Flag("apply-on-startup",
-		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", slices.Collect(maps.Keys(auth.ResourceApplyPriority)))).
+		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", maps.Keys(auth.ResourceApplyPriority))).
 		ExistingFileVar(&ccf.ApplyOnStartupFile)
 	start.Flag("bootstrap",
 		"Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)").ExistingFileVar(&ccf.BootstrapFile)
@@ -486,6 +486,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfDeployServiceCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.AccountID)
 	integrationConfDeployServiceCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfDeployServiceIAMArguments.AutoConfirm)
 
+	integrationConfEICECmd := integrationConfigureCmd.Command("eice-iam", "Adds required IAM permissions to connect to EC2 Instances using EC2 Instance Connect Endpoint.")
+	integrationConfEICECmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Region)
+	integrationConfEICECmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEICEIAMArguments.Role)
+	integrationConfEICECmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfEICEIAMArguments.AccountID)
+	integrationConfEICECmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEICEIAMArguments.AutoConfirm)
+
 	integrationConfEC2SSMCmd := integrationConfigureCmd.Command("ec2-ssm-iam", "Adds required IAM permissions and SSM Document to enable EC2 Auto Discover using SSM.")
 	integrationConfEC2SSMCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.RoleName)
 	integrationConfEC2SSMCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.Region)
@@ -509,16 +515,10 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEKSCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfEKSIAMArguments.AutoConfirm)
 
 	integrationConfAccessGraphCmd := integrationConfigureCmd.Command("access-graph", "Manages Access Graph configuration.")
-	integrationConfAccessGraphAWSSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required AWS IAM permissions for syncing AWS resources into Access Graph service.")
-	integrationConfAccessGraphAWSSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
-	integrationConfAccessGraphAWSSyncCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AccountID)
-	integrationConfAccessGraphAWSSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
-
-	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
-	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
-	integrationConfAccessGraphAzureSyncCmd.Flag("role-name", "The name of the Azure Role to create and assign to the managed identity").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.RoleName)
-	integrationConfAccessGraphAzureSyncCmd.Flag("subscription-id", "The subscription ID in which to discovery resources.").StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.SubscriptionID)
-	integrationConfAccessGraphAzureSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.AutoConfirm)
+	integrationConfTAGSyncCmd := integrationConfAccessGraphCmd.Command("aws-iam", "Adds required IAM permissions for syncing data into Access Graph service.")
+	integrationConfTAGSyncCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.Role)
+	integrationConfTAGSyncCmd.Flag("aws-account-id", "The AWS account ID.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AccountID)
+	integrationConfTAGSyncCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.AutoConfirm)
 
 	integrationConfAWSOIDCIdPCmd := integrationConfigureCmd.Command("awsoidc-idp", "Creates an IAM IdP (OIDC) in your AWS account to allow the AWS OIDC Integration to access AWS APIs.")
 	integrationConfAWSOIDCIdPCmd.Flag("cluster", "Teleport Cluster name.").Required().StringVar(&ccf.
@@ -529,8 +529,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Role)
 	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
-	integrationConfAWSOIDCIdPCmd.Flag("policy-preset", "Policy that will be applied to the AWS OIDC integration role.").StringVar(&ccf.
-		IntegrationConfAWSOIDCIdPArguments.PolicyPreset)
 	integrationConfAWSOIDCIdPCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&ccf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm)
 	integrationConfAWSOIDCIdPCmd.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
 
@@ -579,7 +577,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
 	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
-	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
+	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(maps.Keys(debugclient.SupportedProfiles), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 
 	backendCmd := app.Command("backend", "Commands for managing backend data.")
@@ -674,8 +672,10 @@ Examples:
 		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
 		srv.RunAndExit(teleport.ExecSubCommand)
-	case networking.FullCommand():
-		srv.RunAndExit(teleport.NetworkingSubCommand)
+	case forward.FullCommand():
+		srv.RunAndExit(teleport.LocalForwardSubCommand)
+	case remoteForward.FullCommand():
+		srv.RunAndExit(teleport.RemoteForwardSubCommand)
 	case checkHomeDir.FullCommand():
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
@@ -714,6 +714,8 @@ Examples:
 		err = onJoinOpenSSH(ccf, conf)
 	case integrationConfDeployServiceCmd.FullCommand():
 		err = onIntegrationConfDeployService(ctx, ccf.IntegrationConfDeployServiceIAMArguments)
+	case integrationConfEICECmd.FullCommand():
+		err = onIntegrationConfEICEIAM(ctx, ccf.IntegrationConfEICEIAMArguments)
 	case integrationConfEC2SSMCmd.FullCommand():
 		err = onIntegrationConfEC2SSMIAM(ctx, ccf.IntegrationConfEC2SSMIAMArguments)
 	case integrationConfAWSAppAccessCmd.FullCommand():
@@ -726,10 +728,8 @@ Examples:
 		err = onIntegrationConfListDatabasesIAM(ctx, ccf.IntegrationConfListDatabasesIAMArguments)
 	case integrationConfExternalAuditCmd.FullCommand():
 		err = onIntegrationConfExternalAuditCmd(ctx, ccf.IntegrationConfExternalAuditStorageArguments)
-	case integrationConfAccessGraphAWSSyncCmd.FullCommand():
+	case integrationConfTAGSyncCmd.FullCommand():
 		err = onIntegrationConfAccessGraphAWSSync(ctx, ccf.IntegrationConfAccessGraphAWSSyncArguments)
-	case integrationConfAccessGraphAzureSyncCmd.FullCommand():
-		err = onIntegrationConfAccessGraphAzureSync(ctx, ccf.IntegrationConfAccessGraphAzureSyncArguments)
 	case integrationConfAzureOIDCCmd.FullCommand():
 		err = onIntegrationConfAzureOIDCCmd(ctx, ccf.IntegrationConfAzureOIDCArguments)
 	case integrationSAMLIdPGCPWorkforce.FullCommand():
@@ -1021,22 +1021,10 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 // user's privileges
 //
 // This is the entry point of "teleport scp" call (the parent process is the teleport daemon)
-func onSCP(scpFlags *scp.Flags) error {
+func onSCP(scpFlags *scp.Flags) (err error) {
 	// when 'teleport scp' is executed, it cannot write logs to stderr (because
 	// they're automatically replayed by the scp client)
-	var verbosity string
-	if scpFlags.Verbose {
-		verbosity = teleport.DebugLevel
-	}
-	_, _, err := logutils.Initialize(logutils.Config{
-		Output:   teleport.Syslog,
-		Severity: verbosity,
-	})
-	if err != nil {
-		// If something went wrong, discard all logs and continue command execution.
-		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
-	}
-
+	utils.SwitchLoggingToSyslog()
 	if len(scpFlags.Target) == 0 {
 		return trace.BadParameter("teleport scp: missing an argument")
 	}

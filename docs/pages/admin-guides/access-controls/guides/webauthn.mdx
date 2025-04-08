@@ -62,8 +62,8 @@ Teleport configuration as below:
     name: cluster-auth-preference
   spec:
     type: local
-    # To enable WebAuthn support, include "webauthn" as a second factor method.
-    second_factors: ["webauthn"]
+    # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+    second_factor: "on"
     webauthn:
       # Required, replace with proxy web address (example.com, example.teleport.sh).
       # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
@@ -290,11 +290,9 @@ $ tsh device asset-tag
 </Tabs>
 </details>
 
-Replace 
-<Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/> 
-with the serial number of the device you wish to enroll, and
-<Var name="macos" /> with your operating system. Run the
-`tctl devices add` command:
+Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to
+be registered"/> with the serial number of the device you wish to enroll and run
+the `tctl devices add` command:
 
 ```code
 $ tctl devices add --os='<Var name="macos"/>' --asset-tag='<Var name="(=devicetrust.asset_tag=)"/>'
@@ -362,6 +360,12 @@ For auto-enrollment to work, the following conditions must be met:
 - A device must be registered. Registration may be [manual](#implement-cluster-wide-device-trust) or performed using an
 integration, like the [Jamf Pro integration](../device-trust/jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
+- User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
+
+<Admonition type="tip">
+  Since Teleport v16.1.1 users don't need the device/enroll permission to
+  benefit from auto-enrollment.
+</Admonition>
 
 ### Step 1/2. Enable auto-enrollment in your cluster settings
 
@@ -472,7 +476,8 @@ Update the `cluster_auth_preference` definition to include the following content
     name: cluster-auth-preference
   spec:
     type: local
-    second_factors: ["webauthn"]
+    # To make webauthn the only form of multi-factor allowed, set this field to 'webauthn'.
+    second_factor: "webauthn"
     webauthn:
       rp_id: example.com
   ```

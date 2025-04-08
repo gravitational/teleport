@@ -24,7 +24,6 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -36,7 +35,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -47,17 +45,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -155,7 +152,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
-	cfg.Logger = utils.NewSlogLoggerForTests()
+	cfg.Log = utils.NewLoggerForTests()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)
@@ -172,7 +169,6 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	})
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
-	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 
 	// Disable session recording to prevent writing to disk after the test concludes.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
@@ -465,7 +461,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
 	require.NoError(t, err)
 
-	tc, err := types.NewTrustedCluster(rootServer.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                StaticToken,
 		ProxyAddress:         rootProxyAddr.String(),
@@ -479,7 +475,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	})
 	require.NoError(t, err)
 
-	_, err = leafServer.GetAuthServer().UpsertTrustedClusterV2(ctx, tc)
+	_, err = leafServer.GetAuthServer().UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -501,7 +497,7 @@ func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ module
 	return &types.AccessRequestAllowedPromotions{}, nil
 }
 
-func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
+func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListGetter, _ string) ([]*accesslist.AccessList, error) {
 	return []*accesslist.AccessList{}, nil
 }
 
@@ -549,7 +545,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -579,15 +575,13 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	caCheckers, err := sshutils.GetCheckers(openSSHCA)
 	require.NoError(t, err)
 
-	key, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostSSH)
-	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(key.Public())
+	key, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	nodeUUID := uuid.New().String()
 	hostCertBytes, err := authServer.GenerateHostCert(
 		ctx,
-		ssh.MarshalAuthorizedKey(sshPub),
+		key.MarshalSSHPublicKey(),
 		"",
 		"",
 		[]string{nodeUUID, nodeHostname, Loopback},
@@ -599,7 +593,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 
 	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
 	require.NoError(t, err)
-	signer, err := ssh.NewSignerFromSigner(key)
+	signer, err := ssh.NewSignerFromSigner(key.Signer)
 	require.NoError(t, err)
 	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
 	require.NoError(t, err)
@@ -624,7 +618,7 @@ func CreateAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nod
 	require.NoError(t, err)
 
 	// wait for node resource to be written to the backend
-	timedCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
 	t.Cleanup(cancel)
 	w, err := authServer.NewWatcher(timedCtx, types.Watch{
 		Name: "node-create watcher",
@@ -662,11 +656,6 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			cert, ok := key.(*ssh.Certificate)
 			if !ok {
 				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
-			}
-
-			// Sanity check incoming cert from proxy has Ed25519 key.
-			if cert.Key.Type() != ssh.KeyAlgoED25519 {
-				return nil, trace.BadParameter("expected Ed25519 key, got %v", cert.Key.Type())
 			}
 
 			for _, pubKey := range caPubKeys {
@@ -712,17 +701,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		var agentForwarded bool
 		var shellRequested bool
 		var execRequested bool
-		var sftpRequested bool
-		for {
-			var channelReq ssh.NewChannel
-			select {
-			case channelReq = <-channels:
-				if channelReq == nil { // server is closed
-					return
-				}
-			case <-t.Context().Done():
-				return
-			}
+		for channelReq := range channels {
 			if !assert.Equal(t, "session", channelReq.ChannelType()) {
 				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
 				continue
@@ -734,56 +713,28 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				_ = channel.Close()
 			})
 
-			go func() {
-			outer:
-				for {
-					var req *ssh.Request
-					select {
-					case req = <-reqs:
-						if req == nil { // channel is closed
-							return
-						}
-					case <-t.Context().Done():
-						break outer
-					}
-					if req.WantReply {
-						assert.NoError(t, req.Reply(true, nil))
-					}
-					switch req.Type {
-					case sshutils.AgentForwardRequest:
-						agentForwarded = true
-					case sshutils.ShellRequest:
-						assert.NoError(t, channel.Close())
-						shellRequested = true
-						break outer
-					case sshutils.ExecRequest:
-						_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
-						assert.NoError(t, err)
-						assert.NoError(t, channel.Close())
-						execRequested = true
-						break outer
-					case sshutils.SubsystemRequest:
-						var r sshutils.SubsystemReq
-						err := ssh.Unmarshal(req.Payload, &r)
-						assert.NoError(t, err)
-						assert.Equal(t, "sftp", r.Name)
-						sftpRequested = true
-
-						sftpServer, err := sftp.NewServer(channel)
-						assert.NoError(t, err)
-						go sftpServer.Serve()
-						t.Cleanup(func() {
-							err := sftpServer.Close()
-							if err != nil {
-								assert.ErrorIs(t, err, io.EOF)
-							}
-						})
-						break outer
-					}
+		outer:
+			for req := range reqs {
+				if req.WantReply {
+					assert.NoError(t, req.Reply(true, nil))
 				}
-				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
-			}()
+				switch req.Type {
+				case sshutils.AgentForwardRequest:
+					agentForwarded = true
+				case sshutils.ShellRequest:
+					assert.NoError(t, channel.Close())
+					shellRequested = true
+					break outer
+				case sshutils.ExecRequest:
+					_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
+					assert.NoError(t, err)
+					assert.NoError(t, channel.Close())
+					execRequested = true
+					break outer
+				}
+			}
 		}
+		assert.True(t, (agentForwarded && shellRequested) || execRequested)
 	}()
 
 	return lis.Addr().String()
@@ -810,7 +761,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Logger
+	authConfig.Log = utils.NewLogger()
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)

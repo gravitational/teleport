@@ -17,13 +17,8 @@ joinParams:
   # the kubernetes join method is not currently suited for joining a large amount of nodes in a short time
   method: token
   # DO NOT USE THIS IN PRODUCTION
-  token_name: ""
+  token_name: qwertyuiop
 
 tolerations: []
 
 affinity: {}
-
-tls:
-  existingCASecretName: ""
-
-labels: {}

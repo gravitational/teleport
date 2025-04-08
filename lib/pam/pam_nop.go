@@ -1,4 +1,5 @@
 //go:build !pam && cgo
+// +build !pam,cgo
 
 /*
  * Teleport

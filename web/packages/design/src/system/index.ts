@@ -19,65 +19,64 @@
 import { Property } from 'csstype';
 import {
   alignItems,
+  AlignItemsProps,
   alignSelf,
+  AlignSelfProps,
   border,
   borderColor,
-  borderRadius,
+  BorderColorProps,
+  BorderProps,
   borders,
+  BordersProps,
   color,
+  ColorProps,
   flex,
   flexBasis,
   flexDirection,
+  FlexDirectionProps,
+  FlexProps,
   flexWrap,
+  FlexWrapProps,
   fontSize,
+  FontSizeProps,
   fontWeight,
+  FontWeightProps,
   height,
+  HeightProps,
   justifyContent,
+  JustifyContentProps,
   justifySelf,
+  JustifySelfProps,
   lineHeight,
+  LineHeightProps,
   maxHeight,
+  MaxHeightProps,
   maxWidth,
+  MaxWidthProps,
   minHeight,
+  MinHeightProps,
   minWidth,
+  MinWidthProps,
   overflow,
+  OverflowProps,
   ResponsiveValue,
   size,
+  SizeProps,
   space,
+  SpaceProps,
   style,
   textAlign,
+  TextAlignProps,
   TLengthStyledSystem,
   width,
-  type AlignItemsProps,
-  type AlignSelfProps,
-  type BorderColorProps,
-  type BorderProps,
-  type BorderRadiusProps,
-  type BordersProps,
-  type ColorProps,
+  WidthProps,
   type FlexBasisProps,
-  type FlexDirectionProps,
-  type FlexProps,
-  type FlexWrapProps,
-  type FontSizeProps,
-  type FontWeightProps,
-  type HeightProps,
-  type JustifyContentProps,
-  type JustifySelfProps,
-  type LineHeightProps,
-  type MaxHeightProps,
-  type MaxWidthProps,
-  type MinHeightProps,
-  type MinWidthProps,
-  type OverflowProps,
-  type SizeProps,
-  type SpaceProps,
-  type TextAlignProps,
-  type WidthProps,
 } from 'styled-system';
 
-import typography, { type TypographyProps } from './typography';
+import borderRadius, { BorderRadiusProps } from './borderRadius';
+import typography, { TypographyProps } from './typography';
 
-export const gap = style({
+const gap = style({
   prop: 'gap',
   cssProperty: 'gap',
   // This makes gap use the space defined in the theme.
@@ -87,40 +86,6 @@ export const gap = style({
 
 export interface GapProps<TLength = TLengthStyledSystem> {
   gap?: ResponsiveValue<Property.Gap<TLength>>;
-}
-
-export const rowGap = style({
-  prop: 'rowGap',
-  cssProperty: 'row-gap',
-  key: 'space',
-});
-
-export interface RowGapProps<TLength = TLengthStyledSystem> {
-  rowGap?: ResponsiveValue<Property.RowGap<TLength>>;
-}
-
-export const columnGap = style({
-  prop: 'columnGap',
-  cssProperty: 'column-gap',
-  key: 'space',
-});
-
-export interface ColumnGapProps<TLength = TLengthStyledSystem> {
-  columnGap?: ResponsiveValue<Property.ColumnGap<TLength>>;
-}
-
-// Defining a custom style for boxShadow, as the one from styled-system doesn't support reading
-// values from the theme.
-export const boxShadow = style({
-  prop: 'boxShadow',
-  cssProperty: 'box-shadow',
-  key: 'boxShadow',
-});
-
-export interface BoxShadowProps<TLength = TLengthStyledSystem> {
-  // Using Property.Gap on purpose, as Property.BoxShadow doesn't accept a generic value (so it
-  // seemingly doesn't accept passing an index for a value from the theme).
-  boxShadow?: ResponsiveValue<Property.Gap<TLength>>;
 }
 
 export {
@@ -150,6 +115,7 @@ export {
   type FontSizeProps,
   fontWeight,
   type FontWeightProps,
+  gap,
   height,
   type HeightProps,
   justifyContent,

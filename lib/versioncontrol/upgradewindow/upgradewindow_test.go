@@ -45,7 +45,7 @@ func newFakeKubeBackend() *fakeKubeBackend {
 }
 
 func (b *fakeKubeBackend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
-	b.data[item.Key.String()] = string(item.Value)
+	b.data[string(item.Key)] = string(item.Value)
 	return nil, nil
 }
 

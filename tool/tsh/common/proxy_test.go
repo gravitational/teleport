@@ -19,7 +19,6 @@
 package common
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/ecdsa"
@@ -33,10 +32,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -53,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -63,15 +61,12 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -86,8 +81,8 @@ func TestSSH(t *testing.T) {
 	lib.SetInsecureDevMode(false)
 
 	d := t.TempDir()
-	webCertPath := filepath.Join(d, "cert.pem")
-	webKeyPath := filepath.Join(d, "key.pem")
+	webCertPath := path.Join(d, "cert.pem")
+	webKeyPath := path.Join(d, "key.pem")
 	generateWebPKICert(t, webCertPath, webKeyPath)
 
 	s := newTestSuite(t,
@@ -127,7 +122,7 @@ func TestSSH(t *testing.T) {
 }
 
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
-	tshHome, _ := mustLoginLegacy(t, s)
+	tshHome, _ := mustLogin(t, s)
 	err := Run(context.Background(), []string{
 		"ssh",
 		s.root.Config.Hostname,
@@ -147,7 +142,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 }
 
 func testLeafClusterSSHAccess(t *testing.T, s *suite) {
-	tshHome, _ := mustLoginLegacy(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
+	tshHome, _ := mustLogin(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
 	require.Eventually(t, func() bool {
 		err := Run(context.Background(), []string{
 			"ssh",
@@ -173,7 +168,7 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 
 func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// login to root
-	tshHome, _ := mustLoginLegacy(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+	tshHome, _ := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
 
 	// Switch to leaf cluster
 	err := Run(context.Background(), []string{
@@ -253,7 +248,7 @@ func TestWithRsync(t *testing.T) {
 	s := newTestSuite(t)
 
 	// login and get host info
-	tshHome, _ := mustLoginLegacy(t, s)
+	tshHome, _ := mustLogin(t, s)
 
 	testBin, err := os.Executable()
 	require.NoError(t, err)
@@ -368,22 +363,20 @@ func TestWithRsync(t *testing.T) {
 					}
 					defer conn.Close()
 
-					// the child will send the SSH public key and then the TLS
-					// public key, with a 0 byte after key as a delimiter
-					reader := bufio.NewReader(conn)
-					sshPubKey, err := reader.ReadBytes(0)
-					require.NoError(t, err)
-					tlsPubKey, err := reader.ReadBytes(0)
-					require.NoError(t, err)
+					// the child will send the public key
+					key := make([]byte, 512)
+					_, err = conn.Read(key)
+					if !assert.NoError(t, err) {
+						return
+					}
 
 					// generate certificates for our user
-					clusterName, err := asrv.GetClusterName(ctx)
+					clusterName, err := asrv.GetClusterName()
 					if !assert.NoError(t, err) {
 						return
 					}
 					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-						SSHPubKey:      sshPubKey,
-						TLSPubKey:      tlsPubKey,
+						Key:            key,
 						Username:       s.user.GetName(),
 						TTL:            time.Hour,
 						Compatibility:  constants.CertificateFormatStandard,
@@ -463,15 +456,13 @@ func TestWithRsync(t *testing.T) {
 			t.Cleanup(cancel)
 
 			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
-			var stderr bytes.Buffer
-			cmd.Stderr = &stderr
-			err = cmd.Run()
+			err := cmd.Run()
 			var msg string
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
-				msg += fmt.Sprintf("exit code: %d\n", exitErr.ExitCode())
+				msg = fmt.Sprintf("exit code: %d", exitErr.ExitCode())
+				msg += fmt.Sprintf("stderr: %s", exitErr.Stderr)
 			}
-			msg += fmt.Sprintf("stderr: %s", stderr.String())
 			require.NoError(t, err, msg)
 
 			// verify that dst exists and that its contents match src
@@ -536,7 +527,7 @@ func TestProxySSH(t *testing.T) {
 			}
 
 			// login to Teleport
-			homePath, kubeConfigPath := mustLoginLegacy(t, s)
+			homePath, kubeConfigPath := mustLogin(t, s)
 
 			require.Eventually(t, func() bool {
 				rnodes, _ := s.root.GetAuthServer().GetNodes(context.Background(), "default")
@@ -693,7 +684,7 @@ func TestTSHProxyTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newTestSuite(t)
-	tshHome, _ := mustLoginSetEnvLegacy(t, s)
+	tshHome, _ := mustLoginSetEnv(t, s)
 
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, client.TSHConfigPath)
@@ -721,7 +712,7 @@ Host *
 }
 
 // TestTSHConfigConnectWithOpenSSHClient tests OpenSSH configuration generated by tsh config command and
-// connects to ssh node using native OpenSSH client with different session recording modes and proxy listener modes.
+// connects to ssh node using native OpenSSH client with different session recording  modes and proxy listener modes.
 func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 	// Only run this test if we have access to the external SSH binary.
 	_, err := exec.LookPath("ssh")
@@ -755,18 +746,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			},
 		},
 		{
-			// Test with the legacy signature algorithm suite which generates
-			// RSA keys.
-			name: "proxy recording mode with TLS routing enabled legacy",
-			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
-					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxySync)
-					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-					cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY)
-				}),
-			},
-		},
-		{
 			name: "node recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
 				withRootConfigFunc(func(cfg *servicecfg.Config) {
@@ -791,7 +770,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			s := newTestSuite(t, tc.opts...)
 
 			// Login to the Teleport proxy.
-			mustLoginSetEnvLegacy(t, s)
+			mustLoginSetEnv(t, s)
 
 			// Get SSH config file generated by the 'tsh config' command.
 			sshConfigFile := mustGetOpenSSHConfigFile(t)
@@ -951,7 +930,7 @@ func TestList(t *testing.T) {
 		},
 	}
 
-	tshHome, _ := mustLoginLegacy(t, s)
+	tshHome, _ := mustLogin(t, s)
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
 			stdout := &bytes.Buffer{}
@@ -967,6 +946,9 @@ func TestList(t *testing.T) {
 func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	t.Helper()
 
+	currentUser, err := user.Current()
+	require.NoError(t, err)
+
 	sockDir := "test"
 	sockName := "agent.sock"
 
@@ -978,7 +960,7 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	})
 
 	// Start the SSH agent.
-	err := teleAgent.ListenUnixSocket(sockDir, sockName, nil)
+	err = teleAgent.ListenUnixSocket(sockDir, sockName, currentUser)
 	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
@@ -999,9 +981,7 @@ func (s *suite) setMockSSOLogin(t *testing.T) CliOption {
 	return setMockSSOLogin(s.root.GetAuthServer(), s.user, s.connector.GetName())
 }
 
-// deprecated: Use mustLogin instead which requires migrating from newTestSuite to
-// tools/teleport/testenv.MakeTestServer.
-func mustLoginLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+func mustLogin(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
 	tshHome = t.TempDir()
 	kubeConfig = filepath.Join(t.TempDir(), teleport.KubeConfigFile)
 	args = append([]string{
@@ -1015,23 +995,21 @@ func mustLoginLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfi
 		setHomePath(tshHome),
 		setKubeConfigPath(kubeConfig),
 	)
-	require.NoError(t, err, trace.DebugReport(err))
+	require.NoError(t, err)
 	return
 }
 
 // login with new temp tshHome and set it in Env. This is useful
 // when running "ssh" commands with a tsh "ProxyCommand".
-// deprecated: Create a new helper that depends on mustLogin instead which requires migrating from
-// newTestSuite to tools/teleport/testenv.MakeTestServer.
-func mustLoginSetEnvLegacy(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
-	tshHome, kubeConfig = mustLoginLegacy(t, s, args...)
+func mustLoginSetEnv(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+	tshHome, kubeConfig = mustLogin(t, s, args...)
 	t.Setenv(types.HomeEnvVar, tshHome)
 	return
 }
 
 func mustLoginIdentity(t *testing.T, s *suite) string {
-	identityFile := filepath.Join(t.TempDir(), "identity.pem")
-	mustLoginLegacy(t, s, "--out", identityFile)
+	identityFile := path.Join(t.TempDir(), "identity.pem")
+	mustLogin(t, s, "--out", identityFile)
 	return identityFile
 }
 
@@ -1091,7 +1069,7 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 }
 
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	err := retryutils.RetryStaticFor(5*time.Second, 50*time.Millisecond, func() error {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		now := time.Now()
 		ctx := context.Background()
 		es, _, err := s.root.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
@@ -1099,18 +1077,16 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 			To:    now.Add(time.Hour),
 			Order: types.EventOrderDescending,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		assert.NoError(t, err)
 
 		for _, e := range es {
-			if e.GetCode() == events.AuthAttemptFailureCode && e.(*apievents.AuthAttempt).Login == nodeLogin {
-				return nil
+			if e.GetCode() == events.AuthAttemptFailureCode {
+				assert.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
+				return
 			}
 		}
-		return fmt.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
-	})
-	require.NoError(t, err)
+		t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
+	}, 5*time.Second, 500*time.Millisecond)
 }
 
 func TestFormatCommand(t *testing.T) {
@@ -1356,6 +1332,17 @@ func TestPrintProxyAWSTemplate(t *testing.T) {
 			},
 		},
 		{
+			name: "endpoint URL mode",
+			inputCLIConf: &CLIConf{
+				Format:             envVarDefaultFormat(),
+				AWSEndpointURLMode: true,
+			},
+			inputAWSApp: fakeAWSAppInfo{},
+			wantSnippets: []string{
+				"AWS endpoint URL at https://127.0.0.1:12345",
+			},
+		},
+		{
 			name: "athena-odbc",
 			inputCLIConf: &CLIConf{
 				Format: awsProxyFormatAthenaODBC,
@@ -1411,12 +1398,12 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "endpoint URL mode is not supported",
+			name: "default format is supported in endpoint URL mode",
 			input: &CLIConf{
 				Format:             envVarDefaultFormat(),
 				AWSEndpointURLMode: true,
 			},
-			checkError: require.Error,
+			checkError: require.NoError,
 		},
 		{
 			name: "athena-odbc is supported in HTTPS_PROXY mode",
@@ -1426,11 +1413,27 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
+			name: "athena-odbc is not supported in endpoint URL mode",
+			input: &CLIConf{
+				Format:             awsProxyFormatAthenaODBC,
+				AWSEndpointURLMode: true,
+			},
+			checkError: require.Error,
+		},
+		{
 			name: "athena-jdbc is supported in HTTPS_PROXY mode",
 			input: &CLIConf{
 				Format: awsProxyFormatAthenaJDBC,
 			},
 			checkError: require.NoError,
+		},
+		{
+			name: "athena-jdbc is not supported in endpoint URL mode",
+			input: &CLIConf{
+				Format:             awsProxyFormatAthenaJDBC,
+				AWSEndpointURLMode: true,
+			},
+			checkError: require.Error,
 		},
 	}
 
@@ -1503,23 +1506,16 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
-	require.NoError(t, err)
-	// Identity files only support a single key for SSH/TLS
-	keyRing := client.NewKeyRing(privateKey, privateKey)
-	keyRing.ClusterName = clusterName
+	key.ClusterName = clusterName
 
 	// generate user certs with a RouteToApp. note that unlike certs generated
 	// with `tsh app login`, this is intended to match Machine ID-type certs
 	// which are not usage restricted to apps only; this is required for tsh to
 	// make other auth API calls beyond just accessing the app.
-	tlsPub, err := privateKey.MarshalTLSPublicKey()
-	require.NoError(t, err)
 	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		SSHPubKey:      privateKey.MarshalSSHPublicKey(),
-		TLSPubKey:      tlsPub,
+		Key:            key.MarshalSSHPublicKey(),
 		Username:       userName,
 		TTL:            time.Hour,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -1529,192 +1525,54 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	keyRing.Cert = sshCert
-	keyRing.TLSCert = tlsCert
+	key.Cert = sshCert
+	key.TLSCert = tlsCert
 
 	hostCAs, err := authServer.GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "identity")
 	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
-		KeyRing:    keyRing,
+		Key:        key,
 		Format:     identityfile.FormatFile,
 	})
 	require.NoError(t, err)
 
 	port := ports.Pop()
-	tshArgs := []string{
-		"--debug",
-		"--insecure",
-		"--identity", idPath,
-		"--proxy", process.Config.Proxy.WebAddr.Addr,
-		"proxy", "app", appName,
-		"--port", port,
-	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-		Name: "tsh proxy app",
-		Task: func(ctx context.Context) error {
-			return Run(ctx, tshArgs)
-		},
-	})
 
-	err = retryutils.RetryStaticFor(5*time.Second, 50*time.Millisecond, func() error {
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	errC := make(chan error)
+	go func() {
+		var tshArgs []string
+		if testing.Verbose() {
+			tshArgs = append(tshArgs, "--debug")
+		}
+
+		errC <- Run(cancelCtx, append(tshArgs,
+			"--debug",
+			"--insecure",
+			"--identity", idPath,
+			"--proxy", process.Config.Proxy.WebAddr.Addr,
+			"proxy", "app", appName,
+			"--port", port,
+		))
+	}()
+
+	require.Eventually(t, func() bool {
 		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
 		if err != nil {
-			return err
+			return false
 		}
-		defer r.Body.Close()
-		if r.StatusCode != 200 {
-			return trace.ReadError(r.StatusCode, nil)
-		}
-		return nil
-	})
-	require.NoError(t, err, "no proxied app request succeeded")
-}
 
-func TestProxyAppMultiPort(t *testing.T) {
-	disableAgent(t)
-	// Necessary for self-signed certs to be considered valid.
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-	ctx := context.Background()
-
-	const (
-		clusterName    = "root"
-		appName        = "multi-port-app"
-		userName       = "admin"
-		accessRoleName = "access"
-	)
-
-	fooServerURL := startDummyHTTPServer(t, "foo")
-	barServerURL := startDummyHTTPServer(t, "bar")
-	fooServerPort := mustGetPort(t, fooServerURL)
-	barServerPort := mustGetPort(t, barServerURL)
-
-	user, err := types.NewUser(userName)
-	user.SetRoles([]string{accessRoleName})
-	require.NoError(t, err)
-
-	connector := mockConnector(t)
-	rootServerOpts := []testserver.TestServerOptFunc{
-		testserver.WithBootstrap(connector, user),
-		testserver.WithClusterName(t, clusterName),
-		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Apps = servicecfg.AppsConfig{
-				Enabled: true,
-				Apps: []servicecfg.App{{
-					Name: appName,
-					URI:  "tcp://localhost",
-					TCPPorts: []servicecfg.PortRange{
-						servicecfg.PortRange{Port: fooServerPort},
-						servicecfg.PortRange{Port: barServerPort},
-					},
-				}},
-			}
-		}),
-	}
-	process := testserver.MakeTestServer(t, rootServerOpts...)
-
-	tshHome, _ := mustLogin(t, process, user, connector.GetName())
-
-	// tsh proxy app seems to not handle multiple concurrent invocations well. Because of that, the
-	// test needs to first set up a local proxy, verify it and only then set up another one.
-
-	fooProxyPort := ports.Pop()
-	fooTshArgs := []string{
-		"--debug",
-		"--insecure",
-		"--proxy", process.Config.Proxy.WebAddr.Addr,
-		"proxy", "app", appName,
-		"--port", fmt.Sprintf("%s:%d", fooProxyPort, fooServerPort),
-	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-		Name: "tsh proxy app (foo)",
-		Task: func(ctx context.Context) error {
-			return Run(ctx, fooTshArgs, setHomePath(tshHome))
-		},
-	})
-	mustDialLocalAppProxy(t, fooProxyPort, "foo")
-
-	fooNoTargetPortProxyPort := ports.Pop()
-	fooNoTargetPortTshArgs := []string{
-		"--debug",
-		"--insecure",
-		"--proxy", process.Config.Proxy.WebAddr.Addr,
-		"proxy", "app", appName,
-		"--port", fooNoTargetPortProxyPort, // No target port.
-	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-		Name: "tsh proxy app (foo no target port)",
-		Task: func(ctx context.Context) error {
-			return Run(ctx, fooNoTargetPortTshArgs, setHomePath(tshHome))
-		},
-	})
-	// If there's no target port, the connections should still be routed to the first TCP port.
-	mustDialLocalAppProxy(t, fooNoTargetPortProxyPort, "foo")
-
-	barProxyPort := ports.Pop()
-	barTshArgs := []string{
-		"--debug",
-		"--insecure",
-		"--proxy", process.Config.Proxy.WebAddr.Addr,
-		"proxy", "app", appName,
-		"--port", fmt.Sprintf("%s:%d", barProxyPort, barServerPort),
-	}
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
-		Name: "tsh proxy app (bar)",
-		Task: func(ctx context.Context) error {
-			return Run(ctx, barTshArgs, setHomePath(tshHome))
-		},
-	})
-	mustDialLocalAppProxy(t, barProxyPort, "bar")
-}
-
-// mustGetPort extracts the port out of the URL returned by functions such as startDummyHTTPServer.
-func mustGetPort(t *testing.T, rawURL string) int {
-	t.Helper()
-
-	url, err := url.Parse(rawURL)
-	require.NoError(t, err)
-	_, portString, err := net.SplitHostPort(url.Host)
-	require.NoError(t, err)
-	port, err := strconv.Atoi(portString)
-	require.NoError(t, err)
-	return port
-}
-
-func mustLogin(t *testing.T, s *service.TeleportProcess, user types.User, connectorName string, args ...string) (tshHome, kubeConfig string) {
-	t.Helper()
-	tshHome = t.TempDir()
-	kubeConfig = filepath.Join(t.TempDir(), teleport.KubeConfigFile)
-	args = append([]string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", s.Config.Proxy.WebAddr.String(),
-	}, args...)
-	err := Run(context.Background(), args,
-		setMockSSOLogin(s.GetAuthServer(), user, connectorName),
-		setHomePath(tshHome),
-		setKubeConfigPath(kubeConfig),
-	)
-	require.NoError(t, err, trace.DebugReport(err))
-	return
-}
-
-// mustDialLocalAppProxy verifies that a local app proxy for an app backed by startDummyHTTPServer
-// returns the expected HTTP response.
-func mustDialLocalAppProxy(t *testing.T, port string, expectedName string) {
-	t.Helper()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
-		require.NoError(t, err)
 		defer r.Body.Close()
 
-		require.Equal(t, 200, r.StatusCode)
-		require.Equal(t, expectedName, r.Header.Get("Server"), "the response header \"Server\" does not have the expected value")
-	}, 5*time.Second, 50*time.Millisecond)
+		return r.StatusCode == 200
+	}, time.Second*5, time.Millisecond*250, "a proxied app request must eventually succeed")
+
+	cancel()
+	require.NoError(t, <-errC)
 }

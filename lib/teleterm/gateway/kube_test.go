@@ -21,7 +21,6 @@ package gateway
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -143,19 +142,9 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
 
-	// Sanity check the CA and client cert both use ECDSA keys.
-	kubeCAPEM := config.Clusters[contextName].CertificateAuthorityData
-	kubeCA, err := tlsca.ParseCertificatePEM(kubeCAPEM)
-	require.NoError(t, err)
-	require.IsType(t, (*ecdsa.PublicKey)(nil), kubeCA.PublicKey)
-	clientCertPEM := config.AuthInfos[contextName].ClientCertificateData
-	clientCert, err := tlsca.ParseCertificatePEM(clientCertPEM)
-	require.NoError(t, err)
-	require.IsType(t, (*ecdsa.PublicKey)(nil), clientCert.PublicKey)
-
 	tlsClientConfig := rest.TLSClientConfig{
-		CAData:     kubeCAPEM,
-		CertData:   clientCertPEM,
+		CAData:     config.Clusters[contextName].CertificateAuthorityData,
+		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
 		ServerName: common.KubeLocalProxySNI(teleportCluster, kubeCluster),
 	}

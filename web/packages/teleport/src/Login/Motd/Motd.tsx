@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, Card, Text } from 'design';
@@ -24,10 +25,16 @@ export function Motd({ message, onClick }: Props) {
   return (
     <StyledCard bg="levels.surface" my={6} mx="auto">
       <Box p={6}>
-        <StyledText typography="body1" mb={3} textAlign="left">
+        <StyledText typography="h5" mb={3} textAlign="left">
           {message}
         </StyledText>
-        <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
+        <ButtonPrimary
+          width="100%"
+          mt={3}
+          size="large"
+          onClick={onClick}
+          align="center"
+        >
           Acknowledge
         </ButtonPrimary>
       </Box>

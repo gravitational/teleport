@@ -17,6 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
+import React from 'react';
 import { Router } from 'react-router';
 
 import * as teleport from 'teleport';

@@ -16,42 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
-export const LinearProgress = ({
-  transparentBackground = false,
-  absolute = true,
-  hidden = false,
-}) => {
+interface LinearProgressProps {
+  transparentBackground?: boolean;
+}
+
+const LinearProgress = (props: LinearProgressProps) => {
   return (
-    <Wrapper $absolute={absolute} $hidden={hidden}>
-      <StyledProgress $transparentBackground={transparentBackground}>
+    <div
+      style={{
+        position: 'absolute',
+        left: '0',
+        right: '0',
+        bottom: '0',
+      }}
+    >
+      <StyledProgress transparentBackground={props.transparentBackground}>
         <div className="parent-bar-2" />
       </StyledProgress>
-    </Wrapper>
+    </div>
   );
 };
 
-const Wrapper = styled.div<{ $absolute: boolean; $hidden: boolean }>`
-  ${props =>
-    props.$absolute &&
-    `
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    `}
-  ${props => props.$hidden && `visibility: hidden;`}
-`;
-
-const StyledProgress = styled.div<{ $transparentBackground: boolean }>`
+const StyledProgress = styled.div<{ transparentBackground?: boolean }>`
   position: relative;
   overflow: hidden;
   display: block;
   height: 1px;
   z-index: 0;
   background-color: ${props =>
-    props.$transparentBackground
+    props.transparentBackground
       ? 'transparent'
       : props.theme.colors.levels.surface};
 
@@ -84,3 +80,5 @@ const StyledProgress = styled.div<{ $transparentBackground: boolean }>`
     }
   }
 `;
+
+export default LinearProgress;

@@ -67,13 +67,6 @@ func TestFromProtoNils(t *testing.T) {
 	fromProto, err := FromProto(uls)
 	require.NoError(t, err)
 	require.Equal(t, types.UserTypeLocal, fromProto.GetUserType())
-
-	// GitHub identity is nil
-	uls = ToProto(newUserLoginState(t, "user-login-state"))
-	uls.Spec.GitHubIdentity = nil
-
-	_, err = FromProto(uls)
-	require.NoError(t, err)
 }
 
 func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
@@ -94,10 +87,6 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 				"key2": []string{"value2"},
 			},
 			UserType: types.UserTypeSSO,
-			GitHubIdentity: &userloginstate.ExternalIdentity{
-				Username: "my-github-username",
-				UserID:   "1234567",
-			},
 		},
 	)
 	require.NoError(t, err)

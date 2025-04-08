@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Alert, Box, Indicator } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -37,14 +37,6 @@ import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationOperations, useIntegrationOperation } from './Operations';
 import type { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 
-/**
- * In the web UI, "integrations" can refer to both backend resource
- * type "integration" or "plugin".
- *
- * This open source Integrations component only supports resource
- * type "integration", while its enterprise equivalant component
- * supports both types.
- */
 export function Integrations() {
   const integrationOps = useIntegrationOperation();
   const [items, setItems] = useState<Integration[]>([]);
@@ -70,8 +62,11 @@ export function Integrations() {
     });
   }
 
-  function editIntegration(req: EditableIntegrationFields) {
-    return integrationOps.edit(req).then(updatedIntegration => {
+  function editIntegration(
+    integration: Integration,
+    req: EditableIntegrationFields
+  ) {
+    return integrationOps.edit(integration, req).then(updatedIntegration => {
       const updatedItems = items.map(item => {
         if (item.name == integrationOps.item.name) {
           return updatedIntegration;
@@ -97,7 +92,7 @@ export function Integrations() {
             ]}
           />
         </FeatureHeader>
-        {attempt.status === 'failed' && <Alert>{attempt.statusText}</Alert>}
+        {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         {attempt.status === 'processing' && (
           <Box textAlign="center" m={10}>
             <Indicator />
@@ -115,7 +110,7 @@ export function Integrations() {
       </FeatureBox>
       <IntegrationOperations
         operation={integrationOps.type}
-        integration={integrationOps.item}
+        integration={integrationOps.item as Integration}
         close={integrationOps.clear}
         remove={removeIntegration}
         edit={editIntegration}

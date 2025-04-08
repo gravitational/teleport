@@ -24,7 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,18 +43,19 @@ const (
 
 // OktaService manages Okta resources in the Backend.
 type OktaService struct {
+	log           logrus.FieldLogger
 	clock         clockwork.Clock
 	importRuleSvc *generic.Service[types.OktaImportRule]
 	assignmentSvc *generic.Service[types.OktaAssignment]
 }
 
 // NewOktaService creates a new OktaService.
-func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, error) {
+func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaService, error) {
 	importRuleSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaImportRule]{
-		Backend:       b,
+		Backend:       backend,
 		PageLimit:     oktaImportRuleMaxPageSize,
 		ResourceKind:  types.KindOktaImportRule,
-		BackendPrefix: backend.NewKey(oktaImportRulePrefix),
+		BackendPrefix: oktaImportRulePrefix,
 		MarshalFunc:   services.MarshalOktaImportRule,
 		UnmarshalFunc: services.UnmarshalOktaImportRule,
 	})
@@ -61,10 +64,10 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 	}
 
 	assignmentSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaAssignment]{
-		Backend:       b,
+		Backend:       backend,
 		PageLimit:     oktaAssignmentMaxPageSize,
 		ResourceKind:  types.KindOktaAssignment,
-		BackendPrefix: backend.NewKey(oktaAssignmentPrefix),
+		BackendPrefix: oktaAssignmentPrefix,
 		MarshalFunc:   services.MarshalOktaAssignment,
 		UnmarshalFunc: services.UnmarshalOktaAssignment,
 	})
@@ -73,6 +76,7 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 	}
 
 	return &OktaService{
+		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "okta:local-service"}),
 		clock:         clock,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,

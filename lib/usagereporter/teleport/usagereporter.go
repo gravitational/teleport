@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -30,6 +29,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -123,7 +123,11 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterName, anonymizer utils.Anonymizer, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, anonymizer utils.Anonymizer, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+	if log == nil {
+		log = logrus.StandardLogger()
+	}
+
 	if anonymizer == nil {
 		return nil, trace.BadParameter("missing anonymizer")
 	}
@@ -136,7 +140,7 @@ func NewStreamingUsageReporter(logger *slog.Logger, clusterName types.ClusterNam
 	clock := clockwork.NewRealClock()
 
 	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1a.SubmitEventRequest]{
-		Logger:        logger,
+		Log:           log,
 		Submit:        submitter,
 		MinBatchSize:  usageReporterMinBatchSize,
 		MaxBatchSize:  usageReporterMaxBatchSize,

@@ -20,6 +20,7 @@ package credentials
 
 import (
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -32,7 +33,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // mockTLSCredentials mocks insecure Client credentials.
@@ -85,13 +85,13 @@ func TestCheckExpiredCredentials(t *testing.T) {
 		NotAfter:  time.Now().Add(1 * time.Hour),
 	}
 
-	caKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	caKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	clientKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
-	validCertBytes, err := x509.CreateCertificate(rand.Reader, validCert, ca, clientKey.Public(), caKey)
+	validCertBytes, err := x509.CreateCertificate(rand.Reader, validCert, ca, &clientKey.PublicKey, caKey)
 	require.NoError(t, err)
-	invalidCertBytes, err := x509.CreateCertificate(rand.Reader, expiredCert, ca, clientKey.Public(), caKey)
+	invalidCertBytes, err := x509.CreateCertificate(rand.Reader, expiredCert, ca, &clientKey.PublicKey, caKey)
 	require.NoError(t, err)
 
 	expiredCred := &mockTLSCredentials{CertificateChain: &tls.Certificate{Certificate: [][]byte{invalidCertBytes}}}

@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { fireEvent, render, screen } from 'design/utils/testing';
 import { requestRoleApproved } from 'shared/components/AccessRequests/fixtures';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
-import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { RequestList } from './RequestList';
@@ -33,13 +33,14 @@ test('disabled assume button with assume start date', async () => {
   render(
     <MemoryRouter>
       <RequestList
-        attempt={makeSuccessAttempt([request])}
+        attempt={{ status: 'success' }}
         assumeRole={() => null}
         assumeRoleAttempt={{ status: '', data: null, statusText: '' }}
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
         getFlags={() => flags}
+        requests={[request]}
       />
     </MemoryRouter>
   );
@@ -61,13 +62,14 @@ test('enabled assume button with assume start date', () => {
   render(
     <MemoryRouter>
       <RequestList
-        attempt={makeSuccessAttempt([request])}
+        attempt={{ status: 'success' }}
         assumeRole={() => null}
         assumeRoleAttempt={{ status: '', data: null, statusText: '' }}
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
         getFlags={() => flags}
+        requests={[request]}
       />
     </MemoryRouter>
   );
@@ -80,15 +82,16 @@ test('enabled assume button with no assume start date', () => {
   render(
     <MemoryRouter>
       <RequestList
-        attempt={makeSuccessAttempt([
-          { ...request, assumeStartTime: null, assumeStartTimeDuration: '' },
-        ])}
+        attempt={{ status: 'success' }}
         assumeRole={() => null}
         assumeRoleAttempt={{ status: '', data: null, statusText: '' }}
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
         getFlags={() => flags}
+        requests={[
+          { ...request, assumeStartTime: null, assumeStartTimeDuration: '' },
+        ]}
       />
     </MemoryRouter>
   );

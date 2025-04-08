@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useContext } from 'react';
+import React from 'react';
 
 import { ReactContext } from './TeleportContextProvider';
 
 export default function useTeleport() {
-  const teleportContext = useContext(ReactContext);
+  const teleportContext = React.useContext(ReactContext);
   if (!teleportContext) {
     throw new Error('Unable to retrieve Teleport Context');
   }

@@ -19,11 +19,10 @@
 package services
 
 import (
-	"context"
-	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -116,11 +115,8 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 		}
 		match, _, err := MatchLabels(matcher.Labels, labels)
 		if err != nil {
-			slog.ErrorContext(context.Background(), "Failed to match labels",
-				"error", err,
-				"matcher_labels", matcher.Labels,
-				"resource_labels", labels,
-			)
+			logrus.WithError(err).Errorf("Failed to match labels %v: %v.",
+				matcher.Labels, labels)
 			return false
 		}
 		if match {
@@ -161,10 +157,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
-		types.KindUserGroup,
-		types.KindIdentityCenterAccount,
-		types.KindIdentityCenterAccountAssignment,
-		types.KindGitServer:
+		types.KindUserGroup:
 		specResource = resource
 	case types.KindKubeServer:
 		if seenMap != nil {

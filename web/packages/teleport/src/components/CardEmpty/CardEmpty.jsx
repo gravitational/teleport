@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, H2 } from 'design';
+import React from 'react';
+
+import { Box, Text } from 'design';
 
 export default function CardEmpty(props) {
   const { title, children, ...styles } = props;
@@ -32,7 +34,7 @@ export default function CardEmpty(props) {
       style={{ borderRadius: '6px' }}
       {...styles}
     >
-      <H2>{title}</H2>
+      <Text typography="h4">{title}</Text>
       {children}
     </Box>
   );

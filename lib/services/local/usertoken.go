@@ -38,7 +38,7 @@ func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken,
 
 	var tokens []types.UserToken
 	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 

@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, Card, Flex, H2, Image, Link, Subtitle2, Text } from 'design';
+import { Box, Card, Flex, Image, Link, Text } from 'design';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
@@ -55,9 +55,11 @@ export function LockedAccessRequests() {
         flexDirection="column"
         width="auto"
       >
-        <Box as="header" width="100%" textAlign="left">
-          <H2 mb={1}>Access Requests Flow</H2>
-          <Subtitle2 mb={5}>
+        <Box width="100%" textAlign="left">
+          <Text typography="h4" bold>
+            Access Requests Flow
+          </Text>
+          <Text typography="subtitle1" mb={5}>
             To learn more about access requests, take a look at&nbsp;
             <Link
               color="text.secondary"
@@ -66,7 +68,7 @@ export function LockedAccessRequests() {
             >
               Teleport Documentation.
             </Link>
-          </Subtitle2>
+          </Text>
         </Box>
         <Flex
           gap={4}

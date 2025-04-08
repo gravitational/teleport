@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, H2 } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { DialogContent, DialogHeader } from 'design/Dialog';
 import FieldInput from 'shared/components/FieldInput';
@@ -28,26 +28,23 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import { outermostPadding } from '../spacing';
-
 export function ClusterAdd(props: {
   onCancel(): void;
   onSuccess(clusterUri: string): void;
   prefill: { clusterAddress: string };
 }) {
-  const { clustersService, workspacesService } = useAppContext();
+  const { clustersService } = useAppContext();
   const [{ status, statusText }, addCluster] = useAsync(
     async (addr: string) => {
       const proxyAddr = parseClusterProxyWebAddr(addr);
       const cluster = await clustersService.addRootCluster(proxyAddr);
-      workspacesService.addWorkspace(cluster.uri);
       return props.onSuccess(cluster.uri);
     }
   );
   const [addr, setAddr] = useState(props.prefill.clusterAddress || '');
 
   return (
-    <Box px={outermostPadding}>
+    <Box p={4}>
       <Validation>
         {({ validator }) => (
           <form
@@ -57,24 +54,25 @@ export function ClusterAdd(props: {
             }}
           >
             <DialogHeader>
-              <H2>Enter cluster address</H2>
+              <Text typography="h4">Enter cluster address</Text>
             </DialogHeader>
-            <DialogContent mb={0} gap={3}>
+            <DialogContent mb={2}>
               {status === 'error' && (
-                <Alerts.Danger mb={0} details={statusText}>
-                  Could not add the cluster
-                </Alerts.Danger>
+                <Alerts.Danger mb={5} children={statusText} />
               )}
               <FieldInput
                 rule={requiredField('Cluster address is required')}
                 value={addr}
                 autoFocus
-                mb={0}
                 onChange={e => setAddr(e.target.value)}
                 placeholder="teleport.example.com"
               />
-              <Flex gap={3}>
-                <ButtonPrimary disabled={status === 'processing'} type="submit">
+              <Box mt="5">
+                <ButtonPrimary
+                  disabled={status === 'processing'}
+                  mr="3"
+                  type="submit"
+                >
                   Next
                 </ButtonPrimary>
                 <ButtonSecondary
@@ -85,9 +83,9 @@ export function ClusterAdd(props: {
                     props.onCancel();
                   }}
                 >
-                  Cancel
+                  CANCEL
                 </ButtonSecondary>
-              </Flex>
+              </Box>
             </DialogContent>
           </form>
         )}

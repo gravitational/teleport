@@ -23,11 +23,6 @@ const (
 	// Unspecified preset type is used in the Web UI to denote a generic SAML service
 	// provider preset.
 	Unspecified = "unspecified"
-	// AWSIdentityCenter is a SAML service provider preset name for AWS
-	// Identity Center.
-	AWSIdentityCenter = "aws-identity-center"
-	// MicrosoftEntraID is a SAML service provider preset name for Microsoft Entra ID.
-	MicrosoftEntraID = "microsoft-entra-id"
 )
 
 const (

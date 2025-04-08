@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { useTheme } from 'styled-components';
 
-import Box, { BoxProps } from '../Box';
-import Flex, { FlexProps } from '../Flex';
-import Link from '../Link';
-import Text, { H1, H2 } from '../Text';
-import { Theme, ThemeColors } from '../theme';
+import { Box, Flex, Link, Text } from '..';
 
 export default {
   title: 'Design/Theme/Colors',
@@ -36,7 +33,9 @@ const ColorsComponent = () => {
   return (
     <Flex flexDirection="column" p="4">
       <Flex flexDirection="column">
-        <H1 mb="2">Levels</H1>
+        <Text mb="2" typography="h3">
+          Levels
+        </Text>
         <Text mb="2">
           Levels are used to reflect the perceived depth of elements in the UI.
           The further back an element is, the more "sunken" it is, and the more
@@ -55,7 +54,9 @@ const ColorsComponent = () => {
           </Link>
         </Text>
         <ColorsBox mb="4" colors={theme.colors.levels} themeType="levels" />
-        <H1 mb="2">Interactive Colors</H1>
+        <Text mb="2" typography="h3">
+          Interactive Colors
+        </Text>
         <Text mb="2">
           <p>
             Interactive colors are used for hover states, indicators, etc. An
@@ -82,7 +83,9 @@ const ColorsComponent = () => {
             )
           )}
         </Flex>
-        <H2 mb="1">Tonal color variants</H2>
+        <Text mb="1" typography="h4">
+          Tonal color variants
+        </Text>
         <Text mb="2">
           Tonal color variants are used as highlights or accents. They are not
           solid colours, instead, they are a slightly transparent mask that
@@ -106,14 +109,18 @@ const ColorsComponent = () => {
             )
           )}
         </Flex>
-        <H1 mb="2">Brand</H1>
+        <Text mb="2" typography="h3">
+          Brand
+        </Text>
         <SingleColorBox
           mb="4"
           path="theme.colors.brand"
           bg={theme.colors.brand}
           color={theme.colors.text.primaryInverse}
         />
-        <H1 mb="2">Shadows</H1>
+        <Text mb="2" typography="h3">
+          Shadows
+        </Text>
         <Flex>
           <Box
             mb={4}
@@ -167,7 +174,9 @@ const ColorsComponent = () => {
             <Text>theme.boxShadow[2]</Text>
           </Box>
         </Flex>
-        <H1 mb="2">Text Colors</H1>
+        <Text mb="2" typography="h3">
+          Text Colors
+        </Text>
         <Flex width="fit-content" flexDirection="row" mb={4}>
           <Flex
             flexDirection="column"
@@ -190,7 +199,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="body1" color={theme.colors.text.main}>
+            <Text typography="paragraph" color={theme.colors.text.main}>
               Primary
             </Text>
           </Flex>
@@ -215,7 +224,10 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text typography="body1" color={theme.colors.text.slightlyMuted}>
+            <Text
+              typography="paragraph"
+              color={theme.colors.text.slightlyMuted}
+            >
               Secondary
             </Text>
           </Flex>
@@ -240,7 +252,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="body1" color={theme.colors.text.muted}>
+            <Text typography="paragraph" color={theme.colors.text.muted}>
               Placeholder
             </Text>
           </Flex>
@@ -265,7 +277,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.disabled}>
               Disabled
             </Text>
-            <Text typography="body1" color={theme.colors.text.disabled}>
+            <Text typography="paragraph" color={theme.colors.text.disabled}>
               Disabled
             </Text>
           </Flex>
@@ -292,7 +304,10 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.primaryInverse}>
               Primary Inverse
             </Text>
-            <Text typography="body1" color={theme.colors.text.primaryInverse}>
+            <Text
+              typography="paragraph"
+              color={theme.colors.text.primaryInverse}
+            >
               Primary Inverse
             </Text>
           </Flex>
@@ -302,15 +317,8 @@ const ColorsComponent = () => {
   );
 };
 
-function ColorsBox({
-  colors,
-  themeType = undefined,
-  ...styles
-}: {
-  colors: ThemeColors['levels'];
-  themeType?: string;
-} & FlexProps) {
-  const list = Object.entries(colors).map(([key, colorsForKey]) => {
+function ColorsBox({ colors, themeType = null, ...styles }) {
+  const list = Object.keys(colors).map(key => {
     const fullPath = themeType
       ? `theme.colors.${themeType}.${key}`
       : `theme.colors.${key}`;
@@ -319,8 +327,7 @@ function ColorsBox({
       <Flex flexWrap="wrap" key={key} width="260px" mb={3}>
         <Box
           css={`
-            color: ${(props: { theme: Theme }) =>
-              props.theme.colors.text.slightlyMuted};
+            color: ${props => props.theme.colors.text.slightlyMuted};
           `}
         >
           {fullPath}
@@ -331,10 +338,8 @@ function ColorsBox({
           p={3}
           mr={3}
           css={`
-            background: ${colorsForKey};
-            border: 1px solid
-              ${(props: { theme: Theme }) =>
-                props.theme.colors.text.primaryInverse};
+            background: ${colors[key]};
+            border: 1px solid ${props => props.theme.colors.primaryInverse};
           `}
         />
       </Flex>
@@ -348,16 +353,7 @@ function ColorsBox({
   );
 }
 
-function SingleColorBox({
-  bg,
-  color,
-  path,
-  ...styles
-}: {
-  bg: string;
-  color: string;
-  path: string;
-} & BoxProps) {
+function SingleColorBox({ bg, color, path, ...styles }) {
   return (
     <Box width="150px" height="150px" p={3} mr={3} bg={bg} {...styles}>
       <Text color={color}>

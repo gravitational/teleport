@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
-	"github.com/gravitational/teleport/lib/client/sso"
 )
 
 // NewMFACeremony returns a new MFA ceremony configured for this client.
@@ -34,7 +33,6 @@ func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
-		SSOMFACeremonyConstructor:   tc.NewSSOMFACeremony,
 	}
 }
 
@@ -63,7 +61,6 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 		PromptConfig:     *cfg,
 		Writer:           tc.Stderr,
 		PreferOTP:        tc.PreferOTP,
-		PreferSSO:        tc.PreferSSO,
 		AllowStdinHijack: tc.AllowStdinHijack,
 		StdinFunc:        tc.StdinFunc,
 	})
@@ -82,25 +79,5 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true
 	}
-
 	return cfg
-}
-
-// NewSSOMFACeremony creates a new SSO MFA ceremony.
-func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACeremony, error) {
-	rdConfig, err := tc.ssoRedirectorConfig(ctx, "" /*connectorDisplayName*/)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rd, err := sso.NewRedirector(rdConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create a redirector for SSO MFA")
-	}
-
-	if tc.SSOMFACeremonyConstructor != nil {
-		return tc.SSOMFACeremonyConstructor(rd), nil
-	}
-
-	return sso.NewCLIMFACeremony(rd), nil
 }

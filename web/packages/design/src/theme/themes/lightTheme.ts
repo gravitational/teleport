@@ -200,8 +200,7 @@ const colors: ThemeColors = {
   },
 
   tooltip: {
-    background: 'rgba(0, 0, 0, 0.80)',
-    inverseBackground: 'rgba(255, 255, 255, 0.5)',
+    background: '#F0F2F4',
   },
 
   progressBarColor: '#007D6B',
@@ -319,7 +318,7 @@ const colors: ThemeColors = {
         borderColor: purple[300],
         typeColor: purple[300],
         iconBackground: purple[300],
-        handleColor: purple[700],
+        handleColor: purple[704],
         highlightColor: purple[300],
         label: {
           background: purple[200],

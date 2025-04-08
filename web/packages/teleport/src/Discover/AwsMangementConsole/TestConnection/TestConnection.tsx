@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-import { Box, H3, Link, Mark } from 'design';
-import { Info } from 'design/Alert/Alert';
-import { P } from 'design/Text/Text';
+import { Box, Link, Mark, Text } from 'design';
+import { OutlineInfo } from 'design/Alert/Alert';
 import Select, { type Option } from 'shared/components/Select';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
@@ -76,13 +75,17 @@ export function TestConnection() {
         you just added.
       </HeaderSubtitle>
       <StyledBox mb={5}>
-        <H3 mb={3}>Access the AWS Management Console</H3>
-        <P>Select the AWS role ARN to test.</P>
-        <P mb={2}>
+        <Text bold mb={3}>
+          Access the AWS Management Console
+        </Text>
+        <Text typography="subtitle1" mb={2}>
+          Select the AWS role ARN to test.
+        </Text>
+        <Text typography="subtitle1" mb={2}>
           AWS Management Console will launch in another tab. You should see your
           Teleport user name as a federated login with the selected role in the
           top-right corner of the AWS Console.
-        </P>
+        </Text>
         <Box width="500px">
           <Select
             value={selectedOpt}
@@ -95,30 +98,36 @@ export function TestConnection() {
         </Box>
       </StyledBox>
       <StyledBox mb={5}>
-        <H3 mb={3}>Access the AWS CLI</H3>
-        <P mb={2}>Log into your Teleport cluster:</P>
-        <TextSelectCopy
-          mt="1"
-          text={generateTshLoginCommand({
-            authType,
-            username,
-            clusterId,
-          })}
-        />
-        <P my={2}>Connect to your application:</P>
-        <TextSelectCopy mt="1" text={tshCmd} />
+        <Text bold mb={3}>
+          Access the AWS CLI
+        </Text>
+        <Box mb={2}>
+          Log into your Teleport cluster
+          <TextSelectCopy
+            mt="1"
+            text={generateTshLoginCommand({
+              authType,
+              username,
+              clusterId,
+            })}
+          />
+        </Box>
+        <Box mb={2}>
+          Connect to your application
+          <TextSelectCopy mt="1" text={tshCmd} />
+        </Box>
       </StyledBox>
-      <Info mb={3} linkColor="buttons.link.default">
-        <P>
-          If the connection can&apos;t be established, ensure the IAM role you
-          are trying to assume is{' '}
+      <OutlineInfo mb={3} linkColor="buttons.link.default" width="800px">
+        <Text>
+          If the connection can't be established, ensure the IAM role you are
+          trying to assume is{' '}
           <Link target="_blank" href={AWS_TAG_INFO_LINK}>
             tagged
           </Link>{' '}
           with key <Mark>teleport.dev/integration</Mark> and value{' '}
           <Mark>true</Mark>.
-        </P>
-      </Info>
+        </Text>
+      </OutlineInfo>
 
       <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
     </Box>

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import FormLogin, { Props } from './FormLogin';
 
 const props: Props = {
@@ -137,22 +139,12 @@ export const LocalDisabledNoSso = () => (
 
 export const PrimarySso = () => {
   const ssoProvider = [
-    { name: 'github', displayName: 'GitHub', type: 'oidc', url: '' } as const,
-    { name: 'google', displayName: 'Google', type: 'oidc', url: '' } as const,
-    {
-      name: 'bitbucket',
-      displayName: 'Bitbucket',
-      type: 'oidc',
-      url: '',
-    } as const,
+    { name: 'github', type: 'oidc', url: '' } as const,
+    { name: 'google', type: 'oidc', url: '' } as const,
+    { name: 'bitbucket', type: 'oidc', url: '' } as const,
     {
       name: 'Mission Control',
       type: 'oidc',
-      url: '',
-    } as const,
-    {
-      name: 'Okta',
-      type: 'saml',
       url: '',
     } as const,
     {

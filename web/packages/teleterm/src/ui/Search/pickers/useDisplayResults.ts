@@ -25,14 +25,13 @@ import {
   isResourceTypeSearchFilter,
   SearchFilter,
 } from 'teleterm/ui/Search/searchResult';
-import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 
 export function useDisplayResults(args: {
   filters: SearchFilter[];
   inputValue: string;
 }): DisplayResults {
   const { workspacesService } = useAppContext();
-  useWorkspaceServiceState();
+  workspacesService.useState();
 
   const localClusterUri =
     workspacesService.getActiveWorkspace()?.localClusterUri;

@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -68,6 +69,7 @@ func TestSubmitOnce(t *testing.T) {
 
 	scfg := SubmitterConfig{
 		Backend:   bk,
+		Log:       logrus.StandardLogger(),
 		Status:    local.NewStatusService(bk),
 		Submitter: submitOk,
 	}

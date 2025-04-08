@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -37,8 +38,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -49,12 +52,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
@@ -130,7 +133,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 	}
 	f := &Forwarder{
-		log: utils.NewSlogLoggerForTests(),
+		log: logrus.NewEntry(logrus.New()),
 		cfg: ForwarderConfig{
 			ClusterName:       "local",
 			CachingAuthClient: ap,
@@ -937,6 +940,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				kubeCreds = &staticKubeCreds{}
 			}
 			err := setupImpersonationHeaders(
+				logrus.NewEntry(logrus.New()),
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
@@ -961,7 +965,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 	}
 }
 
-func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
+func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote bool) authContext {
 	t.Helper()
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
@@ -976,7 +980,7 @@ func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
 			name:     "kube-cluster",
 			isRemote: isRemote,
 		},
-		kubeClusterName: kubeCluster,
+		kubeClusterName: "kube-cluster",
 		// getClientCreds requires sessions to be valid for at least 1 minute
 		sessionTTL: 2 * time.Minute,
 	}
@@ -990,7 +994,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	t.Cleanup(cancel)
 	f := newMockForwader(ctx, t)
 
-	authCtx := mockAuthCtx(t, "kube-cluster", false)
+	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -1101,20 +1105,17 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	clock := clockwork.NewFakeClock()
-	cachedTransport, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   transportCacheTTL,
-		Clock: clock,
-	})
+	cachedTransport, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(clock))
 	require.NoError(t, err)
-	caClient, err := newMockCAClient()
+	csrClient, err := newMockCSRClient(clock)
 	require.NoError(t, err)
 
 	return &Forwarder{
-		log:    utils.NewSlogLoggerForTests(),
+		log:    logrus.NewEntry(logrus.New()),
 		router: httprouter.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
-			AuthClient:        caClient,
+			AuthClient:        csrClient,
 			CachingAuthClient: mockAccessPoint{},
 			Clock:             clock,
 			Context:           ctx,
@@ -1128,18 +1129,27 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	}
 }
 
-// mockCAClient to intercept GetCertAuthority requests, record them and return a
+// mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
 // stub response.
-type mockCAClient struct {
+type mockCSRClient struct {
 	authclient.ClientI
+
+	clock           clockwork.Clock
+	ca              *tlsca.CertAuthority
+	gotCSR          authclient.KubeCSR
+	lastCert        *x509.Certificate
 	leafClusterName string
 }
 
-func newMockCAClient() (*mockCAClient, error) {
-	return &mockCAClient{}, nil
+func newMockCSRClient(clock clockwork.Clock) (*mockCSRClient, error) {
+	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	if err != nil {
+		return nil, err
+	}
+	return &mockCSRClient{ca: ca, clock: clock}, nil
 }
 
-func (c *mockCAClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+func (c *mockCSRClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	if id.DomainName == c.leafClusterName {
 		return &types.CertAuthorityV2{
 			Kind:    types.KindCertAuthority,
@@ -1157,6 +1167,36 @@ func (c *mockCAClient) GetCertAuthority(ctx context.Context, id types.CertAuthID
 		}, nil
 	}
 	return nil, trace.NotFound("cluster not found")
+}
+
+func (c *mockCSRClient) ProcessKubeCSR(csr authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
+	c.gotCSR = csr
+
+	x509CSR, err := tlsca.ParseCertificateRequestPEM(csr.CSR)
+	if err != nil {
+		return nil, err
+	}
+	caCSR := tlsca.CertificateRequest{
+		Clock:     c.clock,
+		PublicKey: x509CSR.PublicKey.(crypto.PublicKey),
+		Subject:   x509CSR.Subject,
+		// getClientCreds requires sessions to be valid for at least 1 minute
+		NotAfter: c.clock.Now().Add(2 * time.Minute),
+		DNSNames: x509CSR.DNSNames,
+	}
+	cert, err := c.ca.GenerateCertificate(caCSR)
+	if err != nil {
+		return nil, err
+	}
+	c.lastCert, err = tlsca.ParseCertificatePEM(cert)
+	if err != nil {
+		return nil, err
+	}
+	return &authclient.KubeCSRResponse{
+		Cert:            cert,
+		CertAuthorities: [][]byte{[]byte(fixtures.TLSCACertPEM)},
+		TargetAddr:      "mock addr",
+	}, nil
 }
 
 // mockRemoteSite is a reversetunnelclient.RemoteSite implementation with hardcoded
@@ -1275,7 +1315,7 @@ func (m *mockWatcher) Done() <-chan struct{} {
 
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 	return &Forwarder{
-		log:            utils.NewSlogLoggerForTests(),
+		log:            logrus.NewEntry(logrus.New()),
 		router:         httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),
@@ -1606,17 +1646,17 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	clusterName := "leaf"
 
 	// Create a cert pool with the cert from fixtures.TLSCACertPEM
-	caCert, err := tlsutils.ParseCertificatePEM([]byte(fixtures.TLSCACertPEM))
-	require.NoError(t, err)
 	certPool := x509.NewCertPool()
-	certPool.AddCert(caCert)
+	certPool.AppendCertsFromPEM([]byte(fixtures.TLSCACertPEM))
 
+	// create the tls config used by the forwarder
+	originalTLSConfig := &tls.Config{}
 	// create the auth server mock client
-	cl, err := newMockCAClient()
+	clock := clockwork.NewFakeClock()
+	cl, err := newMockCSRClient(clock)
 	require.NoError(t, err)
 	cl.leafClusterName = clusterName
 
-	var getConnTLSRootsCalled bool
 	f := &Forwarder{
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
@@ -1625,38 +1665,24 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 			tracer:            otel.Tracer(teleport.ComponentKube),
 			KubeServiceType:   ProxyService,
 			CachingAuthClient: cl,
-
-			GetConnTLSCertificate: func() (*tls.Certificate, error) {
-				return nil, nil
-			},
-			GetConnTLSRoots: func() (*x509.CertPool, error) {
-				getConnTLSRootsCalled = true
-				return x509.NewCertPool(), nil
-			},
+			ConnTLSConfig:     originalTLSConfig,
 		},
-		log: utils.NewSlogLoggerForTests(),
+		log: logrus.NewEntry(logrus.New()),
 		ctx: context.Background(),
 	}
-
 	// generate tlsConfig for the leaf cluster
 	tlsConfig, err := f.getTLSConfigForLeafCluster(clusterName)
 	require.NoError(t, err)
-	_ = tlsConfig.VerifyConnection(tls.ConnectionState{
-		ServerName: "nonempty",
-		PeerCertificates: []*x509.Certificate{
-			caCert,
-		},
-	})
-	require.False(t, getConnTLSRootsCalled)
+	// ensure that the tlsConfig is a clone of the originalTLSConfig
+	require.NotSame(t, originalTLSConfig, tlsConfig, "expected tlsConfig to be different from originalTLSConfig")
+	// ensure that the tlsConfig has the certPool as the RootCAs
+	require.True(t, tlsConfig.RootCAs.Equal(certPool), "expected root CAs to be equal to certPool")
 
 	// generate tlsConfig for the local cluster
 	_, localTLSConfig, err := f.newLocalClusterTransport(clusterName)
 	require.NoError(t, err)
-	_ = localTLSConfig.VerifyConnection(tls.ConnectionState{
-		ServerName: "nonempty",
-		PeerCertificates: []*x509.Certificate{
-			caCert,
-		},
-	})
-	require.True(t, getConnTLSRootsCalled)
+	// ensure that the localTLSConfig is a clone of the originalTLSConfig
+	require.NotSame(t, originalTLSConfig, localTLSConfig, "expected localTLSConfig pointer to be different from originalTLSConfig")
+	// ensure that the localTLSConfig doesn't have the certPool as the RootCAs
+	require.False(t, localTLSConfig.RootCAs.Equal(certPool), "root CAs should not include certPool")
 }

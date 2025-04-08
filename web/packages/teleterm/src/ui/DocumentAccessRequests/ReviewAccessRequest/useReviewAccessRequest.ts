@@ -27,6 +27,7 @@ import {
 import { useAsync } from 'shared/hooks/useAsync';
 import { AccessRequest } from 'shared/services/accessRequests';
 
+import { isUnimplementedError } from 'teleterm/services/tshd/errors';
 import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -108,12 +109,22 @@ export function useReviewAccessRequest({
   const [fetchSuggestedAccessListsAttempt, runFetchSuggestedAccessLists] =
     useAsync(
       useCallback(async () => {
-        const { response } = await ctx.tshd.getSuggestedAccessLists({
-          rootClusterUri,
-          accessRequestId: requestId,
-        });
+        try {
+          const { response } = await ctx.tshd.getSuggestedAccessLists({
+            rootClusterUri,
+            accessRequestId: requestId,
+          });
 
-        return response.accessLists.map(makeUiAccessList);
+          return response.accessLists.map(makeUiAccessList);
+        } catch (e) {
+          if (isUnimplementedError(e)) {
+            // TODO(gzdunek): DELETE IN 16.0.0
+            throw new Error(
+              'To approve long-term access via Access List in Teleport Connect, update your cluster to 13.4.13 or 14.3.'
+            );
+          }
+          throw e;
+        }
       }, [ctx.tshd, requestId, rootClusterUri])
     );
 
@@ -165,7 +176,7 @@ export function useReviewAccessRequest({
 function getRequestFlags(
   request: AccessRequest,
   user: tsh.LoggedInUser,
-  assumedMap: Record<string, tsh.AccessRequest>
+  assumedMap: Record<string, tsh.AssumedRequest>
 ): RequestFlags {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';

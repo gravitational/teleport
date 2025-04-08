@@ -24,15 +24,23 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-// HalfJitter is [retryutils.HalfJitter].
-//
-// Deprecated: use retryutils.HalfJitter.
-func HalfJitter(d time.Duration) time.Duration { return retryutils.HalfJitter(d) }
+// HalfJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
+var HalfJitter = retryutils.NewHalfJitter()
 
-// FullJitter is [retryutils.FullJitter].
-//
-// Deprecated: use retryutils.FullJitter.
-func FullJitter(d time.Duration) time.Duration { return retryutils.FullJitter(d) }
+// SeventhJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
+var SeventhJitter = retryutils.NewSeventhJitter()
+
+// FullJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls, and use a dedicated sharded jitter instance for
+// any usecases that might scale with cluster size or request count.
+var FullJitter = retryutils.NewFullJitter()
 
 // NewDefaultLinear creates a linear retry with reasonable default parameters for
 // attempting to restart "critical but potentially load-inducing" operations, such
@@ -40,10 +48,10 @@ func FullJitter(d time.Duration) time.Duration { return retryutils.FullJitter(d)
 // but this retry will always be configured for automatic reset.
 func NewDefaultLinear() *retryutils.Linear {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:     retryutils.FullJitter(time.Second * 10),
+		First:     FullJitter(time.Second * 10),
 		Step:      time.Second * 15,
 		Max:       time.Second * 90,
-		Jitter:    retryutils.HalfJitter,
+		Jitter:    retryutils.NewHalfJitter(),
 		AutoReset: 5,
 	})
 	if err != nil {

@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
@@ -45,11 +44,9 @@ func TestSelfSignedCert(t *testing.T) {
 
 	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil)
 	require.NoError(t, err)
-	signer, err := keys.ParsePrivateKey(creds.PrivateKey)
-	require.NoError(t, err)
-	pub, err := keys.ParsePublicKey(creds.PublicKey)
-	require.NoError(t, err)
-	require.Equal(t, signer.Public(), pub)
+	require.NotNil(t, creds)
+	require.Equal(t, 4, len(creds.PublicKey)/100)
+	require.Equal(t, 16, len(creds.PrivateKey)/100)
 }
 
 func TestRandomDuration(t *testing.T) {
@@ -86,8 +83,8 @@ func TestRemoveFromSlice(t *testing.T) {
 	}
 }
 
-// TestMinVersions tests versions compatibility checking
-func TestMinVersions(t *testing.T) {
+// TestVersions tests versions compatibility checking
+func TestVersions(t *testing.T) {
 	t.Parallel()
 
 	type tc struct {
@@ -102,8 +99,8 @@ func TestMinVersions(t *testing.T) {
 	}
 	for _, testCase := range successTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			require.NoError(t, CheckMinVersion(testCase.client, testCase.minClient))
-			assert.True(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to succeed")
+			require.NoError(t, CheckVersion(testCase.client, testCase.minClient))
+			assert.True(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to succeed")
 		})
 	}
 
@@ -113,41 +110,8 @@ func TestMinVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckMinVersion(testCase.client, testCase.minClient))
-			assert.False(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to fail")
-		})
-	}
-}
-
-// TestMaxVersions tests versions compatibility checking
-func TestMaxVersions(t *testing.T) {
-	t.Parallel()
-
-	type tc struct {
-		info      string
-		client    string
-		maxClient string
-	}
-	successTestCases := []tc{
-		{info: "client same as max version", client: "1.0.0", maxClient: "1.0.0"},
-		{info: "client older than max version", client: "1.1.0", maxClient: "1.2.0"},
-		{info: "pre-releases clients are ok", client: "1.0.0-alpha.1", maxClient: "1.0.0"},
-	}
-	for _, testCase := range successTestCases {
-		t.Run(testCase.info, func(t *testing.T) {
-			require.NoError(t, CheckMaxVersion(testCase.client, testCase.maxClient))
-			assert.True(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to succeed")
-		})
-	}
-
-	failTestCases := []tc{
-		{info: "client newer than max version", client: "1.3.0", maxClient: "1.1.0"},
-		{info: "newer pre-releases are no ok", client: "1.1.0", maxClient: "1.1.0-alpha.1"},
-	}
-	for _, testCase := range failTestCases {
-		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckMaxVersion(testCase.client, testCase.maxClient))
-			assert.False(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to fail")
+			fixtures.AssertBadParameter(t, CheckVersion(testCase.client, testCase.minClient))
+			assert.False(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to fail")
 		})
 	}
 }

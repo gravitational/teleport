@@ -26,10 +26,6 @@ export type RequestableResourceKind =
   | 'resource'
   | Exclude<KubeResourceKind, '*'>;
 
-/**
- * Maps a resource ID (usually agent name) to resource description (usually the
- * same, but not necessarily).
- */
 export type ResourceMap = {
   [K in Exclude<RequestableResourceKind, 'resource'>]: Record<string, string>;
 };
@@ -43,9 +39,6 @@ export function getEmptyResourceState(): ResourceMap {
     user_group: {},
     windows_desktop: {},
     role: {},
-    saml_idp_service_provider: {},
     namespace: {},
-    aws_ic_account_assignment: {},
-    git_server: {},
   };
 }

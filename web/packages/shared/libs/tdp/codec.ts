@@ -48,7 +48,7 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_REQUEST = 25,
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
-  ALERT = 28,
+  NOTIFICATION = 28,
   RDP_FASTPATH_PDU = 29,
   RDP_RESPONSE_PDU = 30,
   RDP_CONNECTION_ACTIVATED = 31,
@@ -143,7 +143,7 @@ export function toSeverity(severity: number): Severity {
 }
 
 // | message type (28) | message_length uint32 | message []byte | severity byte
-export type Alert = {
+export type Notification = {
   message: string;
   severity: Severity;
 };
@@ -764,11 +764,11 @@ export default class Codec {
   }
 
   /**
-   * decodeAlert decodes a raw TDP alert message
+   * decodeNotification decodes a raw tdp Notification message
    * | message type (28) | message_length uint32 | message []byte | severity byte
    * @throws {Error} if an invalid severity is passed
    */
-  decodeAlert(buffer: ArrayBuffer): Alert {
+  decodeNotification(buffer: ArrayBuffer): Notification {
     const dv = new DataView(buffer);
     let offset = 0;
 

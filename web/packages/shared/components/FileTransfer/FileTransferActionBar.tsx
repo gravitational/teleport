@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { ButtonIcon, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
 
+import { HoverTooltip } from '../ToolTip';
 import { useFileTransferContext } from './FileTransferContextProvider';
 
 type FileTransferActionBarProps = {
@@ -39,7 +41,6 @@ export function FileTransferActionBar({
   return (
     <Flex flex="none" alignItems="center" height="24px">
       <HoverTooltip
-        placement="bottom"
         tipContent={
           !hasAccess ? (
             <Text>

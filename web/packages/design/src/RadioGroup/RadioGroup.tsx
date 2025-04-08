@@ -16,23 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 
 import { Flex } from 'design';
-import { FieldRadio } from 'design/FieldRadio';
-import { FlexProps } from 'design/Flex';
-import { RadioButton, RadioButtonSize } from 'design/RadioButton';
 
 interface RadioObjectOption {
   value: string;
   label: ReactNode;
   disabled?: boolean;
-  helperText?: ReactNode;
 }
 
 type RadioOption = RadioObjectOption | string;
 
-interface RadioGroupProps extends FlexProps {
+interface RadioGroupProps {
   options: RadioOption[];
   onChange?: (value: string) => void;
   value?: string;
@@ -40,7 +36,8 @@ interface RadioGroupProps extends FlexProps {
   autoFocus?: boolean;
   /** The name property of radio input elements */
   name: string;
-  size?: RadioButtonSize;
+
+  [styles: string]: any;
 }
 
 export function RadioGroup({
@@ -49,33 +46,20 @@ export function RadioGroup({
   onChange,
   autoFocus,
   name,
-  size,
   ...styles
 }: RadioGroupProps) {
   return (
-    <Flex gap={3} flexDirection="column" {...styles}>
+    <Flex flexDirection="column" {...styles}>
       {options.map((option, index) => {
         const optionValue = isRadioObjectOption(option) ? option.value : option;
-        const optionLabel = isRadioObjectOption(option) ? option.label : option;
-        const optionDisabled = isRadioObjectOption(option)
-          ? option.disabled
-          : undefined;
-        const optionHelperText = isRadioObjectOption(option)
-          ? option.helperText
-          : undefined;
         return (
-          <FieldRadio
-            key={optionValue}
-            name={name}
-            label={optionLabel}
-            helperText={optionHelperText}
-            checked={value !== undefined ? value === optionValue : undefined}
-            disabled={optionDisabled}
-            size={size}
-            value={optionValue}
+          <Radio
+            onChange={onChange}
             autoFocus={index === 0 && autoFocus}
-            onChange={() => onChange?.(optionValue)}
-            mb={0}
+            key={optionValue}
+            option={option}
+            name={name}
+            checked={value !== undefined ? value === optionValue : undefined}
           />
         );
       })}
@@ -110,8 +94,14 @@ export function Radio(props: RadioProps) {
         cursor: ${optionDisabled ? 'not-allowed' : 'pointer'};
       `}
     >
-      <RadioButton
+      <input
         autoFocus={props.autoFocus}
+        css={`
+          margin: 0 ${props => props.theme.space[2]}px 0 0;
+          accent-color: ${props => props.theme.colors.brand};
+          cursor: inherit;
+        `}
+        type="radio"
         name={props.name}
         checked={props.checked}
         onChange={() => props.onChange?.(optionValue)}

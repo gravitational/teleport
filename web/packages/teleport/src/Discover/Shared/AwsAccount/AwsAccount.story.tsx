@@ -16,35 +16,45 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { delay, http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { resourceSpecAwsRdsPostgres } from 'teleport/Discover/Fixtures/databases';
-import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import {
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 
 import { AwsAccount } from './AwsAccount';
 
+initialize();
 export default {
   title: 'Teleport/Discover/Shared/AwsAccount',
+  loaders: [mswLoader],
 };
 
 const handlers = [
-  http.get(cfg.getIntegrationsUrl(), () =>
-    HttpResponse.json({
-      items: [
-        {
-          name: 'aws-oidc-1',
-          subKind: 'aws-oidc',
-          awsoidc: {
-            roleArn: 'arn:aws:iam::123456789012:role/test1',
+  rest.get(cfg.getIntegrationsUrl(), (req, res, ctx) =>
+    res(
+      ctx.json({
+        items: [
+          {
+            name: 'aws-oidc-1',
+            subKind: 'aws-oidc',
+            awsoidc: {
+              roleArn: 'arn:aws:iam::123456789012:role/test1',
+            },
           },
-        },
-      ],
-    })
+        ],
+      })
+    )
   ),
-  http.get(cfg.api.unifiedResourcesPath, () =>
-    HttpResponse.json({ agents: [{ name: 'app1' }] })
+  rest.get(cfg.api.unifiedResourcesPath, (req, res, ctx) =>
+    res(ctx.json({ agents: [{ name: 'app1' }] }))
   ),
 ];
 
@@ -58,7 +68,11 @@ Success.parameters = {
 export const Loading = () => <Component />;
 Loading.parameters = {
   msw: {
-    handlers: [http.get(cfg.getIntegrationsUrl(), () => delay('infinite'))],
+    handlers: [
+      rest.get(cfg.getIntegrationsUrl(), (req, res, ctx) =>
+        res(ctx.delay('infinite'))
+      ),
+    ],
   },
 };
 
@@ -66,13 +80,8 @@ export const Failed = () => <Component />;
 Failed.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getIntegrationsUrl(), () =>
-        HttpResponse.json(
-          {
-            message: 'some kind of error',
-          },
-          { status: 403 }
-        )
+      rest.post(cfg.getIntegrationsUrl(), (req, res, ctx) =>
+        res(ctx.status(403), ctx.json({ message: 'some kind of error' }))
       ),
     ],
   },
@@ -83,14 +92,35 @@ export const NoPerm = () => <Component noAccess={true} />;
 const Component = ({ noAccess = false }: { noAccess?: boolean }) => {
   const ctx = createTeleportContext();
   ctx.storeUser.state.acl = getAcl({ noAccess });
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {},
+    currentStep: 0,
+    nextStep: () => null,
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {} as any,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
 
+  cfg.proxyCluster = 'localhost';
   return (
-    <RequiredDiscoverProviders
-      agentMeta={{}}
-      resourceSpec={resourceSpecAwsRdsPostgres}
-      customAcl={noAccess ? getAcl({ noAccess }) : undefined}
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'server' } },
+      ]}
     >
-      <AwsAccount />
-    </RequiredDiscoverProviders>
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>
+          <AwsAccount />
+        </DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };

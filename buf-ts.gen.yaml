@@ -11,7 +11,6 @@ inputs:
       - api/proto/teleport/userpreferences/
       - proto/prehog/
       - proto/teleport/lib/teleterm/
-      - proto/teleport/lib/vnet/diag/
 
 plugins:
   - local:

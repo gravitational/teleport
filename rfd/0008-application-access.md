@@ -303,11 +303,7 @@ version: v3
 spec:
   options:
     forward_agent: true
-    ssh_port_forwarding:
-      remote:
-        enabled: false
-      local:
-        enabled: false
+    port_forwarding: false
   allow:
     logins: ["rjones"]
     # Application labels define labels that an application must match for this

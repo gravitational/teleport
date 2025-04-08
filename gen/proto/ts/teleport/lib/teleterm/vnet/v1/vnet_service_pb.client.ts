@@ -23,8 +23,6 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { VnetService } from "./vnet_service_pb";
-import type { RunDiagnosticsResponse } from "./vnet_service_pb";
-import type { RunDiagnosticsRequest } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import type { ListDNSZonesResponse } from "./vnet_service_pb";
@@ -75,13 +73,6 @@ export interface IVnetServiceClient {
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
     getBackgroundItemStatus(input: GetBackgroundItemStatusRequest, options?: RpcOptions): UnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
-    /**
-     * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
-     * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
-     *
-     * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
-     */
-    runDiagnostics(input: RunDiagnosticsRequest, options?: RpcOptions): UnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse>;
 }
 /**
  * VnetService provides methods to manage a VNet instance.
@@ -138,15 +129,5 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
     getBackgroundItemStatus(input: GetBackgroundItemStatusRequest, options?: RpcOptions): UnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse> {
         const method = this.methods[3], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>("unary", this._transport, method, opt, input);
-    }
-    /**
-     * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
-     * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
-     *
-     * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
-     */
-    runDiagnostics(input: RunDiagnosticsRequest, options?: RpcOptions): UnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
-        return stackIntercept<RunDiagnosticsRequest, RunDiagnosticsResponse>("unary", this._transport, method, opt, input);
     }
 }

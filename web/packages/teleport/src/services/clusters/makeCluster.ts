@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { displayDate, displayDateTime } from 'design/datetime';
+import { displayDate, displayDateTime } from 'shared/services/loc';
 
 import cfg from 'teleport/config';
 
 import { Cluster, ClusterInfo } from './types';
 
 export function makeCluster(json): Cluster {
-  json = json || {};
-
   const {
     name,
     lastConnected,
@@ -35,21 +33,12 @@ export function makeCluster(json): Cluster {
     licenseExpiry,
   } = json;
 
-  let lastConnectedDate: Date;
-  let connectedText;
-  if (lastConnected) {
-    lastConnectedDate = new Date(lastConnected);
-    connectedText = displayDateTime(lastConnectedDate);
-  }
+  const lastConnectedDate = new Date(lastConnected);
+  const connectedText = displayDateTime(lastConnectedDate);
 
   let licenseExpiryDateText;
   if (licenseExpiry) {
     licenseExpiryDateText = displayDate(new Date(licenseExpiry));
-  }
-
-  let url;
-  if (name) {
-    url = cfg.getClusterRoute(name);
   }
 
   return {
@@ -57,7 +46,7 @@ export function makeCluster(json): Cluster {
     lastConnected: lastConnectedDate,
     connectedText,
     status,
-    url,
+    url: cfg.getClusterRoute(name),
     authVersion,
     publicURL,
     proxyVersion,

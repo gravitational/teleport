@@ -21,17 +21,18 @@ package aggregating
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -67,8 +68,8 @@ var alertMessage = fmt.Sprintf("Teleport has failed to contact the usage reporti
 type SubmitterConfig struct {
 	// Backend is the backend to use to read reports and apply locks. Required.
 	Backend backend.Backend
-	// Logger is the used for emitting log messages.
-	Logger *slog.Logger
+	// Log is the [logrus.FieldLogger] used for logging. Required.
+	Log logrus.FieldLogger
 	// Status is used to create or clear cluster alerts on a failure. Required.
 	Status services.StatusInternal
 	// Submitter is used to submit usage reports. Required.
@@ -86,14 +87,14 @@ func (cfg *SubmitterConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")
 	}
+	if cfg.Log == nil {
+		return trace.BadParameter("missing Log")
+	}
 	if cfg.Status == nil {
 		return trace.BadParameter("missing Status")
 	}
 	if cfg.Submitter == nil {
 		return trace.BadParameter("missing Submitter")
-	}
-	if cfg.Logger == nil {
-		cfg.Logger = slog.Default()
 	}
 	return nil
 }
@@ -104,9 +105,9 @@ func (cfg *SubmitterConfig) CheckAndSetDefaults() error {
 // CheckAndSetDefaults, and should probably be called in a goroutine.
 func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 	iv := interval.New(interval.Config{
-		FirstDuration: retryutils.HalfJitter(2 * submitInterval),
+		FirstDuration: utils.HalfJitter(2 * submitInterval),
 		Duration:      submitInterval,
-		Jitter:        retryutils.SeventhJitter,
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer iv.Stop()
 
@@ -126,7 +127,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 
 	userActivityReports, err := svc.listUserActivityReports(ctx, submitBatchSize)
 	if err != nil {
-		c.Logger.ErrorContext(ctx, "Failed to load usage reports for submission.", "error", err)
+		c.Log.WithError(err).Error("Failed to load usage reports for submission.")
 		return
 	}
 
@@ -135,7 +136,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	if freeBatchSize > 0 {
 		resourcePresenceReports, err = svc.listResourcePresenceReports(ctx, freeBatchSize)
 		if err != nil {
-			c.Logger.ErrorContext(ctx, "Failed to load resource counts reports for submission.", "error", err)
+			c.Log.WithError(err).Error("Failed to load resource counts reports for submission.")
 			return
 		}
 	}
@@ -145,7 +146,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	if freeBatchSize > 0 {
 		botInstanceActivityReports, err = svc.listBotInstanceActivityReports(ctx, freeBatchSize)
 		if err != nil {
-			c.Logger.ErrorContext(ctx, "Failed to load bot instance activity reports for submission.", "error", err)
+			c.Log.WithError(err).Error("Failed to load bot instance activity reports for submission.")
 			return
 		}
 	}
@@ -155,9 +156,9 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
 		if err == nil {
-			c.Logger.InfoContext(ctx, "Deleted cluster alert after successfully clearing usage report backlog.", "alert", alertName)
+			c.Log.Infof("Deleted cluster alert %v after successfully clearing usage report backlog.", alertName)
 		} else if !trace.IsNotFound(err) {
-			c.Logger.ErrorContext(ctx, "Failed to delete cluster alert", "alert", alertName, "error", err)
+			c.Log.WithError(err).Errorf("Failed to delete cluster alert %v.", alertName)
 		}
 		return
 	}
@@ -192,9 +193,9 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
 	if err := svc.createUsageReportingLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
-			c.Logger.DebugContext(ctx, "Failed to acquire lock, already held.", "lock", usageReportingLock)
+			c.Log.Debugf("Failed to acquire lock %v, already held.", usageReportingLock)
 		} else {
-			c.Logger.ErrorContext(ctx, "Failed to acquire lock.", "lock", usageReportingLock, "error", err)
+			c.Log.WithError(err).Errorf("Failed to acquire lock %v.", usageReportingLock)
 		}
 		return
 	}
@@ -208,12 +209,11 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		BotInstanceActivity: botInstanceActivityReports,
 	})
 	if err != nil {
-		c.Logger.ErrorContext(ctx, "Failed to send usage reports.",
-			"reports", totalReportCount,
-			"oldest_report", oldest,
-			"newest_report", newest,
-			"error", err,
-		)
+		c.Log.WithError(err).WithFields(logrus.Fields{
+			"reports":       totalReportCount,
+			"oldest_report": oldest,
+			"newest_report": newest,
+		}).Error("Failed to send usage reports.")
 
 		if time.Since(oldest) <= alertGraceDuration {
 			return
@@ -227,22 +227,22 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			types.WithAlertLabel(types.AlertLinkText, alertLinkText),
 		)
 		if err != nil {
-			c.Logger.ErrorContext(ctx, "Failed to create cluster alert", "alert", alertName, "error", err)
+			c.Log.WithError(err).Errorf("Failed to create cluster alert %v.", alertName)
 			return
 		}
 		alert.Metadata.Description = debugPayload
 		if err := c.Status.UpsertClusterAlert(ctx, alert); err != nil {
-			c.Logger.ErrorContext(ctx, "Failed to upsert cluster alert", "alert", alertName, "error", err)
+			c.Log.WithError(err).Errorf("Failed to upsert cluster alert %v.", alertName)
 		}
 		return
 	}
 
-	c.Logger.InfoContext(ctx, "Successfully sent usage reports.",
-		"batch_uuid", batchUUID,
-		"reports", totalReportCount,
-		"oldest_report", oldest,
-		"newest_report", newest,
-	)
+	c.Log.WithFields(logrus.Fields{
+		"batch_uuid":    batchUUID,
+		"reports":       totalReportCount,
+		"oldest_report": oldest,
+		"newest_report": newest,
+	}).Info("Successfully sent usage reports.")
 
 	var lastErr error
 	for _, report := range userActivityReports {
@@ -261,7 +261,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		}
 	}
 	if lastErr != nil {
-		c.Logger.WarnContext(ctx, "Failed to delete some usage reports after successful send.", "last_error", lastErr)
+		c.Log.WithField("last_error", lastErr).Warn("Failed to delete some usage reports after successful send.")
 	}
 }
 

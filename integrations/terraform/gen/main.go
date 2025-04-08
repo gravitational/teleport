@@ -101,8 +101,6 @@ type payload struct {
 	ForceSetKind string
 	// GetCanReturnNil is used to check for nil returned value when doing a Get<Resource>.
 	GetCanReturnNil bool
-	// DefaultName is the default singleton resource name. This is currently only supported for 153 resources.
-	DefaultName string
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -206,23 +204,6 @@ var (
 		Kind:                   "db",
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_database",
-		HasCheckAndSetDefaults: true,
-	}
-
-	dynamicWindowsDesktop = payload{
-		Name:                   "DynamicWindowsDesktop",
-		TypeName:               "DynamicWindowsDesktopV1",
-		VarName:                "desktop",
-		IfaceName:              "DynamicWindowsDesktop",
-		GetMethod:              "DynamicDesktopClient().GetDynamicWindowsDesktop",
-		CreateMethod:           "DynamicDesktopClient().CreateDynamicWindowsDesktop",
-		UpdateMethod:           "DynamicDesktopClient().UpdateDynamicWindowsDesktop",
-		DeleteMethod:           "DynamicDesktopClient().DeleteDynamicWindowsDesktop",
-		UpsertMethodArity:      2,
-		ID:                     `desktop.Metadata.Name`,
-		Kind:                   "dynamic_windows_desktop",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_dynamic_windows_desktop",
 		HasCheckAndSetDefaults: true,
 	}
 
@@ -546,60 +527,6 @@ var (
 		// We import the package containing kinds, then use ForceSetKind.
 		ForceSetKind: `"workload_identity"`,
 	}
-
-	autoUpdateVersion = payload{
-		Name:                  "AutoUpdateVersion",
-		TypeName:              "AutoUpdateVersion",
-		VarName:               "autoUpdateVersion",
-		GetMethod:             "GetAutoUpdateVersion",
-		CreateMethod:          "CreateAutoUpdateVersion",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpdateAutoUpdateVersion",
-		DeleteMethod:          "DeleteAutoUpdateVersion",
-		ID:                    "autoUpdateVersion.Metadata.Name",
-		Kind:                  "autoupdate_version",
-		HasStaticID:           false,
-		ProtoPackage:          "autoupdatev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1",
-		TerraformResourceType: "teleport_autoupdate_version",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAutoUpdateVersion",
-		DefaultName:  "apitypes.MetaNameAutoUpdateVersion",
-	}
-
-	autoUpdateConfig = payload{
-		Name:                  "AutoUpdateConfig",
-		TypeName:              "AutoUpdateConfig",
-		VarName:               "autoUpdateConfig",
-		GetMethod:             "GetAutoUpdateConfig",
-		CreateMethod:          "CreateAutoUpdateConfig",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpdateAutoUpdateConfig",
-		DeleteMethod:          "DeleteAutoUpdateConfig",
-		ID:                    "autoUpdateConfig.Metadata.Name",
-		Kind:                  "autoupdate_config",
-		HasStaticID:           false,
-		ProtoPackage:          "autoupdatev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1",
-		TerraformResourceType: "teleport_autoupdate_config",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAutoUpdateConfig",
-		DefaultName:  "apitypes.MetaNameAutoUpdateConfig",
-	}
 )
 
 func main() {
@@ -617,8 +544,6 @@ func genTFSchema() {
 	generateDataSource(clusterNetworking, singularDataSource)
 	generateResource(database, pluralResource)
 	generateDataSource(database, pluralDataSource)
-	generateResource(dynamicWindowsDesktop, pluralResource)
-	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
@@ -653,10 +578,6 @@ func genTFSchema() {
 	generateDataSource(staticHostUser, pluralDataSource)
 	generateResource(workloadIdentity, pluralResource)
 	generateDataSource(workloadIdentity, pluralDataSource)
-	generateResource(autoUpdateVersion, singularResource)
-	generateDataSource(autoUpdateVersion, singularDataSource)
-	generateResource(autoUpdateConfig, singularResource)
-	generateDataSource(autoUpdateConfig, singularDataSource)
 }
 
 func generateResource(p payload, tpl string) {

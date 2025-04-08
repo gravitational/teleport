@@ -43,7 +43,6 @@ import (
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -225,7 +224,7 @@ func TestRunCommand(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 
-	signer, err := generateKeyPair(cryptosuites.ECDSAP256)
+	signer, publicKey, err := generateKeyPair()
 	require.NoError(t, err)
 	clientConn, serverConn, err := utils.DualPipeNetConn(
 		&utils.NetAddr{Addr: "server", AddrNetwork: "tcp"},
@@ -235,7 +234,7 @@ func TestRunCommand(t *testing.T) {
 	mock := newMockInstance(t, signer, &mockListener{Conn: serverConn, ctx: ctx})
 	require.NoError(t, mock.Start())
 	t.Cleanup(mock.Stop)
-	mock.hostKeys = []ssh.PublicKey{signer.PublicKey()}
+	mock.hostKeys = []ssh.PublicKey{publicKey}
 
 	inst := &gcpimds.Instance{
 		Name:              "my-instance",
@@ -258,7 +257,6 @@ func TestRunCommand(t *testing.T) {
 		dialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return clientConn, nil
 		},
-		SSHKeyAlgo: cryptosuites.ECDSAP256,
 	}))
 	require.Equal(t, 1, mock.execCount)
 }

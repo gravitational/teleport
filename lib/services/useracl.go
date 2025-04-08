@@ -120,8 +120,6 @@ type UserACL struct {
 	Contact ResourceAccess `json:"contact"`
 	// FileTransferAccess defines the ability to perform remote file operations via SCP or SFTP
 	FileTransferAccess bool `json:"fileTransferAccess"`
-	// GitServers defines access to Git servers.
-	GitServers ResourceAccess `json:"gitServers"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -166,7 +164,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
-	gitServersAccess := newAccess(userRoles, ctx, types.KindGitServer)
 
 	// active sessions are a special case - if a user's role set has any join_sessions
 	// policies then the ACL must permit showing active sessions
@@ -269,6 +266,5 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessGraphSettings:     accessGraphSettings,
 		Contact:                 contact,
 		FileTransferAccess:      fileTransferAccess,
-		GitServers:              gitServersAccess,
 	}
 }

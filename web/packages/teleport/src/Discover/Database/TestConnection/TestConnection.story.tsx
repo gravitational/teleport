@@ -16,70 +16,108 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Info } from 'design/Alert';
+import React, { PropsWithChildren } from 'react';
+import { MemoryRouter } from 'react-router';
 
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
 import {
-  resourceSpecAwsRdsMySql,
-  resourceSpecAwsRdsPostgres,
-} from 'teleport/Discover/Fixtures/databases';
-import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
-import { AgentMeta } from 'teleport/Discover/useDiscover';
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 import { TestConnection } from './TestConnection';
 
 export default {
   title: 'Teleport/Discover/Database/TestConnection',
 };
 
-const agentMeta: AgentMeta = {
-  resourceName: 'db-name',
-  agentMatcherLabels: [],
-  db: {
-    kind: 'db',
-    name: 'postgres',
-    description: 'PostgreSQL 11.6: AWS postgres ',
-    type: 'RDS PostgreSQL',
-    protocol: 'postgres',
-    labels: [
-      { name: 'cluster', value: 'root' },
-      { name: 'env', value: 'aws' },
-    ],
-    hostname: 'postgres-hostname',
-    names: ['name1', 'name2', '*'],
-    users: ['user1', 'user2', '*'],
-  },
-  awsIntegration: {
-    kind: IntegrationKind.AwsOidc,
-    name: 'test-oidc',
-    resourceType: 'integration',
-    spec: {
-      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-      issuerS3Bucket: '',
-      issuerS3Prefix: '',
-    },
-    statusCode: IntegrationStatusCode.Running,
-  },
-};
-
 export const InitMySql = () => (
-  <RequiredDiscoverProviders
-    agentMeta={agentMeta}
-    resourceSpec={resourceSpecAwsRdsMySql}
-  >
-    <Info>Devs: mysql allows database names to be empty</Info>
-    <TestConnection />
-  </RequiredDiscoverProviders>
+  <MemoryRouter>
+    <Provider dbEngine={DatabaseEngine.MySql}>
+      <TestConnection />
+    </Provider>
+  </MemoryRouter>
 );
 
 export const InitPostgres = () => (
-  <RequiredDiscoverProviders
-    agentMeta={agentMeta}
-    resourceSpec={resourceSpecAwsRdsPostgres}
-  >
-    <TestConnection />
-  </RequiredDiscoverProviders>
+  <MemoryRouter>
+    <Provider dbEngine={DatabaseEngine.Postgres}>
+      <TestConnection />
+    </Provider>
+  </MemoryRouter>
 );
+
+const Provider: React.FC<PropsWithChildren<{ dbEngine: DatabaseEngine }>> = ({
+  children,
+  dbEngine,
+}) => {
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'db-name',
+      agentMatcherLabels: [],
+      db: {
+        kind: 'db',
+        name: 'aurora',
+        description: 'PostgreSQL 11.6: AWS Aurora ',
+        type: 'RDS PostgreSQL',
+        protocol: 'postgres',
+        labels: [
+          { name: 'cluster', value: 'root' },
+          { name: 'env', value: 'aws' },
+        ],
+        hostname: 'aurora-hostname',
+        names: ['name1', 'name2', '*'],
+        users: ['user1', 'user2', '*'],
+      },
+      awsIntegration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'test-oidc',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+    },
+    currentStep: 0,
+    onSelectResource: () => null,
+    resourceSpec: {
+      dbMeta: {
+        location: DatabaseLocation.Aws,
+        engine: dbEngine,
+      },
+    } as any,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+    nextStep: () => null,
+    prevStep: () => null,
+  };
+
+  return (
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'database' } },
+      ]}
+    >
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+};

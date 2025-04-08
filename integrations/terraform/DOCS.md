@@ -25,6 +25,8 @@ To re-render the reference, run `make docs`.
 
 When adding a new resource, the file is automatically generated and included in the indices by `make docs`.
 
+The only thing you must do is add an entry in `docs/config.json`.
+
 #### Extending a resource reference
 
 By default, every resource is documented with [the default template](./templates/resources.md.tmpl).

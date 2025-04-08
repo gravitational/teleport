@@ -37,7 +37,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
+	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
@@ -106,5 +106,5 @@ func getLatest(ctx context.Context, versionSpec string, gh github.GitHub) (strin
 		}
 	}
 
-	return "", trace.NotFound("no releases matched %q", versionSpec)
+	return "", trace.NotFound("no releases matched " + versionSpec)
 }

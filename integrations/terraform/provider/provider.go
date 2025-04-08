@@ -19,7 +19,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -30,13 +29,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -306,7 +305,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	slog.DebugContext(ctx, "Using Teleport address", "addr", addr)
+	log.WithFields(log.Fields{"addr": addr}).Debug("Using Teleport address")
 
 	dialTimeoutDuration, err := time.ParseDuration(dialTimeoutDurationStr)
 	if err != nil {
@@ -394,7 +393,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 
 // checkTeleportVersion ensures that Teleport version is at least minServerVersion
 func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *tfsdk.ConfigureProviderResponse) bool {
-	slog.DebugContext(ctx, "Checking Teleport server version")
+	log.Debug("Checking Teleport server version")
 	pong, err := client.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
@@ -404,13 +403,13 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 			)
 			return false
 		}
-		slog.DebugContext(ctx, "Teleport version check error", "error", err)
+		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
-	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
-		slog.DebugContext(ctx, "Teleport version check error", "error", err)
+		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())
 		return false
 	}
@@ -448,7 +447,7 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 	_, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Teleport address format error", "error", err, "addr", addr)
+		log.WithField("addr", addr).WithError(err).Debug("Teleport address format error!")
 		resp.Diagnostics.AddError(
 			"Invalid Teleport address format",
 			fmt.Sprintf("Teleport address must be specified as host:port. Got %q", addr),
@@ -462,32 +461,20 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 // configureLog configures logging
 func (p *Provider) configureLog() {
-	level := slog.LevelError
 	// Get Terraform log level
-	switch strings.ToLower(os.Getenv("TF_LOG")) {
-	case "panic", "fatal", "error":
-		level = slog.LevelError
-	case "warn", "warning":
-		level = slog.LevelWarn
-	case "info":
-		level = slog.LevelInfo
-	case "debug":
-		level = slog.LevelDebug
-	case "trace":
-		level = logutils.TraceLevel
+	level, err := log.ParseLevel(os.Getenv("TF_LOG"))
+	if err != nil {
+		log.SetLevel(log.ErrorLevel)
+	} else {
+		log.SetLevel(level)
 	}
 
-	_, _, err := logutils.Initialize(logutils.Config{
-		Severity: level.String(),
-		Format:   "text",
-	})
-	if err != nil {
-		return
-	}
+	log.SetFormatter(&log.TextFormatter{})
 
 	// Show GRPC debug logs only if TF_LOG=DEBUG
-	if level <= slog.LevelDebug {
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(os.Stderr, os.Stderr, os.Stderr))
+	if log.GetLevel() >= log.DebugLevel {
+		l := grpclog.NewLoggerV2(log.StandardLogger().Out, log.StandardLogger().Out, log.StandardLogger().Out)
+		grpclog.SetLoggerV2(l)
 	}
 }
 
@@ -499,7 +486,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   resourceTeleportDatabaseType{},
-		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
@@ -518,8 +504,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           resourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
-		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 	}, nil
 }
 
@@ -531,7 +515,6 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   dataSourceTeleportDatabaseType{},
-		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},
@@ -548,8 +531,6 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
-		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
 	}, nil
 }
 

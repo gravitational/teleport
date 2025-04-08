@@ -104,10 +104,8 @@ func TestAppPath(t *testing.T) {
 		SiteName:     "example.com",
 	}
 
-	expectCertPath := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana.crt")
-	require.Equal(t, expectCertPath, p.AppCertPath("banana"))
-	expectKeyPath := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana.key")
-	require.Equal(t, expectKeyPath, p.AppKeyPath("banana"))
+	expected := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem")
+	require.Equal(t, expected, p.AppCertPath("banana"))
 }
 
 func TestProfilePath(t *testing.T) {

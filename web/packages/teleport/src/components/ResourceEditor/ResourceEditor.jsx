@@ -17,7 +17,7 @@
  */
 
 import PropTypes from 'prop-types';
-import { useState } from 'react';
+import React from 'react';
 
 import {
   Box,
@@ -25,14 +25,13 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
-  H3,
   LabelInput,
   Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
 import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
 import TextEditor from 'shared/components/TextEditor';
-import { useAttempt } from 'shared/hooks';
+import { useAttempt, useState } from 'shared/hooks';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
@@ -84,11 +83,13 @@ export default function ResourceEditor(props) {
       <Flex flex="1">
         <Flex flex="1" m={5} flexDirection="column">
           <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
+            <DialogTitle typography="body1" bold>
+              {title}
+            </DialogTitle>
           </DialogHeader>
           {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
           {!isNew && (
-            <Text mb="2" typography="body1">
+            <Text mb="2" typography="h4" color="text.main">
               {name}
             </Text>
           )}
@@ -108,7 +109,7 @@ export default function ResourceEditor(props) {
               disabled={attempt.isProcessing}
               onClick={handleClose}
             >
-              Cancel
+              CANCEL
             </ButtonSecondary>
           </Box>
         </Flex>
@@ -122,8 +123,13 @@ export default function ResourceEditor(props) {
             bg="levels.surface"
           >
             <Box>
-              <H3>Setup Instructions</H3>
-              <Text mt={3}>{directions}</Text>
+              <DialogTitle typography="body1" bold>
+                {' '}
+                SETUP INSTRUCTIONS{' '}
+              </DialogTitle>
+              <Text typography="body1" mt={3}>
+                {directions}
+              </Text>
             </Box>
             <ButtonBorder
               size="medium"
@@ -141,7 +147,7 @@ export default function ResourceEditor(props) {
                 }
               }}
             >
-              View Documentation
+              VIEW DOCUMENTATION
             </ButtonBorder>
           </Flex>
         )}

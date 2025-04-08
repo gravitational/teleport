@@ -28,7 +28,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"slices"
 	"sort"
 	"strings"
@@ -46,7 +46,6 @@ import (
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
-	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/teleport/lib/utils"
@@ -161,9 +160,6 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 
 				clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
 				return clt, trace.Wrap(err)
-			},
-			func(ctx context.Context) (imds.Client, error) {
-				return oracleimds.NewInstanceMetadataClient(), nil
 			},
 		}
 	}
@@ -462,7 +458,6 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		return api.Version
 	}
 
-	// TODO(hugoShaka): convert this to a proxy version getter
 	targetVersion, err := version.NewBasicHTTPVersionGetter(upgradeURL).GetVersion(ctx)
 	if err != nil {
 		ani.Logger.WarnContext(ctx, "Failed to query target version, using api version",
@@ -474,7 +469,7 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		"channel_url", ani.autoUpgradesChannelURL,
 		"version", targetVersion)
 
-	return strings.TrimSpace(strings.TrimPrefix(targetVersion.String(), "v"))
+	return strings.TrimSpace(strings.TrimPrefix(targetVersion, "v"))
 }
 
 func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (map[string]string, error) {
@@ -549,8 +544,8 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 }
 
 // buildAbsoluteFilePath creates the absolute file path
-func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(path string) string {
-	return filepath.Join(ani.fsRootPrefix, path)
+func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
+	return path.Join(ani.fsRootPrefix, filepath)
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.

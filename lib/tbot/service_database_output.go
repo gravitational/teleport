@@ -19,7 +19,6 @@
 package tbot
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -64,7 +63,7 @@ func (s *DatabaseOutputService) Run(ctx context.Context) error {
 		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
+		interval:   s.botCfg.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -106,7 +105,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		s.botCfg.CertificateTTL,
 		nil,
 	)
 	if err != nil {
@@ -133,13 +132,12 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		id,
 		roles,
-		effectiveLifetime.TTL,
+		s.botCfg.CertificateTTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		},
@@ -148,7 +146,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, s.botCfg.CertificateTTL, s.botCfg.RenewalInterval)
 
 	s.log.InfoContext(
 		ctx,
@@ -186,7 +184,7 @@ func (s *DatabaseOutputService) render(
 	)
 	defer span.End()
 
-	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
+	key, err := NewClientKey(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,7 +193,7 @@ func (s *DatabaseOutputService) render(
 		return trace.Wrap(err)
 	}
 
-	if err := writeIdentityFile(ctx, s.log, keyRing, s.cfg.Destination); err != nil {
+	if err := writeIdentityFile(ctx, s.log, key, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "writing identity file")
 	}
 	if err := identity.SaveIdentity(
@@ -219,7 +217,7 @@ func (s *DatabaseOutputService) render(
 		}
 	case config.TLSDatabaseFormat:
 		if err := writeIdentityFileTLS(
-			ctx, s.log, keyRing, s.cfg.Destination,
+			ctx, s.log, key, s.cfg.Destination,
 		); err != nil {
 			return trace.Wrap(err, "writing tls database format files")
 		}
@@ -242,7 +240,7 @@ func writeCockroachDatabaseFiles(
 	defer span.End()
 
 	// Cockroach format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	key, err := NewClientKey(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -250,7 +248,7 @@ func writeCockroachDatabaseFiles(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultCockroachDirName,
 		Writer:     newBotConfigWriter(ctx, dest, config.DefaultCockroachDirName),
-		KeyRing:    keyRing,
+		Key:        key,
 		Format:     identityfile.FormatCockroach,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
@@ -280,7 +278,7 @@ func writeMongoDatabaseFiles(
 	defer span.End()
 
 	// Mongo format specifically uses database CAs rather than hostCAs
-	keyRing, err := NewClientKeyRing(routedIdentity, databaseCAs)
+	key, err := NewClientKey(routedIdentity, databaseCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -288,7 +286,7 @@ func writeMongoDatabaseFiles(
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.DefaultMongoPrefix,
 		Writer:     newBotConfigWriter(ctx, dest, ""),
-		KeyRing:    keyRing,
+		Key:        key,
 		Format:     identityfile.FormatMongo,
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
 		OverwriteDestination: true,

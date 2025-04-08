@@ -33,7 +33,8 @@ regular enrollment. Additional auto-enrollment checks include:
    take devices that are already enrolled)
 
 Check you audit log for clues: look for failed "Device Enroll Token Created"
-events and see the "message" field in the details.
+events and see the "message" field in the details (auto-enroll audit log details
+available since Teleport v16.4.6).
 
 If you suspect (1) is the issue, compare the actual device against its inventory
 definition (`tsh device collect` executed in the actual device vs `tctl get

@@ -98,10 +98,6 @@ export default class StoreDocs extends Store<State> {
     ) as DocumentSsh[];
   }
 
-  getDbDocuments() {
-    return this.state.items.filter(doc => doc.kind === 'db');
-  }
-
   getDocuments(): Document[] {
     return this.state.items;
   }

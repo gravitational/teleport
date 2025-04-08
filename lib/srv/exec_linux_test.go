@@ -1,4 +1,5 @@
 //go:build linux
+// +build linux
 
 /*
  * Teleport
@@ -32,8 +33,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 )
@@ -128,7 +131,7 @@ func TestOSCommandPrep(t *testing.T) {
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
 	// Missing home directory - HOME should still be set to the given
-	// home dir, but the command should set its CWD to root instead.
+	// home dir, but the command should set it's CWD to root instead.
 	changeHomeDir(t, username, "/wrong/place")
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
@@ -155,6 +158,36 @@ func TestConfigureCommand(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.Equal(t, "/proc/self/exe", cmd.Path)
 	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
+}
+
+func TestRootConfigureCommand(t *testing.T) {
+	utils.RequireRoot(t)
+
+	login := utils.GenerateLocalUsername(t)
+	_, err := host.UserAdd(login, nil, host.UserOpts{})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
+	})
+
+	srv := newMockServer(t)
+	scx := newExecServerContext(t, srv)
+	scx.Identity.Login = login
+	scx.ExecType = teleport.TCPIPForwardRequest
+
+	u, err := user.Lookup(login)
+	require.NoError(t, err)
+	uid, err := strconv.ParseUint(u.Uid, 10, 32)
+	require.NoError(t, err)
+	gid, err := strconv.ParseUint(u.Gid, 10, 32)
+	require.NoError(t, err)
+
+	cmd, err := ConfigureCommand(scx)
+	require.NoError(t, err)
+	// Verify that the configured command will run as the expected user.
+	assert.Equal(t, uint32(uid), cmd.SysProcAttr.Credential.Uid)
+	assert.Equal(t, uint32(gid), cmd.SysProcAttr.Credential.Gid)
 }
 
 // TestContinue tests if the process hangs if a continue signal is not sent

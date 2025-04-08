@@ -20,8 +20,8 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestMain(m *testing.M) {
@@ -41,7 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestMemory(t *testing.T) {
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		cfg, err := test.ApplyOptions(options)
 
 		if err != nil {
@@ -79,11 +78,11 @@ func TestIterateRange(t *testing.T) {
 	// set up a generic bulk range to iterate
 	expectedKeys := make(map[string]struct{})
 	for i := 0; i < 500; i++ {
-		key := backend.NewKey("bulk", strconv.Itoa(i))
-		expectedKeys[key.String()] = struct{}{}
+		key := fmt.Sprintf("/bulk/%d", i)
+		expectedKeys[key] = struct{}{}
 
 		_, err = bk.Put(ctx, backend.Item{
-			Key:   key,
+			Key:   []byte(key),
 			Value: []byte("v"),
 		})
 		require.NoError(t, err)
@@ -91,9 +90,9 @@ func TestIterateRange(t *testing.T) {
 
 	// check that observed range members match expectations
 	observedKeys := make(map[string]struct{})
-	err = backend.IterateRange(ctx, bk, backend.ExactKey("bulk"), backend.RangeEnd(backend.ExactKey("bulk")), 3, func(items []backend.Item) (stop bool, err error) {
+	err = backend.IterateRange(ctx, bk, []byte("/bulk/"), backend.RangeEnd([]byte("/bulk/")), 3, func(items []backend.Item) (stop bool, err error) {
 		for _, item := range items {
-			key := item.Key.String()
+			key := string(item.Key)
 
 			_, dup := observedKeys[key]
 			require.False(t, dup, "duplicate of %q", key)
@@ -113,7 +112,7 @@ func TestIterateRange(t *testing.T) {
 	// page breaks landing on some key K skip subsequent keys with prefix K).
 	for i := 0; i < 20; i++ {
 		_, err = bk.Put(ctx, backend.Item{
-			Key:   backend.NewKey("suff", strings.Repeat("s", i+1)),
+			Key:   []byte("/suff/" + strings.Repeat("s", i+1)),
 			Value: []byte("s"),
 		})
 
@@ -121,7 +120,7 @@ func TestIterateRange(t *testing.T) {
 	}
 
 	var scount int
-	err = backend.IterateRange(ctx, bk, backend.ExactKey("suff"), backend.RangeEnd(backend.ExactKey("suff")), 2, func(items []backend.Item) (stop bool, err error) {
+	err = backend.IterateRange(ctx, bk, []byte("/suff/"), backend.RangeEnd([]byte("/suff/")), 2, func(items []backend.Item) (stop bool, err error) {
 		scount += len(items)
 		return false, nil
 	})

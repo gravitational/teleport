@@ -1,4 +1,5 @@
 //go:build dynamodb
+// +build dynamodb
 
 /*
  * Teleport
@@ -24,12 +25,19 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {

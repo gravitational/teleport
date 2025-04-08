@@ -43,7 +43,6 @@ export interface TerminalProps {
   convertEol?: boolean;
   // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
   terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
-  disableCtrlC?: boolean;
   disableAutoFocus?: boolean;
 }
 
@@ -75,10 +74,6 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     termCtrl.open();
 
     const { unregister } = termCtrl.registerCustomKeyEventHandler(event => {
-      if (props.disableCtrlC && event.ctrlKey && event.key === 'c') {
-        return false;
-      }
-
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;

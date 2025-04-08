@@ -18,6 +18,8 @@ package generic
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -26,8 +28,34 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// ServiceWrapperConfig is the configuration for the service wrapper.
+type ServiceWrapperConfig[T types.ResourceMetadata] struct {
+	// Backend used to persist the resource.
+	Backend backend.Backend
+	// ResourceKind is the friendly name of the resource.
+	ResourceKind string
+	// PageLimit
+	PageLimit uint
+	// BackendPrefix used when constructing the [backend.Item.Key].
+	BackendPrefix string
+	// MarshlFunc converts the resource to bytes for persistence.
+	MarshalFunc MarshalFunc[T]
+	// UnmarshalFunc converts the bytes read from the backend to the resource.
+	UnmarshalFunc UnmarshalFunc[T]
+	// ValidateFunc optionally validates the resource prior to persisting it. Any errors
+	// returned from the validation function will prevent writes to the backend.
+	ValidateFunc func(T) error
+	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
+	// If set to 0, the default interval of 250ms will be used.
+	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
+	RunWhileLockedRetryInterval time.Duration
+	// KeyFunc optionally allows resource to have a custom key. If not provided the
+	// name of the resource will be used.
+	KeyFunc func(T) string
+}
+
 // NewServiceWrapper will return a new generic service wrapper. It is compatible with resources aligned with RFD 153.
-func NewServiceWrapper[T types.ResourceMetadata](cfg ServiceConfig[T]) (*ServiceWrapper[T], error) {
+func NewServiceWrapper[T types.ResourceMetadata](cfg ServiceWrapperConfig[T]) (*ServiceWrapper[T], error) {
 	serviceConfig := &ServiceConfig[resourceMetadataAdapter[T]]{
 		Backend:       cfg.Backend,
 		ResourceKind:  cfg.ResourceKind,
@@ -41,7 +69,6 @@ func NewServiceWrapper[T types.ResourceMetadata](cfg ServiceConfig[T]) (*Service
 			return newResourceMetadataAdapter(r), trace.Wrap(err)
 		},
 		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
-		NameKeyFunc:                 cfg.NameKeyFunc,
 	}
 
 	if cfg.ValidateFunc != nil {
@@ -50,7 +77,13 @@ func NewServiceWrapper[T types.ResourceMetadata](cfg ServiceConfig[T]) (*Service
 		}
 	}
 
-	service, err := NewService(serviceConfig)
+	if cfg.KeyFunc != nil {
+		serviceConfig.KeyFunc = func(rma resourceMetadataAdapter[T]) string {
+			return cfg.KeyFunc(rma.resource)
+		}
+	}
+
+	service, err := NewService[resourceMetadataAdapter[T]](serviceConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,12 +100,24 @@ type ServiceWrapper[T types.ResourceMetadata] struct {
 }
 
 // WithPrefix will return a service wrapper with the given parts appended to the backend prefix.
-func (s *ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
+func (s ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
 	if len(parts) == 0 {
-		return s
+		return &s
 	}
 
-	return &ServiceWrapper[T]{service: s.service.WithPrefix(parts...)}
+	return &ServiceWrapper[T]{
+		service: &Service[resourceMetadataAdapter[T]]{
+			backend:                     s.service.backend,
+			resourceKind:                s.service.resourceKind,
+			pageLimit:                   s.service.pageLimit,
+			backendPrefix:               strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
+			marshalFunc:                 s.service.marshalFunc,
+			unmarshalFunc:               s.service.unmarshalFunc,
+			validateFunc:                s.service.validateFunc,
+			keyFunc:                     s.service.keyFunc,
+			runWhileLockedRetryInterval: s.service.runWhileLockedRetryInterval,
+		},
+	}
 }
 
 // UpsertResource upserts a resource.
@@ -81,20 +126,14 @@ func (s ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, e
 	return adapter.resource, trace.Wrap(err)
 }
 
-// UnconditionalUpdateResource updates an existing resource without checking the provided resource revision.
-// Because UnconditionalUpdateResource can blindly overwrite an existing item, ConditionalUpdateResource should
-// be preferred.
-// See https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md#update-1 for more details
-// about the Update operation.
-func (s ServiceWrapper[T]) UnconditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+// UpdateResource updates an existing resource.
+func (s ServiceWrapper[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpdateResource(ctx, newResourceMetadataAdapter(resource))
 	return adapter.resource, trace.Wrap(err)
 }
 
 // ConditionalUpdateResource updates an existing resource if the provided
 // resource and the existing resource have matching revisions.
-// See https://github.com/gravitational/teleport/blob/master/rfd/0126-backend-migrations.md#optimistic-locking for more
-// details about the conditional update.
 func (s ServiceWrapper[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.ConditionalUpdateResource(ctx, newResourceMetadataAdapter(resource))
 	return adapter.resource, trace.Wrap(err)
@@ -119,7 +158,7 @@ func (s ServiceWrapper[T]) DeleteResource(ctx context.Context, name string) erro
 
 // DeleteAllResources removes all resources.
 func (s ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
-	startKey := s.service.backendPrefix.ExactKey()
+	startKey := backend.ExactKey(s.service.backendPrefix)
 	return trace.Wrap(s.service.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 

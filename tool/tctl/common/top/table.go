@@ -75,7 +75,7 @@ func percentileTableView(width int, hist Histogram) string {
 		},
 	}
 
-	for p := range hist.Percentiles() {
+	for _, p := range hist.Percentiles() {
 		firstColumn.content = append(firstColumn.content, humanize.FormatFloat("#,###", p.Percentile)+"%")
 		secondColumn.content = append(secondColumn.content, fmt.Sprintf("%v", p.Value))
 	}

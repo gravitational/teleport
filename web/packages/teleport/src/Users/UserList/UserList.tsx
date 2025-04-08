@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
@@ -43,9 +45,9 @@ export default function UserList({
           key: 'roles',
           headerText: 'Roles',
           isSortable: true,
-          onSort: (a, b) => {
-            const aStr = a.roles.toString();
-            const bStr = b.roles.toString();
+          onSort: (a: string[], b: string[]) => {
+            const aStr = a.toString();
+            const bStr = b.toString();
 
             if (aStr < bStr) {
               return -1;

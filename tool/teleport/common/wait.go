@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -105,7 +104,7 @@ func waitNoResolve(ctx context.Context, domain string, period, timeout time.Dura
 	periodic := interval.New(interval.Config{
 		Duration:      period,
 		FirstDuration: time.Millisecond,
-		Jitter:        retryutils.SeventhJitter,
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 
@@ -158,8 +157,6 @@ func checkDomainNoResolve(ctx context.Context, domainName string, log *slog.Logg
 			"is_timeout", dnsErr.IsTimeout,
 			"is_temporary", dnsErr.IsTemporary,
 			"is_not_found", dnsErr.IsNotFound,
-			// Logging the error type can help understanding where the error comes from
-			"wrapped_error_type", fmt.Sprintf("%T", dnsErr.Unwrap()),
 		))
 		if dnsErr.Temporary() {
 			log.WarnContext(ctx, "temporary error when resolving domain", "error", err)

@@ -48,7 +48,7 @@ test('renders', async () => {
     'readonly'
   );
 
-  expect(screen.getByRole('combobox', { name: 'Bot Roles' })).toBeEnabled();
+  expect(screen.getByRole('textbox', { name: 'Bot Roles' })).toBeEnabled();
   expect(screen.getByText('foo-role')).toBeInTheDocument();
 });
 

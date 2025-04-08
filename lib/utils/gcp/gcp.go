@@ -19,7 +19,6 @@
 package gcp
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 
@@ -109,7 +108,7 @@ func GetServiceAccountFromCredentials(credentials *google.Credentials) (string, 
 	// No credentials from JSON files but using metadata endpoints when on
 	// Google Compute Engine.
 	if metadata.OnGCE() {
-		email, err := metadata.EmailWithContext(context.Background(), "")
+		email, err := metadata.Email("")
 		return email, trace.Wrap(err)
 	}
 

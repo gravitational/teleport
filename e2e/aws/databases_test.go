@@ -45,11 +45,10 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -253,25 +252,22 @@ func startLocalALPNProxy(t *testing.T, user string, cluster *helpers.TeleInstanc
 // generateClientDBCert creates a test db cert for the given user and database.
 func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route tlsca.RouteToDatabase) tls.Certificate {
 	t.Helper()
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
-	clusterName, err := authSrv.GetClusterName(context.TODO())
-	require.NoError(t, err)
-
-	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	clusterName, err := authSrv.GetClusterName()
 	require.NoError(t, err)
 
 	clientCert, err := authSrv.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       publicKeyPEM,
+			PublicKey:       key.MarshalSSHPublicKey(),
 			Cluster:         clusterName.GetClusterName(),
 			Username:        user,
 			RouteToDatabase: route,
 		})
 	require.NoError(t, err)
 
-	tlsCert, err := keys.TLSCertificateForSigner(key, clientCert)
+	tlsCert, err := key.TLSCertificate(clientCert)
 	require.NoError(t, err)
 	return tlsCert
 }
@@ -410,7 +406,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 		First:  0,
 		Step:   500 * time.Millisecond,
 		Max:    5 * time.Second,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

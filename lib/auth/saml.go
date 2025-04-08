@@ -44,8 +44,9 @@ var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only 
 // authentication - the connector CRUD operations and Get methods are
 // implemented in auth.Server and provide no connector-specific logic.
 type SAMLService interface {
+	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
-	CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
+	// ValidateSAMLResponse validates SAML auth response
 	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error)
 }
 
@@ -87,7 +88,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: upsertedConnector,
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector create event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}
 
 	return upserted, nil
@@ -104,7 +105,7 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
 	// not empty (cert is set) but the private key is missing. In this case we want to look up the existing SAML
-	// connector and populate the signing key from it if it's the same certificate. This avoids accidentally clearing
+	// connector and populate the singing key from it if it's the same certificate. This avoids accidentally clearing
 	// the private key and creating an unusable connector.
 	if connector.GetSigningKeyPair().PrivateKey == "" {
 		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
@@ -133,7 +134,7 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: updatedConnector,
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector update event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector update event.")
 	}
 
 	return updated, nil
@@ -175,7 +176,7 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: newConnector,
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector create event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}
 
 	return created, nil
@@ -196,7 +197,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 			Name: connectorID,
 		},
 	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit SAML connector delete event", "error", err)
+		log.WithError(err).Warn("Failed to emit SAML connector delete event.")
 	}
 
 	return nil
@@ -210,17 +211,6 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 	}
 
 	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
-	return rq, trace.Wrap(err)
-}
-
-// CreateSAMLAuthRequestForMFA delegates the method call to the samlAuthService if present,
-// or returns a NotImplemented error if not present.
-func (a *Server) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if a.samlAuthService == nil {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
-	}
-
-	rq, err := a.samlAuthService.CreateSAMLAuthRequestForMFA(ctx, req)
 	return rq, trace.Wrap(err)
 }
 

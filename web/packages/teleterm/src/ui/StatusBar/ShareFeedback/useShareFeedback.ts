@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { staticConfig } from 'teleterm/staticConfig';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 import { ShareFeedbackFormValues } from './types';
 
@@ -30,10 +29,7 @@ export const FEEDBACK_TOO_LONG_ERROR = 'FEEDBACK_TOO_LONG_ERROR';
 
 export function useShareFeedback() {
   const ctx = useAppContext();
-  const rootClusterUri = useStoreSelector(
-    'workspacesService',
-    useCallback(state => state.rootClusterUri, [])
-  );
+  ctx.workspacesService.useState();
   ctx.clustersService.useState();
 
   const [isShareFeedbackOpened, setIsShareFeedbackOpened] = useState(false);
@@ -77,7 +73,9 @@ export function useShareFeedback() {
   }
 
   function getEmailFromUserName(): string {
-    const cluster = ctx.clustersService.findCluster(rootClusterUri);
+    const cluster = ctx.clustersService.findCluster(
+      ctx.workspacesService.getRootClusterUri()
+    );
     const userName = cluster?.loggedInUser?.name;
     if (/^\S+@\S+$/.test(userName)) {
       return userName;
