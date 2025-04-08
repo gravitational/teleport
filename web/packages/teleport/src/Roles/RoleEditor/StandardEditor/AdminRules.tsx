@@ -130,7 +130,7 @@ const AdminRule = memo(function AdminRule({
         <ResourceKindSelect
           components={{ MultiValue: ResourceKindMultiValue }}
           isMulti
-          label="Resources"
+          label="Teleport Resources"
           required
           isDisabled={isProcessing}
           options={resourceKindOptions}

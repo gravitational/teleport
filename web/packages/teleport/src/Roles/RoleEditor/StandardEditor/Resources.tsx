@@ -123,7 +123,7 @@ export const ResourcesTab = memo(function ResourcesTab({
           buttonText={
             <>
               <Plus size="small" mr={2} />
-              Add Resource Access
+              Add Teleport Resource Access
             </>
           }
           buttonProps={{
@@ -358,8 +358,8 @@ export function KubernetesAccessSection({
           >
             <Add disabled={isProcessing} size="small" />
             {value.resources.length > 0
-              ? 'Add Another Resource'
-              : 'Add a Resource'}
+              ? 'Add Another Kubernetes Resource'
+              : 'Add a Kubernetes Resource'}
           </ButtonSecondary>
         </Box>
       </Flex>
@@ -391,10 +391,10 @@ function KubernetesResourceView({
     >
       <Flex>
         <Box flex="1">
-          <H4 mb={3}>Resource</H4>
+          <H4 mb={3}>Kubernetes Resource</H4>
         </Box>
         <ButtonIcon
-          aria-label="Remove resource"
+          aria-label="Remove Kubernetes resource"
           disabled={isProcessing}
           onClick={onRemove}
         >
