@@ -33,6 +33,7 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
+	_ "google.golang.org/protobuf/types/known/durationpb"
 	_ "google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -180,6 +181,10 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
+								"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									Description: "Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.  If a X509-SVID is requested with a TTL greater than this value, then the returned X509-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 14 days.",
+									Optional:    true,
+								}),
 								"subject_template": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"common_name": {
@@ -842,6 +847,13 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 																}
 															}
 														}
+													}
+													{
+														a, ok := tf.Attrs["maximum_ttl"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.maximum_ttl"})
+														}
+														CopyFromDuration(diags, a, &obj.MaximumTtl)
 													}
 												}
 											}
@@ -1868,6 +1880,15 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																v.Unknown = false
 																tf.Attrs["subject_template"] = v
 															}
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["maximum_ttl"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.x509.maximum_ttl"})
+														} else {
+															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"])
+															tf.Attrs["maximum_ttl"] = v
 														}
 													}
 												}

@@ -74,3 +74,5 @@ validators:
 
 custom_types:
   "WorkloadIdentity.metadata.expires": Timestamp
+  "WorkloadIdentity.spec.spiffe.x509.maximum_ttl": Duration
+  "WorkloadIdentity.spec.spiffe.jwt.maximum_ttl": Duration
