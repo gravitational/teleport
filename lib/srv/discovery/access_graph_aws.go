@@ -775,14 +775,14 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 			// reset the events and size
 			events = events[:0]
 			size = 0
-		}
-		if !timer.Stop() {
-			select {
-			case <-timer.C: // drain
-			default:
+			if !timer.Stop() {
+				select {
+				case <-timer.C: // drain
+				default:
+				}
 			}
+			timer.Reset(tickerInterval)
 		}
-		timer.Reset(tickerInterval)
 	}
 }
 
@@ -868,18 +868,17 @@ func (s *Server) pollCloudTrailForRegion(ctx context.Context,
 	}
 
 	input := &cloudtrail.LookupEventsInput{
-		StartTime:     aws.Time(startTime),
-		NextToken:     nextToken,
-		EventCategory: cloudtrailtypes.EventCategoryInsight,
-		MaxResults:    aws.Int32(50), /* max results per page */
+		StartTime:  aws.Time(startTime),
+		NextToken:  nextToken,
+		MaxResults: aws.Int32(50), /* max results per page */
 	}
 	var events []*accessgraphv1alpha.AWSCloudTrailEvent
-	for numPage := 0; numPage < 50; numPage++ {
+
+	for numPage := 0; numPage < 10; numPage++ {
 		resp, err := client.LookupEvents(ctx, input)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-
 		if len(lastCursor.lastEventId) > 0 {
 			idx := 0
 			// if we have a lastEventId, we need to skip all events before it
@@ -897,23 +896,24 @@ func (s *Server) pollCloudTrailForRegion(ctx context.Context,
 		}
 
 		for _, event := range resp.Events {
-			if event.EventTime.Before(lastCursor.lastEventTime) {
-				continue
-			}
+			//if event.EventTime.Before(lastCursor.lastEventTime) {
+			//		continue
+			//	}
 			// Convert the event to a protobuf struct.
 			events = append(events, convertCloudTrailEventToAccessGraphResources(event, accountID, region))
 			lastCursor.lastEventTime = aws.ToTime(event.EventTime)
 		}
-
-		select {
-		case <-ctx.Done():
-			return false, trace.Wrap(ctx.Err())
-		case eventsC <- eventChannelPayload{
-			events: slices.Clone(events),
-			cursor: lastCursor,
-			region: region,
-		}:
-			events = events[:0]
+		if len(events) > 0 {
+			select {
+			case <-ctx.Done():
+				return false, trace.Wrap(ctx.Err())
+			case eventsC <- eventChannelPayload{
+				events: slices.Clone(events),
+				cursor: lastCursor,
+				region: region,
+			}:
+				events = events[:0]
+			}
 		}
 
 		if resp.NextToken == nil {
