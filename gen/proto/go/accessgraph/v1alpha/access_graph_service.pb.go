@@ -2880,7 +2880,9 @@ type AWSCloudTrailEvent struct {
 	Resources []*AWSCloudTrailEventResource `protobuf:"bytes,8,rep,name=resources,proto3" json:"resources,omitempty"`
 	// A user name or role name of the requester that called the API in the event
 	// returned.
-	Username      string `protobuf:"bytes,9,opt,name=username,proto3" json:"username,omitempty"`
+	Username string `protobuf:"bytes,9,opt,name=username,proto3" json:"username,omitempty"`
+	// The AWS account id of the account where the log is originated from.
+	AwsAccountId  string `protobuf:"bytes,10,opt,name=aws_account_id,json=awsAccountId,proto3" json:"aws_account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2974,6 +2976,13 @@ func (x *AWSCloudTrailEvent) GetResources() []*AWSCloudTrailEventResource {
 func (x *AWSCloudTrailEvent) GetUsername() string {
 	if x != nil {
 		return x.Username
+	}
+	return ""
+}
+
+func (x *AWSCloudTrailEvent) GetAwsAccountId() string {
+	if x != nil {
+		return x.AwsAccountId
 	}
 	return ""
 }
@@ -3183,7 +3192,7 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\tnext_page\x18\x01 \x01(\tR\bnextPage\x12'\n" +
 	"\rlast_event_id\x18\x02 \x01(\tH\x00R\vlastEventId\x88\x01\x01\x12B\n" +
 	"\x0flast_event_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\rlastEventTimeB\x10\n" +
-	"\x0e_last_event_id\"\x9d\x03\n" +
+	"\x0e_last_event_id\"\xc3\x03\n" +
 	"\x12AWSCloudTrailEvent\x12\"\n" +
 	"\raccess_key_id\x18\x01 \x01(\tR\vaccessKeyId\x12C\n" +
 	"\x11cloud_trail_event\x18\x02 \x01(\v2\x17.google.protobuf.StructR\x0fcloudTrailEvent\x12\x19\n" +
@@ -3194,7 +3203,9 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\bend_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12\x1b\n" +
 	"\tread_only\x18\a \x01(\bR\breadOnly\x12M\n" +
 	"\tresources\x18\b \x03(\v2/.accessgraph.v1alpha.AWSCloudTrailEventResourceR\tresources\x12\x1a\n" +
-	"\busername\x18\t \x01(\tR\busername\"D\n" +
+	"\busername\x18\t \x01(\tR\busername\x12$\n" +
+	"\x0eaws_account_id\x18\n" +
+	" \x01(\tR\fawsAccountId\"D\n" +
 	"\x1aAWSCloudTrailEventResource\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type2\x88\v\n" +

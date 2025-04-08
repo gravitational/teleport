@@ -32,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	cloudtrailtypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -574,6 +576,10 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 }
 
 func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time, matcher *types.AccessGraphAWSSync) error {
+	accountID, err := s.getAccountId(ctx, matcher)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	const (
 		// aws discovery semaphore lock.
 		semaphoreName = "access_graph_aws_cloudtrail_sync"
@@ -719,6 +725,7 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 		}
 	}
 	if err = s.pollCloudTrail(ctx,
+		accountID,
 		resumeState.GetResumeState().GetStartDate().AsTime(),
 		state,
 		&wg,
@@ -780,6 +787,7 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 }
 
 func (s *Server) pollCloudTrail(ctx context.Context,
+	accountID string,
 	startDate time.Time,
 	state map[string]cursor,
 	wg *sync.WaitGroup,
@@ -814,7 +822,7 @@ func (s *Server) pollCloudTrail(ctx context.Context,
 			timer := s.clock.NewTimer(time.Second)
 			// Poll the CloudTrail for events in the region.
 			for {
-				hasNextPage, err := s.pollCloudTrailForRegion(ctx, cloudTrailClient, startDate, lastCursor, region, eventsC)
+				hasNextPage, err := s.pollCloudTrailForRegion(ctx, accountID, cloudTrailClient, startDate, lastCursor, region, eventsC)
 				if err != nil {
 					s.Log.ErrorContext(ctx, "Error polling cloud trail", "error", err)
 				}
@@ -847,6 +855,7 @@ func (s *Server) pollCloudTrail(ctx context.Context,
 }
 
 func (s *Server) pollCloudTrailForRegion(ctx context.Context,
+	accountID string,
 	client *cloudtrail.Client,
 	startTime time.Time,
 	lastCursor cursor,
@@ -892,7 +901,7 @@ func (s *Server) pollCloudTrailForRegion(ctx context.Context,
 				continue
 			}
 			// Convert the event to a protobuf struct.
-			events = append(events, convertCloudTrailEventToAccessGraphResources(event, region))
+			events = append(events, convertCloudTrailEventToAccessGraphResources(event, accountID, region))
 			lastCursor.lastEventTime = aws.ToTime(event.EventTime)
 		}
 
@@ -949,6 +958,7 @@ type eventChannelPayload struct {
 
 func convertCloudTrailEventToAccessGraphResources(
 	event cloudtrailtypes.Event,
+	accountID string,
 	region string,
 ) *accessgraphv1alpha.AWSCloudTrailEvent {
 
@@ -981,6 +991,7 @@ func convertCloudTrailEventToAccessGraphResources(
 		ReadOnly:        aws.ToString(event.ReadOnly) == "true",
 		Resources:       resources,
 		Username:        aws.ToString(event.Username),
+		AwsAccountId:    accountID,
 	}
 }
 
@@ -1001,4 +1012,31 @@ func stateToProtoState(startDate time.Time, state map[string]cursor) *accessgrap
 		}
 	}
 	return resumeState
+}
+
+func (a *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWSSync) (string, error) {
+	opts := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
+	}
+	if matcher.AssumeRole != nil {
+		opts = append(opts, awsconfig.WithAssumeRole(matcher.AssumeRole.RoleARN, matcher.AssumeRole.ExternalID))
+	}
+
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
+		ctx,
+		"", /* region is empty because groups are global */
+		opts...,
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	stsClient := stsutils.NewFromConfig(awsCfg)
+
+	input := &sts.GetCallerIdentityInput{}
+	req, err := stsClient.GetCallerIdentity(ctx, input)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return aws.ToString(req.Account), nil
 }

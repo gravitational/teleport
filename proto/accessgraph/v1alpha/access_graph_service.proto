@@ -600,6 +600,9 @@ message AWSCloudTrailEvent {
   // A user name or role name of the requester that called the API in the event
   // returned.
   string username = 9;
+
+  // The AWS account id of the account where the log is originated from.
+  string aws_account_id = 10;
 }
 
 // AWSCloudTrailEventResource
