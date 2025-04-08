@@ -674,6 +674,7 @@ func TestGenerateAndSetEntityDescriptorPerPreset(t *testing.T) {
 			ed, err := samlsp.ParseMetadata([]byte(spFromBackend.GetEntityDescriptor()))
 			require.NoError(t, err)
 			getFirstNameID := func(t *testing.T, ed *saml.EntityDescriptor) saml.NameIDFormat {
+				t.Helper()
 				for _, spSSODescriptor := range ed.SPSSODescriptors {
 					for _, acs := range spSSODescriptor.AssertionConsumerServices {
 						if acs.Binding == "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" {
