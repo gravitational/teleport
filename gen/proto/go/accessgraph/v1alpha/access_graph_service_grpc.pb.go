@@ -36,18 +36,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccessGraphService_Query_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_EventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
-	AccessGraphService_EventsStreamV2_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
-	AccessGraphService_AuditLogStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
-	AccessGraphService_Register_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Register"
-	AccessGraphService_ReplaceCAs_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
-	AccessGraphService_AWSEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
-	AccessGraphService_GitlabEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
-	AccessGraphService_EntraEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
-	AccessGraphService_AzureEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
-	AccessGraphService_NetIQEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
+	AccessGraphService_Query_FullMethodName               = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName             = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_EventsStream_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_EventsStreamV2_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
+	AccessGraphService_AuditLogStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
+	AccessGraphService_AWSCloudTrailStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/AWSCloudTrailStream"
+	AccessGraphService_Register_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/Register"
+	AccessGraphService_ReplaceCAs_FullMethodName          = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_AWSEventsStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_GitlabEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
+	AccessGraphService_EntraEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
+	AccessGraphService_AzureEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
+	AccessGraphService_NetIQEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -92,6 +93,26 @@ type AccessGraphServiceClient interface {
 	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
 	// definitions for detailed structure, payloads, behaviors, and constraints.
 	AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error)
+	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	// - Client requests for server-side bulk export state cleanup.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration and providing the starting `resume_state` (if any).
+	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//     `events` (with resume state updates) or `bulk_sync` commands.
+	//
+	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
+	// definitions for detailed structure, payloads, behaviors, and constraints.
+	AWSCloudTrailStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse], error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -188,6 +209,19 @@ func (c *accessGraphServiceClient) AuditLogStream(ctx context.Context, opts ...g
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_AuditLogStreamClient = grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse]
 
+func (c *accessGraphServiceClient) AWSCloudTrailStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_AWSCloudTrailStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AWSCloudTrailStreamClient = grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]
+
 func (c *accessGraphServiceClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterResponse)
@@ -210,7 +244,7 @@ func (c *accessGraphServiceClient) ReplaceCAs(ctx context.Context, in *ReplaceCA
 
 func (c *accessGraphServiceClient) AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AWSEventsStreamRequest, AWSEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_AWSEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[4], AccessGraphService_AWSEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +257,7 @@ type AccessGraphService_AWSEventsStreamClient = grpc.ClientStreamingClient[AWSEv
 
 func (c *accessGraphServiceClient) GitlabEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitlabEventsStreamRequest, GitlabEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[4], AccessGraphService_GitlabEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[5], AccessGraphService_GitlabEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +270,7 @@ type AccessGraphService_GitlabEventsStreamClient = grpc.BidiStreamingClient[Gitl
 
 func (c *accessGraphServiceClient) EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EntraEventsStreamRequest, EntraEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[5], AccessGraphService_EntraEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[6], AccessGraphService_EntraEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +283,7 @@ type AccessGraphService_EntraEventsStreamClient = grpc.BidiStreamingClient[Entra
 
 func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[6], AccessGraphService_AzureEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[7], AccessGraphService_AzureEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +296,7 @@ type AccessGraphService_AzureEventsStreamClient = grpc.BidiStreamingClient[Azure
 
 func (c *accessGraphServiceClient) NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[7], AccessGraphService_NetIQEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[8], AccessGraphService_NetIQEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -315,6 +349,26 @@ type AccessGraphServiceServer interface {
 	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
 	// definitions for detailed structure, payloads, behaviors, and constraints.
 	AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error
+	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	// - Client requests for server-side bulk export state cleanup.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	//  2. Server replies with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration and providing the starting `resume_state` (if any).
+	//  3. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//     `events` (with resume state updates) or `bulk_sync` commands.
+	//
+	// Refer to the `AuditLogStreamRequest` and `AuditLogStreamResponse` message
+	// definitions for detailed structure, payloads, behaviors, and constraints.
+	AWSCloudTrailStream(grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -366,6 +420,9 @@ func (UnimplementedAccessGraphServiceServer) EventsStreamV2(grpc.BidiStreamingSe
 }
 func (UnimplementedAccessGraphServiceServer) AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method AuditLogStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) AWSCloudTrailStream(grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method AWSCloudTrailStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) Register(context.Context, *RegisterRequest) (*RegisterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
@@ -465,6 +522,13 @@ func _AccessGraphService_AuditLogStream_Handler(srv interface{}, stream grpc.Ser
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_AuditLogStreamServer = grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]
+
+func _AccessGraphService_AWSCloudTrailStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).AWSCloudTrailStream(&grpc.GenericServerStream[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AWSCloudTrailStreamServer = grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]
 
 func _AccessGraphService_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterRequest)
@@ -576,6 +640,12 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "AuditLogStream",
 			Handler:       _AccessGraphService_AuditLogStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "AWSCloudTrailStream",
+			Handler:       _AccessGraphService_AWSCloudTrailStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

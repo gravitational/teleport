@@ -24,13 +24,22 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
+	cloudtrailtypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/encoding/protojson"
+	gproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -39,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -481,6 +491,46 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				}
 			}
 		}()
+		go func() {
+			for {
+				// If there are no fetchers, we don't need to start the access graph sync.
+				// We will wait for the config to change and re-evaluate the fetchers
+				// before starting the sync.
+				if s.Matchers.AccessGraph == nil || len(s.Matchers.AccessGraph.AWS) == 0 {
+					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					return
+				}
+
+				var matchers []*types.AccessGraphAWSSync
+				for _, matcher := range s.Matchers.AccessGraph.AWS {
+					if matcher.EnableCloudTrailPolling {
+						matchers = append(matchers, matcher)
+					}
+				}
+				if len(matchers) == 0 {
+					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
+					return
+				}
+				if len(matchers) > 1 {
+					s.Log.WarnContext(ctx, "Multiple AWS sync fetchers configured. Only the first one will be used.")
+					return
+				}
+				// reset the currentTAGResources to force a full sync
+				if err := s.startCloudTrailWatcher(ctx, time.Now().Add(-20*24*time.Hour), matchers[0]); errors.Is(err, errTAGFeatureNotEnabled) {
+					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
+					break
+				} else if err != nil {
+					s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Minute):
+				}
+			}
+		}()
+
 	}
 	return nil
 }
@@ -521,4 +571,434 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 	}
 
 	return fetchers, trace.NewAggregate(errs...)
+}
+
+func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time, matcher *types.AccessGraphAWSSync) error {
+	const (
+		// aws discovery semaphore lock.
+		semaphoreName = "access_graph_aws_cloudtrail_sync"
+	)
+
+	clusterFeatures := s.Config.ClusterFeatures()
+	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
+	if !clusterFeatures.AccessGraph && !policy.Enabled {
+		return trace.Wrap(errTAGFeatureNotEnabled)
+	}
+
+	const (
+		semaphoreExpiration = time.Minute
+	)
+	// AcquireSemaphoreLock will retry until the semaphore is acquired.
+	// This prevents multiple discovery services to push AWS resources in parallel.
+	// lease must be released to cleanup the resource in auth server.
+	lease, err := services.AcquireSemaphoreLockWithRetry(
+		ctx,
+		services.SemaphoreLockConfigWithRetry{
+			SemaphoreLockConfig: services.SemaphoreLockConfig{
+				Service: s.AccessPoint,
+				Params: types.AcquireSemaphoreRequest{
+					SemaphoreKind: types.KindAccessGraph,
+					SemaphoreName: semaphoreName,
+					MaxLeases:     1,
+					Holder:        s.Config.ServerID,
+				},
+				Expiry: semaphoreExpiration,
+				Clock:  s.clock,
+			},
+			Retry: retryutils.LinearConfig{
+				Clock:  s.clock,
+				First:  time.Second,
+				Step:   semaphoreExpiration / 2,
+				Max:    semaphoreExpiration,
+				Jitter: retryutils.DefaultJitter,
+			},
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// once the lease parent context is canceled, the lease will be released.
+	// this will stop the access graph sync.
+	ctx, cancel := context.WithCancel(lease)
+	defer cancel()
+
+	defer func() {
+		lease.Stop()
+		if err := lease.Wait(); err != nil {
+			s.Log.WarnContext(ctx, "Error cleaning up semaphore", "error", err)
+		}
+	}()
+
+	config := s.Config.AccessGraphConfig
+
+	accessGraphConn, err := newAccessGraphClient(
+		ctx,
+		s.GetClientCert,
+		config,
+		grpc.WithDefaultServiceConfig(serviceConfig),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Close the connection when the function returns.
+	defer accessGraphConn.Close()
+	client := accessgraphv1alpha.NewAccessGraphServiceClient(accessGraphConn)
+
+	stream, err := client.AWSCloudTrailStream(ctx)
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get access graph service stream", "error", err)
+		return trace.Wrap(err)
+	}
+	err = stream.Send(
+		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
+				Config: &accessgraphv1alpha.AWSCloudTrailConfig{
+					StartDate: timestamppb.New(startDate),
+					Regions:   matcher.Regions,
+				},
+			},
+		},
+	)
+	if err != nil {
+		err = consumeTillErr(stream)
+		s.Log.ErrorContext(ctx, "Failed to send access graph config", "error", err)
+		return trace.Wrap(err)
+	}
+
+	tagAWSConfig, err := stream.Recv()
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get aws cloud trail config", "error", err)
+		return trace.Wrap(err)
+	}
+
+	if tagAWSConfig.GetCloudTrailConfig() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail config")
+	}
+
+	s.Log.InfoContext(ctx, "Access graph service cloud trail config", "config", tagAWSConfig.GetCloudTrailConfig())
+
+	resumeState, err := stream.Recv()
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Failed to get aws cloud trail resume state", "error", err)
+		return trace.Wrap(err)
+	}
+
+	if resumeState.GetResumeState() == nil {
+		return trace.BadParameter("access graph service did not return cloud trail resume state")
+	}
+	s.Log.InfoContext(ctx, "Access graph service cloud trail resume state", "resume_state", resumeState.GetResumeState())
+
+	// Start a goroutine to watch the access graph service connection state.
+	// If the connection is closed, cancel the context to stop the event watcher
+	// before it tries to send any events to the access graph service.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer cancel()
+		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
+			s.Log.InfoContext(ctx, "Access graph service connection was closed")
+		}
+	}()
+
+	// Configure the poll interval
+	tickerInterval := 10 * time.Second
+	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
+
+	timer := time.NewTimer(tickerInterval)
+	defer timer.Stop()
+	eventsC := make(chan eventChannelPayload, 100)
+	state := map[string]cursor{}
+	for region, regionState := range resumeState.GetResumeState().GetRegionsState() {
+		state[region] = cursor{
+			nextPage:      regionState.GetNextPage(),
+			lastEventId:   regionState.GetLastEventId(),
+			lastEventTime: regionState.GetLastEventTime().AsTime(),
+		}
+	}
+	if err = s.pollCloudTrail(ctx,
+		resumeState.GetResumeState().GetStartDate().AsTime(),
+		state,
+		&wg,
+		eventsC,
+		matcher,
+	); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var size int
+	var events []*accessgraphv1alpha.AWSCloudTrailEvent
+	const maxSize = 3 * 1024 * 1024 // 3MB
+	for {
+		sendData := false
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-timer.C:
+			sendData = len(events) > 0
+		case evts := <-eventsC:
+			for _, event := range evts.events {
+				size += gproto.Size(event)
+			}
+			state[evts.region] = evts.cursor
+			events = append(events, evts.events...)
+
+			sendData = size >= maxSize
+		}
+
+		if sendData {
+			// send the events to the access graph service
+			err := stream.Send(
+				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Events{
+						Events: &accessgraphv1alpha.AWSCloudTrailEvents{
+							Events:      events,
+							ResumeState: stateToProtoState(resumeState.GetResumeState().GetStartDate().AsTime(), state),
+						},
+					},
+				},
+			)
+			if err != nil {
+				err = consumeTillErr(stream)
+				s.Log.ErrorContext(ctx, "Failed to send access graph service events", "error", err)
+				return trace.Wrap(err)
+			}
+			// reset the events and size
+			events = events[:0]
+			size = 0
+		}
+		if !timer.Stop() {
+			select {
+			case <-timer.C: // drain
+			default:
+			}
+		}
+		timer.Reset(tickerInterval)
+	}
+}
+
+func (s *Server) pollCloudTrail(ctx context.Context,
+	startDate time.Time,
+	state map[string]cursor,
+	wg *sync.WaitGroup,
+	eventsC chan<- eventChannelPayload,
+	matcher *types.AccessGraphAWSSync) error {
+	// Create a new CloudTrail client for each region.
+	// This is because the CloudTrail client is not thread-safe and
+	// we need to create a new client for each goroutine.
+	// We will use the same credentials for all clients.
+	// The credentials are set in the AWSConfigProvider.
+	wg.Add(len(state))
+	opts := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
+	}
+	if matcher.AssumeRole != nil {
+		opts = append(opts, awsconfig.WithAssumeRole(matcher.AssumeRole.RoleARN, matcher.AssumeRole.ExternalID))
+	}
+	for region, regionState := range state {
+
+		// Create a new goroutine for each region.
+		go func(region string, regionState cursor) {
+			defer wg.Done()
+
+			awsCfg, err := s.AWSConfigProvider.GetConfig(ctx, region, opts...)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error getting AWS config", "error", err)
+				return
+			}
+			cloudTrailClient := cloudtrail.NewFromConfig(awsCfg)
+			// Create a new cursor for each region.
+			lastCursor := regionState
+			timer := s.clock.NewTimer(time.Second)
+			// Poll the CloudTrail for events in the region.
+			for {
+				hasNextPage, err := s.pollCloudTrailForRegion(ctx, cloudTrailClient, startDate, lastCursor, region, eventsC)
+				if err != nil {
+					s.Log.ErrorContext(ctx, "Error polling cloud trail", "error", err)
+				}
+
+				wait := 500 * time.Millisecond
+				if !hasNextPage || err != nil {
+					// If there are no more pages, we can wait for the next poll interval.
+					wait = 30 * time.Second
+				}
+
+				// Wait for the next poll interval.
+				if !timer.Stop() {
+					select {
+					case <-timer.Chan(): // drain
+					default:
+					}
+				}
+				timer.Reset(wait)
+				select {
+				case <-ctx.Done():
+					s.Log.InfoContext(ctx, "Stopping cloud trail poller for region", "region", region)
+					return
+				case <-timer.Chan():
+					// continue to the next iteration
+				}
+			}
+		}(region, regionState)
+	}
+	return nil
+}
+
+func (s *Server) pollCloudTrailForRegion(ctx context.Context,
+	client *cloudtrail.Client,
+	startTime time.Time,
+	lastCursor cursor,
+	region string,
+	eventsC chan<- eventChannelPayload,
+) (bool, error) {
+	var nextToken *string
+	if lastCursor.nextPage != "" {
+		nextToken = aws.String(lastCursor.nextPage)
+	}
+
+	input := &cloudtrail.LookupEventsInput{
+		StartTime:     aws.Time(startTime),
+		NextToken:     nextToken,
+		EventCategory: cloudtrailtypes.EventCategoryInsight,
+		MaxResults:    aws.Int32(50), /* max results per page */
+	}
+	var events []*accessgraphv1alpha.AWSCloudTrailEvent
+	for numPage := 0; numPage < 50; numPage++ {
+		resp, err := client.LookupEvents(ctx, input)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if len(lastCursor.lastEventId) > 0 {
+			idx := 0
+			// if we have a lastEventId, we need to skip all events before it
+			for i, event := range resp.Events {
+				if event.EventTime.After(lastCursor.lastEventTime) {
+					idx = i
+					break
+				}
+				if aws.ToString(event.EventId) == lastCursor.lastEventId {
+					idx = i + 1
+					break
+				}
+			}
+			resp.Events = resp.Events[idx:]
+		}
+
+		for _, event := range resp.Events {
+			if event.EventTime.Before(lastCursor.lastEventTime) {
+				continue
+			}
+			// Convert the event to a protobuf struct.
+			events = append(events, convertCloudTrailEventToAccessGraphResources(event, region))
+			lastCursor.lastEventTime = aws.ToTime(event.EventTime)
+		}
+
+		select {
+		case <-ctx.Done():
+			return false, trace.Wrap(ctx.Err())
+		case eventsC <- eventChannelPayload{
+			events: slices.Clone(events),
+			cursor: lastCursor,
+			region: region,
+		}:
+			events = events[:0]
+		}
+
+		if resp.NextToken == nil {
+			if len(resp.Events) > 0 {
+				lastCursor.lastEventId = aws.ToString(resp.Events[len(resp.Events)-1].EventId)
+			}
+			break
+		}
+		// reset the lastEventID because we are going to the next page
+		// and we don't want to skip the first event in the next page
+		lastCursor.lastEventId = ""
+		lastCursor.lastEventTime = aws.ToTime(resp.Events[len(resp.Events)-1].EventTime)
+		lastCursor.nextPage = aws.ToString(resp.NextToken)
+
+		input.NextToken = resp.NextToken
+
+	}
+
+	return lastCursor.lastEventId == "", nil
+}
+
+func consumeTillErr(stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
+	for {
+		_, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+}
+
+type cursor struct {
+	nextPage      string
+	lastEventId   string
+	lastEventTime time.Time
+}
+
+type eventChannelPayload struct {
+	events []*accessgraphv1alpha.AWSCloudTrailEvent
+	cursor cursor
+	region string
+}
+
+func convertCloudTrailEventToAccessGraphResources(
+	event cloudtrailtypes.Event,
+	region string,
+) *accessgraphv1alpha.AWSCloudTrailEvent {
+
+	// Convert the event to a protobuf struct.
+	structEvent := &structpb.Struct{}
+	if event.CloudTrailEvent != nil && len(*event.CloudTrailEvent) > 2 {
+		err := protojson.UnmarshalOptions{
+			DiscardUnknown: true,
+		}.Unmarshal([]byte(*event.CloudTrailEvent), structEvent)
+		if err != nil {
+			slog.ErrorContext(context.TODO(), "Failed to unmarshal event.", "error", err)
+		}
+	}
+
+	structEvent.Fields["source_region"] = structpb.NewStringValue(region)
+	var resources []*accessgraphv1alpha.AWSCloudTrailEventResource
+	for _, resource := range event.Resources {
+		resources = append(resources, &accessgraphv1alpha.AWSCloudTrailEventResource{
+			Name: aws.ToString(resource.ResourceName),
+			Type: aws.ToString(resource.ResourceType),
+		})
+	}
+	return &accessgraphv1alpha.AWSCloudTrailEvent{
+		AccessKeyId:     aws.ToString(event.AccessKeyId),
+		CloudTrailEvent: structEvent,
+		EventId:         aws.ToString(event.EventId),
+		EventName:       aws.ToString(event.EventName),
+		ServiceSource:   aws.ToString(event.EventSource),
+		EndTime:         timestamppb.New(aws.ToTime(event.EventTime)),
+		ReadOnly:        aws.ToString(event.ReadOnly) == "true",
+		Resources:       resources,
+		Username:        aws.ToString(event.Username),
+	}
+}
+
+func stateToProtoState(startDate time.Time, state map[string]cursor) *accessgraphv1alpha.AWSCloudTrailResumeState {
+	resumeState := &accessgraphv1alpha.AWSCloudTrailResumeState{
+		RegionsState: make(map[string]*accessgraphv1alpha.AWSCloudTrailResumeRegionState),
+		StartDate:    timestamppb.New(startDate),
+	}
+	for region, regionState := range state {
+		var lastEventId *string
+		if len(regionState.lastEventId) > 0 {
+			lastEventId = aws.String(regionState.lastEventId)
+		}
+		resumeState.RegionsState[region] = &accessgraphv1alpha.AWSCloudTrailResumeRegionState{
+			NextPage:      regionState.nextPage,
+			LastEventId:   lastEventId,
+			LastEventTime: timestamppb.New(regionState.lastEventTime),
+		}
+	}
+	return resumeState
 }

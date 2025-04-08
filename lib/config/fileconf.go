@@ -1595,7 +1595,8 @@ type AccessGraphAWSSync struct {
 	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
-	ExternalID string `yaml:"external_id,omitempty"`
+	ExternalID              string `yaml:"external_id,omitempty"`
+	EnableCloudTrailPolling bool   `yaml:"cloud_trail_polling,omitempty"`
 }
 
 // AccessGraphAzureSync represents the configuration for the Azure AccessGraph Sync service.
