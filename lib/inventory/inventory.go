@@ -399,6 +399,8 @@ type UpstreamHandle interface {
 	client.UpstreamInventoryControlStream
 	// Hello gets the cached upstream hello that was used to initialize the stream.
 	Hello() proto.UpstreamInventoryHello
+	// RegistrationTime gets the timestamp of the control stream initialization.
+	RegistrationTime() time.Time
 
 	// AgentMetadata is the service's metadata: OS, glibc version, install methods, ...
 	AgentMetadata() proto.UpstreamInventoryAgentMetadata
@@ -581,8 +583,9 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 
 type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
-	hello   proto.UpstreamInventoryHello
-	goodbye proto.UpstreamInventoryGoodbye
+	hello            proto.UpstreamInventoryHello
+	goodbye          proto.UpstreamInventoryGoodbye
+	registrationTime time.Time
 
 	agentMDLock   sync.RWMutex
 	agentMetadata proto.UpstreamInventoryAgentMetadata
@@ -637,12 +640,13 @@ type heartBeatInfo[T any] struct {
 	keepAliveErrs int
 }
 
-func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) *upstreamHandle {
+func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello, now time.Time) *upstreamHandle {
 	return &upstreamHandle{
 		UpstreamInventoryControlStream: stream,
 		pingC:                          make(chan pingRequest),
 		hello:                          hello,
 		pings:                          make(map[uint64]pendingPing),
+		registrationTime:               now,
 	}
 }
 
@@ -685,6 +689,11 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 
 func (h *upstreamHandle) Hello() proto.UpstreamInventoryHello {
 	return h.hello
+}
+
+// RegistrationTime implements UpstreamHandle by returning the handle's creation timestamp.
+func (h *upstreamHandle) RegistrationTime() time.Time {
+	return h.registrationTime
 }
 
 // AgentMetadata returns the Agent's metadata (eg os, glibc version, install methods, teleport version).
