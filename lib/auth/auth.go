@@ -6851,6 +6851,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 	features := modules.GetModules().Features().ToProto()
+	features.CloudAnonymizationKey = nil
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {

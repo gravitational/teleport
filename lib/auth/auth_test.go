@@ -2336,6 +2336,16 @@ func TestServer_ExtendWebSession_deviceExtensions(t *testing.T) {
 	})
 }
 
+func TestServer_Ping_anonymizationKey(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{CloudAnonymizationKey: []byte{0, 0}}})
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	actual, err := authServer.Ping(context.Background())
+	assert.NoError(t, err)
+	assert.Nil(t, actual.ServerFeatures.CloudAnonymizationKey)
+}
+
 type augmentUserData struct {
 	user         string
 	pass         []byte
