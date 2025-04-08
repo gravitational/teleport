@@ -477,18 +477,16 @@ func calculateTTL(
 	requestedTTL time.Duration,
 	configuredMaxTTL time.Duration,
 ) (time.Time, time.Time, time.Time, time.Duration) {
-	ttl := time.Hour
+	ttl := cmp.Or(requestedTTL, time.Hour)
 	maxTTL := cmp.Or(configuredMaxTTL, defaultMaxTTL)
-	if requestedTTL != 0 {
-		ttl = requestedTTL
-		if ttl > maxTTL {
-			log.InfoContext(
-				ctx,
-				"Requested SVID TTL exceeds maximum, using maximum instead",
-				"requested_ttl", requestedTTL,
-				"max_ttl", maxTTL)
-			ttl = maxTTL
-		}
+
+	if ttl > maxTTL {
+		log.InfoContext(
+			ctx,
+			"Requested SVID TTL exceeds maximum, using maximum instead",
+			"requested_ttl", ttl,
+			"max_ttl", maxTTL)
+		ttl = maxTTL
 	}
 
 	now := clock.Now()
