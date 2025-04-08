@@ -564,8 +564,15 @@ After generating the certificate, Teleport will call `rolesanywhere.CreateSessio
 
 This call will not be explicit, but handled by the [rolesanywhere-credential-helper](https://github.com/aws/rolesanywhere-credential-helper) tool from AWS.
 
-The `rolesanywhere.CreateSession` call accepts a `durationSeconds` param which accepts values from 15 minutes up to 12 hours.
-Its value must be set using the current's Teleport User session, up to 12 hours if it exceeds that.
+The `rolesanywhere.CreateSession` call accepts a `durationSeconds` which indicates for how long the AWS Session will be valid.
+This durantion, per AWS documentation, cannot be higher than 12 hours, nor less than 15 minutes.
+
+When the Teleport User session is between 15 minutes and 12 hours, the AWS Session will have the same expiration.
+
+When the Teleport User session is lower than 15 minutes, the user will receive an error and is asked to login again.
+This is already the behavior on existing AWS Access flows. See [#46551](https://github.com/gravitational/teleport/issues/46551).
+
+When the Teleport User session is higher than 12 hours, the AWS Session will be at most 12 hours.
 
 ### AWS Roles requirements for usage with IAM Roles Anywhere
 AWS IAM Roles must be accessible from Roles Anywhere service principal, which requires a [custom Trust Policy](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html#trust-policy).
