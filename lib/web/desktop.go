@@ -586,8 +586,8 @@ func monitorDesktopLatency(ctx context.Context, ch chan<- tdp.Message, clock clo
 		ServerPinger: pinger,
 		Reporter: latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
 			ch <- tdp.LatencyStats{
-				BrowserLatency: uint32(stats.Client),
-				DesktopLatency: uint32(stats.Server),
+				ClientLatency: uint32(stats.Client),
+				ServerLatency: uint32(stats.Server),
 			}
 			return nil
 		}),
@@ -640,7 +640,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, log *slog.Logger, vers
 				continue
 			}
 			if ls, ok := msg.(tdp.LatencyStats); ok {
-				log.InfoContext(ctx, "sending latency stats", "browser", ls.BrowserLatency, "desktop", ls.DesktopLatency)
+				log.DebugContext(ctx, "sending latency stats", "client", ls.ClientLatency, "server", ls.ServerLatency)
 			}
 			encoded, err := msg.Encode()
 			if err != nil {

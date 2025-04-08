@@ -1636,17 +1636,17 @@ func decodeSharedDirectoryTruncateResponse(in io.Reader) (SharedDirectoryTruncat
 	return res, err
 }
 
-// LatencyStats is used to report the latency of the connection(s) to the web UI.
+// LatencyStats is used to report the latency of the connection(s) to the client.
 type LatencyStats struct {
-	BrowserLatency uint32
-	DesktopLatency uint32
+	ClientLatency uint32
+	ServerLatency uint32
 }
 
 func (l LatencyStats) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeLatencyStats))
-	writeUint32(buf, l.BrowserLatency)
-	writeUint32(buf, l.DesktopLatency)
+	writeUint32(buf, l.ClientLatency)
+	writeUint32(buf, l.ServerLatency)
 	return buf.Bytes(), nil
 }
 
