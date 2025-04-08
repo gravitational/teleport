@@ -258,7 +258,7 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 		} else {
 			writer = log.StandardLogger().WriterLevel(ilevel)
 		}
-		writer.Write([]byte(fmt.Sprintf(format, args...)))
+		fmt.Fprintf(writer, format, args...)
 		return true
 	}
 }

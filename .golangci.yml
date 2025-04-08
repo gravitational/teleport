@@ -316,6 +316,12 @@ linters:
         text: 'Use errors.As to check'
       - linters:
           - staticcheck
+        text: 'QF1008: could remove embedded field'
+      - linters:
+          - staticcheck
+        text: 'QF1008: could simplify selectors'
+      - linters:
+          - staticcheck
         text: 'S1002: should omit comparison to bool constant'
       - linters:
           - revive

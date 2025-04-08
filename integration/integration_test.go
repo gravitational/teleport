@@ -1941,7 +1941,7 @@ type errorVerifier func(error) error
 func errorContains(text string) errorVerifier {
 	return func(err error) error {
 		if err == nil || !strings.Contains(err.Error(), text) {
-			return fmt.Errorf("Expected error to contain %q, got: %v", text, err)
+			return fmt.Errorf("Expected error to contain %q, got: %w", text, err)
 		}
 		return nil
 	}
@@ -2264,7 +2264,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 					asyncErrors <- badErrorErr
 				}
 			} else if err != nil && !errors.Is(err, io.EOF) && !isSSHError(err) {
-				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %v instead", err)
+				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %w instead", err)
 				return
 			}
 		}
@@ -4832,7 +4832,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						display := make(chan string, 1)
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
-							_, err = keyboard.Write([]byte(fmt.Sprintf("printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())))
+							_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
 							assert.NoError(t, err)
 
 							assert.Eventually(t, func() bool {

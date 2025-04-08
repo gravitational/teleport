@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	apitypes "github.com/gravitational/teleport/api/types"
+
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 

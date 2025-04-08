@@ -38,8 +38,8 @@ type defaultHandler struct{}
 // ServeHTTP writes the error message to the response.
 func (e *defaultHandler) ServeHTTP(w http.ResponseWriter, req *http.Request, err error) {
 	statusCode := http.StatusInternalServerError
-	switch {
-	case err == io.EOF:
+	switch err {
+	case io.EOF:
 		statusCode = http.StatusBadGateway
 	default:
 		switch e, ok := err.(net.Error); {

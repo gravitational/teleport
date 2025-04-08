@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -147,7 +146,7 @@ func TestCAChange(t *testing.T) {
 	require.NotNil(t, conn)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stream, err := clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+	stream, err := proto.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
@@ -161,7 +160,7 @@ func TestCAChange(t *testing.T) {
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+	stream, err = proto.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.Error(t, err)
 	require.Nil(t, stream)
 
@@ -178,7 +177,7 @@ func TestCAChange(t *testing.T) {
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+	stream, err = proto.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 }

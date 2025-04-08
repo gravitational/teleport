@@ -33,9 +33,10 @@ import (
 	"github.com/peterbourgon/diskv/v3"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/integrations/event-handler/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/events/export"
+
+	"github.com/gravitational/teleport/integrations/event-handler/lib"
 )
 
 const (
