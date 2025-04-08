@@ -560,9 +560,9 @@ Of the above, only some of them will be set by Teleport:
 - Not After: this will be set based on the user's current session expiration
 
 ### AWS Session creation
-After generating the certificate, Teleport will call `rolesanywhere.CreateSession` and exchange the certificate for AWS credentials.
+When a client tool (Web UI or `tsh`) asks for a new AWS Session, Teleport Auth Service will generate the certificate, call `rolesanywhere.CreateSession` and exchange the certificate for AWS credentials.
 
-This call will not be explicit, but handled by the [rolesanywhere-credential-helper](https://github.com/aws/rolesanywhere-credential-helper) tool from AWS.
+The call to [`rolesnaywhere.CreateSession`](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-create-session.html) is not explicit, but handled by the [rolesanywhere-credential-helper](https://github.com/aws/rolesanywhere-credential-helper) tool from AWS.
 
 The `rolesanywhere.CreateSession` call accepts a `durationSeconds` which indicates for how long the AWS Session will be valid.
 This durantion, per AWS documentation, cannot be higher than 12 hours, nor less than 15 minutes.
