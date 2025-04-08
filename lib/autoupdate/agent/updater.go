@@ -19,11 +19,14 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io/fs"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"os/exec"
@@ -69,6 +72,10 @@ const (
 	activeKey = "active_version"
 	backupKey = "backup_version"
 	errorKey  = "error"
+)
+
+var (
+	initTime = time.Now().UTC()
 )
 
 // SetRequiredUmask sets the umask to match the systemd umask that the teleport-update service will execute with.
@@ -169,6 +176,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		SetupNamespace:    ns.Setup,
 		TeardownNamespace: ns.Teardown,
 		LogConfigWarnings: ns.LogWarnings,
+		EnsureUpdateID:    ns.EnsureID,
 	}, nil
 }
 
@@ -224,6 +232,9 @@ type Updater struct {
 	TeardownNamespace func(ctx context.Context) error
 	// LogConfigWarnings logs warnings related to the configuration Namespace.
 	LogConfigWarnings func(ctx context.Context, pathDir string)
+	// EnsureUpdateID generates and/or retrieves an ID for the updater, ensuring it is persisted.
+	// This ID is read by the Teleport agent and used to schedule progressive updates.
+	EnsureUpdateID func() (string, error)
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -353,6 +364,11 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
 	}
+	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
+	cfg.Status.IDFile, err = u.EnsureUpdateID()
+	if err != nil {
+		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
+	}
 
 	if cfg.Spec.Proxy == "" {
 		cfg.Spec.Proxy = u.DefaultProxyAddr
@@ -412,7 +428,8 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
 	u.LogConfigWarnings(ctx, cfg.Spec.Path)
-	return trace.Wrap(u.notices(ctx))
+	u.notices(ctx)
+	return nil
 }
 
 // sameProxies returns true if both proxies addresses are the same.
@@ -572,6 +589,20 @@ func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) er
 	return nil
 }
 
+// readID returns the update ID, if present on disk.
+// Errors will be logged.
+func (u *Updater) readID(ctx context.Context, path string) string {
+	idBytes, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return ""
+	}
+	if err != nil {
+		u.Log.ErrorContext(ctx, "Failed to read update ID file.", "path", path, errorKey, err)
+		return ""
+	}
+	return string(bytes.TrimSpace(idBytes))
+}
+
 // Status returns all available local and remote fields related to agent auto-updates.
 // Status is safe to run concurrently with other Updater commands.
 // Status does not write files, and therefore does not require SetRequiredUmask.
@@ -586,7 +617,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 		return out, trace.Wrap(err)
 	}
 	if cfg.Spec.Proxy == "" {
-		return out, ErrNotInstalled
+		return out, trace.Wrap(ErrNotInstalled)
 	}
 	out.UpdateSpec = cfg.Spec
 	out.UpdateStatus = cfg.Status
@@ -597,6 +628,7 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 		return out, trace.Wrap(err)
 	}
 	out.FindResp = resp
+	out.IDFile = "" // actual ID is is find response
 	return out, nil
 }
 
@@ -649,6 +681,11 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
+	}
+	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
+	cfg.Status.IDFile, err = u.EnsureUpdateID()
+	if err != nil {
+		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
 	}
 
 	active := cfg.Status.Active
@@ -720,15 +757,21 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	default:
 		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetKey, target, activeKey, active)
 	}
-	if !now {
+	if !now && resp.Jitter > 0 {
 		select {
-		case <-time.After(resp.Jitter):
+		case <-time.After(time.Duration(rand.Int64N(int64(resp.Jitter)))):
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
 	}
-
+	cfg.Status.LastUpdate = &LastUpdate{
+		Time:   initTime.Truncate(time.Millisecond),
+		Target: target,
+	}
 	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
+	if updateErr == nil {
+		cfg.Status.LastUpdate.Success = true
+	}
 	writeErr := writeConfig(u.UpdateConfigFile, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
@@ -737,7 +780,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 	// Show notices last
 	if updateErr == nil && now {
-		updateErr = u.notices(ctx)
+		u.notices(ctx)
 	}
 	return trace.NewAggregate(updateErr, writeErr)
 }
@@ -750,12 +793,14 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to parse proxy server address")
 	}
+	id := u.readID(ctx, cfg.Status.IDFile)
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,
 		ProxyAddr:   addr.Addr,
 		Insecure:    u.InsecureSkipVerify,
 		Timeout:     30 * time.Second,
 		UpdateGroup: cfg.Spec.Group,
+		UpdateID:    id,
 		Pool:        u.Pool,
 	})
 	if err != nil {
@@ -782,6 +827,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 		InWindow: resp.AutoUpdate.AgentAutoUpdate,
 		Jitter:   time.Duration(jitterSec) * time.Second,
 		AGPL:     agpl,
+		ID:       id,
 	}, nil
 }
 
@@ -902,10 +948,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	if r := deref(cfg.Status.Backup); r.Version != "" {
 		u.Log.InfoContext(ctx, "Backup version set.", backupKey, r)
 	}
-
-	return trace.Wrap(u.cleanup(ctx, cfg, []Revision{
+	u.cleanup(ctx, cfg, []Revision{
 		target, active, backup,
-	}))
+	})
+	return nil
 }
 
 // Setup writes updater configuration and verifies the Teleport installation.
@@ -954,23 +1000,25 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 }
 
 // notices displays final notices after install or update.
-func (u *Updater) notices(ctx context.Context) error {
+func (u *Updater) notices(ctx context.Context) {
 	enabled, err := u.Process.IsEnabled(ctx)
 	if errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Teleport is installed, but systemd is not present to start it.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, your system must also be configured to start Teleport.")
-		return nil
+		return
 	}
 	if errors.Is(err, ErrNotAvailable) {
 		u.Log.WarnContext(ctx, "Remember to use systemctl to enable and start Teleport.")
-		return nil
+		return
 	}
 	if err != nil {
-		return trace.Wrap(err, "failed to query Teleport systemd enabled status")
+		u.Log.ErrorContext(ctx, "Failed to determine if Teleport is enabled.", errorKey, err)
+		return
 	}
 	active, err := u.Process.IsActive(ctx)
 	if err != nil {
-		return trace.Wrap(err, "failed to query Teleport systemd active status")
+		u.Log.ErrorContext(ctx, "Failed to determine if Teleport is active.", errorKey, err)
+		return
 	}
 	if !enabled && active {
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.")
@@ -987,19 +1035,17 @@ func (u *Updater) notices(ctx context.Context) error {
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable and start.",
 			"command", "systemctl enable --now "+u.TeleportServiceName)
 	}
-
-	return nil
 }
 
 // cleanup orphan installations
-func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revision) error {
+func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revision) {
 	revs, err := u.Installer.List(ctx)
 	if err != nil {
 		u.Log.ErrorContext(ctx, "Failed to read installed versions.", errorKey, err)
-		return nil
+		return
 	}
 	if len(revs) < 3 {
-		return nil
+		return
 	}
 	u.Log.WarnContext(ctx, "More than two versions of Teleport are installed. Removing unused versions.", "count", len(revs))
 	for _, v := range revs {
@@ -1017,7 +1063,6 @@ func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revisio
 		}
 		u.Log.WarnContext(ctx, "Deleted unused version of Teleport.", "version", v)
 	}
-	return nil
 }
 
 // LinkPackage creates links from the system (package) installation of Teleport, if they are needed.

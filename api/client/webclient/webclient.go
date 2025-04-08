@@ -54,6 +54,13 @@ const (
 	// based on the specified group. e.g. some groups might need to update
 	// before others.
 	AgentUpdateGroupParameter = "group"
+
+	// AgentUpdateIDParameter is the parameter used to specify the updater
+	// ID during a Ping() or Find() query.
+	// The proxy server will modulate the auto_update part of the PingResponse
+	// based on the specified update ID. e.g. canary hosts might need to update
+	// before others.
+	AgentUpdateIDParameter = "update_id"
 )
 
 // Config specifies information when building requests with the
@@ -78,8 +85,11 @@ type Config struct {
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
 	// UpdateGroup is used to vary the webapi response based on the
-	// client's auto-update group.
+	// client's Managed Update group.
 	UpdateGroup string
+	// UpdateID is used to vary the webapi response based on the
+	// client's Managed Update ID.
+	UpdateID string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -189,11 +199,14 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		Host:   cfg.ProxyAddr,
 		Path:   "/webapi/find",
 	}
+	query := url.Values{}
 	if cfg.UpdateGroup != "" {
-		endpoint.RawQuery = url.Values{
-			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
-		}.Encode()
+		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
 	}
+	if cfg.UpdateID != "" {
+		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
+	}
+	endpoint.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
@@ -238,12 +251,14 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		Host:   cfg.ProxyAddr,
 		Path:   "/webapi/ping",
 	}
+	query := url.Values{}
 	if cfg.UpdateGroup != "" {
-		endpoint.RawQuery = url.Values{
-			AgentUpdateGroupParameter: []string{cfg.UpdateGroup},
-		}.Encode()
+		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
 	}
-
+	if cfg.UpdateID != "" {
+		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
+	}
+	endpoint.RawQuery = query.Encode()
 	if cfg.ConnectorName != "" {
 		endpoint = endpoint.JoinPath(cfg.ConnectorName)
 	}
