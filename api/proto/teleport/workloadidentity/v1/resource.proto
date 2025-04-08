@@ -139,7 +139,7 @@ message WorkloadIdentitySPIFFEX509 {
   // If a X509-SVID is requested with a TTL greater than this value, then the
   // returned X509-SVID will have a TTL of this value.
   //
-  // Defaults to 24 hours.
+  // Defaults to 24 hours. The maximum this value can be set to is 14 days.
   google.protobuf.Duration maximum_ttl = 3;
 }
 
@@ -152,7 +152,7 @@ message WorkloadIdentitySPIFFEJWT {
   // If a JWT-SVID is requested with a TTL greater than this value, then the
   // returned JWT-SVID will have a TTL of this value.
   //
-  // Defaults to 24 hours.
+  // Defaults to 24 hours. The maximum this value can be set to is 24 hours.
   google.protobuf.Duration maximum_ttl = 2;
 }
 

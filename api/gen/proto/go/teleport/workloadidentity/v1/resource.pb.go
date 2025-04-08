@@ -633,7 +633,7 @@ type WorkloadIdentitySPIFFEX509 struct {
 	// If a X509-SVID is requested with a TTL greater than this value, then the
 	// returned X509-SVID will have a TTL of this value.
 	//
-	// Defaults to 24 hours.
+	// Defaults to 24 hours. The maximum this value can be set to is 14 days.
 	MaximumTtl    *durationpb.Duration `protobuf:"bytes,3,opt,name=maximum_ttl,json=maximumTtl,proto3" json:"maximum_ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -700,7 +700,7 @@ type WorkloadIdentitySPIFFEJWT struct {
 	// If a JWT-SVID is requested with a TTL greater than this value, then the
 	// returned JWT-SVID will have a TTL of this value.
 	//
-	// Defaults to 24 hours.
+	// Defaults to 24 hours. The maximum this value can be set to is 24 hours.
 	MaximumTtl    *durationpb.Duration `protobuf:"bytes,2,opt,name=maximum_ttl,json=maximumTtl,proto3" json:"maximum_ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

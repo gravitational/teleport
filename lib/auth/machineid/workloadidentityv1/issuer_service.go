@@ -17,6 +17,7 @@
 package workloadidentityv1
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -470,16 +471,26 @@ func baseEvent(
 }
 
 func calculateTTL(
+	ctx context.Context,
+	log *slog.Logger,
 	clock clockwork.Clock,
 	requestedTTL time.Duration,
+	configuredMaxTTL time.Duration,
 ) (time.Time, time.Time, time.Time, time.Duration) {
 	ttl := time.Hour
+	maxTTL := cmp.Or(configuredMaxTTL, defaultMaxTTL)
 	if requestedTTL != 0 {
 		ttl = requestedTTL
-		if ttl > defaultMaxTTL {
-			ttl = defaultMaxTTL
+		if ttl > maxTTL {
+			log.InfoContext(
+				ctx,
+				"Requested SVID TTL exceeds maximum, using maximum instead",
+				"requested_ttl", requestedTTL,
+				"max_ttl", maxTTL)
+			ttl = maxTTL
 		}
 	}
+
 	now := clock.Now()
 	notBefore := now.Add(-1 * time.Minute)
 	notAfter := now.Add(ttl)
@@ -512,7 +523,13 @@ func (s *IssuanceService) issueX509SVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	_, notBefore, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
+	_, notBefore, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		requestedTTL,
+		wid.GetSpec().GetSpiffe().GetX509().GetMaximumTtl().AsDuration(),
+	)
 
 	pubKey, err := x509.ParsePKIXPublicKey(params.PublicKey)
 	if err != nil {
@@ -643,7 +660,13 @@ func (s *IssuanceService) issueJWTSVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	now, _, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
+	now, _, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		requestedTTL,
+		wid.GetSpec().GetSpiffe().GetJwt().GetMaximumTtl().AsDuration(),
+	)
 
 	jti, err := utils.CryptoRandomHex(jtiLength)
 	if err != nil {
