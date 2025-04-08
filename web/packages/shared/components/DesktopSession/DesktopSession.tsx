@@ -30,6 +30,7 @@ import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
+import { Latency } from 'shared/components/LatencyDiagnostic';
 import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
 import {
   ButtonState,
@@ -48,7 +49,6 @@ import useDesktopSession, {
   isSharingClipboard,
   isSharingDirectory,
 } from './useDesktopSession';
-import {Latency} from "shared/components/LatencyDiagnostic";
 
 export interface DesktopSessionProps {
   client: TdpClient;

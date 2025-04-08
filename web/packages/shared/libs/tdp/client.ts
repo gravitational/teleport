@@ -28,6 +28,7 @@ import Logger from 'shared/libs/logger';
 
 import Codec, {
   FileType,
+  LatencyStats,
   MessageType,
   PointerData,
   Severity,
@@ -47,7 +48,7 @@ import Codec, {
   type SharedDirectoryReadResponse,
   type SharedDirectoryTruncateResponse,
   type SharedDirectoryWriteResponse,
-  type SyncKeys, LatencyStats,
+  type SyncKeys,
 } from './codec';
 import {
   PathDoesNotExistError,
