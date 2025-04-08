@@ -378,49 +378,16 @@ const popoverSets: PopoverSet[] = [
 export const Positioning = () => {
   return (
     <>
-      <H2 my={2}>Without arrows</H2>
+      <H2 my={2}>Without margins</H2>
       <Flex flexWrap="wrap">
         {popoverSets.map((popovers, i) => (
           <ManyPopovers popovers={popovers} key={i} />
         ))}
       </Flex>
-      <H2 my={2}>With arrows</H2>
+      <H2 my={2}>With margins</H2>
       <Flex flexWrap="wrap">
         {popoverSets.map((popovers, i) => (
-          <ManyPopovers popovers={popovers} key={i} arrows />
-        ))}
-        <ManyPopovers
-          arrows
-          anchorSize="200px"
-          margin="30px"
-          popovers={[
-            {
-              anchorOrigin: { horizontal: 'center', vertical: 'top' },
-              transformOrigin: { horizontal: 'center', vertical: 'top' },
-              name: 'Top',
-            },
-            {
-              anchorOrigin: { horizontal: 'right', vertical: 'center' },
-              transformOrigin: { horizontal: 'right', vertical: 'center' },
-              name: 'Right',
-            },
-            {
-              anchorOrigin: { horizontal: 'center', vertical: 'bottom' },
-              transformOrigin: { horizontal: 'center', vertical: 'bottom' },
-              name: 'Bottom',
-            },
-            {
-              anchorOrigin: { horizontal: 'left', vertical: 'center' },
-              transformOrigin: { horizontal: 'left', vertical: 'center' },
-              name: 'Left',
-            },
-          ]}
-        />
-      </Flex>
-      <H2 my={2}>With arrows and margins</H2>
-      <Flex flexWrap="wrap">
-        {popoverSets.map((popovers, i) => (
-          <ManyPopovers popovers={popovers} key={i} arrows popoverMargin={5} />
+          <ManyPopovers popovers={popovers} key={i} popoverMargin={5} />
         ))}
       </Flex>
     </>
@@ -429,7 +396,6 @@ export const Positioning = () => {
 
 const ManyPopovers = ({
   popovers,
-  arrows,
   anchorSize = '100px',
   margin = '80px',
   popoverMargin = 0,
@@ -457,7 +423,6 @@ const ManyPopovers = ({
           open={!!anchorRef}
           anchorOrigin={anchorOrigin}
           transformOrigin={transformOrigin}
-          arrow={arrows}
           popoverMargin={popoverMargin}
         >
           <Box padding={3}>{name}</Box>
