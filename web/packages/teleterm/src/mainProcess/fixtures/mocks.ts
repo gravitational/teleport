@@ -109,7 +109,7 @@ export class MockMainProcessClient implements MainProcessClient {
     return Promise.resolve(undefined);
   }
 
-  forceFocusWindow() {}
+  async forceFocusWindow() {}
 
   async symlinkTshMacOs() {
     return true;

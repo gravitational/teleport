@@ -113,8 +113,8 @@ export default function createMainProcessClient(): MainProcessClient {
     removeKubeConfig(options) {
       return ipcRenderer.invoke('main-process-remove-kube-config', options);
     },
-    forceFocusWindow() {
-      return ipcRenderer.invoke('main-process-force-focus-window');
+    forceFocusWindow(args) {
+      return ipcRenderer.invoke(MainProcessIpc.ForceFocusWindow, args);
     },
     symlinkTshMacOs() {
       return ipcRenderer.invoke('main-process-symlink-tsh-macos');

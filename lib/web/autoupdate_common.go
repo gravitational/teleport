@@ -207,7 +207,7 @@ func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Chann
 func (h *Handler) getTriggerFromWindowThenChannel(ctx context.Context, groupName string) (bool, error) {
 	// Caching the CMC for 10 seconds because this resource is cached neither by the auth nor the proxy.
 	// And this function can be accessed via unauthenticated endpoints.
-	cmc, err := utils.FnCacheGet[types.ClusterMaintenanceConfig](ctx, h.clusterMaintenanceConfigCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	cmc, err := utils.FnCacheGet(ctx, h.clusterMaintenanceConfigCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
 		return h.cfg.ProxyClient.GetClusterMaintenanceConfig(ctx)
 	})
 

@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.3.3",
+      "version": "17.4.1",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -78,7 +78,7 @@
       "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
       "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
       "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
+      "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
       "version": "1.0.0"

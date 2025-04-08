@@ -18,10 +18,13 @@
 
 import { useEffect } from 'react';
 import { useParams } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
+import { ButtonPrimary } from 'design';
 import Table, { LabelCell } from 'design/DataTable';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
+import cfg from 'teleport/config';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import {
   IntegrationDiscoveryRule,
@@ -68,7 +71,22 @@ export function Rules() {
           ),
         },
       ]}
-      emptyText={`No ${resourceKind.toUpperCase()} rules`}
+      emptyText={`No ${resourceKind.toUpperCase()} Rules Found`}
+      emptyHint={
+        resourceKind === AwsResource.rds &&
+        'Discover AWS-hosted databases automatically and register them with your Teleport cluster'
+      }
+      emptyButton={
+        <ButtonPrimary
+          as={InternalLink}
+          to={{
+            pathname: cfg.routes.discover,
+            state: { searchKeywords: resourceKind },
+          }}
+        >
+          Add Enrollment Rule
+        </ButtonPrimary>
+      }
       pagination={{ pageSize: serverSidePagination.pageSize }}
       fetching={{
         fetchStatus: serverSidePagination.fetchStatus,

@@ -31,6 +31,10 @@ import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
 import { Failed } from 'design/CardError';
+import {
+  InfoGuidePanelProvider,
+  useInfoGuide,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -38,8 +42,10 @@ import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
-import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel';
-import { infoGuidePanelWidth } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel/InfoGuideSidePanel';
+import {
+  infoGuidePanelWidth,
+  InfoGuideSidePanel,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
@@ -54,7 +60,6 @@ import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
-import { InfoGuidePanelProvider, useInfoGuide } from './InfoGuideContext';
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
@@ -307,8 +312,8 @@ export const useNoMinWidth = () => {
 
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
-  const { infoGuideElement } = useInfoGuide();
-  const infoGuideSidePanelOpened = infoGuideElement != null;
+  const { infoGuideConfig } = useInfoGuide();
+  const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -320,7 +325,7 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
           min-height: 0;
           margin-right: ${infoGuideSidePanelOpened
-            ? infoGuidePanelWidth
+            ? infoGuideConfig?.panelWidth || infoGuidePanelWidth
             : '0'}px;
           transition: ${infoGuideSidePanelOpened
             ? 'margin 150ms'
