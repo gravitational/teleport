@@ -41,6 +41,7 @@ export type SamlIdpServiceProviderSpec = {
   entity_id: string;
   preset: SamlServiceProviderPreset;
   relay_state: string;
+  launch_urls?: string[];
 };
 
 /**
