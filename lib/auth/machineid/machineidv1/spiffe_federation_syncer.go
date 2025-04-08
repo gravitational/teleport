@@ -310,7 +310,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 				"Received event from SPIFFEFederation watcher",
 				"evt_type", evt.Type,
 			)
-			if !(evt.Type == types.OpPut || evt.Type == types.OpDelete) {
+			if evt.Type != types.OpPut && evt.Type != types.OpDelete {
 				continue
 			}
 

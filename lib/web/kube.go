@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -463,7 +462,7 @@ func (h *Handler) joinKubernetesSession(
 		},
 	})
 
-	envelopeBytes, err := gogoproto.Marshal(&terminal.Envelope{
+	envelopeBytes, err := proto.Marshal(&terminal.Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketSessionMetadata,
 		Payload: string(sessionMetadataResponse),

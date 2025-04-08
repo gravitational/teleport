@@ -163,7 +163,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
 	// if the caller says its OK
-	if !(allowPlainHTTP && utils.IsLoopback(req.URL.Host)) {
+	if !allowPlainHTTP || !utils.IsLoopback(req.URL.Host) {
 		return nil, trace.Wrap(err)
 	}
 

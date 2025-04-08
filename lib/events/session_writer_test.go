@@ -143,7 +143,7 @@ func TestSessionWriter(t *testing.T) {
 
 		outEvents := test.collectEvents(t)
 
-		require.Equal(t, len(inEvents), len(outEvents))
+		require.Len(t, inEvents, len(outEvents))
 		require.Equal(t, inEvents, outEvents)
 		require.Equal(t, 0, int(streamResumed.Load()), "Stream not resumed.")
 		require.Equal(t, 2, int(streamCreated.Load()), "Stream created twice.")
@@ -200,7 +200,7 @@ func TestSessionWriter(t *testing.T) {
 
 		outEvents := test.collectEvents(t)
 
-		require.Equal(t, len(inEvents), len(outEvents))
+		require.Len(t, inEvents, len(outEvents))
 		require.Equal(t, inEvents, outEvents)
 		require.Equal(t, 1, int(streamResumed.Load()), "Stream resumed once.")
 		require.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")
@@ -292,7 +292,7 @@ func TestSessionWriter(t *testing.T) {
 			require.NoError(t, test.writer.RecordEvent(test.ctx, event))
 		}
 		test.Close(context.Background())
-		require.Equal(t, len(inEvents), len(emittedEvents))
+		require.Len(t, inEvents, len(emittedEvents))
 		for _, event := range emittedEvents {
 			require.Equal(t, "cluster", event.GetClusterName())
 		}
