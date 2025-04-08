@@ -5018,6 +5018,8 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 22 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // pkce_verifier is used to verified a generated code challenge.
+  string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
