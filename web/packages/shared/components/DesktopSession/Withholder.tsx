@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonState } from 'teleport/lib/tdp';
+import { ButtonState } from 'shared/libs/tdp';
 
 import { KeyboardEventParams } from './KeyboardHandler';
 

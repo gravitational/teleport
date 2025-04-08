@@ -5,7 +5,7 @@
     "build-ui": "pnpm build-ui-oss && pnpm build-ui-e",
     "build-ui-oss": "pnpm --filter=@gravitational/teleport build",
     "build-ui-e": "pnpm --filter=@gravitational/teleport.e build",
-    "build-wasm": "pnpm --filter=@gravitational/teleport build-wasm",
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
     "start-teleport": "pnpm --filter=@gravitational/teleport start",
     "start-teleport-e": "pnpm --filter=@gravitational/teleport.e start",
     "build-term": "pnpm --filter=@gravitational/teleterm build",
@@ -69,7 +69,7 @@
     "react-select-event": "^5.5.1",
     "storybook": "^8.6.11",
     "typescript": "^5.8.2",
-    "vite": "^6.2.4"
+    "vite": "^6.2.5"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.6",
@@ -81,6 +81,7 @@
     "@nivo/bar": "^0.88.0",
     "@protobuf-ts/runtime": "^2.9.6",
     "@protobuf-ts/runtime-rpc": "^2.9.6",
+    "@tanstack/react-query": "^5.69.0",
     "@uiw/codemirror-themes": "^4.23.10",
     "@uiw/react-codemirror": "^4.23.10",
     "d3-scale": "^4.0.2",
