@@ -3,6 +3,7 @@ import { useHistory } from 'react-router';
 
 import { Alert, Box, Flex, Indicator } from 'design';
 import { H2 } from 'design/Text/Text';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import cfg from 'e-teleport/config';
@@ -19,7 +20,6 @@ import {
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
-import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import {
   DefaultAuthConnector,

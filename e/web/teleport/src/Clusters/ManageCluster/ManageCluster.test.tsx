@@ -1,11 +1,11 @@
 import { MemoryRouter, Route } from 'react-router-dom';
 
 import { render, screen, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
 import { ContextProvider } from 'teleport/index';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 
 import { ManageCluster } from './ManageCluster';

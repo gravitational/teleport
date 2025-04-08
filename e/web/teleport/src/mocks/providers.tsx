@@ -2,11 +2,12 @@ import { LocationDescriptor } from 'history';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { ContextProvider } from 'teleport/index';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 
 import { createTeleportContextE } from './contexts';
 

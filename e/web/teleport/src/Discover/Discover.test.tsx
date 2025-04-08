@@ -1,6 +1,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
@@ -9,7 +10,6 @@ import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { getGuideTileId } from 'teleport/Discover/testUtils';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { getAcl } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';

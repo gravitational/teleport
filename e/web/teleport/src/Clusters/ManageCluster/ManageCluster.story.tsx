@@ -1,5 +1,7 @@
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { contactsService } from 'e-teleport/services/contacts';
 import { Contact } from 'e-teleport/services/contacts/types';
@@ -7,7 +9,6 @@ import { upgradeWindowService } from 'e-teleport/services/upgradeWindow';
 import { clusterInfoFixture } from 'teleport/Clusters/fixtures';
 import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { ClusterInfo } from 'teleport/services/clusters';
 

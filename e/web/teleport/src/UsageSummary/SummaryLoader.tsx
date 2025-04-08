@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
+import {
+  InfoGuideButton,
+  InfoParagraph,
+  InfoTitle,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
@@ -12,12 +18,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import {
-  InfoGuideButton,
-  InfoParagraph,
-  InfoTitle,
-  ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import { useNoMinWidth } from 'teleport/Main';
 
 export const SummaryLoader = (): React.ReactElement => {

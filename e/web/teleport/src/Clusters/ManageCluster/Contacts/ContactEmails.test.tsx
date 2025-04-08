@@ -1,6 +1,7 @@
 import { MemoryRouter, Route } from 'react-router-dom';
 
 import { fireEvent, render, screen } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
@@ -8,7 +9,6 @@ import {
   ContactVerification,
 } from 'e-teleport/services/contacts/types';
 import { ContextProvider } from 'teleport/index';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { Access } from 'teleport/services/user';
 import { defaultAccess } from 'teleport/services/user/makeAcl';
