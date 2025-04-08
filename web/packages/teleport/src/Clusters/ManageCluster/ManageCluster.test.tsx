@@ -22,10 +22,10 @@ import React from 'react';
 import { MemoryRouter, Route } from 'react-router-dom';
 
 import { render, screen, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
