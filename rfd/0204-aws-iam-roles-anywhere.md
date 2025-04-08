@@ -524,6 +524,8 @@ A new Certificate Authority will be created in Teleport to issue X.509 certifica
 
 This new CA is backed by a ECDSA key, according to our current recommended crypto suites (see RFD0136).
 
+A single CA will be created per Teleport cluster.
+
 #### CA certificate
 When setting the trust anchor in AWS IAM Roles Anywhere, we'll add the new CA certificate.
 
@@ -614,7 +616,9 @@ This command does two things:
 
 The  [`~/.aws/config`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)` contains instructions on how to access AWS credentials locally, and is used by every aws cli and other aws-sdk-based tools.
 
-The following entry is added (if it not exists yet):
+If `AWS_CONFIG_FILE` is set, that's the file which `tsh` will modify.
+
+The following entry is added (if it does not exist yet):
 ```conf
 [profile <App Name>]
 credential_process = tsh apps config <App Name> --format aws-credential-process
@@ -633,6 +637,8 @@ Its format should match the following specification:
   "Expiration": "ISO8601 timestamp when the credentials expire"
 }
 ```
+
+When the logs out using `tsh logout`, all the profiles will be removed from `~/.aws/config`.
 
 #### AWS configuration profiles
 Users are required to pass `--profile <profile>` or set the `AWS_PROFILE` environment variable to access AWS, which can be tedious.
