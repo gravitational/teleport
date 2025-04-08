@@ -46,17 +46,16 @@ type MockHardwareKeyService struct {
 	mockTouch chan struct{}
 
 	fakeHardwarePrivateKeys    map[hardwareKeySlot]*fakeHardwarePrivateKey
-	fakeHardwarePrivateKeysMux *sync.Mutex
+	fakeHardwarePrivateKeysMux sync.Mutex
 }
 
 // NewMockHardwareKeyService returns a [mockHardwareKeyService] for use in tests.
 // If [prompt] is provided, the service will also mock PIN and touch prompts.
 func NewMockHardwareKeyService(prompt Prompt) *MockHardwareKeyService {
 	return &MockHardwareKeyService{
-		prompt:                     prompt,
-		mockTouch:                  make(chan struct{}),
-		fakeHardwarePrivateKeys:    map[hardwareKeySlot]*fakeHardwarePrivateKey{},
-		fakeHardwarePrivateKeysMux: &sync.Mutex{},
+		prompt:                  prompt,
+		mockTouch:               make(chan struct{}),
+		fakeHardwarePrivateKeys: map[hardwareKeySlot]*fakeHardwarePrivateKey{},
 	}
 }
 

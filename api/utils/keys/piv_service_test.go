@@ -61,7 +61,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 		Policy: hardwarekey.PromptPolicy{TouchRequired: true},
 	})
 	require.NoError(t, err)
-	require.Nil(t, priv.WarmupHardwareKey(ctx))
+	require.NoError(t, priv.WarmupHardwareKey(ctx))
 
 	for _, policy := range []hardwarekey.PromptPolicy{
 		hardwarekey.PromptPolicyNone,
@@ -93,7 +93,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.True(t, priv.IsHardware())
 
 					// Test bogus sign (warmup).
-					require.Nil(t, priv.WarmupHardwareKey(ctx))
+					require.NoError(t, priv.WarmupHardwareKey(ctx))
 
 					// Another call to NewHardwarePrivateKey should retrieve the previously generated key.
 					retrievePriv, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
