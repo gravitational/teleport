@@ -62,8 +62,8 @@ export default function TopBar(props: Props) {
       </Text>
 
       <Flex px={3}>
-        <Flex alignItems="center" gap={3}>
-          {latency && <LatencyDiagnostic latency={latency} />}
+        <Flex alignItems="center">
+          {latency && <LatencyDiagnostic latency={latency}/>}
           <HoverTooltip
             tipContent={directorySharingToolTip(
               canShareDirectory,

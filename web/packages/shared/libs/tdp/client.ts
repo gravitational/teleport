@@ -47,7 +47,7 @@ import Codec, {
   type SharedDirectoryReadResponse,
   type SharedDirectoryTruncateResponse,
   type SharedDirectoryWriteResponse,
-  type SyncKeys,
+  type SyncKeys, LatencyStats,
 } from './codec';
 import {
   PathDoesNotExistError,
@@ -254,6 +254,11 @@ export class TdpClient extends EventEmitter {
   onScreenSpec = (listener: (spec: ClientScreenSpec) => void) => {
     this.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
     return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
+  };
+
+  onLatencyStats = (listener: (stats: LatencyStats) => void) => {
+    this.on(TdpClientEvent.LATENCY_STATS, listener);
+    return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
   };
 
   private async initWasm() {

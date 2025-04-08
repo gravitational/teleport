@@ -48,6 +48,7 @@ import useDesktopSession, {
   isSharingClipboard,
   isSharingDirectory,
 } from './useDesktopSession';
+import {Latency} from "shared/components/LatencyDiagnostic";
 
 export interface DesktopSessionProps {
   client: TdpClient;
@@ -204,6 +205,17 @@ export function DesktopSession({
   useListener(client.onReset, canvasRendererRef.current?.clear);
   useListener(client.onScreenSpec, canvasRendererRef.current?.setResolution);
 
+  const [latencyStats, setLatencyStats] = useState<Latency | undefined>();
+  useListener(
+    client.onLatencyStats,
+    useCallback(stats => {
+      setLatencyStats({
+        client: stats.browserLatency,
+        server: stats.desktopLatency,
+      });
+    }, [])
+  );
+
   const shouldConnect =
     aclAttempt.status === 'success' &&
     anotherDesktopActiveAttempt.status === 'success' &&
@@ -339,6 +351,7 @@ export function DesktopSession({
         onCtrlAltDel={handleCtrlAltDel}
         alerts={alerts}
         onRemoveAlert={onRemoveAlert}
+        latency={latencyStats}
       />
 
       {screenState.state === 'another-session-active' && (
