@@ -55,10 +55,13 @@ export function DocumentVnetInfo(props: {
   const proxyHostname = routing.parseClusterName(rootClusterUri);
 
   const startVnet = async () => {
-    await launchVnetWithoutFirstTimeCheck(doc.targetAddress);
+    await launchVnetWithoutFirstTimeCheck({
+      addrToCopy: doc.app?.targetAddress,
+      isMultiPort: doc.app?.isMultiPort,
+    });
     // Remove targetAddress so that subsequent launches of VNet from this specific doc won't copy
     // the stale app address to the clipboard.
-    documentsService.update(doc.uri, { targetAddress: undefined });
+    documentsService.update(doc.uri, { app: undefined });
   };
 
   return (

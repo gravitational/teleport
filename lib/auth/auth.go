@@ -80,11 +80,13 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -325,6 +327,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Plugins == nil {
+		cfg.Plugins = local.NewPluginsService(cfg.Backend)
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -420,6 +425,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
+		}
+	}
+	if cfg.HealthCheckConfig == nil {
+		cfg.HealthCheckConfig, err = local.NewHealthCheckConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
 		}
 	}
 
@@ -519,12 +530,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:                  cfg.StaticHostUsers,
 		ProvisioningStates:              cfg.ProvisioningStates,
 		IdentityCenter:                  cfg.IdentityCenter,
+		Plugins:                         cfg.Plugins,
 		PluginStaticCredentials:         cfg.PluginStaticCredentials,
 		GitServers:                      cfg.GitServers,
 		WorkloadIdentities:              cfg.WorkloadIdentity,
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		HealthCheckConfig:               cfg.HealthCheckConfig,
 	}
 
 	as := Server{
@@ -752,12 +765,14 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.Plugins
 	services.PluginStaticCredentials
 	services.GitServers
 	services.WorkloadIdentities
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
 	services.WorkloadIdentityX509Overrides
+	services.HealthCheckConfig
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1361,6 +1376,7 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	agentWindow, _ := cmc.GetAgentUpgradeWindow()
 
 	agentWindow.UTCStartHour = uint32(startHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
@@ -2216,9 +2232,9 @@ type certRequest struct {
 	// TLS certificate.
 	tlsPublicKey []byte
 	// sshPublicKeyAttestationStatement is an attestation statement associated with sshPublicKey.
-	sshPublicKeyAttestationStatement *keys.AttestationStatement
+	sshPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 	// tlsPublicKeyAttestationStatement is an attestation statement associated with tlsPublicKey.
-	tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	tlsPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 
 	// user is a user to generate certificate for
 	user services.UserState
@@ -2461,8 +2477,8 @@ type GenerateUserTestCertsRequest struct {
 	RouteToCluster          string
 	PinnedIP                string
 	MFAVerified             string
-	SSHAttestationStatement *keys.AttestationStatement
-	TLSAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
 }
@@ -3484,7 +3500,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 type attestHardwareKeyParams struct {
 	requiredKeyPolicy    keys.PrivateKeyPolicy
 	pubKey               crypto.PublicKey
-	attestationStatement *keys.AttestationStatement
+	attestationStatement *hardwarekey.AttestationStatement
 	sessionTTL           time.Duration
 	readOnlyAuthPref     readonly.AuthPreference
 	userName             string
@@ -5204,6 +5220,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
 
+	if err := a.checkResourcesRequestable(ctx, requestedResourceIDs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
@@ -5378,6 +5398,24 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 	}
 
 	return resources, nil
+}
+
+func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []types.ResourceID) error {
+	if len(resourceIDs) == 0 {
+		return nil
+	}
+
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
+		Plugins:              a.Plugins,
+		UnifiedResourceCache: a.UnifiedResourceCache,
+	})
+	if errors.Is(err, okta.OktaResourceNotRequestableError) {
+		return trace.Wrap(err)
+	} else if err != nil {
+		return trace.Wrap(err, "checking if Okta-originated resources are requestable")
+	}
+
+	return nil
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log

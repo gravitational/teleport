@@ -76,6 +76,8 @@ export function RoleEditorAdapter({
 
   return (
     <Flex flex="1">
+      {/* This component's width influences how we lay out the permission
+          checkboxes in AdminRules. */}
       <Flex
         flexDirection="column"
         borderLeft={1}
