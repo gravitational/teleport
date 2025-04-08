@@ -20,6 +20,8 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -30,6 +32,20 @@ import (
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// GenerateCodeVerifier generates a PKCE code verifier as a URL-safe base64
+// encoded string without padding. It uses 32 random bytes as input.
+// Returns the encoded verifier string or an error if random byte generation fails.
+func GenerateCodeVerifier() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	// Base64 URL encode without padding.
+	verifier := base64.RawURLEncoding.EncodeToString(b)
+	return verifier, nil
+}
 
 // ssoRedirectorConfig returns a standard configured sso redirector for login.
 // A display name for the SSO connector can optionally be provided for minor UI improvements.
@@ -66,6 +82,11 @@ func (tc *TeleportClient) ssoLoginInitFn(keyRing *KeyRing, connectorID, connecto
 			return "", trace.Wrap(err)
 		}
 
+		codeVerifier, err := GenerateCodeVerifier()
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
 		// initiate SSO login through the Proxy.
 		req := SSOLoginConsoleReq{
 			RedirectURL: clientCallbackURL,
@@ -80,6 +101,7 @@ func (tc *TeleportClient) ssoLoginInitFn(keyRing *KeyRing, connectorID, connecto
 			Compatibility:     sshLogin.Compatibility,
 			RouteToCluster:    sshLogin.RouteToCluster,
 			KubernetesCluster: sshLogin.KubernetesCluster,
+			PKCEVerifier:      codeVerifier,
 		}
 
 		clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)

@@ -1303,7 +1303,6 @@ func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	default:
 		return trace.Wrap(a.checkAction(apidefaults.Namespace, kind, types.VerbList, types.VerbRead))
 	}
-
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.

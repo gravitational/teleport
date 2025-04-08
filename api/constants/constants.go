@@ -186,6 +186,13 @@ var SystemConnectors = []string{
 	HeadlessConnector,
 }
 
+type PKCEMode string
+
+const (
+	PKCEMode_Enabled  = PKCEMode("enabled")
+	PKCEMode_Disabled = PKCEMode("disabled")
+)
+
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
 

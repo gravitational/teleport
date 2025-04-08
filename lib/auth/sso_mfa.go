@@ -18,7 +18,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/base64"
 
 	"github.com/gravitational/trace"
 
@@ -32,6 +34,20 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// GenerateCodeVerifier generates a PKCE code verifier as a URL-safe base64
+// encoded string without padding. It uses 32 random bytes as input.
+// Returns the encoded verifier string or an error if random byte generation fails.
+func GenerateCodeVerifier() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	// Base64 URL encode without padding.
+	verifier := base64.RawURLEncoding.EncodeToString(b)
+	return verifier, nil
+}
 
 // beginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
 func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL, proxyAddress string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
@@ -53,11 +69,17 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		chal.RequestId = resp.ID
 		chal.RedirectUrl = resp.RedirectURL
 	case constants.OIDC:
+		codeVerifier, err := GenerateCodeVerifier()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		resp, err := a.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
 			ConnectorID:       sso.ConnectorId,
 			Type:              sso.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
 			ProxyAddress:      proxyAddress,
+			PkceVerifier:      codeVerifier,
 			CheckUser:         true,
 		})
 		if err != nil {
