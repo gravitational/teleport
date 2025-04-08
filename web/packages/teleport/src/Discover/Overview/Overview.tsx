@@ -19,17 +19,17 @@
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark } from 'design';
-
 import {
   InfoExternalTextLink,
+  InfoGuideConfig,
   InfoParagraph,
   InfoTitle,
   InfoUl,
   ReferenceLink,
   ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import cfg from 'teleport/config';
-import { InfoGuideConfig } from 'teleport/Main/InfoGuideContext';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
 import { SelectResourceSpec } from '../SelectResource/resources';

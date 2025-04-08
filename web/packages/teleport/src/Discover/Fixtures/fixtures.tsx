@@ -20,6 +20,8 @@ import { LocationDescriptor } from 'history';
 import React, { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { DiscoverBox, ResourceKind } from 'teleport/Discover/Shared';
@@ -30,7 +32,6 @@ import {
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Acl, AuthType } from 'teleport/services/user';
 import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
