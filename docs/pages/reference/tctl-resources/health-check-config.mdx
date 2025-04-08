@@ -1,0 +1,70 @@
+---
+title: Health Check Config Reference
+description: Provides a reference of fields within the Health Check Config resource, which you can manage with tctl.
+sidebar_title: Health Check Config
+---
+{/* Automatically generated from: gen/proto/go/teleport/healthcheckconfig/v1/health_check_config.pb.go */}
+{/* DO NOT EDIT */}
+
+The configuration for network health checks from an agent to its proxied resource.
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # See description
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|version|The health check config version.|string|
+|sub_kind|An optional resource sub kind.|string|
+|spec|The health check config specification.|[Health Check Config Spec](#health-check-config-spec)|
+|metadata|The health check config resource's metadata.||
+|kind|The resource kind. Must be "health_check_config".|string|
+
+## Health Check Config Spec
+
+The health check spec.
+
+
+Example:
+
+```yaml
+match: # [...]
+timeout: # See description
+interval: # See description
+healthy_threshold: 1
+unhealthy_threshold: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|unhealthy_threshold|The number of consecutive failing health checks after which a target's health status becomes "unhealthy".|number|
+|timeout|The health check connection establishment timeout. An attempt that times out is a failed attempt.||
+|match|Used to select resources that these settings apply to.|[Matcher](#matcher)|
+|interval|The time between each health check.||
+|healthy_threshold|The number of consecutive passing health checks after which a target's health status becomes "healthy".|number|
+
+## Matcher
+
+A resource matcher for health check config.
+
+
+Example:
+
+```yaml
+db_labels: 
+  - # See description
+  - # See description
+  - # See description
+db_labels_expression: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|db_labels_expression|DBLabelsExpression is a label predicate expression to match databases. An empty value is ignored. The match result is logically ANDed with DBLabels, if both are non-empty.|string|
+|db_labels|DBLabels matches database labels. An empty value is ignored. The match result is logically ANDed with DBLabelsExpression, if both are non-empty.|[]|
+
