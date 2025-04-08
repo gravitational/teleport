@@ -26,6 +26,17 @@ import { DbProtocol } from 'shared/services/databases';
 import { ResourceLabel } from 'teleport/services/agents';
 import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
+/**
+ * status == '' is a result of an older agent that does not
+ * support the health check feature.
+ */
+export type ResourceStatus = 'healthy' | 'unhealthy' | 'unknown' | '';
+
+export type ResourceTargetHealth = {
+  status: ResourceStatus;
+  reason: string;
+};
+
 export type UnifiedResourceApp = {
   kind: 'app';
   id: string;

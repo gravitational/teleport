@@ -279,6 +279,10 @@ const cfg = {
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
+    databaseServer: {
+      list: `/v1/webapi/sites/:clusterId/databaseservers?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
+
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
@@ -938,6 +942,13 @@ const cfg = {
 
   getDatabasesUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databasesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.databaseServer.list, {
       clusterId,
       ...params,
     });
