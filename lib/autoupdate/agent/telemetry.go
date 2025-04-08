@@ -19,6 +19,8 @@
 package agent
 
 import (
+	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/client/proto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +28,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
-const installDirEnvVar = "TELEPORT_UPDATE_INSTALL_DIR"
+const (
+	installDirEnvVar       = "TELEPORT_UPDATE_INSTALL_DIR"
+	updateConfigPathEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
+)
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
 // Note that true may be returned even if auto-updates is disabled or the version is pinned.
@@ -102,4 +107,39 @@ func hasParentDir(dir, parent string) (bool, error) {
 		absParent += sep
 	}
 	return strings.HasPrefix(absDir, absParent), nil
+}
+
+type UpdaterInfo struct {
+	Group  string
+	UUID   uuid.UUID
+	Status proto.UpdaterStatus
+}
+
+func HelloUpdaterInfo() (*proto.UpdaterV2Info, error) {
+	info := &proto.UpdaterV2Info{}
+
+	configPath := os.Getenv(updateConfigPathEnvVar)
+	if configPath == "" {
+		return nil, trace.NotFound("config file %q not found", configPath)
+	}
+
+	conf, err := readConfig(configPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "reading config file %q", configPath)
+	}
+
+	info.UpdateGroup = conf.Spec.Group
+
+	// TODO(hugoShaka or sclevine): After the new UUId logic, add the UUID export here
+
+	switch {
+	case conf.Spec.Enabled == false:
+		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_DISABLED
+	case conf.Spec.Pinned == true:
+		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_PINNED
+	default:
+		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_OK
+	}
+
+	return info, nil
 }
