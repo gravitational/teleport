@@ -66,7 +66,7 @@ func WithHardwareKeyService(hwKeyService hardwarekey.Service) StoreConfigOpt {
 	}
 }
 
-// NewMemClientStore initializes an FS backed client store with the given base dir.
+// NewFSClientStore initializes an FS backed client store with the given base dir.
 //
 // [WithHardwareKeyService] should be provided in order to successfully create and
 // parse hardware private keys. It is not needed for tests and select commands
