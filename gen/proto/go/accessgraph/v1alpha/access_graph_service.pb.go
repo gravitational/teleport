@@ -2552,6 +2552,7 @@ type AWSCloudTrailConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
 	Regions       []string               `protobuf:"bytes,2,rep,name=regions,proto3" json:"regions,omitempty"`
+	EndDate       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"` // End date for exporting audit logs.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2596,6 +2597,13 @@ func (x *AWSCloudTrailConfig) GetStartDate() *timestamppb.Timestamp {
 func (x *AWSCloudTrailConfig) GetRegions() []string {
 	if x != nil {
 		return x.Regions
+	}
+	return nil
+}
+
+func (x *AWSCloudTrailConfig) GetEndDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndDate
 	}
 	return nil
 }
@@ -2748,6 +2756,7 @@ type AWSCloudTrailResumeState struct {
 	state         protoimpl.MessageState                     `protogen:"open.v1"`
 	RegionsState  map[string]*AWSCloudTrailResumeRegionState `protobuf:"bytes,1,rep,name=regions_state,json=regionsState,proto3" json:"regions_state,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	StartDate     *timestamppb.Timestamp                     `protobuf:"bytes,2,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
+	EndDate       *timestamppb.Timestamp                     `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"`       // End date for exporting audit logs.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2792,6 +2801,13 @@ func (x *AWSCloudTrailResumeState) GetRegionsState() map[string]*AWSCloudTrailRe
 func (x *AWSCloudTrailResumeState) GetStartDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartDate
+	}
+	return nil
+}
+
+func (x *AWSCloudTrailResumeState) GetEndDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndDate
 	}
 	return nil
 }
@@ -3169,22 +3185,24 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x1aAWSCloudTrailStreamRequest\x12B\n" +
 	"\x06config\x18\x01 \x01(\v2(.accessgraph.v1alpha.AWSCloudTrailConfigH\x00R\x06config\x12B\n" +
 	"\x06events\x18\x02 \x01(\v2(.accessgraph.v1alpha.AWSCloudTrailEventsH\x00R\x06eventsB\b\n" +
-	"\x06action\"j\n" +
+	"\x06action\"\xa1\x01\n" +
 	"\x13AWSCloudTrailConfig\x129\n" +
 	"\n" +
 	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12\x18\n" +
-	"\aregions\x18\x02 \x03(\tR\aregions\"\xa8\x01\n" +
+	"\aregions\x18\x02 \x03(\tR\aregions\x125\n" +
+	"\bend_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendDate\"\xa8\x01\n" +
 	"\x13AWSCloudTrailEvents\x12?\n" +
 	"\x06events\x18\x01 \x03(\v2'.accessgraph.v1alpha.AWSCloudTrailEventR\x06events\x12P\n" +
 	"\fresume_state\x18\x02 \x01(\v2-.accessgraph.v1alpha.AWSCloudTrailResumeStateR\vresumeState\"\xd4\x01\n" +
 	"\x1bAWSCloudTrailStreamResponse\x12X\n" +
 	"\x12cloud_trail_config\x18\x01 \x01(\v2(.accessgraph.v1alpha.AWSCloudTrailConfigH\x00R\x10cloudTrailConfig\x12R\n" +
 	"\fresume_state\x18\x02 \x01(\v2-.accessgraph.v1alpha.AWSCloudTrailResumeStateH\x00R\vresumeStateB\a\n" +
-	"\x05state\"\xb1\x02\n" +
+	"\x05state\"\xe8\x02\n" +
 	"\x18AWSCloudTrailResumeState\x12d\n" +
 	"\rregions_state\x18\x01 \x03(\v2?.accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntryR\fregionsState\x129\n" +
 	"\n" +
-	"start_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x1at\n" +
+	"start_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x125\n" +
+	"\bend_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendDate\x1at\n" +
 	"\x11RegionsStateEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12I\n" +
 	"\x05value\x18\x02 \x01(\v23.accessgraph.v1alpha.AWSCloudTrailResumeRegionStateR\x05value:\x028\x01\"\xbc\x01\n" +
@@ -3354,48 +3372,50 @@ var file_accessgraph_v1alpha_access_graph_service_proto_depIdxs = []int32{
 	37, // 46: accessgraph.v1alpha.AWSCloudTrailStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
 	38, // 47: accessgraph.v1alpha.AWSCloudTrailStreamRequest.events:type_name -> accessgraph.v1alpha.AWSCloudTrailEvents
 	53, // 48: accessgraph.v1alpha.AWSCloudTrailConfig.start_date:type_name -> google.protobuf.Timestamp
-	42, // 49: accessgraph.v1alpha.AWSCloudTrailEvents.events:type_name -> accessgraph.v1alpha.AWSCloudTrailEvent
-	40, // 50: accessgraph.v1alpha.AWSCloudTrailEvents.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
-	37, // 51: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
-	40, // 52: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
-	45, // 53: accessgraph.v1alpha.AWSCloudTrailResumeState.regions_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry
-	53, // 54: accessgraph.v1alpha.AWSCloudTrailResumeState.start_date:type_name -> google.protobuf.Timestamp
-	53, // 55: accessgraph.v1alpha.AWSCloudTrailResumeRegionState.last_event_time:type_name -> google.protobuf.Timestamp
-	63, // 56: accessgraph.v1alpha.AWSCloudTrailEvent.cloud_trail_event:type_name -> google.protobuf.Struct
-	53, // 57: accessgraph.v1alpha.AWSCloudTrailEvent.end_time:type_name -> google.protobuf.Timestamp
-	43, // 58: accessgraph.v1alpha.AWSCloudTrailEvent.resources:type_name -> accessgraph.v1alpha.AWSCloudTrailEventResource
-	41, // 59: accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry.value:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeRegionState
-	0,  // 60: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
-	2,  // 61: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
-	4,  // 62: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
-	5,  // 63: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
-	10, // 64: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
-	36, // 65: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
-	19, // 66: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
-	21, // 67: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
-	23, // 68: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
-	26, // 69: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
-	28, // 70: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
-	30, // 71: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
-	33, // 72: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
-	1,  // 73: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
-	3,  // 74: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
-	7,  // 75: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
-	8,  // 76: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
-	16, // 77: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
-	39, // 78: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
-	20, // 79: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
-	22, // 80: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
-	25, // 81: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
-	27, // 82: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
-	29, // 83: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
-	32, // 84: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
-	35, // 85: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
-	73, // [73:86] is the sub-list for method output_type
-	60, // [60:73] is the sub-list for method input_type
-	60, // [60:60] is the sub-list for extension type_name
-	60, // [60:60] is the sub-list for extension extendee
-	0,  // [0:60] is the sub-list for field type_name
+	53, // 49: accessgraph.v1alpha.AWSCloudTrailConfig.end_date:type_name -> google.protobuf.Timestamp
+	42, // 50: accessgraph.v1alpha.AWSCloudTrailEvents.events:type_name -> accessgraph.v1alpha.AWSCloudTrailEvent
+	40, // 51: accessgraph.v1alpha.AWSCloudTrailEvents.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
+	37, // 52: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
+	40, // 53: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
+	45, // 54: accessgraph.v1alpha.AWSCloudTrailResumeState.regions_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry
+	53, // 55: accessgraph.v1alpha.AWSCloudTrailResumeState.start_date:type_name -> google.protobuf.Timestamp
+	53, // 56: accessgraph.v1alpha.AWSCloudTrailResumeState.end_date:type_name -> google.protobuf.Timestamp
+	53, // 57: accessgraph.v1alpha.AWSCloudTrailResumeRegionState.last_event_time:type_name -> google.protobuf.Timestamp
+	63, // 58: accessgraph.v1alpha.AWSCloudTrailEvent.cloud_trail_event:type_name -> google.protobuf.Struct
+	53, // 59: accessgraph.v1alpha.AWSCloudTrailEvent.end_time:type_name -> google.protobuf.Timestamp
+	43, // 60: accessgraph.v1alpha.AWSCloudTrailEvent.resources:type_name -> accessgraph.v1alpha.AWSCloudTrailEventResource
+	41, // 61: accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry.value:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeRegionState
+	0,  // 62: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
+	2,  // 63: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
+	4,  // 64: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
+	5,  // 65: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
+	10, // 66: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
+	36, // 67: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
+	19, // 68: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
+	21, // 69: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
+	23, // 70: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
+	26, // 71: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
+	28, // 72: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
+	30, // 73: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
+	33, // 74: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
+	1,  // 75: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
+	3,  // 76: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
+	7,  // 77: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
+	8,  // 78: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
+	16, // 79: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
+	39, // 80: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
+	20, // 81: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
+	22, // 82: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
+	25, // 83: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
+	27, // 84: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
+	29, // 85: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
+	32, // 86: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
+	35, // 87: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
+	75, // [75:88] is the sub-list for method output_type
+	62, // [62:75] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_access_graph_service_proto_init() }

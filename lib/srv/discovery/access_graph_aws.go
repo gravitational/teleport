@@ -518,7 +518,9 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 					return
 				}
 				// reset the currentTAGResources to force a full sync
-				if err := s.startCloudTrailWatcher(ctx, time.Now().Add(-20*24*time.Hour), matchers[0]); errors.Is(err, errTAGFeatureNotEnabled) {
+				startTime := time.Now()
+				endTime := startTime.Add(-20 * 24 * time.Hour)
+				if err := s.startCloudtrailPoller(ctx, startTime, endTime, matchers[0]); errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
@@ -575,7 +577,7 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 	return fetchers, trace.NewAggregate(errs...)
 }
 
-func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time, matcher *types.AccessGraphAWSSync) error {
+func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time, endDate time.Time, matcher *types.AccessGraphAWSSync) error {
 	accountID, err := s.getAccountId(ctx, matcher)
 	if err != nil {
 		return trace.Wrap(err)
@@ -663,6 +665,7 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
 				Config: &accessgraphv1alpha.AWSCloudTrailConfig{
 					StartDate: timestamppb.New(startDate),
+					EndDate:   timestamppb.New(endDate),
 					Regions:   matcher.Regions,
 				},
 			},
@@ -727,6 +730,7 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 	if err = s.pollCloudTrail(ctx,
 		accountID,
 		resumeState.GetResumeState().GetStartDate().AsTime(),
+		resumeState.GetResumeState().GetEndDate().AsTime(),
 		state,
 		&wg,
 		eventsC,
@@ -761,8 +765,11 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
 					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Events{
 						Events: &accessgraphv1alpha.AWSCloudTrailEvents{
-							Events:      events,
-							ResumeState: stateToProtoState(resumeState.GetResumeState().GetStartDate().AsTime(), state),
+							Events: events,
+							ResumeState: stateToProtoState(
+								resumeState.GetResumeState().GetStartDate().AsTime(),
+								resumeState.GetResumeState().GetEndDate().AsTime(),
+								state),
 						},
 					},
 				},
@@ -789,6 +796,7 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 func (s *Server) pollCloudTrail(ctx context.Context,
 	accountID string,
 	startDate time.Time,
+	endDate time.Time,
 	state map[string]cursor,
 	wg *sync.WaitGroup,
 	eventsC chan<- eventChannelPayload,
@@ -822,7 +830,7 @@ func (s *Server) pollCloudTrail(ctx context.Context,
 			timer := s.clock.NewTimer(time.Second)
 			// Poll the CloudTrail for events in the region.
 			for {
-				hasNextPage, err := s.pollCloudTrailForRegion(ctx, accountID, cloudTrailClient, startDate, lastCursor, region, eventsC)
+				hasNextPage, err := s.pollCloudTrailForRegion(ctx, accountID, cloudTrailClient, startDate, endDate, lastCursor, region, eventsC)
 				if err != nil {
 					s.Log.ErrorContext(ctx, "Error polling cloud trail", "error", err)
 				}
@@ -858,6 +866,7 @@ func (s *Server) pollCloudTrailForRegion(ctx context.Context,
 	accountID string,
 	client *cloudtrail.Client,
 	startTime time.Time,
+	endTime time.Time,
 	lastCursor cursor,
 	region string,
 	eventsC chan<- eventChannelPayload,
@@ -869,6 +878,7 @@ func (s *Server) pollCloudTrailForRegion(ctx context.Context,
 
 	input := &cloudtrail.LookupEventsInput{
 		StartTime:  aws.Time(startTime),
+		EndTime:    aws.Time(endTime),
 		NextToken:  nextToken,
 		MaxResults: aws.Int32(50), /* max results per page */
 	}
@@ -896,9 +906,6 @@ func (s *Server) pollCloudTrailForRegion(ctx context.Context,
 		}
 
 		for _, event := range resp.Events {
-			//if event.EventTime.Before(lastCursor.lastEventTime) {
-			//		continue
-			//	}
 			// Convert the event to a protobuf struct.
 			events = append(events, convertCloudTrailEventToAccessGraphResources(event, accountID, region))
 			lastCursor.lastEventTime = aws.ToTime(event.EventTime)
@@ -995,10 +1002,11 @@ func convertCloudTrailEventToAccessGraphResources(
 	}
 }
 
-func stateToProtoState(startDate time.Time, state map[string]cursor) *accessgraphv1alpha.AWSCloudTrailResumeState {
+func stateToProtoState(startDate time.Time, endDate time.Time, state map[string]cursor) *accessgraphv1alpha.AWSCloudTrailResumeState {
 	resumeState := &accessgraphv1alpha.AWSCloudTrailResumeState{
 		RegionsState: make(map[string]*accessgraphv1alpha.AWSCloudTrailResumeRegionState),
 		StartDate:    timestamppb.New(startDate),
+		EndDate:      timestamppb.New(endDate),
 	}
 	for region, regionState := range state {
 		var lastEventId *string
