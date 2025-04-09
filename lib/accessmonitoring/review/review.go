@@ -294,6 +294,7 @@ func newAccessReview(userName, ruleName, state string) (types.AccessReview, erro
 	}, nil
 }
 
+// TODO(bernardjkim): DELETE in 19.0.0 replace with trace.IsAlreadyExists.
 func isAlreadyReviewedError(err error) bool {
 	if err == nil {
 		return false
