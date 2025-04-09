@@ -3175,7 +3175,10 @@ func (c *Client) GetAutoUpdateAgentReport(ctx context.Context, name string) (*au
 // ListAutoUpdateAgentReports returns an AutoUpdateAgentReports page.
 func (c *Client) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1pb.AutoUpdateAgentReport, string, error) {
 	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.ListAutoUpdateAgentReports(ctx, &autoupdatev1pb.ListAutoUpdateAgentReportsRequest{})
+	resp, err := client.ListAutoUpdateAgentReports(ctx, &autoupdatev1pb.ListAutoUpdateAgentReportsRequest{
+		PageSize:  int32(pageSize),
+		NextToken: pageToken,
+	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
