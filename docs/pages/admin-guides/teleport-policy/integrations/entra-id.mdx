@@ -220,13 +220,14 @@ For clusters running in multiplex mode, this address will be the same as your pr
 If your Teleport license does not include [Identity Security](../teleport-policy.mdx), include the `--no-access-graph` flag.
 
 ```code
-# Disable Graph Explorer integration if your license supports Identity Security with --no-access-graph flag.
 $ tctl plugins install entraid \
     --default-owner=<Var name="Access List Owner"/> \
     --default-owner=someOtherOwner@teleport.sh  \
     --use-system-credentials \
     --auth-server <Var name="example.teleport.sh:443" />
 ```
+
+To disable the Graph Explorer integration, add the `--no-access-graph` flag.
 
 Follow the detailed instructions provided by the `tctl plugins install entraid` guide to install and configure the Entra ID plugin.
 This guide will walk you through each step required to enable Entra ID integration within your Teleport environment.
