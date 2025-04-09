@@ -307,18 +307,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		TouchPolicy: touchPolicy,
 	}
 
-	pub, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	slotCert, err := y.conn.attest(slot)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	attCert, err := y.conn.attestationCertificate()
-	if err != nil {
+	if _, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -329,20 +318,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		return nil, trace.Wrap(err)
 	}
 
-	return &hardwarekey.PrivateKeyRef{
-		SerialNumber: y.serialNumber,
-		SlotKey:      hardwarekey.PIVSlotKey(slot.Key),
-		PublicKey:    pub,
-		Policy:       policy,
-		AttestationStatement: &hardwarekey.AttestationStatement{
-			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
-				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
-					SlotCert:        slotCert.Raw,
-					AttestationCert: attCert.Raw,
-				},
-			},
-		},
-	}, nil
+	return y.getKeyRef(slot)
 }
 
 // SetMetadataCertificate creates a self signed certificate and stores it in the YubiKey's
@@ -384,6 +360,31 @@ func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert 
 	}
 
 	return slotCert, attCert, att, nil
+}
+
+func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
+	slotCert, attCert, att, err := y.attestKey(slot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &hardwarekey.PrivateKeyRef{
+		SerialNumber: y.serialNumber,
+		SlotKey:      hardwarekey.PIVSlotKey(slot.Key),
+		PublicKey:    slotCert.PublicKey,
+		Policy: hardwarekey.PromptPolicy{
+			TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
+			PINRequired:   att.PINPolicy != piv.PINPolicyNever,
+		},
+		AttestationStatement: &hardwarekey.AttestationStatement{
+			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
+				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
+					SlotCert:        slotCert.Raw,
+					AttestationCert: attCert.Raw,
+				},
+			},
+		},
+	}, nil
 }
 
 // SetPIN sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.

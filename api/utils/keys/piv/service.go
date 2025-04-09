@@ -32,7 +32,6 @@ import (
 	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
 
-	attestationv1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
@@ -137,7 +136,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	// Check for an existing key in the slot that satisfies the required
 	// prompt policy, or generate a new one if needed.
-	slotCert, attCert, att, err := y.attestKey(pivSlot)
+	keyRef, err := y.getKeyRef(pivSlot)
 	switch {
 	case errors.Is(err, piv.ErrNotFound):
 		return generatePrivateKey()
@@ -145,14 +144,14 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 	case err != nil:
 		return nil, trace.Wrap(err)
 
-	case config.Policy.TouchRequired && att.TouchPolicy == piv.TouchPolicyNever:
+	case config.Policy.TouchRequired && !keyRef.Policy.TouchRequired:
 		msg := fmt.Sprintf("private key in YubiKey PIV slot %q does not require touch.", pivSlot)
 		if err := s.promptOverwriteSlot(ctx, msg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return generatePrivateKey()
 
-	case config.Policy.PINRequired && att.PINPolicy == piv.PINPolicyNever:
+	case config.Policy.PINRequired && !keyRef.Policy.PINRequired:
 		msg := fmt.Sprintf("private key in YubiKey PIV slot %q does not require PIN", pivSlot)
 		if err := s.promptOverwriteSlot(ctx, msg); err != nil {
 			return nil, trace.Wrap(err)
@@ -160,23 +159,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		return generatePrivateKey()
 	}
 
-	return hardwarekey.NewSigner(s, &hardwarekey.PrivateKeyRef{
-		SerialNumber: y.serialNumber,
-		SlotKey:      slotKey,
-		PublicKey:    slotCert.PublicKey,
-		Policy: hardwarekey.PromptPolicy{
-			TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
-			PINRequired:   att.PINPolicy != piv.PINPolicyNever,
-		},
-		AttestationStatement: &hardwarekey.AttestationStatement{
-			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
-				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
-					SlotCert:        slotCert.Raw,
-					AttestationCert: attCert.Raw,
-				},
-			},
-		},
-	}), nil
+	return hardwarekey.NewSigner(s, keyRef), nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
@@ -229,27 +212,9 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 		return nil, trace.Wrap(err)
 	}
 
-	slotCert, attCert, att, err := y.attestKey(pivSlot)
+	ref, err := y.getKeyRef(pivSlot)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	ref := &hardwarekey.PrivateKeyRef{
-		SerialNumber: serialNumber,
-		SlotKey:      slotKey,
-		PublicKey:    slotCert.PublicKey,
-		Policy: hardwarekey.PromptPolicy{
-			TouchRequired: att.TouchPolicy != piv.TouchPolicyNever,
-			PINRequired:   att.PINPolicy != piv.PINPolicyNever,
-		},
-		AttestationStatement: &hardwarekey.AttestationStatement{
-			AttestationStatement: &attestationv1.AttestationStatement_YubikeyAttestationStatement{
-				YubikeyAttestationStatement: &attestationv1.YubiKeyAttestationStatement{
-					SlotCert:        slotCert.Raw,
-					AttestationCert: attCert.Raw,
-				},
-			},
-		},
 	}
 
 	keyRefs[baseRef] = ref
