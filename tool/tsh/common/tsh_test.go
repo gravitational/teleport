@@ -113,6 +113,8 @@ const (
 
 var ports utils.PortList
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
 	handleReexec()
 
@@ -130,7 +132,22 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
+
 func handleReexec() {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	var runOpts []CliOption
 
 	// Allows mock headless auth to be implemented when the test binary
