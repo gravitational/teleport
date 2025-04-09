@@ -167,6 +167,8 @@ The Enroll New Resource/ AWS CLI/Web Console tile will lead the user to creating
 
 Other AWS related tiles (eg EC2 Auto Enrollment with SSM) will only be accessible using AWS OIDC integrations.
 
+![enroll new resource screen](./assets/0204-enroll-new-resource.png)
+
 In the future we might add support for AWS Roles Anywhere for the remaining AWS related flows.
 
 After clicking on adding a new AWS CLI/Web Console access, users can create a new AWS Roles Anywhere Integration.
@@ -178,6 +180,8 @@ Setting up this integration consists on configuring AWS to trust Teleport.
 Administrator goes into "Enroll new resource" page and selects the "AWS CLI/Web Console Access" tile.
 
 A [summary of what IAM Roles Anywhere is](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/introduction.html#first-time-user) and how Teleport uses it is displayed.
+
+![setup step 1](./assets/0204-setup-step1.png)
 
 ```
  Access flow                                                            
@@ -291,6 +295,7 @@ spec:
           - arn:aws:iam::123456789012:role/MyRoleA
           - arn:aws:iam::123456789012:role/MyRoleB
           profile_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/ac1f655b-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+          accept_role_session_name: true
       cloud: AWS
       integration: raa
       uri: https://console.aws.amazon.com
@@ -340,6 +345,8 @@ After accepting the names, they are asked to run a set up script in CloudShell.
 > bash $(curl https://tenant.teleport.sh/scripts/integration-setup-awsra.sh)
 ```
 
+![setup step 2 and 3](./assets/0204-setup-step2-3.png)
+
 Users must now copy the resources ARN into teleport and test the connection (ie is teleport able to list profiles?).
 
 After this point, Teleport is able to sync IAM Roles Anywhere Profiles as Teleport AWS Application Access resources.
@@ -347,6 +354,8 @@ After this point, Teleport is able to sync IAM Roles Anywhere Profiles as Telepo
 #### Configure Access screen
 
 In this screen users are shown a list of Roles Anywhere Profiles, with a list of name, tags and IAM Roles.
+
+![configure access](./assets/0204-configure-access.png)
 
 IAM Roles are clickable and will open the AWS Web Console assuming that role.
 This gives the user the ability to test.
@@ -640,7 +649,7 @@ This command does two things:
 - fetches and stores the credentials into the application certificate stored under `~/.tsh/`
 - modifies the `~/.aws/config` file to create/update the AWS configuration profile
 
-The  [`~/.aws/config`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)` contains instructions on how to access AWS credentials locally, and is used by every aws cli and other aws-sdk-based tools.
+The  [`~/.aws/config`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) contains instructions on how to access AWS credentials locally, and is used by every aws cli and other aws-sdk-based tools.
 
 If `AWS_CONFIG_FILE` is set, that's the file which `tsh` will modify.
 
@@ -732,6 +741,11 @@ message AppAWSRolesAnywhere {
 
   // The list of allowed Role ARNs associated with the Profile.
   repeated string AllowedRolesARN = 2;
+
+  // Whether this Roles Anywhere Profile accepts a custom role session name.
+  // When not supported, the AWS Session Name will be the X.509 certificate's serial number.
+  // When supported, the AWS Session Name will be the identity's username.
+  bool AcceptsRoleSessionName = 3;
 }
 ```
 
