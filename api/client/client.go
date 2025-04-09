@@ -2177,10 +2177,24 @@ func (c *Client) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*ty
 
 // GetSAMLConnector returns a SAML connector by name.
 func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+	return c.GetSAMLConnectorWithValidationOptions(ctx, name, withSecrets)
+}
+
+// GetSAMLConnectorWithValidationOptions returns a SAML connector by name.
+func (c *Client) GetSAMLConnectorWithValidationOptions(ctx context.Context, name string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	if name == "" {
 		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
 	}
-	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
+	req := &types.ResourceWithSecretsRequest{
+		Name:                       name,
+		WithSecrets:                withSecrets,
+		SAMLValidationNoFollowURLs: options.NoFollowURLs,
+	}
 	resp, err := c.grpc.GetSAMLConnector(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2190,7 +2204,20 @@ func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets 
 
 // GetSAMLConnectors returns a list of SAML connectors.
 func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	req := &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}
+	return c.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets)
+}
+
+// GetSAMLConnectorsWithoutURLValidation returns a list of SAML connectors.
+func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	req := &types.ResourcesWithSecretsRequest{
+		WithSecrets:                withSecrets,
+		SAMLValidationNoFollowURLs: options.NoFollowURLs,
+	}
 	resp, err := c.grpc.GetSAMLConnectors(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
