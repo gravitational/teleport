@@ -174,6 +174,14 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"jwt": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								Description: "Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.",
+								Optional:    true,
+							})}),
+							Description: "Configuration specific to JWT-SVIDs.",
+							Optional:    true,
+						},
 						"x509": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"dns_sans": {
@@ -852,6 +860,31 @@ func CopyWorkloadIdentityFromTerraform(_ context.Context, tf github_com_hashicor
 														a, ok := tf.Attrs["maximum_ttl"]
 														if !ok {
 															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.x509.maximum_ttl"})
+														}
+														CopyFromDuration(diags, a, &obj.MaximumTtl)
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["jwt"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.jwt"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"WorkloadIdentity.spec.spiffe.jwt", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.Jwt = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.Jwt = &github_com_gravitational_teleport_api_gen_proto_go_teleport_workloadidentity_v1.WorkloadIdentitySPIFFEJWT{}
+													obj := obj.Jwt
+													{
+														a, ok := tf.Attrs["maximum_ttl"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"WorkloadIdentity.spec.spiffe.jwt.maximum_ttl"})
 														}
 														CopyFromDuration(diags, a, &obj.MaximumTtl)
 													}
@@ -1894,6 +1927,47 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 												}
 												v.Unknown = false
 												tf.Attrs["x509"] = v
+											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["jwt"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.jwt"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.jwt", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["jwt"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.Jwt == nil {
+													v.Null = true
+												} else {
+													obj := obj.Jwt
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["maximum_ttl"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"WorkloadIdentity.spec.spiffe.jwt.maximum_ttl"})
+														} else {
+															v := CopyToDuration(diags, obj.MaximumTtl, t, tf.Attrs["maximum_ttl"])
+															tf.Attrs["maximum_ttl"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["jwt"] = v
 											}
 										}
 									}
