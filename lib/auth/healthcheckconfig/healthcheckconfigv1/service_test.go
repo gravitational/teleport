@@ -280,6 +280,7 @@ func newService(t *testing.T, ctx context.Context) testClient {
 	healthSvc, err := NewService(ServiceConfig{
 		Authorizer: authorizer,
 		Backend:    localHealthSvc,
+		Cache:      localHealthSvc,
 		Emitter:    clt.eventRecorder,
 	})
 	require.NoError(t, err)

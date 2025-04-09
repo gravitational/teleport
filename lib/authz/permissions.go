@@ -1081,6 +1081,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
 						types.NewRule(types.KindDatabaseObject, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
 					},
 				},
 			})
