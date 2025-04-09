@@ -1,5 +1,27 @@
 # Changelog
 
+## 15.4.31 (04/09/25)
+
+* Fixed throttling in the DynamoDB backend event stream for tables with a high amount of stream shards. [#53806](https://github.com/gravitational/teleport/pull/53806)
+* Fixed `tsh proxy db` not honoring `--db-roles` when renewing certificates. [#53447](https://github.com/gravitational/teleport/pull/53447)
+* Fixed a panic when trimming audit log entries. [#53308](https://github.com/gravitational/teleport/pull/53308)
+* Improved resource consumption when retrieving resources via the Web UI or `tsh ls`. [#53304](https://github.com/gravitational/teleport/pull/53304)
+* Fixed a rare high CPU usage bug in reverse tunnel agents. [#53283](https://github.com/gravitational/teleport/pull/53283)
+* Add support for using DynamoDB Streams FIPS endpoints. [#53203](https://github.com/gravitational/teleport/pull/53203)
+* Fixed the default CDN Base URL for client tools managed updates being incorrectly required OSS builds. [#53173](https://github.com/gravitational/teleport/pull/53173)
+* Kubernetes app discovery now supports an additional annotation for apps that are served on a sub-path of an HTTP service. [#53096](https://github.com/gravitational/teleport/pull/53096)
+* Fixed an issue causing the teleport process to crash on group database errors when host user creation was enabled. [#53081](https://github.com/gravitational/teleport/pull/53081)
+* The event handler can now generate certificates for DNS names that are not resolvable. [#53064](https://github.com/gravitational/teleport/pull/53064)
+* Added a `--join-method` flag to the `teleport configure` command. [#53059](https://github.com/gravitational/teleport/pull/53059)
+* Web UI now correctly displays errors in desktop sessions when a required WebAuthn MFA device is missing. [#52918](https://github.com/gravitational/teleport/pull/52918)
+* Fixed desktop session recordings sometimes not having incorrect proportions. [#52869](https://github.com/gravitational/teleport/pull/52869)
+* Resolved an issue that could cause WebSocket errors to appear after the graceful shutdown of a desktop session. [#52869](https://github.com/gravitational/teleport/pull/52869)
+* Updated golang.org/x/net (addresses CVE-2025-22870). [#52848](https://github.com/gravitational/teleport/pull/52848)
+* Improve latency and reduce resource consumption of generating Kubernetes certificates via `tctl auth sign` and `tsh kube login`. [#52148](https://github.com/gravitational/teleport/pull/52148)
+
+Enterprise:
+* Reduce resource consumption resolving Okta applications during login. [#6087](https://github.com/gravitational/teleport.e/pull/6087)
+
 ## 15.4.30 (03/05/25)
 
 * Escape user provided labels when creating the shell script that enrolls servers, applications and databases into Teleport. [#52706](https://github.com/gravitational/teleport/pull/52706)
