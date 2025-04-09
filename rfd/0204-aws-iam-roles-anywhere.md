@@ -374,6 +374,7 @@ User Tasks might also be created by the sync process and the following issue typ
 - Sync process has an invalid Roles Anywhere Profile and/or Role
 - IAM Role used for the sync process does not have the valid permissions
 - IAM Role associated with a profile does not accept the Trust Anchor ARN defined in the integration
+- IAM Roles Anywhere Profile's Custom Role Session Name is disabled. In this scenario, the AWS Session Name will be the X.509 certificate serial number.
 
 ## Implementation
 
@@ -500,6 +501,7 @@ spec:
       aws:
         roles_anywhere:
           profile_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a3
+          accept_role_session_name: true
           allowed_role_arns:
           - arn:aws:iam::123456789012:role/my-custom-role1
           - arn:aws:iam::123456789012:role/my-custom-role2
@@ -566,6 +568,7 @@ When a client tool (Web UI or `tsh`) asks for a new AWS Session, Teleport Auth S
 
 The call to [`rolesnaywhere.CreateSession`](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-create-session.html) is not explicit, but handled by the [rolesanywhere-credential-helper](https://github.com/aws/rolesanywhere-credential-helper) tool from AWS.
 
+#### Session Duration
 The `rolesanywhere.CreateSession` call accepts a `durationSeconds` which indicates for how long the AWS Session will be valid.
 This durantion, per AWS documentation, cannot be higher than 12 hours, nor less than 15 minutes.
 
@@ -575,6 +578,29 @@ When the Teleport User session is lower than 15 minutes, the user will receive a
 This is already the behavior on existing AWS Access flows. See [#46551](https://github.com/gravitational/teleport/issues/46551).
 
 When the Teleport User session is higher than 12 hours, the AWS Session will be at most 12 hours.
+
+#### Session name
+In order to keep track of API calls in CloudTrail, Roles Anywhere service sets the AWS Session Name when generating the credentials.
+
+This identifier can be one of the following:
+- X.509 serial number
+- value of `roleSessionName` when calling `rolesanywhere.CreateSession`
+
+While the latter is much more customizable and valuable, it requires that the IAM Roles Anywhere Profile's "Custom role session name" is enabled.
+If this property is disabled, sending `roleSessionName` will return an `Access Denied` error.
+
+During the Profile to AppServer sync process, this property (`accept_role_session_name`) will be stored to be used later on, when creating a session.
+
+**Role Session Name**
+
+This value will be the identity's username.
+
+If the value is too long, it will be hashed (see `maybeHashRoleSessionName` method).
+
+**X.509 serial number**
+
+If using the serial number, a random value will be set.
+In this scenario, in order to keep track of the user, the serial number must be part of the Teleport Audit event emitted when generating the certificate.
 
 ### AWS Roles requirements for usage with IAM Roles Anywhere
 AWS IAM Roles must be accessible from Roles Anywhere service principal, which requires a [custom Trust Policy](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/trust-model.html#trust-policy).
@@ -621,6 +647,7 @@ If `AWS_CONFIG_FILE` is set, that's the file which `tsh` will modify.
 The following entry is added (if it does not exist yet):
 ```conf
 [profile <App Name>]
+# Do not change. Managed by tsh.
 credential_process = tsh apps config <App Name> --format aws-credential-process
 ```
 
@@ -638,7 +665,7 @@ Its format should match the following specification:
 }
 ```
 
-When the logs out using `tsh logout`, all the profiles will be removed from `~/.aws/config`.
+When the logs out using `tsh logout`, all the profiles that use `credential_process = tsh apps config ...` will be removed from `~/.aws/config`.
 
 #### AWS configuration profiles
 Users are required to pass `--profile <profile>` or set the `AWS_PROFILE` environment variable to access AWS, which can be tedious.
@@ -646,6 +673,7 @@ Users are required to pass `--profile <profile>` or set the `AWS_PROFILE` enviro
 Instead, users can use set teleport as the default profile either editing the `~/.aws/config` or by passing the `--set-as-default-profile` when doing `tsh apps login`:
 ```conf
 [default]
+# Do not change. Managed by tsh.
 credential_process = tsh apps config <App Name> --format aws-credential-process
 ```
 
