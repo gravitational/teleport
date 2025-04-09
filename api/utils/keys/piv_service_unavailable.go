@@ -35,7 +35,7 @@ func NewYubiKeyService(_ hardwarekey.Prompt) *unavailableYubiKeyPIVService {
 
 type unavailableYubiKeyPIVService struct{}
 
-func (s *unavailableYubiKeyPIVService) NewPrivateKey(_ context.Context, _ hardwarekey.PrivateKeyConfig) (*hardwarekey.PrivateKey, error) {
+func (s *unavailableYubiKeyPIVService) NewPrivateKey(_ context.Context, _ hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

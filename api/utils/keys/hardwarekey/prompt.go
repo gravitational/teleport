@@ -39,7 +39,7 @@ type PromptPolicy struct {
 	PINRequired bool
 }
 
-// Prompt provides methods to interact with a hardware [PrivateKey].
+// Prompt provides methods to interact with a hardware [Signer].
 type Prompt interface {
 	// AskPIN prompts the user for a PIN.
 	// The requirement tells if the PIN is required or optional.

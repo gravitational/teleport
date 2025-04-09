@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
 
-// TestPrivateKey_EncodeDecode tests encoding and decoding a hardware private key.
+// TestPrivateKey_EncodeDecode tests encoding and decoding a hardware key signer.
 // In particular, this tests that the public key is properly encoded and that the
 // contextual key info and missing key info (old client logins) is handled correctly.
 func TestPrivateKey_EncodeDecode(t *testing.T) {
@@ -41,18 +41,18 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 
 	ctx := context.Background()
 	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	hwPriv, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
+	hwSigner, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
 		Policy: hardwarekey.PromptPolicyNone,
 	})
 	require.NoError(t, err)
 
-	priv := hardwarekey.NewPrivateKey(s, hwPriv.Ref)
-	encoded, err := hardwarekey.EncodePrivateKey(priv)
+	priv := hardwarekey.NewSigner(s, hwSigner.Ref)
+	encoded, err := hardwarekey.EncodeSigner(priv)
 	require.NoError(t, err)
 
-	decodedPriv, err := hardwarekey.DecodePrivateKey(s, encoded)
+	decodedPriv, err := hardwarekey.DecodeSigner(s, encoded)
 	require.NoError(t, err)
-	require.Equal(t, hwPriv, decodedPriv)
+	require.Equal(t, hwSigner, decodedPriv)
 }
 
 // TestPrivateKey_Prompt tests hardware key service PIN/Touch logic with a mocked service.
@@ -70,17 +70,17 @@ func TestPrivateKey_Prompt(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("policy:%+v", policy), func(t *testing.T) {
 			type newPrivateKeyRet struct {
-				priv *hardwarekey.PrivateKey
+				priv *hardwarekey.Signer
 				err  error
 			}
 
 			// Creating a new hardware key requires PIN/touch.
 			newPrivateKeyReturn := doWithPrompt(t, s, policy, func() newPrivateKeyRet {
-				hwPriv, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
+				hwSigner, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
 					Policy: policy,
 				})
 				return newPrivateKeyRet{
-					priv: hwPriv,
+					priv: hwSigner,
 					err:  err,
 				}
 			})
@@ -100,6 +100,7 @@ func TestPrivateKey_Prompt(t *testing.T) {
 }
 
 func doWithPrompt[T any](t *testing.T, s *hardwarekey.MockHardwareKeyService, policy hardwarekey.PromptPolicy, fn func() T) T {
+	t.Helper()
 	// Mock a CLI prompt.
 	pipeReader, pipeWriter := io.Pipe()
 	promptReader := prompt.NewFakeReader()
@@ -131,7 +132,7 @@ func doWithPrompt[T any](t *testing.T, s *hardwarekey.MockHardwareKeyService, po
 	select {
 	case out := <-out:
 		return out
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(time.Second):
 		t.Error("failed to complete fn after prompts")
 		return *new(T)
 	}

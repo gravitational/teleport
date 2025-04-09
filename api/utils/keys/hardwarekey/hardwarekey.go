@@ -27,8 +27,9 @@ import (
 
 // Service for interfacing with hardware private keys.
 type Service interface {
-	// NewPrivateKey creates or retrieves a hardware private key for the given config.
-	NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*PrivateKey, error)
+	// NewPrivateKey creates a hardware private key that satisfies the provided [config],
+	// if one does not already exist, and returns a corresponding [hardwarekey.Signer].
+	NewPrivateKey(ctx context.Context, config PrivateKeyConfig) (*Signer, error)
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
 	Sign(ctx context.Context, ref *PrivateKeyRef, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
@@ -37,43 +38,42 @@ type Service interface {
 	GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error)
 }
 
-// PrivateKey is a hardware private key implementation of [crypto.Signer].
-type PrivateKey struct {
+// Signer is a hardware key implementation of [crypto.Signer].
+type Signer struct {
 	service Service
 	Ref     *PrivateKeyRef
 }
 
-// NewPrivateKey returns a [PrivateKey] for the given service and ref.
-// keyInfo is an optional argument to supply additional contextual info.
-func NewPrivateKey(s Service, ref *PrivateKeyRef) *PrivateKey {
-	return &PrivateKey{
+// NewSigner returns a [Signer] for the given service and ref.
+func NewSigner(s Service, ref *PrivateKeyRef) *Signer {
+	return &Signer{
 		service: s,
 		Ref:     ref,
 	}
 }
 
 // Public implements [crypto.Signer].
-func (h *PrivateKey) Public() crypto.PublicKey {
+func (h *Signer) Public() crypto.PublicKey {
 	return h.Ref.PublicKey
 }
 
 // Sign implements [crypto.Signer].
-func (h *PrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (h *Signer) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	return h.service.Sign(context.TODO(), h.Ref, rand, digest, opts)
 }
 
 // GetAttestation returns the hardware private key attestation details.
-func (h *PrivateKey) GetAttestationStatement() *AttestationStatement {
+func (h *Signer) GetAttestationStatement() *AttestationStatement {
 	return h.Ref.AttestationStatement
 }
 
 // GetPrivateKeyPolicy returns the PrivateKeyPolicy satisfied by this key.
-func (h *PrivateKey) GetPromptPolicy() PromptPolicy {
+func (h *Signer) GetPromptPolicy() PromptPolicy {
 	return h.Ref.Policy
 }
 
 // WarmupHardwareKey performs a bogus sign() call to prompt the user for PIN/touch (if needed).
-func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
+func (h *Signer) WarmupHardwareKey(ctx context.Context) error {
 	if !h.Ref.Policy.PINRequired && !h.Ref.Policy.TouchRequired {
 		return nil
 	}
@@ -90,13 +90,13 @@ func (h *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
 	return trace.Wrap(err, "failed to perform warmup signature with hardware private key")
 }
 
-// EncodePrivateKey encodes the hardware private key a format understood by other Teleport clients.
-func EncodePrivateKey(p *PrivateKey) ([]byte, error) {
+// EncodeSigner encodes the hardware key signer a format understood by other Teleport clients.
+func EncodeSigner(p *Signer) ([]byte, error) {
 	return p.Ref.encode()
 }
 
-// DecodePrivateKey decodes an encoded hardware private key for the given service.
-func DecodePrivateKey(s Service, encodedKey []byte) (*PrivateKey, error) {
+// DecodeSigner decodes an encoded hardware key signer for the given service.
+func DecodeSigner(s Service, encodedKey []byte) (*Signer, error) {
 	partialRef, err := decodeKeyRef(encodedKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -111,7 +111,7 @@ func DecodePrivateKey(s Service, encodedKey []byte) (*PrivateKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewPrivateKey(s, ref), nil
+	return NewSigner(s, ref), nil
 }
 
 // PrivateKeyRef references a specific hardware private key.

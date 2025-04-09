@@ -59,15 +59,15 @@ func NewYubiKeyService(prompt hardwarekey.Prompt) *YubiKeyService {
 	}
 }
 
-// NewPrivateKey creates or retrieves a hardware private key from the given PIV slot matching
-// the given policy and returns the details required to perform signatures with that key.
+// NewPrivateKey creates a hardware private key that satisfies the provided [config],
+// if one does not already exist, and returns a corresponding [hardwarekey.Signer].
 //
-// If a customSlot is not provided, the service uses the default slot for the given policy:
+// If a customSlot is not provided in [config], the service uses the default slot for the given policy:
 //   - !touch & !pin -> 9a
 //   - !touch & pin  -> 9c
 //   - touch  & pin  -> 9d
 //   - touch  & !pin -> 9e
-func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.PrivateKey, error) {
+func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
 	var requiredKeyPolicy PrivateKeyPolicy
 	switch config.Policy {
 	case hardwarekey.PromptPolicyNone:
@@ -110,7 +110,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 		slotKey:      ref.SlotKey,
 	}] = ref
 
-	return hardwarekey.NewPrivateKey(s, ref), nil
+	return hardwarekey.NewSigner(s, ref), nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
@@ -141,7 +141,7 @@ func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
 	s.prompt = prompt
 }
 
-// TODO(Joerger): Re-attesting the key every time we decode a hardware private key is very resource
+// TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
 // intensive. This cache is a stand-in solution for the problem, which was previously handled within
 // the YubiKeyPrivateKey cache that is being phased out with this change. In a follow up, the attested
 // information will be saved to the key file at login time so each client will not need to re-attest
