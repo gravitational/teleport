@@ -20,8 +20,12 @@ package common
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
@@ -31,6 +35,27 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+const initTestSentinel = "init_test"
+
+func TestMain(m *testing.M) {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
+	os.Exit(m.Run())
+}
+
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
 
 // TestConnect tests client config and connection logic.
 func TestConnect(t *testing.T) {
