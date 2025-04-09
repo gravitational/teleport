@@ -61,29 +61,21 @@ type PrivateKey struct {
 	keyPEM []byte
 }
 
-// NewPrivateKey returns a new PrivateKey for the given crypto.Signer with a
-// pre-marshaled private key PEM, which may be a special PIV key PEM.
-func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
-	sshPub, err := ssh.NewPublicKey(signer.Public())
+// NewPrivateKey returns a new PrivateKey for a crypto.Signer.
+// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey.
+// TODO(Joerger): Remove the variadic argument once /e is updated to not provide it.
+func NewPrivateKey(signer crypto.Signer, _ ...[]byte) (*PrivateKey, error) {
+	keyPEM, err := MarshalPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &PrivateKey{
-		Signer: signer,
-		sshPub: sshPub,
-		keyPEM: keyPEM,
-	}, nil
+	return newPrivateKeyWithKeyPEM(signer, keyPEM)
 }
 
-// NewSoftwarePrivateKey returns a new PrivateKey for a crypto.Signer.
-// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey
-func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
+// newPrivateKeyWithKeyPEM returns a new PrivateKey for the given crypto.Signer with a
+// pre-marshaled private key PEM, which may be a special PIV key PEM.
+func newPrivateKeyWithKeyPEM(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyPEM, err := MarshalPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,12 +99,7 @@ func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, keyConfig
 		return nil, trace.Wrap(err)
 	}
 
-	keyPEM, err := MarshalPrivateKey(hwSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return NewPrivateKey(hwSigner, keyPEM)
+	return NewPrivateKey(hwSigner)
 }
 
 // GetAttestationStatement returns this key's AttestationStatement. If the key is
@@ -304,7 +291,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			return nil, trace.Wrap(err, "failed to parse hardware key signer")
 		}
 
-		return NewPrivateKey(hwPrivateKey, keyPEM)
+		return newPrivateKeyWithKeyPEM(hwPrivateKey, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
@@ -320,7 +307,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		if pEdwards, ok := cryptoSigner.(*ed25519.PrivateKey); ok {
 			cryptoSigner = *pEdwards
 		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
+		return newPrivateKeyWithKeyPEM(cryptoSigner, keyPEM)
 	case PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType:
 		// The DER format doesn't always exactly match the PEM header, various
 		// versions of Teleport and OpenSSL have been guilty of writing PKCS#8
@@ -332,17 +319,17 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 			if !ok {
 				return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
 			}
-			return NewPrivateKey(signer, keyPEM)
+			return newPrivateKeyWithKeyPEM(signer, keyPEM)
 		} else if block.Type == PKCS8PrivateKeyType {
 			preferredErr = err
 		}
 		if signer, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
-			return NewPrivateKey(signer, keyPEM)
+			return newPrivateKeyWithKeyPEM(signer, keyPEM)
 		} else if block.Type == PKCS1PrivateKeyType {
 			preferredErr = err
 		}
 		if signer, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
-			return NewPrivateKey(signer, keyPEM)
+			return newPrivateKeyWithKeyPEM(signer, keyPEM)
 		} else if block.Type == ECPrivateKeyType {
 			preferredErr = err
 		}
