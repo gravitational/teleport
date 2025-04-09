@@ -153,8 +153,7 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
       className={IGNORE_CLICK_CLASSNAME}
     >
       <HoverTooltip
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+        placement="bottom"
         tipContent="Notifications"
         css={`
           height: 100%;
@@ -311,10 +310,10 @@ const NotificationsDropdown = styled(Dropdown)`
   height: 80vh;
 
   right: -40px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     right: -52px;
   }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     right: -140px;
   }
 `;

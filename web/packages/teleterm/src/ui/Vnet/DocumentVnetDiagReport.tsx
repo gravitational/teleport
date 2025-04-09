@@ -134,7 +134,7 @@ export function DocumentVnetDiagReport(props: {
       <Stack
         gap={4}
         maxWidth="680px"
-        width="100%"
+        fullWidth
         mx="auto"
         mt={4}
         p={5}
@@ -144,13 +144,8 @@ export function DocumentVnetDiagReport(props: {
         // content was displayed in the Stack.
         alignSelf="flex-start"
       >
-        <Stack gap={2} width="100%" alignItems="stretch">
-          <Flex
-            flexWrap="wrap"
-            width="100%"
-            gap={2}
-            justifyContent="space-between"
-          >
+        <Stack gap={2} fullWidth alignItems="stretch">
+          <Flex flexWrap="wrap" gap={2} justifyContent="space-between">
             <H1>VNet Diagnostic Report</H1>
 
             <Flex gap={2}>
@@ -248,7 +243,7 @@ const CheckAttempt = ({
   const displayDetails = reportOneofDisplayDetails[reportOneof];
 
   return (
-    <Stack gap={2} width="100%">
+    <Stack gap={2} fullWidth>
       {!displayDetails ? (
         <Alert kind="danger">
           Cannot display the result from an unsupported check {reportOneof}
@@ -395,5 +390,5 @@ const Success = styled(SuccessIcon).attrs({
 `;
 
 const Alert = (props: Pick<AlertProps, 'children' | 'details' | 'kind'>) => (
-  <DesignAlert m={0} width="100%" {...props} />
+  <DesignAlert m={0} {...props} />
 );

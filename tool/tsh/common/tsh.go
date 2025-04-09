@@ -67,7 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -4385,7 +4385,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	if cf.PIVSlot != "" {
-		c.PIVSlot = keys.PIVSlot(cf.PIVSlot)
+		c.PIVSlot = hardwarekey.PIVSlotKeyString(cf.PIVSlot)
 		if err = c.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4498,6 +4498,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		logger.InfoContext(ctx, "X11 forwarding is not properly configured, continuing without it", "error", err)
 	}
 
+	// send variables from user env
+	setEnvVariables(c, options)
+
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.
 	if !options.StrictHostKeyChecking {
@@ -4572,6 +4575,20 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
 	return c, nil
+}
+
+// setEnvVariables configures extra env variables to send in client config based on the requested options.
+// We match OpenSSH behavior: if the requested env var is not set (os.LookupEnv return false), we won't send it.
+func setEnvVariables(c *client.Config, options Options) {
+	if c.ExtraEnvs == nil {
+		c.ExtraEnvs = map[string]string{}
+	}
+	for _, variable := range options.SendEnvVariables {
+		value, found := os.LookupEnv(variable)
+		if found {
+			c.ExtraEnvs[variable] = value
+		}
+	}
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {

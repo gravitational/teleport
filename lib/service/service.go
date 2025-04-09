@@ -47,6 +47,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -167,7 +168,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/cert"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
@@ -1240,18 +1240,27 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	hello := proto.UpstreamInventoryHello{
+		ServerID: cfg.HostUUID,
+		Version:  teleport.Version,
+		Services: process.getInstanceRoles(),
+		Hostname: cfg.Hostname,
+	}
+
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
+	hello.ExternalUpgrader = externalUpgrader
+	if upgraderVersion != nil {
+		// The UpstreamInventoryHello message wants versions with the leading "v".
+		hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID:                cfg.HostUUID,
-		Version:                 teleport.Version,
-		Services:                process.getInstanceRoles(),
-		Hostname:                cfg.Hostname,
-		ExternalUpgrader:        externalUpgrader,
-		ExternalUpgraderVersion: vc.Normalize(upgraderVersion),
-	}, inventory.WithDownstreamClock(process.Clock))
+	process.inventoryHandle = inventory.NewDownstreamHandle(
+		process.makeInventoryControlStreamWhenReady,
+		hello,
+		inventory.WithDownstreamClock(process.Clock),
+	)
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
@@ -1545,11 +1554,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 // Note that kind and externalName are usually the same.
 // However, some unregistered upgraders like the AWS ODIC upgrader are not valid kinds.
 // For these upgraders, kind is empty and externalName is set to a non-kind value.
-func (process *TeleportProcess) detectUpgrader() (kind, externalName, version string) {
+func (process *TeleportProcess) detectUpgrader() (kind, externalName string, version *semver.Version) {
 	// Check if the deprecated teleport-upgrader script is being used.
 	kind = os.Getenv(automaticupgrades.EnvUpgrader)
 	version = automaticupgrades.GetUpgraderVersion(process.GracefulExitContext())
-	if version == "" {
+	if version == nil {
 		kind = ""
 	}
 
@@ -1561,7 +1570,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName, version st
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
 		kind = types.UpgraderKindTeleportUpdate
-		version = "v" + teleport.Version
+		version = teleport.SemVersion
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
@@ -3357,7 +3366,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		}
 
 		uploaderClient = la
-		cn, err := la.GetClusterName()
+		cn, err := la.GetClusterName(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err, "cannot get cluster name")
 		}
@@ -4818,7 +4827,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			accessGraphAddr = *addr
 		}
 
-		cn, err := conn.Client.GetClusterName()
+		cn, err := conn.Client.GetClusterName(process.ExitContext())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -6115,16 +6124,17 @@ func (process *TeleportProcess) initApps() {
 				Description: app.Description,
 				Labels:      app.StaticLabels,
 			}, types.AppSpecV3{
-				URI:                app.URI,
-				PublicAddr:         publicAddr,
-				DynamicLabels:      types.LabelsToV2(app.DynamicLabels),
-				InsecureSkipVerify: app.InsecureSkipVerify,
-				Rewrite:            rewrite,
-				AWS:                aws,
-				Cloud:              app.Cloud,
-				RequiredAppNames:   app.RequiredAppNames,
-				CORS:               makeApplicationCORS(app.CORS),
-				TCPPorts:           makeApplicationTCPPorts(app.TCPPorts),
+				URI:                   app.URI,
+				PublicAddr:            publicAddr,
+				DynamicLabels:         types.LabelsToV2(app.DynamicLabels),
+				InsecureSkipVerify:    app.InsecureSkipVerify,
+				Rewrite:               rewrite,
+				AWS:                   aws,
+				Cloud:                 app.Cloud,
+				RequiredAppNames:      app.RequiredAppNames,
+				UseAnyProxyPublicAddr: app.UseAnyProxyPublicAddr,
+				CORS:                  makeApplicationCORS(app.CORS),
+				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 			})
 			if err != nil {
 				return trace.Wrap(err)

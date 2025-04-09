@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -212,7 +213,7 @@ func (a *Server) newWebSession(
 		a.logger.DebugContext(ctx, "Creating new web session without login IP specified")
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -502,7 +503,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -700,8 +701,8 @@ type SessionCertsRequest struct {
 	SessionTTL              time.Duration
 	SSHPubKey               []byte
 	TLSPubKey               []byte
-	SSHAttestationStatement *keys.AttestationStatement
-	TLSAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	Compatibility           string
 	RouteToCluster          string
 	KubernetesCluster       string
@@ -718,7 +719,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
 	accessInfo := services.AccessInfoFromUserState(req.UserState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

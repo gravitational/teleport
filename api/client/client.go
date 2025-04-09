@@ -80,6 +80,7 @@ import (
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -900,6 +901,12 @@ func (c *Client) WorkloadIdentityRevocationServiceClient() workloadidentityv1pb.
 // identity service.
 func (c *Client) WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient {
 	return workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(c.conn)
+}
+
+// WorkloadIdentityX509OverridesClient returns an unadorned client for the
+// teleport.workloadidentity.v1.X509OverridesService service.
+func (c *Client) WorkloadIdentityX509OverridesClient() workloadidentityv1pb.X509OverridesServiceClient {
+	return workloadidentityv1pb.NewX509OverridesServiceClient(c.conn)
 }
 
 // PresenceServiceClient returns an unadorned client for the presence service.
@@ -3128,6 +3135,33 @@ func (c *Client) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) TriggerAutoUpdateAgentGroup(ctx context.Context, groups []string, state autoupdatev1pb.AutoUpdateAgentGroupState) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	rollout, err := client.TriggerAutoUpdateAgentGroup(ctx, &autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest{Groups: groups, DesiredState: state})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rollout, nil
+}
+
+func (c *Client) ForceAutoUpdateAgentGroup(ctx context.Context, groups []string) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	rollout, err := client.ForceAutoUpdateAgentGroup(ctx, &autoupdatev1pb.ForceAutoUpdateAgentGroupRequest{Groups: groups})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rollout, nil
+}
+
+func (c *Client) RollbackAutoUpdateAgentGroup(ctx context.Context, groups []string, allStartedGroups bool) (*autoupdatev1pb.AutoUpdateAgentRollout, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	rollout, err := client.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{Groups: groups, AllStartedGroups: allStartedGroups})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rollout, nil
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -5354,4 +5388,86 @@ func (c *Client) IntegrationsClient() integrationpb.IntegrationServiceClient {
 // underlying Auth gRPC connection.
 func (c *Client) DecisionClient() decisionpb.DecisionServiceClient {
 	return decisionpb.NewDecisionServiceClient(c.conn)
+}
+
+// GetClusterName returns the name of the cluster.
+func (c *Client) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	cn, err := c.ClusterConfigClient().GetClusterName(ctx, &clusterconfigpb.GetClusterNameRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cn, nil
+}
+
+// HealthCheckConfigClient returns an
+// [healthcheckconfigv1.HealthCheckConfigServiceClient].
+func (c *Client) HealthCheckConfigClient() healthcheckconfigv1.HealthCheckConfigServiceClient {
+	return healthcheckconfigv1.NewHealthCheckConfigServiceClient(c.conn)
+}
+
+// GetHealthCheckConfig fetches a health check config by name.
+func (c *Client) GetHealthCheckConfig(ctx context.Context, name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.GetHealthCheckConfig(ctx,
+		&healthcheckconfigv1.GetHealthCheckConfigRequest{
+			Name: name,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// ListHealthCheckConfigs lists health check configs with pagination.
+func (c *Client) ListHealthCheckConfigs(ctx context.Context, limit int, startKey string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.ListHealthCheckConfigs(ctx,
+		&healthcheckconfigv1.ListHealthCheckConfigsRequest{
+			PageSize:  int32(limit),
+			PageToken: startKey,
+		},
+	)
+	return resp.GetConfigs(), resp.GetNextPageToken(), trace.Wrap(err)
+}
+
+// CreateHealthCheckConfig creates a new health check config.
+func (c *Client) CreateHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.CreateHealthCheckConfig(ctx,
+		&healthcheckconfigv1.CreateHealthCheckConfigRequest{
+			Config: in,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// UpdateHealthCheckConfig updates an existing health check config.
+func (c *Client) UpdateHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.UpdateHealthCheckConfig(ctx,
+		&healthcheckconfigv1.UpdateHealthCheckConfigRequest{
+			Config: in,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// UpsertHealthCheckConfig creates or updates a health check config.
+func (c *Client) UpsertHealthCheckConfig(ctx context.Context, in *healthcheckconfigv1.HealthCheckConfig) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	cc := c.HealthCheckConfigClient()
+	resp, err := cc.UpsertHealthCheckConfig(ctx,
+		&healthcheckconfigv1.UpsertHealthCheckConfigRequest{
+			Config: in,
+		},
+	)
+	return resp, trace.Wrap(err)
+}
+
+// DeleteHealthCheckConfig deletes a health check config.
+func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error {
+	cc := c.HealthCheckConfigClient()
+	_, err := cc.DeleteHealthCheckConfig(ctx,
+		&healthcheckconfigv1.DeleteHealthCheckConfigRequest{
+			Name: name,
+		},
+	)
+	return trace.Wrap(err)
 }

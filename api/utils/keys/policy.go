@@ -17,6 +17,8 @@ import (
 	"regexp"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // PrivateKeyPolicy is a requirement for client private key storage.
@@ -188,4 +190,12 @@ func IsPrivateKeyPolicyError(err error) bool {
 		return false
 	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
+}
+
+// GetPromptPolicy returns this corresponding [hardwarekey.PromptPolicy].
+func (p PrivateKeyPolicy) GetPromptPolicy() hardwarekey.PromptPolicy {
+	return hardwarekey.PromptPolicy{
+		TouchRequired: p.isHardwareKeyTouchVerified(),
+		PINRequired:   p.isHardwareKeyPINVerified(),
+	}
 }

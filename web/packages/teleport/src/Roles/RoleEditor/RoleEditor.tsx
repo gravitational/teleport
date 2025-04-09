@@ -17,9 +17,10 @@
  */
 
 import { useCallback, useEffect, useId, useState } from 'react';
+import styled from 'styled-components';
 
 import { Alert, Box, ButtonSecondary, ButtonWarning, Flex, P2 } from 'design';
-import { Danger } from 'design/Alert';
+import { Danger, Info } from 'design/Alert';
 import Dialog, {
   DialogContent,
   DialogHeader,
@@ -44,7 +45,10 @@ import {
   roleEditorModelToRole,
   roleToRoleEditorModel,
 } from './StandardEditor/standardmodel';
-import { useStandardModel } from './StandardEditor/useStandardModel';
+import {
+  ActionType,
+  useStandardModel,
+} from './StandardEditor/useStandardModel';
 import { YamlEditor } from './YamlEditor';
 import { YamlEditorModel } from './yamlmodel';
 
@@ -196,7 +200,7 @@ export const RoleEditor = ({
         if (err) return;
 
         dispatch({
-          type: 'set-role-model',
+          type: ActionType.SetModel,
           payload: roleModel,
         });
         break;
@@ -275,6 +279,16 @@ export const RoleEditor = ({
                 </CatchError>
               </Flex>
             )}
+            {/* Hiding instead of unmounting the info alert allows us to keep
+                the dismissed state throughout the lifetime of the role editor
+                without keeping this state in the editor model. */}
+            <ShowHide hidden={selectedEditorTab !== EditorTab.Yaml}>
+              <Info dismissible mx={3} mb={3} alignItems="flex-start">
+                Not all YAML edits can be represented in the standard editor.
+                You may have to revert changes in the YAML if you return to
+                using the standard editor.
+              </Info>
+            </ShowHide>
             {selectedEditorTab === EditorTab.Yaml && (
               <Flex flexDirection="column" flex="1" id={yamlEditorId}>
                 <YamlEditor
@@ -351,3 +365,7 @@ const ErrorAlert = ({ error }: { error: Error }) =>
       {error.message}
     </Danger>
   );
+
+const ShowHide = styled.div<{ hidden: boolean }>`
+  display: ${props => (props.hidden ? 'none' : '')};
+`;

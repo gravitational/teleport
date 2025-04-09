@@ -71,6 +71,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -327,9 +328,9 @@ type Config struct {
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
-	// extraEnvs contains additional environment variables that will be added
+	// ExtraEnvs contains additional environment variables that will be added
 	// to SSH session.
-	extraEnvs map[string]string
+	ExtraEnvs map[string]string
 
 	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
 	// i.e. attaching the terminal to it.
@@ -447,7 +448,7 @@ type Config struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
-	PIVSlot keys.PIVSlot
+	PIVSlot hardwarekey.PIVSlotKeyString
 
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
@@ -497,7 +498,7 @@ type Config struct {
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
 	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt keys.HardwareKeyPrompt
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
@@ -3039,7 +3040,7 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 		env[sshutils.SessionEnvVar] = tc.SessionID
 	}
 
-	for key, val := range tc.extraEnvs {
+	for key, val := range tc.ExtraEnvs {
 		env[key] = val
 	}
 	return env

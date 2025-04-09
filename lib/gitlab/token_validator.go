@@ -20,20 +20,22 @@ package gitlab
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/coreos/go-oidc"
+	"github.com/go-jose/go-jose/v3"
+	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type clusterNameGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 type IDTokenValidatorConfig struct {
@@ -90,7 +92,7 @@ func (id *IDTokenValidator) Validate(
 		return nil, trace.Wrap(err)
 	}
 
-	clusterNameResource, err := id.ClusterNameGetter.GetClusterName()
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -117,5 +119,51 @@ func (id *IDTokenValidator) Validate(
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &claims, nil
+}
+
+// ValidateTokenWithJWKS validates a token using the provided JWKS data.
+// Used in cases where GitLab is not reachable from the Teleport cluster.
+func (id *IDTokenValidator) ValidateTokenWithJWKS(
+	ctx context.Context,
+	jwksData []byte,
+	token string,
+) (*IDTokenClaims, error) {
+	parsed, err := josejwt.ParseSigned(token)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing jwt")
+	}
+
+	jwks := jose.JSONWebKeySet{}
+	if err := json.Unmarshal(jwksData, &jwks); err != nil {
+		return nil, trace.Wrap(err, "parsing provided jwks")
+	}
+
+	stdClaims := josejwt.Claims{}
+	if err := parsed.Claims(jwks, &stdClaims); err != nil {
+		return nil, trace.Wrap(err, "validating jwt signature")
+	}
+
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+
+	leeway := time.Second * 10
+	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
+		Audience: []string{
+			clusterNameResource.GetClusterName(),
+		},
+		Time: id.Clock.Now(),
+	}, leeway)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating standard claims")
+	}
+
+	claims := IDTokenClaims{}
+	if err := parsed.Claims(jwks, &claims); err != nil {
+		return nil, trace.Wrap(err, "validating custom claims")
+	}
+
 	return &claims, nil
 }

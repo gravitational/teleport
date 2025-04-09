@@ -1212,7 +1212,7 @@ var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
 type clusterNameExecutor struct{}
 
 func (clusterNameExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ClusterName, error) {
-	name, err := cache.ClusterConfig.GetClusterName()
+	name, err := cache.ClusterConfig.GetClusterName(ctx)
 	return []types.ClusterName{name}, trace.Wrap(err)
 }
 
@@ -1238,7 +1238,7 @@ func (clusterNameExecutor) getReader(cache *Cache, cacheOK bool) clusterNameGett
 }
 
 type clusterNameGetter interface {
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
@@ -2428,18 +2428,16 @@ func (kubeWaitingContainerExecutor) deleteAll(ctx context.Context, cache *Cache)
 
 func (kubeWaitingContainerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
 	switch r := resource.(type) {
-	case types.Resource153Unwrapper:
-		switch wc := r.Unwrap().(type) {
-		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
-			err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
-				Username:      wc.Spec.Username,
-				Cluster:       wc.Spec.Cluster,
-				Namespace:     wc.Spec.Namespace,
-				PodName:       wc.Spec.PodName,
-				ContainerName: wc.Spec.ContainerName,
-			})
-			return trace.Wrap(err)
-		}
+	case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
+		wc := r.UnwrapT()
+		err := cache.kubeWaitingContsCache.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest{
+			Username:      wc.Spec.Username,
+			Cluster:       wc.Spec.Cluster,
+			Namespace:     wc.Spec.Namespace,
+			PodName:       wc.Spec.PodName,
+			ContainerName: wc.Spec.ContainerName,
+		})
+		return trace.Wrap(err)
 	}
 
 	return trace.BadParameter("unknown KubeWaitingContainer type, expected *kubewaitingcontainerpb.KubernetesWaitingContainer, got %T", resource)
@@ -3342,16 +3340,11 @@ func (userNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) err
 }
 
 func (userNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	r, ok := resource.(types.Resource153Unwrapper)
+	r, ok := resource.(types.Resource153UnwrapperT[*notificationsv1.Notification])
 	if !ok {
 		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
 	}
-
-	notification, ok := r.Unwrap().(*notificationsv1.Notification)
-	if !ok {
-		return trace.BadParameter("unknown Notification type, expected *notificationsv1.Notification, got %T", resource)
-	}
-
+	notification := r.UnwrapT()
 	username := notification.GetSpec().GetUsername()
 	notificationId := notification.GetMetadata().GetName()
 
@@ -3405,17 +3398,11 @@ func (globalNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) e
 }
 
 func (globalNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-
-	r, ok := resource.(types.Resource153Unwrapper)
+	r, ok := resource.(types.Resource153UnwrapperT[*notificationsv1.GlobalNotification])
 	if !ok {
 		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
 	}
-
-	globalNotification, ok := r.Unwrap().(*notificationsv1.GlobalNotification)
-	if !ok {
-		return trace.BadParameter("unknown Notification type, expected *notificationsv1.GlobalNotification, got %T", resource)
-	}
-
+	globalNotification := r.UnwrapT()
 	notificationId := globalNotification.GetMetadata().GetName()
 
 	err := cache.notificationsCache.DeleteGlobalNotification(ctx, notificationId)

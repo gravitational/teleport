@@ -2224,6 +2224,120 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "fail - ssh using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
+					SSHLogin: "role",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - k8s using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-b",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - db using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - app using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - desktops using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_WindowsDesktop,
+					RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+						WindowsDesktop: "desktop",
+						Login:          "role",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {

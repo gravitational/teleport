@@ -98,6 +98,8 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.WORKLOAD_IDENTITY_CREATE]: Icons.Info,
   [eventCodes.WORKLOAD_IDENTITY_UPDATE]: Icons.Info,
   [eventCodes.WORKLOAD_IDENTITY_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: Icons.Info,
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
   [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
@@ -302,6 +304,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTOUPDATE_VERSION_CREATE]: Icons.Info,
   [eventCodes.AUTOUPDATE_VERSION_UPDATE]: Icons.Info,
   [eventCodes.AUTOUPDATE_VERSION_DELETE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

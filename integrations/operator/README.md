@@ -24,6 +24,7 @@ The operator supports reconciling the following Kubernetes CRs:
 - TeleportOpenSSHEICEServerV2
 - TeleportOpenSSHServerV2
 - TeleportTrustedClusterV2
+- TeleportBotV1
 - TeleportSAMLConnector [1]
 - TeleportOIDCConnector [1]
 - TeleportLoginRule [1]

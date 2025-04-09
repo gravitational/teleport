@@ -379,9 +379,23 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle('main-process-force-focus-window', () => {
-      this.windowsManager.forceFocusWindow();
-    });
+    ipcMain.handle(
+      MainProcessIpc.ForceFocusWindow,
+      async (
+        _,
+        args?: Parameters<MainProcessClient['forceFocusWindow']>[0]
+      ) => {
+        if (args?.wait && args.signal?.aborted) {
+          return;
+        }
+
+        this.windowsManager.forceFocusWindow();
+
+        if (args?.wait) {
+          await this.windowsManager.waitForWindowFocus(args.signal);
+        }
+      }
+    );
 
     // Used in the `tsh install` command on macOS to make the bundled tsh available in PATH.
     // Returns true if tsh got successfully installed, false if the user closed the osascript

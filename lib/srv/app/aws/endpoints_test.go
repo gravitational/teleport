@@ -19,20 +19,20 @@
 package aws
 
 import (
-	"bytes"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/stretchr/testify/require"
 
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 func TestResolveEndpoints(t *testing.T) {
-	signer := v4.NewSigner(credentials.NewStaticCredentials("fakeClientKeyID", "fakeClientSecret", ""))
+	creds := aws.Credentials{AccessKeyID: "fakeClientKeyID", SecretAccessKey: "fakeClientSecret"}
+	signer := v4.NewSigner()
 	region := "us-east-1"
 	now := time.Now()
 
@@ -40,7 +40,7 @@ func TestResolveEndpoints(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://localhost", nil)
 		require.NoError(t, err)
 
-		_, err = signer.Sign(req, bytes.NewReader(nil), "ecr", "us-east-1", now)
+		err = signer.SignHTTP(t.Context(), creds, req, awsutils.EmptyPayloadHash, "ecr", "us-east-1", now)
 		require.NoError(t, err)
 
 		_, err = resolveEndpoint(req, awsutils.AuthorizationHeader)
@@ -52,7 +52,7 @@ func TestResolveEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		req.Header.Set("X-Forwarded-Host", "some-service.us-east-1.amazonaws.com")
 
-		_, err = signer.Sign(req, bytes.NewReader(nil), "some-service", region, now)
+		err = signer.SignHTTP(t.Context(), creds, req, awsutils.EmptyPayloadHash, "some-service", region, now)
 		require.NoError(t, err)
 
 		endpoint, err := resolveEndpoint(req, awsutils.AuthorizationHeader)

@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1044,7 +1044,7 @@ type AuthenticationConfig struct {
 	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 
 	// Deprecated. HardwareKey.PIVSlot should be used instead.
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
@@ -1277,7 +1277,7 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 type HardwareKey struct {
 	// PIVSlot is a PIV slot that Teleport clients should use instead of the
 	// default based on private key policy. For example, "9a" or "9e".
-	PIVSlot keys.PIVSlot `yaml:"piv_slot,omitempty"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot,omitempty"`
 
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.
@@ -2088,6 +2088,12 @@ type App struct {
 	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredApps []string `yaml:"required_apps,omitempty"`
+
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from. This should be true if your proxy has multiple proxy public addrs and you
+	// want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+	// setting this value to true will overwrite that public address in the web UI.
+	UseAnyProxyPublicAddr bool `yaml:"use_any_proxy_public_addr"`
 
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.

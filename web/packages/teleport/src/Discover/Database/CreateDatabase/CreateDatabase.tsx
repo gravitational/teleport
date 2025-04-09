@@ -103,7 +103,7 @@ export function CreateDatabaseView({
   return (
     <Validation>
       {({ validator }) => (
-        <Box maxWidth="800px">
+        <>
           <Header>Register a Database</Header>
           <HeaderSubtitle>
             Create a new database resource for the database server.
@@ -204,7 +204,7 @@ export function CreateDatabaseView({
               next={nextStep}
             />
           )}
-        </Box>
+        </>
       )}
     </Validation>
   );

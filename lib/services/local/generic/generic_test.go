@@ -540,7 +540,6 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 }
 
 func TestGenericValidation(t *testing.T) {
-
 	ctx := context.Background()
 
 	memBackend, err := memory.New(memory.Config{
@@ -571,16 +570,18 @@ func TestGenericValidation(t *testing.T) {
 
 	_, err = service.UpsertResource(ctx, r1)
 	require.ErrorIs(t, err, validationErr)
-
 }
 
 func TestGenericKeyOverride(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	defer memBackend.Close()
 
 	service, err := NewService(&ServiceConfig[*testResource]{
 		Backend:       memBackend,
@@ -589,7 +590,7 @@ func TestGenericKeyOverride(t *testing.T) {
 		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-		KeyFunc:       func(tr *testResource) string { return "llama" },
+		NameKeyFunc:   func(string) string { return "llama" },
 	})
 	require.NoError(t, err)
 
@@ -654,4 +655,18 @@ func TestGenericKeyOverride(t *testing.T) {
 	item, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", r1.GetName()))
 	require.Error(t, err)
 	require.Nil(t, item)
+
+	// Validate that getting the resource through the service uses the overridden name
+	_, err = service.GetResource(ctx, r1.GetName())
+	require.NoError(t, err)
+	_, err = service.GetResource(ctx, "llama")
+	require.NoError(t, err)
+	_, err = service.GetResource(ctx, "notllama")
+	require.NoError(t, err)
+
+	// Validate that deleting the resource also uses the overridden name
+	err = service.DeleteResource(ctx, "notllama")
+	require.NoError(t, err)
+	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }

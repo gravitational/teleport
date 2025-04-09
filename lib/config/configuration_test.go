@@ -2492,6 +2492,19 @@ app_service:
 app_service:
   enabled: true
   apps:
+    -
+      name: foo
+      use_any_proxy_public_addr: true
+      uri: "http://127.0.0.1:8080"
+`,
+			name:   "app with use_any_proxy_public_addr",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
     - name: foo
       uri: "tcp://127.0.0.1"
       tcp_ports:
@@ -2648,7 +2661,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{

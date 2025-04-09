@@ -35,6 +35,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/resumption"
@@ -393,7 +394,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 	}
 
 	var sshPub, tlsPub []byte
-	var sshAttestationStatement, tlsAttestationStatement *keys.AttestationStatement
+	var sshAttestationStatement, tlsAttestationStatement *hardwarekey.AttestationStatement
 	if sshSubjectKey != nil {
 		sshPub = sshSubjectKey.MarshalSSHPublicKey()
 		sshAttestationStatement = sshSubjectKey.GetAttestationStatement()

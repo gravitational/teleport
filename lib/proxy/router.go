@@ -229,7 +229,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
-	principals := []string{host}
+	principals := []string{
+		host,
+		// Add in principal for when nodes are on leaf clusters.
+		host + "." + clusterName,
+	}
 
 	var (
 		isAgentlessNode bool
@@ -290,7 +294,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
-		Principals:            principals,
+		Principals:            apiutils.Deduplicate(principals),
 		ServerID:              serverID,
 		ProxyIDs:              proxyIDs,
 		ConnType:              types.NodeTunnel,

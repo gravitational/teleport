@@ -67,7 +67,7 @@ type Backend interface {
 	services.RoleGetter
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // Service implements the teleport.notifications.v1.NotificationsService RPC Service.

@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,7 @@ func TestNewNamespace(t *testing.T) {
 				serviceFile:         "/lib/systemd/system/teleport.service",
 				configFile:          "/etc/teleport.yaml",
 				pidFile:             "/run/teleport.pid",
+				updaterIDFile:       "/TMP/teleport-update.id",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update.timer",
 				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update.conf",
@@ -66,6 +68,7 @@ func TestNewNamespace(t *testing.T) {
 				serviceFile:         "/lib/systemd/system/teleport.service",
 				configFile:          "/etc/teleport.yaml",
 				pidFile:             "/run/teleport.pid",
+				updaterIDFile:       "/TMP/teleport-update.id",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update.timer",
 				dropInFile:          "/etc/systemd/system/teleport.service.d/teleport-update.conf",
@@ -83,6 +86,7 @@ func TestNewNamespace(t *testing.T) {
 				serviceFile:         "/etc/systemd/system/teleport_test.service",
 				configFile:          "/etc/teleport_test.yaml",
 				pidFile:             "/run/teleport_test.pid",
+				updaterIDFile:       "/TMP/teleport-update_test.id",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
 				dropInFile:          "/etc/systemd/system/teleport_test.service.d/teleport-update_test.conf",
@@ -101,6 +105,7 @@ func TestNewNamespace(t *testing.T) {
 				configFile:          "/etc/teleport_test.yaml",
 				pidFile:             "/run/teleport_test.pid",
 				serviceFile:         "/etc/systemd/system/teleport_test.service",
+				updaterIDFile:       "/TMP/teleport-update_test.id",
 				updaterServiceFile:  "/etc/systemd/system/teleport-update_test.service",
 				updaterTimerFile:    "/etc/systemd/system/teleport-update_test.timer",
 				dropInFile:          "/etc/systemd/system/teleport_test.service.d/teleport-update_test.conf",
@@ -129,6 +134,9 @@ func TestNewNamespace(t *testing.T) {
 			}
 			require.NoError(t, err)
 			ns.log = nil
+			ns.updaterIDFile = strings.Replace(ns.updaterIDFile,
+				strings.TrimSuffix(os.TempDir(), "/"), "/TMP", 1,
+			)
 			require.Equal(t, p.ns, ns)
 		})
 	}
@@ -332,6 +340,58 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			ns.configFile = ""
 			ns.log = nil
 			require.Equal(t, &tt.want, ns)
+		})
+	}
+}
+
+func TestNamespace_EnsureID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		exists bool
+		fails  bool
+	}{
+		{
+			name: "does not exist",
+		},
+		{
+			name:   "exists",
+			exists: true,
+		},
+		{
+			name:  "fails",
+			fails: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ns := &Namespace{
+				log:           slog.Default(),
+				updaterIDFile: filepath.Join(t.TempDir(), "id"),
+			}
+			if tt.exists {
+				err := os.WriteFile(ns.updaterIDFile, []byte("test"), os.ModePerm)
+				require.NoError(t, err)
+			}
+			if tt.fails {
+				ns.updaterIDFile = ""
+			}
+			p, err := ns.EnsureID()
+			require.Equal(t, ns.updaterIDFile, p)
+			if tt.fails {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			b, err := os.ReadFile(ns.updaterIDFile)
+			require.NoError(t, err)
+
+			if tt.exists {
+				require.Equal(t, "test", string(b))
+			} else {
+				require.Len(t, b, 36)
+			}
 		})
 	}
 }
