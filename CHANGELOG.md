@@ -1,5 +1,16 @@
 # Changelog
 
+## 17.4.3 (04/07/25)
+
+* Fixed throttling in the DynamoDB backend event stream for tables with a high amount of stream shards. [#53804](https://github.com/gravitational/teleport/pull/53804)
+* Support for managing the Bot resource in the Teleport Kubernetes Operator. [#53708](https://github.com/gravitational/teleport/pull/53708)
+* Kubernetes app discovery now supports an additional annotation for apps that are served on a sub-path of an HTTP service. [#53094](https://github.com/gravitational/teleport/pull/53094)
+
+Enterprise:
+* Fix Okta Integration Update Flow when the Okta integration credentials are updated from SSWS API tokens to OAuth-based credentials.
+* "Bidirectional Sync" option added to the Okta Integration, allowing for a "read-only" integration where changes are only synced from Okta to Teleport.
+* Fix SCIM sync for Okta plugins with OAuth credentials.
+
 ## 17.4.2 (04/01/25)
 
 * Reduced resource consumption and improve latency of `tsh ssh`. [#53645](https://github.com/gravitational/teleport/pull/53645)
