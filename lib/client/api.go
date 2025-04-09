@@ -3940,7 +3940,14 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 		if tc.PIVSlot != "" {
 			log.Debugf("Using PIV slot %q specified by client or server settings.", tc.PIVSlot)
 		}
-		priv, err = keys.GetYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PIVSlot, tc.CustomHardwareKeyPrompt)
+		// TODO(Joerger): Initialize the hardware key service early in the process and store
+		// it in the client store. This allows the process to properly share PIV connections
+		// and prompt logic (pin caching, etc.).
+		hwks := keys.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
+		priv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
+			CustomSlot: tc.PIVSlot,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
