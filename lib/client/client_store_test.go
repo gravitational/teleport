@@ -26,6 +26,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -90,6 +91,7 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 }
 
 func (s *testAuthority) signKeyRing(t *testing.T, keyRing *KeyRing, makeExpired bool) {
+	t.Helper()
 	allowedLogins := []string{keyRing.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {
@@ -235,7 +237,7 @@ func TestClientStore(t *testing.T) {
 
 				// Create and save a corresponding profile for the key.
 				profile := &profile.Profile{
-					WebProxyAddr: idx.ProxyHost + ":3080",
+					WebProxyAddr: net.JoinHostPort(idx.ProxyHost, "3080"),
 					SiteName:     idx.ClusterName,
 					Username:     idx.Username,
 				}
@@ -478,18 +480,12 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	// all active kube clusters, not just the one requested.
 	b.Run("GetKeyRing", func(b *testing.B) {
 		for b.Loop() {
-			var wg sync.WaitGroup
-			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
-				go func() {
-					defer wg.Done()
-					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
-					require.NoError(b, err)
-					require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
-					require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
-				}()
+				keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
+				require.NoError(b, err)
+				require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
+				require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
 			}
-			wg.Wait()
 		}
 	})
 }
