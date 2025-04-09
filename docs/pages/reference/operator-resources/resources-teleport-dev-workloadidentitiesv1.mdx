@@ -90,12 +90,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |extra_claims|object|Additional claims that will be added to the JWT.|
+|maximum_ttl|string|Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.  If a JWT-SVID is requested with a TTL greater than this value, then the returned JWT-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 24 hours.|
 
 ### spec.spiffe.x509
 
 |Field|Type|Description|
 |---|---|---|
 |dns_sans|[]string|The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.|
+|maximum_ttl|string|Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.  If a X509-SVID is requested with a TTL greater than this value, then the returned X509-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 14 days.|
 |subject_template|[object](#specspiffex509subject_template)|Used to configure the Subject Distinguished Name (DN) of the X509-SVID.  In most circumstances, it is recommended to prefer relying on the SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed to support legacy systems designed for X509 and not SPIFFE/WIMSE.  If not provided, the X509-SVID will be issued with an empty Subject DN.|
 
 ### spec.spiffe.x509.subject_template
