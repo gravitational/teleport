@@ -1,5 +1,13 @@
 # Changelog
 
+## 16.5.1 (04/08/25)
+
+* Added additional tracking metadata to teleport-update. [#53829](https://github.com/gravitational/teleport/pull/53829)
+* Fixed throttling in the DynamoDB backend event stream for tables with a high amount of stream shards. [#53805](https://github.com/gravitational/teleport/pull/53805)
+* Reduce backend load in clusters with large numbers of Windows desktops. [#53720](https://github.com/gravitational/teleport/pull/53720)
+* Workload ID: Support for adding custom claims to JWT-SVIDs. [#53586](https://github.com/gravitational/teleport/pull/53586)
+* Kubernetes app discovery now supports an additional annotation for apps that are served on a sub-path of an HTTP service. [#53095](https://github.com/gravitational/teleport/pull/53095)
+
 ## 16.5.0 (03/28/25)
 
 ### Automatic Updates
