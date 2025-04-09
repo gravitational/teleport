@@ -144,6 +144,6 @@ func (o *WorkloadIdentityX509Service) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *WorkloadIdentityX509Service) GetCredentialLifetime() CredentialLifetime {
 	lt := o.CredentialLifetime
-	lt.ignoreMaximumTTL = true
+	lt.skipMaxTTLValidation = true
 	return lt
 }

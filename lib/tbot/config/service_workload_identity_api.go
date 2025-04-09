@@ -83,6 +83,6 @@ func (o *WorkloadIdentityAPIService) UnmarshalYAML(node *yaml.Node) error {
 
 func (o *WorkloadIdentityAPIService) GetCredentialLifetime() CredentialLifetime {
 	lt := o.CredentialLifetime
-	lt.ignoreMaximumTTL = true
+	lt.skipMaxTTLValidation = true
 	return lt
 }
