@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	netiqclientmock "github.com/gravitational/teleport/e/lib/netiq/client/mock"
@@ -248,6 +249,13 @@ func TestGetRoles(t *testing.T) {
 				MappingDescription: "Resource 2 mapping",
 				Status:             1,
 				EntityKey:          "resource2",
+				Entitlements: []EntitlementValue{
+					{
+						Name:  "Entitlement1",
+						ID:    "Entitlement 1",
+						Value: "Value1",
+					},
+				},
 			},
 		},
 		"cn=Role2,cn=Roles,cn=Access,cn=IDVault": {
@@ -321,4 +329,56 @@ func TestGetResources(t *testing.T) {
 	}
 
 	require.Equal(t, expectedResources, resources, "unexpected resources")
+}
+
+func TestRevocation(t *testing.T) {
+	s := netiqclientmock.New()
+	t.Cleanup(s.Close)
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClock()
+
+	netIQClient, err := New(ctx, Config{
+		OSPURL:                s.BaseOSPURL,
+		APIURL:                s.BaseAPIURL,
+		OAuthClientID:         s.OAuthClientID,
+		OAuthClientSecret:     s.OAuthClientSecret,
+		IdentityVaultUser:     s.IdentityVaultUser,
+		IdentityVaultPassword: s.IdentityVaultPassword,
+		Clock:                 clock,
+		InsecureSkipVerify:    true,
+	})
+	require.NoError(t, err, "failed to create NetIQ client"+trace.DebugReport(err))
+
+	var tokens []string
+
+	for i := 1; i < 15; i++ {
+		token, err := netIQClient.getTokenResponse(ctx)
+		require.NoError(t, err, "failed to get token response")
+		require.NotEmpty(t, token.AccessToken, "access token should not be empty")
+		require.NotEmpty(t, token.RefreshToken, "refresh token should not be empty")
+		require.EventuallyWithT(t,
+			func(t *assert.CollectT) {
+				assert.Equal(t, netiqclientmock.RefreshToken(token.AccessToken, i), token.RefreshToken, "unexpected access token")
+				assert.EqualValues(t, tokens, s.GetRevokedTokens(), "unexpected revoked tokens")
+				assert.Equal(t, 1, s.ActiveTokens(), "unexpected number of active tokens")
+			},
+			5*time.Second,
+			100*time.Millisecond)
+		tokens = append(tokens, token.RefreshToken)
+
+		// Simulate token expiration
+		clock.Advance(time.Hour)
+	}
+
+	// Revoke the active token by closing the server
+	netIQClient.Close()
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			assert.EqualValues(t, tokens, s.GetRevokedTokens(), "unexpected revoked tokens")
+			assert.Equal(t, 0, s.ActiveTokens(), "unexpected number of active tokens")
+		},
+		5*time.Second,
+		100*time.Millisecond)
+
 }

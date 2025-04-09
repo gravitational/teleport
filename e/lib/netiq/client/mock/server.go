@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,7 +30,10 @@ type Server struct {
 	mappedResources map[string][]ResourceRef
 	resources       []Resource
 
-	authToken string
+	authToken       string
+	loginCount      atomic.Int32
+	revokedTokens   []string
+	revokedTokensMu sync.Mutex
 }
 
 // New creates a new mock server.
@@ -50,6 +55,7 @@ func New() *Server {
 
 	router.HandleFunc("GET /osp/a/idm/auth/oauth2/.well-known/openid-configuration", server.handleOSPToken)
 	router.HandleFunc("POST /osp/a/idm/auth/oauth2/token", server.handleOSPAuth)
+	router.HandleFunc("POST /osp/a/idm/auth/oauth2/revoke", server.handleOSPRevoke)
 	router.HandleFunc("GET /api/rest/access/users/list", server.handleGetUsers)
 	router.HandleFunc("GET /api/rest/catalog/groups", server.handleGetGroups)
 	router.HandleFunc("POST /api/rest/access/groups/members", server.handleGetGroupMembers)
@@ -58,12 +64,23 @@ func New() *Server {
 	router.HandleFunc("POST /api/rest/catalog/roles/parentRoles/list", server.handleGetRoleParents)
 	router.HandleFunc("GET /api/rest/catalog/resources/listV2", server.handleGetResources)
 	router.HandleFunc("POST /api/rest/catalog/roles/mappedResources/list", server.handleGetRoleMappedResources)
-
 	server.StartTLS()
 
 	server.BaseOSPURL = httpServer.URL + "/osp"
 	server.BaseAPIURL = httpServer.URL + "/api"
 	return server
+}
+
+func (s *Server) GetRevokedTokens() []string {
+	s.revokedTokensMu.Lock()
+	defer s.revokedTokensMu.Unlock()
+	return s.revokedTokens
+}
+
+func (s *Server) ActiveTokens() int {
+	s.revokedTokensMu.Lock()
+	defer s.revokedTokensMu.Unlock()
+	return int(s.loginCount.Load()) - len(s.revokedTokens)
 }
 
 func buildSecureToken(user, password, time string) string {

@@ -6,18 +6,20 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config specifies dependencies and parameters for instantiating Client.
@@ -40,10 +42,17 @@ type Config struct {
 	Clock clockwork.Clock
 }
 type Client struct {
-	cfg                 Config
-	authenticationToken *utils.FnCache
-	tokenEndpoint       string
-	httpClient          *http.Client
+	cfg                   Config
+	authenticationToken   *tokenDetails
+	authenticationTokenMu sync.Mutex
+	tokenEndpoint         string
+	revocationEndpoint    string
+	httpClient            *http.Client
+}
+
+type tokenDetails struct {
+	tokenResponse
+	expires time.Time
 }
 
 // New creates a new Client using the given config.
@@ -62,30 +71,24 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		httpClient: httpClient,
 	}
 
-	// authenticate to OSP to get the default authentication token expiration time.
-	tokenResponse, err := c.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.authenticationToken, err = utils.NewFnCache(
-		utils.FnCacheConfig{
-			Context: ctx,
-			// TTL is the time to live for cache entries.
-			TTL:   time.Duration(tokenResponse.ExpiresIn) * time.Second / 2,
-			Clock: cfg.Clock,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to create authentication token cache")
-	}
-
 	return c, nil
+}
+
+// Close revokes the authentication token and closes the client.
+func (c *Client) Close() {
+	c.authenticationTokenMu.Lock()
+	defer c.authenticationTokenMu.Unlock()
+	if c.authenticationToken == nil {
+		return
+	}
+
+	c.revokeToken(context.Background(), c.authenticationToken.tokenResponse)
+	c.authenticationToken = nil
 }
 
 func (c *Client) authenticate(ctx context.Context) (tokenResponse, error) {
 	if c.tokenEndpoint == "" {
-		if err := c.getTokenEndpoint(); err != nil {
+		if err := c.getTokenEndpoints(); err != nil {
 			return tokenResponse{}, trace.Wrap(err)
 		}
 	}
@@ -124,14 +127,7 @@ func (c *Client) authenticate(ctx context.Context) (tokenResponse, error) {
 }
 
 func (c *Client) getAuthenticationToken(ctx context.Context) (string, error) {
-	token, err := utils.FnCacheGet(
-		ctx,
-		c.authenticationToken,
-		"token",
-		func(ctx context.Context) (tokenResponse, error) {
-			return c.authenticate(ctx)
-		},
-	)
+	token, err := c.getTokenResponse(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -139,16 +135,116 @@ func (c *Client) getAuthenticationToken(ctx context.Context) (string, error) {
 	return "Bearer " + token.AccessToken, nil
 }
 
+func (c *Client) getTokenResponse(ctx context.Context) (tokenResponse, error) {
+	c.authenticationTokenMu.Lock()
+	defer c.authenticationTokenMu.Unlock()
+
+	// Check if the token is already cached and not expired.
+	// If so, return the cached token.
+	if c.authenticationToken != nil && c.authenticationToken.expires.After(c.cfg.Clock.Now()) {
+		return c.authenticationToken.tokenResponse, nil
+	}
+
+	// token is either not cached or expired, so we need to request a new one.
+	// If the token endpoint is not set, retrieve it.
+	token, err := c.authenticate(ctx)
+	if err != nil {
+		return tokenResponse{}, trace.Wrap(err)
+	}
+	// get the old token details for revocation
+	oldTokenDetails := c.authenticationToken
+
+	c.authenticationToken = &tokenDetails{
+		tokenResponse: token,
+		expires:       c.cfg.Clock.Now().Add(time.Duration(token.ExpiresIn) * time.Second / 2),
+	}
+	if oldTokenDetails != nil {
+		// revoke the old token in a separate goroutine
+		// to avoid blocking the request
+		// and to ensure that the new token is used
+		// for the request
+		// attention: this is required because if a token is not revoked
+		// netIQ will still store it and eventually the user will start
+		// receiving errors when trying to login because there
+		// is not enough space in the token store.
+		go c.revokeToken(ctx, oldTokenDetails.tokenResponse)
+	}
+	return token, trace.Wrap(err)
+}
+
+func (c *Client) revokeToken(ctx context.Context, token tokenResponse) {
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  defaults.HighResPollingPeriod,
+		Driver: retryutils.NewExponentialDriver(defaults.HighResPollingPeriod),
+		Max:    defaults.LowResPollingPeriod,
+		Jitter: retryutils.HalfJitter,
+		Clock:  c.cfg.Clock,
+	})
+	if err != nil {
+		return
+	}
+
+	for i := 0; i < 10; i++ {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if err := c.revokeTokenImpl(ctx, token); err != nil {
+				slog.WarnContext(ctx, "failed to revoke token", "err", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-c.cfg.Clock.After(retry.Duration()):
+					// continue to retry
+				}
+				continue
+			}
+			slog.DebugContext(ctx, "NetIQ token revoked successfully.")
+			return
+		}
+	}
+}
+func (c *Client) revokeTokenImpl(ctx context.Context, token tokenResponse) error {
+	q := url.Values{}
+	q.Add("token_type_hint", "refresh_token")
+	q.Add("token", token.RefreshToken)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.revocationEndpoint, strings.NewReader(q.Encode()))
+	if err != nil {
+		return trace.Wrap(err, "failed to create request")
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// Set the client ID and client secret for basic authentication.
+	req.SetBasicAuth(c.cfg.OAuthClientID, c.cfg.OAuthClientSecret)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return trace.Wrap(err, "failed to perform request")
+	}
+	defer resp.Body.Close()
+	// Discard the response body to prevent resource leaks.
+	defer io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return handleErrEndpoint(resp)
+	}
+
+	return nil
+}
+
 // tokenResponse represents the response from the OSP(NetIQ authorization service) token endpoint
 // when requesting an access token.
 type tokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
 }
 
-// getTokenEndpoint retrieves the token endpoint from the OSP(NetIQ authorization service).
-func (c *Client) getTokenEndpoint() error {
+// getTokenEndpoints retrieves the token and revocation endpoints from the OSP(NetIQ authorization service).
+func (c *Client) getTokenEndpoints() error {
 	u, err := url.Parse(c.cfg.OSPURL)
 	if err != nil {
 		return trace.Wrap(err, "failed to parse OSP URL")
@@ -175,7 +271,8 @@ func (c *Client) getTokenEndpoint() error {
 	}
 
 	type openIDConfig struct {
-		TokenEndpoint string `json:"token_endpoint"`
+		TokenEndpoint      string `json:"token_endpoint"`
+		RevocationEndpoint string `json:"revocation_endpoint"`
 	}
 
 	var config openIDConfig
@@ -184,7 +281,7 @@ func (c *Client) getTokenEndpoint() error {
 	}
 
 	c.tokenEndpoint = config.TokenEndpoint
-
+	c.revocationEndpoint = config.RevocationEndpoint
 	return nil
 }
 

@@ -137,6 +137,8 @@ func (s *Service) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	defer s.client.Close()
+
 	for {
 		// reset the currentTAGResources to force a full sync
 		if err := s.initializeAndWatchAccessGraph(ctx); errors.Is(err, ErrTAGFeatureNotEnabled) {

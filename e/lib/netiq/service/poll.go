@@ -291,11 +291,20 @@ func convertRoleMappedResources(roleID string, roleMappedResources []netiqclient
 	out := make([]*accessgraphv1alpha.NetIQResourceAssignmentRef, 0)
 
 	for _, resource := range roleMappedResources {
+		entitlements := make([]*accessgraphv1alpha.Entitlement, len(resource.Entitlements))
+		for i, entitlement := range resource.Entitlements {
+			entitlements[i] = &accessgraphv1alpha.Entitlement{
+				Id:    entitlement.ID,
+				Name:  entitlement.Name,
+				Value: entitlement.Value,
+			}
+		}
 		out = append(out, &accessgraphv1alpha.NetIQResourceAssignmentRef{
 			RoleId:             roleID,
 			ResourceId:         resource.ID,
 			MappingDescription: resource.MappingDescription,
 			StatusCode:         uint32(resource.Status),
+			Entitlements:       entitlements,
 		})
 	}
 	return out

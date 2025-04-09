@@ -27,6 +27,8 @@ type Role struct {
 		// Cn is the common name of the role level.
 		Cn string `json:"cn"`
 	} `json:"roleLevel"`
+	// Entitlements is the list of entitlements associated with the role.
+	Entitlements map[string]string
 }
 
 // ListRoles returns a list of all roles in the Identity Vault.
@@ -204,6 +206,18 @@ type ResourceRef struct {
 	Status int `json:"status"`
 	// EntityKey is the entity key of the resource.
 	EntityKey string `json:"entityKey"`
+	// EntitlementValues is the list of entitlement values associated with the resource.
+	Entitlements []EntitlementValue `json:"entitlementValues"`
+}
+
+// EntitlementValue represents an entitlement value in the Identity Vault.
+type EntitlementValue struct {
+	// ID is the unique identifier of the resource.
+	ID string `json:"id"`
+	// Name is the name of the resource.
+	Name string `json:"name"`
+	// Value is the value of the entitlement.
+	Value string `json:"value"`
 }
 
 // ListMappedResources returns a list of all mapped resources of the role with the given ID.

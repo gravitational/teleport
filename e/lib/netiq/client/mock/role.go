@@ -341,6 +341,18 @@ type ResourceRef struct {
 	Status int `json:"status"`
 	// EntityKey is the entity key of the resource.
 	EntityKey string `json:"entityKey"`
+	// EntitlementValues is the list of entitlement values associated with the resource.
+	Entitlements []EntitlementValue `json:"entitlementValues"`
+}
+
+// EntitlementValue represents an entitlement value in the Identity Vault.
+type EntitlementValue struct {
+	// ID is the unique identifier of the resource.
+	ID string `json:"id"`
+	// Name is the name of the resource.
+	Name string `json:"name"`
+	// Value is the value of the entitlement.
+	Value string `json:"value"`
 }
 
 func defaultMappedResources() map[string][]ResourceRef {
@@ -361,6 +373,13 @@ func defaultMappedResources() map[string][]ResourceRef {
 				MappingDescription: "Resource 2 mapping",
 				Status:             1,
 				EntityKey:          "resource2",
+				Entitlements: []EntitlementValue{
+					{
+						Name:  "Entitlement1",
+						ID:    "Entitlement 1",
+						Value: "Value1",
+					},
+				},
 			},
 		},
 		"cn=Role2,cn=Roles,cn=Access,cn=IDVault": {
