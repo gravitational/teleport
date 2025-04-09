@@ -662,7 +662,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 		}
 	}
 	if err := s.startStaticHostHeartbeat(servicecfg.WindowsHost{
-		Name: s.cfg.Hostname,
+		Name: s.cfg.Heartbeat.HostUUID,
 		Address: utils.NetAddr{
 			Addr: s.cfg.Hostname,
 		},
