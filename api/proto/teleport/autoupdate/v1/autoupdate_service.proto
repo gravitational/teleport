@@ -207,8 +207,6 @@ message ListAutoUpdateAgentReportsResponse {
   repeated AutoUpdateAgentReport autoupdate_agent_reports = 1;
   // NextKey is the key for the next page of AutoUpdateAgentReports.
   string next_key = 2;
-  // TotalCount is the total number of autoupdate_agent_report in all pages.
-  int32 total_count = 3;
 }
 
 // GetAutoUpdateAgentReportRequest is a request for a specific AutoUpdateAgentReport resource.
