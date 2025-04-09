@@ -885,9 +885,7 @@ type ListAutoUpdateAgentReportsResponse struct {
 	// AutoUpdateAgentReports is a list of AutoUpdateAgentReports.
 	AutoupdateAgentReports []*AutoUpdateAgentReport `protobuf:"bytes,1,rep,name=autoupdate_agent_reports,json=autoupdateAgentReports,proto3" json:"autoupdate_agent_reports,omitempty"`
 	// NextKey is the key for the next page of AutoUpdateAgentReports.
-	NextKey string `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3" json:"next_key,omitempty"`
-	// TotalCount is the total number of autoupdate_agent_report in all pages.
-	TotalCount    int32 `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	NextKey       string `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3" json:"next_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -934,13 +932,6 @@ func (x *ListAutoUpdateAgentReportsResponse) GetNextKey() string {
 		return x.NextKey
 	}
 	return ""
-}
-
-func (x *ListAutoUpdateAgentReportsResponse) GetTotalCount() int32 {
-	if x != nil {
-		return x.TotalCount
-	}
-	return 0
 }
 
 // GetAutoUpdateAgentReportRequest is a request for a specific AutoUpdateAgentReport resource.
@@ -1250,12 +1241,10 @@ const file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc = "" +
 	"!ListAutoUpdateAgentReportsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"next_token\x18\x02 \x01(\tR\tnextToken\"\xc9\x01\n" +
+	"next_token\x18\x02 \x01(\tR\tnextToken\"\xa8\x01\n" +
 	"\"ListAutoUpdateAgentReportsResponse\x12g\n" +
 	"\x18autoupdate_agent_reports\x18\x01 \x03(\v2-.teleport.autoupdate.v1.AutoUpdateAgentReportR\x16autoupdateAgentReports\x12\x19\n" +
-	"\bnext_key\x18\x02 \x01(\tR\anextKey\x12\x1f\n" +
-	"\vtotal_count\x18\x03 \x01(\x05R\n" +
-	"totalCount\"5\n" +
+	"\bnext_key\x18\x02 \x01(\tR\anextKey\"5\n" +
 	"\x1fGetAutoUpdateAgentReportRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"\x8b\x01\n" +
 	"\"CreateAutoUpdateAgentReportRequest\x12e\n" +
