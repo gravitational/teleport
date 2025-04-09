@@ -140,6 +140,14 @@ spec:
                         description: Additional claims that will be added to the JWT.
                         nullable: true
                         type: object
+                      maximum_ttl:
+                        description: Control the maximum TTL of JWT-SVIDs issued using
+                          this WorkloadIdentity.  If a JWT-SVID is requested with
+                          a TTL greater than this value, then the returned JWT-SVID
+                          will have a TTL of this value.  Defaults to 24 hours. The
+                          maximum this value can be set to is 24 hours.
+                        format: duration
+                        type: string
                     type: object
                   x509:
                     description: Configuration specific to X509-SVIDs.
@@ -153,6 +161,14 @@ spec:
                           type: string
                         nullable: true
                         type: array
+                      maximum_ttl:
+                        description: Control the maximum TTL of X509-SVIDs issued
+                          using this WorkloadIdentity.  If a X509-SVID is requested
+                          with a TTL greater than this value, then the returned X509-SVID
+                          will have a TTL of this value.  Defaults to 24 hours. The
+                          maximum this value can be set to is 14 days.
+                        format: duration
+                        type: string
                       subject_template:
                         description: Used to configure the Subject Distinguished Name
                           (DN) of the X509-SVID.  In most circumstances, it is recommended
