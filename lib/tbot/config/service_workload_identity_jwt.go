@@ -110,5 +110,7 @@ func (o *WorkloadIdentityJWTService) GetDestination() bot.Destination {
 }
 
 func (o *WorkloadIdentityJWTService) GetCredentialLifetime() CredentialLifetime {
-	return o.CredentialLifetime
+	lt := o.CredentialLifetime
+	lt.skipMaxTTLValidation = true
+	return lt
 }

@@ -43,6 +43,7 @@ func TestStreams(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 	defer handler.Close()
@@ -54,6 +55,7 @@ func TestStreams(t *testing.T) {
 		var completeCount atomic.Uint64
 		handler, err := NewHandler(Config{
 			Directory: dir,
+			OpenFile:  os.OpenFile,
 			OnBeforeComplete: func(ctx context.Context, upload events.StreamUpload) error {
 				if completeCount.Add(1) <= 1 {
 					return trace.ConnectionProblem(nil, "simulate failure %v", completeCount.Load())
