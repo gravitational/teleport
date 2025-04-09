@@ -106,7 +106,7 @@ func BidirectionalSyncEnabled(ctx context.Context, plugins services.Plugins) (bo
 	} else if err != nil {
 		return false, trace.Wrap(err, "getting Okta plugin")
 	}
-	return plugin.Spec.GetOkta().GetSyncSettings().GetBidirectionalSyncEnabled(), nil
+	return plugin.Spec.GetOkta().GetSyncSettings().GetEnableBidirectionalSync(), nil
 }
 
 // AccessPoint provides services required by [CheckResourcesRequestable].

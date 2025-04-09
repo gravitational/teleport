@@ -818,7 +818,9 @@ type NetIQResourceAssignmentRef struct {
 	// mapping_description is the description of the mapping.
 	MappingDescription string `protobuf:"bytes,4,opt,name=mapping_description,json=mappingDescription,proto3" json:"mapping_description,omitempty"`
 	// status_code is the status code of the role assignment.
-	StatusCode    uint32 `protobuf:"varint,5,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	StatusCode uint32 `protobuf:"varint,5,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	// entitlements is the list of entitlement values associated with the resource.
+	Entitlements  []*Entitlement `protobuf:"bytes,6,rep,name=entitlements,proto3" json:"entitlements,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -881,6 +883,77 @@ func (x *NetIQResourceAssignmentRef) GetStatusCode() uint32 {
 	return 0
 }
 
+func (x *NetIQResourceAssignmentRef) GetEntitlements() []*Entitlement {
+	if x != nil {
+		return x.Entitlements
+	}
+	return nil
+}
+
+// Entitlement represents an entitlement value in the Identity Vault.
+type Entitlement struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is the unique identifier of the resource.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// name is the name of the resource.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// value is the value of the entitlement.
+	Value         string `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Entitlement) Reset() {
+	*x = Entitlement{}
+	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Entitlement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Entitlement) ProtoMessage() {}
+
+func (x *Entitlement) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Entitlement.ProtoReflect.Descriptor instead.
+func (*Entitlement) Descriptor() ([]byte, []int) {
+	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Entitlement) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Entitlement) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Entitlement) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
 // NetIQMemberAssignmentRef represents a NetIQ resource assignment reference.
 type NetIQMemberAssignmentRef struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -910,7 +983,7 @@ type NetIQMemberAssignmentRef struct {
 
 func (x *NetIQMemberAssignmentRef) Reset() {
 	*x = NetIQMemberAssignmentRef{}
-	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[10]
+	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -922,7 +995,7 @@ func (x *NetIQMemberAssignmentRef) String() string {
 func (*NetIQMemberAssignmentRef) ProtoMessage() {}
 
 func (x *NetIQMemberAssignmentRef) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[10]
+	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -935,7 +1008,7 @@ func (x *NetIQMemberAssignmentRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetIQMemberAssignmentRef.ProtoReflect.Descriptor instead.
 func (*NetIQMemberAssignmentRef) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{10}
+	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *NetIQMemberAssignmentRef) GetRoleId() string {
@@ -1023,7 +1096,7 @@ type NetIQRole_RoleLevel struct {
 
 func (x *NetIQRole_RoleLevel) Reset() {
 	*x = NetIQRole_RoleLevel{}
-	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[11]
+	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1035,7 +1108,7 @@ func (x *NetIQRole_RoleLevel) String() string {
 func (*NetIQRole_RoleLevel) ProtoMessage() {}
 
 func (x *NetIQRole_RoleLevel) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[11]
+	mi := &file_accessgraph_v1alpha_netiq_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1130,14 +1203,19 @@ const file_accessgraph_v1alpha_netiq_proto_rawDesc = "" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1f\n" +
 	"\vis_disabled\x18\x04 \x01(\bR\n" +
-	"isDisabled\"\xa8\x01\n" +
+	"isDisabled\"\xee\x01\n" +
 	"\x1aNetIQResourceAssignmentRef\x12\x17\n" +
 	"\arole_id\x18\x01 \x01(\tR\x06roleId\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
 	"resourceId\x12/\n" +
 	"\x13mapping_description\x18\x04 \x01(\tR\x12mappingDescription\x12\x1f\n" +
 	"\vstatus_code\x18\x05 \x01(\rR\n" +
-	"statusCode\"\xd2\x03\n" +
+	"statusCode\x12D\n" +
+	"\fentitlements\x18\x06 \x03(\v2 .accessgraph.v1alpha.EntitlementR\fentitlements\"G\n" +
+	"\vEntitlement\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\"\xd2\x03\n" +
 	"\x18NetIQMemberAssignmentRef\x12\x17\n" +
 	"\arole_id\x18\x01 \x01(\tR\x06roleId\x12\x0e\n" +
 	"\x02dn\x18\x02 \x01(\tR\x02dn\x12M\n" +
@@ -1170,7 +1248,7 @@ func file_accessgraph_v1alpha_netiq_proto_rawDescGZIP() []byte {
 }
 
 var file_accessgraph_v1alpha_netiq_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_accessgraph_v1alpha_netiq_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_accessgraph_v1alpha_netiq_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_accessgraph_v1alpha_netiq_proto_goTypes = []any{
 	(RoleRecipientType)(0),             // 0: accessgraph.v1alpha.RoleRecipientType
 	(*NetIQResourceList)(nil),          // 1: accessgraph.v1alpha.NetIQResourceList
@@ -1183,9 +1261,10 @@ var file_accessgraph_v1alpha_netiq_proto_goTypes = []any{
 	(*NetIQRoleRef)(nil),               // 8: accessgraph.v1alpha.NetIQRoleRef
 	(*NetIQUser)(nil),                  // 9: accessgraph.v1alpha.NetIQUser
 	(*NetIQResourceAssignmentRef)(nil), // 10: accessgraph.v1alpha.NetIQResourceAssignmentRef
-	(*NetIQMemberAssignmentRef)(nil),   // 11: accessgraph.v1alpha.NetIQMemberAssignmentRef
-	(*NetIQRole_RoleLevel)(nil),        // 12: accessgraph.v1alpha.NetIQRole.RoleLevel
-	(*timestamppb.Timestamp)(nil),      // 13: google.protobuf.Timestamp
+	(*Entitlement)(nil),                // 11: accessgraph.v1alpha.Entitlement
+	(*NetIQMemberAssignmentRef)(nil),   // 12: accessgraph.v1alpha.NetIQMemberAssignmentRef
+	(*NetIQRole_RoleLevel)(nil),        // 13: accessgraph.v1alpha.NetIQRole.RoleLevel
+	(*timestamppb.Timestamp)(nil),      // 14: google.protobuf.Timestamp
 }
 var file_accessgraph_v1alpha_netiq_proto_depIdxs = []int32{
 	2,  // 0: accessgraph.v1alpha.NetIQResourceList.resources:type_name -> accessgraph.v1alpha.NetIQObject
@@ -1196,18 +1275,19 @@ var file_accessgraph_v1alpha_netiq_proto_depIdxs = []int32{
 	8,  // 5: accessgraph.v1alpha.NetIQObject.parent_role_ref:type_name -> accessgraph.v1alpha.NetIQRoleRef
 	9,  // 6: accessgraph.v1alpha.NetIQObject.user:type_name -> accessgraph.v1alpha.NetIQUser
 	10, // 7: accessgraph.v1alpha.NetIQObject.resource_role_ref:type_name -> accessgraph.v1alpha.NetIQResourceAssignmentRef
-	11, // 8: accessgraph.v1alpha.NetIQObject.role_member_ref:type_name -> accessgraph.v1alpha.NetIQMemberAssignmentRef
+	12, // 8: accessgraph.v1alpha.NetIQObject.role_member_ref:type_name -> accessgraph.v1alpha.NetIQMemberAssignmentRef
 	6,  // 9: accessgraph.v1alpha.NetIQResource.categories:type_name -> accessgraph.v1alpha.NetIQCategory
 	6,  // 10: accessgraph.v1alpha.NetIQRole.categories:type_name -> accessgraph.v1alpha.NetIQCategory
-	12, // 11: accessgraph.v1alpha.NetIQRole.level:type_name -> accessgraph.v1alpha.NetIQRole.RoleLevel
-	0,  // 12: accessgraph.v1alpha.NetIQMemberAssignmentRef.recipient_type:type_name -> accessgraph.v1alpha.RoleRecipientType
-	13, // 13: accessgraph.v1alpha.NetIQMemberAssignmentRef.effective_date:type_name -> google.protobuf.Timestamp
-	13, // 14: accessgraph.v1alpha.NetIQMemberAssignmentRef.expiry_date:type_name -> google.protobuf.Timestamp
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	13, // 11: accessgraph.v1alpha.NetIQRole.level:type_name -> accessgraph.v1alpha.NetIQRole.RoleLevel
+	11, // 12: accessgraph.v1alpha.NetIQResourceAssignmentRef.entitlements:type_name -> accessgraph.v1alpha.Entitlement
+	0,  // 13: accessgraph.v1alpha.NetIQMemberAssignmentRef.recipient_type:type_name -> accessgraph.v1alpha.RoleRecipientType
+	14, // 14: accessgraph.v1alpha.NetIQMemberAssignmentRef.effective_date:type_name -> google.protobuf.Timestamp
+	14, // 15: accessgraph.v1alpha.NetIQMemberAssignmentRef.expiry_date:type_name -> google.protobuf.Timestamp
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_netiq_proto_init() }
@@ -1231,7 +1311,7 @@ func file_accessgraph_v1alpha_netiq_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_netiq_proto_rawDesc), len(file_accessgraph_v1alpha_netiq_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
