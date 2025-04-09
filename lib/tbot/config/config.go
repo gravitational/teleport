@@ -675,10 +675,17 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 type CredentialLifetime struct {
 	TTL             time.Duration `yaml:"credential_ttl,omitempty"`
 	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
+	// skipMaxTTLValidation is used by services that do not abide by standard
+	// teleport credential lifetime limits to override the check that the
+	// user specified TTL is less than the max TTL. For example, X509 SVIDs can
+	// be issued with a lifetime of up to 2 weeks.
+	skipMaxTTLValidation bool
 }
 
 // IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
 func (l CredentialLifetime) IsEmpty() bool {
+	// We don't care about this field being set when checking empty state.
+	l.skipMaxTTLValidation = false
 	return l == CredentialLifetime{}
 }
 
@@ -710,7 +717,7 @@ func (l CredentialLifetime) Validate(oneShot bool) error {
 		}
 	}
 
-	if l.TTL > defaults.MaxRenewableCertTTL {
+	if !l.skipMaxTTLValidation && l.TTL > defaults.MaxRenewableCertTTL {
 		return SuboptimalCredentialTTLError{
 			msg: "Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
 			details: map[string]any{
