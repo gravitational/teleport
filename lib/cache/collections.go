@@ -736,6 +736,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.autoUpdateAgentRollouts
+		case types.KindAutoUpdateAgentReport:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateAgentReports = &genericCollection[*autoupdate.AutoUpdateAgentReport, autoUpdateAgentReportGetter, autoUpdateAgentReportExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateAgentReports
 
 		case types.KindProvisioningPrincipalState:
 			if c.ProvisioningStates == nil {
