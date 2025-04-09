@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonIcon, Flex, H2, Indicator } from 'design';
-import { Cross } from 'design/Icon';
+import { useTheme } from 'styled-components';
+
+import { Box, ButtonIcon, ButtonSecondary, Flex, H2, Indicator } from 'design';
+import { ArrowsIn, Cross } from 'design/Icon';
 
 import { Role } from 'teleport/services/resources';
 
@@ -32,6 +34,8 @@ export const EditorHeader = ({
   standardEditorId,
   yamlEditorId,
   onClose,
+  minimized,
+  onMinimizedChange,
 }: {
   role?: Role;
   selectedEditorTab: EditorTab;
@@ -40,15 +44,23 @@ export const EditorHeader = ({
   standardEditorId: string;
   yamlEditorId: string;
   onClose(): void;
+  minimized: boolean;
+  onMinimizedChange(minimized: boolean): void;
 }) => {
   const isCreating = !role;
+  const theme = useTheme();
 
   return (
     <Flex alignItems="center" mb={3} gap={2}>
       <ButtonIcon aria-label="Close" onClick={onClose}>
         <Cross size="small" />
       </ButtonIcon>
-      <Box flex="1">
+      <Box
+        flex="1"
+        role={minimized ? 'button' : undefined}
+        onClick={minimized ? () => onMinimizedChange(false) : undefined}
+        style={{ cursor: minimized ? 'pointer' : undefined }}
+      >
         <H2>
           {isCreating
             ? 'Create a New Role'
@@ -58,13 +70,25 @@ export const EditorHeader = ({
       <Box flex="0 0 24px" lineHeight={0}>
         {isProcessing && <Indicator size={24} color="text.muted" />}
       </Box>
-      <EditorTabs
-        onTabChange={onEditorTabChange}
-        selectedEditorTab={selectedEditorTab}
-        disabled={isProcessing}
-        standardEditorId={standardEditorId}
-        yamlEditorId={yamlEditorId}
-      />
+      {!minimized && (
+        <>
+          <EditorTabs
+            onTabChange={onEditorTabChange}
+            selectedEditorTab={selectedEditorTab}
+            disabled={isProcessing}
+            standardEditorId={standardEditorId}
+            yamlEditorId={yamlEditorId}
+          />
+          <ButtonSecondary
+            size="large"
+            width="40px"
+            px={0}
+            onClick={() => onMinimizedChange(true)}
+          >
+            <ArrowsIn size="medium" color={theme.colors.text.slightlyMuted} />
+          </ButtonSecondary>
+        </>
+      )}
     </Flex>
   );
 };

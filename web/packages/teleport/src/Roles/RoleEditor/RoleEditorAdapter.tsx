@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect } from 'react';
-import { useTheme } from 'styled-components';
+import { useCallback, useEffect, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
 
 import { Danger } from 'design/Alert';
 import Flex from 'design/Flex';
@@ -64,6 +64,8 @@ export function RoleEditorAdapter({
     }
   );
 
+  const [minimized, setMinimized] = useState(false);
+
   const originalContent = resources.item?.content ?? '';
   useEffect(() => {
     convertToRole(originalContent);
@@ -75,10 +77,11 @@ export function RoleEditorAdapter({
   );
 
   return (
-    <Flex flex="1">
+    <Container flex="1">
       {/* This component's width influences how we lay out the permission
           checkboxes in AdminRules. */}
-      <Flex
+      <EditorPane
+        minimized={minimized}
         flexDirection="column"
         borderLeft={1}
         borderColor={theme.colors.interactive.tonal.neutral[0]}
@@ -101,11 +104,6 @@ export function RoleEditorAdapter({
           <Danger>{convertAttempt.statusText}</Danger>
         )}
 
-        {/* TODO(bl-nero): Remove once RoleE doesn't set this attribute. */}
-        {roleDiffProps?.errorMessage && (
-          <Danger>{roleDiffProps.errorMessage}</Danger>
-        )}
-
         {convertAttempt.status === 'success' && (
           <RoleEditor
             originalRole={convertAttempt.data}
@@ -113,13 +111,37 @@ export function RoleEditorAdapter({
             onCancel={onCancel}
             onSave={onSave}
             onRoleUpdate={onRoleUpdate}
+            minimized={minimized}
+            onMinimizedChange={setMinimized}
           />
         )}
-      </Flex>
+      </EditorPane>
       <RoleEditorVisualizer
         roleDiffProps={roleDiffProps}
         currentFlow={resources.status === 'creating' ? 'creating' : 'updating'}
       />
-    </Flex>
+    </Container>
   );
 }
+
+const Container = styled(Flex)`
+  position: relative;
+`;
+
+const EditorPane = styled(Flex)<{ minimized: boolean }>`
+  position: ${props => (props.minimized ? 'absolute' : 'static')};
+  left: ${props => props.theme.space[4]}px;
+  top: ${props => props.theme.space[4]}px;
+
+  border-top-left-radius: ${props =>
+    props.minimized ? props.theme.radii[3] : 0}px;
+  border-top-right-radius: ${props => props.theme.radii[3]}px;
+  border-bottom-right-radius: ${props => props.theme.radii[3]}px;
+  border-bottom-left-radius: ${props =>
+    props.minimized ? props.theme.radii[3] : 0}px;
+  box-shadow: ${props => props.theme.boxShadow[3]};
+
+  // The editor pane needs to appear on top, even though it's before the
+  // visualizer in the DOM tree.
+  z-index: 1;
+`;
