@@ -19,6 +19,7 @@ package keys
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -75,7 +76,7 @@ func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 }
 
 // NewSoftwarePrivateKey returns a new PrivateKey for a crypto.Signer.
-// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey.
+// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey
 func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -90,6 +91,60 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 		sshPub: sshPub,
 		keyPEM: keyPEM,
 	}, nil
+}
+
+// NewHardwarePrivateKey uses the provided service to create a hardware private key that
+// satisfies the provided [config], if one does not already exist, and returns a corresponding
+// [hardwarekey.Signer] wrapped as a [PrivateKey].
+func NewHardwarePrivateKey(ctx context.Context, s hardwarekey.Service, keyConfig hardwarekey.PrivateKeyConfig) (*PrivateKey, error) {
+	if s == nil {
+		return nil, trace.BadParameter("cannot create a new hardware private key without a hardware key service provided")
+	}
+
+	hwSigner, err := s.NewPrivateKey(ctx, keyConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyPEM, err := MarshalPrivateKey(hwSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return NewPrivateKey(hwSigner, keyPEM)
+}
+
+// GetAttestationStatement returns this key's AttestationStatement. If the key is
+// not a [hardwarekey.Signer], this method returns nil.
+func (k *PrivateKey) GetAttestationStatement() *hardwarekey.AttestationStatement {
+	if hwpk, ok := k.Signer.(*hardwarekey.Signer); ok {
+		return hwpk.GetAttestationStatement()
+	}
+	// Just return a nil attestation statement and let this key fail any attestation checks.
+	return nil
+}
+
+// GetPrivateKeyPolicy returns this key's PrivateKeyPolicy.
+func (k *PrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
+	if hwpk, ok := k.Signer.(*hardwarekey.Signer); ok {
+		return PrivateKeyPolicyFromPromptPolicy(hwpk.GetPromptPolicy())
+	}
+
+	return PrivateKeyPolicyNone
+}
+
+// IsHardware returns true if [k] is a [hardwarekey.Signer].
+func (k *PrivateKey) IsHardware() bool {
+	_, ok := k.Signer.(*hardwarekey.Signer)
+	return ok
+}
+
+// WarmupHardwareKey checks if this is a [hardwarekey.Signer] and warms it up if it is.
+func (k *PrivateKey) WarmupHardwareKey(ctx context.Context) error {
+	if hwpk, ok := k.Signer.(*hardwarekey.Signer); ok {
+		return hwpk.WarmupHardwareKey(ctx)
+	}
+	return nil
 }
 
 // SSHPublicKey returns the ssh.PublicKey representation of the public key.
@@ -239,8 +294,16 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
-		priv, err := parseYubiKeyPrivateKeyData(block.Bytes, appliedOpts.CustomHardwareKeyPrompt)
-		return priv, trace.Wrap(err, "parsing YubiKey private key")
+		// TODO(Joerger): Initialize the hardware key service early in the process and store
+		// it in the client store. This allows the process to properly share PIV connections
+		// and prompt logic (pin caching, etc.).
+		hwKeyService := NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
+		hwPrivateKey, err := hardwarekey.DecodeSigner(hwKeyService, block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse hardware key signer")
+		}
+
+		return NewPrivateKey(hwPrivateKey, keyPEM)
 	case OpenSSHPrivateKeyType:
 		priv, err := ssh.ParseRawPrivateKey(keyPEM)
 		if err != nil {
@@ -292,7 +355,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 }
 
 // MarshalPrivateKey will return a PEM encoded crypto.Signer.
-// Only supports rsa, ecdsa, and ed25519 keys.
+// [key] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.Signer
 func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 	switch privateKey := key.(type) {
 	case *rsa.PrivateKey:
@@ -309,6 +372,16 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 		privPEM := pem.EncodeToMemory(&pem.Block{
 			Type:  PKCS8PrivateKeyType,
 			Bytes: der,
+		})
+		return privPEM, nil
+	case *hardwarekey.Signer:
+		encodedKey, err := hardwarekey.EncodeSigner(privateKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  pivYubiKeyPrivateKeyType,
+			Bytes: encodedKey,
 		})
 		return privPEM, nil
 	default:
