@@ -3,8 +3,11 @@ package auth
 import (
 	"context"
 	"github.com/gravitational/teleport/api/client/proto"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/inventory"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
 
@@ -61,8 +64,44 @@ type instanceGroupVersionReport struct {
 	// Leaving room here to add the lowest UUID, as described in RFD 184.
 }
 
-func (a *Server) generateAgentVersionReport(ctx context.Context) instanceReport {
-	report := instanceReport{timestamp: a.clock.Now(), data: make(map[string]instanceGroupReport)}
-	a.inventory.Iter(report.collectInstance)
-	return report
+func (a *Server) generateAgentVersionReport(ctx context.Context) {
+	now := a.clock.Now()
+	a.logger.DebugContext(ctx, "Periodic agent version report routine started")
+
+	a.logger.DebugContext(ctx, "Collecting agent versions from inventory")
+	rawreport := instanceReport{timestamp: now, data: make(map[string]instanceGroupReport)}
+	a.inventory.Iter(rawreport.collectInstance)
+
+	a.logger.DebugContext(ctx, "Building the agent version report")
+	spec := &autoupdatev1pb.AutoUpdateAgentReportSpec{
+		Timestamp: timestamppb.New(a.clock.Now()),
+		Groups:    make(map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup, len(rawreport.data)),
+	}
+
+	// TODO: cap the group and version map size
+
+	for groupName, groupData := range rawreport.data {
+		versions := make(map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion, len(groupData))
+		for versionName, groupVersionData := range groupData {
+			versions[versionName] = &autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
+				Count: uint32(groupVersionData.count),
+			}
+		}
+		spec.Groups[groupName] = &autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
+			Versions: versions,
+		}
+	}
+
+	report, err := autoupdate.NewAutoUpdateAgentReport(spec, a.ServerID)
+	if err != nil {
+		a.logger.ErrorContext(ctx, "Failed to generate agent version report: %v", err)
+		return
+	}
+
+	a.logger.DebugContext(ctx, "Writing agent version report to the backend")
+	_, err = a.UpsertAutoUpdateAgentReport(ctx, report)
+	if err != nil {
+		a.logger.ErrorContext(ctx, "Failed to write agent version report: %v", err)
+	}
+	a.logger.DebugContext(ctx, "Finished exporting the agent version report")
 }

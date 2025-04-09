@@ -277,5 +277,5 @@ message AutoUpdateAgentReportSpecGroup {
 // AutoupdateAgentReportSpecGroupVersion is the report for a specific
 // (update group, version) combination.
 message AutoUpdateAgentReportSpecGroupVersion {
-  int32 count = 1;
+  uint32 count = 1;
 }

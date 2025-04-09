@@ -1361,7 +1361,7 @@ func (x *AutoUpdateAgentReportSpecGroup) GetVersions() map[string]*AutoUpdateAge
 // (update group, version) combination.
 type AutoUpdateAgentReportSpecGroupVersion struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Count         int32                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
+	Count         uint32                 `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1396,7 +1396,7 @@ func (*AutoUpdateAgentReportSpecGroupVersion) Descriptor() ([]byte, []int) {
 	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *AutoUpdateAgentReportSpecGroupVersion) GetCount() int32 {
+func (x *AutoUpdateAgentReportSpecGroupVersion) GetCount() uint32 {
 	if x != nil {
 		return x.Count
 	}
@@ -1498,7 +1498,7 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12S\n" +
 	"\x05value\x18\x02 \x01(\v2=.teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroupVersionR\x05value:\x028\x01\"=\n" +
 	"%AutoUpdateAgentReportSpecGroupVersion\x12\x14\n" +
-	"\x05count\x18\x01 \x01(\x05R\x05count*\xf7\x01\n" +
+	"\x05count\x18\x01 \x01(\rR\x05count*\xf7\x01\n" +
 	"\x19AutoUpdateAgentGroupState\x12-\n" +
 	")AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED\x10\x00\x12+\n" +
 	"'AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED\x10\x01\x12(\n" +
