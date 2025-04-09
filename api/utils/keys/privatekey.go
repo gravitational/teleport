@@ -285,7 +285,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		// it in the client store. This allows the process to properly share PIV connections
 		// and prompt logic (pin caching, etc.).
 		hwKeyService := NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
-		hwSigner, err := hardwarekey.DecodeSigner(hwKeyService, block.Bytes)
+		hwSigner, err := hardwarekey.DecodeSigner(block.Bytes, hwKeyService)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware key signer")
 		}

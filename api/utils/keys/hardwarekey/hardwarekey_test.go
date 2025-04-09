@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/sha512"
+	"encoding/json"
 	"fmt"
 	"io"
 	"testing"
@@ -46,38 +47,36 @@ func TestPrivateKey_EncodeDecode(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for _, tt := range []struct {
-		name         string
-		ref          *hardwarekey.PrivateKeyRef
-		updateKeyRef func(*hardwarekey.PrivateKeyRef) error
-		expectPriv   *hardwarekey.Signer
-	}{
-		{
-			name:       "new client encoding",
-			ref:        hwSigner.Ref,
-			expectPriv: hwSigner,
-		},
-		{
-			// Old client logins would only have encoded the serial number and slot key.
-			// TODO(Joerger): DELETE IN v19.0.0
-			name: "old client encoding",
-			ref: &hardwarekey.PrivateKeyRef{
-				SerialNumber: hwSigner.Ref.SerialNumber,
-				SlotKey:      hwSigner.Ref.SlotKey,
-			},
-			expectPriv: hwSigner,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			priv := hardwarekey.NewSigner(s, tt.ref)
-			encoded, err := hardwarekey.EncodeSigner(priv)
-			require.NoError(t, err)
+	priv := hardwarekey.NewSigner(s, hwSigner.Ref)
+	encoded, err := hardwarekey.EncodeSigner(priv)
+	require.NoError(t, err)
 
-			decodedPriv, err := hardwarekey.DecodeSigner(s, encoded)
-			require.NoError(t, err)
-			require.Equal(t, tt.expectPriv, decodedPriv)
-		})
-	}
+	decodedSigner, err := hardwarekey.DecodeSigner(encoded, s)
+	require.NoError(t, err)
+	require.Equal(t, hwSigner, decodedSigner)
+}
+
+// Old client logins would only have encoded the serial number and slot key.
+// TODO(Joerger): DELETE IN v19.0.0
+func TestPrivateKey_DecodePartialKeyRef(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	hwSigner, err := s.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
+		Policy: hardwarekey.PromptPolicyNone,
+	})
+	require.NoError(t, err)
+
+	partialKeyRefJSON, err := json.Marshal(&hardwarekey.PrivateKeyRef{
+		SerialNumber: hwSigner.Ref.SerialNumber,
+		SlotKey:      hwSigner.Ref.SlotKey,
+	})
+	require.NoError(t, err)
+
+	decodedSigner, err := hardwarekey.DecodeSigner(partialKeyRefJSON, s)
+	require.NoError(t, err)
+	require.Equal(t, hwSigner, decodedSigner)
 }
 
 // TestPrivateKey_Prompt tests hardware key service PIN/Touch logic with a mocked service.

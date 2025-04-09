@@ -98,20 +98,10 @@ func EncodeSigner(p *Signer) ([]byte, error) {
 }
 
 // DecodeSigner decodes an encoded hardware key signer for the given service.
-func DecodeSigner(s Service, encodedKey []byte) (*Signer, error) {
-	ref, err := decodeKeyRef(encodedKey)
+func DecodeSigner(encodedKey []byte, s Service) (*Signer, error) {
+	ref, err := decodeKeyRef(encodedKey, s)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// If the public key is missing, this is likely an old login key with only
-	// the serial number and slot. Fetch missing data from the hardware key.
-	// This data will be saved to the login key on next login
-	// TODO(Joerger): DELETE IN v19.0.0
-	if ref.PublicKey == nil {
-		if ref, err = s.GetFullKeyRef(ref.SerialNumber, ref.SlotKey); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	return NewSigner(s, ref), nil
@@ -134,6 +124,11 @@ type PrivateKeyRef struct {
 
 // encode encodes a [PrivateKeyRef] to JSON.
 func (r *PrivateKeyRef) encode() ([]byte, error) {
+	// Ensure that all required fields are provided to encode.
+	if err := r.validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	keyRefBytes, err := json.Marshal(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,13 +137,42 @@ func (r *PrivateKeyRef) encode() ([]byte, error) {
 }
 
 // decodeKeyRef decodes a [PrivateKeyRef] from JSON.
-func decodeKeyRef(encodedKeyRef []byte) (*PrivateKeyRef, error) {
-	keyRef := &PrivateKeyRef{}
-	if err := json.Unmarshal(encodedKeyRef, keyRef); err != nil {
+func decodeKeyRef(encodedKeyRef []byte, s Service) (*PrivateKeyRef, error) {
+	ref := &PrivateKeyRef{}
+	if err := json.Unmarshal(encodedKeyRef, ref); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return keyRef, nil
+	// Ensure that all required fields are decoded.
+	if err := ref.validate(); err != nil {
+		// If some fields are missing, this is likely an old login key with only
+		// the serial number and slot. Fetch missing data from the hardware key.
+		// This data will be saved to the login key on next login
+		// TODO(Joerger): DELETE IN v19.0.0
+		if ref.SerialNumber != 0 && ref.SlotKey != 0 {
+			return s.GetFullKeyRef(ref.SerialNumber, ref.SlotKey)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	return ref, nil
+}
+
+func (r *PrivateKeyRef) validate() error {
+	if r.SerialNumber == 0 {
+		return trace.BadParameter("private key ref missing SerialNumber")
+	}
+	if r.SlotKey == 0 {
+		return trace.BadParameter("private key ref missing SlotKey")
+	}
+	if r.PublicKey == nil {
+		return trace.BadParameter("private key ref missing PublicKey")
+	}
+	if r.AttestationStatement == nil {
+		return trace.BadParameter("private key ref missing AttestationStatement")
+	}
+	return nil
 }
 
 // These types are used for custom marshaling of the crypto.PublicKey field in [PrivateKeyRef].
@@ -178,7 +202,7 @@ func (r PrivateKeyRef) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON unmarshals [PrivateKeyRef] with custom logic for the public key.
 func (r *PrivateKeyRef) UnmarshalJSON(b []byte) error {
-	ref := hardwarePrivateKeyRefJSON{}
+	var ref hardwarePrivateKeyRefJSON
 	err := json.Unmarshal(b, &ref)
 	if err != nil {
 		return trace.Wrap(err)
