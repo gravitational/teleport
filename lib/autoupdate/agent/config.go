@@ -73,6 +73,10 @@ type UpdateSpec struct {
 
 // UpdateStatus describes the status field in update.yaml.
 type UpdateStatus struct {
+	// IDFile is the path to a temporary file containing the updater ID.
+	IDFile string `yaml:"id_file,omitempty"`
+	// LastUpdate status, if attempted
+	LastUpdate *LastUpdate `yaml:"last_update,omitempty"`
 	// Active is the currently active revision of Teleport.
 	Active Revision `yaml:"active"`
 	// Backup is the last working revision of Teleport.
@@ -81,6 +85,16 @@ type UpdateStatus struct {
 	// Skipped revisions are not applied because they
 	// are known to crash.
 	Skip *Revision `yaml:"skip,omitempty"`
+}
+
+// LastUpdate describes the last attempted updated.
+type LastUpdate struct {
+	// Success or failure of the attempted update
+	Success bool `yaml:"success"`
+	// Time the update occurred
+	Time time.Time `yaml:"time"`
+	// Target revision for the update
+	Target Revision `yaml:"target"`
 }
 
 // Revision is a version and edition of Teleport.
@@ -248,4 +262,6 @@ type FindResp struct {
 	Jitter time.Duration `yaml:"jitter"`
 	// AGPL installations cannot use the official CDN.
 	AGPL bool `yaml:"agpl,omitempty"`
+	// ID provided to the updater.
+	ID string `yaml:"id,omitempty"`
 }
