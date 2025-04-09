@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
@@ -66,6 +67,13 @@ type instanceGroupVersionReport struct {
 
 func (a *Server) generateAgentVersionReport(ctx context.Context) {
 	now := a.clock.Now()
+	if _, err := a.GetAutoUpdateAgentRollout(ctx); err != nil {
+		if trace.IsNotFound(err) {
+			a.logger.DebugContext(ctx, "Skipping periodic agent report because the cluster doesn't contain an autoupdate_agent_rollout.")
+			return
+		}
+		a.logger.WarnContext(ctx, "Failed to check if autoupdate_agent_rollout resource exists, aborting periodic agent report", "error", err)
+	}
 	a.logger.DebugContext(ctx, "Periodic agent version report routine started")
 
 	a.logger.DebugContext(ctx, "Collecting agent versions from inventory")
@@ -94,14 +102,14 @@ func (a *Server) generateAgentVersionReport(ctx context.Context) {
 
 	report, err := autoupdate.NewAutoUpdateAgentReport(spec, a.ServerID)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "Failed to generate agent version report: %v", err)
+		a.logger.ErrorContext(ctx, "Failed to generate agent version report", "error", err)
 		return
 	}
 
-	a.logger.DebugContext(ctx, "Writing agent version report to the backend")
+	a.logger.DebugContext(ctx, "Writing agent version report to the backend", "name", report.GetMetadata().GetName())
 	_, err = a.UpsertAutoUpdateAgentReport(ctx, report)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "Failed to write agent version report: %v", err)
+		a.logger.ErrorContext(ctx, "Failed to write agent version report", "error", err)
 	}
 	a.logger.DebugContext(ctx, "Finished exporting the agent version report")
 }
