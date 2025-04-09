@@ -36,7 +36,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -49,11 +48,15 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -3521,19 +3524,43 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				require.NoError(t, err)
 
 				// unwrap the RFD 153 resource if necessary
-				switch r := resource.(type) {
-				case types.Resource153Unwrapper:
-					eventResource, ok := event.Resource.(types.Resource153Unwrapper)
-					require.True(t, ok)
-
-					// if the resource is a protobuf message, pass an option so
-					// attempting to compare the messages does not result in a panic
-					switch r := r.Unwrap().(type) {
-					case protobuf.Message:
-						require.Empty(t, cmp.Diff(r, eventResource.Unwrap(), protocmp.Transform()))
-					default:
-						require.Empty(t, cmp.Diff(r, eventResource.Unwrap()))
-					}
+				switch uw := event.Resource.(type) {
+				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*identitycenterv1.Account]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.Account]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*provisioningv1.PrincipalState]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*provisioningv1.PrincipalState]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*usertasksv1.UserTask]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*usertasksv1.UserTask]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateAgentRollout]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.SPIFFEFederation]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*clusterconfigpb.AccessGraphSettings]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*notificationsv1.Notification]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.Notification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

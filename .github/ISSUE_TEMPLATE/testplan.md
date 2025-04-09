@@ -1673,6 +1673,7 @@ The following should work with SSO MFA, automatically opening the SSO MFA redire
   - [ ] App Access
   - [ ] Database Access
   - [ ] Desktop Access
+- [ ] Headless (`tsh ls --headless`)
 
 ## Resources
 

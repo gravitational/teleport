@@ -124,7 +124,13 @@ test.each(tests)(
     ).toBeInTheDocument();
 
     // Verify that a notification is shown and that the address is in the clipboard.
-    expect(await screen.findByText(/copied to clipboard/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        app.tcpPorts.length
+          ? /copied to clipboard/
+          : /\(copied to clipboard\) and any port/
+      )
+    ).toBeInTheDocument();
     await user.click(screen.getByTitle('Close Notification'));
     expect(await window.navigator.clipboard.readText()).toEqual(
       expectedPublicAddr
@@ -205,7 +211,13 @@ test.each(tests)(
     expect(
       await screen.findByText(/Proxying TCP connections/)
     ).toBeInTheDocument();
-    expect(await screen.findByText(/copied to clipboard/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        app.tcpPorts.length
+          ? /copied to clipboard/
+          : /\(copied to clipboard\) and any port/
+      )
+    ).toBeInTheDocument();
     expect(await window.navigator.clipboard.readText()).toEqual(
       expectedPublicAddr
     );
@@ -217,3 +229,37 @@ test.each(tests)(
     ).not.toBeInTheDocument();
   }
 );
+
+test('launching VNet for the first time from the connections panel does not open info tab', async () => {
+  const user = userEvent.setup();
+  const ctx = new MockAppContext();
+  const rootCluster = makeRootCluster();
+  ctx.configService.set('usageReporting.enabled', false);
+
+  jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
+    new MockedUnaryCall({
+      clusters: [rootCluster],
+    })
+  );
+  jest.spyOn(ctx.vnet, 'listDNSZones').mockReturnValue(
+    new MockedUnaryCall({
+      dnsZones: [proxyHostname(rootCluster.proxyHost)],
+    })
+  );
+
+  render(<App ctx={ctx} />);
+
+  await user.click(await screen.findByText(rootCluster.name));
+  act(mio.enterAll);
+
+  // Start VNet.
+  await user.click(await screen.findByTitle(/Open Connections/));
+  await user.click(await screen.findByTitle('Start VNet'));
+  expect(await screen.findByTitle('Stop VNet')).toBeInTheDocument();
+
+  // Verify that the info tab wasn't opened.
+  const visibleDoc = screen.getByTestId('visible-doc');
+  expect(
+    within(visibleDoc).queryByText(/VNet automatically proxies connections/)
+  ).not.toBeInTheDocument();
+});

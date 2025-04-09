@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
@@ -1183,16 +1183,16 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 type unifiedResourceLister struct {
 	// accessChecker is used to check a user's access to resources. This can
 	// be extended to include SearchAsRoles
-	accessChecker *resourceChecker
+	accessChecker resourceCheckerI
 	// requestableAccessChecker is optional. If set it will be considered a fallback checker if
 	// accessChecker denies access. If a resource is allowed by the requestableAccessChecker,
 	// the resource's name will be added to the requestableMap.
-	requestableAccessChecker *resourceChecker
+	requestableAccessChecker resourceCheckerI
 	// kindAccessErrMap is used to check errors for list/read verbs per kind.
 	kindAccessErrMap map[string]error
-
 	// requestableMap is used to track if a resource matches a filter but is only
 	// available after an access request. This map is of Resource.GetName().
+	// If the requestableMap is nil then no requestable resources will be traced.
 	requestableMap map[string]struct{}
 }
 
@@ -1237,10 +1237,12 @@ func (c *unifiedResourceLister) canList(resource types.ResourceWithLabels, filte
 		return false, nil
 	}
 
-	// If the resource is requestable, allow listing it as requestable (put it in the the
-	// requestableMap).
+	// If the resource is requestable, allow listing it as requestable (and put it in the the
+	// requestableMap if not nil).
 	if err := c.requestableAccessChecker.CanAccess(resource); err == nil {
-		c.requestableMap[resource.GetName()] = struct{}{}
+		if c.requestableMap != nil {
+			c.requestableMap[resource.GetName()] = struct{}{}
+		}
 		return true, nil
 	} else if !trace.IsAccessDenied(err) {
 		return false, trace.Wrap(err)
@@ -1306,7 +1308,7 @@ func (a *ServerWithRoles) checkKindAccess(kind string) error {
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	filter := services.MatchResourceFilter{
+	userFilter := services.MatchResourceFilter{
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
 		Kinds:          req.Kinds,
@@ -1317,7 +1319,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		filter.PredicateExpression = expression
+		userFilter.PredicateExpression = expression
 	}
 
 	// Validate the requested kinds and precheck that the user has read/list
@@ -1346,8 +1348,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	resourceLister := &unifiedResourceLister{
 		kindAccessErrMap: kindAccessErrMap,
-
-		requestableMap: make(map[string]struct{}),
 	}
 
 	resourceLister.accessChecker, err = newResourceAccessChecker(a.context, types.KindUnifiedResource)
@@ -1371,15 +1371,22 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return nil, trace.Wrap(err)
 		}
 
-		requestableAccessChecker, err := newResourceAccessChecker(*extendedAuthCtx, types.KindUnifiedResource)
+		var requestableAccessChecker resourceCheckerI
+		requestableAccessChecker, err = newResourceAccessChecker(*extendedAuthCtx, types.KindUnifiedResource)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		requestableAccessChecker, err = createOktaRequestableResourceChecker(ctx, a.authServer.Plugins, requestableAccessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		resourceLister.requestableAccessChecker = requestableAccessChecker
+
 		if req.IncludeRequestable {
-			resourceLister.requestableAccessChecker = requestableAccessChecker
-		} else {
-			resourceLister.accessChecker = requestableAccessChecker
+			// if IncludeRequestable is set, then we want to know which of the listed
+			// resources are requestable in the listing.
+			resourceLister.requestableMap = make(map[string]struct{})
 		}
 	}
 
@@ -1396,7 +1403,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
 		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceLister.canList(resource, filter)
+			match, err := resourceLister.canList(resource, userFilter)
 			return match, trace.Wrap(err)
 		})
 		if err != nil {
@@ -1411,7 +1418,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	} else {
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceLister.canList(resource, filter)
+			match, err := resourceLister.canList(resource, userFilter)
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
@@ -1917,6 +1924,12 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	return &resp, nil
 }
 
+// resourceCheckerI is an interface for [resourceChecker] allowing extending the resourceChecker.
+type resourceCheckerI interface {
+	CanAccess(resource types.ResourceWithLabels) error
+	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
+}
+
 // resourceChecker is a pass through checker that utilizes the provided [services.AccessChecker] to
 // check access to an untyped resource.
 type resourceChecker struct {
@@ -1925,7 +1938,7 @@ type resourceChecker struct {
 
 // CanAccess handles providing the proper services.AccessCheckable resource
 // to the services.AccessChecker
-func (r resourceChecker) CanAccess(resource types.Resource) error {
+func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 	// MFA is not required for operations on app resources but
 	// will be enforced at the connection time.
 	state := services.AccessState{MFAVerified: true}
@@ -1990,6 +2003,39 @@ func newResourceAccessChecker(authCtx authz.Context, resource string) (*resource
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
+}
+
+// createOktaRequestableResourceChecker creates [oktaRequestableResoruceChecker].
+func createOktaRequestableResourceChecker(ctx context.Context, plugins services.Plugins, underlying resourceCheckerI) (*oktaRequestableResoruceChecker, error) {
+	bidirectionalSync, err := okta.BidirectionalSyncEnabled(ctx, plugins)
+	if err != nil {
+		return nil, trace.Wrap(err, "checking if Okta bidirectional sync is enabled")
+	}
+	return &oktaRequestableResoruceChecker{
+		underlying: underlying,
+		readOnly:   !bidirectionalSync,
+	}, nil
+}
+
+// oktaRequestableResoruceChecker is a wrapper for [resourceCheckerI] checking if Okta-originated
+// resource should not be allowed due to bidirectional sync being disabled.  It exists to support
+// the Okta Access Request flow, where creating an Access Request can trigger changes in the
+// upstream Okta provider. In read-only mode, we want to prevent such changes.
+type oktaRequestableResoruceChecker struct {
+	underlying resourceCheckerI
+	readOnly   bool
+}
+
+func (c *oktaRequestableResoruceChecker) CanAccess(resource types.ResourceWithLabels) error {
+	if c.readOnly && resource.Origin() == types.OriginOkta {
+		return trace.AccessDenied("resource not requestable due to disabled Okta bidirectional sync")
+	}
+	return trace.Wrap(c.underlying.CanAccess(resource))
+}
+
+func (c *oktaRequestableResoruceChecker) GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error) {
+	logins, err := c.underlying.GetAllowedLoginsForResource(resource)
+	return logins, trace.Wrap(err)
 }
 
 // listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
@@ -3382,9 +3428,9 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		hardwarekey.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
 	)
 
 	// Generate certificate, note that the roles TTL will be ignored because
@@ -7456,9 +7502,11 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			return err
 		}
 
-		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
-		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
-			err = trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		// Only WebAuthn and SSO are supported in headless login flow for superior phishing prevention.
+		switch mfaResp.Response.(type) {
+		case *proto.MFAAuthenticateResponse_Webauthn, *proto.MFAAuthenticateResponse_SSO:
+		default:
+			err = trace.BadParameter("MFA response of type %T is not supported for headless authentication", mfaResp.Response)
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return err
 		}

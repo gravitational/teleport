@@ -111,6 +111,7 @@ export async function connectToApp(
     await launchVnet({
       addrToCopy: appToAddrToCopy(target),
       resourceUri: target.uri,
+      isMultiPort: !!target.tcpPorts.length,
     });
     return;
   }
