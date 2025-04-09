@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
 import { DbProtocol } from 'shared/services/databases';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -101,4 +102,15 @@ export type DatabaseServicesResponse = {
   services: DatabaseService[];
   startKey?: string;
   totalCount?: number;
+};
+
+export type DatabaseServer = {
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
+};
+
+export type DatabaseServerResponse = {
+  items: DatabaseServer[];
+  startKey?: string;
 };
