@@ -64,7 +64,7 @@ func TestMarshalAndParseKey(t *testing.T) {
 			require.NoError(t, err)
 			gotKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s))
 			require.NoError(t, err)
-			assert.Empty(t, cmp.Diff(key, gotKey.Signer), "parsed private key is not equal to the original")
+			assert.Empty(t, cmp.Diff(key, gotKey.Signer, cmpopts.IgnoreUnexported(hardwarekey.Signer{})), "parsed private key is not equal to the original")
 
 			pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 			require.NoError(t, err)
