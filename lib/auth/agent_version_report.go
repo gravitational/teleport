@@ -30,6 +30,9 @@ func (ir instanceReport) collectInstance(handle inventory.UpstreamHandle) {
 
 	hello := handle.Hello()
 
+	// TODO: ignore if the agent doesn't have an updater set
+	// Do we count external updaters?
+
 	// We skip instances whose updater status is not unknown or OK.
 	// Note: is it OK to allow unknown? Discuss this with Stephen.
 	status := hello.GetUpdaterStatus()
