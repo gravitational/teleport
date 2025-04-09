@@ -150,7 +150,14 @@ func (s *IssuanceService) deriveAttrs(
 	return attrs, nil
 }
 
-var defaultMaxTTL = 24 * time.Hour
+const (
+	// defaultMaxTTL defines the max requestable TTL for SVIDs where the
+	// workload identity resource does not specify a maximum TTL.
+	defaultMaxTTL = 24 * time.Hour
+	// defaultTTL defines the TTL when a client has not requested a specific
+	// TTL.
+	defaultTTL = 1 * time.Hour
+)
 
 func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
@@ -477,7 +484,7 @@ func calculateTTL(
 	requestedTTL time.Duration,
 	configuredMaxTTL time.Duration,
 ) (time.Time, time.Time, time.Time, time.Duration) {
-	ttl := cmp.Or(requestedTTL, time.Hour)
+	ttl := cmp.Or(requestedTTL, defaultTTL)
 	maxTTL := cmp.Or(configuredMaxTTL, defaultMaxTTL)
 
 	if ttl > maxTTL {
