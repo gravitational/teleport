@@ -53,7 +53,7 @@ func TestMarshalAndParsePrivateKey(t *testing.T) {
 			require.NoError(t, err)
 			gotKey, err := ParsePrivateKey(keyPEM)
 			require.NoError(t, err)
-			require.Equal(t, key, gotKey.Signer)
+			require.Empty(t, cmp.Diff(key, gotKey.Signer), "parsed private key is not equal to the original")
 		})
 	}
 }
