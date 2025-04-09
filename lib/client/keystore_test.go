@@ -334,7 +334,7 @@ func assertEqualKeyRings(t *testing.T, expected, actual *KeyRing) {
 	// Ignore differences in unexported private key fields, for example keyPEM
 	// may change after being serialized in OpenSSH format and then deserialized.
 	// cmp.Diff fails to compare [hardwarekey.PrivateKey], so we compare the signers below.
-	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreUnexported(keys.PrivateKey{}), cmpopts.IgnoreUnexported(hardwarekey.PrivateKey{})))
+	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreUnexported(keys.PrivateKey{}), cmpopts.IgnoreUnexported(hardwarekey.Signer{})))
 	require.Equal(t, expected.TLSPrivateKey.Signer, actual.TLSPrivateKey.Signer)
 	require.Equal(t, expected.SSHPrivateKey.Signer, actual.SSHPrivateKey.Signer)
 }
