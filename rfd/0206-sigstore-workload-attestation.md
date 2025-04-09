@@ -200,8 +200,7 @@ services:
 
 Users will create policies that determine which signing identities or keys to
 trust, whether artifact signatures or attestations are required, and details of
-their private Fulcio and Rekor instances. We'll refer to the Kubernetes policy
-controller's `ClusterImagePolicy` and `TrustRoot` resources for inspiration.
+their private Fulcio and Rekor instances.
 
 Here's an example of a policy which requires the image to have been attested by
 a GitHub Actions runner in any of `mycompany`'s repositories with SLSA
@@ -213,13 +212,13 @@ version: v1
 metadata:
   name: github-provenance
 spec:
-  authorities:
-    - keyless:
-        trusted_identities:
-          - issuer: https://token.actions.githubusercontent.com
-            subject_regex: https://github.com/mycompany/*/.github/workflows/*@*
-        required_attestations:
-          - predicate_type: https://slsa.dev/provenance/v1
+  keyless:
+    identities:
+      - issuer: https://token.actions.githubusercontent.com
+        subject_regex: https://github.com/mycompany/*/.github/workflows/*@*
+  requirements:
+    attestations:
+      - predicate_type: https://slsa.dev/provenance/v1
 ```
 
 Here's an example of a policy which requires the image to have been signed using
@@ -231,116 +230,54 @@ version: v1
 metadata:
   name: trusted-keypair
 spec:
-  authorities:
-    - key:
-        hash_algorithm: sha256
-        data: |
-          -----BEGIN PUBLIC KEY-----
-          -----END PUBLIC KEY-----
-        require_artifact_signature: true
+  key:
+    public: |
+      -----BEGIN PUBLIC KEY-----
+      -----END PUBLIC KEY-----
+  requirements:
+    artifact_signature: true
 ```
 
-Here is the full resource schema:
+When using a self-hosted Fulcio, Rekor, or timestamp authority instance; users
+can supply a set of JSON-formatted ["trusted root"](https://github.com/sigstore/protobuf-specs/blob/cac7a926e0968571d3eb2e2fc8ebd40b8ebe0d58/protos/sigstore_trustroot.proto#L92-L144)
+documents which include all of the information required to verify signatures
+using their private infrastructure (e.g. certificate chains, validity periods).
 
 ```yaml
 kind: sigstore_policy
 version: v1
 metadata:
-  name: my-policy
+  name: github-provenance
 spec:
-  authorities:
-    -
-      # configuration for a static trusted keypair
-      key:
-        hash_algorithm: sha256
-        data: |
-          -----BEGIN PUBLIC KEY-----
-          -----END PUBLIC KEY-----
-
-        # whether the artifact itself must have been signed (e.g. using `cosign
-        # sign <image>`)
-        require_artifact_signature: true
-
-        # which attestations must be present
-        required_attestations:
-          -
-            # the in-toto predicate type
-            predicate_type: foo.bar
-
-    -
-      # configuration for keyless verification
-      keyless:
-        # list of trusted signing identities
-        trusted_identities:
-          -
-            # OIDC issuer matcher
-            issuer: https://accounts.google.com
-            issuer_regex: https://*.google.com
-
-            # certificate SAN matcher
-            subject: daniel.upton@goteleport.com
-            subject_regex: '*@goteleport.com'
-
-        transparency_log:
-          # whether to check for entries in the transparency log at all
-          enabled: true
-
-          # configuration for custom Rekor instance
-          uri: https://rekor.example.dev
-
-          # TUF root of trust
-          tuf:
-            url: https://tuf.example.dev
-            root: |
-              {}
-
-          # manual trust configuration
-          subject:
-            organization: Foo
-            common_name: Bar
-          certificate_chain: |
-            -----BEGIN CERTIFICATE-----
-            -----END CERTIFICATE-----
-
-        # configuration for custom Fulcio instance
-        certificate_authority:
-          uri: https://fulcio.example.dev
-
-          # TUF root of trust
-          tuf:
-            url: https://tuf.example.dev
-            root: |
-              {}
-
-          # manual trust configuration
-          subject:
-            organization: Foo
-            common_name: Bar
-          certificate_chain: |
-            -----BEGIN CERTIFICATE-----
-            -----END CERTIFICATE-----
-
-        # configuration for RFC 3161 timestamp authorities
-        timestamp_authorities:
-          -
-            uri: https://tsa.example.dev
-            subject:
-              organization: Foo
-              common_name: Bar
-            certificate_chain: |
-              -----BEGIN CERTIFICATE-----
-              -----END CERTIFICATE-----
-
-        # whether the artifact itself must have been signed (e.g. using `cosign
-        # sign <image>`)
-        require_artifact_signature: true
-
-        # which attestations must be present
-        required_attestations:
-          -
-            # the in-toto predicate type
-            predicate_type: foo.bar
+  keyless:
+    identities:
+      - issuer: https://token.actions.githubusercontent.com
+        subject_regex: https://github.com/mycompany/*/.github/workflows/*@*
+    trusted_roots:
+      - |
+        {
+          "mediaType": "application/vnd.dev.sigstore.trustedroot+json;version=0.1",
+          ...
+  requirements:
+    artifact_signature: true
 ```
+
+This was chosen over designing our own format because it handles a lot of the
+complexity around certificate rotation, etc. It's also straightforward to export
+trusted roots [using the GitHub CLI](https://cli.github.com/manual/gh_attestation_trusted-root).
+
+```shell
+$ gh attestation trusted-root | jq .
+{
+  "mediaType": "application/vnd.dev.sigstore.trustedroot+json;version=0.1",
+  "tlogs": [
+    {
+      "baseUrl": "https://rekor.sigstore.dev",
+...
+```
+
+In the future, we'll support using a custom [TUF](https://theupdateframework.io/)
+repository to keep your root of trust up-to-date automatically.
 
 ### `WorkloadIdentity` Resource Changes
 
@@ -534,6 +471,17 @@ Cosign support signing and verifying using a KMS-managed key. We've avoided it
 in this RFD to keep scope small, which is acceptable because we only need the
 public key. In the future, it might be worth exploring matching cosign's support
 for reading the public key from a KMS.
+
+### Custom TUF Repositories
+
+Companies operating their own Sigstore infrastructure will likely bootstrap
+their root of trust using [TUF](https://theupdateframework.io/), similar to the
+public good instance.
+
+For simplicity, we chose not to explore an integration with custom TUF
+repositories in this RFD. Instead, users can manually supply a "trusted root"
+document directly in their `SigstorePolicy` resources, which feels like an
+acceptable trade-off until there's clear customer demand for TUF support.
 
 ## Abandoned Ideas
 
