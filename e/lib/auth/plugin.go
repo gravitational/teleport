@@ -25,10 +25,12 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/accesslist"
+	"github.com/gravitational/teleport/e/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
@@ -384,6 +386,20 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		return trace.Wrap(err)
 	}
 	oktapb.RegisterOktaServiceServer(gRPCServer, oktaSvc)
+
+	{
+		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
+			Authorizer: p.authServer.Authorizer,
+			Storage:    p.authServer.AuthServer.Services,
+			Emitter:    p.authServer.Emitter,
+
+			ClusterName: clusterName.GetClusterName(),
+		})
+		if err != nil {
+			return trace.Wrap(err, "creating workload identity X509 overrides service")
+		}
+		workloadidentityv1pb.RegisterX509OverridesServiceServer(gRPCServer, srv)
+	}
 
 	return nil
 }
