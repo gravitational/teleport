@@ -6,9 +6,32 @@ description: Provides a comparison of features available in Teleport products.
 The Teleport feature matrix lists capabilities of the Teleport Infrastructure
 Identity Platform, organized by product.
 
-{/*Since the feature matrix includes multiple tables, set a fixed cell width to
-ensure that all tables are aligned.*/} 
+{/*The Feature Matrix table has unique requirements, so include styling in an
+HTML tag until we can support these requirements some other way.*/} 
 <style dangerouslySetInnerHTML={{__html: `
+  /* 
+    Shade certain rows the color of the cell dividers to provide the illusion of
+    colspans until the docs engine supports them in Markdown tables. We need to
+    update this list whenever we change the organization of the tables.
+  */
+  table:nth-of-type(1) tbody tr:nth-of-type(1),
+  table:nth-of-type(1) tbody tr:nth-of-type(5),
+  table:nth-of-type(1) tbody tr:nth-of-type(7),
+  table:nth-of-type(1) tbody tr:nth-of-type(14),
+  table:nth-of-type(1) tbody tr:nth-of-type(17),
+  table:nth-of-type(1) tbody tr:nth-of-type(25),
+  table:nth-of-type(1) tbody tr:nth-of-type(28),
+  table:nth-of-type(5) tbody tr:nth-of-type(1),
+  table:nth-of-type(5) tbody tr:nth-of-type(9),
+  table:nth-of-type(5) tbody tr:nth-of-type(19)
+  {
+    background: #dddddd;
+  }
+
+  /*
+    Since the feature matrix includes multiple tables, set a fixed cell 
+    width to ensure that all tables are aligned.
+  */
   table {
     table-layout: fixed;
   }
@@ -16,13 +39,13 @@ ensure that all tables are aligned.*/}
   th, td {
     width: 18%;
   }
+
   th:first-child, td:first-child {
     width: 46%;
   }
   `
   }}
 />
-
 
 The **Teleport Identity Infrastructure Platform** modernizes identity, access,
 and policy for infrastructure, for both human and non-human identities. Products
@@ -39,58 +62,25 @@ include:
 to applications, servers, databases, Kubernetes clusters, and other resources
 across distributed infrastructures.
 
-**User identity:** Authenticate users without passwords leveraging Touch ID,
-YubiKey Bio and other biometric devices. Add Teleport as a security layer on top
-of your identity provider or use Teleport's SSO.
-
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
+|**User identity.** Authenticate users without passwords:||||
 | [Single Sign-On](https://goteleport.com/docs/admin-guides/access-controls/sso/)| GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub |
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
 | [Hardware Private Key Support](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
-
-<br />
-**Resource identity:** Assign a cryptographic identity to every application,
-server, database and other Teleport Protected Resources to gain visibility and
-control of all your infrastructure.
-
-|  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
-|---|:---:|:---:|:---:|
+|**Resource identity.** Assign a cryptographic identity to every Teleport Protected Resource:||||
 | Protecting:  [Applications](https://goteleport.com/docs/enroll-resources/application-access/getting-started/),  [Databases](https://goteleport.com/docs/enroll-resources/database-access/getting-started/), [Kubernetes Clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/getting-started/), [Linux Servers](https://goteleport.com/docs/enroll-resources/server-access/getting-started/), [Windows Servers](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/), [Windows Desktops](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](https://goteleport.com/docs/admin-guides/management/guides/github-integration/) | ✔ | ✔ | ✔ (does not include Oracle support) |
-
-<br />
-**Secure remote access:** Zero-trust, auditable  access to all supported
-infrastructure  types from anywhere, without VPNs, bastion hosts or Vaults with
-shared secrets.
-
-|  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
-|---|:---:|:---:|:---:|
+|**Secure remote access.** Zero-trust, auditable access to your infrastructure:||||
 | Dynamic, self-updating inventory | ✔ | ✔ | ✔ |
 | Supports SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
 | [Machines](https://goteleport.com/docs/enroll-resources/machine-id/) and [workloads](https://goteleport.com/docs/enroll-resources/workload-identity/introduction/#teleport-workload-identity-vs-machine-id) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
 | Agentless Integration with [OpenSSH Servers](https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/) | ✔ | ✔ | ✔ |
 | [IP-Based Restrictions](https://goteleport.com/docs/admin-guides/access-controls/guides/ip-pinning/) | ✔ | ✔ | ✖ |
 | [Teleport VNet](https://goteleport.com/docs/connect-your-client/vnet/) | ✔ | ✔ | ✔ |
-
-<br />
-**Short-lived privileges:** Ephemeral authorization granted through short-lived
-certificates bound to biometric devices and secure-enclaves, via Teleport’s
-built-in certificate authority for X.509 and SSH certificates for all resources,
-including legacy systems.
-
-|  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
-|---|:---:|:---:|:---:|
+|**Short-lived privileges.** Ephemeral authorization granted through short-lived certificates:||||
 | [Role-Based Access Control](https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/) | ✔ | ✔ | ✔ |
 | [Just-in-Time Access Requests & Reviews](https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | Only can request roles through CLI  |
-
-<br />
-**Session recording and interactive controls:** Record, replay, join, and
-moderate interactive sessions for SSH and Kubernetes, Linux Servers, Windows
-Kubernetes Clusters & pods, Databases, AWS, GCP, and Azure CLI & API, and other
-Protected Resources.
-
-|  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
-|---|:---:|:---:|:---:|
+|**Session recording and interactive controls.** Record, replay, join, and moderate interactive sessions:||||
 | [Session Recording with Playback](https://goteleport.com/docs/reference/architecture/session-recording/) | ✔ | ✔ | ✔ |
 | [Enhanced Session Recording](https://goteleport.com/docs/enroll-resources/server-access/guides/bpf-session-recording/) | ✔ | ✔ | ✔ |
 | [Recording Proxy Mode](https://goteleport.com/docs/enroll-resources/server-access/guides/recording-proxy-mode/) | ✖ | ✔ | ✔ |
@@ -98,23 +88,10 @@ Protected Resources.
 | Protocol-Level Events, for all supported resources | ✔ | ✔ | ✔ |
 | [Dual Authorization](https://goteleport.com/docs/admin-guides/access-controls/guides/dual-authz/) | ✔ | ✔ | ✖ |
 | [Session Sharing & Moderation](https://goteleport.com/docs/admin-guides/access-controls/guides/joining-sessions/) | ✔ | ✔ | ✖ |
-
-<br />
-**Identity-based audit events:** Teleport collects structured audit events for
-each identity, application and protocol giving you a detailed view of every
-interaction.
-
-|  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
-|---|:---:|:---:|:---:|
+|**Identity-based audit events:** ||||
 | [Structured Audit Logs](https://goteleport.com/docs/reference/monitoring/audit/) | ✔ | ✔ | ✔ |
 | [Export to SIEM](https://goteleport.com/docs/admin-guides/management/export-audit-events/) | ✔ | ✔ | ✔ |
-
-<br />
-**Regulatory standards and frameworks:** Teleport makes ite asier to achieve
-compliance.
-
-|  | **Teleport Enterprise (Cloud)** | **Teleport Enterprise (Self-Hosted)** | **Teleport Community Edition** |
-|---|:---:|:---:|:---:|
+|**Regulatory standards and frameworks:**||||
 | [FedRAMP Control](https://goteleport.com/docs/admin-guides/access-controls/compliance-frameworks/fedramp/) | ✖ | ✔ | ✖ |
 | FIPS-compliant binaries for FedRAMP (Low, Moderate, High) | ✖ | ✔ | ✖ |
 | DORA, SOX, ISO, NIS2, PCI DSS, SOC 2, HIPAA, NIST  | ✔ | ✔ | Limited |
@@ -164,10 +141,11 @@ and non-human identities.
 | Investigate identity vulnerabilities and potential exposures | ✔ | ✔ | ✖ |
 | Monitor critical assets with [Crown Jewel](https://goteleport.com/docs/admin-guides/teleport-policy/crown-jewels/) Alerting | ✔ | ✔ | ✖ |
 
-## Integrations
+## Platform integrations, management, licensing, and deployment
 
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
+| **Integrations:** ||||
 | Infrastructure as Code (IaC): Terraform, K8s Operator | ✔ | ✔ | ✔ |
 | Cloud Providers: AWS, Azure, GCP | ✔ | ✔ | ✔ |
 | Security Information & Event Management (SIEM): Elastic, Splunk, Panther, and anything else that integrates with Fluentd | ✔ | ✔ | ✔ |
@@ -175,11 +153,7 @@ and non-human identities.
 | Access Request Integration: Slack, Teams, Discord, Mattermost, PagerDuty, Opsgenie, Email | ✔ | ✔ | ✔ |
 | [Hardware Private Key Support](https://goteleport.com/docs/admin-guides/access-controls/guides/hardware-key-support/) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 | [Hardware Security Module support](https://goteleport.com/docs/admin-guides/deploy-a-cluster/hsm/) for encryption at rest | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
-
-## Management and licensing
-
-|  | Teleport Enterprise (Cloud) | Teleport Enterprise (Self-Hosted) | Teleport Community Edition |
-|---|:---:|:---:|:---:|
+| **Management and licensing:** ||||
 | Annual or multi-year contracts, volume discounts | ✔ | ✔ | ✖ |
 | Anonymized Usage Tracking | ✔ | ✔ | Opt-in |
 | [Backend support](https://goteleport.com/docs/reference/backends/) | All data is stored in DynamoDB and S3 with server-side encryption. | Any S3-compatible storage for session records, many managed backends for custom audit log storage | Any S3-compatible storage for session records, many managed backends for custom audit log storage. |
@@ -189,14 +163,9 @@ and non-human identities.
 | Publicly accessible domain name | A subdomain of teleport.sh | Custom | Custom |
 | [Support](https://support.goteleport.com/hc/en-us/articles/16562919750419-Priority-Support) | 24x7 (Severity 1) support with premium SLAs and account managers. | 24x7 (Severity 1) support with premium SLAs and account managers | Slack community |
 | Version support | Deploys last stable release with 2-3 week lag for stability. | All supported releases available to install and download. |  All supported releases available to install and download. |
-
-## Deployment options
-
-|  | Teleport Enterprise (Cloud) | Teleport Enterprise (Self-Hosted) | Teleport Community Edition |
-|---|:---:|:---:|:---:|
+| **Deployment options:** ||||
 | Teleport cloud deployment | ✔ | ✖ | ✖ |
 | Self-hosted deployment| ✖ | ✔ | ✔ |
 | Multi-Region High Availability | ✔ (Teleport service) | ✔ (Customer-implemented, via a [supported blueprint](https://goteleport.com/docs/admin-guides/deploy-a-cluster/multi-region-blueprint/)) | ✖ |
 | FIPS-compliant binaries available for FedRAMP, including Low, Moderate & High | ✖ | ✔ | ✖ |
-
 
