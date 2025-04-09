@@ -427,6 +427,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			Backend: cfg.Backend,
 		}
 	}
+	if cfg.HealthCheckConfig == nil {
+		cfg.HealthCheckConfig, err = local.NewHealthCheckConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
+		}
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -531,6 +537,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		HealthCheckConfig:               cfg.HealthCheckConfig,
 	}
 
 	as := Server{
@@ -765,6 +772,7 @@ type Services struct {
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
 	services.WorkloadIdentityX509Overrides
+	services.HealthCheckConfig
 }
 
 // GetWebSession returns existing web session described by req.
