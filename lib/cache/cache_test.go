@@ -1104,8 +1104,6 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 		}
 	}
 
-	b.ResetTimer()
-
 	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
 		for _, totalCount := range []bool{true, false} {
 			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
