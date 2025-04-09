@@ -675,10 +675,14 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 type CredentialLifetime struct {
 	TTL             time.Duration `yaml:"credential_ttl,omitempty"`
 	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
+	// Used for services which do not abide by the global TTL limit.
+	ignoreMaximumTTL bool
 }
 
 // IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
 func (l CredentialLifetime) IsEmpty() bool {
+	// We don't care about this field being set when checking empty state.
+	l.ignoreMaximumTTL = false
 	return l == CredentialLifetime{}
 }
 
@@ -710,7 +714,7 @@ func (l CredentialLifetime) Validate(oneShot bool) error {
 		}
 	}
 
-	if l.TTL > defaults.MaxRenewableCertTTL {
+	if !l.ignoreMaximumTTL && l.TTL > defaults.MaxRenewableCertTTL {
 		return SuboptimalCredentialTTLError{
 			msg: "Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
 			details: map[string]any{
