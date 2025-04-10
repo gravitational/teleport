@@ -107,7 +107,7 @@ get_labels() {
   echo "$LABELS"
 }
 
-install_jq() {
+install_deps() {
   # shellcheck disable=SC1091
   . /etc/os-release
 
@@ -227,12 +227,9 @@ install_teleport() {
 
   TOKEN="$1"
 
-  if ! test -f /usr/bin/jq; then
-    if ! test -f /usr/local/bin/teleport; then
-      install_teleport
-    else
-      install_jq
-    fi
+  install_deps
+  if ! test -f /usr/local/bin/teleport; then
+    install_teleport
   fi
 
   IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
