@@ -6,6 +6,5 @@ spec:
     enabled: false
     pinned: false
 status:
-    id_file: updater-id-file
     active:
         version: 16.3.0

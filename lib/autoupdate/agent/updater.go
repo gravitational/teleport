@@ -19,10 +19,11 @@
 package agent
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -33,9 +34,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -50,6 +53,8 @@ import (
 const (
 	// BinaryName specifies the name of the updater binary.
 	BinaryName = "teleport-update"
+	// SystemdMachineIDFile is a path containing a machine-unique identifier created by systemd.
+	SystemdMachineIDFile = "/etc/machine-id"
 )
 
 const (
@@ -64,6 +69,8 @@ const (
 	// requiredUmask must be set before this package can be used.
 	// Use syscall.Umask to set when no other goroutines are running.
 	requiredUmask = 0o022
+	// teleportHostIDFileName is the name of Teleport's host ID file.
+	teleportHostIDFileName = "host_uuid"
 )
 
 // Log keys
@@ -126,6 +133,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		Pool:                certPool,
 		InsecureSkipVerify:  cfg.InsecureSkipVerify,
 		UpdateConfigFile:    filepath.Join(ns.Dir(), updateConfigName),
+		MachineIDFile:       SystemdMachineIDFile,
+		TeleportIDFile:      filepath.Join(ns.dataDir, teleportHostIDFileName),
 		TeleportConfigFile:  ns.configFile,
 		TeleportServiceName: filepath.Base(ns.serviceFile),
 		DefaultProxyAddr:    ns.defaultProxyAddr,
@@ -176,7 +185,6 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		SetupNamespace:    ns.Setup,
 		TeardownNamespace: ns.Teardown,
 		LogConfigWarnings: ns.LogWarnings,
-		EnsureUpdateID:    ns.EnsureID,
 	}, nil
 }
 
@@ -211,6 +219,10 @@ type Updater struct {
 	InsecureSkipVerify bool
 	// UpdateConfigFile contains the path to the agent auto-updates configuration.
 	UpdateConfigFile string
+	// MachineIDFile contains the path to the system ID file.
+	MachineIDFile string
+	// TeleportIDFile contains the path to the ID used to track the Teleport agent during updates.
+	TeleportIDFile string
 	// TeleportConfigFile contains the path to Teleport's configuration.
 	TeleportConfigFile string
 	// TeleportServiceName contains the full name of the systemd service for Teleport
@@ -232,9 +244,6 @@ type Updater struct {
 	TeardownNamespace func(ctx context.Context) error
 	// LogConfigWarnings logs warnings related to the configuration Namespace.
 	LogConfigWarnings func(ctx context.Context, pathDir string)
-	// EnsureUpdateID generates and/or retrieves an ID for the updater, ensuring it is persisted.
-	// This ID is read by the Teleport agent and used to schedule progressive updates.
-	EnsureUpdateID func() (string, error)
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -363,11 +372,6 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	}
 	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
-	}
-	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
-	cfg.Status.IDFile, err = u.EnsureUpdateID()
-	if err != nil {
-		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
 	}
 
 	if cfg.Spec.Proxy == "" {
@@ -589,18 +593,50 @@ func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) er
 	return nil
 }
 
-// readID returns the update ID, if present on disk.
+// readID generates a unique ID based on the host and Teleport agent.
 // Errors will be logged.
-func (u *Updater) readID(ctx context.Context, path string) string {
-	idBytes, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return ""
+func (u *Updater) readID(ctx context.Context) string {
+	tid, err := os.ReadFile(u.TeleportIDFile)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		u.Log.WarnContext(ctx, "Failed to read Teleport host ID.", "path", u.TeleportIDFile, errorKey, err)
 	}
+	mid, err := os.ReadFile(u.MachineIDFile)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		u.Log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", u.MachineIDFile, errorKey, err)
+	}
+	out, err := UpdaterID(string(tid), string(mid))
 	if err != nil {
-		u.Log.ErrorContext(ctx, "Failed to read update ID file.", "path", path, errorKey, err)
+		u.Log.ErrorContext(ctx, "Unable to generate unique ID for this host.")
+		u.Log.ErrorContext(ctx, "The Teleport agent may not be tracked, and may fail if used as a canary.")
 		return ""
 	}
-	return string(bytes.TrimSpace(idBytes))
+	return out
+}
+
+// UpdaterID derives a UUIDv5 from Teleport's host_uuid and systemd's machine-id.
+// This reduces the chance that multiple hosts will have the same updater ID, while
+// allowing both the teleport and teleport-update binaries to deterministically derive
+// the same value. This also avoids issues caused by non-UUID values in host_uuid,
+// and ensures that updaters without running agents have a unique value.
+func UpdaterID(teleportID, machineID string) (string, error) {
+	// changing this struct will change all hashes
+	obj := struct {
+		TID string `json:"teleport_id,omitempty"`
+		HID string `json:"machine_id,omitempty"`
+	}{
+		TID: strings.TrimSpace(teleportID),
+		HID: strings.TrimSpace(machineID),
+	}
+	if obj.TID == "" && obj.HID == "" {
+		return "", trace.BadParameter("all provided IDs are empty")
+	}
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// this only uses the first 16 bytes of the sha256 hash, which is acceptable
+	// for uniquely identify agents connected to a cluster
+	return uuid.NewHash(sha256.New(), uuid.Nil, out, 5).String(), nil
 }
 
 // Status returns all available local and remote fields related to agent auto-updates.
@@ -628,7 +664,6 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 		return out, trace.Wrap(err)
 	}
 	out.FindResp = resp
-	out.IDFile = "" // actual ID is is find response
 	return out, nil
 }
 
@@ -681,11 +716,6 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
-	}
-	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
-	cfg.Status.IDFile, err = u.EnsureUpdateID()
-	if err != nil {
-		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
 	}
 
 	active := cfg.Status.Active
@@ -793,7 +823,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to parse proxy server address")
 	}
-	id := u.readID(ctx, cfg.Status.IDFile)
+	id := u.readID(ctx)
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,
 		ProxyAddr:   addr.Addr,
