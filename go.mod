@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.24.1
+go 1.24.2
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.16.0
@@ -235,7 +235,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
-	helm.sh/helm/v3 v3.17.2
+	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.32.3
 	k8s.io/apiextensions-apiserver v0.32.3
 	k8s.io/apimachinery v0.32.3
