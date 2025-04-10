@@ -3,6 +3,34 @@ title: Managing Disaster Recovery in an Amazon EKS Teleport Cluster
 description: Provides guidance for planning a strategy for restoring a self-hosted Teleport cluster on EKS after a regional outage.
 ---
 
+In case of an outage in your cloud provider region, you need to ensure that you
+can restore your Teleport cluster to working order. This guide provides an
+overview of a disaster recovery approach for self-hosted Teleport clusters.
+
+The guide assumes that your self-hosted Teleport cluster runs on Kubernetes
+using Amazon Elastic Kubernetes Service and uses the `teleport-cluster` Helm
+chart. The `teleport-cluster` Helm chart is the recommended approach for quickly
+getting started with self-hosting a Teleport cluster, and you can read about how
+to get started with the chart in the [Helm deployment
+guides](../../helm-deployments//helm-deployments.mdx).
+
+## How it works
+
+In the approach we explain in this guide, the Teleport Auth Service backends
+receive continuous backups to a secondary region. If the primary region becomes
+unavailable due to an outage, an admin redeploys the cluster to the new region,
+configuring the Teleport Auth Service to connect to the backends in the
+secondary region. Since Teleport certificate authorities are already backed up
+the new region, running Teleport Agents do not need to reconnect to the cluster,
+and there is no need to recreate dynamic resources. Recovery time depends on the
+time it takes to redeploy the Auth Service and Proxy Service in the new region.
+
+## Prerequisites
+
+{/*TODO*/}
+
+## Architectural overview of the disaster recovery approach  
+
 {/* TODO: Hugo feedback: "One very common mistake people are doing (and we keep
 doing this at Teleport too 🥲) is think that outages are "clean", the resources
 just disappear, VMs shutdown, ...
@@ -14,8 +42,6 @@ disrupt Teleport but VMs are still running and managing to do some operations.
 
 Conversely, after the outage, the services coming back online can be as
 disruptive as the services being down."*/}
-
-## Architectural overview of the disaster recovery approach  
 
 {/*TODO: Hugo: "I suggest to strongly  communicate about the necessity stopping
 the old cluster before attempting to deploy a new one. This might prove
