@@ -279,6 +279,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWorkloadIdentityX509Revocation, nil
 	case types.KindWorkloadIdentityX509IssuerOverride, types.KindWorkloadIdentityX509IssuerOverride + "s":
 		return types.KindWorkloadIdentityX509IssuerOverride, nil
+	case types.KindSigstorePolicy, "sigstorepolicy", "sigstore_policies", "sigstorepolicies":
+		return types.KindSigstorePolicy, nil
 	case types.KindHealthCheckConfig, types.KindHealthCheckConfig + "s", "hcc":
 		return types.KindHealthCheckConfig, nil
 	}
