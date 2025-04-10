@@ -210,8 +210,8 @@ export function DesktopSession({
     client.onLatencyStats,
     useCallback(stats => {
       setLatencyStats({
-        client: stats.browserLatency,
-        server: stats.desktopLatency,
+        client: stats.client,
+        server: stats.server,
       });
     }, [])
   );
