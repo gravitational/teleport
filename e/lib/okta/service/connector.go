@@ -201,9 +201,9 @@ func (s *Service) setAppId(ctx context.Context, info *sso.SAMLConnectorInfo, req
 		return trace.BadParameter("Okta organization URL missing in the create integration request")
 	}
 
-	createOktaClientParams := &createOktaClientParams{
-		credsFromReq:     req.GetApiCredentials(),
-		oktaOrganization: req.GetOktaOrganizationUrl(),
+	createOktaClientParams := createOktaClientParams{
+		requestCreds: req.GetApiCredentials(),
+		orgUrl:       req.GetOktaOrganizationUrl(),
 	}
 	oktaClient, err := s.createOktaClient(ctx, createOktaClientParams)
 	if err != nil {

@@ -147,16 +147,16 @@ func NewPluginOktaStatus(params PluginOktaStatusParams) *types.PluginOktaStatusV
 			AppName: params.SyncSettings.AppName,
 		},
 		AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
-			Enabled: !params.SyncSettings.DisableSyncAppGroups,
+			Enabled: params.SyncSettings.GetEnableAppGroupSync(),
 		},
 		UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
-			Enabled: params.SyncSettings.SyncUsers,
+			Enabled: params.SyncSettings.GetEnableUserSync(),
 		},
 		ScimDetails: &types.PluginOktaStatusDetailsSCIM{
 			Enabled: params.ScimEnabled,
 		},
 		AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
-			Enabled:      params.SyncSettings.SyncAccessLists,
+			Enabled:      params.SyncSettings.GetEnableAccessListSync(),
 			GroupFilters: params.SyncSettings.GroupFilters,
 			AppFilters:   params.SyncSettings.AppFilters,
 		},

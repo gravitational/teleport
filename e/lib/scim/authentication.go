@@ -1,38 +1,19 @@
 package scim
 
 import (
-	"context"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
-// getStaticCreds searches the supplied static credentials DB for all
-// credentials related to the supplied plugin
-func getStaticCreds(ctx context.Context, creds CredentialsService, p types.Plugin) ([]types.PluginStaticCredentials, error) {
-	staticCredsRef := p.GetCredentials().GetStaticCredentialsRef()
-	if staticCredsRef == nil {
-		return nil, trace.NotFound("no static credentials ref found")
-	}
-
-	staticCreds, err := creds.GetPluginStaticCredentialsByLabels(ctx, staticCredsRef.Labels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return staticCreds, nil
-}
-
-func checkBearerToken(tokenCredential types.PluginStaticCredentials, authHeader string) error {
+func checkBearerToken(scimToken string, authHeader string) error {
 	bearerToken, err := extractBearerToken(authHeader)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	expectedHash := []byte(tokenCredential.GetAPIToken())
+	expectedHash := []byte(scimToken)
 	actualBits := []byte(bearerToken)
 	if err := bcrypt.CompareHashAndPassword(expectedHash, actualBits); err != nil {
 		return trace.AccessDenied("invalid token")

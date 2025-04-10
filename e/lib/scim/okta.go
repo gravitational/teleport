@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
@@ -92,21 +93,20 @@ func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
 
 // authorizeRequest grants or denies access based on a bearer
 func (s *oktaShim) authorizeRequest(ctx context.Context, authHeader string) error {
-	creds, err := getStaticCreds(ctx, s.creds, s.plugin)
+	creds, err := oktaplugin.GetStaticCredentials(ctx, s.creds, s.plugin.GetCredentials().GetStaticCredentialsRef())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	selectedCredential, err := okta.SelectSCIMToken(creds)
+	scimTokenHash, ok, err := oktaplugin.SelectSCIMTokenHash(creds)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	if selectedCredential == nil || selectedCredential.GetAPIToken() == "" {
+	if !ok {
 		return trace.AccessDenied("no token set")
 	}
 
-	if err := checkBearerToken(selectedCredential, authHeader); err != nil {
+	if err := checkBearerToken(scimTokenHash, authHeader); err != nil {
 		return trace.AccessDenied("invalid token")
 	}
 
@@ -531,30 +531,30 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 	return candidateID, nil
 }
 
+// oktaClient creates an Okta client or returns NotFound if the credentials for the Okta client are
+// not present.
 func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
-	staticCredsRef := s.plugin.GetCredentials().GetStaticCredentialsRef()
-	if staticCredsRef == nil {
-		return nil, trace.NotFound("no static credentials found")
-	}
-	staticCreds, err := s.creds.GetPluginStaticCredentialsByLabels(ctx, staticCredsRef.Labels)
+	staticCreds, err := oktaplugin.GetStaticCredentials(ctx, s.creds, s.plugin.Credentials.GetStaticCredentialsRef())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	syncSettings := s.plugin.Spec.GetOkta()
-	var authProvider oktaapi.AuthProvider
-	if oauthCreds, err := okta.SelectOAuthClientID(staticCreds); err == nil {
-		clientID, _ := oauthCreds.GetOAuthClientSecret()
-		authProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
-			OAuthClientID: clientID,
+	var oktaAuthProvider oktaapi.AuthProvider
+	selectedOktaCreds, err := oktaplugin.SelectOktaCredentials(staticCreds)
+	if err != nil {
+		return nil, trace.Wrap(err, "looking up for Okta credentials")
+	}
+	switch {
+	case selectedOktaCreds.OauthClientId != "":
+		oktaAuthProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
+			OAuthClientID: selectedOktaCreds.OauthClientId,
 			AuthService:   s.certAuthorityGetter,
 			CAKeyStore:    s.jwtSignerGetter,
 			Clock:         s.clock,
 		})
-	} else if sswsCreds, err := okta.SelectAPIToken(staticCreds); err == nil {
-		authProvider = oktaapi.NewSSWSAuthProvider(sswsCreds.GetAPIToken())
-	} else {
-		return nil, trace.NotFound("no OAuth or SSM token static credentials set")
+	case selectedOktaCreds.ApiToken != "":
+		oktaAuthProvider = oktaapi.NewSSWSAuthProvider(selectedOktaCreds.ApiToken)
+	default:
+		return nil, trace.NotFound("Okta API credentials not found in plugin static credentials")
 	}
 
 	var oktaAPIScopes = []string{
@@ -564,9 +564,9 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 	}
 
 	oktaOpts := append(
-		authProvider.GetAuthOptions(),
+		oktaAuthProvider.GetAuthOptions(),
 		oktasdk.WithCache(false),
-		oktasdk.WithOrgUrl(syncSettings.OrgUrl),
+		oktasdk.WithOrgUrl(s.plugin.Spec.GetOkta().OrgUrl),
 		oktasdk.WithRequestTimeout(okta.RequestTimeoutSeconds),
 		oktasdk.WithRateLimitMaxRetries(math.MaxInt32),
 		oktasdk.WithScopes(oktaAPIScopes),

@@ -43,10 +43,10 @@ func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIn
 }
 
 func (s *Service) tryUpdateOktaAppID(ctx context.Context, req *oktapb.UpdateIntegrationRequest, pluginSpec *types.PluginOktaSettings, plugin types.Plugin) {
-	params := &createOktaClientParams{
-		credsFromReq:            req.GetApiCredentials(),
-		oktaOrganization:        pluginSpec.OrgUrl,
-		pluginCredentialsLabels: plugin.GetCredentials().GetStaticCredentialsRef().Labels,
+	params := createOktaClientParams{
+		requestCreds:         req.GetApiCredentials(),
+		orgUrl:               pluginSpec.OrgUrl,
+		pluginStaticCredsRef: plugin.GetCredentials().GetStaticCredentialsRef(),
 	}
 
 	appId, err := s.fetchOktaAppIdFromConnector(ctx, params, pluginSpec.SyncSettings.SsoConnectorId)
@@ -58,7 +58,7 @@ func (s *Service) tryUpdateOktaAppID(ctx context.Context, req *oktapb.UpdateInte
 	pluginSpec.SyncSettings.AppId = appId
 }
 
-func (s *Service) fetchOktaAppIdFromConnector(ctx context.Context, createOktaClientParams *createOktaClientParams, connectorId string) (appId string, err error) {
+func (s *Service) fetchOktaAppIdFromConnector(ctx context.Context, createOktaClientParams createOktaClientParams, connectorId string) (appId string, err error) {
 	oktaClient, err := s.createOktaClient(ctx, createOktaClientParams)
 	if err != nil {
 		return "", trace.Wrap(err)

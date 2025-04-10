@@ -8,7 +8,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
-	"github.com/gravitational/teleport/e/lib/okta/common"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
@@ -21,56 +22,54 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("field Spec.Okta must be present")
 	}
 
-	scimEnabled, err := isOktaSCIMEnabled(deps)
+	_, scimEnabled, err := oktaplugin.SelectSCIMTokenHash(deps.staticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
 	}
-
-	oktaCredsProvider, creds, err := okta.SelectAuthProviderStaticCredentials(ctx, okta.ParamSelectAuthProviderStaticCredentials{
-		StaticCredentials: deps.staticCredentials,
-		Auth:              deps.parentProcess.GetAuthServer().Cache,
-		CAKeyStore:        deps.parentProcess.GetAuthServer().GetKeyStore(),
-		Clock:             deps.parentProcess.Clock,
-	})
-	if trace.IsNotFound(err) {
-		if oktaSpec.SyncSettings.SyncUsers {
-			return nil, trace.BadParameter("user sync enabled but, Okta credentials missing")
-		}
-		if oktaSpec.SyncSettings.SyncAccessLists {
-			return nil, trace.BadParameter("Access Lists sync enabled but, Okta credentials missing")
-		}
-		// This is either:
-		//   - SSO-only integration
-		//   - SCIM-only integration without credentials
-		// Report status as running without starting plugin service.
+	var oktaAuthProvider oktaapi.AuthProvider
+	selectedOktaCreds, err := oktaplugin.SelectOktaCredentials(deps.staticCredentials)
+	if err != nil {
+		return nil, trace.Wrap(err, "looking up for Okta credentials")
+	}
+	switch {
+	case selectedOktaCreds.OauthClientId != "":
+		oktaAuthProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
+			OAuthClientID: selectedOktaCreds.OauthClientId,
+			AuthService:   deps.parentProcess.GetAuthServer().Cache,
+			CAKeyStore:    deps.parentProcess.GetAuthServer().GetKeyStore(),
+			Clock:         deps.parentProcess.Clock,
+		})
+	case selectedOktaCreds.ApiToken != "":
+		oktaAuthProvider = oktaapi.NewSSWSAuthProvider(selectedOktaCreds.ApiToken)
+	default:
 		return func() error {
+			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
+				SyncSettings: *oktaSpec.GetSyncSettings(),
+				ScimEnabled:  false,
+			})
+			if isSyncEnabled(status) {
+				err := trace.BadParameter("Okta credentials missing")
+				setSyncDetailsError(status, err)
+				okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_OTHER_ERROR, status)
+				return trace.Wrap(err)
+			}
 			if scimEnabled {
 				deps.logger.InfoContext(ctx, "SCIM-only integration. Updating plugin status, without starting the plugin")
 			} else {
 				deps.logger.InfoContext(ctx, "SSO-only integration. Updating plugin status, without starting the plugin")
 			}
-			// DisableSyncAppGroups is false by default, let's flip it so it's reported
-			// correctly.
-			oktaSpec.SyncSettings.DisableSyncAppGroups = true
-			okta.ReportPluginStatus(
-				ctx, deps.logger, deps.statusSink, types.PluginStatusCode_RUNNING,
-				okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
-					SyncSettings: *oktaSpec.SyncSettings,
-					ScimEnabled:  scimEnabled,
-				}),
-			)
+			okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_RUNNING, status)
+
 			<-deps.lifetime.Done()
 			return nil
 		}, nil
-	} else if err != nil {
-		return nil, trace.Wrap(err, "selecting okta credentials")
 	}
 
 	// TODO: Propagate license changes to Okta hosted plugin runtime.
 	// Currently, if license gets upgraded, okta service will still be
 	// running with stale settings (unless it was restarted).
 	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().GetEntitlement(entitlements.OktaUserSync).Enabled
-	oktaSpec.SyncSettings.DisableSyncAppGroups = oktaSpec.SyncSettings.DisableSyncAppGroups || shouldDisableAppGroupSync(creds)
+	oktaSpec.SyncSettings.DisableSyncAppGroups = oktaSpec.SyncSettings.DisableSyncAppGroups || selectedOktaCreds.ApiTokenForSCIMOnly
 	return func() error {
 		closeEvent := services.InitOktaPlugin(deps.lifetime,
 			services.OktaPluginPrams{
@@ -78,7 +77,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				PluginStatusSink: deps.statusSink,
 				PluginName:       plugin.GetName(),
 				OrgUrl:           oktaSpec.OrgUrl,
-				AuthProvider:     oktaCredsProvider,
+				AuthProvider:     oktaAuthProvider,
 				SyncSettings:     *oktaSpec.SyncSettings,
 				SCIMEnabled:      scimEnabled,
 			},
@@ -100,31 +99,27 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	}, nil
 }
 
-func isOktaSCIMEnabled(deps instanceDependencies) (bool, error) {
-	// Having a SCIM bearer token set implies that SCIM is enabled for this
-	// plugin instance.
-
-	enabled := true
-	if _, err := okta.SelectSCIMToken(deps.staticCredentials); err != nil {
-		if !trace.IsNotFound(err) {
-			return false, trace.Wrap(err, "querying for SCIM credentials")
-		}
-		deps.logger.InfoContext(context.Background(), "No SCIM credential supplied - SCIM disabled")
-		enabled = false
+func isSyncEnabled(status *types.PluginOktaStatusV1) bool {
+	if status.UsersSyncDetails != nil && status.UsersSyncDetails.Enabled {
+		return true
 	}
-	return enabled, nil
+	if status.AppGroupSyncDetails != nil && status.AppGroupSyncDetails.Enabled {
+		return true
+	}
+	if status.AccessListsSyncDetails != nil && status.AccessListsSyncDetails.Enabled {
+		return true
+	}
+	return false
 }
 
-// shouldDisableAppGroupSync check if app user sync should be disabled.
-// This is done by checking the label of the token credentials. If the label
-// is set to CredPurposeOktaAPITokenWithSCIMOnlyIntegration, then the app group
-// sync should be disabled.
-//
-// Why not use the proto SyncSettings.AppGroupSyncDisabled field?
-// Currently, adding fields to the plugin spec is not backward compatible:
-// the jsonPB unmarshaler with missing ignore unknown fields will fail to unmarshal the plugin spec.
-// when a new field was added.
-func shouldDisableAppGroupSync(tokenCreds types.PluginStaticCredentials) bool {
-	v, ok := tokenCreds.GetLabel(common.CredPurposeLabel)
-	return ok && v == common.CredPurposeOktaAPITokenWithSCIMOnlyIntegration
+func setSyncDetailsError(status *types.PluginOktaStatusV1, err error) {
+	if status.UsersSyncDetails != nil && status.UsersSyncDetails.Enabled {
+		status.UsersSyncDetails.Error = err.Error()
+	}
+	if status.AppGroupSyncDetails != nil && status.AppGroupSyncDetails.Enabled {
+		status.AppGroupSyncDetails.Error = err.Error()
+	}
+	if status.AccessListsSyncDetails != nil && status.AccessListsSyncDetails.Enabled {
+		status.AccessListsSyncDetails.Error = err.Error()
+	}
 }

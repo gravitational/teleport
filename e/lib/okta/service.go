@@ -2,7 +2,6 @@ package okta
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
 	"log/slog"
 	"regexp"
@@ -20,7 +19,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -659,130 +657,4 @@ func (s *Service) Close(ctx context.Context) error {
 	}
 
 	return trace.NewAggregate(errs...)
-}
-
-// SelectSCIMToken searches the supplied list of credentials for a SCIM bearer
-// token. Returns a NotFound error if no such credential exists.
-func SelectSCIMToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
-	creds, err := selectCredsByPurposeLabel(staticCredentials, oktacommon.CredPurposeSCIMToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return creds, nil
-}
-
-// SelectAPIToken searches the supplied list of credentials for a credential
-// containing an Okta API token.  Returns a NotFound error if no such credential
-// exists.
-func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
-	// CredPurposeOktaAPITokenWithSCIMOnlyIntegration is set only when Okta app sync is disabled.
-	// For backward compatibility, when Teleport is downgraded to a version that doesn't support
-	// stopping app group sync via the feature flag (AppGroupSyncDisabled), we will rely on the behavior
-	// of preventing starting the Okta Plugin due to the missing credential.
-	if v, err := selectCredsByPurposeLabel(staticCredentials, oktacommon.CredPurposeOktaAPITokenWithSCIMOnlyIntegration); err == nil {
-		return v, nil
-	}
-	// For now, we'll just choose the first eligible static credential until we
-	// have a need for rotation or other complexity.
-	for _, cred := range staticCredentials {
-		// Older Okta API credentials are not labeled with a purpose, so a cred
-		// is considered eligible if it has no purpose label, or a purpose label
-		// set to okta.CredPurposeOktaAuth.
-		purpose, present := cred.GetLabel(oktacommon.CredPurposeLabel)
-		if !present || purpose == oktacommon.CredPurposeOktaAuth {
-			return cred, nil
-		}
-	}
-	return nil, trace.NotFound("Okta API token")
-}
-
-// SelectOAuthClientID searches the supplied list of credentials for a credential containing Okta
-// OAuth client ID. Returns a NotFound error if no such credential exists.
-func SelectOAuthClientID(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
-	creds, err := selectCredsByPurposeLabel(staticCredentials, oktacommon.CredPurposeOktaOauth)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return creds, nil
-}
-
-func selectCredsByPurposeLabel(staticCredentials []types.PluginStaticCredentials, purposeLabel string) (types.PluginStaticCredentials, error) {
-	for _, cred := range staticCredentials {
-		purpose, present := cred.GetLabel(oktacommon.CredPurposeLabel)
-		if present && purpose == purposeLabel {
-			return cred, nil
-		}
-	}
-	return nil, trace.NotFound("credential")
-}
-
-type authService interface {
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	// GetClusterName returns the name of the cluster.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
-}
-
-type caKeyStore interface {
-	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
-}
-
-// ParamSelectAuthProviderStaticCredentials is the parameters for selecting an
-// auth provider and static credentials.
-type ParamSelectAuthProviderStaticCredentials struct {
-	// StaticCredentials is the list of static credentials to search.
-	StaticCredentials []types.PluginStaticCredentials
-	// Auth is the auth service to use for fetching the CA.
-	Auth authService
-	// CAKeyStore is the key store to use for fetching the CA.
-	CAKeyStore caKeyStore
-	// Clock is the clock provider used to get the current time.
-	Clock clockwork.Clock
-}
-
-// SelectAuthProviderStaticCredentials selects an auth provider and static credentials
-// from the given parameters.
-func SelectAuthProviderStaticCredentials(ctx context.Context, params ParamSelectAuthProviderStaticCredentials) (oktaapi.AuthProvider, types.PluginStaticCredentials, error) {
-	if len(params.StaticCredentials) == 0 {
-		return nil, nil, trace.NotFound("no Okta credentials found")
-	}
-
-	// CredPurposeOktaSCIM is set only when Okta app sync is disabled.
-	// For backward compatibility, when Teleport is downgraded to a version that doesn't support
-	// stopping app group sync via the feature flag (AppGroupSyncDisabled), we will rely on the behavior
-	// of preventing starting the Okta Plugin due to the missing credential.
-	if v, err := selectCredsByPurposeLabel(params.StaticCredentials, oktacommon.CredPurposeOktaAPITokenWithSCIMOnlyIntegration); err == nil {
-		if v.GetAPIToken() == "" {
-			return nil, nil, trace.NotFound("missing api token")
-		}
-		return oktaapi.NewSSWSAuthProvider(v.GetAPIToken()), v, nil
-	}
-	for _, cred := range params.StaticCredentials {
-		// Older Okta API credentials are not labeled with a purpose, so a cred
-		// is considered eligible if it has no purpose label, or a purpose label
-		// set to okta.CredPurposeOktaAuth.
-		purpose, present := cred.GetLabel(oktacommon.CredPurposeLabel)
-		if !present || purpose == oktacommon.CredPurposeOktaAuth {
-			if cred.GetAPIToken() == "" {
-				// This is valid case where plugin is configured with only SCIM without any Okta API token.
-				// In this case Plugin should start and report the status as OK.
-				return nil, nil, trace.NotFound("Okta plugin was configured with API credentials")
-			}
-			return oktaapi.NewSSWSAuthProvider(cred.GetAPIToken()), cred, nil
-		}
-	}
-
-	if v, err := selectCredsByPurposeLabel(params.StaticCredentials, oktacommon.CredPurposeOktaOauth); err == nil {
-		clientID, _ := v.GetOAuthClientSecret()
-		if clientID == "" {
-			return nil, nil, trace.NotFound("missing client ID")
-		}
-		return oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
-			OAuthClientID: clientID,
-			AuthService:   params.Auth,
-			CAKeyStore:    params.CAKeyStore,
-			Clock:         params.Clock,
-		}), v, nil
-
-	}
-	return nil, nil, trace.NotFound("Okta API token not found")
 }

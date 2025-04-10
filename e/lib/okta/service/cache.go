@@ -12,9 +12,9 @@ import (
 )
 
 func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsRequest) ([]*oktaResourceItem, error) {
-	params := &createOktaClientParams{
-		credsFromReq:     req.GetApiCredentials(),
-		oktaOrganization: req.GetOktaOrganizationUrl(),
+	params := createOktaClientParams{
+		requestCreds: req.GetApiCredentials(),
+		orgUrl:       req.GetOktaOrganizationUrl(),
 	}
 	oktaClient, err := s.createOktaClient(ctx, params)
 	if err != nil {
@@ -44,9 +44,9 @@ func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsR
 }
 
 func (s *Service) fetchAllOktaApps(ctx context.Context, req *oktapb.GetAppsRequest) ([]*oktaResourceItem, error) {
-	params := &createOktaClientParams{
-		credsFromReq:     req.GetApiCredentials(),
-		oktaOrganization: req.GetOktaOrganizationUrl(),
+	params := createOktaClientParams{
+		requestCreds: req.GetApiCredentials(),
+		orgUrl:       req.GetOktaOrganizationUrl(),
 	}
 	oktaClient, err := s.createOktaClient(ctx, params)
 	if err != nil {
