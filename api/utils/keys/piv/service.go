@@ -193,6 +193,9 @@ type baseKeyRef struct {
 
 // GetFullKeyRef gets the full [PrivateKeyRef] for an existing hardware private
 // key in the given slot of the hardware key with the given serial number.
+//
+// Used for backwards compatibility with old logins.
+// TODO(Joerger): DELETE IN v19.0.0
 func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	keyRefsMux.Lock()
 	defer keyRefsMux.Unlock()
