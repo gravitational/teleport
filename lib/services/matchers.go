@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 
@@ -149,6 +150,7 @@ type ResourceSeenKey struct{ name, kind, addr string }
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
 	kind := resource.GetKind()
+	hasInnerResource := true
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
@@ -166,6 +168,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindIdentityCenterAccountAssignment,
 		types.KindGitServer:
 		specResource = resource
+		hasInnerResource = false
 	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
@@ -200,6 +203,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.NotImplemented("filtering for resource kind %q not supported", kind)
 		}
 		specResource = resource
+		hasInnerResource = false
 	}
 
 	var match bool
@@ -212,7 +216,18 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		var err error
 		match, err = matchResourceByFilters(specResource, filter)
 		if err != nil {
-			return false, trace.Wrap(err)
+			if !hasInnerResource {
+				return false, trace.Wrap(err)
+			}
+
+			// Try predicate query with the root resource.
+			var traceErr trace.Error
+			if ok := errors.As(err, &traceErr); ok && traceErr.GetFields()[ErrFieldUnknownIdentifier] != nil {
+				match, err = filter.PredicateExpression.Evaluate(resource)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+			}
 		}
 	}
 
@@ -227,21 +242,21 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	return match, nil
 }
 
-func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if !types.MatchKinds(resource, filter.Kinds) {
+func matchResourceByFilters(specResource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
+	if !types.MatchKinds(specResource, filter.Kinds) {
 		return false, nil
 	}
 
-	if !types.MatchLabels(resource, filter.Labels) {
+	if !types.MatchLabels(specResource, filter.Labels) {
 		return false, nil
 	}
 
-	if len(filter.SearchKeywords) > 0 && !resource.MatchSearch(filter.SearchKeywords) {
+	if len(filter.SearchKeywords) > 0 && !specResource.MatchSearch(filter.SearchKeywords) {
 		return false, nil
 	}
 
 	if filter.PredicateExpression != nil {
-		match, err := filter.PredicateExpression.Evaluate(resource)
+		match, err := filter.PredicateExpression.Evaluate(specResource)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -292,6 +307,8 @@ type MatchResourceFilter struct {
 	// It will filter out any kind not present in the list. If the list is not present or empty
 	// then all kinds are valid and will be returned (still subject to other included filters)
 	Kinds []string
+	// HealthStatusMap is used to match against resource health status.
+	HealthStatusMap map[string]string
 }
 
 // IsSimple is used to short-circuit matching when a filter doesn't specify anything more

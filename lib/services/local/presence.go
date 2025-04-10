@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sort"
 	"time"
@@ -933,6 +934,7 @@ func (s *PresenceService) DeleteDatabaseServer(ctx context.Context, namespace, h
 		return trace.BadParameter("missing database server name")
 	}
 	key := backend.NewKey(dbServersPrefix, namespace, hostID, name)
+	fmt.Println("---- key: ", key)
 	return s.Delete(ctx, key)
 }
 

@@ -25,6 +25,7 @@ import {
   getRangeOptions,
 } from 'teleport/components/EventRangePicker';
 import { Event, EventCode, formatters } from 'teleport/services/audit';
+import { fetchDatabaseServers } from 'teleport/services/databases/databases';
 import Ctx from 'teleport/teleportContext';
 
 export default function useAuditEvents(
@@ -44,6 +45,16 @@ export default function useAuditEvents(
 
   useEffect(() => {
     fetch();
+    fetchDatabaseServers({
+      clusterId,
+      params: { query: 'name == "postgres"', limit: 1 },
+    })
+      .then(res => {
+        console.log('--- response: ', res);
+      })
+      .catch(err => {
+        console.log('---- ERROR: ', err);
+      });
   }, [clusterId, range]);
 
   // fetchMore gets events from last position from

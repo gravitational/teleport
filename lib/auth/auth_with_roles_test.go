@@ -5591,6 +5591,305 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 	require.NoError(t, err, "sort field is not required")
 }
 
+type createDbServerRequest struct {
+	dbName           string
+	serverHostPrefix string
+	status           types.TargetHealthStatus
+}
+
+func createDbServer(t *testing.T, ctx context.Context, srv *Server, req createDbServerRequest) *types.DatabaseServerV3 {
+	db, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: req.dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   fmt.Sprintf("%s-hostid", req.serverHostPrefix),
+		Hostname: fmt.Sprintf("%s-hostname", req.serverHostPrefix),
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{Name: req.dbName},
+			Spec:     types.DatabaseSpecV3{Protocol: "_", URI: "_"},
+		},
+	})
+	db.SetTargetHealth(types.TargetHealth{Status: string(req.status)})
+	require.NoError(t, err)
+
+	_, err = srv.UpsertDatabaseServer(ctx, db)
+	require.NoError(t, err)
+
+	return db
+}
+
+type initUnifiedResourceCacheResp struct {
+	ctx context.Context
+	srv *TestTLSServer
+	clt *authclient.Client
+}
+
+func initUnifiedResourceCache(t *testing.T) initUnifiedResourceCacheResp {
+	ctx := context.Background()
+	srv := newTestTLSServer(t, withCacheEnabled(true))
+
+	// create user and client
+	user, _, err := CreateUserAndRole(srv.Auth(), "user", nil, nil)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return srv.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
+
+	return initUnifiedResourceCacheResp{
+		ctx: ctx,
+		srv: srv,
+		clt: clt,
+	}
+}
+
+// TestListUnifiedResources_FilterDbServerByHealthStatus will generate
+// healthy and unhealthy database servers, and ensure the unhealthy server
+// gets returned.
+func TestListUnifiedResources_FilterDbServerByHealthStatus(t *testing.T) {
+	t.Parallel()
+	p := initUnifiedResourceCache(t)
+
+	t.Run("empty status", func(t *testing.T) {
+		toDeleteDb := createDbServer(t, p.ctx, p.srv.Auth(), createDbServerRequest{
+			dbName:           "mysql",
+			serverHostPrefix: "empty-status",
+			status:           "",
+		})
+
+		testCases := []struct {
+			name     string
+			statuses []string
+			// If more than one string, matching any one of is correct.
+			expected []string
+		}{
+			{
+				name:     "no filter, returns any resources",
+				statuses: nil,
+				expected: []string{string("")},
+			},
+			{
+				name:     "unknown filter includes empty status",
+				statuses: []string{string(types.TargetHealthStatusUnknown)},
+				expected: []string{""},
+			},
+			{
+				name:     "non matching filter (unhealthy), returns no resources",
+				statuses: []string{string(types.TargetHealthStatusUnhealthy)},
+				expected: nil,
+			},
+			{
+				name:     "non matching filter (healthy), returns no resources",
+				statuses: []string{string(types.TargetHealthStatusHealthy)},
+				expected: nil,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				var resp *proto.ListUnifiedResourcesResponse
+				inlineEventually(t, func() bool {
+					var err error
+					resp, err = p.clt.ListUnifiedResources(p.ctx, &proto.ListUnifiedResourcesRequest{
+						HealthStatuses: tc.statuses,
+					})
+					require.NoError(t, err)
+					return len(resp.Resources) == len(tc.expected)
+				}, time.Second, time.Second/10)
+
+				if tc.expected != nil {
+					r := resp.Resources[0].GetDatabaseServer()
+					require.Contains(t, tc.expected, r.GetTargetHealth().Status)
+				} else {
+					require.Empty(t, resp.Resources)
+				}
+			})
+		}
+
+		require.NoError(t, p.srv.Auth().DeleteDatabaseServer(p.ctx,
+			toDeleteDb.GetNamespace(), toDeleteDb.GetHostID(), toDeleteDb.GetName()))
+	})
+
+	// Create some db_servers that serve the same database.
+	_ = createDbServer(t, p.ctx, p.srv.Auth(), createDbServerRequest{
+		dbName:           "mysql",
+		serverHostPrefix: "unhealthy",
+		status:           types.TargetHealthStatusUnhealthy,
+	})
+	tt := createDbServer(t, p.ctx, p.srv.Auth(), createDbServerRequest{
+		dbName:           "mysql",
+		serverHostPrefix: "unknown",
+		status:           types.TargetHealthStatusUnknown,
+	})
+
+	t.Run("filter db_servers that serves the same database", func(t *testing.T) {
+		toDeleteDb := createDbServer(t, p.ctx, p.srv.Auth(), createDbServerRequest{
+			dbName:           "mysql",
+			serverHostPrefix: "healthy",
+			status:           types.TargetHealthStatusHealthy,
+		})
+
+		testCases := []struct {
+			name     string
+			statuses []string
+			expected []string
+		}{
+			{
+				name:     "filter healthy",
+				statuses: []string{string(types.TargetHealthStatusHealthy)},
+				expected: []string{string(types.TargetHealthStatusHealthy)},
+			},
+			{
+				name:     "filter unhealthy",
+				statuses: []string{string(types.TargetHealthStatusUnhealthy)},
+				expected: []string{string(types.TargetHealthStatusUnhealthy)},
+			},
+			{
+				name:     "filter unknown",
+				statuses: []string{string(types.TargetHealthStatusUnknown)},
+				expected: []string{string(types.TargetHealthStatusUnknown)},
+			},
+			{
+				name: "multi filter",
+				statuses: []string{string(types.TargetHealthStatusUnhealthy),
+					string(types.TargetHealthStatusHealthy)},
+				// Any one match of this is correct.
+				expected: []string{
+					string(types.TargetHealthStatusUnhealthy),
+					string(types.TargetHealthStatusHealthy),
+				},
+			},
+			{
+				name:     "no filter, returns resource with any status",
+				statuses: nil,
+				// Any one match of this is correct.
+				expected: []string{
+					string(types.TargetHealthStatusUnknown),
+					string(types.TargetHealthStatusUnhealthy),
+					string(types.TargetHealthStatusHealthy),
+				},
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				var resp *proto.ListUnifiedResourcesResponse
+				inlineEventually(t, func() bool {
+					var err error
+					resp, err = p.clt.ListUnifiedResources(p.ctx, &proto.ListUnifiedResourcesRequest{
+						HealthStatuses: tc.statuses,
+					})
+					require.NoError(t, err)
+					return len(resp.Resources) == 1
+				}, time.Second, time.Second/10)
+
+				r := resp.Resources[0].GetDatabaseServer()
+				require.Contains(t, tc.expected, r.GetTargetHealth().Status)
+			})
+		}
+
+		require.NoError(t, p.srv.Auth().DeleteDatabaseServer(p.ctx,
+			toDeleteDb.GetNamespace(), toDeleteDb.GetHostID(), toDeleteDb.GetName()))
+
+		require.NoError(t, p.srv.Auth().DeleteDatabaseServer(p.ctx,
+			tt.GetNamespace(), tt.GetHostID(), tt.GetName()))
+	})
+
+	_ = createDbServer(t, p.ctx, p.srv.Auth(), createDbServerRequest{
+		dbName:           "postgres",
+		serverHostPrefix: "empty-sstate",
+		status:           "",
+	})
+	_ = createDbServer(t, p.ctx, p.srv.Auth(), createDbServerRequest{
+		dbName:           "mysql",
+		serverHostPrefix: "unhealthy",
+		status:           types.TargetHealthStatusUnhealthy,
+	})
+	_ = createDbServer(t, p.ctx, p.srv.Auth(), createDbServerRequest{
+		dbName:           "mysql",
+		serverHostPrefix: "unknown",
+		status:           types.TargetHealthStatusUnknown,
+	})
+
+	// Add a node to test multi kind response.
+	node, err := types.NewServerWithLabels(
+		"node",
+		types.KindNode,
+		types.ServerSpecV2{},
+		map[string]string{"env": "testing"},
+	)
+	require.NoError(t, err)
+	_, err = p.srv.Auth().UpsertNode(p.ctx, node)
+	require.NoError(t, err)
+
+	t.Run("filter for multiple", func(t *testing.T) {
+		testCases := []struct {
+			name             string
+			statuses         []string
+			expectedKinds    []string
+			expectedStatuses []string
+		}{
+			{
+				name:             "filter unhealthy",
+				statuses:         nil,
+				expectedKinds:    []string{types.KindNode, types.KindDatabaseServer},
+				expectedStatuses: []string{string(types.TargetHealthStatusUnhealthy)},
+			},
+			// {
+			// 	name:             "filter unknown",
+			// 	statuses:         []string{string(types.TargetHealthStatusUnknown)},
+			// 	expectedKinds:    []string{types.KindNode, types.KindDatabaseServer, types.KindDatabaseServer},
+			// 	expectedStatuses: []string{string(types.TargetHealthStatusUnknown), ""},
+			// },
+			// {
+			// 	name:             "filter unknown and healthy",
+			// 	statuses:         []string{string(types.TargetHealthStatusUnknown), string(types.TargetHealthStatusHealthy)},
+			// 	expectedKinds:    []string{types.KindNode, types.KindDatabaseServer, types.KindDatabaseServer},
+			// 	expectedStatuses: []string{string(types.TargetHealthStatusUnknown), ""},
+			// },
+			// {
+			// 	name:             "non matching filter (healthy), returns no db_servers",
+			// 	statuses:         []string{string(types.TargetHealthStatusHealthy)},
+			// 	expectedKinds:    []string{types.KindNode},
+			// 	expectedStatuses: []string{},
+			// },
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				var resp *proto.ListUnifiedResourcesResponse
+				inlineEventually(t, func() bool {
+					var err error
+					resp, err = p.clt.ListUnifiedResources(p.ctx, &proto.ListUnifiedResourcesRequest{
+						HealthStatuses: tc.statuses,
+					})
+					require.NoError(t, err)
+					fmt.Println("---- len: ", len(resp.Resources), resp.Resources)
+					return len(resp.Resources) == len(tc.expectedKinds)
+				}, time.Second, time.Second/10)
+
+				gotKinds := []string{}
+				gotStatuses := []string{}
+
+				for _, r := range resp.Resources {
+					dbServer := r.GetDatabaseServer()
+					node := r.GetNode()
+
+					if dbServer != nil {
+						gotStatuses = append(gotKinds, dbServer.GetTargetHealth().Status)
+						gotKinds = append(gotKinds, dbServer.GetKind())
+					}
+					if node != nil {
+						gotKinds = append(gotKinds, node.GetKind())
+					}
+				}
+
+				require.ElementsMatch(t, tc.expectedKinds, gotKinds)
+				require.ElementsMatch(t, tc.expectedStatuses, gotStatuses)
+			})
+		}
+	})
+}
+
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -68,7 +68,7 @@ type UnifiedResourceCache struct {
 	typeTree *btree.BTreeG[*item]
 	// resources is a map of all resources currently tracked in the tree
 	// the key is always name/type
-	resources       map[string]resource
+	resources       map[string]CachedUnifiedResource
 	initializationC chan struct{}
 	stale           bool
 	once            sync.Once
@@ -100,7 +100,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 		typeTree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
-		resources:       make(map[string]resource),
+		resources:       make(map[string]CachedUnifiedResource),
 		initializationC: make(chan struct{}),
 		ResourceGetter:  cfg.ResourceGetter,
 		cache:           lazyCache,
@@ -127,7 +127,7 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c *UnifiedResourceCache) putLocked(resource resource) {
+func (c *UnifiedResourceCache) putLocked(resource CachedUnifiedResource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
 	oldResource, exists := c.resources[key]
@@ -146,7 +146,7 @@ func (c *UnifiedResourceCache) putLocked(resource resource) {
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
 }
 
-func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
+func putResources[T CachedUnifiedResource](cache *UnifiedResourceCache, resources []T) {
 	for _, resource := range resources {
 		// generate the unique resource key and add the resource to the resources map
 		key := resourceKey(resource)
@@ -193,7 +193,7 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 }
 
 type iteratedItem struct {
-	resource resource
+	resource CachedUnifiedResource
 	key      backend.Key
 }
 
@@ -407,31 +407,31 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 // IterateUnifiedResources allows building a custom page of resources. All items within the
 // range and limit of the request are passed to the matchFn. Only those resource which
 // have a true value returned from the matchFn are included in the returned page.
-func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
+func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn func(CachedUnifiedResource) (CachedUnifiedResource, error), req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
 	var resources []types.ResourceWithLabels
 	for item, err := range c.iterateItems(ctx, req.StartKey, req.SortBy, req.Kinds...) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		match, err := matchFn(item.resource)
+		matchedResource, err := matchFn(item.resource)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 
-		if match {
+		if matchedResource != nil {
 			if req.Limit != backend.NoLimit && len(resources) == int(req.Limit) {
 				return resources, item.key.String(), nil
 			}
 
-			resources = append(resources, item.resource.CloneResource())
+			resources = append(resources, matchedResource.CloneResource())
 		}
 	}
 
 	return resources, "", nil
 }
 
-func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]struct{}) bool {
+func (c *UnifiedResourceCache) itemKindMatches(r CachedUnifiedResource, kinds map[string]struct{}) bool {
 	switch r.GetKind() {
 	case types.KindNode,
 		types.KindWindowsDesktop,
@@ -518,7 +518,7 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 }
 
 // GetUnifiedResourcesByIDs will take a list of ids and return any items found in the unifiedResourceCache tree by id and that return true from matchFn
-func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(types.ResourceWithLabels) (bool, error)) ([]types.ResourceWithLabels, error) {
+func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids []string, matchFn func(CachedUnifiedResource) (CachedUnifiedResource, error)) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
 
 	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
@@ -529,12 +529,12 @@ func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids
 				continue
 			}
 			resource := cache.resources[res.Value]
-			match, err := matchFn(resource)
+			matchedResource, err := matchFn(resource)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if match {
-				resources = append(resources, resource.CloneResource())
+			if matchedResource != nil {
+				resources = append(resources, matchedResource.CloneResource())
 			}
 		}
 		return nil
@@ -693,13 +693,13 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	clear(c.resources)
 
 	putResources[types.Server](c, newNodes)
-	putResources[types.DatabaseServer](c, newDbs)
+	putResources[types.DatabaseServer](c, newDbs) // here
 	putResources[types.AppServer](c, newApps)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
-	putResources[resource](c, newICAccounts)
-	putResources[resource](c, newICAccountAssignments)
+	putResources[CachedUnifiedResource](c, newICAccounts)
+	putResources[CachedUnifiedResource](c, newICAccountAssignments)
 	putResources[types.Server](c, newGitServers)
 	c.stale = false
 	c.defineCollectorAsInitialized()
@@ -717,7 +717,7 @@ func (c *UnifiedResourceCache) getNodes(ctx context.Context) ([]types.Server, er
 }
 
 // getDatabaseServers will get all database servers
-func (c *UnifiedResourceCache) getDatabaseServers(ctx context.Context) ([]types.DatabaseServer, error) {
+func (c *UnifiedResourceCache) getDatabaseServers(ctx context.Context) ([]types.DatabaseServer, error) { // here
 	newDbs, err := c.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting database servers for unified resource watcher")
@@ -810,8 +810,8 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	return newSAMLApps, nil
 }
 
-func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
-	var accounts []resource
+func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]CachedUnifiedResource, error) {
+	var accounts []CachedUnifiedResource
 	var pageRequest pagination.PageRequestToken
 	for {
 		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
@@ -830,8 +830,8 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 	return accounts, nil
 }
 
-func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]resource, error) {
-	var accounts []resource
+func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]CachedUnifiedResource, error) {
+	var accounts []CachedUnifiedResource
 	var pageRequest pagination.PageRequestToken
 	for {
 		resultsPage, nextPage, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pageRequest)
@@ -889,7 +889,7 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 			typeTree: btree.NewG(c.cfg.BTreeDegree, func(a, b *item) bool {
 				return a.Less(b)
 			}),
-			resources:       make(map[string]resource),
+			resources:       make(map[string]CachedUnifiedResource),
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
@@ -961,7 +961,7 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 			c.deleteLocked(event.Resource)
 		case types.OpPut:
 			switch r := event.Resource.(type) {
-			case resource:
+			case CachedUnifiedResource:
 				c.putLocked(r)
 			case types.Resource153UnwrapperT[IdentityCenterAccount]:
 				c.putLocked(types.Resource153ToUnifiedResource(r.UnwrapT()))
@@ -1010,7 +1010,7 @@ func (i *item) Less(iother btree.Item) bool {
 	}
 }
 
-type resource interface {
+type CachedUnifiedResource interface {
 	types.ResourceWithLabels
 	CloneResource() types.ResourceWithLabels
 }

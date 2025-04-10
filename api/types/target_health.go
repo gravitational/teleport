@@ -18,6 +18,7 @@ package types
 
 import (
 	"github.com/gravitational/teleport/api/types/compare"
+	"github.com/gravitational/trace"
 )
 
 var _ compare.IsEqual[*TargetHealth] = (*TargetHealth)(nil)
@@ -81,4 +82,31 @@ func GroupByTargetHealth[T targetHealthGetter](resources []T) [][]T {
 		}
 	}
 	return [][]T{healthy, unknown, unhealthy}
+}
+
+func validHealthStatus(status string) bool {
+	return status == string(TargetHealthStatusHealthy) ||
+		status == string(TargetHealthStatusUnhealthy) ||
+		status == string(TargetHealthStatusUnknown)
+}
+
+// ValidateHealthStatuses ensures given status string values
+// are known/supported string values, else return error.
+func ValidateHealthStatuses(statuses []string) error {
+	for _, status := range statuses {
+		if !validHealthStatus(status) {
+			return trace.BadParameter("resource health status value %q is invalid", status)
+		}
+	}
+
+	return nil
+}
+
+// MatchByUnknownStatus returns true if unknown has been requested and status
+// equals unknown or equals empty string (which is also another form of unknown).
+func MatchByUnknownStatus(gotStatus string, wantHealthStatusMap map[string]string) bool {
+	if _, requestedUnknown := wantHealthStatusMap[string(TargetHealthStatusUnknown)]; !requestedUnknown {
+		return false
+	}
+	return gotStatus == "" || gotStatus == string(TargetHealthStatusUnknown)
 }

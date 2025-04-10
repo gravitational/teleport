@@ -1192,7 +1192,27 @@ type resourceAccess struct {
 	requestableMap map[string]struct{}
 }
 
-func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
+// filterAndCheckAccess returns resource as a way to indicate that this resource passed
+// all access checks and matched all filter request. A nil can return to mean either
+// filter didn't match or resource has failed access checks.
+//
+// The returned resource may differ from the resource passed in as a param because of
+// the "health status filter request" which may replace the originating resource.
+//
+// Example:
+// db_server (which is also the only resource kind that supports health status atm).
+// There can be multiple db_servers for a given database, so when health status filter
+// is requested, we must iterate through all the db_servers for that database, to
+// find a db_server matching a requested health status.
+//
+// If the originating resource matches health status, then the original resource is returned
+// (if all other checks pass). If a non-originating resource matches health status, then the
+// originating resource is replaced with the matched resource. If a health status found no
+// match, a nil will be returned.
+//
+// RBAC check gets applied after all filter matches, so in the case of originating resource
+// getting replaced, the RBAC checks will be applied to the replaced resource.
+func (c *resourceAccess) filterAndCheckAccess(ctx context.Context, a *ServerWithRoles, resource services.CachedUnifiedResource, filter services.MatchResourceFilter) (services.CachedUnifiedResource, error) {
 	resourceKind := resource.GetKind()
 
 	if canAccessErr := c.kindAccessMap[resourceKind]; canAccessErr != nil {
@@ -1200,12 +1220,15 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		// to some users and we want to keep iterating until we've reached the request limit
 		// of resources they have access to
 		if trace.IsAccessDenied(canAccessErr) {
-			return false, nil
+			return nil, nil
 		}
-		return false, trace.Wrap(canAccessErr)
+		return nil, trace.Wrap(canAccessErr)
 	}
 
-	// Filter first and only check RBAC if there is a match to improve perf.
+	// Filter first and only check RBAC if there is a match to improve performance
+	// and apply RBAC check on the correct resource (see comment about resource being replaced
+	// with another resource).
+
 	match, err := services.MatchResourceByFilters(resource, filter, nil)
 	if err != nil {
 		logger.WarnContext(context.Background(), "Unable to determine access to resource, matching with filter failed",
@@ -1213,22 +1236,40 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 			"resource_kind", resourceKind,
 			"error", err,
 		)
-		return false, nil
+		return nil, nil
 	}
 
 	if !match {
-		return false, nil
+		return nil, nil
+	}
+
+	// Filter by health status.
+	// Replaces funcs "resource" param, if a replacement matches health status instead.
+	if len(filter.HealthStatusMap) > 0 && resource.GetKind() == types.KindDatabaseServer {
+		replacementResource, err := a.findDbServerWithMatchingHealthStatus(ctx, filter.HealthStatusMap, resource)
+		if err != nil {
+			logger.WarnContext(context.Background(), "Unable to determine access to resource, filtering for health statuses failed",
+				"resource_name", resource.GetName(),
+				"resource_kind", resourceKind,
+				"error", err,
+			)
+			return nil, nil
+		}
+		if replacementResource == nil {
+			return nil, nil
+		}
+		resource = replacementResource
 	}
 
 	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
-				return false, nil
+				return nil, nil
 			}
-			return false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		return true, nil
+		return resource, nil
 	}
 
 	// baseAuthChecker exists if the current auth context has been extended for a includeRequestable request.
@@ -1237,21 +1278,21 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	// to an access request
 	if err := c.baseAuthChecker.CanAccess(resource); err != nil {
 		if !trace.IsAccessDenied(err) {
-			return false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		// user does not have access with their base context
 		// check if they would have access with the extended context
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			if trace.IsAccessDenied(err) {
-				return false, nil
+				return nil, nil
 			}
-			return false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		c.requestableMap[resource.GetName()] = struct{}{}
 	}
 
-	return true, nil
+	return resource, nil
 }
 
 type actionChecker func(namespace, resourceKind string, verbs ...string) error
@@ -1284,10 +1325,24 @@ var (
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	if len(req.HealthStatuses) > 0 {
+		if err := types.ValidateHealthStatuses(req.HealthStatuses); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	healthStatusMap := make(map[string]string)
+	for _, status := range req.HealthStatuses {
+		if _, seen := healthStatusMap[status]; !seen {
+			healthStatusMap[status] = status
+		}
+	}
+
 	filter := services.MatchResourceFilter{
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
-		Kinds:          req.Kinds,
+		Labels:          req.Labels,
+		SearchKeywords:  req.SearchKeywords,
+		Kinds:           req.Kinds,
+		HealthStatusMap: healthStatusMap,
 	}
 
 	if req.PredicateExpression != "" {
@@ -1298,25 +1353,25 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		filter.PredicateExpression = expression
 	}
 
-	// Validate the requested kinds and precheck that the user has read/list
-	// permissions for all requested resources before doing any listing of
+	// Validate the requestedKinds kinds and precheck that the user has read/list
+	// permissions for all requestedKinds resources before doing any listing of
 	// resources to conserve resources.
-	requested := req.Kinds
+	requestedKinds := req.Kinds
 	if len(req.Kinds) == 0 {
-		requested = defaultUnifiedResourceKinds
+		requestedKinds = defaultUnifiedResourceKinds
 	}
 
 	resourceAccess := &resourceAccess{
 		// Populate kindAccessMap with any access errors the user has for each possible
 		// resource kind. This allows the access check to occur a single time per resource
 		// kind instead of once per matching resource.
-		kindAccessMap: make(map[string]error, len(requested)),
+		kindAccessMap: make(map[string]error, len(requestedKinds)),
 		// requestableMap is populated with resources that are being returned but can only
 		// be accessed to the user via an access request
 		requestableMap: make(map[string]struct{}),
 	}
 
-	for _, kind := range requested {
+	for _, kind := range requestedKinds {
 		if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
 			return nil, trace.BadParameter("Unsupported kind %q requested", kind)
 		}
@@ -1339,14 +1394,14 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	// at least one of the requested kinds. If no access is permitted, then
 	// return an access denied error.
 	var rbacErrors int
-	for _, kind := range requested {
+	for _, kind := range requestedKinds {
 		if err, ok := resourceAccess.kindAccessMap[kind]; ok && err != nil {
 			rbacErrors++
 		}
 	}
 
-	if rbacErrors == len(requested) {
-		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
+	if rbacErrors == len(requestedKinds) {
+		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requestedKinds)
 	}
 
 	// Apply any requested additional search_as_roles and/or preview_as_roles
@@ -1400,9 +1455,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
-		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceAccess.checkAccess(resource, filter)
-			return match, trace.Wrap(err)
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource services.CachedUnifiedResource) (services.CachedUnifiedResource, error) {
+			matchedResource, err := resourceAccess.filterAndCheckAccess(ctx, a, resource, filter)
+			return matchedResource, trace.Wrap(err)
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1415,9 +1470,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 		}
 	} else {
-		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			match, err := resourceAccess.checkAccess(resource, filter)
-			return match, trace.Wrap(err)
+		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource services.CachedUnifiedResource) (services.CachedUnifiedResource, error) {
+			matchedResource, err := resourceAccess.filterAndCheckAccess(ctx, a, resource, filter)
+			return matchedResource, trace.Wrap(err)
 		}, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1457,7 +1512,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				// view of the account we check access for each Permission Set, filter out those that have
 				// no access and treat the whole app as requiring an access request if _any_ of the contained
 				// permission sets require one.
-				if err := a.filterICPermissionSets(r, d.GetApp(), resourceAccess); err != nil {
+				if err := a.filterICPermissionSets(ctx, r, d.GetApp(), resourceAccess); err != nil {
 					a.authServer.logger.WarnContext(ctx, "Unable to filter",
 						"error", err,
 						"resource", d.GetApp().GetName(),
@@ -1484,7 +1539,61 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}, nil
 }
 
-func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app types.Application, checker *resourceAccess) error {
+// findDbServerWithMatchingHealthStatus will return a db_server that matches the healthStatusMap.
+// If the originating resource's status already matches, it will return the resource as is.
+// Else, it will go through all the db_servers (matching the same database) and returns a
+// matching db_server.
+//
+// If no matches found, it will return nil.
+//
+// The first db_server to match any one of the requested health status is returned.
+func (a *ServerWithRoles) findDbServerWithMatchingHealthStatus(ctx context.Context, healthStatusMap map[string]string, resource types.ResourceWithLabels) (types.DatabaseServer, error) {
+	originatingDbServer, ok := resource.(*types.DatabaseServerV3)
+	if !ok {
+		return nil, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
+	}
+
+	// Return same resource if originating resource already matches status.
+	originatingDbServerStatus := originatingDbServer.GetTargetHealth().Status
+	if _, match := healthStatusMap[originatingDbServerStatus]; match {
+		return originatingDbServer, nil
+	}
+	if types.MatchByUnknownStatus(originatingDbServerStatus, healthStatusMap) {
+		return originatingDbServer, nil
+	}
+
+	nextPage := ""
+	for {
+		resp, err := a.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType:        types.KindDatabaseServer,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, originatingDbServer.GetDatabase().GetName()),
+			StartKey:            nextPage,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Find a matching status among the returned result
+		for _, replacementResource := range resp.Resources {
+			dbServerCandidate, ok := replacementResource.(*types.DatabaseServerV3)
+			if !ok {
+				return nil, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
+			}
+			dbServerCandidateStatus := dbServerCandidate.GetTargetHealth().Status
+			if _, match := healthStatusMap[dbServerCandidateStatus]; match {
+				return dbServerCandidate, nil
+			}
+		}
+
+		nextPage = resp.NextKey
+		if nextPage == "" || len(resp.Resources) == 0 {
+			// No matches found
+			return nil, nil
+		}
+	}
+}
+
+func (a *ServerWithRoles) filterICPermissionSets(ctx context.Context, r *proto.PaginatedResource, app types.Application, checker *resourceAccess) error {
 	appV3, ok := app.(*types.AppV3)
 	if !ok {
 		return trace.BadParameter("resource must be an app")
@@ -1507,21 +1616,21 @@ func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app
 		},
 	}
 	permissionSetQuery := assignment.Spec.PermissionSet
-	checkable := types.Resource153ToResourceWithLabels(assignment)
+	checkable := types.Resource153ToUnifiedResource(assignment)
 
 	var output []*types.IdentityCenterPermissionSet
 	for _, ps := range pss {
 		assignment.Metadata.Name = ps.AssignmentID
 		permissionSetQuery.Arn = ps.ARN
 
-		hasAccess, err := checker.checkAccess(checkable, services.MatchResourceFilter{
+		matchedResource, err := checker.filterAndCheckAccess(ctx, a, checkable, services.MatchResourceFilter{
 			ResourceKind: types.KindIdentityCenterAccountAssignment,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if !hasAccess {
+		if matchedResource == nil {
 			continue
 		}
 		output = append(output, ps)

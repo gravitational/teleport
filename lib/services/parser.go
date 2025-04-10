@@ -50,6 +50,8 @@ type RuleContext interface {
 	GetResource() (types.Resource, error)
 }
 
+const ErrFieldUnknownIdentifier = "unknownIdentifier"
+
 var (
 	// ResourceNameExpr is the identifier that specifies resource name.
 	ResourceNameExpr = builder.Identifier("resource.metadata.name")
@@ -744,7 +746,9 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 			}
 
 			identifier := strings.Join(fields, ".")
-			return nil, trace.BadParameter("identifier %s is not defined", identifier)
+			err := trace.BadParameter("identifier %s is not defined", identifier)
+
+			return nil, trace.WithField(err, ErrFieldUnknownIdentifier, true)
 		},
 	})
 	if err != nil {
