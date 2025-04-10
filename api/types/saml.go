@@ -458,3 +458,22 @@ func (i *SAMLAuthRequest) Check() error {
 
 	return nil
 }
+
+// SAMLConnectorValidationOptions are options for SAML connector validation.
+type SAMLConnectorValidationOptions struct {
+	// NoFollowURLs disables following of URLs to populate SAML connector
+	// metadata. Useful when full metadata is not necessary, especially for
+	// endpoints like /webapi/ping which must not hang or fail.
+	NoFollowURLs bool
+}
+
+// SAMLConnectorValidationOption is an option for validation of SAML connectors.
+type SAMLConnectorValidationOption func(*SAMLConnectorValidationOptions)
+
+// SAMLConnectorValidationFollowURLs returns a SAMLConnectorValidationOptions
+// that sets whether URLs should be followed while validating the connector.
+func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.NoFollowURLs = !follow
+	}
+}
