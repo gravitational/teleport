@@ -19,9 +19,10 @@ package workloadidentityv1
 import (
 	"context"
 
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // NewSigstorePolicyResourceService returns the Community Edition version of the
