@@ -1,0 +1,99 @@
+---
+title: Managing Disaster Recovery in an Amazon EKS Teleport Cluster
+description: Provides guidance for planning a strategy for restoring a self-hosted Teleport cluster on EKS after a regional outage.
+---
+
+{/* TODO: Hugo feedback: "One very common mistake people are doing (and we keep
+doing this at Teleport too 🥲) is think that outages are "clean", the resources
+just disappear, VMs shutdown, ...
+
+It's very rarely the case: zonal or regional failures usually affect only one
+service or one aspect of the region, the rest of it is still running. E.g.
+network becomes unstable, packet loss and latency increase. This is enough to
+disrupt Teleport but VMs are still running and managing to do some operations.
+
+Conversely, after the outage, the services coming back online can be as
+disruptive as the services being down."*/}
+
+## Architectural overview of the disaster recovery approach  
+
+{/*TODO: Hugo: "I suggest to strongly  communicate about the necessity stopping
+the old cluster before attempting to deploy a new one. This might prove
+difficult during an incident as things never break cleanly, but the first thing
+to do is to turn the partial/shadow failure into a clean one by stopping any
+process, and force-cutting already open network connections. Agents connections
+are sticky and they will happily stay connected to the broken cluster, even days
+after the DNS entry got changed." */}
+
+### Load balancer  
+
+{/* TODO: Hugo: "If you are using ACM, you might need to create the certificate
+in ACM before. The same way you will need to create the S3 bucket, dynamodb
+backend, and IAM roles prior running "helm install"." */}
+
+### Cluster state backend (assuming DynamoDB)  
+
+{/*TODO: Hugo: "For KMS users, backing up their cluster might be harder than
+"tctl get all" once in a while, or running an hourly DynamoDB to s3 export. They
+must replicate the keys to the other region. See
+https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html"
+*/}
+    - Explain the need to back up the cluster state backend to preserve the Teleport CA for existing cluster components.  
+    - Recovery point objective implications: changes made to the Teleport cluster during the time taken to complete the last backup would be lost on restore.  
+    - Indicate that you can make a backup of cluster state outside DynamoDB by running "tctl get all –with-secrets"  
+      {/*TODO: Hugo: "AFAIK, Unlike what its name says, "tctl get all" doesn't get call resources in the backend. I'm not familiar with dynamo but I would expect many resources to go missing."*/}
+### Route 53: Updating DNS records to point to the new cluster.  
+
+{/*TODO: Hugo: "For this procedure to work in most cases, users must set a low
+TTL on Teleport's records. e.g. a minute.
+
+This will not cover all cases, you will face DNS record propagation issues on
+agents and clients running in corporate networks due to the terrible DNS
+resolvers they use. There's nothing much we can do but tell people to use
+resolvers honouring the record's TTLs." */}
+
+### Session recording backend (assuming S3)  
+
+{/*TODO: Hugo: There's no global S3 bucket. You can create one by creating
+transfer rules. This is described in the multi-region blueprint.
+*/}
+
+{/*TODO: Hugo: I think you might be confusing audit event and session records.
+We need both S3 for recording, and Dynamo for events.*/}
+
+### Auth Service/Proxy Service:   
+    - Make changes to the Helm values file to apply to the new region (e.g., change the region)  
+    - Describe required IAM permissions for the Auth Service and Proxy Servicve  
+    - Kubernetes operator procedure 
+      {/*TODO: Hugo: "The good thing is that the operator should not attempt to
+      takeover Teleport resource created from the other cluster if no CR exist.
+      So I think it's OK to deploy with the operator. They will need to
+      re-create all the CRs in Kube, else they will have dangling Teleport
+      resources." */}
+
+    - Rerun "helm install" in the new region.  
+## Guidance  
+### Recovery time objective  
+    - Expect 15-30m of recovery time to redeploy to a new region  
+
+      {/*TODO: Hugo: "This sounds very optimistic, I would not expect anyone to
+      achieve this in less than an hour. Deploying the chart already takes
+      several minutes to go from nothing to a ready Teleport cluster. If they
+      are using cert-manager it can take up to 10 minutes."*/}
+
+    - Shortening the RTO:  
+      - Restoring tables in the new region prior to redeploying Teleport  
+      - Having the Auth Service, Proxy Service, and DynamoDB already running in the new region  
+### Imposing a change freeze during the disaster recovery window  
+{/* TODO: Hugo: "This will not be enough to avoid some things to break. Bot
+certs are renewed every 20 minutes. Bots whose cert have been renewed since the
+last backup will automatically get locked out of the cluster because of the
+certificate generation mismatch. If the outage takes more than 40 minutes, bot
+certs will start to expire, also locking bots out of the cluster."*/}
+    - no CA rotations   
+    - no dynamic resource creation/modification.  
+### Test disaster recovery procedure to make sure it works.   
+    - Common causes of failure:   
+      - misconfigured IAM settings  
+      - incorrectly configured backend URLs in the Auth Service configuration
+
