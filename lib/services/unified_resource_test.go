@@ -199,10 +199,14 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		// Ignore order.
 		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
 
-		// Allow comparison of the wrapped resource inside a resource153ToLegacyAdapter
-		cmp.Transformer("Unwrap",
-			func(t types.Resource153Unwrapper) types.Resource153 {
-				return t.Unwrap()
+		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
+			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
+				return t.UnwrapT()
+			}),
+
+		cmp.Transformer("Unwrap.IdentityCenterAccount",
+			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
+				return t.UnwrapT()
 			}),
 
 		// Ignore unexported values in RFD153-style resources
@@ -245,9 +249,14 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 
 		// Allow comparison of the wrapped values inside a Resource153ToLegacyAdapter
-		cmp.Transformer("Unwrap",
-			func(t types.Resource153Unwrapper) types.Resource153 {
-				return t.Unwrap()
+		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
+			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
+				return t.UnwrapT()
+			}),
+
+		cmp.Transformer("Unwrap.IdentityCenterAccount",
+			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
+				return t.UnwrapT()
 			}),
 
 		// Ignore unexported values in RFD153-style resources
@@ -357,10 +366,14 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 
-		// Allow comparison of the wrapped values inside a Resource153ToLegacyAdapter
-		cmp.Transformer("Unwrap",
-			func(t types.Resource153Unwrapper) types.Resource153 {
-				return t.Unwrap()
+		cmp.Transformer("Unwrap.IdentityCenterAccountAssignment",
+			func(t types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]) services.IdentityCenterAccountAssignment {
+				return t.UnwrapT()
+			}),
+
+		cmp.Transformer("Unwrap.IdentityCenterAccount",
+			func(t types.Resource153UnwrapperT[services.IdentityCenterAccount]) services.IdentityCenterAccount {
+				return t.UnwrapT()
 			}),
 
 		// Ignore unexported values in RFD153-style resources

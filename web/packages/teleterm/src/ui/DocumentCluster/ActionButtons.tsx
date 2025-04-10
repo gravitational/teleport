@@ -125,6 +125,7 @@ export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
     void launchVnet({
       addrToCopy: appToAddrToCopy(props.app, targetPort),
       resourceUri: props.app.uri,
+      isMultiPort: !!props.app.tcpPorts.length,
     });
   }
 

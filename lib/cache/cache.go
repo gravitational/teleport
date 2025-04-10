@@ -201,6 +201,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -373,6 +374,7 @@ func ForDatabases(cfg Config) Config {
 		{Kind: types.KindRole},
 		{Kind: types.KindProxy},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.DatabasesQueueSize
 	return cfg
@@ -543,6 +545,7 @@ type Cache struct {
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 	gitServersCache              *local.GitServerService
 	workloadIdentityCache        workloadIdentityCacher
+	healthCheckConfigCache       *local.HealthCheckConfigService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -784,6 +787,8 @@ type Config struct {
 	PluginStaticCredentials services.PluginStaticCredentials
 	// GitServers is the Git server service.
 	GitServers services.GitServerGetter
+	// HealthCheckConfig is a health check config service.
+	HealthCheckConfig services.HealthCheckConfigReader
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1041,6 +1046,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	healthCheckConfigCache, err := local.NewHealthCheckConfigService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -1091,6 +1102,7 @@ func New(config Config) (*Cache, error) {
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
 		workloadIdentityCache:        workloadIdentityCache,
+		healthCheckConfigCache:       healthCheckConfigCache,
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,

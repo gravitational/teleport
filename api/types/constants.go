@@ -1553,3 +1553,17 @@ const (
 	// types.Server to indicate the GitHub organization of a Git server.
 	GitHubOrgServerDomain = "teleport-github-org"
 )
+
+// AccessMonitoringRuleState specifies the desired state of an access monitoring
+// rule subject.
+type AccessMonitoringRuleState string
+
+const (
+	// AccessMonitoringRuleStateReviewed indicates that the access monitoring
+	// rule subject should be reviewed.
+	AccessMonitoringRuleStateReviewed = "reviewed"
+)
+
+// BuiltInAutomaticReview is used within access monitoring rules and indicates
+// that the automatic_review rule should be monitored by Teleport.
+const BuiltInAutomaticReview = "builtin"
