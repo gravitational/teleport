@@ -4780,6 +4780,9 @@ message OneOf {
     events.HealthCheckConfigDelete HealthCheckConfigDelete = 207;
     WorkloadIdentityX509IssuerOverrideCreate WorkloadIdentityX509IssuerOverrideCreate = 208;
     WorkloadIdentityX509IssuerOverrideDelete WorkloadIdentityX509IssuerOverrideDelete = 209;
+    events.SigstorePolicyCreate SigstorePolicyCreate = 210;
+    events.SigstorePolicyUpdate SigstorePolicyUpdate = 211;
+    events.SigstorePolicyDelete SigstorePolicyDelete = 212;
   }
 }
 
@@ -8279,6 +8282,99 @@ message WorkloadIdentityX509IssuerOverrideDelete {
     (gogoproto.jsontag) = ""
   ];
 
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SigstorePolicyCreate is emitted when a SigstorePolicy is created.
+message SigstorePolicyCreate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SigstorePolicyUpdate is emitted when a SigstorePolicy is updated.
+message SigstorePolicyUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata Resource = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SigstorePolicyDelete is emitted when a SigstorePolicy is deleted.
+message SigstorePolicyDelete {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection.
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
   ResourceMetadata Resource = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
