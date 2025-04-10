@@ -437,10 +437,10 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		{
 			name:           "value exceeding limit specified",
 			requestExpires: &tooGreatExpires,
-			// MaxSessionTTL set in createBotRole is 12 hours, so this cap will
-			// apply instead of the defaults.MaxRenewableCertTTL specified
-			// in generateInitialBotCerts.
-			expectTTL: 12 * time.Hour,
+			// Bot roles have MaxSessionTTL set to MaxRenewableCertTTL by
+			// default, so expect this value to be clamped to that (currently,
+			// 7d)
+			expectTTL: defaults.MaxRenewableCertTTL,
 		},
 	}
 

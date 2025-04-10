@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -210,7 +211,7 @@ func TestCreateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -322,7 +323,7 @@ func TestCreateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -635,7 +636,7 @@ func TestUpdateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -985,7 +986,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1087,7 +1088,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1143,7 +1144,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
