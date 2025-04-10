@@ -397,6 +397,7 @@ func Test_ensureEachDatabase(t *testing.T) {
 	stagingDB := mustMakeDatabaseForEnv(t, "staging", "postgres", "staging")
 	prodDB1 := mustMakeDatabaseForEnv(t, "prod", "postgres", "prod")
 	prodDB2 := mustMakeDatabaseForEnv(t, "prod", "postgres", "prod")
+	common.SetDiscoveredResourceName(stagingDB, "staging") // edge case where discovered name is the same.
 	common.SetDiscoveredResourceName(prodDB1, "prod-cloud1")
 	common.SetDiscoveredResourceName(prodDB2, "prod-cloud2")
 

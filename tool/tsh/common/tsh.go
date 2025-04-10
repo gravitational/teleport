@@ -643,19 +643,18 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 }
 
 // PromptConfirmation prompts the user for a yes/no confirmation for question.
-// The prompt is skipped if cf.SkipConfirm is set.
+// The prompt is skipped unless cf.Confirm is set.
 func (c *CLIConf) PromptConfirmation(question string) error {
 	if !c.Confirm {
-		fmt.Fprintf(c.Stdout(), "Skipped confirmation for %q\n", question)
+		fmt.Fprintf(c.Stdout(), "Skipping confirmation for %q due to the --no-confirm flag.\n", question)
 		return nil
 	}
 
-	inReader := prompt.NewContextReader(c.Stdin())
-	ok, err := prompt.Confirmation(c.Context, c.Stdout(), inReader, question)
+	ok, err := prompt.Confirmation(c.Context, c.Stdout(), prompt.Stdin(), question)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
-		return trace.Errorf("Canceled.")
+		return trace.Errorf("Operation cancelled by user request.")
 	}
 	return nil
 }
