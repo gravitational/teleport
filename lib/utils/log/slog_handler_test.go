@@ -140,6 +140,8 @@ func TestSlogTextHandler(t *testing.T) {
 
 }
 
+// TODO: Add a test for passing rawComponent to output, for cloning it.
+
 // TestSlogJSONHandler validates that the SlogJSONHandler fulfills
 // the [slog.Handler] contract by exercising the handler with
 // various scenarios from [slogtest.TestHandler].

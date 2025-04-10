@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
+	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
 const (
@@ -50,11 +51,12 @@ func newPlatformVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
 }
 
 func (c *vnetDaemonCommand) run(cf *CLIConf) error {
-	if cf.Debug {
-		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
-	} else {
-		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+	subsystem, err := daemon.DaemonLabel()
+	if err != nil {
+		logger.WarnContext(cf.Context, "Could not get daemon label to set it as os_log subsystem, using 'tsh' as a fallback", "error", err)
+		subsystem = "tsh"
 	}
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug, utils.WithOSLog(subsystem))
 
 	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
 }
