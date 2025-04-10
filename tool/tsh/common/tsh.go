@@ -583,8 +583,8 @@ type CLIConf struct {
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
 
-	// MaxConnections specifies the number of concurrent connections allowed.
-	MaxConnections int
+	// ParallelJobs specifies the number of parallel jobs allowed.
+	ParallelJobs int
 	// OutputDir specifies the directory for storing command outputs.
 	OutputDir string
 	// Confirm determines whether to provide a y/N confirmation prompt.
@@ -712,7 +712,7 @@ const (
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar           = "TELEPORT_NO_RESUME"
 	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
-	maxConnectionsEnvVar     = "TELEPORT_UNSTABLE_MAX_CONNECTIONS"
+	parallelJobsEnvVar       = "TELEPORT_PARALLEL_JOBS"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -1056,7 +1056,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbExec.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
-	dbExec.Flag("max-connections", "Run queries on target databases concurrently. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.MaxConnections)
+	dbExec.Flag("parallel", "Run commands on target databases in parallel. Defaults to 1, and maximum allowed is 10.").Envar(parallelJobsEnvVar).Default("1").IntVar(&cf.ParallelJobs)
 	dbExec.Flag("output-dir", "Directory to store command output per target database service. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
 	dbExec.Flag("dbs", "List of comma separated target database services. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
 	dbExec.Flag("confirm", "Confirm selected database services before executing command.").Default("true").BoolVar(&cf.Confirm)

@@ -117,7 +117,7 @@ func (c *databaseExecCommand) run() error {
 
 	// Execute  in parallel.
 	group, groupCtx := errgroup.WithContext(c.cf.Context)
-	group.SetLimit(c.cf.MaxConnections)
+	group.SetLimit(c.cf.ParallelJobs)
 	for _, db := range dbs {
 		group.Go(func() error {
 			return trace.Wrap(c.exec(groupCtx, db))
@@ -145,16 +145,17 @@ func (c *databaseExecCommand) close() {
 
 func checkDatabaseExecInputFlags(cf *CLIConf) error {
 	// Pick an arbitrary number for max connections to avoid flooding the
-	// backend. The limit can be overwritten with an "unstable" env var.
-	const maxConnectionsLimit = 10
-	if maxConnectionsStr := os.Getenv(maxConnectionsEnvVar); maxConnectionsStr != "" {
-		if maxConnections, err := strconv.Atoi(maxConnectionsEnvVar); err != nil || maxConnections <= 0 {
-			return trace.BadParameter("environment variable %s must be a positive integer", maxConnectionsEnvVar)
+	// backend. The limit can be overwritten with the "TELEPORT_PARALLEL_JOBS"
+	// env var.
+	const maxParallelJobs = 10
+	if maxStr := os.Getenv(parallelJobsEnvVar); maxStr != "" {
+		if maxValue, err := strconv.Atoi(maxStr); err != nil || maxValue <= 0 {
+			return trace.BadParameter("environment variable %s must be a positive integer", parallelJobsEnvVar)
 		} else {
-			cf.MaxConnections = maxConnections
+			cf.ParallelJobs = maxValue
 		}
-	} else if cf.MaxConnections < 1 || cf.MaxConnections > maxConnectionsLimit {
-		return trace.BadParameter("--max-connections must be between 1 and %v", maxConnectionsLimit)
+	} else if cf.ParallelJobs < 1 || cf.ParallelJobs > maxParallelJobs {
+		return trace.BadParameter(`--parallel must be between 1 and %v.`, maxParallelJobs)
 	}
 
 	// Selection flags.
@@ -168,7 +169,7 @@ func checkDatabaseExecInputFlags(cf *CLIConf) error {
 	}
 
 	// Logging.
-	if cf.MaxConnections > 1 && cf.OutputDir == "" {
+	if cf.ParallelJobs > 1 && cf.OutputDir == "" {
 		return trace.BadParameter("--output-dir must be set when executing concurrent connections")
 	}
 	if cf.OutputDir != "" && utils.FileExists(cf.OutputDir) {
