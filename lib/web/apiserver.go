@@ -1387,14 +1387,14 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 		}
 	case constants.SAML:
 		if authPreference.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnectorWithValidationOptions(ctx, authPreference.GetConnectorName(), false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
+			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1642,7 +1642,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err == nil {
 		for index, value := range samlConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
@@ -1696,7 +1696,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SAML connectors.")
 	}
@@ -1826,7 +1826,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsStripeManaged:        clusterFeatures.GetIsStripeManaged(),
 		ExternalAuditStorage:   clusterFeatures.GetExternalAuditStorage(),
 		PremiumSupport:         clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		AccessRequests:         clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0,
+		AccessRequests:         clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0,
 		TrustedDevices:         clusterFeatures.GetDeviceTrust().GetEnabled(),
 		OIDC:                   clusterFeatures.GetOIDC(),
 		SAML:                   clusterFeatures.GetSAML(),
