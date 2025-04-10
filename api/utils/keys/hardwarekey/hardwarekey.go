@@ -125,7 +125,7 @@ type PrivateKeyRef struct {
 // encode encodes a [PrivateKeyRef] to JSON.
 func (r *PrivateKeyRef) encode() ([]byte, error) {
 	// Ensure that all required fields are provided to encode.
-	if err := r.validate(); err != nil {
+	if err := r.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -144,7 +144,7 @@ func decodeKeyRef(encodedKeyRef []byte, s Service) (*PrivateKeyRef, error) {
 	}
 
 	// Ensure that all required fields are decoded.
-	if err := ref.validate(); err != nil {
+	if err := ref.Validate(); err != nil {
 		// If some fields are missing, this is likely an old login key with only
 		// the serial number and slot. Fetch missing data from the hardware key.
 		// This data will be saved to the login key on next login
@@ -159,7 +159,7 @@ func decodeKeyRef(encodedKeyRef []byte, s Service) (*PrivateKeyRef, error) {
 	return ref, nil
 }
 
-func (r *PrivateKeyRef) validate() error {
+func (r *PrivateKeyRef) Validate() error {
 	if r.SerialNumber == 0 {
 		return trace.BadParameter("private key ref missing SerialNumber")
 	}

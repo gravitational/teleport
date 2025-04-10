@@ -106,6 +106,10 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 		AttestationStatement: &AttestationStatement{},
 	}
 
+	if err := ref.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.fakeHardwarePrivateKeys[keySlot] = &fakeHardwarePrivateKey{
 		Signer: priv,
 		ref:    ref,
