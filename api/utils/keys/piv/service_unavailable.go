@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keys
+package piv
 
 import (
 	"context"
@@ -44,8 +44,6 @@ func (s *unavailableYubiKeyPIVService) NewPrivateKey(_ context.Context, _ hardwa
 func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.PrivateKeyRef, _ io.Reader, _ []byte, _ crypto.SignerOpts) ([]byte, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
-
-func (s *unavailableYubiKeyPIVService) SetPrompt(_ hardwarekey.Prompt) {}
 
 func (s *unavailableYubiKeyPIVService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
