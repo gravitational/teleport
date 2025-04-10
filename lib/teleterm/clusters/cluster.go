@@ -51,8 +51,6 @@ type Cluster struct {
 	ProfileName string
 	// Logger is a component logger
 	Logger *slog.Logger
-	// dir is the directory where cluster certificates are stored
-	dir string
 	// Status is the cluster status
 	status client.ProfileStatus
 	// If not empty, it means that there was a problem with reading the cluster status.

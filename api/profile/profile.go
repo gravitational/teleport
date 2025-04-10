@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -282,16 +284,6 @@ func SetCurrentProfileName(dir string, name string) error {
 	return nil
 }
 
-// RemoveProfile removes cluster profile file
-func RemoveProfile(dir, name string) error {
-	profilePath := filepath.Join(dir, name+".yaml")
-	if err := os.Remove(profilePath); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	return nil
-}
-
 // GetCurrentProfileName attempts to load the current profile name.
 func GetCurrentProfileName(dir string) (name string, err error) {
 	if dir == "" {
@@ -310,33 +302,6 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.NotFound("current-profile is not set")
 	}
 	return name, nil
-}
-
-// ListProfileNames lists all available profiles.
-func ListProfileNames(dir string) ([]string, error) {
-	if dir == "" {
-		return nil, trace.BadParameter("cannot list profiles: missing dir")
-	}
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var names []string
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		if file.Type()&os.ModeSymlink != 0 {
-			continue
-		}
-		if !strings.HasSuffix(file.Name(), ".yaml") {
-			continue
-		}
-		names = append(names, strings.TrimSuffix(file.Name(), ".yaml"))
-	}
-	return names, nil
 }
 
 // FullProfilePath returns the full path to the user profile directory.
@@ -522,4 +487,15 @@ func (p *Profile) AppCertPath(appName string) string {
 // is no guarantee that there is an actual key at that location.
 func (p *Profile) AppKeyPath(appName string) string {
 	return keypaths.AppKeyPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
+}
+
+// WebProxyHostPort returns the host and port of the web proxy.
+func (p *Profile) WebProxyHostPort() (string, int) {
+	if p.WebProxyAddr != "" {
+		addr, err := utils.ParseAddr(p.WebProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(libdefaults.HTTPListenPort)
+		}
+	}
+	return "unknown", libdefaults.HTTPListenPort
 }

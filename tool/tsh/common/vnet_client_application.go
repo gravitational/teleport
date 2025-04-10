@@ -233,7 +233,7 @@ func (p *vnetClientApplication) newTeleportClient(ctx context.Context, profileNa
 	cfg := &client.Config{
 		ClientStore: p.clientStore,
 	}
-	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
 	if leafClusterName != "" {

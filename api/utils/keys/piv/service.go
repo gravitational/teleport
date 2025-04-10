@@ -35,23 +35,16 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
-// TODO(Joerger): Rather than using a global cache and mutexes, clients should be updated
-// to create a single YubiKeyService and ensure it is reused across the program execution.
-var (
+// YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
+type YubiKeyService struct {
+	prompt    hardwarekey.Prompt
+	promptMux sync.Mutex
+
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
 	// transaction (connection) per-yubikey limit.
-	yubiKeys    map[uint32]*YubiKey = map[uint32]*YubiKey{}
+	yubiKeys    map[uint32]*YubiKey
 	yubiKeysMux sync.Mutex
-
-	// promptMux is used to prevent over-prompting, especially for back-to-back sign requests
-	// since touch/PIN from the first signature should be cached for following signatures.
-	promptMux sync.Mutex
-)
-
-// YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
-type YubiKeyService struct {
-	prompt hardwarekey.Prompt
 }
 
 // Returns a new [YubiKeyService]. If [customPrompt] is nil, the default CLI prompt will be used.
@@ -64,7 +57,8 @@ func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
 	}
 
 	return &YubiKeyService{
-		prompt: customPrompt,
+		prompt:   customPrompt,
+		yubiKeys: map[uint32]*YubiKey{},
 	}
 }
 
@@ -170,8 +164,8 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	promptMux.Lock()
-	defer promptMux.Unlock()
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 
 	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
 }
@@ -221,13 +215,20 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 	return ref, nil
 }
 
+// SetPrompt sets the hardware key prompt.
+func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
+	s.prompt = prompt
+}
+
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",
 // return the first YubiKey found in the smart card list.
 func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
-	yubiKeysMux.Lock()
-	defer yubiKeysMux.Unlock()
+	s.yubiKeysMux.Lock()
+	defer s.yubiKeysMux.Unlock()
 
-	if y, ok := yubiKeys[serialNumber]; ok {
+	if y, ok := s.yubiKeys[serialNumber]; ok {
 		return y, nil
 	}
 
@@ -236,7 +237,7 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	yubiKeys[y.serialNumber] = y
+	s.yubiKeys[y.serialNumber] = y
 	return y, nil
 }
 
@@ -244,8 +245,8 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo hardwarekey.ContextualKeyInfo) error {
-	promptMux.Lock()
-	defer promptMux.Unlock()
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 
 	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional, keyInfo)
 	if err != nil {
@@ -267,8 +268,8 @@ func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo 
 }
 
 func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, keyInfo hardwarekey.ContextualKeyInfo) error {
-	promptMux.Lock()
-	defer promptMux.Unlock()
+	s.promptMux.Lock()
+	defer s.promptMux.Unlock()
 
 	promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
 	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {

@@ -214,7 +214,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			KubeProxyAddr:                 tc.Config.KubeProxyAddr,
 			WebProxyAddr:                  tc.Config.WebProxyAddr,
 			TLSRoutingConnUpgradeRequired: tc.Config.TLSRoutingConnUpgradeRequired,
-			EnableEscapeSequences:         tc.Config.EnableEscapeSequences,
+			EnableEscapeSequences:         !tc.Config.DisableEscapeSequences,
 			Tracker:                       meta,
 			TLSConfig:                     tlsConfig,
 			Mode:                          types.SessionParticipantMode(c.mode),
