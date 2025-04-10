@@ -824,9 +824,9 @@ func FindYubiKey(serialNumber uint32, prompt hardwarekey.Prompt) (*YubiKey, erro
 
 	if len(yubiKeyCards) == 0 {
 		if serialNumber != 0 {
-			return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
+			return nil, trace.NotFound("no YubiKey device connected with serial number %d", serialNumber)
 		}
-		return nil, trace.ConnectionProblem(nil, "no YubiKey device connected")
+		return nil, trace.NotFound("no YubiKey device connected")
 	}
 
 	for _, card := range yubiKeyCards {
@@ -840,7 +840,7 @@ func FindYubiKey(serialNumber uint32, prompt hardwarekey.Prompt) (*YubiKey, erro
 		}
 	}
 
-	return nil, trace.ConnectionProblem(nil, "no YubiKey device connected with serial number %d", serialNumber)
+	return nil, trace.NotFound("no YubiKey device connected with serial number %d", serialNumber)
 }
 
 // findYubiKeyCards returns a list of connected yubiKey PIV card names.

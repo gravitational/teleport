@@ -1914,21 +1914,32 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		return trace.BadParameter("invalid identity format: %s", cf.IdentityFormat)
 	}
 
-	// Get the status of the active profile as well as the status
-	// of any other proxies the user is logged into.
-	profile, profiles, err := cf.FullProfileStatus()
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
 	// make the teleport client and retrieve the certificate from the proxy:
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	tc.HomePath = cf.HomePath
+
+	// Get the profile status for the given proxy, or the current profile
+	// if no proxy was provided.
+	profile, err := tc.ClientStore.ReadProfileStatus(cf.Proxy)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Print status to show information of the logged in user.
+	printStatus := func() error {
+		profile, profiles, err := tc.ClientStore.FullProfileStatus()
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+		}
+		return printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc))
+	}
 
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
@@ -1963,7 +1974,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				return trace.Wrap(err)
 			}
 
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return printStatus()
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
@@ -1987,13 +1998,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
 			if err := updateKubeConfigOnLogin(cf, tc); err == nil {
-				profile, profiles, err = cf.FullProfileStatus()
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				// Print status to show information of the logged in user.
-				return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+				return printStatus()
 			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -2019,13 +2024,8 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				return trace.Wrap(err)
 			}
 
-			profile, profiles, err = cf.FullProfileStatus()
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			return printStatus()
 
-			// Print status to show information of the logged in user.
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
@@ -2041,7 +2041,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 				return trace.Wrap(err)
 			}
 			// Print status to show information of the logged in user.
-			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
+			return printStatus()
 
 		// otherwise just pass through to standard login
 		default:
@@ -2186,13 +2186,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
 
-	profile, profiles, err = cf.FullProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Print status to show information of the logged in user.
-	if err := printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)); err != nil {
+	if err := printStatus(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5076,7 +5070,7 @@ func onStatus(cf *CLIConf) error {
 	}
 
 	if profile == nil {
-		return trace.NotFound("Not logged in.")
+		return trace.NotFound("No active profile.")
 	}
 
 	duration := time.Until(profile.ValidUntil)
