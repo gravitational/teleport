@@ -368,7 +368,7 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &hardwarekey.PrivateKeyRef{
+	ref := &hardwarekey.PrivateKeyRef{
 		SerialNumber: y.serialNumber,
 		SlotKey:      hardwarekey.PIVSlotKey(slot.Key),
 		PublicKey:    slotCert.PublicKey,
@@ -384,7 +384,13 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 				},
 			},
 		},
-	}, nil
+	}
+
+	if err := ref.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ref, nil
 }
 
 // SetPIN sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
