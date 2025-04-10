@@ -36,9 +36,7 @@ func TestCache(t *testing.T) {
 		{Metadata: &headerv1.Metadata{Name: "test-rule-1"}},
 		{Metadata: &headerv1.Metadata{Name: "test-rule-2"}},
 	}
-	for _, rule := range rules {
-		cache.Put(rule)
-	}
+	cache.Put(rules)
 	require.Len(t, cache.Get(), 2)
 	require.ElementsMatch(t, rules, cache.Get())
 
@@ -53,9 +51,7 @@ func TestCache(t *testing.T) {
 			Description: "updated-rule-2",
 		}},
 	}
-	for _, rule := range updatedRules {
-		cache.Put(rule)
-	}
+	cache.Put(updatedRules)
 	require.Len(t, cache.Get(), 2)
 	require.ElementsMatch(t, updatedRules, cache.Get())
 

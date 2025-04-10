@@ -144,7 +144,7 @@ func (handler *Handler) HandleAccessMonitoringRule(ctx context.Context, event ty
 			handler.rules.Delete(rule.GetMetadata().GetName())
 			return nil
 		}
-		handler.rules.Put(rule)
+		handler.rules.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{rule})
 	case types.OpDelete:
 		handler.rules.Delete(event.Resource.GetName())
 	default:
@@ -294,12 +294,12 @@ func newAccessReview(userName, ruleName, state string) (types.AccessReview, erro
 	}, nil
 }
 
-// TODO(bernardjkim): DELETE in 19.0.0 replace with trace.IsAlreadyExists.
 func isAlreadyReviewedError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.HasSuffix(err.Error(), "has already reviewed this request")
+
+	return trace.IsAlreadyExists(err) || strings.HasSuffix(err.Error(), "has already reviewed this request")
 }
 
 // getAccessRequestExpressionEnv returns the expression env of the access request.

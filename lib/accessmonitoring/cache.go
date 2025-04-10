@@ -62,9 +62,7 @@ func (cache *Cache) Initialize(ctx context.Context, fn fetchRulesPage) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		for _, rule := range page {
-			cache.Put(rule)
-		}
+		cache.Put(page)
 		if nextToken == "" {
 			return nil
 		}
@@ -78,12 +76,14 @@ func (cache *Cache) Get() []*accessmonitoringrulesv1.AccessMonitoringRule {
 	return slices.Collect(maps.Values(maps.Clone(cache.rules)))
 }
 
-// Put puts the access monitoring rule into the cache.
-// Replaces existing access monitoring rule with the same name.
-func (cache *Cache) Put(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+// Put puts the access monitoring rules into the cache.
+// Replaces existing access monitoring rules with the same name.
+func (cache *Cache) Put(rules []*accessmonitoringrulesv1.AccessMonitoringRule) {
 	cache.Lock()
 	defer cache.Unlock()
-	cache.rules[amr.GetMetadata().GetName()] = amr
+	for _, rule := range rules {
+		cache.rules[rule.GetMetadata().GetName()] = rule
+	}
 }
 
 // Delete deletes the access monitoring rule from the cache.

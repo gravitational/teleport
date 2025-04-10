@@ -151,8 +151,10 @@ func TestConflictingRules(t *testing.T) {
 
 	// Configure both an approved and denied rule.
 	cache := accessmonitoring.NewCache()
-	cache.Put(newApprovedRule("approved-rule", "true"))
-	cache.Put(newDeniedRule("denied-rule", "true"))
+	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{
+		newApprovedRule("approved-rule", "true"),
+		newDeniedRule("denied-rule", "true"),
+	})
 
 	requester, err := types.NewUser(requesterUserName)
 	require.NoError(t, err)
@@ -188,7 +190,9 @@ func TestResourceRequest(t *testing.T) {
 	requesterUserName := "requester"
 
 	cache := accessmonitoring.NewCache()
-	cache.Put(newApprovedRule("approved-rule", "true"))
+	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{
+		newApprovedRule("approved-rule", "true"),
+	})
 
 	requester, err := types.NewUser(requesterUserName)
 	require.NoError(t, err)
@@ -236,12 +240,13 @@ func TestHandleAccessRequest(t *testing.T) {
 
 	// Setup test rule
 	cache := accessmonitoring.NewCache()
-	cache.Put(newApprovedRule(testRuleName,
+
+	rule := newApprovedRule(testRuleName,
 		fmt.Sprintf(`
 			contains_all(set("%s"), access_request.spec.roles) &&
 			contains_any(user.traits["%s"], set("%s"))`,
-			approvedRole, approvedUserTraitKey, approvedUserTraitVal)),
-	)
+			approvedRole, approvedUserTraitKey, approvedUserTraitVal))
+	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{rule})
 
 	// Setup approved user
 	approvedUser, err := types.NewUser(approvedUserName)
