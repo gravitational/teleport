@@ -185,12 +185,18 @@ func (c *databaseExecCommand) getDatabases() ([]types.Database, error) {
 }
 
 func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
-	fmt.Fprintln(c.cf.Stdout(), "Fetching databases by names ...")
-
 	// Use a single predicate to search multiple names in one shot but batch 100
 	// names at a time. Extra validation will be performed afterward to ensure
 	// we fetched what we need.
-	names := apiutils.Deduplicate(strings.Split(c.cf.DatabaseServices, ","))
+	fmt.Fprintln(c.cf.Stdout(), "Fetching databases by name ...")
+
+	// Trim spaces.
+	names := strings.Split(c.cf.DatabaseServices, ",")
+	for i := range names {
+		names[i] = strings.TrimSpace(names[i])
+	}
+	names = apiutils.Deduplicate(names)
+
 	var dbs []types.Database
 	for page := range slices.Chunk(names, 100) {
 		var predicate string
@@ -198,7 +204,7 @@ func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 			predicate = makePredicateDisjunction(predicate, makeDiscoveredNameOrNamePredicate(name))
 		}
 
-		logger.DebugContext(c.cf.Context, "Getting database by names", "names", page, "predicate", predicate)
+		logger.DebugContext(c.cf.Context, "Getting database by name", "databases", page)
 		pageDBs, err := c.client.listDatabasesWithFilter(c.cf.Context, &proto.ListResourcesRequest{
 			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindDatabaseServer,
@@ -210,7 +216,7 @@ func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 		dbs = append(dbs, pageDBs...)
 	}
 
-	logger.DebugContext(c.cf.Context, "Fetched database services by names.",
+	logger.DebugContext(c.cf.Context, "Fetched databases by name",
 		"databases", logutils.IterAttr(types.ResourceNames(dbs)))
 	return dbs, trace.Wrap(ensureEachDatabase(names, dbs))
 }
@@ -225,7 +231,7 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(c.cf.Context, "Fetched databases with search filter.",
+	logger.DebugContext(c.cf.Context, "Fetched databases with search filter",
 		"databases", logutils.IterAttr(types.ResourceNames(dbs)),
 	)
 	return dbs, trace.Wrap(c.printResultAndConfirm(dbs))
@@ -238,7 +244,8 @@ func (c *databaseExecCommand) printResultAndConfirm(dbs []types.Database) error 
 
 	fmt.Fprintf(c.cf.Stdout(), "Found %d database(s):\n\n", len(dbs))
 	printTableForDatabaseExec(c.cf.Stdout(), dbs)
-	if err := c.cf.PromptConfirmation("Do you want to proceed?"); err != nil {
+	question := fmt.Sprintf("Do you want to proceed with %d databases?", len(dbs))
+	if err := c.cf.PromptConfirmation(question); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -320,13 +327,15 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 }
 
 func (c *databaseExecCommand) startLocalProxy(ctx context.Context, dbInfo *databaseInfo) (*alpnproxy.LocalProxy, error) {
-	// Issue a single use cert, and do not provide a re-issuer middleware to the
-	// local proxy.
+	// Issue single-use certificate.
 	clientCert, err := c.client.issueCert(ctx, dbInfo)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Do not provide a re-issuer middleware to the local proxy. The local proxy
+	// is meant for one-time use so there is no need to re-issue the
+	// certificates.
 	listener, err := createLocalProxyListener("localhost:0", dbInfo.RouteToDatabase, c.client.getProfileStatus())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -381,14 +390,13 @@ func (c *databaseExecCommand) openOutputFile(dbServiceName string) (*os.File, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logFile, err := utils.OpenNewFile(logFilePath, teleport.FileMaskOwnerOnly)
+	logFile, err := utils.CreateExclusiveFile(logFilePath, teleport.FileMaskOwnerOnly)
 	return logFile, trace.ConvertSystemError(err)
 }
 
 // sharedDatabaseExecClient is a wrapper of client.TeleportClient that makes
 // backend calls while using a shared ClusterClient.
 type sharedDatabaseExecClient struct {
-	*client.TeleportClient
 	profile       *client.ProfileStatus
 	clusterClient *client.ClusterClient
 	accessChecker services.AccessChecker
@@ -416,11 +424,10 @@ func newSharedDatabaseExecClient(cf *CLIConf, tc *client.TeleportClient) (*share
 	}
 
 	return &sharedDatabaseExecClient{
-		TeleportClient: tc,
-		profile:        profile,
-		tracer:         cf.TracingProvider.Tracer(teleport.ComponentTSH),
-		clusterClient:  clusterClient,
-		accessChecker:  accessChecker,
+		profile:       profile,
+		tracer:        cf.TracingProvider.Tracer(teleport.ComponentTSH),
+		clusterClient: clusterClient,
+		accessChecker: accessChecker,
 	}, nil
 }
 
@@ -439,10 +446,10 @@ func (c *sharedDatabaseExecClient) getProfileStatus() *client.ProfileStatus {
 	return c.profile
 }
 
+// issueCert issues a single use cert for the db route.
 func (c *sharedDatabaseExecClient) issueCert(ctx context.Context, dbInfo *databaseInfo) (tls.Certificate, error) {
 	// TODO(greedy52) add support for multi-session MFA.
 	params := client.ReissueParams{
-		RouteToCluster:  c.SiteName,
 		RouteToDatabase: client.RouteToDatabaseToProto(dbInfo.RouteToDatabase),
 		AccessRequests:  c.profile.ActiveRequests,
 	}
@@ -513,10 +520,10 @@ func (m *databaseExecCommandMaker) makeCommand(ctx context.Context, dbInfo *data
 func ensureEachDatabase(names []string, dbs []types.Database) error {
 	byDiscoveredNameOrName := map[string]types.Databases{}
 	for _, db := range dbs {
+		// Database may be listed by their original name in the cloud.
 		byDiscoveredNameOrName[db.GetName()] = append(byDiscoveredNameOrName[db.GetName()], db)
 
-		// Database may be listed by their original name in the cloud.
-		if discoveredName, ok := common.GetDiscoveredResourceName(db); ok {
+		if discoveredName, ok := common.GetDiscoveredResourceName(db); ok && discoveredName != db.GetName() {
 			byDiscoveredNameOrName[discoveredName] = append(byDiscoveredNameOrName[discoveredName], db)
 		}
 	}
@@ -530,7 +537,7 @@ func ensureEachDatabase(names []string, dbs []types.Database) error {
 			continue
 		default:
 			var sb strings.Builder
-			printTableForDatabaseExec(&sb, dbs)
+			printTableForDatabaseExec(&sb, matched)
 			return trace.BadParameter(`%q matches multiple databases:
 %vTry selecting the database with a more specific name printed in the above table`, name, sb.String())
 		}
@@ -598,19 +605,25 @@ func (s *databaseExecSummary) printAndSave(w io.Writer, outputDir string) {
 }
 
 func (s *databaseExecSummary) save(w io.Writer, outputDir string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	summaryPath := filepath.Join(outputDir, "summary.json")
 	summaryPath, err := utils.EnsureLocalPath(summaryPath, "", "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	summaryFile, err := utils.OpenNewFile(summaryPath, teleport.FileMaskOwnerOnly)
-	if err != nil {
+	summaryFile, err := utils.CreateExclusiveFile(summaryPath, teleport.FileMaskOwnerOnly)
+	if trace.IsAlreadyExists(err) {
+		fmt.Fprintf(w, "Warning: file %s exists and will be overwritten.\n", summaryPath)
+		summaryFile, err = os.OpenFile(summaryPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, teleport.FileMaskOwnerOnly)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 	defer summaryFile.Close()
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	summaryData, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

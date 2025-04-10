@@ -500,9 +500,9 @@ func RecursiveCopy(src, dest string, skip func(src, dest string) (bool, error)) 
 	}))
 }
 
-// OpenNewFile creates a file only if it does not exist to prevent overwriting
+// CreateExclusiveFile creates a file only if it does not exist to prevent overwriting
 // existing files.
-func OpenNewFile(path string, mode os.FileMode) (*os.File, error) {
+func CreateExclusiveFile(path string, mode os.FileMode) (*os.File, error) {
 	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
