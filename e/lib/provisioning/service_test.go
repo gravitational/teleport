@@ -33,6 +33,7 @@ func TestDownstreamProvisioning(t *testing.T) {
 
 	const (
 		aliceUser = "alice"
+		bobUser   = "bob"
 		aclID     = "test-access-list-1"
 		aclTitle  = "Test Access List 1 Title"
 	)
@@ -40,19 +41,23 @@ func TestDownstreamProvisioning(t *testing.T) {
 	t.Run("should provision teleport user to scim downstream", func(t *testing.T) {
 		pack.mustCreateTeleportUser(t, aliceUser)
 		assertSCIMUserExists(t, pack.scimMock, aliceUser)
+		pack.mustCreateTeleportUser(t, bobUser)
+		assertSCIMUserExists(t, pack.scimMock, bobUser)
 	})
 
 	t.Run("should provision access list to scim downstream", func(t *testing.T) {
 		pack.mustCreateAccessList(t, aclID, aclTitle)
 		pack.mustUpsertAccessListMember(t, aclID, aliceUser, accesslist.MembershipKindUser)
-		pack.mustUpsertAccessListMemberWithoutTeleportAccount(t, aclID, "external-user")
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 2)
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 2)
+		pack.mustUpsertAccessListMemberWithNonExistentUserAccount(t, aclID, "external-user", common.OriginAWSIdentityCenter)
+		pack.mustUpsertAccessListMemberWithNonExistentUserAccount(t, aclID, "external-user2", "")
+		pack.mustUpsertAccessListMember(t, aclID, bobUser, accesslist.MembershipKindUser)
+		// non-existent user account (external-user2), which is also missing an identity center origin label is excluded.
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 3)
 	})
 
 	t.Run("should de-provision scim group membership for member deleted from access list", func(t *testing.T) {
 		require.NoError(t, pack.depsMock.DeleteAccessListMember(ctx, aclID, aliceUser))
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 1)
+		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 2)
 	})
 
 	t.Run("should de-provision scim group", func(t *testing.T) {
@@ -527,8 +532,8 @@ func (s *testPack) mustUpsertAccessListMember(t *testing.T, accessList, memberNa
 	s.aclMember(t, accessList, memberName, memberKind, "" /* withOrigin */)
 }
 
-func (s *testPack) mustUpsertAccessListMemberWithoutTeleportAccount(t *testing.T, accessList, memberName string) {
-	s.aclMember(t, accessList, memberName, accesslist.MembershipKindUser, common.OriginAWSIdentityCenter)
+func (s *testPack) mustUpsertAccessListMemberWithNonExistentUserAccount(t *testing.T, accessList, memberName, origin string) {
+	s.aclMember(t, accessList, memberName, accesslist.MembershipKindUser, origin)
 }
 
 func (s *testPack) aclMember(t *testing.T, accessList, memberName string, memberKind string, withOrigin string) {

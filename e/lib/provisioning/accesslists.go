@@ -26,11 +26,7 @@ func (p *provisioner) provisionAccessList(
 	}
 	log = log.With("title", acl.Spec.Title)
 
-	groupMembers, err := p.validateListMembers(ctx, acl, aclMembers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	groupMembers := p.filterValidMembers(ctx, acl, aclMembers)
 	log.DebugContext(ctx, "Access list loaded, provisioning",
 		"member_count", len(groupMembers))
 
@@ -112,11 +108,15 @@ func (p *provisioner) adoptOrCreateDownstreamGroup(
 	}
 }
 
-func (p *provisioner) validateListMembers(
+// filterValidMembers skips member from the provisioning list if it
+//   - fails to get user account for the member and the member did not originated from AWS.
+//   - fails to get member's external ID.
+//   - the member fails to meet access list membership requirement.
+func (p *provisioner) filterValidMembers(
 	ctx context.Context,
 	acl *accesslist.AccessList,
 	aclMembers []*accesslist.AccessListMember,
-) ([]*scimsdk.GroupMember, error) {
+) []*scimsdk.GroupMember {
 	log := p.log.With(
 		slog.Group("access_list",
 			slog.String("name", acl.GetName()),
@@ -133,12 +133,14 @@ func (p *provisioner) validateListMembers(
 
 		user, err := p.usersSvc.GetUser(ctx, memberUserName, false)
 		if err != nil {
-			// Check if the member is an AWS Identity Center user whose account does not exist in Teleport.
+			// Any error should just skip the user and let the access list provisioning proceed.
+
+			// Preserve non-existent user membership that we imported from AWS.
 			// Such members are labeled with OriginAWSIdentityCenter and ExternalIDLabel.
-			if trace.IsNotFound(err) && aclMember.Origin() == common.OriginAWSIdentityCenter {
+			if aclMember.Origin() == common.OriginAWSIdentityCenter {
 				extID, ok := aclMember.GetAllLabels()[ExternalIDLabel.String()]
 				if !ok {
-					log.WarnContext(ctx, "External ID not found for a user from AWS Identity Center. This is a bug.", "member_username", memberUserName)
+					log.WarnContext(ctx, "External ID not found for a user from AWS Identity Center. This is a bug.")
 					continue
 				}
 				groupMembers = append(groupMembers, &scimsdk.GroupMember{
@@ -147,18 +149,21 @@ func (p *provisioner) validateListMembers(
 				})
 				continue
 			}
-			log.ErrorContext(ctx, "error loading user")
-			return nil, trace.Wrap(err)
-
-		}
-
-		extID, err := p.externalIDCache.GetExternalID(ctx, memberStateId)
-		if err != nil || extID == "" {
-			log.WarnContext(ctx, "user excluded from group", "member_state_id", memberStateId)
+			log.ErrorContext(ctx, "Error loading user. User group membership won't be provisioned.", "error", err)
 			continue
 		}
 
-		// Assert that the user is not only a recorded member , but also
+		extID, err := p.externalIDCache.GetExternalID(ctx, memberStateId)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to get external ID. User group membership won't be provisioned.", "error", err)
+			continue
+		}
+		if extID == "" {
+			log.WarnContext(ctx, "External ID not found. User group membership won't be provisioned.")
+			continue
+		}
+
+		// Assert that the user is not only a recorded member, but also
 		// currently meets all the Access List membership requirements
 		if membershipKind, _ := accesslists.IsAccessListMember(
 			ctx,
@@ -168,7 +173,7 @@ func (p *provisioner) validateListMembers(
 			p.locksSvc,
 			p.clock,
 		); membershipKind == accesslists.MembershipOrOwnershipTypeNone {
-			log.WarnContext(ctx, "user does not meet Access List requirements")
+			log.WarnContext(ctx, "User does not meet Access List requirements")
 			continue
 		}
 
@@ -178,7 +183,7 @@ func (p *provisioner) validateListMembers(
 		})
 	}
 
-	return groupMembers, nil
+	return groupMembers
 }
 
 // createDownstreamGroup creates an empty downstream group for the supplied
