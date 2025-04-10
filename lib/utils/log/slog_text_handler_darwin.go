@@ -18,24 +18,44 @@ package log
 
 import (
 	"log/slog"
+	"slices"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/utils/log/oslog"
 )
 
-// SlogTextHandlerOutputOSLog represents an output for SlogTextHandler that writes to os_log, the
+func NewSlogOSLogTextHandler(subsystem string, cfg SlogTextHandlerConfig) (*SlogTextHandler, error) {
+	if cfg.Padding == 0 {
+		cfg.Padding = defaultComponentPadding
+	}
+
+	handler := SlogTextHandler{
+		cfg:           cfg,
+		out:           newOSLogWritter(subsystem),
+		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
+		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
+	}
+
+	if handler.cfg.ConfiguredFields == nil {
+		handler.cfg.ConfiguredFields = defaultFormatFields
+	}
+
+	return &handler, nil
+}
+
+// osLogWriter is an [outputWriter] that writes to os_log, the
 // unified logging system on macOS.
-type SlogTextHandlerOutputOSLog struct {
+type osLogWriter struct {
 	subsystem string
 	mu        sync.Mutex
 	loggers   map[string]*oslog.Logger
 }
 
-// NewSlogTextHandlerOutputOSLog creates a new output that writes to os_log. All oslog.Logger
+// newOSLogWritter creates a new output that writes to os_log. All oslog.Logger
 // instances created by this output are going to use the given subsystem, whereas the category comes
 // from the component passed to the Write method.
-func NewSlogTextHandlerOutputOSLog(subsystem string) *SlogTextHandlerOutputOSLog {
-	return &SlogTextHandlerOutputOSLog{
+func newOSLogWritter(subsystem string) *osLogWriter {
+	return &osLogWriter{
 		subsystem: subsystem,
 		loggers:   map[string]*oslog.Logger{},
 	}
@@ -43,7 +63,7 @@ func NewSlogTextHandlerOutputOSLog(subsystem string) *SlogTextHandlerOutputOSLog
 
 // Write sends the message from buf to os_log and maps level to a specific oslog.OsLogType.
 // os_log truncates messages by default, see [oslog.Logger.Log] for more details.
-func (o *SlogTextHandlerOutputOSLog) Write(buf *buffer, rawComponent string, level slog.Level) error {
+func (o *osLogWriter) Write(buf *buffer, rawComponent string, level slog.Level) error {
 	logger := o.getLogger(rawComponent)
 
 	var osLogType oslog.OsLogType
@@ -68,7 +88,7 @@ func (o *SlogTextHandlerOutputOSLog) Write(buf *buffer, rawComponent string, lev
 	return nil
 }
 
-func (o *SlogTextHandlerOutputOSLog) getLogger(rawComponent string) *oslog.Logger {
+func (o *osLogWriter) getLogger(rawComponent string) *oslog.Logger {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 

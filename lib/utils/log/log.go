@@ -130,14 +130,25 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		output := newSlogTextHandlerOutput(w, loggerConfig)
-
-		logger = slog.New(NewSlogTextHandlerWithOutput(output, SlogTextHandlerConfig{
-			Level:            level,
-			EnableColors:     loggerConfig.EnableColors,
-			ConfiguredFields: configuredFields,
-			Padding:          loggerConfig.Padding,
-		}))
+		if loggerConfig.Output == LogOutputOSLog {
+			handler, err := NewSlogOSLogTextHandler(loggerConfig.OSLogSubsystem, SlogTextHandlerConfig{
+				Level:            level,
+				EnableColors:     loggerConfig.EnableColors,
+				ConfiguredFields: configuredFields,
+				Padding:          loggerConfig.Padding,
+			})
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			logger = slog.New(handler)
+		} else {
+			logger = slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{
+				Level:            level,
+				EnableColors:     loggerConfig.EnableColors,
+				ConfiguredFields: configuredFields,
+				Padding:          loggerConfig.Padding,
+			}))
+		}
 		slog.SetDefault(logger)
 	case "json":
 		logger = slog.New(NewSlogJSONHandler(w, SlogJSONHandlerConfig{
@@ -150,8 +161,4 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 	}
 
 	return logger, level, nil
-}
-
-func newSlogTextHandlerOutput(w io.Writer, loggerConfig Config) SlogTextHandlerOutput {
-	return newPlatformSlogTextHandlerOutput(w, loggerConfig)
 }

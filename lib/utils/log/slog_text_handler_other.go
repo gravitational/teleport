@@ -1,3 +1,5 @@
+//go:build !darwin
+
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
 //
@@ -13,16 +15,10 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 package log
 
-import (
-	"io"
-)
+import "github.com/gravitational/trace"
 
-func newPlatformSlogTextHandlerOutput(w io.Writer, loggerConfig Config) SlogTextHandlerOutput {
-	if loggerConfig.Output == LogOutputOSLog {
-		return NewSlogTextHandlerOutputOSLog(loggerConfig.OSLogSubsystem)
-	}
-	return NewSlogTextHandlerOutputIO(w)
+func NewSlogOSLogTextHandler(subsystem string, cfg SlogTextHandlerConfig) (*SlogTextHandler, error) {
+	return nil, trace.NotImplemented("can only use os_log on macOS")
 }
