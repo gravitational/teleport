@@ -172,6 +172,7 @@ type cacheCollections struct {
 	autoUpdateConfigs                  collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions                 collectionReader[autoUpdateVersionGetter]
 	autoUpdateAgentRollouts            collectionReader[autoUpdateAgentRolloutGetter]
+	autoUpdateAgentReports             collectionReader[autoUpdateAgentReportGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterAccounts             collectionReader[identityCenterAccountGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
@@ -735,6 +736,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.autoUpdateAgentRollouts
+		case types.KindAutoUpdateAgentReport:
+			if c.AutoUpdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoUpdateAgentReports = &genericCollection[*autoupdate.AutoUpdateAgentReport, autoUpdateAgentReportGetter, autoUpdateAgentReportExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoUpdateAgentReports
 
 		case types.KindProvisioningPrincipalState:
 			if c.ProvisioningStates == nil {
@@ -1362,6 +1372,45 @@ type autoUpdateAgentRolloutGetter interface {
 }
 
 var _ executor[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter] = autoUpdateAgentRolloutExecutor{}
+
+type autoUpdateAgentReportExecutor struct{}
+
+func (autoUpdateAgentReportExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateAgentReport, error) {
+	resp, _, err := cache.AutoUpdateService.ListAutoUpdateAgentReports(ctx, 0, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, trace.Wrap(err)
+}
+
+func (autoUpdateAgentReportExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateAgentReport) error {
+	_, err := cache.autoUpdateCache.UpsertAutoUpdateAgentReport(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoUpdateAgentReportExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoUpdateCache.DeleteAllAutoUpdateAgentReports(ctx)
+}
+
+func (autoUpdateAgentReportExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoUpdateCache.DeleteAutoUpdateAgentReport(ctx, resource.GetName())
+}
+
+func (autoUpdateAgentReportExecutor) isSingleton() bool { return false }
+
+func (autoUpdateAgentReportExecutor) getReader(cache *Cache, cacheOK bool) autoUpdateAgentReportGetter {
+	if cacheOK {
+		return cache.autoUpdateCache
+	}
+	return cache.Config.AutoUpdateService
+}
+
+type autoUpdateAgentReportGetter interface {
+	GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error)
+	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateAgentReport, autoUpdateAgentReportGetter] = autoUpdateAgentReportExecutor{}
 
 type userExecutor struct{}
 

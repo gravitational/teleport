@@ -35,6 +35,7 @@ const (
 	autoUpdateConfigPrefix       = "auto_update_config"
 	autoUpdateVersionPrefix      = "auto_update_version"
 	autoUpdateAgentRolloutPrefix = "auto_update_agent_rollout"
+	autoUpdateAgentReportPrefix  = "auto_update_agent_report"
 )
 
 // AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
@@ -42,6 +43,7 @@ type AutoUpdateService struct {
 	config  *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
 	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
 	rollout *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentRollout]
+	report  *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentReport]
 }
 
 // NewAutoUpdateService returns a new AutoUpdateService.
@@ -91,11 +93,24 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	report, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*autoupdate.AutoUpdateAgentReport]{
+			Backend:       b,
+			ResourceKind:  types.KindAutoUpdateAgentReport,
+			BackendPrefix: backend.NewKey(autoUpdateAgentReportPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentReport],
+			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentReport],
+			ValidateFunc:  update.ValidateAutoUpdateAgentReport,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &AutoUpdateService{
 		config:  config,
 		version: version,
 		rollout: rollout,
+		report:  report,
 	}, nil
 }
 
@@ -211,6 +226,54 @@ func (s *AutoUpdateService) GetAutoUpdateAgentRollout(ctx context.Context) (*aut
 // DeleteAutoUpdateAgentRollout deletes the AutoUpdateAgentRollout singleton resource.
 func (s *AutoUpdateService) DeleteAutoUpdateAgentRollout(ctx context.Context) error {
 	return trace.Wrap(s.rollout.DeleteResource(ctx, types.MetaNameAutoUpdateAgentRollout))
+}
+
+// ListAutoUpdateAgentReports returns a paginated list of AutoUpdateAgentReport resources.
+func (s *AutoUpdateService) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error) {
+	agentReports, nextKey, err := s.report.ListResources(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return agentReports, nextKey, nil
+}
+
+// GetAutoUpdateAgentReport returns the specified AutoUpdateAgentReport resource.
+func (s *AutoUpdateService) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error) {
+	agentReport, err := s.report.GetResource(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return agentReport, nil
+}
+
+// CreateAutoUpdateAgentReport creates a new AutoUpdateAgentReport resource.
+func (s *AutoUpdateService) CreateAutoUpdateAgentReport(ctx context.Context, agentReport *autoupdate.AutoUpdateAgentReport) (*autoupdate.AutoUpdateAgentReport, error) {
+	created, err := s.report.CreateResource(ctx, agentReport)
+	return created, trace.Wrap(err)
+}
+
+// UpdateAutoUpdateAgentReport updates an existing AutoUpdateAgentReport resource.
+func (s *AutoUpdateService) UpdateAutoUpdateAgentReport(ctx context.Context, agentReport *autoupdate.AutoUpdateAgentReport) (*autoupdate.AutoUpdateAgentReport, error) {
+	updated, err := s.report.ConditionalUpdateResource(ctx, agentReport)
+	return updated, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateAgentReport upserts a AutoUpdateAgentReport resource.
+func (s *AutoUpdateService) UpsertAutoUpdateAgentReport(ctx context.Context, agentReport *autoupdate.AutoUpdateAgentReport) (*autoupdate.AutoUpdateAgentReport, error) {
+	upserted, err := s.report.UpsertResource(ctx, agentReport)
+	return upserted, trace.Wrap(err)
+}
+
+// DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
+func (s *AutoUpdateService) DeleteAutoUpdateAgentReport(ctx context.Context, name string) error {
+	return trace.Wrap(s.report.DeleteResource(ctx, name))
+}
+
+// DeleteAllAutoUpdateAgentReports removes all AutoUpdateAgentReport resources.
+func (s *AutoUpdateService) DeleteAllAutoUpdateAgentReports(ctx context.Context) error {
+	return trace.Wrap(s.report.DeleteAllResources(ctx))
 }
 
 // itemFromAutoUpdateConfig generates `backend.Item` from `AutoUpdateConfig` resource type.

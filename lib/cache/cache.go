@@ -193,6 +193,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateAgentRollout},
+		{Kind: types.KindAutoUpdateAgentReport},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
 		{Kind: types.KindIdentityCenterAccount},
@@ -2071,6 +2072,46 @@ func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.Auto
 		return protobuf.Clone(cachedAgentRollout).(*autoupdate.AutoUpdateAgentRollout), nil
 	}
 	return rg.reader.GetAutoUpdateAgentRollout(ctx)
+}
+
+type autoUpdateAgentReportCacheKey struct {
+	name string
+}
+
+// GetAutoUpdateAgentReport gets the AutoUpdateAgentReport from the backend.
+func (c *Cache) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentReport")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoUpdateAgentReports)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedAgentReport, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateAgentReportCacheKey{name}, func(ctx context.Context) (*autoupdate.AutoUpdateAgentReport, error) {
+			version, err := rg.reader.GetAutoUpdateAgentReport(ctx, name)
+			return version, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedAgentReport).(*autoupdate.AutoUpdateAgentReport), nil
+	}
+	return rg.reader.GetAutoUpdateAgentReport(ctx, name)
+}
+
+// ListAutoUpdateAgentReports lists autoupdate_agent_reports.
+func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAutoUpdateAgentReports")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoUpdateAgentReports)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
 }
 
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
