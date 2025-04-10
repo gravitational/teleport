@@ -744,6 +744,7 @@ func TestUpdater_Update(t *testing.T) {
 			ns := &Namespace{
 				installDir:     dir,
 				defaultPathDir: "ignored",
+				updaterIDFile:  "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -835,9 +836,6 @@ func TestUpdater_Update(t *testing.T) {
 			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
-			}
-			updater.EnsureUpdateID = func() (string, error) {
-				return "updater-id-file", nil
 			}
 
 			ctx := context.Background()
@@ -1675,6 +1673,7 @@ func TestUpdater_Install(t *testing.T) {
 				installDir:       dir,
 				defaultPathDir:   defaultPathDir,
 				defaultProxyAddr: "default-proxy",
+				updaterIDFile:    "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -1777,9 +1776,6 @@ func TestUpdater_Install(t *testing.T) {
 			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
-			}
-			updater.EnsureUpdateID = func() (string, error) {
-				return "updater-id-file", nil
 			}
 
 			ctx := context.Background()
