@@ -117,16 +117,10 @@ export const ListItems: Story = {
             selectResource={() => {}}
             selected={false}
             pinningSupport={PinningSupport.Supported}
-            name={res.name}
-            primaryIconName={res.primaryIconName}
-            SecondaryIcon={res.SecondaryIcon}
-            listViewProps={res.listViewProps}
-            labels={res.labels}
-            ActionButton={res.ActionButton}
             expandAllLabels={false}
             onShowStatusInfo={() => null}
-            viewingUnhealthyStatus={false}
-            status={res.status}
+            showingStatusInfo={false}
+            viewItem={res}
           />
         ))}
       </Flex>

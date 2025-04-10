@@ -31,30 +31,33 @@ import { CopyButton } from '../shared/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
+  getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
-import { getStatusBackgroundColor } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
 
 export function ResourceListItem({
-  name,
-  primaryIconName,
-  SecondaryIcon,
   onLabelClick,
-  listViewProps,
-  ActionButton,
-  labels,
   pinningSupport,
   pinned,
   pinResource,
   selectResource,
   selected,
   expandAllLabels,
-  requiresRequest = false,
-  status,
   onShowStatusInfo,
-  viewingUnhealthyStatus,
-}: Omit<ResourceItemProps, 'cardViewProps'>) {
+  showingStatusInfo,
+  viewItem,
+}: ResourceItemProps) {
+  const {
+    name,
+    primaryIconName,
+    SecondaryIcon,
+    listViewProps,
+    ActionButton,
+    labels,
+    requiresRequest = false,
+    status,
+  } = viewItem;
   const { description, resourceType, addr } = listViewProps;
 
   const [showLabels, setShowLabels] = useState(expandAllLabels);
@@ -87,16 +90,15 @@ export function ResourceListItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       hasUnhealthyStatus={hasUnhealthyStatus}
-      viewingUnhealthyStatus={viewingUnhealthyStatus}
+      showingStatusInfo={showingStatusInfo}
     >
       <RowInnerContainer
         requiresRequest={requiresRequest}
         alignItems="start"
         pinned={pinned}
         selected={selected}
-        onClick={onShowStatusInfo}
         hasUnhealthyStatus={hasUnhealthyStatus}
-        viewingUnhealthyStatus={viewingUnhealthyStatus}
+        showingStatusInfo={showingStatusInfo}
       >
         {/* checkbox */}
         <HoverTooltip
@@ -300,7 +302,7 @@ const ResTypeIconBox = styled(Box)`
 
 const RowContainer = styled(Box)<{
   hasUnhealthyStatus: boolean;
-  viewingUnhealthyStatus: boolean;
+  showingStatusInfo: boolean;
 }>`
   transition: all 150ms;
   position: relative;
@@ -309,7 +311,7 @@ const RowContainer = styled(Box)<{
     p.hasUnhealthyStatus &&
     css`
       background-color: ${getStatusBackgroundColor({
-        viewingUnhealthyStatus: p.viewingUnhealthyStatus,
+        showingStatusInfo: p.showingStatusInfo,
         theme: p.theme,
         action: '',
         viewType: 'list',
@@ -323,7 +325,7 @@ const RowContainer = styled(Box)<{
       p.hasUnhealthyStatus &&
       css`
         background-color: ${getStatusBackgroundColor({
-          viewingUnhealthyStatus: p.viewingUnhealthyStatus,
+          showingStatusInfo: p.showingStatusInfo,
           theme: p.theme,
           action: 'hover',
           viewType: 'list',

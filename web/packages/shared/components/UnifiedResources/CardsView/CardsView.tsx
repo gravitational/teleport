@@ -39,25 +39,18 @@ export function CardsView({
   return (
     <CardsContainer className="CardsContainer" gap={2}>
       {mappedResources.map(
-        ({ item, key, onShowStatusInfo, viewingUnhealthyStatus }) => (
+        ({ item, key, onShowStatusInfo, showingStatusInfo }) => (
           <ResourceCard
             key={key}
-            name={item.name}
-            ActionButton={item.ActionButton}
-            primaryIconName={item.primaryIconName}
+            viewItem={item}
             onLabelClick={onLabelClick}
-            SecondaryIcon={item.SecondaryIcon}
-            cardViewProps={item.cardViewProps}
-            labels={item.labels}
             pinned={pinnedResources.includes(key)}
-            requiresRequest={item.requiresRequest}
             pinningSupport={pinningSupport}
             selected={selectedResources.includes(key)}
             selectResource={() => onSelectResource(key)}
             pinResource={() => onPinResource(key)}
-            status={item.status}
             onShowStatusInfo={onShowStatusInfo}
-            viewingUnhealthyStatus={viewingUnhealthyStatus}
+            showingStatusInfo={showingStatusInfo}
           />
         )
       )}

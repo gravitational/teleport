@@ -34,7 +34,7 @@ export type ResourceStatus = 'healthy' | 'unhealthy' | 'unknown' | '';
 
 export type ResourceTargetHealth = {
   status: ResourceStatus;
-  reason: string;
+  reason?: string;
 };
 
 export type UnifiedResourceApp = {
@@ -179,24 +179,20 @@ export type IncludedResourceMode =
   | 'accessible';
 
 export type ResourceItemProps = {
-  name: string;
-  primaryIconName: ResourceIconName;
-  SecondaryIcon: typeof Icon;
-  cardViewProps: CardViewSpecificProps;
-  listViewProps: ListViewSpecificProps;
-  labels: ResourceLabel[];
-  ActionButton: React.ReactElement;
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
   selectResource: () => void;
   selected: boolean;
   pinned: boolean;
-  requiresRequest?: boolean;
   pinningSupport: PinningSupport;
   expandAllLabels: boolean;
-  status?: ResourceStatus;
+  viewItem: UnifiedResourceViewItem;
   onShowStatusInfo(): void;
-  viewingUnhealthyStatus: boolean;
+  /**
+   * True, when the InfoGuideSidePanel is opened.
+   * Used as a flag to render different styling.
+   */
+  showingStatusInfo: boolean;
 };
 
 // Props that are needed for the Card view.
@@ -237,7 +233,7 @@ export type ResourceViewProps = {
     item: UnifiedResourceViewItem;
     key: string;
     onShowStatusInfo(): void;
-    viewingUnhealthyStatus: boolean;
+    showingStatusInfo: boolean;
   }[];
   expandAllLabels: boolean;
 };

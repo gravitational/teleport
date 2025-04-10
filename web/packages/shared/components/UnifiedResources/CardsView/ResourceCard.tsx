@@ -30,12 +30,12 @@ import { CopyButton } from '../shared/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
+  getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
 import { SingleLineBox } from '../shared/SingleLineBox';
-import { getStatusBackgroundColor } from '../shared/StatusInfo';
 import { ResourceItemProps } from '../types';
-import { WarningRightEdgeBadgeSvg } from './WarningSideBadgeSvg';
+import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -54,23 +54,26 @@ const ResTypeIconBox = styled(Box)`
 `;
 
 export function ResourceCard({
-  name,
-  primaryIconName,
-  SecondaryIcon,
   onLabelClick,
-  cardViewProps,
-  ActionButton,
-  labels,
   pinningSupport,
   pinned,
   pinResource,
   selectResource,
-  requiresRequest,
   selected,
-  status,
   onShowStatusInfo,
-  viewingUnhealthyStatus,
-}: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
+  showingStatusInfo,
+  viewItem,
+}: Omit<ResourceItemProps, 'expandAllLabels'>) {
+  const {
+    name,
+    primaryIconName,
+    SecondaryIcon,
+    cardViewProps,
+    ActionButton,
+    labels,
+    requiresRequest,
+    status,
+  } = viewItem;
   const { primaryDesc, secondaryDesc } = cardViewProps;
 
   const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
@@ -83,10 +86,20 @@ export function ResourceCard({
   const labelsInnerContainer = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // This saves the height of the card on initial render. It's the full
+  // height when all contents fill up the card.
+  // This was required for the WarningRightEdgeBadgeIcon to stay in place
+  // when we "showAllLabels". Showing all labels makes the inner container
+  // pop out, and the container (where the svg is held) shrunk in size
+  // resulting in the auto-sizing svg to lose its place.
+  const [baseCardHeight, setBaseCardHeight] = useState(0);
+
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
   useLayoutEffect(() => {
+    setBaseCardHeight(innerContainer.current?.getBoundingClientRect().height);
+
     if (!labelsInnerContainer.current) return;
 
     // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
@@ -169,7 +182,7 @@ export function ResourceCard({
     <CardContainer
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      viewingUnhealthyStatus={viewingUnhealthyStatus}
+      showingStatusInfo={showingStatusInfo}
     >
       <CardOuterContainer
         showAllLabels={showAllLabels}
@@ -186,9 +199,12 @@ export function ResourceCard({
           pinned={pinned}
           requiresRequest={requiresRequest}
           selected={selected}
-          viewingUnhealthyStatus={viewingUnhealthyStatus}
+          showingStatusInfo={showingStatusInfo}
           hasUnhealthyStatus={hasUnhealthyStatus}
+          // we set extra padding to push contents to the right to make
+          // space for the WarningRightEdgeBadgeIcon.
           {...(hasUnhealthyStatus && !showAllLabels && { pr: '35px' })}
+          {...(hasUnhealthyStatus && showAllLabels && { pr: '7px' })}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
             <CheckboxInput
@@ -257,7 +273,10 @@ export function ResourceCard({
               )}
             </Flex>
             <LabelsContainer showAll={showAllLabels}>
-              <LabelsInnerContainer ref={labelsInnerContainer}>
+              <LabelsInnerContainer
+                ref={labelsInnerContainer}
+                hasUnhealthyStatus={hasUnhealthyStatus}
+              >
                 <MoreLabelsButton
                   style={{
                     visibility:
@@ -293,23 +312,25 @@ export function ResourceCard({
           )}
         </CardInnerContainer>
       </CardOuterContainer>
-      {/* This is to let the StatusWarningEdgeIcon stay in place while inner
+      {/* This is to let the WarningRightEdgeBadgeIcon stay in place while inner
       container expands vertically from rendering all labels. */}
       {hasUnhealthyStatus && showAllLabels && (
-        <WarningRightEdgeBadgeIcon onClick={onShowStatusInfo} />
+        <Box height={`${baseCardHeight}px`} css={{ position: 'relative' }}>
+          <WarningRightEdgeBadgeIcon />
+        </Box>
       )}
     </CardContainer>
   );
 }
 
-const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick(): void }) => {
+const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick?(): void }) => {
   return (
     <Box
       onClick={onClick}
       css={`
         position: absolute;
         top: 0;
-        right: 0px;
+        right: 0;
         cursor: pointer;
         height: 100%;
       `}
@@ -331,12 +352,15 @@ const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick(): void }) => {
  * outer container.
  */
 const CardContainer = styled(Box)<{
-  viewingUnhealthyStatus: boolean;
+  showingStatusInfo: boolean;
 }>`
   position: relative;
   .resource-health-status-svg {
+    width: 100%;
+    height: 100%;
+
     fill: ${p =>
-      p.viewingUnhealthyStatus
+      p.showingStatusInfo
         ? p.theme.colors.interactive.solid.alert.active
         : p.theme.colors.interactive.solid.alert.default};
   }
@@ -358,7 +382,7 @@ const CardOuterContainer = styled(Box)<{
     css`
       position: absolute;
       left: 0;
-      // The padding is required to show the StatusWarningEdgeIcon
+      // The padding is required to show the WarningRightEdgeBadgeIcon
       right: ${props.hasUnhealthyStatus ? '28px' : 0};
       z-index: 1;
     `}
@@ -404,7 +428,7 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
     css`
       border: 2px solid ${p.theme.colors.interactive.solid.alert.default};
       background-color: ${getStatusBackgroundColor({
-        viewingUnhealthyStatus: p.viewingUnhealthyStatus,
+        showingStatusInfo: p.showingStatusInfo,
         theme: p.theme,
         action: '',
         viewType: 'card',
@@ -412,7 +436,7 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
     `}
 
   ${p =>
-    p.viewingUnhealthyStatus &&
+    p.showingStatusInfo &&
     css`
       border: 2px solid ${p.theme.colors.interactive.solid.alert.active};
     `}
@@ -426,7 +450,7 @@ const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
       css`
         border-color: ${p.theme.colors.interactive.solid.alert.hover};
         background-color: ${getStatusBackgroundColor({
-          viewingUnhealthyStatus: p.viewingUnhealthyStatus,
+          showingStatusInfo: p.showingStatusInfo,
           theme: p.theme,
           action: 'hover',
           viewType: 'card',
@@ -459,12 +483,16 @@ const StyledLabel = styled(Label)`
  * The inner labels container always adapts to the size of labels.  Its height
  * is measured by the resize observer.
  */
-const LabelsInnerContainer = styled(Flex)`
+const LabelsInnerContainer = styled(Flex)<{ hasUnhealthyStatus: boolean }>`
   position: relative;
   flex-wrap: wrap;
   align-items: start;
   gap: ${props => props.theme.space[1]}px;
-  padding-right: 60px;
+  // Padding is required to prevent the more label button to not collide
+  // with the rendered labels. Just a tiny bit more padding needed to
+  // accomodate contents getting pushed more to the right when a
+  // WarningRightEdgeBadgeIcon renders.
+  padding-right: ${p => (p.hasUnhealthyStatus ? '75px' : '74px')};
 `;
 
 /**
