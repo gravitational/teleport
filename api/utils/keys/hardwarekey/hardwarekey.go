@@ -184,7 +184,7 @@ type hardwarePrivateKeyRefJSON struct {
 	PublicKeyDER []byte `json:"public_key,omitempty"`
 }
 
-// UnmarshalJSON marshals [PrivateKeyRef] with custom logic for the public key.
+// MarshalJSON marshals [PrivateKeyRef] with custom logic for the public key.
 func (r PrivateKeyRef) MarshalJSON() ([]byte, error) {
 	var pubDER []byte
 	if r.PublicKey != nil {
