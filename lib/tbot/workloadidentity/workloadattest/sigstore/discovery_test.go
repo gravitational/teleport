@@ -135,6 +135,7 @@ func TestDiscovery_Attestations(t *testing.T) {
 		PredicateType string `json:"predicateType"`
 	}
 	err = json.Unmarshal(bundle.GetDsseEnvelope().GetPayload(), &attestation)
+	require.NoError(t, err)
 	assert.Equal(t, "https://in-toto.io/Statement/v1", attestation.Type)
 	assert.Equal(t, "https://slsa.dev/provenance/v1", attestation.PredicateType)
 }
