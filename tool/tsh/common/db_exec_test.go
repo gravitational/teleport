@@ -54,7 +54,7 @@ func Test_checkDatabaseExecInputFlags(t *testing.T) {
 		{
 			name: "with database services",
 			cf: &CLIConf{
-				MaxConnections:   1,
+				ParallelJobs:     1,
 				DatabaseServices: "db1,db2",
 			},
 			checkError: require.NoError,
@@ -62,7 +62,7 @@ func Test_checkDatabaseExecInputFlags(t *testing.T) {
 		{
 			name: "with search",
 			cf: &CLIConf{
-				MaxConnections: 1,
+				ParallelJobs:   1,
 				SearchKeywords: "dev",
 			},
 			checkError: require.NoError,
@@ -70,30 +70,30 @@ func Test_checkDatabaseExecInputFlags(t *testing.T) {
 		{
 			name: "with labels",
 			cf: &CLIConf{
-				MaxConnections: 1,
-				Labels:         "env=dev",
+				ParallelJobs: 1,
+				Labels:       "env=dev",
 			},
 			checkError: require.NoError,
 		},
 		{
 			name: "invalid max connections",
 			cf: &CLIConf{
-				MaxConnections: 15,
-				Labels:         "env=dev",
+				ParallelJobs: 15,
+				Labels:       "env=dev",
 			},
 			checkError: require.Error,
 		},
 		{
 			name: "missing selection",
 			cf: &CLIConf{
-				MaxConnections: 1,
+				ParallelJobs: 1,
 			},
 			checkError: require.Error,
 		},
 		{
 			name: "too many selection options",
 			cf: &CLIConf{
-				MaxConnections:   1,
+				ParallelJobs:     1,
 				Labels:           "env=dev",
 				DatabaseServices: "db1,db2",
 			},
@@ -102,26 +102,26 @@ func Test_checkDatabaseExecInputFlags(t *testing.T) {
 		{
 			name: "missing output dir",
 			cf: &CLIConf{
-				MaxConnections: 5,
-				Labels:         "env=dev",
+				ParallelJobs: 5,
+				Labels:       "env=dev",
 			},
 			checkError: require.Error,
 		},
 		{
 			name: "output dir exists",
 			cf: &CLIConf{
-				MaxConnections: 5,
-				OutputDir:      dir,
-				Labels:         "env=dev",
+				ParallelJobs: 5,
+				OutputDir:    dir,
+				Labels:       "env=dev",
 			},
 			checkError: require.Error,
 		},
 		{
 			name: "max connections and output dir",
 			cf: &CLIConf{
-				MaxConnections: 5,
-				OutputDir:      filepath.Join(dir, "output"),
-				Labels:         "env=dev",
+				ParallelJobs: 5,
+				OutputDir:    filepath.Join(dir, "output"),
+				Labels:       "env=dev",
 			},
 			checkError: require.NoError,
 		},
@@ -190,7 +190,7 @@ func TestDatabaseExec(t *testing.T) {
 				cmd.cf.DatabaseServices = "pg1,pg2,pg3"
 			},
 			expectOutputContains: []string{
-				"Fetching databases by names",
+				"Fetching databases by name",
 				"Executing command for \"pg1\".",
 				"db-query executed",
 				"Executing command for \"pg2\".",
@@ -236,7 +236,7 @@ func TestDatabaseExec(t *testing.T) {
 				cmd.cf.OutputDir = filepath.Join(cmd.cf.HomePath, "test-output")
 			},
 			expectOutputContains: []string{
-				"Fetching databases by names",
+				"Fetching databases by name",
 				"Executing command for \"pg3\". Output will be saved at",
 				"Executing command for \"mysql\". Output will be saved at",
 				"Summary:",
@@ -266,7 +266,7 @@ func TestDatabaseExec(t *testing.T) {
 				Proxy:           "proxy:3080",
 				Context:         context.Background(),
 				HomePath:        dir,
-				MaxConnections:  1,
+				ParallelJobs:    1,
 				DatabaseUser:    "db-user",
 				DatabaseName:    "db-name",
 				DatabaseCommand: dbQuery,
