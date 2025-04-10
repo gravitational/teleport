@@ -129,6 +129,8 @@ After doing this, they get back to Teleport and after a couple of minutes the Pr
 
 There are two Profiles, each with only one IAM Role: ReadOnlyAccess and ReadWriteAccess.
 
+This use case is also valid for situations where a Profile has multiple Roles. Example: S3ReadOnlyAccess and EC2ReadOnlyAccess for the ReadOnly Profile.
+
 When setting up the AWS Access, the administrator enables the Role per Profile auto creation.
 This creates as many Teleport Roles as Profiles, but each Teleport Role only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
 
