@@ -56,7 +56,12 @@ func (dm *DestinationMemory) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (dm *DestinationMemory) CheckAndSetDefaults() error {
-	dm.store = make(map[string][]byte)
+	dm.mutex.Lock()
+	defer dm.mutex.Unlock()
+
+	if dm.store == nil {
+		dm.store = make(map[string][]byte)
+	}
 
 	return nil
 }

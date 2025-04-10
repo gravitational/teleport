@@ -29,9 +29,10 @@ type KubernetesServiceV2DataSource struct {
 
 // KubernetesServiceV2DataSourceModel describes the data source data model.
 type KubernetesServiceV2DataSourceModel struct {
-	Selectors types.List   `tfsdk:"selectors"`
-	TTL       types.String `tfsdk:"ttl"`
-	Output    types.String `tfsdk:"output"`
+	Selectors   types.List   `tfsdk:"selectors"`
+	TTL         types.String `tfsdk:"ttl"`
+	Credentials types.Map    `tfsdk:"credentials"`
+	Output      types.String `tfsdk:"output"`
 }
 
 func (d *KubernetesServiceV2DataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -67,8 +68,36 @@ func (d *KubernetesServiceV2DataSource) Schema(ctx context.Context, req datasour
 				Computed:            true,
 			},
 			"output": schema.StringAttribute{
-				MarkdownDescription: "Example configurable attribute",
+				MarkdownDescription: "Example output",
 				Computed:            true,
+			},
+			"credentials": schema.MapNestedAttribute{
+				Computed: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"host": schema.StringAttribute{
+							MarkdownDescription: "Host name of the Kubernetes cluster",
+							Computed:            true,
+						},
+						"tls_server_name": schema.StringAttribute{
+							MarkdownDescription: "TLS server name",
+							Computed:            true,
+						},
+						"client_certificate": schema.StringAttribute{
+							MarkdownDescription: "Client certificate",
+							Computed:            true,
+						},
+						"client_key": schema.StringAttribute{
+							MarkdownDescription: "Client key",
+							Sensitive:           true,
+							Computed:            true,
+						},
+						"cluster_ca_certificate": schema.StringAttribute{
+							MarkdownDescription: "Cluster CA certificate",
+							Computed:            true,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -116,9 +145,13 @@ func (d *KubernetesServiceV2DataSource) Read(ctx context.Context, req datasource
 		// TODO: implement label matching
 		attrs := selector.Attributes()
 		nameValue := attrs["name"]
-		name := nameValue.String()
+		name, ok := nameValue.(types.String)
+		if !ok {
+			resp.Diagnostics.AddError("Name must be string", fmt.Sprintf("Got %T", nameValue))
+			return
+		}
 		selectors = append(selectors, &tbotconfig.KubernetesSelector{
-			Name: name,
+			Name: name.ValueString(),
 		})
 	}
 

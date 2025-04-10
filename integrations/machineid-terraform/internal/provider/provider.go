@@ -88,10 +88,10 @@ func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	bot := &botConfig{
-		addr:        data.Addr.String(),
-		joinMethod:  data.JoinMethod.String(),
-		joinToken:   data.JoinToken.String(),
-		audienceTag: data.AudienceTag.String(),
+		addr:        data.Addr.ValueString(),
+		joinMethod:  data.JoinMethod.ValueString(),
+		joinToken:   data.JoinToken.ValueString(),
+		audienceTag: data.AudienceTag.ValueString(),
 		lock:        sync.Mutex{},
 		storage:     &tbotconfig.StorageConfig{Destination: &tbotconfig.DestinationMemory{}},
 	}
@@ -174,7 +174,8 @@ func (c *botConfig) runWithServices(ctx context.Context, services tbotconfig.Ser
 	defer c.lock.Unlock()
 
 	cfg := &tbotconfig.BotConfig{
-		Oneshot: true,
+		AuthServer: c.addr,
+		Oneshot:    true,
 		Onboarding: tbotconfig.OnboardingConfig{
 			TokenValue: c.joinToken,
 			JoinMethod: apitypes.JoinMethod(c.joinMethod),
