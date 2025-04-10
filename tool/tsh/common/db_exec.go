@@ -120,7 +120,9 @@ func (c *databaseExecCommand) run() error {
 	group.SetLimit(c.cf.ParallelJobs)
 	for _, db := range dbs {
 		group.Go(func() error {
-			return trace.Wrap(c.exec(groupCtx, db))
+			result := c.exec(groupCtx, db)
+			c.summary.add(result)
+			return nil
 		})
 	}
 
@@ -252,39 +254,32 @@ func (c *databaseExecCommand) printResultAndConfirm(dbs []types.Database) error 
 	return nil
 }
 
-func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err error) {
-	outputWriter := c.cf.Stdout()
-	errWriter := c.cf.Stderr()
-	result := databaseExecResult{
+func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (result databaseExecResult) {
+	result = databaseExecResult{
 		RouteToDatabase: client.RouteToDatabaseToProto(c.makeRouteToDatabase(db)),
 		Command:         c.cf.DatabaseCommand,
 		Success:         true,
 	}
 
-	defer func() {
-		if err != nil {
-			result.Error = err.Error()
-			result.Success = false
-
-			// Print the error and return nil to continue-on-error.
-			fmt.Fprintf(errWriter, "Failed to execute command for %q: %v\n", db.GetName(), err)
-			err = nil
-		}
-		c.summary.add(result)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+	printErrorAndMakeErrorResult := func(err error) databaseExecResult {
+		fmt.Fprintf(c.cf.Stderr(), "Failed to execute command for %q: %v\n", db.GetName(), err)
+		result.Success = false
+		result.Error = err.Error()
+		return result
 	}
 
+	if ctx.Err() != nil {
+		return printErrorAndMakeErrorResult(ctx.Err())
+	}
+
+	outputWriter := c.cf.Stdout()
+	errWriter := c.cf.Stderr()
 	switch {
 	case c.cf.OutputDir != "":
 		// Use full-name instead of display name for output path.
 		logFile, err := c.openOutputFile(db.GetName())
 		if err != nil {
-			return trace.Wrap(err)
+			return printErrorAndMakeErrorResult(err)
 		}
 		defer logFile.Close()
 		outputWriter = logFile
@@ -302,29 +297,38 @@ func (c *databaseExecCommand) exec(ctx context.Context, db types.Database) (err 
 		fmt.Fprintf(c.cf.Stdout(), "\nExecuting command for %q.\n", db.GetName())
 	}
 
+	var err error
+	result.ExitCode, err = c.runCommand(ctx, db, outputWriter, errWriter)
+	if err != nil {
+		return printErrorAndMakeErrorResult(err)
+	}
+	return result
+}
+
+func (c *databaseExecCommand) runCommand(ctx context.Context, db types.Database, outputWriter, errWriter io.Writer) (int, error) {
 	dbInfo, err := c.makeDatabaseInfo(db)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	lp, err := c.startLocalProxy(ctx, dbInfo)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	defer lp.Close()
 
 	dbCmd, err := c.makeCommand(ctx, dbInfo, lp.GetAddr(), c.cf.DatabaseCommand)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	dbCmd.Stdout = outputWriter
 	dbCmd.Stderr = errWriter
-	defer func() {
-		if dbCmd.ProcessState != nil {
-			result.ExitCode = dbCmd.ProcessState.ExitCode()
-		}
-	}()
+
 	logger.DebugContext(ctx, "Executing database command", "command", dbCmd, "db", dbInfo.ServiceName)
-	return trace.Wrap(c.cf.RunCommand(dbCmd))
+	runErr := c.cf.RunCommand(dbCmd)
+	if dbCmd.ProcessState != nil {
+		return dbCmd.ProcessState.ExitCode(), trace.Wrap(runErr)
+	}
+	return 0, trace.Wrap(runErr)
 }
 
 func (c *databaseExecCommand) startLocalProxy(ctx context.Context, dbInfo *databaseInfo) (*alpnproxy.LocalProxy, error) {
