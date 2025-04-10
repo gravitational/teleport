@@ -11,8 +11,8 @@ HTML tag until we can support these requirements some other way.*/}
 <style dangerouslySetInnerHTML={{__html: `
   /* 
     Shade certain rows the color of the cell dividers to provide the illusion of
-    colspans until the docs engine supports them in Markdown tables. We need to
-    update this list whenever we change the organization of the tables.
+    column spans until the docs engine supports them in Markdown tables. We need
+    to update this list whenever we change the organization of the tables.
   */
   table:nth-of-type(1) tbody tr:nth-of-type(1),
   table:nth-of-type(1) tbody tr:nth-of-type(5),
@@ -105,7 +105,7 @@ certificates, access control, and auditability.
 |  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
 | **Service Discovery:** Live inventory of machine and workload identities for CI/CD jobs, microservices, and others | ✔ | ✔ | ✔ |
-|**Issuance:** Provisions cryptographic identities for [machines](https://goteleport.com/docs/enroll-resources/machine-id/getting-started/) and [workloads](https://goteleport.com/docs/enroll-resources/workload-identity/getting-started/), eliminating anonymous computing and the need for static overprivileged users and automating certificate rotation | ✔ | ✔ | ✔ |
+|**Issuance:** Provisions cryptographic identities for [machines](https://goteleport.com/docs/enroll-resources/machine-id/getting-started/) and [workloads](https://goteleport.com/docs/enroll-resources/workload-identity/getting-started/), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
 |**Secretless Authentication:** Eliminates the need for API keys and long-term secrets with short-lived certificates.| ✔ | ✔ | ✔ |
 |**Ephemeral Authorization:** With granular ABAC/RBAC for workload interactions | ✔ | ✔ | ✔ |
 |**Auditability:** Audit data, exportable to SIEMs, for compliance reporting & reviews | ✔ | ✔ | ✔ |
