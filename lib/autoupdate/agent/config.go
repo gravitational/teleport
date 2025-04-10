@@ -250,6 +250,8 @@ type Status struct {
 	UpdateSpec   `yaml:",inline"`
 	UpdateStatus `yaml:",inline"`
 	FindResp     `yaml:",inline"`
+	// ID is the updater ID.
+	ID string `yaml:"id,omitempty"`
 }
 
 // FindResp summarizes the auto-update status response from cluster.
@@ -262,6 +264,4 @@ type FindResp struct {
 	Jitter time.Duration `yaml:"jitter"`
 	// AGPL installations cannot use the official CDN.
 	AGPL bool `yaml:"agpl,omitempty"`
-	// ID provided to the updater.
-	ID string `yaml:"id,omitempty"`
 }
