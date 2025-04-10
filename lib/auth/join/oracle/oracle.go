@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -70,6 +71,18 @@ type Claims struct {
 	CompartmentID string `json:"compartment_id"`
 	// InstanceID is the instance's ID.
 	InstanceID string `json:"-"`
+}
+
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c Claims) JoinAttrs() *workloadidentityv1pb.JoinAttrsOracle {
+	attrs := &workloadidentityv1pb.JoinAttrsOracle{
+		TenancyId:     c.TenancyID,
+		CompartmentId: c.CompartmentID,
+		InstanceId:    c.InstanceID,
+	}
+	return attrs
 }
 
 // Region extracts the region from an instance's claims.
