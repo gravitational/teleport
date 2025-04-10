@@ -4885,6 +4885,8 @@ message OIDCConnectorSpecV3 {
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
+  // DisablePKCE will prevent the oidc connector from adding code_challenge information to the authentication requests.
+  bool DisablePKCE = 20 [(gogoproto.jsontag) = "disable_pkce,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
