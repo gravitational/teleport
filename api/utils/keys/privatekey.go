@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
@@ -297,7 +298,7 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 		// TODO(Joerger): Initialize the hardware key service early in the process and store
 		// it in the client store. This allows the process to properly share PIV connections
 		// and prompt logic (pin caching, etc.).
-		hwKeyService := NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
+		hwKeyService := piv.NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
 		hwPrivateKey, err := hardwarekey.DecodeSigner(hwKeyService, block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware key signer")
