@@ -88,18 +88,8 @@ your network setup:
    Teleport audit log and IP pinning feature.
 
 1. If you need to connect from an IPv6-only network to an IPv4-only network, you
-   can downgrade the source address by enabling `proxy_protocol_allow_downgrade`.
-   IP pinning is not allowed for downgraded connections due to the possibility of
-   colliding source addresses.
-
-<Admonition type="warning">
-
-If you are upgrading Teleport in order to enable `proxy_protocol_allow_downgrade`,
-you will need to upgrade all instances of Teleport Proxy Service before enabling it.
-Versions that do not support this configuration will be unable to verify the PROXY
-header signature and fail to accept downgraded connections.
-
-</Admonition>
+   can downgrade the source address by using your Teleport configuration file
+   (explained in the next step).
 
 ## Step 2/2. Edit your static Teleport configuration
 
@@ -126,8 +116,6 @@ By default,  `proxy_protocol` is unspecified. Users can manually set
 - `off`: the PROXY protocol is disabled and forbidden. Any connection with a
   PROXY protocol header is automatically rejected.
 
-The `PROXY` 
-If you need to facilitate connections from IPv6 networks into IPv4 networks without dualstack networking, you can enable `proxy_protocol_allow_downgrade`.
 We encourage users to explicitly set their `proxy_protocol` setting to `on` or
 `off` mode depending on the network setup. 
 
@@ -137,6 +125,22 @@ replace the client's source IP address with the one from the PROXY header. This
 address will appear in audit events. Incoming connections with the PROXY header
 will also be marked by setting source port to `0`, and this will be visible in
 audit events as well.
+
+Users can also enable `proxy_protocol_allow_downgrade` to facilitate connections
+from IPv6 networks into IPv4 networks without dual-stack networking:
+- `on`: PROXY protocol headers with an IPv6 source address and an IPv4
+  destination will have their source addresses downgraded to a pseudo IPv4.
+- `off`: PROXY protocol header source addresses will not be modified and mixed IP
+  versions will result in errors.
+
+<Admonition type="warning">
+
+If you are upgrading Teleport in order to enable `proxy_protocol_allow_downgrade`,
+you will need to upgrade all instances of Teleport Proxy Service before enabling
+it. Versions that do not support this configuration will be unable to verify the
+PROXY header signature and fail to accept downgraded connections.
+
+</Admonition>
 
 IP pinning will not work if `proxy_protocol` setting wasn't explicitly set in
 the config or if a connection is downgraded. Connections that are marked with
