@@ -134,15 +134,9 @@ export const Cards: Story = {
                 selectResource={() => {}}
                 selected={false}
                 pinningSupport={PinningSupport.Supported}
-                name={res.name}
-                primaryIconName={res.primaryIconName}
-                SecondaryIcon={res.SecondaryIcon}
-                cardViewProps={res.cardViewProps}
-                labels={res.labels}
-                ActionButton={res.ActionButton}
                 onShowStatusInfo={() => null}
-                viewingUnhealthyStatus={false}
-                status={res.status}
+                showingStatusInfo={false}
+                viewItem={res}
               />
             ))}
           </Grid>

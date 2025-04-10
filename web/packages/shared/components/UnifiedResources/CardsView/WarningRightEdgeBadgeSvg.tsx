@@ -16,6 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * This svg is different from existing warning svg's in that it's specifically
+ * tailored to fit the design of unified ResourceCard.tsx to the right edge
+ * of the component.
+ */
 export function WarningRightEdgeBadgeSvg() {
   return (
     <svg
@@ -25,10 +30,6 @@ export function WarningRightEdgeBadgeSvg() {
       viewBox="0 0 32 102"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      style={{
-        width: '100%',
-        height: '100%',
-      }}
       preserveAspectRatio="none"
     >
       <path d="M24 0H0V2C3.31371 2 6 4.68629 6 8H32C32 3.58172 28.4183 0 24 0Z" />

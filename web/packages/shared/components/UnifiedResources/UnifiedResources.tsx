@@ -606,7 +606,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                 }),
                 key: generateUnifiedResourceKey(resource),
                 onShowStatusInfo: () => null,
-                viewingUnhealthyStatus: false,
+                showingStatusInfo: false,
               }))
             : []
         }

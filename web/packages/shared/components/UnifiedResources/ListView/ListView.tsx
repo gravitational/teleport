@@ -38,26 +38,19 @@ export function ListView({
   return (
     <Flex className="ListContainer">
       {mappedResources.map(
-        ({ item, key, onShowStatusInfo, viewingUnhealthyStatus }) => (
+        ({ item, key, onShowStatusInfo, showingStatusInfo }) => (
           <ResourceListItem
             key={key}
-            name={item.name}
-            ActionButton={item.ActionButton}
-            primaryIconName={item.primaryIconName}
+            viewItem={item}
             onLabelClick={onLabelClick}
-            SecondaryIcon={item.SecondaryIcon}
-            listViewProps={item.listViewProps}
-            labels={item.labels}
             pinned={pinnedResources.includes(key)}
             pinningSupport={pinningSupport}
-            requiresRequest={item.requiresRequest}
             selected={selectedResources.includes(key)}
             selectResource={() => onSelectResource(key)}
             pinResource={() => onPinResource(key)}
             expandAllLabels={expandAllLabels}
-            status={item.status}
             onShowStatusInfo={onShowStatusInfo}
-            viewingUnhealthyStatus={viewingUnhealthyStatus}
+            showingStatusInfo={showingStatusInfo}
           />
         )
       )}
