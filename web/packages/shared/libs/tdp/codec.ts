@@ -324,10 +324,10 @@ export enum FileType {
   Directory = 1,
 }
 
-// | message type (35) | browser_latency uint32 | desktop_latency uint32 |
+// | message type (35) | client_latency uint32 | server_latency uint32 |
 export type LatencyStats = {
-  browserLatency: number;
-  desktopLatency: number;
+  client: number;
+  server: number;
 };
 
 function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
@@ -1133,8 +1133,8 @@ export default class Codec {
     bufOffset += UINT_32_LEN;
 
     return {
-      browserLatency,
-      desktopLatency,
+      client: browserLatency,
+      server: desktopLatency,
     };
   }
 
