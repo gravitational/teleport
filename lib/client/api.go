@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/touchid"
@@ -3992,7 +3993,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		// TODO(Joerger): Initialize the hardware key service early in the process and store
 		// it in the client store. This allows the process to properly share PIV connections
 		// and prompt logic (pin caching, etc.).
-		hwks := keys.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
+		hwks := piv.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
 		priv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
 			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
 			CustomSlot: tc.PIVSlot,

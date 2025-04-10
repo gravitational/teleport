@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 )
 
 func TestMarshalAndParseKey(t *testing.T) {
@@ -53,7 +54,7 @@ func TestMarshalAndParseKey(t *testing.T) {
 
 	// TODO(Joerger): Once the hardware key service is provided to the key parsing logic,
 	// use [hardwarekey.NewMockHardwareKeyService] and remove pivtest build tag
-	s := keys.NewYubiKeyService(nil)
+	s := piv.NewYubiKeyService(nil)
 	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{})
 	require.NoError(t, err)
 
