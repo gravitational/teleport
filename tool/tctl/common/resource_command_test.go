@@ -1462,6 +1462,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindDynamicWindowsDesktop,
 			create: testCreateDynamicWindowsDesktop,
 		},
+		{
+			kind:   types.KindHealthCheckConfig,
+			create: testCreateHealthCheckConfig,
+		},
 	}
 
 	for _, test := range tests {

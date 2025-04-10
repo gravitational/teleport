@@ -40,7 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -699,9 +699,9 @@ func (a *Server) makeGithubAuthResponse(
 		return nil, trace.Wrap(err)
 	}
 	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		keys.AttestationStatementFromProto(req.SshAttestationStatement),
-		keys.AttestationStatementFromProto(req.TlsAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
+		hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
 	)
 	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
 		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{

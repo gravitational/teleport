@@ -27,6 +27,12 @@ import {
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
@@ -36,12 +42,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import {
-  InfoExternalTextLink,
-  InfoGuideButton,
-  InfoParagraph,
-  ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';

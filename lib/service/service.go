@@ -514,8 +514,8 @@ func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
-	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock)
+func (c *Connector) getPROXYSigner(clock clockwork.Clock, allowDowngrade bool) (multiplexer.PROXYHeaderSigner, error) {
+	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock, allowDowngrade)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
@@ -2675,6 +2675,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.IdentityCenter = services.IdentityCenter
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
+	cfg.HealthCheckConfig = services.HealthCheckConfig
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2722,6 +2723,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
+	cfg.HealthCheckConfig = client
 
 	return accesspoint.NewCache(cfg)
 }
@@ -4479,7 +4481,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxySigner, err := conn.getPROXYSigner(process.Clock)
+	proxySigner, err := conn.getPROXYSigner(process.Clock, cfg.Proxy.PROXYAllowDowngrade)
 	if err != nil {
 		return trace.Wrap(err)
 	}

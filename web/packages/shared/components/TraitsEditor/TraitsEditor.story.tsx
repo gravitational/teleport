@@ -37,7 +37,7 @@ export const TraitsEditorWithoutToolTip = () => {
   return (
     <Validation>
       <TraitsEditor
-        attempt={{ status: 'success' }}
+        isLoading={false}
         configuredTraits={traits}
         setConfiguredTraits={setTraits}
       />
@@ -68,7 +68,7 @@ export const TraitsEditorWithToolTip = () => {
   return (
     <Validation>
       <TraitsEditor
-        attempt={{ status: 'success' }}
+        isLoading={false}
         configuredTraits={traits}
         setConfiguredTraits={setTraits}
         tooltipContent={tooltip}

@@ -174,6 +174,22 @@ func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, param
 	return item, trace.Wrap(err)
 }
 
+func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roleName := params.ByName("name")
+	role, err := clt.GetRole(r.Context(), roleName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ri, err := ui.NewResourceItem(role)
+	return ri, trace.Wrap(err)
+}
+
 func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {

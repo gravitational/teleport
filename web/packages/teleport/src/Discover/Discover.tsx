@@ -21,9 +21,9 @@ import { useLocation } from 'react-router';
 import { Prompt } from 'react-router-dom';
 
 import { Box, Flex } from 'design';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { FeatureBox } from 'teleport/components/Layout';
-import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 import cfg from 'teleport/config';

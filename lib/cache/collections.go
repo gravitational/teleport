@@ -33,6 +33,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -178,6 +179,7 @@ type cacheCollections struct {
 	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 	gitServers                         collectionReader[services.GitServerGetter]
 	workloadIdentity                   collectionReader[WorkloadIdentityReader]
+	healthCheckConfig                  collectionReader[services.HealthCheckConfigReader]
 }
 
 // setupCollections returns a registry of collections.
@@ -813,6 +815,19 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.gitServers
+		case types.KindHealthCheckConfig:
+			if c.HealthCheckConfig == nil {
+				return nil, trace.BadParameter("missing parameter HealthCheckConfigs")
+			}
+			collections.healthCheckConfig = &genericCollection[
+				*healthcheckconfigv1.HealthCheckConfig,
+				services.HealthCheckConfigReader,
+				healthCheckConfigExecutor,
+			]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.healthCheckConfig
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}

@@ -727,6 +727,12 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConf
 		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
 	}
 
+	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
+	newts := newConfig.GetProxyPeeringTunnelStrategy()
+	if oldts != nil && newts != nil && oldts.AgentConnectionCount != newts.AgentConnectionCount {
+		return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
+	}
+
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
 		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
 	}
@@ -1058,7 +1064,7 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 

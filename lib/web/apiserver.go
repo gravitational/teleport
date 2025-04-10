@@ -928,6 +928,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// DatabaseService handlers
 	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
 
+	// Database server handlers
+	h.GET("/webapi/sites/:site/databaseservers", h.WithClusterAuth(h.clusterDatabaseServersList))
+
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
@@ -972,6 +975,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
+	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
@@ -1471,14 +1475,14 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 		}
 	case constants.SAML:
 		if authPreference.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnectorWithValidationOptions(ctx, authPreference.GetConnectorName(), false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
+			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1714,7 +1718,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err == nil {
 		for index, value := range samlConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
@@ -1768,7 +1772,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "Cannot retrieve SAML connectors", "error", err)
 	}

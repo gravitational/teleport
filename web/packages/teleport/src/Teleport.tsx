@@ -49,7 +49,12 @@ import { Welcome } from './Welcome';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      networkMode: 'always',
       refetchOnWindowFocus: false,
+      retry: false,
+    },
+    mutations: {
+      networkMode: 'always',
       retry: false,
     },
   },

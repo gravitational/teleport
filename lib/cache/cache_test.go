@@ -48,6 +48,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -147,6 +148,7 @@ type testPack struct {
 	pluginStaticCredentials *local.PluginStaticCredentialsService
 	gitServers              services.GitServers
 	workloadIdentity        *local.WorkloadIdentityService
+	healthCheckConfig       *local.HealthCheckConfigService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -421,6 +423,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	p.healthCheckConfig, err = local.NewHealthCheckConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -476,6 +483,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		IdentityCenter:          p.identityCenter,
 		PluginStaticCredentials: p.pluginStaticCredentials,
 		GitServers:              p.gitServers,
+		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
@@ -894,6 +902,7 @@ func TestCompletenessInit(t *testing.T) {
 			PluginStaticCredentials: p.pluginStaticCredentials,
 			EventsC:                 p.eventsC,
 			GitServers:              p.gitServers,
+			HealthCheckConfig:       p.healthCheckConfig,
 		}))
 		require.NoError(t, err)
 
@@ -981,6 +990,7 @@ func TestCompletenessReset(t *testing.T) {
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
+		HealthCheckConfig:       p.healthCheckConfig,
 	}))
 	require.NoError(t, err)
 
@@ -1104,8 +1114,6 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 		}
 	}
 
-	b.ResetTimer()
-
 	for _, limit := range []int32{100, 1_000, 10_000, 100_000} {
 		for _, totalCount := range []bool{true, false} {
 			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
@@ -1193,6 +1201,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
 		GitServers:              p.gitServers,
+		HealthCheckConfig:       p.healthCheckConfig,
 	}))
 	require.NoError(t, err)
 
@@ -1290,6 +1299,7 @@ func initStrategy(t *testing.T) {
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		GitServers:              p.gitServers,
+		HealthCheckConfig:       p.healthCheckConfig,
 	}))
 	require.NoError(t, err)
 
@@ -3506,6 +3516,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindPluginStaticCredentials:           &types.PluginStaticCredentialsV1{},
 		types.KindGitServer:                         &types.ServerV2{},
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
+		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
 	}
 
 	for name, cfg := range cases {
@@ -3561,6 +3572,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*notificationsv1.Notification]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

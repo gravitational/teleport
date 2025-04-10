@@ -33,6 +33,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,11 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestMain(m *testing.M) {
+	initTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	os.Exit(m.Run())
+}
 
 func TestWarnUmask(t *testing.T) {
 	t.Parallel()
@@ -829,6 +835,9 @@ func TestUpdater_Update(t *testing.T) {
 			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
+			}
+			updater.EnsureUpdateID = func() (string, error) {
+				return "updater-id-file", nil
 			}
 
 			ctx := context.Background()
@@ -1768,6 +1777,9 @@ func TestUpdater_Install(t *testing.T) {
 			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
+			}
+			updater.EnsureUpdateID = func() (string, error) {
+				return "updater-id-file", nil
 			}
 
 			ctx := context.Background()

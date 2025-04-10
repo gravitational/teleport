@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.24.1
+go 1.24.2
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -14,7 +14,7 @@ require (
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/mod v0.24.0
 	golang.org/x/oauth2 v0.28.0
-	helm.sh/helm/v3 v3.17.2
+	helm.sh/helm/v3 v3.17.3
 	howett.net/plist v1.0.1
 	k8s.io/apiextensions-apiserver v0.32.3
 )

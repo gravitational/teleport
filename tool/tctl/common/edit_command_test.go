@@ -95,6 +95,10 @@ func TestEditResources(t *testing.T) {
 			kind: types.KindDynamicWindowsDesktop,
 			edit: testEditDynamicWindowsDesktop,
 		},
+		{
+			kind: types.KindHealthCheckConfig,
+			edit: testEditHealthCheckConfig,
+		},
 	}
 
 	for _, test := range tests {

@@ -79,7 +79,7 @@ type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
 	AuthClient *authclient.Client
 	// AccessPoint is the caching client connected to the auth server.
-	AccessPoint authclient.ReadDatabaseAccessPoint
+	AccessPoint authclient.ProxyAccessPoint
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
@@ -544,7 +544,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	}, nil
 }
 
-func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.ReadDatabaseAccessPoint, log *slog.Logger, caType types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(ctx context.Context, conf *tls.Config, caGetter authclient.CAGetter, log *slog.Logger, caType types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -554,7 +554,7 @@ func getConfigForClient(ctx context.Context, conf *tls.Config, ap authclient.Rea
 				log.DebugContext(ctx, "Ignoring unsupported cluster name.", "cluster_name", info.ServerName)
 			}
 		}
-		pool, _, err := authclient.ClientCertPool(info.Context(), ap, clusterName, caType)
+		pool, _, err := authclient.ClientCertPool(info.Context(), caGetter, clusterName, caType)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to retrieve client CA pool.", "error", err)
 			return nil, nil // Fall back to the default config.

@@ -21,6 +21,11 @@ import { useHistory } from 'react-router';
 
 import { Alert, Box, Flex, Indicator } from 'design';
 import { H2 } from 'design/Text/Text';
+import {
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import {
@@ -29,11 +34,6 @@ import {
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
-import {
-  InfoGuideButton,
-  InfoParagraph,
-  ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import cfg from 'teleport/config';
 import { DefaultAuthConnector, Resource } from 'teleport/services/resources';

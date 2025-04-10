@@ -40,7 +40,7 @@ func TestCreateJksWallet(t *testing.T) {
 			publicPEM, err := keys.MarshalPublicKey(signer.Public())
 			require.NoError(t, err)
 
-			wrapped, err := keys.NewSoftwarePrivateKey(signer)
+			wrapped, err := keys.NewPrivateKey(signer)
 			require.NoError(t, err)
 
 			_, err = createJKSWallet(signer, publicPEM, publicPEM, "dummy")

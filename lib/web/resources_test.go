@@ -360,6 +360,13 @@ func TestRoleCRUD(t *testing.T) {
 
 	created := unmarshalResponse(resp.Bytes())
 
+	// Validate the role can be retrieved.
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "roles", expected.GetName()), url.Values{})
+	require.NoError(t, err, "unexpected error retrieving a role")
+	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code retrieving a role")
+	retrieved := unmarshalResponse(resp.Bytes())
+	assert.Equal(t, created, retrieved, "expected the retrieved role to be equal to the created one")
+
 	// Validate that creating the role again fails.
 	resp, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "roles"), createPayload(expected))
 	assert.Error(t, err, "expected an error creating a duplicate role")
@@ -416,6 +423,12 @@ func TestRoleCRUD(t *testing.T) {
 	for _, item := range getResponse.Items.([]interface{}) {
 		assert.NotEqual(t, "test-role", item.(map[string]interface{})["name"], "expected test-role to be deleted")
 	}
+
+	// Validate that attempting to retrieve a deleted role yields a NotFound error.
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "roles", expected.GetName()), url.Values{})
+	assert.Error(t, err, "expected fetching a nonexistent role to fail")
+	assert.True(t, trace.IsNotFound(err), "expected a NotFound error, got %T", err)
+	assert.Equal(t, http.StatusNotFound, resp.Code(), "unexpected status code retrieving a role")
 }
 
 func TestGithubConnectorsCRUD(t *testing.T) {
