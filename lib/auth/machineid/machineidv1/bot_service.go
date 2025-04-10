@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
@@ -479,6 +478,10 @@ func (bs *BotService) UpdateBot(
 				traits[t.Name] = append(traits[t.Name], t.Values...)
 			}
 			user.SetTraits(traits)
+		case path == "max_session_ttl":
+			opts := role.GetOptions()
+			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
+			role.SetOptions(opts)
 		default:
 			return nil, trace.BadParameter("update_mask: unsupported path %q", path)
 		}
@@ -685,9 +688,17 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User, types.Role, error) {
 	// Setup role
 	resourceName := BotResourceName(bot.Metadata.Name)
+
+	// Continue to use the legacy max session TTL (12 hours) as the default, but
+	// allow overrides via the optional bot spec field.
+	maxSessionTTL := 12 * time.Hour
+	if bot.Spec.MaxSessionTtl != nil {
+		maxSessionTTL = bot.Spec.MaxSessionTtl.AsDuration()
+	}
+
 	role, err := types.NewRole(resourceName, types.RoleSpecV6{
 		Options: types.RoleOptions{
-			MaxSessionTTL: types.Duration(defaults.MaxRenewableCertTTL),
+			MaxSessionTTL: types.NewDuration(maxSessionTTL),
 		},
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
