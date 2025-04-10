@@ -1899,7 +1899,7 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		// set default Identity fields to legacy feature value
 		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
 		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}
-		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
+		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
 		webCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetDeviceTrust().GetEnabled(), Limit: clusterFeatures.GetDeviceTrust().GetDevicesUsageLimit()}
 		// override Identity Package features if Identity is enabled: set true and clear limit
 		if clusterFeatures.GetIdentityGovernance() {
@@ -1913,7 +1913,7 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		}
 
 		// webCfg.<legacy fields>: set equal to legacy feature value
-		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0
+		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit() > 0
 		webCfg.ExternalAuditStorage = clusterFeatures.GetExternalAuditStorage()
 		webCfg.HideInaccessibleFeatures = clusterFeatures.GetFeatureHiding()
 		webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
