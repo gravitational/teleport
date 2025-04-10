@@ -568,11 +568,11 @@ Of the above, only some of them will be set by Teleport:
 ### AWS Session creation
 When a client tool (Web UI or `tsh`) asks for a new AWS Session, Teleport Auth Service will generate the certificate, call `rolesanywhere.CreateSession` and exchange the certificate for AWS credentials.
 
-The call to [`rolesnaywhere.CreateSession`](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-create-session.html) is not explicit, but handled by the [rolesanywhere-credential-helper](https://github.com/aws/rolesanywhere-credential-helper) tool from AWS.
+The call to [`rolesanywhere.CreateSession`](https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-create-session.html) is not explicit, but handled by the [rolesanywhere-credential-helper](https://github.com/aws/rolesanywhere-credential-helper) tool from AWS.
 
 #### Session Duration
 The `rolesanywhere.CreateSession` call accepts a `durationSeconds` which indicates for how long the AWS Session will be valid.
-This durantion, per AWS documentation, cannot be higher than 12 hours, nor less than 15 minutes.
+This duration, per AWS documentation, cannot be higher than 12 hours, nor less than 15 minutes.
 
 When the Teleport User session is between 15 minutes and 12 hours, the AWS Session will have the same expiration.
 
@@ -688,6 +688,11 @@ However, `credential_process` will not output anything while the process is stil
 In this case, `tsh` must immediately exit with a clear error message asking the user to re-login.
 
 See more information about [`credential_process`](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sourcing-external.html).
+
+#### Per-session MFA
+For set ups using per-session MFA, only the `tsh apps login` will require another authentication factor (eg, a yubikey tap).
+
+All AWS API calls will happen without any interaction with the teleport cluster.
 
 ### Proto Specification
 #### Generate AWS credentials
