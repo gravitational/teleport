@@ -17,7 +17,7 @@
  */
 
 import { forwardRef, useRef } from 'react';
-import { Transition, TransitionStatus } from 'react-transition-group';
+import { CSSTransition, TransitionStatus } from 'react-transition-group';
 import { css } from 'styled-components';
 
 import Dialog from 'design/Dialog';
@@ -27,6 +27,8 @@ import { RoleWithYaml } from 'teleport/services/resources';
 
 import { RolesProps } from '../Roles';
 import { RoleEditorAdapter } from './RoleEditorAdapter';
+
+const animationDuration = 300;
 
 /**
  * Renders a full-screen dialog with a slide-in effect.
@@ -48,24 +50,40 @@ export function RoleEditorDialog({
 } & RolesProps) {
   const transitionRef = useRef<HTMLDivElement>();
   return (
-    <Transition
+    <CSSTransition
+      appear={true}
+      enter={true}
+      exit={true}
       in={open}
       nodeRef={transitionRef}
-      timeout={300}
+      timeout={animationDuration}
       mountOnEnter
       unmountOnExit
+      onEnter={() => {
+        console.log('onenter');
+        console.log(transitionRef.current.className);
+        debugger;
+      }}
+      onEntering={() => {
+        console.log('onentering');
+        console.log(transitionRef.current.className);
+        debugger;
+      }}
+      onEntered={() => {
+        console.log('onentered');
+        console.log(transitionRef.current.className);
+        debugger;
+      }}
     >
-      {transitionState => (
-        <DialogInternal
-          ref={transitionRef}
-          onClose={onClose}
-          transitionState={transitionState}
-          resources={resources}
-          onSave={onSave}
-          roleDiffProps={roleDiffProps}
-        />
-      )}
-    </Transition>
+      <DialogInternal
+        ref={transitionRef}
+        onClose={onClose}
+        // transitionState={transitionState}
+        resources={resources}
+        onSave={onSave}
+        roleDiffProps={roleDiffProps}
+      />
+    </CSSTransition>
   );
 }
 
@@ -84,7 +102,7 @@ const DialogInternal = forwardRef<
       disableEscapeKeyDown={false}
       open={true}
       ref={ref}
-      className={transitionState}
+      // className={transitionState}
     >
       <RoleEditorAdapter
         resources={resources}
@@ -106,23 +124,50 @@ const fullScreenDialogCss = () => css`
   overflow-y: hidden;
   flex-direction: row;
   background: ${props => props.theme.colors.levels.sunken};
-  transition: width 300ms ease-out;
+  /* opacity: 0; */
+  /* top: -200px; */
 
-  &.entering {
-    right: -100%;
+  &.enter {
+    transform: translate(0, -200px);
+    opacity: 0;
   }
 
-  &.entered {
-    right: 0px;
-    transition: right 300ms ease-out;
+  &.enter-active {
+    transform: translate(0, 0);
+    opacity: 100%;
+    transition:
+      transform ${animationDuration}ms ease-out,
+      opacity ${animationDuration}ms ease-out; // !important;
+  }
+
+  &.exit {
+    top: 0px;
+    opacity: 100%;
+  }
+
+  &.exit-active {
+    transform: translate(0, -200px);
+    opacity: 0;
+    transition:
+      transform ${animationDuration}ms ease-in,
+      opacity ${animationDuration}ms ease-in;
+  }
+
+  /* &.enter-done {
+    top: 0px;
+    opacity: 100%;
   }
 
   &.exiting {
-    right: -100%;
-    transition: right 300ms ease-out;
+    top: -200px;
+    opacity: 0;
+    transition:
+      top ${animationDuration}ms ease-out,
+      opacity ${animationDuration}ms ease-out;
   }
 
   &.exited {
-    right: -100%;
-  }
+    top: -200px;
+    opacity: 0;
+  } */
 `;
