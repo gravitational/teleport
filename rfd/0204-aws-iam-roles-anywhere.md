@@ -184,62 +184,62 @@ A [summary of what IAM Roles Anywhere is](https://docs.aws.amazon.com/rolesanywh
 ![setup step 1](./assets/0204-setup-step1.png)
 
 ```
- Access flow                                                            
-       ┌──────────────────────────┐             ┌────────────────┐      
-       │ Teleport                 │             │  User          │      
-       │                          │  App Login  │ ┌─────┐        │      
-       │┌──────────┐Issues┌─────┐ ◄─────────────┼─┤ tsh │        │      
-       ││ AWSRA-CA ┼──────►X.509│ │ Credentials │ │     │        │      
-       │└────────▲─┘      └─────┘ ├─────────────┼─►     │        │      
-       │         │                │             │ │     │        │      
-       └─────────┼────────────────┘             │ └─▲──┬┘        │      
-                 │                              │   │  │         │      
-                 │                              │ ┌─┴──▼───────┐ │      
-                 │                              │ │   aws cli  │ │      
-                 │                              │ └──────┬─────┘ │      
-                 │Trusts                        └────────┼───────┘      
-                 │                                       │              
-┌────────────────┼─────────────────────────────────┐     │              
-│ AWS            │                                 │     │              
-│ ┌──────────────┼───────────────────────────────┐ │     │Calls AWS APIs
-│ │ AWS Account  │                               │ │     │              
-│ │ ┌────────────┼──────────┐ ┌────────────────┐ │ │     │              
-│ │ │ Region     │          │ │  IAM Roles     │ │ │     │              
-│ │ │ ┌──────────┴───────┐  │ │                │ │ │     │              
-│ │ │ │ RA Trust Anchor  │  │ │                │ │ ◄─────┘              
-│ │ │ └──────────────────┘  │ │  ┌───────────┐ │ │ │                    
-│ │ │                   ┌───┼─┼──►   Role1   │ │ │ │                    
-│ │ │                   │   │ │  └───────────┘ │ │ │                    
-│ │ │ ┌──────────────┐  │   │ │  ┌───────────┐ │ │ │                    
-│ │ │ │ RA Profile1  ├──┴───┼─┼──►   Role2   │ │ │ │                    
-│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                    
-│ │ │                       │ │                │ │ │                    
-│ │ │ ┌──────────────┐      │ │  ┌───────────┐ │ │ │                    
-│ │ │ │ RA Profile2  ├──────┼─┼──►   Role3   │ │ │ │                    
-│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                    
-│ │ └───────────────────────┘ └────────────────┘ │ │                    
-│ └──────────────────────────────────────────────┘ │                    
-└──────────────────────────────────────────────────┘                    
-                                                                        
- Sync process                                                           
-┌────────────────────────────────────────────┐ ┌─────────────────────┐  
-│ AWS                                        │ │ Teleport            │  
-│ ┌────────────────────────────────────────┐ │ │                     │  
-│ │ AWS Account                            │ │ │ ┌─────────────────┐ │  
-│ │ ┌─────────────────┐ ┌────────────────┐ │ │ │ │App Service      │ │  
-│ │ │ Region          │ │  IAM Roles     │ │ │ │ │ RA Profile1     │ │  
-│ │ │┌─────────────┐  │ │ ┌───────────┐  │ │ │ │ │ Allowed Roles:  │ │  
-│ │ ││ RA Profile1 ┼─┬┼─┼─►   Role1   │  │ │ │ │ │ - Role1         │ │  
-│ │ │└─────────────┘ ││ │ └───────────┘  │ │ │ │ │ - Role2         │ │  
-│ │ │                ││ │ ┌───────────┐  │ │ │ │ └─────────────────┘ │  
-│ │ │                └┼─┼─►   Role2   │  │ │ │ │ ┌─────────────────┐ │  
-│ │ │                 │ │ └───────────┘  │ │ │ │ │App Service      │ │  
-│ │ │┌──────────────┐ │ │ ┌───────────┐  │ │ │ │ │ RA Profile2     │ │  
-│ │ ││ RA Profile2  ┼─┼─┼─►   Role3   │  │ │ │ │ │ Allowed Roles:  │ │  
-│ │ │└──────────────┘ │ │ └───────────┘  │ │ │ │ │ - Role3         │ │  
-│ │ └─────────────────┘ └────────────────┘ │ │ │ └─────────────────┘ │  
-│ └────────────────────────────────────────┘ │ │                     │  
-└────────────────────────────────────────────┘ └─────────────────────┘  
+ Access flow                                                                       
+       ┌──────────────────────────┐             ┌────────────────┐                 
+       │ Teleport                 │             │  User          │                 
+       │                          │  App Login  │ ┌─────┐        │                 
+       │┌──────────┐Issues┌─────┐ ◄─────────────┼─┤ tsh │        │                 
+       ││ AWSRA-CA ┼──────►X.509│ │ Credentials │ │     │        │                 
+       │└────────▲─┘      └─────┘ ├─────────────┼─►     │        │                 
+       │         │                │             │ │     │        │                 
+       └─────────┼────────────────┘             │ └─▲──┬┘        │                 
+                 │                              │   │  │         │                 
+                 │                              │ ┌─┴──▼───────┐ │                 
+                 │                              │ │   aws cli  │ │                 
+                 │                              │ └──────┬─────┘ │                 
+                 │Trusts                        └────────┼───────┘                 
+                 │                                       │                         
+┌────────────────┼─────────────────────────────────┐     │                         
+│ AWS            │                                 │     │                         
+│ ┌──────────────┼───────────────────────────────┐ │     │Calls AWS APIs           
+│ │ AWS Account  │                               │ │     │                         
+│ │ ┌────────────┼──────────┐ ┌────────────────┐ │ │     │                         
+│ │ │ Region     │          │ │  IAM Roles     │ │ │     │                         
+│ │ │ ┌──────────┴───────┐  │ │                │ │ │     │                         
+│ │ │ │ RA Trust Anchor  │  │ │                │ │ ◄─────┘                         
+│ │ │ └──────────────────┘  │ │  ┌───────────┐ │ │ │                               
+│ │ │                   ┌───┼─┼──►   Role1   │ │ │ │                               
+│ │ │                   │   │ │  └───────────┘ │ │ │                               
+│ │ │ ┌──────────────┐  │   │ │  ┌───────────┐ │ │ │                               
+│ │ │ │ RA Profile1  ├──┴───┼─┼──►   Role2   │ │ │ │                               
+│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                               
+│ │ │                       │ │                │ │ │                               
+│ │ │ ┌──────────────┐      │ │  ┌───────────┐ │ │ │                               
+│ │ │ │ RA Profile2  ├──────┼─┼──►   Role3   │ │ │ │                               
+│ │ │ └──────────────┘      │ │  └───────────┘ │ │ │                               
+│ │ └───────────────────────┘ └────────────────┘ │ │                               
+│ └──────────────────────────────────────────────┘ │                               
+└──────────────────────────────────────────────────┘                               
+                                                                                   
+ Sync process                                                                      
+┌────────────────────────────────────────────┐ ┌──────────────────────────────────┐
+│ AWS                                        │ │ Teleport                         │
+│ ┌────────────────────────────────────────┐ │ │                                  │
+│ │ AWS Account                            │ │ │ ┌────────────┐ ┌───────────────┐ │
+│ │ ┌─────────────────┐ ┌────────────────┐ │ │ │ │App Service │ │Role           │ │
+│ │ │ Region          │ │  IAM Roles     │ │ │ │ │ RA Profile1│ │ RA Profile1   │ │
+│ │ │┌─────────────┐  │ │ ┌───────────┐  │ │ │ │ │            │ │ AWS Role ARNs:│ │
+│ │ ││ RA Profile1 ┼─┬┼─┼─►   Role1   │  │ │ │ │ │            │ │ - Role1       │ │
+│ │ │└─────────────┘ ││ │ └───────────┘  │ │ │ │ │            │ │ - Role2       │ │
+│ │ │                ││ │ ┌───────────┐  │ │ │ │ └────────────┘ └───────────────┘ │
+│ │ │                └┼─┼─►   Role2   │  │ │ │ │ ┌────────────┐ ┌───────────────┐ │
+│ │ │                 │ │ └───────────┘  │ │ │ │ │App Service │ │Role           │ │
+│ │ │┌──────────────┐ │ │ ┌───────────┐  │ │ │ │ │ RA Profile2│ │ RA Profile2   │ │
+│ │ ││ RA Profile2  ┼─┼─┼─►   Role3   │  │ │ │ │ │            │ │ AWS Role ARNs:│ │
+│ │ │└──────────────┘ │ │ └───────────┘  │ │ │ │ │            │ │ - Role3       │ │
+│ │ └─────────────────┘ └────────────────┘ │ │ │ └────────────┘ └───────────────┘ │
+│ └────────────────────────────────────────┘ │ │                                  │
+└────────────────────────────────────────────┘ └──────────────────────────────────┘
 ```
 
 ##### How IAM Roles Anywhere work with Teleport
@@ -251,7 +251,7 @@ Re-using the Teleport Application resources gets us the following features out o
 - support for just-in-time Access Requests
 - support for Access Lists
 
-AWS Applications are created from a Profile and the Profile Tags are mapped into Application Labels.
+AWS Applications are created from a Profile, and the Profile Tags are mapped into Application Labels.
 To grant access to a Profile, users must be allowed to access the Application using `app_labels`.
 
 When accessing AWS using a Profile/Application, users must also have access to the IAM Role they want to assume.
@@ -291,9 +291,6 @@ spec:
     spec:
       aws:
         roles_anywhere:
-          allowed_roles_arn:
-          - arn:aws:iam::123456789012:role/MyRoleA
-          - arn:aws:iam::123456789012:role/MyRoleB
           profile_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/ac1f655b-aaaa-aaaa-aaaa-aaaaaaaaaaaa
           accept_role_session_name: true
       cloud: AWS
@@ -511,10 +508,6 @@ spec:
         roles_anywhere:
           profile_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a3
           accept_role_session_name: true
-          allowed_role_arns:
-          - arn:aws:iam::123456789012:role/my-custom-role1
-          - arn:aws:iam::123456789012:role/my-custom-role2
-          - arn:aws:iam::123456789012:role/my-custom-role3
 ```
 
 Teleport must check if the Profile Roles are compatible with the Integration's Trust Anchor.
@@ -739,13 +732,10 @@ message AppAWSRolesAnywhere {
   // ProfileARN is the IAM Roles Anywhere Profile ARN that originated this AWS App.
   string ProfileARN = 1;
 
-  // The list of allowed Role ARNs associated with the Profile.
-  repeated string AllowedRolesARN = 2;
-
   // Whether this Roles Anywhere Profile accepts a custom role session name.
   // When not supported, the AWS Session Name will be the X.509 certificate's serial number.
   // When supported, the AWS Session Name will be the identity's username.
-  bool AcceptsRoleSessionName = 3;
+  bool AcceptsRoleSessionName = 2;
 }
 ```
 
