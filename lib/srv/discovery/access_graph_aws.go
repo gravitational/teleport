@@ -518,8 +518,8 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 					return
 				}
 				// reset the currentTAGResources to force a full sync
-				startTime := time.Now()
-				endTime := startTime.Add(-20 * 24 * time.Hour)
+				endTime := time.Now()
+				startTime := endTime.Add(-20 * 24 * time.Hour)
 				if err := s.startCloudtrailPoller(ctx, startTime, endTime, matchers[0]); errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
