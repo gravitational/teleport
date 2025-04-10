@@ -78,5 +78,6 @@ jobs:
             gh workflow run rebuild-teleport-oci-distroless.yml \
               --repo "$GITHUB_REPOSITORY" \
               --ref $teleport_release_tag \
-              --raw-field teleport-release-tag=$teleport_release_tag || true
+              --raw-field teleport-release-tag=$teleport_release_tag \
+              --raw-field environment=prod/oci-rebuild || true
           done

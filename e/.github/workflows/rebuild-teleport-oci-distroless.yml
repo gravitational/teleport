@@ -1,6 +1,6 @@
 # Defines a workflow that, given a major version of Teleport:
 #  1. Finds the newest released version of that series of Teleport
-#  2. Rebuilds tall the dostroless oci container images for that 
+#  2. Rebuilds all the distroless oci container images for that
 #     build of Teleport, and
 #  3. Pushes them to production
 #
@@ -9,7 +9,7 @@
 name: Rebuild Distroless OCI Image
 on:
   workflow_dispatch:
-    inputs: 
+    inputs:
       oss-teleport-repo:
         description: |
           The name of the OSS teleport repo to checkout
@@ -22,6 +22,13 @@ on:
           The semver version of the teleport release to rebuild, including
           the leading `v`
         type: string
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the rebuild. Can be either
+          `stage/oci-rebuild` or `prod/oci-rebuild`.
+        type: string
+        default: stage/oci-rebuild
 
 run-name: Rebuild Distroless Images for Teleport ${{ inputs.teleport-release-tag }}
 
@@ -69,7 +76,7 @@ jobs:
           - release: 'oss'
             repo-enterprise-infix: ''
           - release: 'enterprise'
-            repo-enterprise-infix: '-ent'            
+            repo-enterprise-infix: '-ent'
           # FIPS release is currently amd64 and arm64-only
           - release: 'fips'
             repo-enterprise-infix: '-ent-fips'
@@ -87,9 +94,9 @@ jobs:
       source-tag: ${{ inputs.teleport-release-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
       dest-image-registry-region: us-east-1
-      dest-image-repo: gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
+      dest-image-repo: teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.image_tags }}
-      environment: prod/build
+      environment: ${{ inputs.environment }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}

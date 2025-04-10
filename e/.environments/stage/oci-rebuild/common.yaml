@@ -1,0 +1,7 @@
+---
+# ARTIFACT_DOWNLOAD_AWS_ROLE from ../common.yaml
+# ARTIFACT_SOURCE_BUCKET from ../common.yaml
+ECR_READ_ONLY_ROLE: arn:aws:iam::603330915152:role/tf-teleport-build-read-only-role-gha
+ECR_PENDING_REPO_BASE: public.ecr.aws/gravitational-staging
+OCI_ECR_AWS_ROLE: arn:aws:iam::603330915152:role/teleport-oci-upload-gha
+OCI_PENDING_SIGNING_KEY_ARN: arn:aws:kms:us-west-2:603330915152:key/3a3dda1e-1b29-4537-91b8-4e9050377ef0

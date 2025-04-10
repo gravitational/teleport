@@ -303,6 +303,9 @@ jobs:
             echo "${DST_IMAGE_REPO}:${TAG}" >> "$GITHUB_OUTPUT"
           done
           echo "$EOF" >> "$GITHUB_OUTPUT"
+          # The ECR registry cannot have a repository appended when logging into
+          # public.ecr.aws, so strip off everything from the first slash.
+          echo "dest-image-registry=${DST_IMAGE_REPO%%/*}" >> "$GITHUB_OUTPUT"
 
       - name: Assume Build AWS role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -315,7 +318,7 @@ jobs:
       - name: Login to Destination ECR Registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
-          registry: ${{ env.ECR_PENDING_REPO_BASE }}
+          registry: ${{ steps.expand.outputs.dest-image-registry }}
           ecr: true
         env:
           AWS_REGION: ${{ inputs.dest-image-registry-region }}
