@@ -25,7 +25,7 @@ import React, {
 import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
-import { Box, ButtonIcon, Flex, P2, Text } from 'design';
+import { Box, ButtonIcon, Flex, Image, P2, Text } from 'design';
 import { ArrowLineLeft, ArrowSquareIn } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
@@ -34,6 +34,8 @@ import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel';
 import cfg from 'teleport/config';
 
 import { CategoryIcon } from './CategoryIcon';
+import logoPoweredByDark from './logoPoweredByDark.svg';
+import logoPoweredByLight from './logoPoweredByLight.svg';
 import {
   NavigationSection,
   NavigationSubsection,
@@ -46,6 +48,7 @@ type SharedSectionProps = {
   $active: boolean;
   isExpanded: boolean;
   onExpandSection?: () => void;
+  showPoweredByLogo?: boolean;
 };
 
 /**
@@ -63,6 +66,7 @@ export function DefaultSection({
   currentPageSection,
   currentView,
   onExpandSection,
+  showPoweredByLogo,
 }: SharedSectionProps & {
   currentView?: NavigationSubsection;
   onNavigationItemClick?: () => void;
@@ -138,8 +142,11 @@ export function DefaultSection({
                 </SubsectionItem>
               ))}
           </Box>
-          {cfg.edition === 'oss' && <AGPLFooter />}
-          {cfg.edition === 'community' && <CommunityFooter />}
+          {showPoweredByLogo && <PoweredByTeleportLogo />}
+          {cfg.edition === 'oss' && !showPoweredByLogo && <AGPLFooter />}
+          {cfg.edition === 'community' && !showPoweredByLogo && (
+            <CommunityFooter />
+          )}
         </Flex>
       </RightPanel>
     </>
@@ -446,7 +453,7 @@ export function getSubsectionStyles(theme: Theme, active: boolean) {
   `;
 }
 
-function AGPLFooter() {
+export function AGPLFooter() {
   const theme = useTheme();
   return (
     <LicenseFooter
@@ -474,7 +481,7 @@ function AGPLFooter() {
   );
 }
 
-function CommunityFooter() {
+export function CommunityFooter() {
   const theme = useTheme();
   return (
     <LicenseFooter
@@ -515,6 +522,30 @@ function LicenseFooter({
         </IconTooltip>
       </Flex>
       <SubText>{subText}</SubText>
+    </StyledFooterBox>
+  );
+}
+
+export function PoweredByTeleportLogo() {
+  const theme = useTheme();
+  const src = theme.type === 'dark' ? logoPoweredByDark : logoPoweredByLight;
+  return (
+    <StyledFooterBox
+      py={3}
+      px={4}
+      pb={4}
+      css={`
+        border: none;
+      `}
+    >
+      <Image
+        src={src}
+        width="fit-content"
+        alt="powered by teleport logo"
+        css={`
+          height: 26px;
+        `}
+      />
     </StyledFooterBox>
   );
 }

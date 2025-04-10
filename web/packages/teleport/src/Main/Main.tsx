@@ -189,14 +189,12 @@ export function Main(props: MainProps) {
     <FeaturesContextProvider value={features}>
       <TopBar
         CustomLogo={
-          props.topBarProps?.showPoweredByLogo
-            ? props.topBarProps.CustomLogo
-            : null
+          props.topBarProps?.CustomLogo ? props.topBarProps.CustomLogo : null
         }
       />
       <Wrapper>
         <MainContainer>
-          <Navigation />
+          <Navigation showPoweredByLogo={props.topBarProps.showPoweredByLogo} />
           <InfoGuidePanelProvider>
             <ContentWrapper>
               <ContentMinWidth>
