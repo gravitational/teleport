@@ -80,6 +80,6 @@ func UnmarshalSigstorePolicy(
 
 // ValidateSigstorePolicy validates the SigstorePolicy object.
 func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
-	// TODO
+	// TODO(boxofrad): Implement this in a follow-up PR.
 	return nil
 }
