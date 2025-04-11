@@ -74,6 +74,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -431,6 +432,15 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDP input message", "error", err)
 			return err
+		}
+
+		if m, ok := msg.(tdp.Ping); ok {
+			conn, err := net.Dial("tcp", c.cfg.Addr)
+			if err == nil {
+				conn.Close()
+			}
+			c.cfg.Conn.WriteMessage(m)
+			continue
 		}
 
 		if atomic.LoadUint32(&c.readyForInput) == 0 {

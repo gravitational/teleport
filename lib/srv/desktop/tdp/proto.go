@@ -33,6 +33,7 @@ import (
 	"image/png"
 	"io"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
@@ -82,6 +83,8 @@ const (
 	TypeSyncKeys                        = MessageType(32)
 	TypeSharedDirectoryTruncateRequest  = MessageType(33)
 	TypeSharedDirectoryTruncateResponse = MessageType(34)
+	TypeLatencyStats                    = MessageType(35)
+	TypePing                            = MessageType(36)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -182,6 +185,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeSharedDirectoryTruncateRequest(in)
 	case TypeSharedDirectoryTruncateResponse:
 		return decodeSharedDirectoryTruncateResponse(in)
+	case TypePing:
+		return decodePing(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -1629,6 +1634,44 @@ func decodeSharedDirectoryTruncateResponse(in io.Reader) (SharedDirectoryTruncat
 	var res SharedDirectoryTruncateResponse
 	err := binary.Read(in, binary.BigEndian, &res)
 	return res, err
+}
+
+// LatencyStats is used to report the latency of the connection(s) to the client.
+type LatencyStats struct {
+	ClientLatency uint32
+	ServerLatency uint32
+}
+
+func (l LatencyStats) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeLatencyStats))
+	writeUint32(buf, l.ClientLatency)
+	writeUint32(buf, l.ServerLatency)
+	return buf.Bytes(), nil
+}
+
+// Ping is used to measure the latency of the connection(s) between proxy and desktop (includes
+// latency between proxy and Windows Desktop Service and between WDS and desktop).
+type Ping struct {
+
+	// UUID is used to correlate message send by proxy and received from the Windows Desktop Service
+	UUID uuid.UUID
+}
+
+func (p Ping) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypePing))
+	buf.Write(p.UUID[:])
+	return buf.Bytes(), nil
+}
+
+func decodePing(in io.Reader) (Ping, error) {
+	var ping Ping
+	_, err := io.ReadFull(in, ping.UUID[:])
+	if err != nil {
+		return ping, trace.Wrap(err)
+	}
+	return ping, nil
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
