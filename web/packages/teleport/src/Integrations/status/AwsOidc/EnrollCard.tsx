@@ -15,10 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Link as InternalLink } from 'react-router-dom';
-import styled from 'styled-components';
 
-import { Box, Card, Flex, H2, H3, P2, ResourceIcon } from 'design';
+import { Link as InternalLink } from 'react-router-dom';
+
+import { Box, CardTile, Flex, H2, H3, P2, ResourceIcon } from 'design';
 import * as Icons from 'design/Icon';
 
 import cfg from 'teleport/config';
@@ -32,7 +32,8 @@ export function EnrollCard({
   item: string;
 }) {
   return (
-    <Enroll
+    <CardTile
+      width="33%"
       data-testid={`${resource}-enroll`}
       as={InternalLink}
       to={{
@@ -55,22 +56,6 @@ export function EnrollCard({
           <Icons.ArrowForward />
         </Flex>
       </Flex>
-    </Enroll>
+    </CardTile>
   );
 }
-
-const Enroll = styled(Card)`
-  width: 33%;
-  background-color: ${props => props.theme.colors.levels.surface};
-  padding: ${props => props.theme.space[3]}px;
-  border-radius: ${props => props.theme.radii[2]}px;
-  border: ${props => `1px solid ${props.theme.colors.levels.surface}`};
-  cursor: pointer;
-  text-decoration: none;
-  color: ${props => props.theme.colors.text.main};
-
-  &:hover {
-    background-color: ${props => props.theme.colors.levels.elevated};
-    box-shadow: ${({ theme }) => theme.boxShadow[2]};
-  }
-`;
