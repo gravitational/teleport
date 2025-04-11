@@ -255,11 +255,18 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate); err != nil {
+
+	if err := authCtx.CheckAccessToResource(
+		types.ProtoResource153ToLegacy(req.Bot),
+		types.VerbCreate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -596,6 +603,27 @@ func (bs *BotService) DeleteBot(
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// setKindAndVersion patches for the fact that when this API was originally
+// introduced, we did not enforce that the Kind/Version fields were set.
+// This is largely not an issue since someone would need to invoke the API
+// directly (as tctl will require that they are set). However, we do need these
+// fields to be set correctly for authz to work properly.
+//
+// TODO(noah): In the future, we should commit to a breaking change to validate
+// that these fields are set correctly.
+func setKindAndVersion(b *pb.Bot) error {
+	if b == nil {
+		return trace.BadParameter("must be non-nil bot")
+	}
+	if b.Kind == "" {
+		b.Kind = types.KindBot
+	}
+	if b.Version == "" {
+		b.Version = types.V1
+	}
+	return nil
 }
 
 func validateBot(b *pb.Bot) error {
