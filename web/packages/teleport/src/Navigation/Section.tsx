@@ -25,7 +25,7 @@ import React, {
 import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
-import { Box, ButtonIcon, Flex, P2, Text } from 'design';
+import { Box, ButtonIcon, Flex, Image, P2, Text } from 'design';
 import { ArrowLineLeft, ArrowSquareIn } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
@@ -34,6 +34,8 @@ import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel';
 import cfg from 'teleport/config';
 
 import { CategoryIcon } from './CategoryIcon';
+import logoPoweredByDark from './logoPoweredByDark.svg';
+import logoPoweredByLight from './logoPoweredByLight.svg';
 import {
   NavigationSection,
   NavigationSubsection,
@@ -46,6 +48,7 @@ type SharedSectionProps = {
   $active: boolean;
   isExpanded: boolean;
   onExpandSection?: () => void;
+  showPoweredByLogo?: boolean;
 };
 
 /**
@@ -63,6 +66,7 @@ export function DefaultSection({
   currentPageSection,
   currentView,
   onExpandSection,
+  showPoweredByLogo,
 }: SharedSectionProps & {
   currentView?: NavigationSubsection;
   onNavigationItemClick?: () => void;
@@ -138,8 +142,10 @@ export function DefaultSection({
                 </SubsectionItem>
               ))}
           </Box>
-          {cfg.edition === 'oss' && <AGPLFooter />}
-          {cfg.edition === 'community' && <CommunityFooter />}
+          <SectionFooter
+            showPoweredByLogo={showPoweredByLogo}
+            edition={cfg.edition}
+          />
         </Flex>
       </RightPanel>
     </>
@@ -516,6 +522,39 @@ function LicenseFooter({
       </Flex>
       <SubText>{subText}</SubText>
     </StyledFooterBox>
+  );
+}
+
+function PoweredByTeleportLogo() {
+  const theme = useTheme();
+  const src = theme.type === 'dark' ? logoPoweredByDark : logoPoweredByLight;
+  return (
+    <StyledFooterBox
+      py={3}
+      px={4}
+      pb={4}
+      css={`
+        border: none;
+      `}
+    >
+      <Image src={src} maxWidth="100%" alt="powered by teleport" />
+    </StyledFooterBox>
+  );
+}
+
+export function SectionFooter({
+  showPoweredByLogo = false,
+  edition,
+}: {
+  showPoweredByLogo: boolean;
+  edition: string;
+}) {
+  return (
+    <>
+      {showPoweredByLogo && <PoweredByTeleportLogo />}
+      {edition === 'oss' && !showPoweredByLogo && <AGPLFooter />}
+      {edition === 'community' && !showPoweredByLogo && <CommunityFooter />}
+    </>
   );
 }
 

@@ -38,9 +38,13 @@ import {
   useFloatingUiWithRestMs,
 } from './Navigation';
 import {
+  AGPLFooter,
+  CommunityFooter,
   CustomChildrenSection,
+  PoweredByTeleportLogo,
   RightPanel,
   RightPanelHeader,
+  SectionFooter,
   SubsectionItem,
   verticalPadding,
 } from './Section';
@@ -268,6 +272,7 @@ export function ResourcesSection({
   stickyMode,
   toggleStickyMode,
   canToggleStickyMode,
+  showPoweredByLogo,
 }: {
   expandedSection: NavigationSection;
   previousExpandedSection: NavigationSection;
@@ -276,6 +281,7 @@ export function ResourcesSection({
   stickyMode: boolean;
   toggleStickyMode: () => void;
   canToggleStickyMode: boolean;
+  showPoweredByLogo: boolean;
 }) {
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
@@ -313,6 +319,7 @@ export function ResourcesSection({
       $active={currentView?.route === baseRoute}
       aria-controls={`panel-${expandedSection?.category}`}
       isExpanded={isExpanded}
+      showPoweredByLogo={showPoweredByLogo}
       {...getReferenceProps()}
     >
       <RightPanel
@@ -323,59 +330,69 @@ export function ResourcesSection({
         onFocus={() => handleSetExpandedSection(section)}
         {...getFloatingProps()}
       >
-        <Box
-          css={`
-            overflow-y: auto;
-            padding: 3px;
-          `}
+        <Flex
+          flexDirection="column"
+          justifyContent="space-between"
+          height="100%"
         >
-          <RightPanelHeader
-            title={section.category}
-            stickyMode={stickyMode}
-            toggleStickyMode={toggleStickyMode}
-            canToggleStickyMode={canToggleStickyMode}
+          <Box
+            css={`
+              overflow-y: auto;
+              padding: 3px;
+            `}
+          >
+            <RightPanelHeader
+              title={section.category}
+              stickyMode={stickyMode}
+              toggleStickyMode={toggleStickyMode}
+              canToggleStickyMode={canToggleStickyMode}
+            />
+            {subsections
+              .filter(section => !section.subCategory)
+              .map(section => (
+                <SubsectionItem
+                  $active={section.customRouteMatchFn(currentViewRoute)}
+                  to={section.route}
+                  key={section.title}
+                  onClick={section.onClick}
+                  exact={section.exact}
+                >
+                  <section.icon size={16} />
+                  <Text typography="body2">{section.title}</Text>
+                </SubsectionItem>
+              ))}
+
+            <Divider />
+            <Flex py={verticalPadding} px={3}>
+              <Text typography="h3" color="text.slightlyMuted">
+                Filtered Views
+              </Text>
+            </Flex>
+
+            {subsections
+              .filter(
+                section =>
+                  section.subCategory ===
+                  CustomNavigationSubcategory.FilteredViews
+              )
+              .map(section => (
+                <SubsectionItem
+                  $active={section.customRouteMatchFn(currentViewRoute)}
+                  to={section.route}
+                  key={section.title}
+                  onClick={section.onClick}
+                  exact={section.exact}
+                >
+                  <section.icon size={16} />
+                  <Text typography="body2">{section.title}</Text>
+                </SubsectionItem>
+              ))}
+          </Box>
+          <SectionFooter
+            showPoweredByLogo={showPoweredByLogo}
+            edition={cfg.edition}
           />
-          {subsections
-            .filter(section => !section.subCategory)
-            .map(section => (
-              <SubsectionItem
-                $active={section.customRouteMatchFn(currentViewRoute)}
-                to={section.route}
-                key={section.title}
-                onClick={section.onClick}
-                exact={section.exact}
-              >
-                <section.icon size={16} />
-                <Text typography="body2">{section.title}</Text>
-              </SubsectionItem>
-            ))}
-
-          <Divider />
-          <Flex py={verticalPadding} px={3}>
-            <Text typography="h3" color="text.slightlyMuted">
-              Filtered Views
-            </Text>
-          </Flex>
-
-          {subsections
-            .filter(
-              section =>
-                section.subCategory ===
-                CustomNavigationSubcategory.FilteredViews
-            )
-            .map(section => (
-              <SubsectionItem
-                $active={section.customRouteMatchFn(currentViewRoute)}
-                to={section.route}
-                key={section.title}
-                onClick={section.onClick}
-                exact={section.exact}
-              >
-                <section.icon size={16} />
-                <Text typography="body2">{section.title}</Text>
-              </SubsectionItem>
-            ))}
-        </Box>
+        </Flex>
       </RightPanel>
     </CustomChildrenSection>
   );
