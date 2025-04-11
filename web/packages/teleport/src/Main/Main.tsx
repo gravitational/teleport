@@ -35,6 +35,7 @@ import {
   InfoGuidePanelProvider,
   useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -42,10 +43,7 @@ import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
-import {
-  infoGuidePanelWidth,
-  InfoGuideSidePanel,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
@@ -312,7 +310,7 @@ export const useNoMinWidth = () => {
 
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
-  const { infoGuideConfig } = useInfoGuide();
+  const { infoGuideConfig, panelWidth } = useInfoGuide();
   const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
@@ -324,13 +322,11 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           flex: 1;
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
           min-height: 0;
-          margin-right: ${infoGuideSidePanelOpened
-            ? infoGuideConfig?.panelWidth || infoGuidePanelWidth
-            : '0'}px;
-          transition: ${infoGuideSidePanelOpened
-            ? 'margin 150ms'
-            : 'margin 300ms'};
           overflow-y: auto;
+          ${marginTransitionCss({
+            sidePanelOpened: infoGuideSidePanelOpened,
+            panelWidth,
+          })}
         `}
       >
         {children}
