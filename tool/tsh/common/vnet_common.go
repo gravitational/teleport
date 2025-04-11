@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/utils"
@@ -44,7 +45,8 @@ type vnetAppProvider struct {
 }
 
 func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
-	clientStore := client.NewFSClientStore(cf.HomePath)
+	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 
 	p := &vnetAppProvider{
 		cf:          cf,

@@ -539,9 +539,8 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
-
 	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, WithDBCerts{})
+	key, err := store.GetKey(idx, nil /*hwks*/, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -562,7 +561,7 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 	}
 
 	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, WithAppCerts{})
+	key, err := store.GetKey(idx, nil /*hwks*/, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
