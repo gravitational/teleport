@@ -111,7 +111,7 @@ export function RoleEditorAdapter({
             onCancel={onCancel}
             onSave={onSave}
             onRoleUpdate={onRoleUpdate}
-            demoMode={roleDiffProps.roleDiffState === RoleDiffState.DemoReady}
+            demoMode={roleDiffProps?.roleDiffState === RoleDiffState.DemoReady}
           />
         )}
       </Flex>
