@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,6 +36,7 @@ import (
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 var botSpec = &machineidv1.BotSpec{
@@ -49,6 +51,9 @@ var botSpec = &machineidv1.BotSpec{
 			Values: []string{"valueC", "valueD"},
 		},
 	},
+	// Note: The server-side resource will have the default value filled in, so
+	// we need to explicitly set it to ensure comparisons succeed.
+	MaxSessionTtl: durationpb.New(defaults.DefaultBotMaxSessionTTL),
 }
 
 type botTestingPrimitives struct {
