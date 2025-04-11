@@ -100,7 +100,8 @@ describe('design/SlideTabs', () => {
     expect(getTab('first')).not.toHaveFocus();
     expect(getTab('second')).not.toHaveFocus();
 
-    getTab('first').focus();
+    // Click to focus first tab
+    await user.click(getTab('first'));
     expect(getTab('first')).toHaveAttribute('aria-selected', 'true');
     expect(getTab('first')).toHaveAttribute('aria-controls', 'tabpanel-1');
     expect(getTab('second')).toHaveAttribute('aria-selected', 'false');

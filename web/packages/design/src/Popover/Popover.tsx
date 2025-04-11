@@ -194,10 +194,6 @@ function getAnchorEl(anchorEl: Element | (() => Element)): Element {
   return typeof anchorEl === 'function' ? anchorEl() : anchorEl;
 }
 
-/** Distance in pixels from the base to the tip of the arrow. */
-const arrowLength = 8;
-/** Distance in pixels between the arrow arms at the arrow base. */
-const arrowWidth = 2 * arrowLength;
 const borderRadius = 4;
 
 // Attention: advanced CSS magic below.
@@ -236,207 +232,6 @@ const borderRadius = 4;
 //    documents, we can't just render it and refer to it by ID; the polygon
 //    needs to be literally embedded in the style definition.
 
-/**
- * Returns a mask-image declaration that includes arrow polygon points. It's
- * variable, since we can't rotate it, so each arrow direction gets its own
- * polygon.
- */
-function getMaskImage(arrowPolygonPoints: string) {
-  return `
-    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
-    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
-    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
-    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
-
-    linear-gradient(#fff, #fff),
-    linear-gradient(#fff, #fff),
-
-    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"><polygon points="${arrowPolygonPoints}"/></svg>')
-    `;
-}
-
-/**
- * Returns four constant sizes for the corner masks and adds a variable portion
- * for the space between corners and the arrow.
- */
-function getMaskSize(variableSizes: string) {
-  return `
-    ${2 * borderRadius}px ${2 * borderRadius}px,
-    ${2 * borderRadius}px ${2 * borderRadius}px,
-    ${2 * borderRadius}px ${2 * borderRadius}px,
-    ${2 * borderRadius}px ${2 * borderRadius}px,
-    ${variableSizes}
-  `;
-}
-
-/**
- * A set of `mask-image` and related styles to be applied to the popover element
- * in order to "carve out" a shape of tooltip with an arrow.
- */
-type MaskStyles = {
-  maskImage: string;
-  maskPosition: string;
-  maskSize: string;
-};
-
-const noMaskStyles = {
-  maskImage: '',
-  maskPosition: '',
-  maskSize: '',
-};
-
-/**
- * Returns mask styles to be applied to element with a given popover relative
- * position and arrow coordinates.
- * @param arrow Determines whether an arrow should be shown at all; if it's not
- *   necessary, we don't need any mask at all.
- * @param popoverPos Determines the direction of popover in relation to the
- *   anchor.
- * @param arrowLeft Horizontal position of the arrow, ignored if the arrow is
- *   horizontal.
- * @param arrowTop Vertical position of the arrow, ignored if the arrow is
- *   vertical.
- */
-function getMaskStyles(
-  arrow: boolean,
-  popoverPos: Position | null,
-  arrowLeft: number,
-  arrowTop: number
-): MaskStyles {
-  if (!arrow) {
-    return noMaskStyles;
-  }
-
-  switch (popoverPos) {
-    case 'top':
-      return {
-        // Mask image with specific arrow polygon points, corresponding to the
-        // arrow direction.
-        maskImage: getMaskImage(
-          `0 0, ${arrowWidth / 2} ${arrowLength}, ${arrowWidth} 0`
-        ),
-        // Circles in four corners, then rectangles pinned to the left and top
-        // edges of the tooltip, respectively. Last but not least, the arrow tip
-        // position.
-        maskPosition: `
-          0 0,
-          100% 0,
-          100% calc(100% - ${arrowLength}px),
-          0 calc(100% - ${arrowLength}px),
-
-          0 ${borderRadius}px,
-          ${borderRadius}px 0,
-
-          ${arrowLeft}px 100%
-        `,
-        // Constant sizes for the circles (see getMaskSize), and then rectangles
-        // sized according to the size of the tooltip. Arrow dimensions depend
-        // only on its orientation.
-        maskSize: getMaskSize(`
-          100% calc(100% - ${arrowLength + 2 * borderRadius}px),
-          calc(100% - ${2 * borderRadius}px) calc(100% - ${arrowLength}px),
-
-          ${arrowWidth}px ${arrowLength}px
-        `),
-      };
-    case 'right':
-      return {
-        maskImage: getMaskImage(
-          `${arrowLength} 0, 0 ${arrowWidth / 2}, ${arrowLength} ${arrowWidth}`
-        ),
-        maskPosition: `
-          ${arrowLength}px 0,
-          100% 0,
-          100% 100%,
-          ${arrowLength}px 100%,
-
-          ${arrowLength}px ${borderRadius}px,
-          ${arrowLength + borderRadius}px 0,
-
-          0 ${arrowTop}px
-        `,
-        maskSize: getMaskSize(`
-          calc(100% - ${arrowLength}px) calc(100% - ${2 * borderRadius}px),
-          calc(100% - ${arrowLength + 2 * borderRadius}px) 100%,
-
-          ${arrowLength}px ${arrowWidth}px
-        `),
-      };
-    case 'bottom':
-      return {
-        maskImage: getMaskImage(
-          `0 ${arrowLength}, ${arrowWidth / 2} 0, ${arrowWidth} ${arrowLength}`
-        ),
-        maskPosition: `
-          0 ${arrowLength}px,
-          100% ${arrowLength}px,
-          100% 100%,
-          0 100%,
-
-          0 ${arrowLength + borderRadius}px,
-          ${borderRadius}px ${arrowLength}px,
-
-          ${arrowLeft}px 0
-        `,
-        maskSize: getMaskSize(`
-          100% calc(100% - ${arrowLength + 2 * borderRadius}px),
-          calc(100% - ${2 * borderRadius}px) calc(100% - ${arrowLength}px),
-
-          ${arrowWidth}px ${arrowLength}px
-        `),
-      };
-    case 'left':
-      return {
-        maskImage: getMaskImage(
-          `0 0, ${arrowLength} ${arrowWidth / 2}, 0 ${arrowWidth}`
-        ),
-        maskPosition: `
-          0 0,
-          calc(100% - ${arrowLength}px) 0,
-          calc(100% - ${arrowLength}px) 100%,
-          0 100%,
-
-          0 ${borderRadius}px,
-          ${borderRadius}px 0,
-
-          100% ${arrowTop}px
-        `,
-        maskSize: getMaskSize(`
-          calc(100% - ${arrowLength}px) calc(100% - ${2 * borderRadius}px),
-          calc(100% - ${arrowLength + 2 * borderRadius}px) 100%,
-
-          ${arrowLength}px ${arrowWidth}px
-        `),
-      };
-    default:
-      return noMaskStyles;
-  }
-}
-
-/**
- * Returns a CSS prop name that will receive additional padding related to the
- * arrow position. This padding is necessary, since we manually draw the
- * tooltip shape with an arrow. The tooltip element covers the entire area
- * along with the arrow, and we push its content so that it doesn't enter the
- * area reserved for the arrow.
- */
-function getArrowPaddingProp(
-  popoverPos: Position | null
-): 'paddingBottom' | 'paddingLeft' | 'paddingTop' | 'paddingRight' | null {
-  switch (popoverPos) {
-    case null:
-      return null;
-    case 'top':
-      return 'paddingBottom';
-    case 'right':
-      return 'paddingLeft';
-    case 'bottom':
-      return 'paddingTop';
-    case 'left':
-      return 'paddingRight';
-  }
-}
-
 export class Popover extends Component<Props> {
   paperRef = createRef<HTMLDivElement>();
   handleResize: () => void = () => {};
@@ -453,9 +248,7 @@ export class Popover extends Component<Props> {
       horizontal: 'left',
     },
     growDirections: 'bottom-right',
-    arrow: false,
     popoverMargin: 0,
-    arrowMargin: 4,
   };
 
   constructor(props: Props) {
@@ -489,32 +282,10 @@ export class Popover extends Component<Props> {
       return;
     }
 
-    const popoverPos = getPopoverPosition(
-      // We use the non-null assertion operator (!) here and elsewhere to tell TS
-      // that the value is guaranteed to be defined due to default props.
-      // Unfortunately, `defaultProps` field is not recognized by TS, so assertions are needed.
-      // This approach is a workaround and is not recommended, as we lose the benefits of strict null checks.
-      this.props.anchorOrigin!,
-      this.props.transformOrigin!
-    );
+    paper.style.padding = '0';
 
-    const arrowPaddingProp = getArrowPaddingProp(popoverPos);
-    if (arrowPaddingProp && this.props.arrow) {
-      paper.style[arrowPaddingProp] = `${arrowLength}px`;
-    } else {
-      paper.style.padding = '0';
-    }
-
-    const {
-      top,
-      left,
-      bottom,
-      right,
-      transformOrigin,
-      maskImage,
-      maskPosition,
-      maskSize,
-    } = this.getPositioningStyle(paper);
+    const { top, left, bottom, right, transformOrigin } =
+      this.getPositioningStyle(paper);
 
     if (this.props.growDirections === 'bottom-right') {
       if (top !== undefined) {
@@ -532,9 +303,6 @@ export class Popover extends Component<Props> {
       }
     }
     paper.style.transformOrigin = transformOrigin;
-    paper.style.maskImage = maskImage;
-    paper.style.maskPosition = maskPosition;
-    paper.style.maskSize = maskSize;
   };
 
   getPositioningStyle = (
@@ -545,10 +313,9 @@ export class Popover extends Component<Props> {
     bottom?: string;
     right?: string;
     transformOrigin: string;
-  } & MaskStyles => {
+  } => {
     const anchorReference = this.props.anchorReference!;
     const marginThreshold = this.props.marginThreshold!;
-    const arrowMargin = this.props.arrowMargin!;
 
     // Check if the parent has requested anchoring on an inner content node
     const contentAnchorOffset = this.getContentAnchorOffset(element);
@@ -565,7 +332,6 @@ export class Popover extends Component<Props> {
         top: undefined,
         left: undefined,
         transformOrigin: getTransformOriginValue(transformOrigin),
-        ...noMaskStyles,
       };
     }
 
@@ -611,44 +377,12 @@ export class Popover extends Component<Props> {
     bottom = top + elemRect.height;
     right = left + elemRect.width;
 
-    const popoverPos = getPopoverPosition(
-      this.props.anchorOrigin!,
-      this.props.transformOrigin!
-    );
-
-    // Calculate the arrow position.
-    let arrowLeft = 0;
-    let arrowTop = 0;
-    switch (popoverPos) {
-      case 'left':
-      case 'right':
-        arrowTop = transformOrigin.vertical - arrowWidth / 2;
-        if (arrowTop < arrowMargin) {
-          arrowTop = arrowMargin;
-        }
-        if (arrowTop > elemRect.height - arrowWidth - arrowMargin) {
-          arrowTop = elemRect.height - arrowWidth - arrowMargin;
-        }
-        break;
-      case 'top':
-      case 'bottom':
-        arrowLeft = transformOrigin.horizontal - arrowWidth / 2;
-        if (arrowLeft < arrowMargin) {
-          arrowLeft = arrowMargin;
-        }
-        if (arrowLeft > elemRect.width - arrowWidth - arrowMargin) {
-          arrowLeft = elemRect.width - arrowWidth - arrowMargin;
-        }
-        break;
-    }
-
     return {
       top: `${top}px`,
       left: `${left}px`,
       bottom: `${window.innerHeight - bottom}px`,
       right: `${window.innerWidth - right}px`,
       transformOrigin: getTransformOriginValue(transformOrigin),
-      ...getMaskStyles(this.props.arrow!, popoverPos, arrowLeft, arrowTop),
     };
   };
 
@@ -852,18 +586,8 @@ interface Props extends Omit<ModalProps, 'children' | 'open'> {
   /** Properties applied to the backdrop element. */
   backdropProps?: BackdropProps;
 
-  /** `true` indicates an arrow will be displayed pointing at the anchor. */
-  arrow?: boolean;
-
   /** Distance between anchor and the popover. */
   popoverMargin?: number;
-
-  /**
-   * Minimum distance between an arrow and the edge of the popover. Important
-   * for proper rendering of rounded corners which should not interfere with
-   * arrow tips.
-   */
-  arrowMargin?: number;
 
   /**
    * If false (default), positioning styles are updated only on the initial render of the children.
