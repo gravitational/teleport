@@ -37,14 +37,15 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -214,7 +215,15 @@ type IdentityContext struct {
 	CertAuthority types.CertAuthority
 
 	// AccessChecker is used to check RBAC permissions.
-	AccessChecker services.AccessChecker
+	//AccessChecker services.AccessChecker
+
+	// UnstableSessionJoiningAccessChecker is a temporary placeholder until we factor out session
+	// joining logic's depdnence on AccessChecker in favor of using AccessPermit fields.
+	UnstableSessionJoiningAccessChecker services.AccessChecker
+
+	// UnstableClusterAccessChecker is a temporary placeholder until we figure out how best to
+	// handle trusted cluster access checking in the PDP-style access control model.
+	UnstableClusterAccessChecker func(types.RemoteCluster) error
 
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
@@ -419,8 +428,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	case identityContext.ProxyingPermit != nil:
 		clientIdleTimeout = identityContext.ProxyingPermit.ClientIdleTimeout
 	default:
-		return nil, trace.BadParameter("identityContext must have either AccessPermit or ProxyingPermit set")
-		//panic("identityContext must have either AccessPermit or ProxyingPermit set")
+		return nil, trace.BadParameter("server context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
 	}
 
 	cancelContext, cancel := context.WithCancel(ctx)
@@ -453,15 +461,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.JoinOnly = true
 	}
 
-	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+	switch {
+	case identityContext.AccessPermit != nil:
+		child.disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.DisconnectExpiredCert)
+	case identityContext.ProxyingPermit != nil:
+		child.disconnectExpiredCert = identityContext.ProxyingPermit.DisconnectExpiredCert
+	default:
+		return nil, trace.BadParameter("server context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
 	}
-
-	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
-		identityContext.AccessChecker, authPref, &identityContext,
-	)
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
@@ -471,16 +478,30 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.Logger = child.Logger.With("idle", child.clientIdleTimeout)
 	}
 
-	clusterName, err := srv.GetAccessPoint().GetClusterName()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
+	var lockTargets []types.LockTarget
+	switch {
+	case identityContext.AccessPermit != nil:
+		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.LockTargets)
+	case identityContext.ProxyingPermit != nil:
+		lockTargets = identityContext.ProxyingPermit.LockTargets
+	default:
+		return nil, trace.BadParameter("server context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
+	}
+
+	var lockingMode constants.LockingMode
+	switch {
+	case identityContext.AccessPermit != nil:
+		lockingMode = constants.LockingMode(identityContext.AccessPermit.LockingMode)
+	case identityContext.ProxyingPermit != nil:
+		lockingMode = identityContext.ProxyingPermit.LockingMode
+	default:
+		return nil, trace.BadParameter("server context requires one of AccessPermit or ProxyingPermit to be set (this is a bug)")
 	}
 
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
-		LockTargets:           ComputeLockTargets(clusterName.GetClusterName(), srv.HostUUID(), identityContext),
-		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:           lockTargets,
+		LockingMode:           lockingMode,
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -707,12 +728,15 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 	if !c.AllowFileCopying {
 		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
 	}
-	// Check if the user's RBAC role allows remote file operations.
-	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return trace.Wrap(errRoleFileCopyingNotPermitted)
+
+	// check if ssh access permit is defined and authorizes file copying
+	if permit := c.Identity.AccessPermit; permit != nil {
+		if permit.SshFileCopy {
+			return nil
+		}
 	}
 
-	return nil
+	return trace.Wrap(errRoleFileCopyingNotPermitted)
 }
 
 // CheckSFTPAllowed returns an error if remote file operations via SCP
@@ -724,7 +748,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	}
 
 	// ensure moderated session policies allow starting an unattended session
-	policySets := c.Identity.AccessChecker.SessionPolicySets()
+	policySets := c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
 	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
@@ -972,14 +996,11 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		return nil, nil
 	}
 
-	// If the identity has roles, extract the role names.
-	roleNames := c.Identity.AccessChecker.RoleNames()
-
 	// Fill in the environment variables from the config and interpolate them if needed.
 	environment := make(map[string]string)
 	environment["TELEPORT_USERNAME"] = c.Identity.TeleportUser
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
-	environment["TELEPORT_ROLES"] = strings.Join(roleNames, " ")
+	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.MappedRoles, " ")
 	if localPAMConfig.Environment != nil {
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewTraitsTemplateExpression(value)
@@ -1024,9 +1045,6 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
-	// If the identity has roles, extract the role names.
-	roleNames := c.Identity.AccessChecker.RoleNames()
-
 	// Extract the command to be executed. This only exists if command execution
 	// (exec or shell) is being requested, port forwarding has no command to
 	// execute.
@@ -1058,7 +1076,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		DestinationAddress:    c.DstAddr,
 		Username:              c.Identity.TeleportUser,
 		Login:                 c.Identity.Login,
-		Roles:                 roleNames,
+		Roles:                 c.Identity.AccessPermit.MappedRoles,
 		Terminal:              c.termAllocated || command == "",
 		TerminalName:          c.ttyName,
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
@@ -1174,6 +1192,7 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	}, nil
 }
 
+/*
 // ComputeLockTargets computes lock targets inferred from the clusterName, serverID and IdentityContext.
 func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []types.LockTarget {
 	lockTargets := []types.LockTarget{
@@ -1193,6 +1212,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 	lockTargets = append(lockTargets, services.AccessRequestsToLockTargets(id.ActiveRequests)...)
 	return lockTargets
 }
+*/
 
 // SetSSHRequest sets the ssh request that was issued by the client.
 // Will return an error if called more than once for a single server context.

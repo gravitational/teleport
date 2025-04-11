@@ -175,12 +175,14 @@ func WebSessionController(controller *SessionController) func(ctx context.Contex
 
 		identity := IdentityContext{
 			UnmappedIdentity: unmappedIdentity,
-			AccessChecker:    accessChecker,
-			TeleportUser:     sctx.GetUser(),
-			Login:            login,
-			UnmappedRoles:    unmappedIdentity.Roles,
-			ActiveRequests:   unmappedIdentity.ActiveRequests,
-			Impersonator:     unmappedIdentity.Impersonator,
+			//AccessChecker:    accessChecker,
+			UnstableSessionJoiningAccessChecker: accessChecker,
+			UnstableClusterAccessChecker:        accessChecker.CheckAccessToRemoteCluster,
+			TeleportUser:                        sctx.GetUser(),
+			Login:                               login,
+			UnmappedRoles:                       unmappedIdentity.Roles,
+			ActiveRequests:                      unmappedIdentity.ActiveRequests,
+			Impersonator:                        unmappedIdentity.Impersonator,
 		}
 		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
 		return ctx, trace.Wrap(err)

@@ -206,20 +206,47 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 
 	lockTargets := services.SSHAccessLockTargets(localClusterName, req.Node.Name, req.OsUser, accessInfo, ident)
 
+	hostSudoers, err := accessChecker.HostSudoers(target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var bpfEvents []string
+	for event := range accessChecker.EnhancedRecordingSet() {
+		bpfEvents = append(bpfEvents, event)
+	}
+
+	hostUsersInfo, err := accessChecker.HostUsers(target)
+	if err != nil {
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// the way host user creation permissions currently work, an "access denied" just indicates
+		// that host user creation is disabled, and does not indicate that access should be disallowed.
+		// for the purposes of the decision service, we represent this disabled state as nil.
+		hostUsersInfo = nil
+	}
+
 	permit := &decisionpb.SSHAccessPermit{
 		Metadata: &decisionpb.PermitMetadata{
 			PdpVersion: teleport.Version,
 		},
-		ForwardAgent:         accessChecker.CheckAgentForward(req.OsUser) == nil,
-		X11Forwarding:        accessChecker.PermitX11Forwarding(),
-		MaxConnections:       accessChecker.MaxConnections(),
-		SshFileCopy:          accessChecker.CanCopyFiles(),
-		PortForwardMode:      accessChecker.SSHPortForwardMode(),
-		ClientIdleTimeout:    durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
-		SessionRecordingMode: string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
-		LockingMode:          string(accessChecker.LockingMode(authPref.GetLockingMode())),
-		PrivateKeyPolicy:     string(privateKeyPolicy),
-		LockTargets:          LockTargetsToProto(lockTargets),
+		ForwardAgent:          accessChecker.CheckAgentForward(req.OsUser) == nil,
+		X11Forwarding:         accessChecker.PermitX11Forwarding(),
+		MaxConnections:        accessChecker.MaxConnections(),
+		MaxSessions:           accessChecker.MaxSessions(),
+		SshFileCopy:           accessChecker.CanCopyFiles(),
+		PortForwardMode:       accessChecker.SSHPortForwardMode(),
+		ClientIdleTimeout:     durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident)),
+		SessionRecordingMode:  string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
+		LockingMode:           string(accessChecker.LockingMode(authPref.GetLockingMode())),
+		PrivateKeyPolicy:      string(privateKeyPolicy),
+		LockTargets:           LockTargetsToProto(lockTargets),
+		MappedRoles:           accessInfo.Roles,
+		HostSudoers:           hostSudoers,
+		BpfEvents:             bpfEvents,
+		HostUsersInfo:         hostUsersInfo,
 		// TODO: a *lot* more needs to go here
 	}
 
@@ -395,4 +422,30 @@ func lockTargetFromProto(target *decisionpb.LockTarget) types.LockTarget {
 		Device:         target.Device,
 		ServerID:       target.ServerId,
 	}
+}
+
+func getDisconnectExpiredCertFromSSHIdentity(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity *sshca.Identity,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		return time.Time{}
+	}
+
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.GetValidBefore()
 }

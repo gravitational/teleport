@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -214,23 +215,25 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 
 	return IdentityContext{
-		UnmappedIdentity:        unmappedIdentity,
-		AccessPermit:            accessPermit,
-		ProxyingPermit:          proxyingPermit,
-		Login:                   sconn.User(),
-		CertAuthority:           certAuthority,
-		AccessChecker:           accessChecker,
-		TeleportUser:            unmappedIdentity.Username,
-		RouteToCluster:          unmappedIdentity.RouteToCluster,
-		UnmappedRoles:           unmappedIdentity.Roles,
-		CertValidBefore:         certValidBefore,
-		Impersonator:            unmappedIdentity.Impersonator,
-		ActiveRequests:          unmappedIdentity.ActiveRequests,
-		DisallowReissue:         unmappedIdentity.DisallowReissue,
-		Renewable:               unmappedIdentity.Renewable,
-		BotName:                 unmappedIdentity.BotName,
-		BotInstanceID:           unmappedIdentity.BotInstanceID,
-		PreviousIdentityExpires: unmappedIdentity.PreviousIdentityExpires,
+		UnmappedIdentity: unmappedIdentity,
+		AccessPermit:     accessPermit,
+		ProxyingPermit:   proxyingPermit,
+		Login:            sconn.User(),
+		CertAuthority:    certAuthority,
+		//AccessChecker:           accessChecker,
+		UnstableSessionJoiningAccessChecker: accessChecker,
+		UnstableClusterAccessChecker:        accessChecker.CheckAccessToRemoteCluster,
+		TeleportUser:                        unmappedIdentity.Username,
+		RouteToCluster:                      unmappedIdentity.RouteToCluster,
+		UnmappedRoles:                       unmappedIdentity.Roles,
+		CertValidBefore:                     certValidBefore,
+		Impersonator:                        unmappedIdentity.Impersonator,
+		ActiveRequests:                      unmappedIdentity.ActiveRequests,
+		DisallowReissue:                     unmappedIdentity.DisallowReissue,
+		Renewable:                           unmappedIdentity.Renewable,
+		BotName:                             unmappedIdentity.BotName,
+		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
 	}, nil
 }
 
@@ -266,7 +269,7 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	}
 
 	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF || allowedMode != requestedMode {
-		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
+		systemErrorMessage := fmt.Sprintf("port forwarding not allowed for user: %v", ctx.Identity.TeleportUser)
 		userErrorMessage := "port forwarding not allowed"
 
 		// Emit port forward failure event
@@ -709,11 +712,12 @@ type ahLoginChecker struct {
 const extIntSSHProxyingPermit = "proxying-permit"
 
 type sshProxyingPermit struct {
-	ClientIdleTimeout time.Duration
-	LockingMode       constants.LockingMode
-	PrivateKeyPolicy  keys.PrivateKeyPolicy
-	LockTargets       []types.LockTarget
-	MaxConnections    int64
+	ClientIdleTimeout     time.Duration
+	LockingMode           constants.LockingMode
+	PrivateKeyPolicy      keys.PrivateKeyPolicy
+	LockTargets           []types.LockTarget
+	MaxConnections        int64
+	DisconnectExpiredCert time.Time
 }
 
 func (a *ahLoginChecker) evaluateSSHProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, osUser string) (*sshProxyingPermit, error) {
@@ -751,11 +755,12 @@ func (a *ahLoginChecker) evaluateSSHProxying(ident *sshca.Identity, ca types.Cer
 	lockTargets := services.SSHAccessLockTargets(clusterName, a.c.Server.HostUUID() /* id of underlying proxy */, osUser, accessInfo, ident)
 
 	return &sshProxyingPermit{
-		ClientIdleTimeout: accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		LockingMode:       accessChecker.LockingMode(authPref.GetLockingMode()),
-		PrivateKeyPolicy:  privateKeyPolicy,
-		LockTargets:       lockTargets,
-		MaxConnections:    accessChecker.MaxConnections(),
+		ClientIdleTimeout:     accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		LockingMode:           accessChecker.LockingMode(authPref.GetLockingMode()),
+		PrivateKeyPolicy:      privateKeyPolicy,
+		LockTargets:           lockTargets,
+		MaxConnections:        accessChecker.MaxConnections(),
+		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
 	}, nil
 }
 
@@ -826,17 +831,44 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 
 	lockTargets := services.SSHAccessLockTargets(clusterName, target.GetName(), osUser, accessInfo, ident)
 
+	hostSudoers, err := accessChecker.HostSudoers(target)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var bpfEvents []string
+	for event := range accessChecker.EnhancedRecordingSet() {
+		bpfEvents = append(bpfEvents, event)
+	}
+
+	hostUsersInfo, err := accessChecker.HostUsers(target)
+	if err != nil {
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// the way host user creation permissions currently work, an "access denied" just indicates
+		// that host user creation is disabled, and does not indicate that access should be disallowed.
+		// for the purposes of the decision service, we represent this disabled state as nil.
+		hostUsersInfo = nil
+	}
+
 	return &decisionpb.SSHAccessPermit{
-		ForwardAgent:         accessChecker.CheckAgentForward(osUser) == nil,
-		X11Forwarding:        accessChecker.PermitX11Forwarding(),
-		MaxConnections:       accessChecker.MaxConnections(),
-		SshFileCopy:          accessChecker.CanCopyFiles(),
-		PortForwardMode:      accessChecker.SSHPortForwardMode(),
-		ClientIdleTimeout:    durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
-		SessionRecordingMode: string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
-		LockingMode:          string(accessChecker.LockingMode(authPref.GetLockingMode())),
-		PrivateKeyPolicy:     string(privateKeyPolicy),
-		LockTargets:          decision.LockTargetsToProto(lockTargets),
+		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
+		X11Forwarding:         accessChecker.PermitX11Forwarding(),
+		MaxConnections:        accessChecker.MaxConnections(),
+		MaxSessions:           accessChecker.MaxSessions(),
+		SshFileCopy:           accessChecker.CanCopyFiles(),
+		PortForwardMode:       accessChecker.SSHPortForwardMode(),
+		ClientIdleTimeout:     durationFromGoDuration(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
+		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident)),
+		SessionRecordingMode:  string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
+		LockingMode:           string(accessChecker.LockingMode(authPref.GetLockingMode())),
+		PrivateKeyPolicy:      string(privateKeyPolicy),
+		LockTargets:           decision.LockTargetsToProto(lockTargets),
+		MappedRoles:           accessInfo.Roles,
+		HostSudoers:           hostSudoers,
+		BpfEvents:             bpfEvents,
+		HostUsersInfo:         hostUsersInfo,
 		// TODO(fspmarshall): fully replace all uses of `AccessChecker` with permit fields
 	}, nil
 }
@@ -921,4 +953,47 @@ func durationFromGoDuration(d time.Duration) *durationpb.Duration {
 		return nil
 	}
 	return durationpb.New(d)
+}
+
+func getDisconnectExpiredCertFromSSHIdentity(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity *sshca.Identity,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		return time.Time{}
+	}
+
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.GetValidBefore()
+}
+
+func timestampToGoTime(t *timestamppb.Timestamp) time.Time {
+	// nil or "zero" Timestamps are mapped to Go's zero time (0-0-0 0:0.0) instead
+	// of unix epoch. The latter avoids problems with tooling (eg, Terraform) that
+	// sets structs to their defaults instead of using nil.
+	if t == nil || (t.Seconds == 0 && t.Nanos == 0) {
+		return time.Time{}
+	}
+	return t.AsTime()
+}
+
+func timestampFromGoTime(t time.Time) *timestamppb.Timestamp {
+	if t.IsZero() {
+		return nil
+	}
+	return timestamppb.New(t)
 }

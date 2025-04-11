@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -1158,13 +1159,19 @@ func TestMaxSessions(t *testing.T) {
 	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
+	// create a new client connection to the node which will have its permissions
+	// calculated with the updated rules.
+	clientConn, err := tracessh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
+	require.NoError(t, err)
+	defer clientConn.Close()
+
 	for i := int64(0); i < maxSessions; i++ {
-		se, err := f.ssh.clt.NewSession(ctx)
+		se, err := clientConn.NewSession(ctx)
 		require.NoError(t, err)
 		defer se.Close()
 	}
 
-	_, err = f.ssh.clt.NewSession(ctx)
+	_, err = clientConn.NewSession(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "too many session channels")
 
@@ -3358,13 +3365,17 @@ func TestHostUserCreationProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = reg.WriteSudoersFile(srv.IdentityContext{
-		AccessChecker: &fakeAccessChecker{},
+		AccessPermit: &decisionpb.SSHAccessPermit{
+			HostSudoers: []string{"test1", "test2", "test3"},
+		},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, sudoers.writeAttempts)
 
 	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
-		AccessChecker: &fakeAccessChecker{},
+		AccessPermit: &decisionpb.SSHAccessPermit{
+			HostSudoers: []string{"test1", "test2", "test3"},
+		},
 	}, srv.ObtainFallbackUIDFunc(nil))
 	assert.NoError(t, err)
 	assert.Empty(t, usersBackend.calls, 0)
@@ -3489,8 +3500,8 @@ func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
 	return []string{"test1", "test2", "test3"}, nil
 }
 
-func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
-	return &services.HostUsersInfo{}, nil
+func (f *fakeAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInfo, error) {
+	return &decisionpb.HostUsersInfo{}, nil
 }
 
 type fakeHostSudoers struct {
@@ -3520,7 +3531,7 @@ func (f *fakeHostUsersBackend) functionCalled(name string) {
 	f.calls[name]++
 }
 
-func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo decisionpb.HostUsersInfo, takeOwnership bool) (io.Closer, error) {
 	f.functionCalled("UpsertUser")
 	return nil, trace.NotImplemented("")
 }

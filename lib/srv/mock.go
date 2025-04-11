@@ -33,6 +33,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -51,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
-func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -83,10 +84,11 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			UnmappedIdentity: ident,
 			Login:            usr.Username,
 			TeleportUser:     "teleportUser",
+			AccessPermit:     accessPermit,
 			// roles do not actually exist in mock backend, just need a non-nil
-			// access checker to avoid panic
-			AccessChecker: services.NewAccessCheckerWithRoleSet(
-				&services.AccessInfo{Roles: roleSet.RoleNames()}, clusterName, roleSet),
+			// session joining access checker to avoid panic
+			UnstableSessionJoiningAccessChecker: services.NewAccessCheckerWithRoleSet(
+				&services.AccessInfo{Roles: sessionJoiningRoleSet.RoleNames()}, clusterName, sessionJoiningRoleSet),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,

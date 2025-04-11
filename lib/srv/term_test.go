@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -88,7 +89,7 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	t.Parallel()
 
 	srv := newMockServer(t)
-	scx := newTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
 
 	shPath, err := exec.LookPath("sh")
 	require.NoError(t, err)
