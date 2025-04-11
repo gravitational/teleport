@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing" //nolint:depguard // this a shared test package
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require" //nolint:depguard // this a shared test package
 
@@ -33,7 +34,14 @@ import (
 type pluginOption func(*pluginOptions)
 
 type pluginOptions struct {
+	orgUrl       string
 	syncSettings *types.PluginOktaSyncSettings
+}
+
+func WithOrgUrl(orgUrl string) pluginOption {
+	return func(pluginOpts *pluginOptions) {
+		pluginOpts.orgUrl = orgUrl
+	}
 }
 
 func WithSyncSettings(syncSettings *types.PluginOktaSyncSettings) pluginOption {
@@ -46,7 +54,9 @@ func WithSyncSettings(syncSettings *types.PluginOktaSyncSettings) pluginOption {
 func NewPlugin(t *testing.T, opts ...pluginOption) *types.PluginV1 {
 	t.Helper()
 
-	pluginOpts := &pluginOptions{}
+	pluginOpts := &pluginOptions{
+		orgUrl: "https://okta.example.com",
+	}
 	for _, opt := range opts {
 		opt(pluginOpts)
 	}
@@ -58,7 +68,7 @@ func NewPlugin(t *testing.T, opts ...pluginOption) *types.PluginV1 {
 		types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Okta{
 				Okta: &types.PluginOktaSettings{
-					OrgUrl:       "https://okta.example.com",
+					OrgUrl:       pluginOpts.orgUrl,
 					SyncSettings: pluginOpts.syncSettings,
 				},
 			},
@@ -66,7 +76,7 @@ func NewPlugin(t *testing.T, opts ...pluginOption) *types.PluginV1 {
 		&types.PluginCredentialsV1{
 			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
 				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
-					Labels: map[string]string{"test-cred-key": "test-cred-value"},
+					Labels: map[string]string{"test-cred-key": "test-cred-value-" + uuid.NewString()},
 				},
 			},
 		},
