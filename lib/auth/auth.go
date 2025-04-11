@@ -5563,6 +5563,8 @@ func (a *Server) submitAccessReview(
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
 	}
 
+	// TODO(kiosion): Do we need any additional validation here for long-term reqs?
+
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

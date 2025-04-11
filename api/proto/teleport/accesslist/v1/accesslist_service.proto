@@ -89,6 +89,9 @@ service AccessListService {
   // AccessRequestPromote promotes an access request to an access list.
   rpc AccessRequestPromote(AccessRequestPromoteRequest) returns (AccessRequestPromoteResponse);
 
+  // AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+  rpc AccessRequestLongTermApprove(AccessRequestLongTermApproveRequest) returns (AccessRequestLongTermApproveResponse);
+
   // GetSuggestedAccessLists returns suggested access lists for an access
   // request.
   rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
@@ -399,6 +402,24 @@ message AccessRequestPromoteRequest {
 // AccessRequestPromoteResponse is the response for promoting an access request
 // to an access list.
 message AccessRequestPromoteResponse {
+  // AccessRequest is the updated access request.
+  types.AccessRequestV3 access_request = 1;
+}
+
+// AccessRequestLongTermApproveRequest is the request for approving a long-term
+// access request and adding the requester to the relevant access list.
+message AccessRequestLongTermApproveRequest {
+  // RequestID is the unique ID of the request to be promoted.
+  string request_id = 1;
+  // AccessListName is the name of the access list to promote the request to.
+  string access_list_name = 2;
+  // Reason is the access request review reason.
+  string reason = 3;
+}
+
+// AccessRequestLongTermApproveResponse is the response for approving a long-term
+// access request and adding the requester to the relevant access list.
+message AccessRequestLongTermApproveResponse {
   // AccessRequest is the updated access request.
   types.AccessRequestV3 access_request = 1;
 }

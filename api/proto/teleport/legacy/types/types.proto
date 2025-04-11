@@ -2806,6 +2806,9 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expiry,omitempty"
   ];
+
+  // LongTerm is a flag indicating that the request is for long-term access.
+  bool LongTerm = 23 [(gogoproto.jsontag) = "long_term,omitempty"];
 }
 
 enum AccessRequestScope {
