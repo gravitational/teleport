@@ -999,7 +999,9 @@ func (s *Service) GetAccessGraphSettings(ctx context.Context, _ *clusterconfigpb
 	}
 
 	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+		if !authz.HasBuiltinRole(*authzCtx, string("Proxy")) {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	cfg, err := s.readOnlyCache.GetReadOnlyAccessGraphSettings(ctx)
@@ -1057,7 +1059,9 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 	}
 
 	if err := authzCtx.CheckAccessToKind(types.KindAccessGraphSettings, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
+		if !authz.HasBuiltinRole(*authzCtx, string("Proxy")) {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
