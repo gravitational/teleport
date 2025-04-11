@@ -31,7 +31,6 @@ import (
 	"text/template"
 
 	"github.com/google/renameio/v2"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
@@ -208,27 +207,6 @@ func (ns *Namespace) Init() (lockFile string, err error) {
 		return "", trace.Wrap(err)
 	}
 	return filepath.Join(ns.Dir(), lockFileName), nil
-}
-
-// EnsureID ensures the updater ID file is present, creating it if it does not exist.
-// EnsureID always returns the path to the updater ID file.
-func (ns *Namespace) EnsureID() (path string, err error) {
-	_, err = os.Lstat(ns.updaterIDFile)
-	if errors.Is(err, fs.ErrNotExist) {
-		id, err := uuid.NewRandom()
-		if err != nil {
-			return ns.updaterIDFile, trace.Wrap(err)
-		}
-		err = renameio.WriteFile(ns.updaterIDFile, []byte(id.String()), configFileMode)
-		if err != nil {
-			return ns.updaterIDFile, trace.Wrap(err)
-		}
-		return ns.updaterIDFile, nil
-	}
-	if err != nil {
-		return ns.updaterIDFile, trace.Wrap(err)
-	}
-	return ns.updaterIDFile, nil
 }
 
 // Setup installs service and timer files for the teleport-update binary.
