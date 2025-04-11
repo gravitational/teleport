@@ -57,12 +57,12 @@ beforeEach(() => {
 
 test('adding and removing sections', async () => {
   render(<TestStandardEditor originalRole={newRoleWithYaml(newRole())} />);
-  expect(getAllSectionNames()).toEqual(['Role Metadata']);
+  expect(getAllSectionNames()).toEqual(['Role Information']);
   await user.click(getTabByName('Resources'));
   expect(getAllSectionNames()).toEqual([]);
 
   await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',
@@ -77,7 +77,7 @@ test('adding and removing sections', async () => {
   expect(getAllSectionNames()).toEqual(['Servers']);
 
   await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
     'Kubernetes',
@@ -116,12 +116,12 @@ test('collapsed sections still apply validation', async () => {
   // Intentionally cause a validation error.
   await user.clear(screen.getByLabelText('Role Name *'));
   // Collapse the section.
-  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
+  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).not.toHaveBeenCalled();
 
   // Expand the section, make it valid.
-  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
+  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
   await user.type(screen.getByLabelText('Role Name *'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
@@ -147,6 +147,46 @@ test('invisible tabs still apply validation', async () => {
   await user.type(screen.getByLabelText('Role Name *'), 'foo');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
+});
+
+test('hidden validation errors should not propagate to tab headings', async () => {
+  const onSave = jest.fn();
+  render(
+    <TestStandardEditor
+      originalRole={newRoleWithYaml(newRole())}
+      onSave={onSave}
+    />
+  );
+  // Intentionally cause a validation error.
+  await user.clear(screen.getByLabelText('Role Name *'));
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+  expect(onSave).not.toHaveBeenCalled();
+
+  // Switch to the Resources tab. Add a new section and make it invalid.
+  await user.click(getTabByName('Resources'));
+  await user.click(
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
+  );
+  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+
+  // Switch to the Admin Rules tab. Add a new section (it's invalid by
+  // default).
+  await user.click(getTabByName('Admin Rules'));
+  await user.click(screen.getByRole('button', { name: 'Add New' }));
+
+  // Switch back. The newly invalid tabs should not bear the invalid indicator,
+  // as the section has its validation errors hidden.
+  await user.click(getTabByName('Invalid data Overview'));
+  expect(getTabByName('Resources')).toBeInTheDocument();
+  expect(getTabByName('Admin Rules')).toBeInTheDocument();
+
+  // Attempt to save, causing global validation. Now the invalid tabs should be
+  // marked as invalid.
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+  expect(getTabByName('Invalid data Resources')).toBeInTheDocument();
+  expect(getTabByName('Invalid data Admin Rules')).toBeInTheDocument();
+  expect(onSave).not.toHaveBeenCalled();
 });
 
 test('edits metadata', async () => {
@@ -176,7 +216,7 @@ test('edits resource access', async () => {
   );
   await user.click(getTabByName('Resources'));
   await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   await selectEvent.create(screen.getByLabelText('Logins'), 'ec2-user', {
@@ -197,17 +237,19 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   await selectEvent.select(screen.getByLabelText('Version'), 'v6');
   await user.click(getTabByName('Resources'));
   await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
-  await user.click(screen.getByRole('button', { name: 'Add a Resource' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
+  );
   await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
 
   // Adding a second resource to make sure that we don't run into attempting to
   // modify an immer-frozen object. This might happen if the reducer tried to
   // modify resources that were already there.
   await user.click(
-    screen.getByRole('button', { name: 'Add Another Resource' })
+    screen.getByRole('button', { name: 'Add Another Kubernetes Resource' })
   );
   await selectEvent.select(screen.getAllByLabelText('Kind')[1], 'Pod');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
@@ -280,7 +322,7 @@ test('tab-level validation when creating a new role', async () => {
 
   // Break the validation and attempt switching tabs.
   await user.click(
-    screen.getByRole('button', { name: 'Add New Resource Access' })
+    screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
@@ -301,7 +343,7 @@ const getAllMenuItemNames = () =>
   screen.queryAllByRole('menuitem').map(m => m.textContent);
 
 const getAllSectionNames = () =>
-  screen.queryAllByRole('heading', { level: 3 }).map(m => m.textContent);
+  screen.queryAllByRole('heading', { level: 3 }).map(m => m.textContent.trim());
 
 const getTabByName = (name: string) => screen.getByRole('tab', { name });
 

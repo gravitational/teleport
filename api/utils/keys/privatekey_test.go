@@ -32,6 +32,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,13 +55,14 @@ func TestMarshalAndParseKey(t *testing.T) {
 			require.NoError(t, err)
 			gotKey, err := ParsePrivateKey(keyPEM)
 			require.NoError(t, err)
-			require.Equal(t, key, gotKey.Signer)
+			assert.Empty(t, cmp.Diff(key, gotKey.Signer), "parsed private key is not equal to the original")
 
 			pubKeyPEM, err := MarshalPublicKey(key.Public())
 			require.NoError(t, err)
 			gotPubKey, err := ParsePublicKey(pubKeyPEM)
 			require.NoError(t, err)
 			require.Equal(t, key.Public(), gotPubKey)
+			assert.Empty(t, cmp.Diff(key.Public(), gotPubKey), "parsed public key is not equal to the original")
 		})
 	}
 }

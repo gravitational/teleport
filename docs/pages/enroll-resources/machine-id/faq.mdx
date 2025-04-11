@@ -108,3 +108,23 @@ Refer to the
 [CLI reference](../../reference/cli/tbot.mdx#tbot-start-kubernetesv2) and
 [config reference](../../reference/machine-id/configuration.mdx#kubernetesv2)
 for more information.
+
+## Does `tbot` support Windows?
+
+Yes, the `tbot` binary is available for Windows. It can be found in the client
+tools archive that also includes `tsh` and `tctl`. See the
+[Installing Teleport guide](../../installation.mdx) for further information.
+
+However, there are a few limitations to be aware of:
+
+- Functionality that relies on Unix Domain Sockets (e.g. SSH multiplexer,
+  SPIFFE Workload API etc.) is not available.
+- Functionality relating to the configuration of Symlink protection on directory
+  destinations is not available.
+- Functionality relating to the management of ACLs on directory destinations is
+  not available.
+- Most delegated join methods are unlikely to function correctly.
+
+In some circumstances, it can be more practical to run `tbot` within Windows
+Subsystem for Linux rather than running it natively on Windows. This will depend
+on where the tools that will consume the output of `tbot` are running.

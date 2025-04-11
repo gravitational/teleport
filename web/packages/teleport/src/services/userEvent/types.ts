@@ -38,9 +38,6 @@ export enum CaptureEvent {
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
   PreUserRecoveryCodesCopyClickEvent = 'tp.ui.recoveryCodesCopy.click',
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
-
-  // Shared types; used in both pre-user and authenticated user settings
-  OnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
 }
 
 /**

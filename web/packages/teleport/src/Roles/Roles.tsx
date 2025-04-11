@@ -27,6 +27,12 @@ import {
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
@@ -36,12 +42,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import {
-  InfoExternalTextLink,
-  InfoGuideWrapper,
-  InfoParagraph,
-  ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
@@ -194,9 +194,9 @@ export function Roles(props: State & RolesProps) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <InfoGuideWrapper guide={<InfoGuide />}>
+        <InfoGuideButton config={{ guide: <InfoGuide /> }}>
           <HoverTooltip
-            position="bottom"
+            placement="bottom"
             tipContent={
               !canCreate ? (
                 <MissingPermissionsTooltip
@@ -224,7 +224,7 @@ export function Roles(props: State & RolesProps) {
               Create New Role
             </Button>
           </HoverTooltip>
-        </InfoGuideWrapper>
+        </InfoGuideButton>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
         <Alert children={serverSidePagination.attempt.statusText} />

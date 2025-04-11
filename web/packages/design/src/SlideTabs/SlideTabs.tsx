@@ -104,7 +104,7 @@ export function SlideTabs({
             <HoverTooltip
               key={key}
               tipContent={tooltipContent}
-              position={tooltipPosition}
+              placement={tooltipPosition}
             >
               <TabButton
                 ref={selected ? activeTab : undefined}

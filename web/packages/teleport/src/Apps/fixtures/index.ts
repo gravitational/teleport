@@ -81,6 +81,19 @@ export const awsIamIcAccountApp = makeApp({
   fqdn: 'https://console.aws.amazon.com',
 });
 
+export const tcpApp = makeApp({
+  name: 'tcp-app',
+  uri: 'tcp://localhost:5678',
+  publicAddr: 'tcp-app.teleport.example.com',
+  fqdn: 'tcp-app.teleport.example.com',
+  description: 'This is a TCP app',
+  labels: [
+    { name: 'env', value: 'dev' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+});
+
 export const apps = [
   {
     name: 'Jenkins',
@@ -212,17 +225,6 @@ export const apps = [
     fqdn: 'mattermost.one',
   },
   {
-    name: 'TCP',
-    uri: 'tcp://some-address',
-    publicAddr: '',
-    description: 'This is a TCP app',
-    labels: [
-      { name: 'env', value: 'dev' },
-      { name: 'cluster', value: 'one' },
-    ],
-    clusterId: 'one',
-  },
-  {
     name: 'Cloud',
     uri: 'cloud://some-address',
     publicAddr: '',
@@ -257,7 +259,7 @@ export const apps = [
     fqdn: 'https://console.aws.amazon.com',
   },
 ].map(makeApp);
-apps.push(awsConsoleApp, awsIamIcAccountApp);
+apps.push(awsConsoleApp, awsIamIcAccountApp, tcpApp);
 
 export const gcpCloudApp = makeApp({
   name: 'cloud-app',

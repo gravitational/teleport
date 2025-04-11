@@ -608,6 +608,19 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
 			)
 			services = append(services, svc)
+		case *config.WorkloadIdentityAWSRAService:
+			svc := &WorkloadIdentityAWSRAService{
+				botCfg:            b.cfg,
+				cfg:               svcCfg,
+				resolver:          resolver,
+				botAuthClient:     b.botIdentitySvc.GetClient(),
+				getBotIdentity:    b.botIdentitySvc.GetIdentity,
+				reloadBroadcaster: reloadBroadcaster,
+			}
+			svc.log = b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
+			)
+			services = append(services, svc)
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}

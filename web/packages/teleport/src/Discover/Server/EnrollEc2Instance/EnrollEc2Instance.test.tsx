@@ -25,6 +25,7 @@ import {
   screen,
   userEvent,
 } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -553,11 +554,13 @@ function renderEc2Instances(
       ]}
     >
       <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <EnrollEc2Instance />
-          </DiscoverProvider>
-        </FeaturesContextProvider>
+        <InfoGuidePanelProvider>
+          <FeaturesContextProvider value={[]}>
+            <DiscoverProvider mockCtx={discoverCtx}>
+              <EnrollEc2Instance />
+            </DiscoverProvider>
+          </FeaturesContextProvider>
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </MemoryRouter>
   );

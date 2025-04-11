@@ -5,7 +5,7 @@
     "build-ui": "pnpm build-ui-oss && pnpm build-ui-e",
     "build-ui-oss": "pnpm --filter=@gravitational/teleport build",
     "build-ui-e": "pnpm --filter=@gravitational/teleport.e build",
-    "build-wasm": "pnpm --filter=@gravitational/teleport build-wasm",
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
     "start-teleport": "pnpm --filter=@gravitational/teleport start",
     "start-teleport-e": "pnpm --filter=@gravitational/teleport.e start",
     "build-term": "pnpm --filter=@gravitational/teleterm build",
@@ -37,9 +37,11 @@
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@ianvs/prettier-plugin-sort-imports": "^4.4.0",
+    "@storybook/addon-actions": "^8.3.4",
     "@storybook/addon-controls": "^8.3.4",
     "@storybook/addon-toolbars": "^8.3.4",
     "@storybook/components": "^8.3.4",
+    "@storybook/preview-api": "^8.3.4",
     "@storybook/react": "^8.3.4",
     "@storybook/react-vite": "^8.3.4",
     "@storybook/test-runner": "^0.19.1",
@@ -60,6 +62,7 @@
     "jsdom-testing-mocks": "^1.13.1",
     "msw": "^2.4.9",
     "msw-storybook-addon": "^2.0.3",
+    "node-gyp": "11.0.0",
     "playwright": "^1.47.2",
     "prettier": "^3.3.3",
     "react-select-event": "^5.5.1",
@@ -71,11 +74,13 @@
     "@codemirror/autocomplete": "^6.18.1",
     "@codemirror/lang-sql": "^6.7.1",
     "@codemirror/view": "^6.34.1",
+    "@floating-ui/react": "^0.27.5",
     "@grpc/grpc-js": "1.11.3",
     "@lezer/highlight": "^1.2.1",
     "@nivo/bar": "^0.87.0",
     "@protobuf-ts/runtime": "^2.9.4",
     "@protobuf-ts/runtime-rpc": "^2.9.4",
+    "@tanstack/react-query": "^5.69.0",
     "@uiw/codemirror-themes": "^4.23.3",
     "@uiw/react-codemirror": "^4.23.3",
     "d3-scale": "^4.0.2",
@@ -103,7 +108,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.6.5+sha512.cdf928fca20832cd59ec53826492b7dc25dc524d4370b6b4adbf65803d32efaa6c1c88147c0ae4e8d579a6c9eec715757b50d4fa35eea179d868eada4ed043af",
+  "packageManager": "pnpm@10.7.0+sha512.6b865ad4b62a1d9842b61d674a393903b871d9244954f652b8842c2b553c72176b278f64c463e52d40fff8aba385c235c8c9ecf5cc7de4fd78b8bb6d49633ab6",
   "engines": {
     "node": "^20"
   }

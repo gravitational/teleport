@@ -29,19 +29,19 @@ import {
   Text,
 } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  InfoUl,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import {
-  InfoExternalTextLink,
-  InfoGuideWrapper,
-  InfoParagraph,
-  InfoUl,
-  ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 
 import UserAddEdit from './UserAddEdit';
@@ -102,7 +102,7 @@ export function Users(props: State) {
           <Flex gap={2}>
             {!InviteCollaborators && (
               <HoverTooltip
-                position="bottom"
+                placement="bottom"
                 tipContent={
                   !isMissingPermissions ? (
                     ''
@@ -158,7 +158,7 @@ export function Users(props: State) {
                 Enroll Users
               </Button>
             )}
-            <InfoGuideWrapper guide={<InfoGuide />} />
+            <InfoGuideButton config={{ guide: <InfoGuide /> }} />
           </Flex>
         )}
       </FeatureHeader>

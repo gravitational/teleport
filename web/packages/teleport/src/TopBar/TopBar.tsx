@@ -21,8 +21,7 @@ import { matchPath, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
-import { Flex, Image, TopNav } from 'design';
-import { Theme } from 'design/theme/themes/types';
+import { breakpointsPx, Flex, Image, TopNav } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
 import { logos } from 'teleport/components/LogoHero/LogoHero';
@@ -39,7 +38,6 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   const history = useHistory();
   const features = useFeatures();
   const { currentWidth } = useLayout();
-  const theme: Theme = useTheme();
 
   // find active feature
   const feature = features.find(
@@ -52,7 +50,7 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   );
 
   const iconSize =
-    currentWidth >= theme.breakpoints.medium
+    currentWidth >= breakpointsPx.medium
       ? navigationIconSizeMedium
       : navigationIconSizeSmall;
 
@@ -82,7 +80,7 @@ export const TopBarContainer = styled(TopNav)`
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[1]};
 
   height: ${p => p.theme.topBarHeight[0]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     height: ${p => p.theme.topBarHeight[1]}px;
   }
 `;
@@ -93,16 +91,15 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
 
   return (
     <HoverTooltip
-      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      placement="bottom"
       tipContent="Teleport Resources Home"
       css={`
         height: 100%;
         margin-right: 0px;
-        @media screen and (min-width: ${p => p.theme.breakpoints.medium}px) {
+        @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
           margin-right: 76px;
         }
-        @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
           margin-right: 67px;
         }
       `}
@@ -131,14 +128,12 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
               padding-left: ${props => props.theme.space[3]}px;
               padding-right: ${props => props.theme.space[3]}px;
               height: 18px;
-              @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.small}px) {
+              @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
                 height: 28px;
                 padding-left: ${props => props.theme.space[4]}px;
                 padding-right: ${props => props.theme.space[4]}px;
               }
-              @media screen and (min-width: ${p =>
-                  p.theme.breakpoints.large}px) {
+              @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
                 height: 30px;
               }
             `}

@@ -7,6 +7,13 @@ spec:
     enabled: true
     pinned: false
 status:
+    id_file: updater-id-file
+    last_update:
+        success: true
+        time: 2025-01-01T00:00:00Z
+        target:
+            version: 16.3.0
+            flags: [Enterprise, FIPS]
     active:
         version: 16.3.0
         flags: [Enterprise, FIPS]

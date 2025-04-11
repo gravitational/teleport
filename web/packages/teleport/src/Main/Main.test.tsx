@@ -20,12 +20,12 @@ import { MemoryRouter } from 'react-router';
 
 import { ListThin } from 'design/Icon';
 import { fireEvent, render, screen } from 'design/utils/testing';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
 import { Context, ContextProvider } from 'teleport';
 import { apps } from 'teleport/Apps/fixtures';
 import { events } from 'teleport/Audit/fixtures';
 import { clusters } from 'teleport/Clusters/fixtures';
-import { InfoGuideWrapper } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel/InfoGuideSidePanel';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { getOSSFeatures } from 'teleport/features';
@@ -62,36 +62,13 @@ const setupContext = (): TeleportContext => {
   return ctx;
 };
 
-test('displays questionnaire if present', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-  const ctx = setupContext();
-
-  const props: MainProps = {
-    features: getOSSFeatures(),
-    Questionnaire: () => <div>Passed Component!</div>,
-  };
-
-  render(
-    <MemoryRouter>
-      <LayoutContextProvider>
-        <ContextProvider ctx={ctx}>
-          <Main {...props} />
-        </ContextProvider>
-      </LayoutContextProvider>
-    </MemoryRouter>
-  );
-
-  expect(screen.getByText('Passed Component!')).toBeInTheDocument();
-});
-
-test('renders without questionnaire prop', () => {
+test('renders', () => {
   mockUserContextProviderWith(makeTestUserContext());
   const ctx = setupContext();
 
   const props: MainProps = {
     features: getOSSFeatures(),
   };
-  expect(props.Questionnaire).toBeUndefined();
 
   render(
     <MemoryRouter>
@@ -190,9 +167,9 @@ test('renders without invite collaborators feedback enabled', () => {
 const TestInfoGuide = () => {
   return (
     <div>
-      <InfoGuideWrapper guide={<div>I am the guide</div>}>
+      <InfoGuideButton config={{ guide: <div>I am the guide</div> }}>
         Info Guide Title
-      </InfoGuideWrapper>
+      </InfoGuideButton>
     </div>
   );
 };

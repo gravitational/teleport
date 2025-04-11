@@ -285,7 +285,7 @@ export function StepTwoWithActionBtns(
               lines={[{ text: createBashCommand(joinToken.id) }]}
             />
           </StyledBox>
-          <Box width="800px">{hint}</Box>
+          {hint}
         </>
       )}
       <ActionButtons

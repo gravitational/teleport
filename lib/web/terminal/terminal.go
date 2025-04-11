@@ -196,7 +196,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 
 				handler, ok := t.handlers[envelope.Type]
 				if !ok {
-					t.log.Warnf("Received web socket envelope with unknown type %v", envelope.Type)
+					t.log.Warnf("Received web socket envelope with unknown type %v", envelope)
 					continue
 				}
 

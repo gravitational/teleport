@@ -22,6 +22,10 @@ const crypt = require('crypto');
 const path = require('path');
 
 const failOnConsole = require('jest-fail-on-console');
+const { configMocks } = require('jsdom-testing-mocks');
+const { act } = require('react');
+
+configMocks({ act });
 
 let entFailOnConsoleIgnoreList = [];
 try {
@@ -39,12 +43,6 @@ Object.defineProperty(globalThis, 'crypto', {
     randomUUID: () => crypt.randomUUID(),
   },
 });
-
-global.ResizeObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn(),
-}));
 
 const rootDir = path.join(__dirname, '..', '..', '..', '..');
 // Do not add new paths to this list, instead fix the underlying problem which causes console.error

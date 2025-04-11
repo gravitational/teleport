@@ -20,7 +20,7 @@ import { formatDistanceStrict } from 'date-fns';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Card, Flex, H2, Text } from 'design';
+import { Card, Flex, H2, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
@@ -37,20 +37,23 @@ export enum AwsResource {
   rds = 'rds',
 }
 
+type Item = 'clusters' | 'databases' | 'instances';
+
 type StatCardProps = {
   name: string;
+  item: Item;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
 };
 
-export function StatCard({ name, resource, summary }: StatCardProps) {
+export function StatCard({ name, item, resource, summary }: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
   const term = getResourceTerm(resource);
 
   if (!summary || !foundResource(summary)) {
-    return <EnrollCard resource={resource} />;
+    return <EnrollCard resource={resource} item={item} />;
   }
 
   return (
@@ -69,10 +72,14 @@ export function StatCard({ name, resource, summary }: StatCardProps) {
         minHeight="220px"
       >
         <Flex flexDirection="column" gap={2}>
-          <Flex alignItems="center" mb={2}>
+          <Flex alignItems="center">
             <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
             <H2>{resource.toUpperCase()}</H2>
           </Flex>
+          <P2 mb={2}>
+            Auto enrolled {resource.toUpperCase()} {item} matching configured
+            labels
+          </P2>
           <Flex justifyContent="space-between" data-testid="rules">
             <Text>Enrollment Rules </Text>
             <Text>{summary?.rulesCount || 0}</Text>
