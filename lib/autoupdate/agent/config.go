@@ -73,8 +73,6 @@ type UpdateSpec struct {
 
 // UpdateStatus describes the status field in update.yaml.
 type UpdateStatus struct {
-	// IDFile is the path to a temporary file containing the updater ID.
-	IDFile string `yaml:"id_file,omitempty"`
 	// LastUpdate status, if attempted
 	LastUpdate *LastUpdate `yaml:"last_update,omitempty"`
 	// Active is the currently active revision of Teleport.

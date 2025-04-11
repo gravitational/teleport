@@ -1980,6 +1980,61 @@ func TestUpdater_Setup(t *testing.T) {
 	}
 }
 
+func TestUpdaterID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		tid      string
+		mid      string
+		res      string
+		errMatch string
+	}{
+		{
+			name:     "no ids",
+			errMatch: "empty",
+		},
+		{
+			name: "both ids",
+			tid:  "test1",
+			mid:  "test2",
+			res:  "f14944f5-167f-5c0d-82f0-01cbe0b355c6",
+		},
+		{
+			name: "tid",
+			tid:  "test1",
+			res:  "493aa649-f89a-5817-a92b-25d8b6dd5315",
+		},
+		{
+			name: "tid matching mid",
+			mid:  "test1",
+			res:  "373fe2fd-d218-5055-8f9b-e3b7c75ff3a1",
+		},
+		{
+			name: "mid",
+			mid:  "test2",
+			res:  "38d124a2-3f5d-511c-b7be-912d5bffd454",
+		},
+		{
+			name: "mid matching tid",
+			tid:  "test2",
+			res:  "f7abad68-c118-5aa2-af6e-5ac85b32b6bd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := UpdaterID(tt.tid, tt.mid)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.res, s)
+		})
+	}
+}
+
 var serverRegexp = regexp.MustCompile("127.0.0.1:[0-9]+")
 
 func blankTestAddr(s []byte) []byte {
