@@ -167,9 +167,18 @@ From the outline:
 
 */}
 
-### Test disaster recovery procedure to make sure it works.   
+### Test your disaster recovery procedure
 
-{/*TODO: Common causes of failure:   
-      - misconfigured IAM settings  
-      - incorrectly configured backend URLs in the Auth Service configuration*/}
+We strongly recommended testing your disaster recovery plan. Schedule time to
+stop your Teleport cluster in one region and redeploy in another one using your
+backup of the Auth Service cluster state backend, then ensure that users can
+continue to connect to Teleport-protected resources.
 
+Common causes of disaster recovery failures include:
+- **Misconfigured IAM settings:** The Teleport Auth Service in your first region
+  can access its backend, for example, but in the second region, the Auth
+  Service has a role with insufficient permissions.
+- **Misconfigured backend connections:** The Teleport Auth Service is configured
+  with an incorrect cluster state backend URL in the new region, meaning that
+  when it starts up, it fails to retrieve its existing CAs and dynamic
+  resources, and bootstraps instead with a self-signed certificate.
