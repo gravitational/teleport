@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -65,9 +66,9 @@ type Config struct {
 	Events types.Events
 
 	// FailFast mode indicates that the access monitor should fail fast instead
-	// of restarting indefinitely. Fail fast mode should only be used within a plugin
-	// environment. See https://github.com/gravitational/teleport/pull/30039 for
-	// more details
+	// of restarting indefinitely. Fail fast mode should only be used within a
+	// plugin environment. See https://github.com/gravitational/teleport/pull/30039
+	// for more details.
 	// TODO(bernardjkim): Investigate if fail fast mode is still required.
 	FailFast bool
 }
@@ -157,15 +158,22 @@ func (s *AccessMonitor) Run(ctx context.Context) error {
 }
 
 func (s *AccessMonitor) run(ctx context.Context) error {
+	// AllowPartialSuccess is set to true because previous versions of access
+	// monitoring plugins did not require permissions to read access monitoring rule.
+	// TODO(bernardjkim): Migrate users onto access monitoring rules and disallow
+	// partial success.
+	const allowPartialSuccessTrue = true
+
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+
 	// Initialize the watcher.
-	const allowPartialSuccessFalse = false
 	watcher, err := s.cfg.Events.NewWatcher(ctx, types.Watch{
-		Name: componentName,
-		Kinds: []types.WatchKind{
-			{Kind: types.KindAccessRequest},
-			{Kind: types.KindAccessMonitoringRule},
-		},
-		AllowPartialSuccess: allowPartialSuccessFalse,
+		Name:                componentName,
+		Kinds:               watchKinds,
+		AllowPartialSuccess: allowPartialSuccessTrue,
 	})
 	if err != nil {
 		return trace.Wrap(err, "failed to create watcher")
@@ -177,12 +185,34 @@ func (s *AccessMonitor) run(ctx context.Context) error {
 	}()
 
 	// Watcher is open, expect init event.
-	// Not inspecting WatchStatus because ParitalSuccess is not allowed.
 	select {
 	case initEvent := <-watcher.Events():
 		if initEvent.Type != types.OpInit {
 			return trace.BadParameter("watcher yielded %[1]v (%[1]d) as first event, expected Init (this is a bug)", initEvent.Type)
 		}
+
+		// Must verify watcher status while AllowPartialSuccess is true.
+		watchStatus, ok := initEvent.Resource.(types.WatchStatus)
+		if !ok {
+			return trace.BadParameter("unexpected init event resource type %T", initEvent.Resource)
+		}
+		confirmedWatchKinds := make([]string, 0, len(watchKinds))
+		for _, watchKind := range watchStatus.GetKinds() {
+			confirmedWatchKinds = append(confirmedWatchKinds, watchKind.Kind)
+		}
+		if len(confirmedWatchKinds) == 0 {
+			return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+				watchKinds)
+		}
+
+		// Check if KindAccessMonitoringRule resources are being watched,
+		// the plugin role may not have access.
+		if !slices.Contains(confirmedWatchKinds, types.KindAccessMonitoringRule) {
+			s.cfg.Logger.WarnContext(ctx, "Failed to watch access_monitoring_rule events. "+
+				"Allow access_monitoring_rule read permissions in the plugin role.")
+			break
+		}
+
 		// Initialize the access monitoring rule handler caches.
 		if err := handleEvent(ctx, s.ruleHandlers, initEvent); err != nil {
 			return trace.Wrap(err, "failed to initialize access monitoring rule handler")

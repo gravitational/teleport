@@ -153,6 +153,7 @@ func TestAccessRequest(t *testing.T) {
 		Type: types.OpInit,
 		Resource: types.NewWatchStatus(
 			[]types.WatchKind{
+				{Kind: types.KindAccessMonitoringRule},
 				{Kind: types.KindAccessRequest},
 			},
 		),
