@@ -618,6 +618,10 @@ const (
 	// teleport.workloadidentity.v1.X509IssuerOverride.
 	KindWorkloadIdentityX509IssuerOverride = "workload_identity_x509_issuer_override"
 
+	// KindWorkloadIdentityX509IssuerOverrideCSR is the pseudo-kind representing
+	// the act of signing CSRs on behalf of the SPIFFE CA (with [VerbCreate]).
+	KindWorkloadIdentityX509IssuerOverrideCSR = "workload_identity_x509_issuer_override_csr"
+
 	// KindSigstorePolicy is the kind of teleport.workloadidentity.v1.SigstorePolicy.
 	KindSigstorePolicy = "sigstore_policy"
 

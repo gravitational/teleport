@@ -85,6 +85,7 @@ require (
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.9.1
 	github.com/beevik/etree v1.5.0
 	github.com/buildkite/bintest/v3 v3.3.0
+	github.com/charlievieth/strcase v0.0.5
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/huh v0.6.0
@@ -307,7 +308,6 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
-	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
