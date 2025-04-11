@@ -81,40 +81,43 @@ test('adding and removing sections', async () => {
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
-    'Kubernetes',
-    'Servers',
-    'Applications',
-    'Databases',
-    'Windows Desktops',
-    'GitHub Organizations',
+    'Kubernetes Access',
+    'SSH Server Access',
+    'Application Access',
+    'Database Access',
+    'Windows Desktop Access',
+    'GitHub Organization Access',
   ]);
 
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
-  expect(getAllSectionNames()).toEqual(['Servers']);
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
+  expect(getAllSectionNames()).toEqual(['SSH Server Access']);
 
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
   expect(getAllMenuItemNames()).toEqual([
-    'Kubernetes',
-    'Applications',
-    'Databases',
-    'Windows Desktops',
-    'GitHub Organizations',
+    'Kubernetes Access',
+    'Application Access',
+    'Database Access',
+    'Windows Desktop Access',
+    'GitHub Organization Access',
   ]);
 
-  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
-  expect(getAllSectionNames()).toEqual(['Servers', 'Kubernetes']);
+  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes Access' }));
+  expect(getAllSectionNames()).toEqual([
+    'SSH Server Access',
+    'Kubernetes Access',
+  ]);
 
   await user.click(
-    within(getSectionByName('Servers')).getByRole('button', {
+    within(getSectionByName('SSH Server Access')).getByRole('button', {
       name: 'Remove section',
     })
   );
-  expect(getAllSectionNames()).toEqual(['Kubernetes']);
+  expect(getAllSectionNames()).toEqual(['Kubernetes Access']);
 
   await user.click(
-    within(getSectionByName('Kubernetes')).getByRole('button', {
+    within(getSectionByName('Kubernetes Access')).getByRole('button', {
       name: 'Remove section',
     })
   );
@@ -165,7 +168,7 @@ test('hidden validation errors should not propagate to tab headings', async () =
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
 
   // Switch to the Admin Rules tab. Add a new section (it's invalid by
@@ -216,7 +219,7 @@ test('edits resource access', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
   await selectEvent.create(screen.getByLabelText('Logins'), 'ec2-user', {
     createOptionText: 'Login: ec2-user',
   });
@@ -237,7 +240,7 @@ test('triggers v6 validation for Kubernetes resources', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes' }));
+  await user.click(screen.getByRole('menuitem', { name: 'Kubernetes Access' }));
   await user.click(
     screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
   );
@@ -322,7 +325,7 @@ test('tab-level validation when creating a new role', async () => {
   await user.click(
     screen.getByRole('button', { name: 'Add Teleport Resource Access' })
   );
-  await user.click(screen.getByRole('menuitem', { name: 'Servers' }));
+  await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
   await user.click(screen.getByRole('button', { name: 'Add a Label' }));
   // The form should not be validating until we try to switch to the next tab.
   expect(screen.getByPlaceholderText('label key')).toHaveAccessibleDescription(
