@@ -637,6 +637,20 @@ Of the above, only some of them will be set by Teleport:
 - Issuer Common Name: Teleport cluster name
 - Not After: this will be set based on the user's current session expiration
 
+```
+      Certificate:
+      Data:
+          Version: 3 (0x2)
+          Serial Number:
+              1f:71:c5:11:4a:11:9f:c0:cc:5a:5a:52:fb:37:20:ad
+      Signature Algorithm: sha256WithRSAEncryption
+          Issuer: CN=<TeleportClusterName>
+          Validity
+              Not Before: Apr 11 10:00:00 2025 GMT
+              Not After : Apr 11 22:00:00 2025 GMT
+          Subject: CN=<TeleportUsername>
+```
+
 ### AWS Session creation
 When a client tool (Web UI or `tsh`) asks for a new AWS Session, Teleport Auth Service will generate the certificate, call `rolesanywhere.CreateSession` and exchange the certificate for AWS credentials.
 
