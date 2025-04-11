@@ -80,12 +80,11 @@ func TestGetAgentVersion(t *testing.T) {
 				err := channel.CheckAndSetDefaults()
 				require.NoError(t, err)
 			}
-			releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: channel}
 
-			version, err := GetKubeAgentVersion(ctx, p, tt.clusterFeatures, releaseChannels)
+			result, err := GetKubeAgentVersion(ctx, p, tt.clusterFeatures, channel)
 
 			tt.errorAssert(t, err)
-			require.Equal(t, tt.expectedVersion, version)
+			require.Equal(t, tt.expectedVersion, result)
 		})
 	}
 }

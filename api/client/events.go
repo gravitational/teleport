@@ -85,6 +85,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_AutoUpdateVersion{
 				AutoUpdateVersion: r,
 			}
+		case *autoupdate.AutoUpdateAgentRollout:
+			out.Resource = &proto.Event_AutoUpdateAgentRollout{
+				AutoUpdateAgentRollout: r,
+			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
 		}
@@ -517,6 +521,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateVersion(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateAgentRollout(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {
