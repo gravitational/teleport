@@ -810,7 +810,7 @@ const requireText = (value: string, requireReason: boolean) => () => {
 
 const SidePanel = styled(Box)`
   position: absolute;
-  z-index: 11;
+  z-index: 100;
   top: 0px;
   right: 0px;
   background: ${({ theme }) => theme.colors.levels.sunken};
