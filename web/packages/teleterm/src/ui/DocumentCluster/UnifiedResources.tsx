@@ -65,6 +65,7 @@ import {
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
   ConnectServerActionButton,
+  ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
 import { useResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
@@ -438,6 +439,10 @@ const Resources = memo(
             kind: 'kube_cluster',
             disabled: false,
           },
+          {
+            kind: 'windows_desktop',
+            disabled: false,
+          },
         ]}
         NoResources={
           <NoResources
@@ -527,6 +532,25 @@ const mapToSharedResource = (
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,
+        },
+      };
+    }
+    case 'windows_desktop': {
+      const { resource: desktop } = resource;
+
+      return {
+        resource: {
+          kind: 'windows_desktop' as const,
+          os: 'windows',
+          labels: desktop.labels,
+          addr: desktop.addr,
+          name: desktop.name,
+          requiresRequest: resource.requiresRequest,
+        },
+        ui: {
+          ActionButton: (
+            <ConnectWindowsDesktopActionButton windowsDesktop={desktop} />
+          ),
         },
       };
     }

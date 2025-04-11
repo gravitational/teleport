@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,11 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export * from './documentsService';
-export * from './types';
-export * from './documentsUtils';
-export * from './connectToDatabase';
-export * from './connectToServer';
-export * from './connectToKube';
-export * from './connectToApp';
-export * from './connectToWindowsDesktop';
+import { IAppContext } from 'teleterm/ui/types';
+import { WindowsDesktopUri } from 'teleterm/ui/uri';
+
+import { DocumentOrigin } from './types';
+
+export async function connectToWindowsDesktop(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ctx: IAppContext,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  target: {
+    uri: WindowsDesktopUri;
+    login: string;
+  },
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  telemetry: {
+    origin: DocumentOrigin;
+  }
+): Promise<void> {
+  alert('To be implemented');
+}

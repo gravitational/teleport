@@ -30,6 +30,7 @@ import {
   makeLabelsList,
   makeRootCluster,
   makeServer,
+  makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { routing } from 'teleterm/ui/uri';
@@ -468,6 +469,45 @@ const SearchResultItems = () => {
           'im-just-a-smol': 'kube',
           kube: 'kubersson',
           with: 'little-to-no-labels',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'windows_desktop',
+      requiresRequest: false,
+      resource: makeWindowsDesktop({
+        uri: `${clusterUri}/windowsDesktops/long-name`,
+        name: 'super-long-windows-desktop-name-with-uuid-7a96e498-88ec-442f-a25b-569fa9150123c',
+        labels: makeLabelsList({
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          windowsDesktops: 'custom-windows-list',
+          with: 'little-to-no-labels',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'windows_desktop',
+      resource: makeWindowsDesktop({
+        uri: `${clusterUri}/windowsDesktops/long-label-list`,
+        name: 'long-label-list',
+        labels: makeLabelsList({
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          'aws/Name': 'db-bastion-4-13biz',
+          windowsDesktops: 'custom-windows-list',
+          with: 'little-to-no-labels',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'windows_desktop',
+      requiresRequest: true,
+      resource: makeWindowsDesktop({
+        uri: `${clusterUri}/windowsDesktops/short-label-list`,
+        name: 'short-label-list',
+        labels: makeLabelsList({
+          'im-just-a-smol': 'win',
         }),
       }),
     }),
