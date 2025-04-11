@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +56,10 @@ type ProfileStore interface {
 	// SaveProfile saves the given profile. If makeCurrent
 	// is true, it makes this profile current.
 	SaveProfile(profile *profile.Profile, setCurrent bool) error
+
+	// DeleteProfile deletes the given profile. If it is the
+	// current profile, it also deletes that record.
+	DeleteProfile(profileName string) error
 }
 
 // MemProfileStore is an in-memory implementation of ProfileStore.
@@ -107,6 +112,21 @@ func (ms *MemProfileStore) SaveProfile(profile *profile.Profile, makecurrent boo
 	return nil
 }
 
+// DeleteProfile deletes the given profile. If it is the
+// current profile, it also deletes that record.
+func (ms *MemProfileStore) DeleteProfile(profileName string) error {
+	if _, ok := ms.profiles[profileName]; !ok {
+		return trace.NotFound("profile for proxy host %q not found", profileName)
+	}
+
+	if ms.currentProfile == profileName {
+		ms.currentProfile = ""
+	}
+
+	delete(ms.profiles, profileName)
+	return nil
+}
+
 // FSProfileStore is an on-disk implementation of the ProfileStore interface.
 //
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
@@ -138,11 +158,26 @@ func (fs *FSProfileStore) CurrentProfile() (string, error) {
 
 // ListProfiles returns a list of all profiles.
 func (fs *FSProfileStore) ListProfiles() ([]string, error) {
-	profileNames, err := profile.ListProfileNames(fs.Dir)
+	files, err := os.ReadDir(fs.Dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return profileNames, nil
+
+	var names []string
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if file.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		names = append(names, strings.TrimSuffix(file.Name(), ".yaml"))
+	}
+	return names, nil
 }
 
 // GetProfile returns the requested profile.
@@ -163,6 +198,24 @@ func (fs *FSProfileStore) SaveProfile(profile *profile.Profile, makeCurrent bool
 
 	err := profile.SaveToDir(fs.Dir, makeCurrent)
 	return trace.Wrap(err)
+}
+
+// DeleteProfile deletes the given profile. If it is the
+// current profile, it also deletes that record.
+func (fs *FSProfileStore) DeleteProfile(profileName string) error {
+	if _, err := profile.FromDir(fs.Dir, profileName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if current, err := fs.CurrentProfile(); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	} else if current == profileName {
+		if err := os.Remove(keypaths.CurrentProfileFilePath(fs.Dir)); err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	}
+
+	return trace.ConvertSystemError(os.Remove(keypaths.ProfileFilePath(fs.Dir, profileName)))
 }
 
 // ProfileStatus combines metadata from the logged in profile and associated
