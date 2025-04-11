@@ -33,6 +33,7 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
+import "teleport/lib/teleterm/v1/windows_desktop.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
 import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
@@ -622,6 +623,7 @@ message PaginatedResource {
     Server server = 2;
     Kube kube = 3;
     App app = 4;
+    WindowsDesktop windows_desktop = 6;
   }
   bool requires_request = 5;
 }

@@ -36,6 +36,7 @@ var supportedResourceKinds = []string{
 	types.KindKubernetesCluster,
 	types.KindApp,
 	types.KindSAMLIdPServiceProvider,
+	types.KindWindowsDesktop,
 }
 
 func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
@@ -51,6 +52,7 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 	}
 
 	req.Kinds = kinds
+	req.IncludeLogins = true
 	enrichedResources, nextKey, err := apiclient.GetUnifiedResourcePage(ctx, client, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -118,6 +120,15 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 				},
 				RequiresRequest: requiresRequest,
 			})
+		case types.WindowsDesktop:
+			response.Resources = append(response.Resources, UnifiedResource{
+				WindowsDesktop: &clusters.WindowsDesktop{
+					URI:            cluster.URI.AppendWindowsDesktop(r.GetName()),
+					WindowsDesktop: r,
+					Logins:         enrichedResource.Logins,
+				},
+				RequiresRequest: requiresRequest,
+			})
 		}
 	}
 
@@ -137,5 +148,6 @@ type UnifiedResource struct {
 	Kube                   *clusters.Kube
 	App                    *clusters.App
 	SAMLIdPServiceProvider *clusters.SAMLIdPServiceProvider
+	WindowsDesktop         *clusters.WindowsDesktop
 	RequiresRequest        bool
 }

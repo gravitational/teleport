@@ -39,6 +39,8 @@ export type SearchResultKube =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultKube>;
 export type SearchResultApp =
   ResourceSearchResultBase<resourcesServiceTypes.SearchResultApp>;
+export type SearchResultWindowsDesktop =
+  ResourceSearchResultBase<resourcesServiceTypes.SearchResultWindowsDesktop>;
 export type SearchResultCluster = {
   kind: 'cluster-filter';
   resource: Cluster;
@@ -66,7 +68,8 @@ export type ResourceSearchResult =
   | SearchResultServer
   | SearchResultDatabase
   | SearchResultKube
-  | SearchResultApp;
+  | SearchResultApp
+  | SearchResultWindowsDesktop;
 
 export type FilterSearchResult = SearchResultResourceType | SearchResultCluster;
 
@@ -102,6 +105,7 @@ export const mainResourceField: {
   database: 'name',
   kube: 'name',
   app: 'name',
+  windows_desktop: 'name',
 } as const;
 
 // The usage of Exclude here is a workaround to make sure that the fields in the array point only to
@@ -118,6 +122,7 @@ export const searchableFields: {
   // The friendly name is constructed *after* fetching apps, but since it is
   // made from the value of a label, the server-side search can find it.
   app: ['name', 'friendlyName', 'desc', 'addrWithProtocol'],
+  windows_desktop: ['name', 'addr'],
 } as const;
 
 export interface ResourceTypeSearchFilter {

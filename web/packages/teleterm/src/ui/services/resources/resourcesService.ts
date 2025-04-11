@@ -17,12 +17,14 @@
  */
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 
 import {
   resourceOneOfIsApp,
   resourceOneOfIsDatabase,
   resourceOneOfIsKube,
   resourceOneOfIsServer,
+  resourceOneOfIsWindowsDesktop,
 } from 'teleterm/helpers';
 import Logger from 'teleterm/logger';
 import type { TshdClient } from 'teleterm/services/tshd';
@@ -166,6 +168,14 @@ export class ResourcesService {
             };
           }
 
+          if (resourceOneOfIsWindowsDesktop(p.resource)) {
+            return {
+              kind: 'windows_desktop' as const,
+              resource: p.resource.windowsDesktop,
+              requiresRequest: p.requiresRequest,
+            };
+          }
+
           this.logger.info(
             `Ignoring unsupported resource ${JSON.stringify(p)}.`
           );
@@ -234,12 +244,18 @@ export type SearchResultApp = {
   resource: App & { addrWithProtocol: string };
   requiresRequest: boolean;
 };
+export type SearchResultWindowsDesktop = {
+  kind: 'windows_desktop';
+  resource: WindowsDesktop;
+  requiresRequest: boolean;
+};
 
 export type SearchResult =
   | SearchResultServer
   | SearchResultDatabase
   | SearchResultKube
-  | SearchResultApp;
+  | SearchResultApp
+  | SearchResultWindowsDesktop;
 
 export type SearchResultResource<Kind extends SearchResult['kind']> =
   Kind extends 'server'
@@ -250,7 +266,9 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
         ? SearchResultDatabase['resource']
         : Kind extends 'kube'
           ? SearchResultKube['resource']
-          : never;
+          : Kind extends 'windows_desktop'
+            ? SearchResultWindowsDesktop['resource']
+            : never;
 
 function makeGetResourcesParamsRequest(params: types.GetResourcesParams) {
   return {
@@ -273,4 +291,9 @@ export type UnifiedResourceResponse =
       requiresRequest: boolean;
     }
   | { kind: 'kube'; resource: types.Kube; requiresRequest: boolean }
-  | { kind: 'app'; resource: App; requiresRequest: boolean };
+  | { kind: 'app'; resource: App; requiresRequest: boolean }
+  | {
+      kind: 'windows_desktop';
+      resource: WindowsDesktop;
+      requiresRequest: boolean;
+    };
