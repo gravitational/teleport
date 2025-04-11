@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -77,6 +78,14 @@ func (idx KeyIndex) Match(matchKey KeyIndex) bool {
 	return (matchKey.ProxyHost == "" || matchKey.ProxyHost == idx.ProxyHost) &&
 		(matchKey.ClusterName == "" || matchKey.ClusterName == idx.ClusterName) &&
 		(matchKey.Username == "" || matchKey.Username == idx.Username)
+}
+
+func (idx KeyIndex) contextualKeyInfo() hardwarekey.ContextualKeyInfo {
+	return hardwarekey.ContextualKeyInfo{
+		ProxyHost:   idx.ProxyHost,
+		Username:    idx.Username,
+		ClusterName: idx.ClusterName,
+	}
 }
 
 // Key describes a complete (signed) client key

@@ -372,7 +372,7 @@ func (fs *FSKeyStore) GetKey(idx KeyIndex, hwks hardwarekey.Service, opts ...Cer
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks))
+	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(idx.contextualKeyInfo()))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}

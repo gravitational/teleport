@@ -39,7 +39,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -299,9 +298,6 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -336,9 +332,6 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -440,9 +433,6 @@ func TestRetryWithRelogin(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
-					return nil
-				},
 			})
 			require.NoError(t, err)
 
@@ -496,9 +486,6 @@ func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
