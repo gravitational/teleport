@@ -113,6 +113,7 @@ transfer rules. This is described in the multi-region blueprint.
 We need both S3 for recording, and Dynamo for events.*/}
 
 ### Auth Service/Proxy Service:   
+
 {/* TODO Make changes to the Helm values file to apply to the new region (e.g., change the region) */}
 {/* TODO Describe required IAM permissions for the Auth Service and Proxy Servicve  */}
 {/* TODO Kubernetes operator procedure Hugo: "The good thing is that the
@@ -120,7 +121,24 @@ operator should not attempt to takeover Teleport resource created from the other
 cluster if no CR exist. So I think it's OK to deploy with the operator. They
 will need to re-create all the CRs in Kube, else they will have dangling
 Teleport resources." */}
-{/* TODO: Rerun "helm install" in the new region. */}
+
+1. Install the `teleport-cluster` Helm chart using the new values:
+
+   ```code
+   $ helm install teleport-cluster teleport/teleport-cluster \
+     --version (=teleport.version=) \
+     --values teleport-cluster-values.yaml
+   ```
+
+1. After installing the `teleport-cluster` chart, wait a minute or so and ensure
+   that both the Auth Service and Proxy Service pods are running:
+
+   ```code
+   $ kubectl get pods
+   NAME                                      READY   STATUS    RESTARTS   AGE
+   teleport-cluster-auth-000000000-00000     1/1     Running   0          114s
+   teleport-cluster-proxy-0000000000-00000   1/1     Running   0          114s
+   ```
 
 ## Guidance  
 ### Recovery time objective  
