@@ -36,4 +36,20 @@ message X509IssuerOverride {
 }
 
 // The spec for X509IssuerOverride.
-message X509IssuerOverrideSpec {}
+message X509IssuerOverrideSpec {
+  // The override for a single issuer (i.e. a single X.509 certificate in a
+  // SPIFFE cert_authority).
+  message Override {
+    // ASN.1 DER certificate, not included by default in the chain.
+    bytes issuer = 1;
+    // ASN.1 DER certificate ordered from leaf to root as it should be presented
+    // by a client or server in a TLS connection. Must not include self-signed
+    // roots of trust.
+    repeated bytes chain = 2;
+  }
+
+  // A list of issuer overrides. The public key of each issuer must be unique
+  // across all overrides' issuers, and should match one of the keys in the
+  // cluster's SPIFFE certificate authority.
+  repeated Override overrides = 1;
+}

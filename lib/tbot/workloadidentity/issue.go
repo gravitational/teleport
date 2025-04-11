@@ -74,7 +74,8 @@ type authClient interface {
 }
 
 // IssueX509WorkloadIdentity uses a given client and selector to issue a single
-// or multiple X509-SVID workload identity credentials.
+// or multiple X509-SVID workload identity credentials. The returned credentials
+// may have a certificate chain that should be consumed and used appropriately.
 func IssueX509WorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
@@ -113,7 +114,8 @@ func IssueX509WorkloadIdentity(
 				Name: workloadIdentity.Name,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: pubBytes,
+						PublicKey:          pubBytes,
+						UseIssuerOverrides: true,
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
@@ -141,7 +143,8 @@ func IssueX509WorkloadIdentity(
 				LabelSelectors: labelSelectors,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: pubBytes,
+						PublicKey:          pubBytes,
+						UseIssuerOverrides: true,
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),

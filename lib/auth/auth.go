@@ -1058,6 +1058,10 @@ type Server struct {
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
 
+	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
+	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
+	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
+
 	inventory *inventory.Controller
 
 	pdp *decision.Service
@@ -7838,6 +7842,26 @@ func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Str
 		servers, err := resources.AsServers()
 		return servers, trace.Wrap(err)
 	})
+}
+
+// SetWorkloadIdentityX509CAOverrideGetter sets the underlying
+// [services.WorkloadIdentityX509CAOverrideGetter] used by the auth server for
+// the implementation of [Server.GetWorkloadIdentityX509CAOverride] (provided by
+// enterprise code). Not safe for concurrent access, so it should only be called
+// during setup.
+func (a *Server) SetWorkloadIdentityX509CAOverrideGetter(getter services.WorkloadIdentityX509CAOverrideGetter) {
+	a.workloadIdentityX509CAOverrideGetter = getter
+}
+
+// GetWorkloadIdentityX509CAOverride implements
+// [services.WorkloadIdentityX509CAOverrideGetter] by optionally delegating to
+// an underlying implementation (provided by enterprise code).
+func (a *Server) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	getter := a.workloadIdentityX509CAOverrideGetter
+	if getter == nil {
+		return ca, nil, nil
+	}
+	return getter.GetWorkloadIdentityX509CAOverride(ctx, name, ca)
 }
 
 // authKeepAliver is a keep aliver using auth server directly
