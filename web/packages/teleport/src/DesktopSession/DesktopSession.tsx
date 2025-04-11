@@ -27,6 +27,7 @@ import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
+import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import useWebAuthn, { WebAuthnState } from 'teleport/lib/useWebAuthn';
 import { getHostName } from 'teleport/services/api';
 
@@ -40,15 +41,17 @@ export function DesktopSession() {
   const [client] = useState(
     () =>
       //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
-      new TdpClient(
-        () =>
+      new TdpClient(abortSignal =>
+        adaptWebSocketToTdpTransport(
           new AuthenticatedWebSocket(
             cfg.api.desktopWsAddr
               .replace(':fqdn', getHostName())
               .replace(':clusterId', clusterId)
               .replace(':desktopName', desktopName)
               .replace(':username', username)
-          )
+          ),
+          abortSignal
+        )
       )
   );
   const webauthn = useWebAuthn(client);
