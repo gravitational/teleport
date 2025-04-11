@@ -65,20 +65,29 @@ restore a Teleport cluster with a new backend, and do not have a backup, you
 will need to configure cluster components, such as self-hosted databases
 protected by Teleport, to trust the new CAs.
 
+When executing the disaster recovery plan that we describe in this guide, the
+Teleport Auth Service becomes available in a new AWS region and connects to a
+cluster state backend with an existing backup. The main consideration for
+estimating a recovery point objective is how long it will take for the Teleport
+Auth Service to come online. Your Teleport cluster will lose state changes made
+between the last backup and the time the new Auth Service instances become
+available.
+
+You can also make a backup of your cluster state outside of the continuous
+DynamoDB backups by running the following commands. The following command
+assumes that the Teleport Auth Service runs in the `teleport` namespace in your
+EKS cluster:
+
+```code
+$ kubectl -n teleport exec -i deployment/teleport-cluster-auth -- tctl get all --with-secrets > state.yaml
+```
 
 {/*TODO: Hugo: "For KMS users, backing up their cluster might be harder than
 "tctl get all" once in a while, or running an hourly DynamoDB to s3 export. They
 must replicate the keys to the other region. See
 https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html" */}
 
-{/* TODO: Recovery point objective implications: changes made to the Teleport
-cluster during the time taken to complete the last backup would be lost on
-restore.*/}
-
-{/* TODO: Indicate that you can make a backup of cluster state outside DynamoDB
-by running "tctl get all –with-secrets"
-
-Hugo: "AFAIK, Unlike what its name says, "tctl get all" doesn't get call
+{/*Hugo: "AFAIK, Unlike what its name says, "tctl get all" doesn't get call
 resources in the backend. I'm not familiar with dynamo but I would expect many
 resources to go missing."*/}
 
