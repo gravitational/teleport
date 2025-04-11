@@ -924,7 +924,11 @@ type AWSKMS struct {
 	// MultiRegion contains configuration for multi-region AWS KMS.
 	MultiRegion struct {
 		// Enabled configures new keys to be multi-region.
-		Enabled bool
+		Enabled bool `yaml:"enabled"`
+		// PrimaryRegion is the region the primary key is located.
+		PrimaryRegion string `yaml:"primary_region"`
+		// ReplicaRegions is a list of regions keys will be replicated to.
+		ReplicaRegions []string `yaml:"replica_regions"`
 	} `yaml:"multi_region,omitempty"`
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
