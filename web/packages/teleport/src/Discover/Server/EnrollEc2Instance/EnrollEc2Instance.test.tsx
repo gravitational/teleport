@@ -25,6 +25,7 @@ import {
   screen,
   userEvent,
 } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -34,7 +35,6 @@ import {
   NodeMeta,
 } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { InfoGuidePanelProvider } from 'teleport/Main/InfoGuideContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import * as discoveryApi from 'teleport/services/discovery/discovery';
 import { DEFAULT_DISCOVERY_GROUP_NON_CLOUD } from 'teleport/services/discovery/discovery';
