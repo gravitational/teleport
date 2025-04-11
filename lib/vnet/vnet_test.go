@@ -918,9 +918,9 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	})
 
 	// Test writing the service credentials to and from disk as that's what
-	// really happens on Windows.
+	// really happens.
 	credDir := t.TempDir()
-	require.NoError(t, ipcCredentials.client.write(credDir), "writing service credentials to disk")
+	require.NoError(t, ipcCredentials.client.write(credDir, 0400), "writing service credentials to disk")
 	clientCreds, err := readCredentials(credDir)
 	require.NoError(t, err, "reading service credentials from disk")
 

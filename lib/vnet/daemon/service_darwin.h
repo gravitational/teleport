@@ -42,26 +42,15 @@ void DaemonStop(void);
 typedef struct VnetConfigResult {
   bool ok;
   const char *error_description;
-  const char *socket_path;
-  const char *ipv6_prefix;
-  const char *dns_addr;
-  const char *home_path;
+  const char *service_credential_path;
+  const char *client_application_service_addr;
 } VnetConfigResult;
-
-typedef struct ClientCred {
-  // valid is set if the euid and egid fields have been set.
-  bool valid;
-  // egid is the effective group ID of the process on the other side of the XPC connection.
-  gid_t egid;
-  // euid is the effective user ID of the process on the other side of the XPC connection.
-  uid_t euid;
-} ClientCred;
 
 // WaitForVnetConfig blocks until a client calls the daemon with a config necessary to start VNet.
 // It can be interrupted by calling DaemonStop.
 //
 // The caller is expected to check outResult.ok to see if the call succeeded and to free strings
 // in VnetConfigResult.
-void WaitForVnetConfig(VnetConfigResult *outResult, ClientCred *outClientCred);
+void WaitForVnetConfig(VnetConfigResult *outResult);
 
 #endif /* TELEPORT_LIB_VNET_DAEMON_SERVICE_DARWIN_H_ */
