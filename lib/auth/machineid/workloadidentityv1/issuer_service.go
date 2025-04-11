@@ -17,6 +17,7 @@
 package workloadidentityv1
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -148,7 +149,14 @@ func (s *IssuanceService) deriveAttrs(
 	return attrs, nil
 }
 
-var defaultMaxTTL = 24 * time.Hour
+const (
+	// defaultMaxTTL defines the max requestable TTL for SVIDs where the
+	// workload identity resource does not specify a maximum TTL.
+	defaultMaxTTL = 24 * time.Hour
+	// defaultTTL defines the TTL when a client has not requested a specific
+	// TTL.
+	defaultTTL = 1 * time.Hour
+)
 
 func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
@@ -444,16 +452,24 @@ func baseEvent(
 }
 
 func calculateTTL(
+	ctx context.Context,
+	log *slog.Logger,
 	clock clockwork.Clock,
 	requestedTTL time.Duration,
+	configuredMaxTTL time.Duration,
 ) (time.Time, time.Time, time.Time, time.Duration) {
-	ttl := time.Hour
-	if requestedTTL != 0 {
-		ttl = requestedTTL
-		if ttl > defaultMaxTTL {
-			ttl = defaultMaxTTL
-		}
+	ttl := cmp.Or(requestedTTL, defaultTTL)
+	maxTTL := cmp.Or(configuredMaxTTL, defaultMaxTTL)
+
+	if ttl > maxTTL {
+		log.InfoContext(
+			ctx,
+			"Requested SVID TTL exceeds maximum, using maximum instead",
+			"requested_ttl", ttl,
+			"max_ttl", maxTTL)
+		ttl = maxTTL
 	}
+
 	now := clock.Now()
 	notBefore := now.Add(-1 * time.Minute)
 	notAfter := now.Add(ttl)
@@ -485,7 +501,13 @@ func (s *IssuanceService) issueX509SVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	_, notBefore, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
+	_, notBefore, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		requestedTTL,
+		wid.GetSpec().GetSpiffe().GetX509().GetMaximumTtl().AsDuration(),
+	)
 
 	pubKey, err := x509.ParsePKIXPublicKey(params.PublicKey)
 	if err != nil {
@@ -612,7 +634,13 @@ func (s *IssuanceService) issueJWTSVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	now, _, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
+	now, _, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		requestedTTL,
+		wid.GetSpec().GetSpiffe().GetJwt().GetMaximumTtl().AsDuration(),
+	)
 
 	jti, err := utils.CryptoRandomHex(jtiLength)
 	if err != nil {

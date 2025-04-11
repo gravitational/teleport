@@ -29,19 +29,19 @@ import {
   Text,
 } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
-
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
 import {
   InfoExternalTextLink,
   InfoGuideButton,
   InfoParagraph,
   InfoUl,
   ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+
+import {
+  FeatureBox,
+  FeatureHeader,
+  FeatureHeaderTitle,
+} from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 
 import UserAddEdit from './UserAddEdit';

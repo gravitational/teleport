@@ -86,7 +86,7 @@ export const FetchError = () => (
 export const TdpError = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TDP_ERROR, new Error('some tdp error'));
+    client.emit(TdpClientEvent.ERROR, new Error('some tdp error'));
   };
 
   return <DesktopSession {...props} client={client} />;
@@ -99,7 +99,7 @@ export const Connected = () => {
 export const Disconnected = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.WS_CLOSE, 'session disconnected');
+    client.emit(TdpClientEvent.TRANSPORT_CLOSE, 'session disconnected');
   };
 
   return <DesktopSession {...props} client={client} />;
