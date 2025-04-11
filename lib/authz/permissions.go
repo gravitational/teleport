@@ -626,21 +626,22 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 }
 
 // ErrIPPinningMissing is returned when user cert should be pinned but isn't.
-var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+var ErrIPPinningMissing = &trace.AccessDeniedError{Message: "pinned IP is required for the user, but is not present on identity"}
 
 // ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
-var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
+var ErrIPPinningMismatch = &trace.AccessDeniedError{Message: "pinned IP doesn't match observed client IP"}
 
 // ErrIPPinningNotAllowed is returned when user's pinned IP doesn't match observed IP.
-var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections behind L4 load balancers with " +
-	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config.")
+var ErrIPPinningNotAllowed = &trace.AccessDeniedError{Message: "IP pinning is not allowed for connections that have been" +
+	"downgraded or are behind a L4 load balancers with PROXY protocol enabled without explicitly setting 'proxy_protocol: on'" +
+	"in the proxy_service and/or auth_service config."}
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
 func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
 	if identity.PinnedIP == "" {
 		if pinSourceIP {
-			return ErrIPPinningMissing
+			return trace.Wrap(ErrIPPinningMissing)
 		}
 		return nil
 	}
@@ -662,7 +663,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 				"pinned_ip": identity.PinnedIP,
 			}).Debug("Pinned IP and client IP mismatch")
 		}
-		return ErrIPPinningMismatch
+		return trace.Wrap(ErrIPPinningMismatch)
 	}
 	// If connection has port 0 it means it was marked by multiplexer's 'detect()' function as affected by unexpected PROXY header.
 	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
@@ -671,9 +672,10 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 			log.WithFields(logrus.Fields{
 				"client_ip": clientIP,
 				"pinned_ip": identity.PinnedIP,
-			}).Debug(ErrIPPinningNotAllowed.Error())
+				"error":     ErrIPPinningNotAllowed.Message,
+			}).Debug("client address is not allowed to use IP pinning")
 		}
-		return ErrIPPinningMismatch
+		return trace.Wrap(ErrIPPinningNotAllowed)
 	}
 
 	return nil
@@ -762,7 +764,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
-		return nil, ErrIPPinningMissing
+		return nil, trace.Wrap(ErrIPPinningMissing)
 	}
 
 	return &Context{
