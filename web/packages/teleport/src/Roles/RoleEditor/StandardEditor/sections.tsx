@@ -243,7 +243,7 @@ export const SectionBox = ({
       {/* This element is the one being animated when the section is expanded
           or collapsed. */}
       <ContentExpander
-        height={expansionState === ExpansionState.Expanded ? contentHeight : 0}
+        height={contentExpanderHeight(contentHeight, expansionState)}
         onTransitionEnd={handleContentExpanderTransitionEnd}
       >
         {/* This element is measured, so its size must reflect the size of
@@ -255,6 +255,19 @@ export const SectionBox = ({
     </Box>
   );
 };
+
+function contentExpanderHeight(
+  contentHeight: number,
+  expansionState: ExpansionState
+) {
+  // `contentHeight` is 0 when it's not yet known. In this case, don't
+  // explicitly set the height; it will only cause a spurious opening animation
+  // after the first measurement is made.
+  if (contentHeight === 0) {
+    return undefined;
+  }
+  return expansionState === ExpansionState.Expanded ? contentHeight : 0;
+}
 
 const Summary = styled(Flex).attrs({ as: 'summary' })`
   cursor: pointer;
