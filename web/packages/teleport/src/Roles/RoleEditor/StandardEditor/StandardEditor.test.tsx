@@ -60,7 +60,7 @@ beforeEach(() => {
   jest
     .spyOn(ResourceService.prototype, 'fetchRole')
     .mockImplementation(async name => {
-      // Pretend that we never have a name collision.
+      // Make sure that validation never fails because of a role name collision.
       throw new ApiError({
         message: `role ${name} is not found`,
         response: { status: 404 } as Response,

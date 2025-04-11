@@ -102,7 +102,7 @@ export type MetadataModel = {
    * Set to `true` when we detect an existing role with the same name. This is
    * for validation purposes only, but it's stored in the model, because our
    * validation framework doesn't currently have a native support for
-   * asynchronous validaiton. This flag is only being set if a new rule is
+   * asynchronous validation. This flag is only being set if a new rule is
    * being created.
    */
   nameCollision: boolean;
@@ -1335,7 +1335,8 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   const { name, description, revision, labels, version, ...mRest } =
     roleModel.metadata;
   // Compile-time assert that protects us from silently losing fields.
-  // `nameCollision` is the only field we don't care about.
+  // `nameCollision` is the only field we don't care about, since its only use
+  // is validation, and it's not expected to be included in the result.
   mRest satisfies { nameCollision: boolean };
 
   const role: Role = {

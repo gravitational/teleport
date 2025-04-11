@@ -26,7 +26,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { precomputed, requiredAll } from 'shared/components/Validation/rules';
-import { useAsync } from 'shared/hooks/useAsync';
+import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
@@ -51,50 +51,49 @@ export const MetadataSection = memo(
     const theme = useTheme();
     const { resourceService } = useTeleport();
 
-    // Verifies whether a role already exists with this name. This will be used
-    // to show a validation error if necessary.
-    const [, checkForNameCollisionNow] = useAsync(
-      useCallback(
-        async (name: string) => {
-          if (isEditing || name === '') {
-            return;
-          }
-          try {
-            await resourceService.fetchRole(name);
-            // `fetchRole` will throw an error if HTTP/404 is returned,
-            // indicating that there's no such role. If we end up here, it
-            // means that there is already a role with this name, so we need to
-            // report it back to the model.
-            //
-            // Compatibility note: if we hit a proxy that doesn't yet support
-            // this endpoint, we just get a 404 anyway, which simply means the
-            // validation won't work in this case, but it won't be a
-            // catastrophic failure; the user will just get their role rejected
-            // by the server and will see a server error instead.
-            dispatch({
-              type: ActionType.SetRoleNameCollision,
-              payload: true,
-            });
-          } catch (e) {
-            // If there's no such role, don't do anything. That's expected.
-            // Otherwise, print the exception, since it would be swallowed by
-            // `useAsync` anyway, and we don't use the returned attempt object.
-            if (!(e instanceof ApiError && e.response.status === 404)) {
-              console.error(e);
-            }
-          }
-        },
-        [resourceService, dispatch]
-      )
-    );
+    const [, fetchRole] = useAsync(resourceService.fetchRole);
 
-    // Getting callback caching right is especially important here, as we want
-    // always to use the correct version of `checkForNameCollisionNow`, but we
-    // also don't want to call `debounce` on every render, as it would defeat
-    // the purpose of debouncing altogether.
+    // Verifies whether a role already exists with this name and dispatches a
+    // validation error if necessary.
     const checkForNameCollision = useCallback(
-      debounce(checkForNameCollisionNow, 500),
-      [checkForNameCollisionNow]
+      debounce(async (name: string) => {
+        // When editing, it's obvious that we already have a role with the same
+        // name, and renaming is not allowed.
+        if (isEditing || name === '') {
+          return;
+        }
+        // The `fetchRole` function returns an ApiError (404) when there's no
+        // role with the same name.
+        //
+        // Compatibility note: if we hit a proxy that doesn't yet support this
+        // endpoint, we just get a 404 anyway, which simply means the
+        // validation won't work in this case, but it won't be a catastrophic
+        // failure; the user will just get their role rejected by the server
+        // and will see a server error instead.
+        const [, err] = await fetchRole(name);
+        if (!err) {
+          // No error means we have successfully fetched a role with the same
+          // name, so we have a collision.
+          dispatch({
+            type: ActionType.SetRoleNameCollision,
+            payload: true,
+          });
+        } else if (
+          !(
+            (err instanceof ApiError && err.response.status === 404) ||
+            err instanceof CanceledError
+          )
+        ) {
+          // If the exception we're getting is not the one we expect, print the
+          // exception, since we don't show it in the UI anyway.
+          console.error(err);
+        }
+      }, 500),
+      // Getting callback caching right is especially important here, as we want
+      // always to use the correct version of `checkForNameCollisionNow`, but we
+      // also don't want to call `debounce` on every render, as it would defeat
+      // the purpose of debouncing altogether.
+      [isEditing, fetchRole, dispatch]
     );
 
     useEffect(() => {
