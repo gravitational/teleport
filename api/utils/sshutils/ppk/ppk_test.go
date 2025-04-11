@@ -207,7 +207,7 @@ Private-MAC: a9b12c6450e46fd7abbaaff5841f8a64f9597c7b2b59bd69d6fd3ceee0ca61ea
 `),
 		},
 		{
-			desc: "ed25519 key",
+			desc: "ed25519 key 1",
 			priv: []byte(`-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz
 c2gtZWQyNTUxOQAAACBj4UfPX3B2yLRkt8ABGWiQGME1oY7N7K8yMTECt4HTvgAA
@@ -224,6 +224,30 @@ gdO+
 Private-Lines: 1
 AAAAIFbXWr+s7yhZWQkZVXSZ39DsxAySiKyPKop2T9oVCmVT
 Private-MAC: 69e26c50e92d520bef9a19913b54b9585bcadbc3ba8eb01eadf95c9c4e5e5f4e
+`),
+		},
+		{
+			// This key's seed starts with a leading 1 bit, which used to
+			// cause a bug encoding the seed as an mpint.
+			desc: "ed25519 key 2",
+			priv: []byte(`
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACC+PbGODK7f+aIyhHXYExqSaN26b+bodzSKrRY4bvCX6AAAAKCcQ9EinEPR
+IgAAAAtzc2gtZWQyNTUxOQAAACC+PbGODK7f+aIyhHXYExqSaN26b+bodzSKrRY4bvCX6A
+AAAEDT0lkOaN1jZVXk+x2geq78qUx19rCNglQn1DzVCmqBrb49sY4Mrt/5ojKEddgTGpJo
+3bpv5uh3NIqtFjhu8JfoAAAAGm5pY0BOaWNzLU1hY0Jvb2stUHJvLmxvY2FsAQID
+-----END OPENSSH PRIVATE KEY-----
+`),
+			output: []byte(`PuTTY-User-Key-File-3: ssh-ed25519
+Encryption: none
+Comment: teleport-generated-ppk
+Public-Lines: 2
+AAAAC3NzaC1lZDI1NTE5AAAAIL49sY4Mrt/5ojKEddgTGpJo3bpv5uh3NIqtFjhu
+8Jfo
+Private-Lines: 1
+AAAAINPSWQ5o3WNlVeT7HaB6rvypTHX2sI2CVCfUPNUKaoGt
+Private-MAC: cd5b491dd52aae808052b833067c2f792679d10cc94b4efef4a48ec6a730dd0a
 `),
 		},
 		{
@@ -258,7 +282,7 @@ Private-MAC: 6e788dafd452d27c17d062add28113d59d03a20898ea89046e3809fe38832861
 
 			output, err := priv.PPKFile()
 			require.NoError(t, err)
-			require.Equal(t, output, tc.output)
+			require.Equal(t, string(tc.output), string(output))
 		})
 	}
 }

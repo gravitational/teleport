@@ -164,7 +164,12 @@ func writeEd25519PrivateKey(w io.Writer, privateKey ed25519.PrivateKey) error {
 	// mpint: the private exponent, which is the discrete log of the public point.
 	//
 	// crypto/ed25519 calls the private exponent the seed.
-	return trace.Wrap(writeRFC4251Mpint(w, new(big.Int).SetBytes(privateKey.Seed())))
+	// The doc linked above claims this should be an mpint, but the code tells
+	// another story. This must be a fixed-length byte string. The difference
+	// from mpint is we must not add a leading 0 if the first bit of the key is
+	// a 1.
+	// https://git.tartarus.org/?p=simon/putty.git;a=blob;f=crypto/ecc-ssh.c;h=e524dfc4c80f132535c791bfda6c11c15f79eed4;hb=HEAD#l796
+	return trace.Wrap(writeRFC4251String(w, privateKey.Seed()))
 }
 
 func writeRFC4251Mpints(w io.Writer, ints ...*big.Int) error {
