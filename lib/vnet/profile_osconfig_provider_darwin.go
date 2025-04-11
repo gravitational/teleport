@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
@@ -59,8 +60,13 @@ func newProfileOSConfigProvider(tunName, ipv6Prefix, dnsAddr, homePath string, d
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(Joerger): CLIPrompt shouldn't work here if this is being run in the background
+	// from Teleport Connect. Do we need to connect to the daemon service to use that prompt
+	// mechanism?
+	hwKeyService := piv.NewYubiKeyService(nil /*prompt*/)
+
 	p := &profileOSConfigProvider{
-		clientStore:        client.NewFSClientStore(homePath),
+		clientStore:        client.NewFSClientStore(homePath, client.WithHardwareKeyService(hwKeyService)),
 		clusterConfigCache: NewClusterConfigCache(clockwork.NewRealClock()),
 		daemonClientCred:   daemonClientCred,
 		tunName:            tunName,
