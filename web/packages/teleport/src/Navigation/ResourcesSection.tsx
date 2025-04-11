@@ -44,6 +44,7 @@ import {
   PoweredByTeleportLogo,
   RightPanel,
   RightPanelHeader,
+  SectionFooter,
   SubsectionItem,
   verticalPadding,
 } from './Section';
@@ -387,11 +388,10 @@ export function ResourcesSection({
                 </SubsectionItem>
               ))}
           </Box>
-          {showPoweredByLogo && <PoweredByTeleportLogo />}
-          {cfg.edition === 'oss' && !showPoweredByLogo && <AGPLFooter />}
-          {cfg.edition === 'community' && !showPoweredByLogo && (
-            <CommunityFooter />
-          )}
+          <SectionFooter
+            showPoweredByLogo={showPoweredByLogo}
+            edition={cfg.edition}
+          />
         </Flex>
       </RightPanel>
     </CustomChildrenSection>

@@ -142,11 +142,10 @@ export function DefaultSection({
                 </SubsectionItem>
               ))}
           </Box>
-          {showPoweredByLogo && <PoweredByTeleportLogo />}
-          {cfg.edition === 'oss' && !showPoweredByLogo && <AGPLFooter />}
-          {cfg.edition === 'community' && !showPoweredByLogo && (
-            <CommunityFooter />
-          )}
+          <SectionFooter
+            showPoweredByLogo={showPoweredByLogo}
+            edition={cfg.edition}
+          />
         </Flex>
       </RightPanel>
     </>
@@ -453,7 +452,7 @@ export function getSubsectionStyles(theme: Theme, active: boolean) {
   `;
 }
 
-export function AGPLFooter() {
+function AGPLFooter() {
   const theme = useTheme();
   return (
     <LicenseFooter
@@ -481,7 +480,7 @@ export function AGPLFooter() {
   );
 }
 
-export function CommunityFooter() {
+function CommunityFooter() {
   const theme = useTheme();
   return (
     <LicenseFooter
@@ -526,7 +525,7 @@ function LicenseFooter({
   );
 }
 
-export function PoweredByTeleportLogo() {
+function PoweredByTeleportLogo() {
   const theme = useTheme();
   const src = theme.type === 'dark' ? logoPoweredByDark : logoPoweredByLight;
   return (
@@ -538,15 +537,24 @@ export function PoweredByTeleportLogo() {
         border: none;
       `}
     >
-      <Image
-        src={src}
-        width="fit-content"
-        alt="powered by teleport logo"
-        css={`
-          height: 26px;
-        `}
-      />
+      <Image src={src} maxWidth="100%" alt="powered by teleport" />
     </StyledFooterBox>
+  );
+}
+
+export function SectionFooter({
+  showPoweredByLogo = false,
+  edition,
+}: {
+  showPoweredByLogo: boolean;
+  edition: string;
+}) {
+  return (
+    <>
+      {showPoweredByLogo && <PoweredByTeleportLogo />}
+      {edition === 'oss' && !showPoweredByLogo && <AGPLFooter />}
+      {edition === 'community' && !showPoweredByLogo && <CommunityFooter />}
+    </>
   );
 }
 
