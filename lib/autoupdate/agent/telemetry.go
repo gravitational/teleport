@@ -19,7 +19,6 @@
 package agent
 
 import (
-	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
 	"os"
 	"path/filepath"
@@ -109,13 +108,11 @@ func hasParentDir(dir, parent string) (bool, error) {
 	return strings.HasPrefix(absDir, absParent), nil
 }
 
-type UpdaterInfo struct {
-	Group  string
-	UUID   uuid.UUID
-	Status proto.UpdaterStatus
-}
-
-func HelloUpdaterInfo() (*proto.UpdaterV2Info, error) {
+// ReadHelloUpdaterInfo reads the updater config and generates a proto.UpdaterV2Info
+// that can be reported in the inventory hello message.
+// This function performs io operations, its usage must be cached
+// (the downstream inventory handler does this for us).
+func ReadHelloUpdaterInfo() (*proto.UpdaterV2Info, error) {
 	info := &proto.UpdaterV2Info{}
 
 	configPath := os.Getenv(updateConfigPathEnvVar)
