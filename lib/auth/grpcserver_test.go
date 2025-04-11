@@ -79,7 +79,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -4171,7 +4170,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installers.LegacyDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4179,7 +4178,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			name:            "new default installers",
 			hasAgentRollout: true,
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.NewDefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installers.NewDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4190,7 +4189,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			},
 			expectedInstallers: map[string]string{
 				"my-custom-installer":                   "echo test",
-				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installers.LegacyDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
