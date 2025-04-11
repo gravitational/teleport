@@ -1352,6 +1352,7 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	agentWindow, _ := cmc.GetAgentUpgradeWindow()
 
 	agentWindow.UTCStartHour = uint32(startHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
