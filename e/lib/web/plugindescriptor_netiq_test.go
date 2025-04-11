@@ -98,7 +98,7 @@ func TestNetIQPluginInstall(t *testing.T) {
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
 
 	// When I invoke the installer via the web interface...
-	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
+	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -120,7 +120,6 @@ func TestNetIQPluginInstall(t *testing.T) {
 				"identityVaultPassword": {testCase.identityVaultPassword},
 				"oAuthClientID":         {testCase.oAuthClientID},
 				"oAuthClientSecret":     {testCase.oAuthClientSecret},
-				"csrf_token":            {webPack.csrfToken},
 			}
 
 			if testCase.insecureSkipVerify {

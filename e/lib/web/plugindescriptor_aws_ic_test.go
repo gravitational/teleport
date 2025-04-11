@@ -90,11 +90,10 @@ func TestAWSICCreatePlugin(t *testing.T) {
 		respContains: "",
 	})
 
-	installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugin")
+	installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			form := maps.Clone(tc.form)
-			form.Set("csrf_token", aPack.csrfToken)
 			resp, err := aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, form)
 			require.NoError(t, err)
 			require.Equal(t, tc.statusCode, resp.Code())
@@ -195,10 +194,9 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 	t.Run("cleanup before plugin is created", func(t *testing.T) {
 		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
 		ictestenv.CreateICResources(t, ctx, client, testData, string(identitycenter.IdentityCenterDownstreamID))
-		createPluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin")
+		createPluginEndpoint := aPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 		form := installRequestURLValues(t)
-		form.Set("csrf_token", aPack.csrfToken)
 		resp, err := aPack.clt.PostForm(wSuite.ctx, createPluginEndpoint, form)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.Code())
@@ -258,7 +256,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 
 	t.Run("cleanup after plugin is deleted", func(t *testing.T) {
 		ictestenv.CreateAWSOIDCIntegration(t, ctx, authClient, icOIDCIntegrationName)
-		installAWSICPlugin(t, ctx, aPack.clt, aPack.csrfToken)
+		installAWSICPlugin(t, ctx, aPack.clt)
 		ictestenv.CreateICResources(t, ctx, client, testData, string(identitycenter.IdentityCenterDownstreamID))
 
 		deletePluginEndpoint := aPack.clt.Endpoint("enterprise", "plugin", types.PluginTypeAWSIdentityCenter)
@@ -490,11 +488,10 @@ func installRequestURLValues(t *testing.T, opts ...reqOpts) url.Values {
 	return urlVals
 }
 
-func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient, csrfToken string) {
+func installAWSICPlugin(t *testing.T, ctx context.Context, clt *TestWebClient) {
 	t.Helper()
-	installPluginEndPoint := clt.Endpoint("enterprise", "plugin")
+	installPluginEndPoint := clt.Endpoint("enterprise", "plugins", "staticauth")
 	form := maps.Clone(installRequestValidURLValues(t, validICSCIMBaseURLFormat))
-	form.Set("csrf_token", csrfToken)
 	resp, err := clt.PostForm(ctx, installPluginEndPoint, form)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
@@ -593,8 +590,7 @@ func TestInstallationFailsOnInvalidAWSCredential(t *testing.T) {
 			_, err := authClient.CreateIntegration(wSuite.ctx, newOIDCIntegration(t))
 			require.NoError(t, err)
 			req := installRequestURLValues(t)
-			req.Set("csrf_token", aPack.csrfToken)
-			installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugin")
+			installPluginEndPoint := aPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 			resp, err := aPack.clt.PostForm(wSuite.ctx, installPluginEndPoint, req)
 			require.NoError(t, err)
 			if tc.wantErr {
@@ -671,7 +667,6 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 			formReq: func() url.Values {
 				form := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
 				form.Set("resourceToValidate", pluginConfigAWSICValidateSCIM)
-				form.Set("csrf_token", aPack.csrfToken)
 				return form
 			}(),
 			respContains: accessDeniedResp,
@@ -682,17 +677,15 @@ func TestMissingIntegrationCreateAccess(t *testing.T) {
 			formReq: func() url.Values {
 				form := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
 				form.Set("resourceToValidate", pluginConfigAWSICValidateResourceSyncCredential)
-				form.Set("csrf_token", aPack.csrfToken)
 				return form
 			}(),
 			respContains: accessDeniedResp,
 		},
 		{
 			name: "validate install plugin",
-			path: aPack.clt.Endpoint("enterprise/plugin"),
+			path: aPack.clt.Endpoint("enterprise/plugins/staticauth"),
 			formReq: func() url.Values {
 				form := installRequestValidURLValues(t, validICSCIMBaseURLFormat)
-				form.Set("csrf_token", aPack.csrfToken)
 				return form
 			}(),
 			respContains: accessDeniedResp,

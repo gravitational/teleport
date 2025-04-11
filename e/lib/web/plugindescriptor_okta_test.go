@@ -215,7 +215,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 		})
 
 	// Set up an existing Okta plugin
-	pluginEndpoint := webPack.clt.Endpoint("enterprise", "plugin")
+	createPluginEndpoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 	form := url.Values{
 		"type":                 {"okta"},
 		"name":                 {"okta"},
@@ -223,11 +223,10 @@ func TestOktaPluginUpdate(t *testing.T) {
 		"enableUserSync":       {"false"},
 		"enableAppGroupsSync":  {"false"},
 		"enableAccessListSync": {"false"},
-		"csrf_token":           {webPack.csrfToken},
 	}
 
 	// Minimal install – no SCIM token, filters, etc.
-	installResp, err := webPack.clt.PostForm(s.ctx, pluginEndpoint, form)
+	installResp, err := webPack.clt.PostForm(s.ctx, createPluginEndpoint, form)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, installResp.Code(), "body = %s", installResp.Bytes())
 
@@ -287,7 +286,8 @@ func TestOktaPluginUpdate(t *testing.T) {
 			EnableAccessListSync: false,
 		},
 	}
-	updateResp, err := webPack.clt.PutJSON(s.ctx, pluginEndpoint, updateReq)
+	updatePluginEndpoint := webPack.clt.Endpoint("enterprise", "plugin")
+	updateResp, err := webPack.clt.PutJSON(s.ctx, updatePluginEndpoint, updateReq)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, updateResp.Code())
 
@@ -478,7 +478,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			}), nil)
 
 	// When I invoke the installer via the web interface...
-	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
+	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -510,10 +510,9 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 			})
 
 			form := url.Values{
-				"type":       {"okta"},
-				"orgURL":     {testCase.orgURL},
-				"apiToken":   {oktaAPIToken},
-				"csrf_token": {webPack.csrfToken},
+				"type":     {"okta"},
+				"orgURL":   {testCase.orgURL},
+				"apiToken": {oktaAPIToken},
 			}
 			if testCase.enableOktaSCIMEntitlement {
 				form.Set("scimToken", oktaSCIMToken)
@@ -646,13 +645,12 @@ func TestOktaPluginInstallFailsWithLegacySAMLConnector(t *testing.T) {
 		}), nil)
 
 	// When I invoke the Okta installer via the WebUI
-	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
+	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 	resp, err := webPack.clt.PostForm(s.ctx, installPluginEndPoint, url.Values{
-		"type":       {"okta"},
-		"orgURL":     {oktaTestOrg},
-		"apiToken":   {oktaAPIToken},
-		"scimToken":  {oktaSCIMToken},
-		"csrf_token": {webPack.csrfToken},
+		"type":      {"okta"},
+		"orgURL":    {oktaTestOrg},
+		"apiToken":  {oktaAPIToken},
+		"scimToken": {oktaSCIMToken},
 	})
 
 	// Expect that the HTTP round trip succeeded
@@ -787,12 +785,11 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 			})
 
 			// When I invoke the installer via the web interface...
-			installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
+			installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 			form := url.Values{
-				"type":       {"okta"},
-				"orgURL":     {oktaTestOrg},
-				"apiToken":   {oktaAPIToken},
-				"csrf_token": {webPack.csrfToken},
+				"type":     {"okta"},
+				"orgURL":   {oktaTestOrg},
+				"apiToken": {oktaAPIToken},
 			}
 			if testCase.enableOktaSCIMEntitlement {
 				form.Set("scimToken", oktaSCIMToken)
@@ -898,7 +895,7 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 
 	mockta := &mockRoundTripper{}
 	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
-	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
+	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	features := s.webPlugin.h.GetClusterFeatures()
 	features.Entitlements = map[string]*proto.EntitlementInfo{
@@ -934,7 +931,6 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			form := maps.Clone(testCase.form)
-			form.Set("csrf_token", webPack.csrfToken)
 
 			resp, err := webPack.clt.PostForm(s.ctx, installPluginEndPoint, form)
 			require.NoError(t, err)
@@ -972,7 +968,7 @@ func TestOktaPluginInstallInvalidOktaConfig(t *testing.T) {
 	}
 	mockta := &mockRoundTripper{}
 	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
-	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
+	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugins", "staticauth")
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -983,11 +979,10 @@ func TestOktaPluginInstallInvalidOktaConfig(t *testing.T) {
 				Return(testCase.roundTripResult...)
 
 			resp, err := webPack.clt.PostForm(s.ctx, installPluginEndPoint, url.Values{
-				"type":       {"okta"},
-				"orgURL":     {oktaTestOrg},
-				"apiToken":   {oktaAPIToken},
-				"scimToken":  {oktaSCIMToken},
-				"csrf_token": {webPack.csrfToken},
+				"type":      {"okta"},
+				"orgURL":    {oktaTestOrg},
+				"apiToken":  {oktaAPIToken},
+				"scimToken": {oktaSCIMToken},
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusBadRequest, resp.Code())
