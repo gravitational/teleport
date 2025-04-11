@@ -526,11 +526,81 @@ This is done using the `iam:GetRole` and checking its trust policy property:
 
 ### AWS Roles Anywhere Certificate Authority
 
+AWS IAM Roles Anywhere requires a Trust Anchor, which is a certificate authority capable of issuing X.509 certificates.
+
+#### Use an existing CA vs creating a new one
+We have 3 options for which CA to use:
+- re-use the SPIFFE CA
+- re-use the AWS OIDC Integration CA
+- create a new CA
+
+**SPIFFE CA**
+
+Using the SPIFFE CA has the UX advantage of requiring a single Trust Anchor for users that use AWS Access and Machine and Workload Identity.
+
+However it requires exposer to non-human access primitives (ie, `workload_identity` resource) which is unnecessary context for someone only interested in AWS Access.
+
+Another issue is that it requires more specific IAM Role Trust Policies.
+
+Users can generate X.509 certificates for Workload Identity, but then use them to generate valid AWS Credentials by exchanging the certificate using `rolesanywhere.CreateSession`.
+
+This allows them to circumvent RBAC policies defined for AWS App Access.
+
+The fix for this would be to define a more specific IAM Role Trust Policy, one that would only allow a specific SPIFFE prefix path:
+- Workload Identity SPIFFE paths (eg. `spiffe://<cluster-name>/svc/my-service`) are not allowed to start with `spiffe://<cluster-name>/_/` when being generated in the context of Workload Identity
+- each IAM Role must include the following path prefix when generating the certificates for the AWS Access: `spiffe://<cluster-name>/_/aws-access/user/<user-name>`
+
+The trust policy on the assumed roles must include this as a condition:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "rolesanywhere.amazonaws.com"
+        },
+        "Action": [
+          "sts:AssumeRole",
+          "sts:TagSession",
+          "sts:SetSourceIdentity"
+        ],
+        "Condition": {
+          "ArnEquals": {
+            "aws:SourceArn": [
+              "arn:aws:rolesanywhere:<region>:<account>:trust-anchor/<trust-anchor-id>"
+            ]
+          },
+          "StringLike": {
+            "aws:PrincipalTag/x509SAN/URI": "spiffe://example.teleport.sh/_/aws-access/user/*"
+          }
+        }
+      }
+    ]
+  }
+```
+
+This is an extra configuration that users must do, and it also exposes them to Machine and Workload Identity concepts: `spiffe` protocol/path.
+
+**AWS OIDC Integration CA**
+
+AWS OIDC Integration (see RFD 0119) already has a CA for providing AWS Access.
+
+Its name is `oidc_idp` which can be confusing if we decide to use it as part of the Roles Anywhere access, because this is not an OIDC Identity Provider.
+
+It's also not a true Certificate Authority, but instead a JWT signer.
+
+An alias can be created and the `cert_authority` can be changed to have both the JWT signer and the TLS/X.509 certificate/keys.
+
+**Create a new CA**
+
 A new Certificate Authority will be created in Teleport to issue X.509 certificates, consumed by IAM Roles Anywhere.
 
 This new CA is backed by a ECDSA key, according to our current recommended crypto suites (see RFD0136).
 
 A single CA will be created per Teleport cluster.
+
+We decided to proceed with a new CA, given the trade-offs described above.
 
 #### CA certificate
 When setting the trust anchor in AWS IAM Roles Anywhere, we'll add the new CA certificate.
