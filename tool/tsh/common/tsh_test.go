@@ -6805,21 +6805,22 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 	// Create Auth, Proxy, and Node Service used in tests.
 	hostname := uuid.NewString()
 	connector := mockConnector(t)
-	authProcess, proxyProcess := makeTestServers(t,
-		withBootstrap(connector, nodeAccess, user),
-		withConfig(func(cfg *servicecfg.Config) {
+	authProcess := testserver.MakeTestServer(t,
+		testserver.WithBootstrap(connector, nodeAccess, user),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Hostname = hostname
 			cfg.SSH.Enabled = true
 			cfg.SSH.Addr = utils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        net.JoinHostPort("127.0.0.1", ports.Pop()),
 			}
-		}))
+		}),
+	)
 
 	// Extract Auth Service and Proxy Service address.
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	proxyAddr, err := authProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
 	// Run "tsh login".
