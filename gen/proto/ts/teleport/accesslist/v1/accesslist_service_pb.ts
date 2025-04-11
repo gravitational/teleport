@@ -659,6 +659,46 @@ export interface AccessRequestPromoteResponse {
     accessRequest?: AccessRequestV3;
 }
 /**
+ * AccessRequestLongTermApproveRequest is the request for approving a long-term
+ * access request and adding the requester to the relevant access list.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.AccessRequestLongTermApproveRequest
+ */
+export interface AccessRequestLongTermApproveRequest {
+    /**
+     * RequestID is the unique ID of the request to be promoted.
+     *
+     * @generated from protobuf field: string request_id = 1;
+     */
+    requestId: string;
+    /**
+     * AccessListName is the name of the access list to promote the request to.
+     *
+     * @generated from protobuf field: string access_list_name = 2;
+     */
+    accessListName: string;
+    /**
+     * Reason is the access request review reason.
+     *
+     * @generated from protobuf field: string reason = 3;
+     */
+    reason: string;
+}
+/**
+ * AccessRequestLongTermApproveResponse is the response for approving a long-term
+ * access request and adding the requester to the relevant access list.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.AccessRequestLongTermApproveResponse
+ */
+export interface AccessRequestLongTermApproveResponse {
+    /**
+     * AccessRequest is the updated access request.
+     *
+     * @generated from protobuf field: types.AccessRequestV3 access_request = 1;
+     */
+    accessRequest?: AccessRequestV3;
+}
+/**
  * GetSuggestedAccessListsRequest is the request for suggested access lists for
  * an access request.
  *
@@ -2543,6 +2583,115 @@ class AccessRequestPromoteResponse$Type extends MessageType<AccessRequestPromote
  */
 export const AccessRequestPromoteResponse = new AccessRequestPromoteResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestLongTermApproveRequest$Type extends MessageType<AccessRequestLongTermApproveRequest> {
+    constructor() {
+        super("teleport.accesslist.v1.AccessRequestLongTermApproveRequest", [
+            { no: 1, name: "request_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "access_list_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestLongTermApproveRequest>): AccessRequestLongTermApproveRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.requestId = "";
+        message.accessListName = "";
+        message.reason = "";
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestLongTermApproveRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestLongTermApproveRequest): AccessRequestLongTermApproveRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string request_id */ 1:
+                    message.requestId = reader.string();
+                    break;
+                case /* string access_list_name */ 2:
+                    message.accessListName = reader.string();
+                    break;
+                case /* string reason */ 3:
+                    message.reason = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestLongTermApproveRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string request_id = 1; */
+        if (message.requestId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.requestId);
+        /* string access_list_name = 2; */
+        if (message.accessListName !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.accessListName);
+        /* string reason = 3; */
+        if (message.reason !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.reason);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.AccessRequestLongTermApproveRequest
+ */
+export const AccessRequestLongTermApproveRequest = new AccessRequestLongTermApproveRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestLongTermApproveResponse$Type extends MessageType<AccessRequestLongTermApproveResponse> {
+    constructor() {
+        super("teleport.accesslist.v1.AccessRequestLongTermApproveResponse", [
+            { no: 1, name: "access_request", kind: "message", T: () => AccessRequestV3 }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestLongTermApproveResponse>): AccessRequestLongTermApproveResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestLongTermApproveResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestLongTermApproveResponse): AccessRequestLongTermApproveResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* types.AccessRequestV3 access_request */ 1:
+                    message.accessRequest = AccessRequestV3.internalBinaryRead(reader, reader.uint32(), options, message.accessRequest);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestLongTermApproveResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* types.AccessRequestV3 access_request = 1; */
+        if (message.accessRequest)
+            AccessRequestV3.internalBinaryWrite(message.accessRequest, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.AccessRequestLongTermApproveResponse
+ */
+export const AccessRequestLongTermApproveResponse = new AccessRequestLongTermApproveResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class GetSuggestedAccessListsRequest$Type extends MessageType<GetSuggestedAccessListsRequest> {
     constructor() {
         super("teleport.accesslist.v1.GetSuggestedAccessListsRequest", [
@@ -2664,6 +2813,7 @@ export const AccessListService = new ServiceType("teleport.accesslist.v1.AccessL
     { name: "CreateAccessListReview", options: {}, I: CreateAccessListReviewRequest, O: CreateAccessListReviewResponse },
     { name: "DeleteAccessListReview", options: {}, I: DeleteAccessListReviewRequest, O: Empty },
     { name: "AccessRequestPromote", options: {}, I: AccessRequestPromoteRequest, O: AccessRequestPromoteResponse },
+    { name: "AccessRequestLongTermApprove", options: {}, I: AccessRequestLongTermApproveRequest, O: AccessRequestLongTermApproveResponse },
     { name: "GetSuggestedAccessLists", options: {}, I: GetSuggestedAccessListsRequest, O: GetSuggestedAccessListsResponse },
     { name: "GetInheritedGrants", options: {}, I: GetInheritedGrantsRequest, O: GetInheritedGrantsResponse }
 ]);

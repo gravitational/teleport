@@ -75,6 +75,8 @@ type AccessLists interface {
 
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
+	// AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+	AccessRequestLongTermApprove(ctx context.Context, req *accesslistv1.AccessRequestLongTermApproveRequest) (*accesslistv1.AccessRequestLongTermApproveResponse, error)
 }
 
 // MarshalAccessList marshals the access list resource to JSON.

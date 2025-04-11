@@ -70,6 +70,7 @@ export function makeAccessRequest(json?): AccessRequest {
       ? new Date(json.assumeStartTime)
       : null,
     assumeStartTimeDuration: getAssumeStartDurationText(json.assumeStartTime),
+    longTerm: json.longTerm,
   };
 }
 
