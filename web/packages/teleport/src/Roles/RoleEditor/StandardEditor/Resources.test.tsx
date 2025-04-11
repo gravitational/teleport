@@ -44,7 +44,6 @@ import {
 } from './standardmodel';
 import { StatefulSection } from './StatefulSection';
 import {
-  GitHubOrganizationAccessValidationResult,
   ResourceAccessValidationResult,
   validateResourceAccess,
 } from './validation';
@@ -69,7 +68,6 @@ describe('ServerAccessSection', () => {
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'some-key');
     await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     await selectEvent.create(screen.getByLabelText('Logins'), 'root', {
@@ -96,7 +94,7 @@ describe('ServerAccessSection', () => {
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     await selectEvent.create(screen.getByLabelText('Logins'), '*', {
       createOptionText: 'Login: *',
     });
@@ -141,7 +139,6 @@ describe('KubernetesAccessSection', () => {
       createOptionText: 'Group: group2',
     });
 
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'some-key');
     await user.type(screen.getByPlaceholderText('label value'), 'some-value');
 
@@ -257,7 +254,7 @@ describe('KubernetesAccessSection', () => {
 
   test('validation', async () => {
     const { user, validator } = setup(RoleVersion.V6);
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     await user.click(
       screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
     );
@@ -323,7 +320,6 @@ describe('AppAccessSection', () => {
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'env');
     await user.type(screen.getByPlaceholderText('label value'), 'prod');
 
@@ -369,7 +365,7 @@ describe('AppAccessSection', () => {
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     await user.click(
       within(awsRoleArns()).getByRole('button', { name: 'Add More' })
     );
@@ -420,7 +416,6 @@ describe('DatabaseAccessSection', () => {
     const { user, onChange } = setup();
 
     const labels = within(screen.getByRole('group', { name: 'Labels' }));
-    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
     await user.type(labels.getByPlaceholderText('label key'), 'env');
     await user.type(labels.getByPlaceholderText('label value'), 'prod');
 
@@ -436,9 +431,6 @@ describe('DatabaseAccessSection', () => {
 
     const dbServiceLabels = within(
       screen.getByRole('group', { name: 'Database Service Labels' })
-    );
-    await user.click(
-      dbServiceLabels.getByRole('button', { name: 'Add a Label' })
     );
     await user.type(dbServiceLabels.getByPlaceholderText('label key'), 'foo');
     await user.type(dbServiceLabels.getByPlaceholderText('label value'), 'bar');
@@ -466,12 +458,13 @@ describe('DatabaseAccessSection', () => {
   test('validation', async () => {
     const { user, validator } = setup();
     const labels = within(screen.getByRole('group', { name: 'Labels' }));
-    await user.click(labels.getByRole('button', { name: 'Add a Label' }));
+    await user.type(labels.getByPlaceholderText('label value'), 'some-value');
     const dbServiceLabelsGroup = within(
       screen.getByRole('group', { name: 'Database Service Labels' })
     );
-    await user.click(
-      dbServiceLabelsGroup.getByRole('button', { name: 'Add a Label' })
+    await user.type(
+      dbServiceLabelsGroup.getByPlaceholderText('label value'),
+      'some-value'
     );
     await selectEvent.create(screen.getByLabelText('Database Roles'), '*', {
       createOptionText: 'Database Role: *',
@@ -509,7 +502,6 @@ describe('WindowsDesktopAccessSection', () => {
 
   test('editing', async () => {
     const { user, onChange } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
     await user.type(screen.getByPlaceholderText('label key'), 'os');
     await user.type(screen.getByPlaceholderText('label value'), 'win-xp');
     await selectEvent.create(screen.getByLabelText('Logins'), 'julio', {
@@ -528,7 +520,7 @@ describe('WindowsDesktopAccessSection', () => {
 
   test('validation', async () => {
     const { user, validator } = setup();
-    await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
     act(() => validator.validate());
     expect(
       screen.getByPlaceholderText('label key')
@@ -541,10 +533,7 @@ describe('GitHubOrganizationAccessSection', () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        GitHubOrganizationAccess,
-        GitHubOrganizationAccessValidationResult
-      >
+      <StatefulSection<GitHubOrganizationAccess, ResourceAccessValidationResult>
         component={GitHubOrganizationAccessSection}
         defaultValue={newResourceAccess('git_server', defaultRoleVersion)}
         onChange={onChange}

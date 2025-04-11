@@ -86,7 +86,6 @@ test('basic editing', async () => {
   await user.clear(screen.getByLabelText('Role Name *'));
   await user.type(screen.getByLabelText('Role Name *'), 'some-name');
   await user.type(screen.getByLabelText('Description'), 'some-description');
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
   await user.type(screen.getByPlaceholderText('label key'), 'foo');
   await user.type(screen.getByPlaceholderText('label value'), 'bar');
   await selectEvent.select(screen.getByLabelText('Version'), 'v6');
@@ -103,7 +102,7 @@ test('basic validation', async () => {
   const user = userEvent.setup();
   const { validator } = setup();
   await user.clear(screen.getByLabelText('Role Name *'));
-  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  await user.type(screen.getByPlaceholderText('label value'), 'some-value');
   act(() => validator.validate());
 
   expect(screen.getByLabelText('Role Name *')).toHaveAccessibleDescription(
