@@ -176,6 +176,19 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 				}
 				return string(ca.GetType()), nil
 			},
+			"startsWith": func(a, b interface{}) predicate.BoolPredicate {
+				return func() bool {
+					aval, ok := a.(string)
+					if !ok {
+						return false
+					}
+					bval, ok := b.(string)
+					if !ok {
+						return false
+					}
+					return strings.HasPrefix(aval, bval)
+				}
+			},
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   GetStringMapValue,
@@ -372,6 +385,22 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		return predicate.GetFieldByTag(hostCert, teleport.JSON, fields[1:])
 	case SessionTrackerIdentifier:
 		return predicate.GetFieldByTag(toCtxTracker(ctx.SessionTracker), teleport.JSON, fields[1:])
+	case ResourceNameIdentifier:
+		if len(fields) > 1 {
+			return nil, trace.BadParameter(
+				"only one field is supported with identifier %q, got %d: %v",
+				ResourceNameIdentifier,
+				len(fields),
+				fields,
+			)
+		}
+		var resource types.Resource
+		if ctx.Resource == nil {
+			resource = emptyResource
+		} else {
+			resource = ctx.Resource
+		}
+		return resource.GetName(), nil
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}
