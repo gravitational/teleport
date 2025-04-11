@@ -505,7 +505,7 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 	// user must not have previously reviewed this request
 	for _, existingReview := range req.GetReviews() {
 		if existingReview.Author == rev.Author {
-			return trace.AccessDenied("user %q has already reviewed this request", rev.Author)
+			return trace.AlreadyExists("user %q has already reviewed this request", rev.Author)
 		}
 	}
 
