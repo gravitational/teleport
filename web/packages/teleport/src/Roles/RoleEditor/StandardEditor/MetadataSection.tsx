@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { memo, useCallback, useEffect } from 'react';
+import React, { memo, useCallback, useEffect, useMemo } from 'react';
 import { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
@@ -51,12 +51,17 @@ export const MetadataSection = memo(
     const theme = useTheme();
     const { resourceService } = useTeleport();
 
-    const [, fetchRole] = useAsync(resourceService.fetchRole);
+    const [, fetchRole] = useAsync(
+      useCallback(
+        (name: string) => resourceService.fetchRole(name),
+        [resourceService]
+      )
+    );
 
     // Verifies whether a role already exists with this name and dispatches a
     // validation error if necessary.
-    const checkForNameCollision = useCallback(
-      debounce(async (name: string) => {
+    const checkForNameCollisionNow = useCallback(
+      async (name: string) => {
         // When editing, it's obvious that we already have a role with the same
         // name, and renaming is not allowed.
         if (isEditing || name === '') {
@@ -88,12 +93,17 @@ export const MetadataSection = memo(
           // exception, since we don't show it in the UI anyway.
           console.error(err);
         }
-      }, 500),
+      },
       // Getting callback caching right is especially important here, as we want
       // always to use the correct version of `checkForNameCollisionNow`, but we
       // also don't want to call `debounce` on every render, as it would defeat
       // the purpose of debouncing altogether.
       [isEditing, fetchRole, dispatch]
+    );
+
+    const checkForNameCollision = useMemo(
+      () => debounce(checkForNameCollisionNow, 500),
+      [checkForNameCollisionNow]
     );
 
     useEffect(() => {
