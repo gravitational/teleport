@@ -422,6 +422,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Overrides service")
 		}
 	}
+	if cfg.SigstorePolicies == nil {
+		cfg.SigstorePolicies, err = local.NewSigstorePolicyService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SigstorePolicies service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
@@ -537,6 +543,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		SigstorePolicies:                cfg.SigstorePolicies,
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 	}
 
@@ -772,6 +779,7 @@ type Services struct {
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
 	services.WorkloadIdentityX509Overrides
+	services.SigstorePolicies
 	services.HealthCheckConfig
 }
 
