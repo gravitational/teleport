@@ -251,19 +251,17 @@ func LoadPrivateKey(keyFile string) (*PrivateKey, error) {
 
 // ParsePrivateKeyOptions contains config options for ParsePrivateKey.
 type ParsePrivateKeyOptions struct {
-	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
-	// for a hardware key PIN, touch, etc.
-	// If empty, a default CLI prompt is used.
-	CustomHardwareKeyPrompt hardwarekey.Prompt
+	// HardwareKeyService is the hardware key service to use with parsed hardware private keys.
+	HardwareKeyService hardwarekey.Service
 }
 
 // ParsePrivateKeyOpt applies configuration options.
 type ParsePrivateKeyOpt func(o *ParsePrivateKeyOptions)
 
-// WithCustomPrompt sets a custom hardware key prompt.
-func WithCustomPrompt(prompt hardwarekey.Prompt) ParsePrivateKeyOpt {
+// WithHardwareKeyService sets the hardware key service.
+func WithHardwareKeyService(hwKeyService hardwarekey.Service) ParsePrivateKeyOpt {
 	return func(o *ParsePrivateKeyOptions) {
-		o.CustomHardwareKeyPrompt = prompt
+		o.HardwareKeyService = hwKeyService
 	}
 }
 
@@ -282,11 +280,23 @@ func ParsePrivateKey(keyPEM []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, er
 
 	switch block.Type {
 	case pivYubiKeyPrivateKeyType:
-		// TODO(Joerger): Initialize the hardware key service early in the process and store
-		// it in the client store. This allows the process to properly share PIV connections
-		// and prompt logic (pin caching, etc.).
-		hwKeyService := piv.NewYubiKeyService(appliedOpts.CustomHardwareKeyPrompt)
-		hwSigner, err := hardwarekey.DecodeSigner(block.Bytes, hwKeyService)
+		hwks := appliedOpts.HardwareKeyService
+		if hwks == nil {
+			// If no hardware key service was provided, use the default PIV service.
+			// This is used for clients which do not (yet) initialize a hardware key
+			// service to reuse. As a result, some features like hardware key PIN
+			// caching and the hardware key agent are not supported for these clients.
+			// e.g. tbot, integrations, and custom API client programs.
+			//
+			// TODO(Joerger): initialize client store for all clients early in process.
+			// If hwks is still not provided, we should successfully parse the key but
+			// inject the "unavailable" hardware key service, which will return a
+			// "piv unavailable" error on signature attempts, making this method useful
+			// for key info gathering in specific circumstances (e.g. ProfileStatus.AppsForCluster)
+			hwks = piv.NewYubiKeyService(nil /*prompt*/)
+		}
+
+		hwSigner, err := hardwarekey.DecodeSigner(block.Bytes, hwks)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse hardware key signer")
 		}
@@ -378,7 +388,7 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, error) {
 }
 
 // LoadKeyPair returns the PrivateKey for the given private and public key files.
-func LoadKeyPair(privFile, sshPubFile string, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
+func LoadKeyPair(privFile, sshPubFile string, opts ...ParsePrivateKeyOpt) (*PrivateKey, error) {
 	privPEM, err := os.ReadFile(privFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -389,7 +399,7 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt hardwarekey.Prompt) (
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := ParseKeyPair(privPEM, marshaledSSHPub, customPrompt)
+	priv, err := ParseKeyPair(privPEM, marshaledSSHPub, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -397,8 +407,8 @@ func LoadKeyPair(privFile, sshPubFile string, customPrompt hardwarekey.Prompt) (
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshaledSSHPub []byte, customPrompt hardwarekey.Prompt) (*PrivateKey, error) {
-	priv, err := ParsePrivateKey(privPEM, WithCustomPrompt(customPrompt))
+func ParseKeyPair(privPEM, marshaledSSHPub []byte, opts ...ParsePrivateKeyOpt) (*PrivateKey, error) {
+	priv, err := ParsePrivateKey(privPEM, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
