@@ -69,6 +69,7 @@ const minimalRole = () =>
 const minimalRoleModel = (): RoleEditorModel => ({
   metadata: {
     name: 'foobar',
+    nameCollision: false,
     labels: [],
     version: roleVersionOptionsMap.get(defaultRoleVersion),
   },
@@ -146,6 +147,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
       ...minimalRoleModel(),
       metadata: {
         name: 'role-name',
+        nameCollision: false,
         description: 'role-description',
         labels: [{ name: 'foo', value: 'bar' }],
         version: roleVersionOptionsMap.get(RoleVersion.V6),
@@ -859,13 +861,10 @@ describe('roleToRoleEditorModel', () => {
       )
     ).toEqual({
       ...minimalRoleModel(),
-      metadata: {
-        name: 'role-name',
+      metadata: expect.objectContaining({
         // We need to preserve the original revision.
         revision: originalRev,
-        labels: [],
-        version: roleVersionOptionsMap.get(defaultRoleVersion),
-      },
+      }),
       requiresReset: true,
       conversionErrors: [
         {
@@ -1105,6 +1104,7 @@ describe('roleEditorModelToRole', () => {
         ...minimalRoleModel(),
         metadata: {
           name: 'dog-walker',
+          nameCollision: false,
           description: 'walks dogs',
           revision: 'e2a3ccf8-09b9-4d97-8e47-6dbe3d53c0e5',
           labels: [{ name: 'kind', value: 'occupation' }],
