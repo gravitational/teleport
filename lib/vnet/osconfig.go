@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -106,7 +105,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	// to access c.homePath that it sent when starting the daemon.
 	// Otherwise a client could make the daemon read a profile out of any directory.
 	if err := c.doWithDroppedRootPrivileges(ctx, func() error {
-		profileNames, err := profile.ListProfileNames(c.homePath)
+		profileNames, err := c.clientStore.ListProfiles()
 		if err != nil {
 			return trace.Wrap(err, "listing user profiles")
 		}
