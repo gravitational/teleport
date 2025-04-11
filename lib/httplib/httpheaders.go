@@ -67,7 +67,7 @@ type CSPMap map[string][]string
 
 var defaultContentSecurityPolicy = CSPMap{
 	"default-src": {"'self'"},
-	"script-src":  {"'self'"},
+	"script-src":  {"'self'", "blob:"},
 	// specify CSP directives not covered by `default-src`
 	"base-uri":        {"'self'"},
 	"form-action":     {"'self'"},
