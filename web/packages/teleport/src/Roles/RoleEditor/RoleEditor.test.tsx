@@ -161,7 +161,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
 it('calls onRoleUpdate on each modification in the standard editor', async () => {
   cfg.isPolicyEnabled = true;
   const onRoleUpdate = jest.fn();
-  render(<TestRoleEditor onRoleUpdate={onRoleUpdate} />);
+  render(<TestRoleEditor demoMode onRoleUpdate={onRoleUpdate} />);
   expect(onRoleUpdate).toHaveBeenLastCalledWith(
     withDefaults({ metadata: { name: 'new_role_name' } })
   );
