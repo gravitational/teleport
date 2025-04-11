@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"maps"
 	"net"
 	"net/url"
@@ -352,11 +351,16 @@ type CLIConf struct {
 	// X11ForwardingTimeout can optionally set to set a timeout for untrusted X11 forwarding.
 	X11ForwardingTimeout time.Duration
 
-	// Debug sends debug logs to stdout.
+	// Debug sets log level to debug and sends logs to stdout.
 	Debug bool
+	// DebugSet specifies whether the flag was set by the user.
+	DebugSet bool
 
-	// OSLog sends debug logs to the unified log system on macOS.
+	// OSLog sends logs to the unified log system on macOS.
 	OSLog bool
+	// OSLogSet specifies whether the flag was set by the user or not. This makes it possible to enable
+	// OSLog through env var and then disable it selectively with --no-os-log.
+	OSLogSet bool
 
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
@@ -675,7 +679,6 @@ const (
 	globalTshConfigEnvVar    = "TELEPORT_GLOBAL_TSH_CONFIG"
 	mfaModeEnvVar            = "TELEPORT_MFA_MODE"
 	mlockModeEnvVar          = "TELEPORT_MLOCK_MODE"
-	debugEnvVar              = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	identityFileEnvVar       = "TELEPORT_IDENTITY_FILE"
 	gcloudSecretEnvVar       = "TELEPORT_GCLOUD_SECRET"
 	awsAccessKeyIDEnvVar     = "TELEPORT_AWS_ACCESS_KEY_ID"
@@ -711,20 +714,6 @@ var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeC
 // CliOption is used in tests to inject/override configuration within Run
 type CliOption func(*CLIConf) error
 
-// initLogger initializes the logger taking into account --debug and TELEPORT_DEBUG. If TELEPORT_DEBUG is set, it will also enable CLIConf.Debug.
-func initLogger(cf *CLIConf) error {
-	opts := getPlatformInitLoggerOpts(cf)
-	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
-	cf.Debug = cf.Debug || isDebug || cf.OSLog
-
-	level := slog.LevelWarn
-	if cf.Debug {
-		level = slog.LevelDebug
-	}
-
-	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, opts...))
-}
-
 // Run executes TSH client. same as main() but easier to test. Note that this
 // function modifies global state in `tsh` (e.g. the system logger), and WILL
 // ALSO MODIFY EXTERNAL SHARED STATE in its default configuration (e.g. the
@@ -745,7 +734,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// run early to enable debug logging if env var is set.
 	// this makes it possible to debug early startup functionality, particularly command aliases.
-	if err := initLogger(&cf); err != nil {
+	if err := initLogger(&cf, parseDebugOptsFromEnv()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -785,11 +774,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// we don't want to add `.Envar(debugEnvVar)` here:
 	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
 	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behavior for this variable.
-	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
-	if runtime.GOOS == constants.DarwinOS {
-		app.Flag("os-log", "Verbose logging to the unified logging system. Takes precedence over --debug. https://developer.apple.com/documentation/os/viewing-log-messages").
-			BoolVar(&cf.OSLog)
+	app.Flag("debug", "Verbose logging to stdout.").Short('d').IsSetByUser(&cf.DebugSet).BoolVar(&cf.Debug)
+	osLogFlag := app.Flag("os-log",
+		fmt.Sprintf("Verbose logging to the unified logging system. Takes precedence over --debug. Also available through the %s env var. https://developer.apple.com/documentation/os/viewing-log-messages",
+			osLogEnvVar)).
+		IsSetByUser(&cf.OSLogSet)
+	if runtime.GOOS != constants.DarwinOS {
+		osLogFlag.Hidden()
 	}
+	osLogFlag.BoolVar(&cf.OSLog)
 	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
@@ -1370,8 +1363,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	// Enable debug logging if requested by --debug.
-	// If TELEPORT_DEBUG was set, it was already enabled by prior call to initLogger().
-	if err := initLogger(&cf); err != nil {
+	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
+	// enabled by a prior call to initLogger.
+	if err := initLogger(&cf, parseDebugOptsFromEnvAndArgv(&cf)); err != nil {
 		return trace.Wrap(err)
 	}
 
