@@ -35,13 +35,17 @@ import (
 // manner as configured by the Teleport configuration.
 type SlogTextHandler struct {
 	cfg SlogTextHandlerConfig
+	out SlogTextHandlerOutput
 	// withCaller indicates whether the location the log was emitted from
 	// should be included in the output message.
 	withCaller bool
 	// withTimestamp indicates whether the times that the log was emitted at
 	// should be included in the output message.
 	withTimestamp bool
-	// component is the Teleport subcomponent that emitted the log.
+	// rawComponent is the Teleport subcomponent that emitted the log, e.g., "tsh".
+	rawComponent string
+	// component is rawComponent wrapped in square brackets and truncated if necessary to not exceed
+	// cfg.Padding, e.g., "[TSH]".
 	component string
 	// preformatted data from previous calls to WithGroup and WithAttrs.
 	preformatted []byte
@@ -54,14 +58,10 @@ type SlogTextHandler struct {
 	groups []string
 	// nOpenGroups the number of groups opened in preformatted.
 	nOpenGroups int
+}
 
-	// mu protects out - it needs to be a pointer so that all cloned
-	// SlogTextHandler returned from WithAttrs and WithGroup share the
-	// same mutex. Otherwise, output may be garbled since each clone
-	// will use its own copy of the mutex to protect out. See
-	// https://github.com/golang/go/issues/61321 for more details.
-	mu  *sync.Mutex
-	out io.Writer
+type SlogTextHandlerOutput interface {
+	Write(buf *buffer, component string, level slog.Level) error
 }
 
 // SlogTextHandlerConfig allow the SlogTextHandler functionality
@@ -84,16 +84,19 @@ type SlogTextHandlerConfig struct {
 
 // NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
 func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler {
+	return NewSlogTextHandlerWithOutput(NewSlogTextHandlerOutputIO(w), cfg)
+}
+
+func NewSlogTextHandlerWithOutput(output SlogTextHandlerOutput, cfg SlogTextHandlerConfig) *SlogTextHandler {
 	if cfg.Padding == 0 {
 		cfg.Padding = defaultComponentPadding
 	}
 
 	handler := SlogTextHandler{
 		cfg:           cfg,
+		out:           output,
 		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
 		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
-		out:           w,
-		mu:            &sync.Mutex{},
 	}
 
 	if handler.cfg.ConfiguredFields == nil {
@@ -148,6 +151,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 
+	rawComponent := s.rawComponent
 	// Processing fields in this manner allows users to
 	// configure the level and component position in the output.
 	// This matches the behavior of the original logrus formatter. All other
@@ -179,6 +183,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 					return true
 				}
 
+				rawComponent = attr.Value.String()
 				component = formatComponent(attr.Value, s.cfg.Padding)
 				return false
 			})
@@ -226,11 +231,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	}
 
-	state.buf.WriteByte('\n')
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, err := s.out.Write(*state.buf)
+	err := s.out.Write(state.buf, rawComponent, r.Level)
 	return err
 }
 
@@ -285,17 +286,19 @@ func formatComponent(value slog.Value, padding int) string {
 
 func (s *SlogTextHandler) clone() *SlogTextHandler {
 	// We can't use assignment because we can't copy the mutex.
+	// TODO: The above comment is probably no longer relevant, but what does it mean to use an
+	// assignment here?
 	return &SlogTextHandler{
 		cfg:           s.cfg,
 		withCaller:    s.withCaller,
 		withTimestamp: s.withTimestamp,
 		component:     s.component,
+		rawComponent:  s.rawComponent,
 		preformatted:  slices.Clip(s.preformatted),
 		groupPrefix:   s.groupPrefix,
 		groups:        slices.Clip(s.groups),
 		nOpenGroups:   s.nOpenGroups,
 		out:           s.out,
-		mu:            s.mu, // mutex shared among all clones of this handler
 	}
 }
 
@@ -327,6 +330,7 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 				component = component[:len(component)-1] + "]"
 			}
 			s2.component = component
+			s2.rawComponent = a.Value.String()
 		case teleport.ComponentFields:
 			switch fields := a.Value.Any().(type) {
 			case map[string]any:
@@ -361,4 +365,22 @@ func (s *SlogTextHandler) WithGroup(name string) slog.Handler {
 	s2 := s.clone()
 	s2.groups = append(s2.groups, name)
 	return s2
+}
+
+type SlogTextHandlerOutputIO struct {
+	mu  sync.Mutex
+	out io.Writer
+}
+
+func NewSlogTextHandlerOutputIO(w io.Writer) *SlogTextHandlerOutputIO {
+	return &SlogTextHandlerOutputIO{out: w}
+}
+
+func (o *SlogTextHandlerOutputIO) Write(buf *buffer, rawComponent string, level slog.Level) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	// TODO: Should I do buf.WriteByte instead of append here?
+	_, err := o.out.Write(append(*buf, '\n'))
+	return err
 }
