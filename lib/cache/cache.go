@@ -512,18 +512,13 @@ type Cache struct {
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
-	appsCache                    services.Apps
-	kubernetesCache              services.Kubernetes
 	crownJewelsCache             services.CrownJewels
-	databaseServicesCache        services.DatabaseServices
-	databasesCache               services.Databases
 	databaseObjectsCache         *local.DatabaseObjectService
 	appSessionCache              services.AppSession
 	snowflakeSessionCache        services.SnowflakeSession
 	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	webSessionCache              types.WebSessionInterface
 	webTokenCache                types.WebTokenInterface
-	windowsDesktopsCache         services.WindowsDesktops
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
@@ -582,19 +577,6 @@ func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[
 		return legacyReadGuard[R]{}, trace.BadParameter("cannot read from an uninitialized cache collection")
 	}
 	return legacyReadCache(cache, collection.watchKind(), collection.getReader)
-}
-
-// readLegacyListResourcesCache acquires the cache read lock and uses getReader() to select the appropriate target
-// for listing resources of the specified resourceType. The returned guard *must* be released to prevent deadlocks.
-func readLegacyListResourcesCache(cache *Cache, resourceType string) (legacyReadGuard[resourceGetter], error) {
-	getResourceReader := func(cacheOK bool) resourceGetter {
-		if cacheOK {
-			return cache.presenceCache
-		}
-		return cache.Config.Presence
-	}
-
-	return legacyReadCache(cache, types.WatchKind{Kind: resourceType}, getResourceReader)
 }
 
 // acquireReadGuard provides a readGuard that may be used to determine how
@@ -1124,17 +1106,12 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
-		appsCache:                    local.NewAppService(config.Backend),
-		kubernetesCache:              local.NewKubernetesService(config.Backend),
 		crownJewelsCache:             crownJewelCache,
-		databaseServicesCache:        local.NewDatabaseServicesService(config.Backend),
-		databasesCache:               local.NewDatabasesService(config.Backend),
 		appSessionCache:              identityService,
 		snowflakeSessionCache:        identityService,
 		samlIdPSessionCache:          identityService,
 		webSessionCache:              identityService.WebSessions(),
 		webTokenCache:                identityService.WebTokens(),
-		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
@@ -2188,62 +2165,6 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	return role, err
 }
 
-// GetNode finds and returns a node by name and namespace.
-func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.nodes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetNode(ctx, namespace, name)
-}
-
-type getNodesCacheKey struct {
-	namespace string
-}
-
-// GetNodes is a part of auth.Cache implementation
-func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.nodes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.IsCacheRead() {
-		nodes, err := c.getNodesWithTTLCache(ctx, rg.reader, namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return nodes, nil
-	}
-
-	return rg.reader.GetNodes(ctx, namespace)
-}
-
-// getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
-// must be cloned to avoid concurrent modification.
-func (c *Cache) getNodesWithTTLCache(ctx context.Context, svc nodeGetter, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	cachedNodes, err := utils.FnCacheGet(ctx, c.fnCache, getNodesCacheKey{namespace}, func(ctx context.Context) ([]types.Server, error) {
-		nodes, err := svc.GetNodes(ctx, namespace)
-		return nodes, err
-	})
-
-	// Nodes returned from the TTL caching layer
-	// must be cloned to avoid concurrent modification.
-	clonedNodes := make([]types.Server, 0, len(cachedNodes))
-	for _, node := range cachedNodes {
-		clonedNodes = append(clonedNodes, node.DeepCopy())
-	}
-	return clonedNodes, trace.Wrap(err)
-}
-
 // GetAuthServers returns a list of registered servers
 func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
@@ -2376,19 +2297,6 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	return rg.reader.GetAllTunnelConnections(opts...)
 }
 
-// GetKubernetesServers is a part of auth.Cache implementation
-func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesServers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeServers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetKubernetesServers(ctx)
-}
-
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
@@ -2443,71 +2351,6 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 	}
 	defer rg.Release()
 	return rg.reader.GetStaticHostUser(ctx, name)
-}
-
-// GetApplicationServers returns all registered application servers.
-func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApplicationServers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appServers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetApplicationServers(ctx, namespace)
-}
-
-// GetKubernetesClusters returns all kubernetes cluster resources.
-func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeClusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetKubernetesClusters(ctx)
-}
-
-// GetKubernetesCluster returns the specified kubernetes cluster resource.
-func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeClusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetKubernetesCluster(ctx, name)
-}
-
-// GetApps returns all application resources.
-func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApps")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.apps)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetApps(ctx)
-}
-
-// GetApp returns the specified application resource.
-func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.apps)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetApp(ctx, name)
 }
 
 // GetAppSession gets an application web session.
@@ -2609,32 +2452,6 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 	return sess, trace.Wrap(err)
 }
 
-// GetDatabaseServers returns all registered database proxy servers.
-func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseServers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDatabaseServers(ctx, namespace, opts...)
-}
-
-// GetDatabases returns all database resources.
-func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databases)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDatabases(ctx)
-}
-
 func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
 	defer span.End()
@@ -2648,7 +2465,7 @@ func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1
 }
 
 func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabaseObjects")
 	defer span.End()
 
 	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseObjects)
@@ -2657,19 +2474,6 @@ func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken str
 	}
 	defer rg.Release()
 	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
-}
-
-// GetDatabase returns the specified database resource.
-func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databases)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDatabase(ctx, name)
 }
 
 // GetWebSession gets a regular web session.
@@ -2790,97 +2594,6 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 	}
 	defer rg.Release()
 	return rg.reader.GetLocks(ctx, inForceOnly, targets...)
-}
-
-// GetWindowsDesktopServices returns all registered Windows desktop services.
-func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopServices")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktopServices)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetWindowsDesktopServices(ctx)
-}
-
-// GetWindowsDesktopService returns a registered Windows desktop service by name.
-func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopService")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktopServices)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetWindowsDesktopService(ctx, name)
-}
-
-// GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktops")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktops)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetWindowsDesktops(ctx, filter)
-}
-
-// ListWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktops")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktops)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListWindowsDesktops(ctx, req)
-}
-
-// ListWindowsDesktopServices returns all registered Windows desktop hosts.
-func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.windowsDesktopServices)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListWindowsDesktopServices(ctx, req)
-}
-
-// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
-func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDynamicWindowsDesktop(ctx, name)
-}
-
-// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
-func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
@@ -3436,57 +3149,6 @@ func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*acce
 	}
 	defer rg.Release()
 	return rg.reader.GetAccessMonitoringRule(ctx, name)
-}
-
-// ListResources is a part of auth.Cache implementation
-func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
-	defer span.End()
-
-	rg, err := readLegacyListResourcesCache(c, req.ResourceType)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	// Cache is not healthy, but right now, only `Node` kind has an
-	// implementation that falls back to TTL cache.
-	if !rg.IsCacheRead() {
-		switch req.ResourceType {
-		case types.KindNode:
-			cachedNodes, err := c.getNodesWithTTLCache(ctx, c.Config.Presence, req.Namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			servers := types.Servers(cachedNodes)
-			// Since TTLCaching falls back to retrieving all resources upfront, we also support
-			// sorting.
-			if err := servers.SortByCustom(req.SortBy); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			params := local.FakePaginateParams{
-				ResourceType:   req.ResourceType,
-				Limit:          req.Limit,
-				Labels:         req.Labels,
-				SearchKeywords: req.SearchKeywords,
-				StartKey:       req.StartKey,
-			}
-
-			if req.PredicateExpression != "" {
-				expression, err := services.NewResourceExpression(req.PredicateExpression)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				params.PredicateExpression = expression
-			}
-
-			return local.FakePaginate(servers.AsResources(), params)
-		}
-	}
-
-	return rg.reader.ListResources(ctx, req)
 }
 
 // GetAccessGraphSettings gets AccessGraphSettings from the backend.

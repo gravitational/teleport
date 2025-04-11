@@ -48,9 +48,19 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	staticTokens    *collection[types.StaticTokens]
-	certAuthorities *collection[types.CertAuthority]
-	users           *collection[types.User]
+	staticTokens           *collection[types.StaticTokens]
+	certAuthorities        *collection[types.CertAuthority]
+	users                  *collection[types.User]
+	nodes                  *collection[types.Server]
+	apps                   *collection[types.Application]
+	appServers             *collection[types.AppServer]
+	dbs                    *collection[types.Database]
+	dbServers              *collection[types.DatabaseServer]
+	dbServices             *collection[types.DatabaseService]
+	kubeServers            *collection[types.KubeServer]
+	kubeClusters           *collection[types.KubeCluster]
+	windowsDesktops        *collection[types.WindowsDesktop]
+	windowsDesktopServices *collection[types.WindowsDesktopService]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -89,6 +99,86 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.users = collect
 			out.byKind[resourceKind] = out.users
+		case types.KindNode:
+			collect, err := newNodeCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.nodes = collect
+			out.byKind[resourceKind] = out.nodes
+		case types.KindApp:
+			collect, err := newAppCollection(c.Apps, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.apps = collect
+			out.byKind[resourceKind] = out.apps
+		case types.KindAppServer:
+			collect, err := newAppServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.appServers = collect
+			out.byKind[resourceKind] = out.appServers
+		case types.KindDatabase:
+			collect, err := newDatabaseCollection(c.Databases, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dbs = collect
+			out.byKind[resourceKind] = out.dbs
+		case types.KindDatabaseServer:
+			collect, err := newDatabaseServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dbServers = collect
+			out.byKind[resourceKind] = out.dbServers
+		case types.KindDatabaseService:
+			collect, err := newDatabaseServiceCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dbServices = collect
+			out.byKind[resourceKind] = out.dbServices
+		case types.KindKubeServer:
+			collect, err := newKubernetesServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.kubeServers = collect
+			out.byKind[resourceKind] = out.kubeServers
+		case types.KindKubernetesCluster:
+			collect, err := newKubernetesClusterCollection(c.Kubernetes, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.kubeClusters = collect
+			out.byKind[resourceKind] = out.kubeClusters
+		case types.KindWindowsDesktop:
+			collect, err := newWindowsDesktopCollection(c.WindowsDesktops, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.windowsDesktops = collect
+			out.byKind[resourceKind] = out.windowsDesktops
+		case types.KindWindowsDesktopService:
+			collect, err := newWindowsDesktopServiceCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.windowsDesktopServices = collect
+			out.byKind[resourceKind] = out.windowsDesktopServices
 		}
 	}
 

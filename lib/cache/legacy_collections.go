@@ -25,9 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -118,28 +116,21 @@ type legacyCollections struct {
 	accessLists                        collectionReader[accessListsGetter]
 	accessListMembers                  collectionReader[accessListMembersGetter]
 	accessListReviews                  collectionReader[accessListReviewsGetter]
-	apps                               collectionReader[services.AppGetter]
-	nodes                              collectionReader[nodeGetter]
 	tunnelConnections                  collectionReader[tunnelConnectionGetter]
 	appSessions                        collectionReader[appSessionGetter]
-	appServers                         collectionReader[appServerGetter]
 	authPreferences                    collectionReader[authPreferenceGetter]
 	authServers                        collectionReader[authServerGetter]
 	clusterAuditConfigs                collectionReader[clusterAuditConfigGetter]
 	clusterNames                       collectionReader[clusterNameGetter]
 	clusterNetworkingConfigs           collectionReader[clusterNetworkingConfigGetter]
-	databases                          collectionReader[services.DatabaseGetter]
 	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
-	databaseServers                    collectionReader[databaseServerGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
 	installers                         collectionReader[installerGetter]
 	integrations                       collectionReader[services.IntegrationsGetter]
 	userTasks                          collectionReader[userTasksGetter]
 	crownJewels                        collectionReader[crownjewelsGetter]
-	kubeClusters                       collectionReader[kubernetesClusterGetter]
 	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
-	kubeServers                        collectionReader[kubeServerGetter]
 	locks                              collectionReader[services.LockGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	oktaAssignments                    collectionReader[oktaAssignmentGetter]
@@ -158,9 +149,7 @@ type legacyCollections struct {
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
 	webSessions                        collectionReader[webSessionGetter]
 	webTokens                          collectionReader[webTokenGetter]
-	windowsDesktops                    collectionReader[windowsDesktopsGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
-	windowsDesktopServices             collectionReader[windowsDesktopServiceGetter]
 	userNotifications                  collectionReader[notificationGetter]
 	accessGraphSettings                collectionReader[accessGraphSettingsGetter]
 	globalNotifications                collectionReader[notificationGetter]
@@ -268,15 +257,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.roles
-		case types.KindNode:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.nodes = &genericCollection[types.Server, nodeGetter, nodeExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.nodes
 		case types.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -327,15 +307,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-		case types.KindAppServer:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.appServers = &genericCollection[types.AppServer, appServerGetter, appServerExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.appServers
 		case types.KindWebSession:
 			switch watch.SubKind {
 			case types.KindAppSession:
@@ -384,50 +355,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.webTokens
-		case types.KindKubeServer:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.kubeServers = &genericCollection[types.KubeServer, kubeServerGetter, kubeServerExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.kubeServers
-		case types.KindDatabaseServer:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.databaseServers = &genericCollection[types.DatabaseServer, databaseServerGetter, databaseServerExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.databaseServers
-		case types.KindDatabaseService:
-			if c.DatabaseServices == nil {
-				return nil, trace.BadParameter("missing parameter DatabaseServices")
-			}
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.byKind[resourceKind] = &genericCollection[types.DatabaseService, noReader, databaseServiceExecutor]{cache: c, watch: watch}
-		case types.KindApp:
-			if c.Apps == nil {
-				return nil, trace.BadParameter("missing parameter Apps")
-			}
-			collections.apps = &genericCollection[types.Application, services.AppGetter, appExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.apps
-		case types.KindDatabase:
-			if c.Databases == nil {
-				return nil, trace.BadParameter("missing parameter Databases")
-			}
-			collections.databases = &genericCollection[types.Database, services.DatabaseGetter, databaseExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.databases
 		case types.KindDatabaseObject:
 			if c.DatabaseObjects == nil {
 				return nil, trace.BadParameter("missing parameter DatabaseObject")
@@ -437,15 +364,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.databaseObjects
-		case types.KindKubernetesCluster:
-			if c.Kubernetes == nil {
-				return nil, trace.BadParameter("missing parameter Kubernetes")
-			}
-			collections.kubeClusters = &genericCollection[types.KubeCluster, kubernetesClusterGetter, kubeClusterExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.kubeClusters
 		case types.KindCrownJewel:
 			if c.CrownJewels == nil {
 				return nil, trace.BadParameter("missing parameter crownjewels")
@@ -473,24 +391,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.locks
-		case types.KindWindowsDesktopService:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.windowsDesktopServices = &genericCollection[types.WindowsDesktopService, windowsDesktopServiceGetter, windowsDesktopServicesExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.windowsDesktopServices
-		case types.KindWindowsDesktop:
-			if c.WindowsDesktops == nil {
-				return nil, trace.BadParameter("missing parameter WindowsDesktops")
-			}
-			collections.windowsDesktops = &genericCollection[types.WindowsDesktop, windowsDesktopsGetter, windowsDesktopsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.windowsDesktops
 		case types.KindDynamicWindowsDesktop:
 			if c.WindowsDesktops == nil {
 				return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
@@ -1010,41 +910,6 @@ type authServerGetter interface {
 
 var _ executor[types.Server, authServerGetter] = authServerExecutor{}
 
-type nodeExecutor struct{}
-
-func (nodeExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetNodes(ctx, apidefaults.Namespace)
-}
-
-func (nodeExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	_, err := cache.presenceCache.UpsertNode(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (nodeExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllNodes(ctx, apidefaults.Namespace)
-}
-
-func (nodeExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteNode(ctx, resource.GetMetadata().Namespace, resource.GetName())
-}
-
-func (nodeExecutor) isSingleton() bool { return false }
-
-func (nodeExecutor) getReader(cache *Cache, cacheOK bool) nodeGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type nodeGetter interface {
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-}
-
-var _ executor[types.Server, nodeGetter] = nodeExecutor{}
-
 type provisionTokenExecutor struct{}
 
 func (provisionTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ProvisionToken, error) {
@@ -1290,120 +1155,6 @@ type roleGetter interface {
 
 var _ executor[types.Role, roleGetter] = roleExecutor{}
 
-type databaseServerExecutor struct{}
-
-func (databaseServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DatabaseServer, error) {
-	return cache.Presence.GetDatabaseServers(ctx, apidefaults.Namespace)
-}
-
-func (databaseServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.DatabaseServer) error {
-	_, err := cache.presenceCache.UpsertDatabaseServer(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (databaseServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
-}
-
-func (databaseServerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteDatabaseServer(ctx,
-		resource.GetMetadata().Namespace,
-		resource.GetMetadata().Description, // Cache passes host ID via description field.
-		resource.GetName())
-}
-
-func (databaseServerExecutor) isSingleton() bool { return false }
-
-func (databaseServerExecutor) getReader(cache *Cache, cacheOK bool) databaseServerGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type databaseServerGetter interface {
-	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
-}
-
-var _ executor[types.DatabaseServer, databaseServerGetter] = databaseServerExecutor{}
-
-type databaseServiceExecutor struct{}
-
-func (databaseServiceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DatabaseService, error) {
-	resources, err := client.GetResourcesWithFilters(ctx, cache.Presence, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbsvcs := make([]types.DatabaseService, len(resources))
-	for i, resource := range resources {
-		dbsvc, ok := resource.(types.DatabaseService)
-		if !ok {
-			return nil, trace.BadParameter("unexpected resource %T", resource)
-		}
-		dbsvcs[i] = dbsvc
-	}
-
-	return dbsvcs, nil
-}
-
-func (databaseServiceExecutor) upsert(ctx context.Context, cache *Cache, resource types.DatabaseService) error {
-	_, err := cache.databaseServicesCache.UpsertDatabaseService(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (databaseServiceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.databaseServicesCache.DeleteAllDatabaseServices(ctx)
-}
-
-func (databaseServiceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.databaseServicesCache.DeleteDatabaseService(ctx, resource.GetName())
-}
-
-func (databaseServiceExecutor) isSingleton() bool { return false }
-
-func (databaseServiceExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[types.DatabaseService, noReader] = databaseServiceExecutor{}
-
-type databaseExecutor struct{}
-
-func (databaseExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Database, error) {
-	return cache.Databases.GetDatabases(ctx)
-}
-
-func (databaseExecutor) upsert(ctx context.Context, cache *Cache, resource types.Database) error {
-	if err := cache.databasesCache.CreateDatabase(ctx, resource); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(cache.databasesCache.UpdateDatabase(ctx, resource))
-	}
-
-	return nil
-}
-
-func (databaseExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.databasesCache.DeleteAllDatabases(ctx)
-}
-
-func (databaseExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.databasesCache.DeleteDatabase(ctx, resource.GetName())
-}
-
-func (databaseExecutor) isSingleton() bool { return false }
-
-func (databaseExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseGetter {
-	if cacheOK {
-		return cache.databasesCache
-	}
-	return cache.Config.Databases
-}
-
-var _ executor[types.Database, services.DatabaseGetter] = databaseExecutor{}
-
 type databaseObjectExecutor struct{}
 
 func (databaseObjectExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
@@ -1448,79 +1199,6 @@ func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.Dat
 }
 
 var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
-
-type appExecutor struct{}
-
-func (appExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Application, error) {
-	return cache.Apps.GetApps(ctx)
-}
-
-func (appExecutor) upsert(ctx context.Context, cache *Cache, resource types.Application) error {
-	if err := cache.appsCache.CreateApp(ctx, resource); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(cache.appsCache.UpdateApp(ctx, resource))
-	}
-
-	return nil
-}
-
-func (appExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.appsCache.DeleteAllApps(ctx)
-}
-
-func (appExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.appsCache.DeleteApp(ctx, resource.GetName())
-}
-
-func (appExecutor) getReader(cache *Cache, cacheOK bool) services.AppGetter {
-	if cacheOK {
-		return cache.appsCache
-	}
-	return cache.Apps
-}
-
-func (appExecutor) isSingleton() bool { return false }
-
-var _ executor[types.Application, services.AppGetter] = appExecutor{}
-
-type appServerExecutor struct{}
-
-func (appServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.AppServer, error) {
-	return cache.Presence.GetApplicationServers(ctx, apidefaults.Namespace)
-}
-
-func (appServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.AppServer) error {
-	_, err := cache.presenceCache.UpsertApplicationServer(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (appServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
-}
-
-func (appServerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteApplicationServer(ctx,
-		resource.GetMetadata().Namespace,
-		resource.GetMetadata().Description, // Cache passes host ID via description field.
-		resource.GetName())
-}
-
-func (appServerExecutor) isSingleton() bool { return false }
-
-func (appServerExecutor) getReader(cache *Cache, cacheOK bool) appServerGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type appServerGetter interface {
-	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
-}
-
-var _ executor[types.AppServer, appServerGetter] = appServerExecutor{}
 
 type appSessionExecutor struct{}
 
@@ -1766,44 +1444,6 @@ type webTokenGetter interface {
 }
 
 var _ executor[types.WebToken, webTokenGetter] = webTokenExecutor{}
-
-type kubeServerExecutor struct{}
-
-func (kubeServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeServer, error) {
-	return cache.Presence.GetKubernetesServers(ctx)
-}
-
-func (kubeServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.KubeServer) error {
-	_, err := cache.presenceCache.UpsertKubernetesServer(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (kubeServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllKubernetesServers(ctx)
-}
-
-func (kubeServerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteKubernetesServer(
-		ctx,
-		resource.GetMetadata().Description, // Cache passes host ID via description field.
-		resource.GetName(),
-	)
-}
-
-func (kubeServerExecutor) isSingleton() bool { return false }
-
-func (kubeServerExecutor) getReader(cache *Cache, cacheOK bool) kubeServerGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type kubeServerGetter interface {
-	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
-}
-
-var _ executor[types.KubeServer, kubeServerGetter] = kubeServerExecutor{}
 
 type authPreferenceExecutor struct{}
 
@@ -2093,90 +1733,6 @@ func (lockExecutor) getReader(cache *Cache, cacheOK bool) services.LockGetter {
 
 var _ executor[types.Lock, services.LockGetter] = lockExecutor{}
 
-type windowsDesktopServicesExecutor struct{}
-
-func (windowsDesktopServicesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WindowsDesktopService, error) {
-	return cache.Presence.GetWindowsDesktopServices(ctx)
-}
-
-func (windowsDesktopServicesExecutor) upsert(ctx context.Context, cache *Cache, resource types.WindowsDesktopService) error {
-	_, err := cache.presenceCache.UpsertWindowsDesktopService(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (windowsDesktopServicesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllWindowsDesktopServices(ctx)
-}
-
-func (windowsDesktopServicesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteWindowsDesktopService(ctx, resource.GetName())
-}
-
-func (windowsDesktopServicesExecutor) isSingleton() bool { return false }
-
-func (windowsDesktopServicesExecutor) getReader(cache *Cache, cacheOK bool) windowsDesktopServiceGetter {
-	if cacheOK {
-		return windowsDesktopServiceAggregate{
-			Presence:        cache.presenceCache,
-			WindowsDesktops: cache.windowsDesktopsCache,
-		}
-	}
-	return windowsDesktopServiceAggregate{
-		Presence:        cache.Config.Presence,
-		WindowsDesktops: cache.Config.WindowsDesktops,
-	}
-}
-
-type windowsDesktopServiceAggregate struct {
-	services.Presence
-	services.WindowsDesktops
-}
-
-type windowsDesktopServiceGetter interface {
-	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
-	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
-	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
-}
-
-var _ executor[types.WindowsDesktopService, windowsDesktopServiceGetter] = windowsDesktopServicesExecutor{}
-
-type windowsDesktopsExecutor struct{}
-
-func (windowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WindowsDesktop, error) {
-	return cache.WindowsDesktops.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-}
-
-func (windowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.WindowsDesktop) error {
-	return cache.windowsDesktopsCache.UpsertWindowsDesktop(ctx, resource)
-}
-
-func (windowsDesktopsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.windowsDesktopsCache.DeleteAllWindowsDesktops(ctx)
-}
-
-func (windowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.windowsDesktopsCache.DeleteWindowsDesktop(ctx,
-		resource.GetMetadata().Description, // Cache passes host ID via description field.
-		resource.GetName(),
-	)
-}
-
-func (windowsDesktopsExecutor) isSingleton() bool { return false }
-
-func (windowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) windowsDesktopsGetter {
-	if cacheOK {
-		return cache.windowsDesktopsCache
-	}
-	return cache.Config.WindowsDesktops
-}
-
-type windowsDesktopsGetter interface {
-	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
-	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
-}
-
-var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExecutor{}
-
 type dynamicWindowsDesktopsExecutor struct{}
 
 func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
@@ -2224,45 +1780,6 @@ type dynamicWindowsDesktopsGetter interface {
 }
 
 var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dynamicWindowsDesktopsExecutor{}
-
-type kubeClusterExecutor struct{}
-
-func (kubeClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeCluster, error) {
-	return cache.Kubernetes.GetKubernetesClusters(ctx)
-}
-
-func (kubeClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.KubeCluster) error {
-	if err := cache.kubernetesCache.CreateKubernetesCluster(ctx, resource); err != nil {
-		if !trace.IsAlreadyExists(err) {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(cache.kubernetesCache.UpdateKubernetesCluster(ctx, resource))
-	}
-
-	return nil
-}
-
-func (kubeClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.kubernetesCache.DeleteAllKubernetesClusters(ctx)
-}
-
-func (kubeClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.kubernetesCache.DeleteKubernetesCluster(ctx, resource.GetName())
-}
-
-func (kubeClusterExecutor) isSingleton() bool { return false }
-
-func (kubeClusterExecutor) getReader(cache *Cache, cacheOK bool) kubernetesClusterGetter {
-	if cacheOK {
-		return cache.kubernetesCache
-	}
-	return cache.Config.Kubernetes
-}
-
-type kubernetesClusterGetter interface {
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
-}
 
 type kubeWaitingContainerExecutor struct{}
 

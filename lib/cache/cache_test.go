@@ -890,58 +890,6 @@ func TestInitStrategy(t *testing.T) {
 goos: linux
 goarch: amd64
 pkg: github.com/gravitational/teleport/lib/cache
-cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
-BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
-*/
-func BenchmarkGetMaxNodes(b *testing.B) {
-	benchGetNodes(b, 1_000_000)
-}
-
-func benchGetNodes(b *testing.B, nodeCount int) {
-	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
-	require.NoError(b, err)
-	defer p.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	createErr := make(chan error, 1)
-
-	go func() {
-		for i := 0; i < nodeCount; i++ {
-			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-			_, err := p.presenceS.UpsertNode(ctx, server)
-			if err != nil {
-				createErr <- err
-				return
-			}
-		}
-	}()
-
-	timeout := time.After(time.Second * 90)
-
-	for i := 0; i < nodeCount; i++ {
-		select {
-		case event := <-p.eventsC:
-			require.Equal(b, EventProcessed, event.Type)
-		case err := <-createErr:
-			b.Fatalf("failed to create node: %v", err)
-		case <-timeout:
-			b.Fatalf("timeout waiting for event, progress=%d", i)
-		}
-	}
-
-	for b.Loop() {
-		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(b, err)
-		require.Len(b, nodes, nodeCount)
-	}
-}
-
-/*
-goos: linux
-goarch: amd64
-pkg: github.com/gravitational/teleport/lib/cache
 cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
@@ -1508,34 +1456,6 @@ func TestTunnelConnections(t *testing.T) {
 		update: modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
 			return p.trustS.DeleteAllTunnelConnections()
-		},
-	})
-}
-
-// TestNodes tests nodes cache
-func TestNodes(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.Server]{
-		newResource: func(name string) (types.Server, error) {
-			return suite.NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
-		},
-		create: withKeepalive(p.presenceS.UpsertNode),
-		list: func(ctx context.Context) ([]types.Server, error) {
-			return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-		},
-		cacheGet: func(ctx context.Context, name string) (types.Server, error) {
-			return p.cache.GetNode(ctx, apidefaults.Namespace, name)
-		},
-		cacheList: func(ctx context.Context) ([]types.Server, error) {
-			return p.cache.GetNodes(ctx, apidefaults.Namespace)
-		},
-		update: withKeepalive(p.presenceS.UpsertNode),
-		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
 		},
 	})
 }
