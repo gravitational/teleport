@@ -42,6 +42,10 @@ const (
 	// maxAccessRequestDeadline specifies the maximum time allowed to handle an
 	// access request event.
 	maxAccessRequestDeadline = 10 * time.Second
+
+	// initWatcherTimeout specifies the maximum time to wait for the watcher to
+	// initialize.
+	initWatcherTimeout = 15 * time.Second
 )
 
 // EventHandler describes a function that can handle an access event.
@@ -59,6 +63,13 @@ type Config struct {
 	// Events is the event monitor. This interface allows us to monitor access
 	// events.
 	Events types.Events
+
+	// FailFast mode indicates that the access monitor should fail fast instead
+	// of restarting indefinitely. Fail fast mode should only be used within a plugin
+	// environment. See https://github.com/gravitational/teleport/pull/30039 for
+	// more details
+	// TODO(bernardjkim): Investigate if fail fast mode is still required.
+	FailFast bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -133,6 +144,9 @@ func (s *AccessMonitor) Run(ctx context.Context) error {
 				"error", err,
 				"restart_after", waitWithJitter,
 			)
+			if s.cfg.FailFast {
+				return trace.Wrap(err)
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -173,6 +187,8 @@ func (s *AccessMonitor) run(ctx context.Context) error {
 		if err := handleEvent(ctx, s.ruleHandlers, initEvent); err != nil {
 			return trace.Wrap(err, "failed to initialize access monitoring rule handler")
 		}
+	case <-time.After(initWatcherTimeout):
+		return trace.ConnectionProblem(nil, "watcher initialization timed out")
 	case <-watcher.Done():
 		return trace.Wrap(watcher.Error())
 	case <-ctx.Done():
