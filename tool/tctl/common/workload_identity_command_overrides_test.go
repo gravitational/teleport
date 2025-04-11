@@ -24,6 +24,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"io"
 	"math/big"
@@ -53,8 +54,8 @@ import (
 func TestOverrideCreate(t *testing.T) {
 	d := t.TempDir()
 
-	c1a := newSelfSignedCert(t)
-	c1b := newSelfSignedCert(t)
+	c1a := newSelfSignedCert(t, "c1a")
+	c1b := newSelfSignedCert(t, "c1b")
 	c1Path := filepath.Join(d, "c1.pem")
 	require.NoError(t, os.WriteFile(
 		c1Path,
@@ -65,7 +66,7 @@ func TestOverrideCreate(t *testing.T) {
 		0o600,
 	))
 
-	c2a := newSelfSignedCert(t)
+	c2a := newSelfSignedCert(t, "c2a")
 	c2Path := filepath.Join(d, "c2.pem")
 	require.NoError(t, os.WriteFile(
 		c2Path,
@@ -75,7 +76,7 @@ func TestOverrideCreate(t *testing.T) {
 		0o600,
 	))
 
-	c3a := newSelfSignedCert(t)
+	c3a := newSelfSignedCert(t, "c3a")
 	c3Path := filepath.Join(d, "c3.pem")
 	require.NoError(t, os.WriteFile(
 		c3Path,
@@ -158,6 +159,81 @@ func TestOverrideCreate(t *testing.T) {
 	require.Equal(t, 1, overrideServer.upsertCalls)
 }
 
+func TestOverrideSign(t *testing.T) {
+	c1 := newSelfSignedCert(t, "c1")
+	c2 := newSelfSignedCert(t, "c2")
+
+	csr1, err := x509.CreateCertificateRequest(
+		rand.Reader,
+		&x509.CertificateRequest{Subject: pkix.Name{CommonName: "csr1"}},
+		c1.PrivateKey,
+	)
+	require.NoError(t, err)
+	csr2, err := x509.CreateCertificateRequest(
+		rand.Reader,
+		&x509.CertificateRequest{Subject: pkix.Name{CommonName: "csr2"}},
+		c2.PrivateKey,
+	)
+	require.NoError(t, err)
+
+	clt := runFakeAPIServer(t, func(s *grpc.Server) {
+		proto.RegisterAuthServiceServer(s, &domainNameServer{
+			domainName: "clustername",
+		})
+		trustv1.RegisterTrustServiceServer(s, &caServer{
+			cas: map[types.CertAuthID]*types.CertAuthorityV2{
+				{Type: types.SPIFFECA, DomainName: "clustername"}: {
+					Spec: types.CertAuthoritySpecV2{
+						ActiveKeys: types.CAKeySet{
+							TLS: []*types.TLSKeyPair{
+								{Cert: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c1.Leaf.Raw})},
+								{Cert: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c2.Leaf.Raw})},
+							},
+						},
+					},
+				},
+			},
+		})
+		workloadidentityv1.RegisterX509OverridesServiceServer(s, &csrServer{
+			resp: map[string][]byte{
+				string(c1.Leaf.Raw): csr1,
+				string(c2.Leaf.Raw): csr2,
+			},
+		})
+	})
+
+	err = runCommand(t, clt, &WorkloadIdentityCommand{stdout: os.Stdout}, []string{
+		"workload-identity", "x509-issuer-overrides", "sign-csrs", "--creation-mode", "0",
+	})
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	out := new(bytes.Buffer)
+	err = runCommand(t, clt, &WorkloadIdentityCommand{stdout: out}, []string{
+		"workload-identity", "x509-issuer-overrides", "sign-csrs",
+	})
+	require.NoError(t, err)
+
+	l, err := out.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "CN=csr1\n", l)
+	b, rest := pem.Decode(out.Bytes())
+	require.NotNil(t, b)
+	require.Equal(t, "CERTIFICATE REQUEST", b.Type)
+	require.Equal(t, csr1, b.Bytes)
+	out.Next(out.Len() - len(rest))
+
+	l, err = out.ReadString('\n')
+	require.NoError(t, err)
+	require.Equal(t, "CN=csr2\n", l)
+	b, rest = pem.Decode(out.Bytes())
+	require.NotNil(t, b)
+	require.Equal(t, "CERTIFICATE REQUEST", b.Type)
+	require.Equal(t, csr2, b.Bytes)
+	out.Next(out.Len() - len(rest))
+
+	require.Zero(t, out.Len())
+}
+
 type domainNameServer struct {
 	proto.UnimplementedAuthServiceServer
 	domainName string
@@ -211,8 +287,24 @@ func (s *overrideServer) UpsertX509IssuerOverride(ctx context.Context, req *work
 	return s.def, nil
 }
 
+type csrServer struct {
+	workloadidentityv1.UnimplementedX509OverridesServiceServer
+	resp map[string][]byte
+}
+
+func (s *csrServer) SignX509IssuerCSR(ctx context.Context, req *workloadidentityv1.SignX509IssuerCSRRequest) (*workloadidentityv1.SignX509IssuerCSRResponse, error) {
+	if req.GetCsrCreationMode() == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "")
+	}
+	csr, ok := s.resp[string(req.GetIssuer())]
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "")
+	}
+	return &workloadidentityv1.SignX509IssuerCSRResponse{Csr: csr}, nil
+}
+
 func runFakeAPIServer(t *testing.T, register func(*grpc.Server)) *authclient.Client {
-	cert := newSelfSignedCert(t)
+	cert := newSelfSignedCert(t, "")
 	pool := x509.NewCertPool()
 	pool.AddCert(cert.Leaf)
 
@@ -249,7 +341,7 @@ func runFakeAPIServer(t *testing.T, register func(*grpc.Server)) *authclient.Cli
 	return &authclient.Client{APIClient: clt}
 }
 
-func newSelfSignedCert(t *testing.T) tls.Certificate {
+func newSelfSignedCert(t *testing.T, cn string) tls.Certificate {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
@@ -259,6 +351,9 @@ func newSelfSignedCert(t *testing.T) tls.Certificate {
 	now := time.Now()
 	template := &x509.Certificate{
 		SerialNumber: sn,
+		Subject: pkix.Name{
+			CommonName: cn,
+		},
 
 		NotBefore: now.Add(-time.Hour),
 		NotAfter:  now.Add(2159 * time.Hour),
