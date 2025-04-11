@@ -59,7 +59,9 @@ func TestKeyStore(t *testing.T) {
 	// create a test software and hardware key.
 	idx := KeyIndex{"test.proxy.com", "test-user", "root"}
 	softKey := s.makeSignedKey(t, idx, false)
-	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{})
+	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: idx.contextualKeyInfo(),
+	})
 	require.NoError(t, err)
 	hardKey := NewKey(hwPriv)
 	hardKey.KeyIndex = idx
@@ -74,8 +76,6 @@ func TestKeyStore(t *testing.T) {
 			t.Parallel()
 
 			testEachKeyStore(t, func(t *testing.T, keyStore KeyStore) {
-				t.Parallel()
-
 				// add the test key to the memory store
 				err := keyStore.AddKey(key)
 				require.NoError(t, err)
@@ -97,11 +97,15 @@ func TestKeyStore(t *testing.T) {
 				expectKey.DBTLSCerts = make(map[string][]byte)
 				require.Equal(t, expectKey, retrievedKey)
 
-				// check for the key, now without cluster name
+				// Get the key, now without cluster name. It should retrieve the key without certs
+				// and without a cluster name in the KeyIndex or ContextualKeyInfo (hardware keys).
 				retrievedKey, err = keyStore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""}, hwks)
 				require.NoError(t, err)
 				expectKey.ClusterName = ""
 				expectKey.Cert = nil
+				if hwPriv, ok := expectKey.PrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
 				require.Equal(t, expectKey, retrievedKey)
 
 				// delete the key
