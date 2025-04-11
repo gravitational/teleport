@@ -94,7 +94,8 @@ func TestMakeApps(t *testing.T) {
 				createAppServerOrSPFromApp(newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"})),
 				createAppServerOrSPFromApp(newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{
 					"label2": "value2", types.OriginLabel: types.OriginOkta,
-				}))},
+				})),
+			},
 			expected: []App{
 				{
 					Kind:       types.KindApp,
@@ -127,7 +128,8 @@ func TestMakeApps(t *testing.T) {
 				createAppServerOrSPFromApp(newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"})),
 				createAppServerOrSPFromApp(newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{
 					"label2": "value2", types.OriginLabel: types.OriginOkta,
-				}))},
+				})),
+			},
 			appsToUserGroups: map[string]types.UserGroups{
 				"1": {
 					newGroup(t, "group1", "group1 desc", nil),
