@@ -201,7 +201,7 @@ type isSigstorePolicySpec_Authority interface {
 }
 
 type SigstorePolicySpec_Key struct {
-	// Well-known trusted public/private key pair.
+	// Well-known trusted public key.
 	Key *SigstoreKeyAuthority `protobuf:"bytes,1,opt,name=key,proto3,oneof"`
 }
 
@@ -271,7 +271,7 @@ func (x *SigstorePolicyRequirements) GetAttestations() []*InTotoAttestationMatch
 	return nil
 }
 
-// Configuration for a well-known trusted public/private key pair authority.
+// Configuration for a well-known trusted public key.
 type SigstoreKeyAuthority struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Public key in PEM-encoded DER format.

@@ -43,7 +43,7 @@ message SigstorePolicy {
 // Desired Sigstore policy configuration.
 message SigstorePolicySpec {
   oneof authority {
-    // Well-known trusted public/private key pair.
+    // Well-known trusted public key.
     SigstoreKeyAuthority key = 1;
 
     // Keyless signing using a Fulcio certificate authority.
@@ -65,7 +65,7 @@ message SigstorePolicyRequirements {
   repeated InTotoAttestationMatcher attestations = 2;
 }
 
-// Configuration for a well-known trusted public/private key pair authority.
+// Configuration for a well-known trusted public key.
 message SigstoreKeyAuthority {
   // Public key in PEM-encoded DER format.
   string public = 1;
