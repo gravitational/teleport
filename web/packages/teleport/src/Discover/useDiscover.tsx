@@ -40,6 +40,7 @@ import type { Node } from 'teleport/services/nodes';
 import type {
   SamlGcpWorkforce,
   SamlIdpServiceProvider,
+  SamlMicrosoftEntraId,
 } from 'teleport/services/samlidp/types';
 import {
   DiscoverDiscoveryConfigMethod,
@@ -609,6 +610,7 @@ export type AppMeta = BaseMeta & {
 export type SamlMeta = BaseMeta & {
   samlGeneric?: SamlIdpServiceProvider;
   samlGcpWorkforce?: SamlGcpWorkforce;
+  samlMicrosoftEntraId?: SamlMicrosoftEntraId;
 };
 
 export type AgentMeta =
