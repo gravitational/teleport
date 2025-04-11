@@ -29,12 +29,13 @@ import (
 	"unsafe"
 
 	"github.com/google/uuid"
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/tun"
+
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 const (
