@@ -150,7 +150,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 	cachedHelloGetter := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
 		getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		return utils.FnCacheGet[string, proto.UpstreamInventoryHello](getCtx, cache, "hello", func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+		return utils.FnCacheGet(getCtx, cache, "hello", func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
 			return hello(ctx)
 		})
 	}
