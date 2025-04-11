@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 // Config is the cluster service config
@@ -47,17 +46,13 @@ type Config struct {
 	AddKeysToAgent string
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
-	HardwareKeyPromptConstructor func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Dir == "" {
 		return trace.BadParameter("missing working directory")
-	}
-
-	if c.HardwareKeyPromptConstructor == nil {
-		return trace.BadParameter("missing hardware key prompt constructor")
 	}
 
 	if c.Clock == nil {
