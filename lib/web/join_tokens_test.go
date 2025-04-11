@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
@@ -590,7 +591,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	}
 	modules.SetTestModules(t, config.testModules)
 	h := &Handler{
-		clusterFeatures: *config.testModules.Features().ToProto(),
+		ClusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
 			AutomaticUpgradesChannels: config.channels,
 			AccessPoint:               ap,
