@@ -199,7 +199,7 @@ type BotSpec struct {
 	// server.
 	Traits []*Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
 	// The max session TTL value for the bot's internal role. Unless specified,
-	// bots may not request a value beyond the default maximum TTL of 30 hours.
+	// bots may not request a value beyond the default maximum TTL of 12 hours.
 	// This value may not be larger than 168 hours.
 	MaxSessionTtl *durationpb.Duration `protobuf:"bytes,3,opt,name=max_session_ttl,json=maxSessionTtl,proto3" json:"max_session_ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields

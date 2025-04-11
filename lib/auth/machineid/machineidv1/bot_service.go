@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
@@ -478,7 +480,7 @@ func (bs *BotService) UpdateBot(
 				traits[t.Name] = append(traits[t.Name], t.Values...)
 			}
 			user.SetTraits(traits)
-		case path == "max_session_ttl":
+		case path == "spec.max_session_ttl":
 			opts := role.GetOptions()
 			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
 			role.SetOptions(opts)
@@ -656,7 +658,8 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			RoleName: role.GetName(),
 		},
 		Spec: &pb.BotSpec{
-			Roles: role.GetImpersonateConditions(types.Allow).Roles,
+			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
+			MaxSessionTtl: durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
 		},
 	}
 
@@ -691,7 +694,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 
 	// Continue to use the legacy max session TTL (12 hours) as the default, but
 	// allow overrides via the optional bot spec field.
-	maxSessionTTL := 12 * time.Hour
+	maxSessionTTL := defaults.DefaultBotMaxSessionTTL
 	if bot.Spec.MaxSessionTtl != nil {
 		maxSessionTTL = bot.Spec.MaxSessionTtl.AsDuration()
 	}

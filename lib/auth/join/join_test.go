@@ -296,7 +296,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 			// MaxSessionTTL is set to defaults.MaxRenewableCertTTL by
 			// createBotRole, and will clamp the requested value set in
 			// generateInitialBotCerts.
-			expectTTL: defaults.MaxRenewableCertTTL,
+			expectTTL: defaults.DefaultBotMaxSessionTTL,
 		},
 	}
 

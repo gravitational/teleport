@@ -60,7 +60,7 @@ message BotSpec {
   // server.
   repeated Trait traits = 2;
   // The max session TTL value for the bot's internal role. Unless specified,
-  // bots may not request a value beyond the default maximum TTL of 30 hours.
+  // bots may not request a value beyond the default maximum TTL of 12 hours.
   // This value may not be larger than 168 hours.
   google.protobuf.Duration max_session_ttl = 3;
 }

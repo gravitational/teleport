@@ -171,6 +171,10 @@ const (
 	// DefaultBotJoinTTL is the default TTL for bot join tokens.
 	DefaultBotJoinTTL = 1 * time.Hour
 
+	// DefaultBotMaxSessionTTL is the default max_session_ttl on generated bot
+	// roles, unless overridden during bot creation.
+	DefaultBotMaxSessionTTL = 12 * time.Hour
+
 	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
 	RecoveryStartTokenTTL = 3 * time.Hour
 
