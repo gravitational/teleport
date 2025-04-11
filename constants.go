@@ -742,6 +742,12 @@ const (
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 const (
+	// PresetDefaultHealthCheckConfigName is the name of a preset
+	// default health_check_config that enables health checks for all resources.
+	PresetDefaultHealthCheckConfigName = "default"
+)
+
+const (
 	// SystemAccessApproverUserName names a Teleport user that acts as
 	// an Access Request approver for access plugins
 	SystemAccessApproverUserName = "@teleport-access-approval-bot"

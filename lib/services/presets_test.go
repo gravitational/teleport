@@ -752,6 +752,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindGitServer, RW()),
 							types.NewRule(types.KindAutoUpdateConfig, RW()),
 							types.NewRule(types.KindAutoUpdateVersion, RW()),
+							types.NewRule(types.KindHealthCheckConfig, RW()),
 						},
 					},
 				},
