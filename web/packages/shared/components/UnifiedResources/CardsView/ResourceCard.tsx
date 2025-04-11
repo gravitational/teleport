@@ -86,24 +86,10 @@ export function ResourceCard({
   const labelsInnerContainer = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // This saves the height of the card on initial render. It's the full
-  // height when all contents fill up the card. We use a ref here to store
-  // the value to avoid extra re-rendering since there can be many
-  // UnifiedResource cards rendered.
-  // This saved value is required for the WarningRightEdgeBadgeIcon to stay
-  // in place when we "showAllLabels". Showing all labels makes the inner
-  // container pop out, and the container (where the svg is held) shrunk in
-  // size resulting in the auto-sizing svg to lose its place which led
-  // to the svg jumping around (from size diff), or disappearing altogether.
-  const baseCardHeight = useRef<number>(null);
-
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
   useLayoutEffect(() => {
-    baseCardHeight.current =
-      innerContainer.current?.getBoundingClientRect().height;
-
     if (!labelsInnerContainer.current) return;
 
     // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
@@ -319,14 +305,7 @@ export function ResourceCard({
       {/* This is to let the WarningRightEdgeBadgeIcon stay in place while the
         InnerContainer pops out and expands vertically from rendering all
         labels. */}
-      {hasUnhealthyStatus && showAllLabels && (
-        <Box
-          height={`${baseCardHeight?.current}px`}
-          css={{ position: 'relative' }}
-        >
-          <WarningRightEdgeBadgeIcon />
-        </Box>
-      )}
+      {hasUnhealthyStatus && showAllLabels && <WarningRightEdgeBadgeIcon />}
     </CardContainer>
   );
 }
@@ -355,13 +334,19 @@ const WarningRightEdgeBadgeIcon = ({ onClick }: { onClick?(): void }) => {
  * clicks the "more" button, the inner container "pops out" by changing its
  * position to absolute.
  *
+ * The card height is fixed to allow the WarningRightEdgeBadgeIcon to stay in
+ * place when user clicks on "showAllLabels". Without the fixed height, the
+ * container's height shrinks when the inner container pops out, resulting in
+ * the svg to jump around (from size difference) and or disappearing.
+ *
  * TODO(bl-nero): Known issue: this doesn't really work well with one-column
- * layout; we may need to globally set the card height to fixed size on the
- * outer container.
+ * layout;
  */
 const CardContainer = styled(Box)<{
   showingStatusInfo: boolean;
 }>`
+  height: 110px;
+
   position: relative;
   .resource-health-status-svg {
     width: 100%;

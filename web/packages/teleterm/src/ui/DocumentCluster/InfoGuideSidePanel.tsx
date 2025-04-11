@@ -33,14 +33,14 @@ import { tabHeight } from '../Tabs/constants';
  * teleterm's status bar.
  */
 export const InfoGuideSidePanel = () => {
-  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
+  const { infoGuideConfig, setInfoGuideConfig, panelWidth } = useInfoGuide();
   const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <SlidingSidePanel
       isVisible={infoGuideSidePanelOpened}
       skipAnimation={false}
-      panelWidth={infoGuideConfig?.panelWidth}
+      panelWidth={panelWidth}
       zIndex={10}
       slideFrom="right"
       css={`

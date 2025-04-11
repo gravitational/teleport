@@ -162,6 +162,18 @@ export const List = story({
   }),
 });
 
+export const Single = story({
+  fetchFunc: async () => ({
+    agents: [{ ...aLotOfLabels, targetHealth: null }],
+  }),
+});
+
+export const SingleWithStatusWarning = story({
+  fetchFunc: async () => ({
+    agents: [aLotOfLabels],
+  }),
+});
+
 export const NoResults = story({
   fetchFunc: async () => ({
     agents: [],
