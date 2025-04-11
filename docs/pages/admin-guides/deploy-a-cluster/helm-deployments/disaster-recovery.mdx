@@ -93,13 +93,15 @@ resources to go missing."*/}
 
 ### Route 53: Updating DNS records to point to the new cluster.  
 
-{/*TODO: Hugo: "For this procedure to work in most cases, users must set a low
-TTL on Teleport's records. e.g. a minute.
+Once you have launched your Teleport cluster in the new AWS region, you must
+ensure that Route 53 DNS records point to the new cluster.
 
-This will not cover all cases, you will face DNS record propagation issues on
-agents and clients running in corporate networks due to the terrible DNS
-resolvers they use. There's nothing much we can do but tell people to use
-resolvers honouring the record's TTLs." */}
+1. Ensure that existing DNS records for the Teleport Proxy Service in your
+   cluster have a low TTL, e.g., one minute. We expect that DNS resolvers in
+   your users' networks honor the TTLs of DNS records to prevent issues with
+   propagating records.
+
+(!docs/pages/includes/self-hosted-helm-dns.mdx!)
 
 ### Session recording backend (assuming S3)  
 
