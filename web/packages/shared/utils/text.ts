@@ -23,7 +23,7 @@
 // third optional argument which is the pluralized noun.
 // https://api.rubyonrails.org/v7.0.4.2/classes/ActionView/Helpers/TextHelper.html#method-i-pluralize
 export function pluralize(num: number, word: string) {
-  if (num === 1) {
+  if (num <= 1) {
     return word;
   }
 

@@ -22,15 +22,22 @@ import styled from 'styled-components';
 import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { resourceStatusPanelWidth } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
   BulkAction,
   FilterKind,
   IncludedResourceMode,
   ResourceAvailabilityFilter,
   UnifiedResources as SharedUnifiedResources,
+  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import {
+  getResourceId,
+  StatusInfoHeader,
+} from 'shared/components/UnifiedResources/shared/StatusInfo';
 
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
@@ -55,6 +62,7 @@ import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ResourceActionButton } from './ResourceActionButton';
+import { StatusInfo } from './StatusInfo';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -187,6 +195,7 @@ export function ClusterResources({
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
             includedResourceMode: params.includedResourceMode,
+            statuses: params.statuses,
           },
           signal
         );
@@ -205,6 +214,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         params.includedResourceMode,
+        params.statuses,
         teleCtx.resourceService,
       ]
     ),
@@ -224,6 +234,25 @@ export function ClusterResources({
         : unfilteredResources,
     [samlAppToDelete, unfilteredResources]
   );
+
+  const { setInfoGuideConfig } = useInfoGuide();
+  function onShowStatusInfo(resource: UnifiedResourceDefinition) {
+    if (resource.kind !== 'db') {
+      return;
+    }
+    setInfoGuideConfig({
+      guide: (
+        <StatusInfo
+          resource={resource}
+          clusterId={clusterId}
+          key={getResourceId(resource)}
+        />
+      ),
+      id: getResourceId(resource),
+      title: <StatusInfoHeader resource={resource} />,
+      panelWidth: resourceStatusPanelWidth,
+    });
+  }
 
   // This state is used to recognize when the `params` value has changed,
   // and reset the overall state of `useUnifiedResourcesFetch` hook. It's tempting to use a
@@ -249,6 +278,7 @@ export function ClusterResources({
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
+        onShowStatusInfo={onShowStatusInfo}
         bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}

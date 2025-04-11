@@ -46,7 +46,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
 import type { MfaChallengeResponse } from './services/mfa';
-import { KindAuthConnectors } from './services/resources';
+import { KindAuthConnectors, ResourceStatus } from './services/resources';
 
 export type Cfg = typeof cfg;
 const cfg = {
@@ -264,7 +264,7 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?&status=:status?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
@@ -1531,6 +1531,7 @@ export interface UrlResourcesParams {
   searchAsRoles?: 'yes' | '';
   pinnedOnly?: boolean;
   includedResourceMode?: IncludedResourceMode;
+  statuses?: ResourceStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 }

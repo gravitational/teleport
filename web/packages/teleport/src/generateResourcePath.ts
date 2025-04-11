@@ -34,6 +34,8 @@ export default function generateResourcePath(
       ].dir.toLowerCase()}`;
     } else if (param === 'kinds') {
       processedParams[param] = (params[param] ?? []).join('&kinds=');
+    } else if (param === 'statuses') {
+      processedParams[param] = (params[param] ?? []).join('&status=');
     } else if (param === 'regions') {
       processedParams[param] = (params[param] ?? []).join('&regions=');
     } else
@@ -57,6 +59,7 @@ export default function generateResourcePath(
     // param
     .replace(':kind?', processedParams.kind || '')
     .replace(':kinds?', processedParams.kinds || '')
+    .replace(':status?', processedParams.statuses || '')
     .replace(':kubeCluster?', processedParams.kubeCluster || '')
     .replace(':kubeNamespace?', processedParams.kubeNamespace || '')
     .replace(':limit?', params.limit || '')

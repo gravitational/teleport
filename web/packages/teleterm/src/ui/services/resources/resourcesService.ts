@@ -132,7 +132,113 @@ export class ResourcesService {
     });
     return {
       nextKey: response.nextKey,
-      resources: response.resources
+      resources: [
+        ...response.resources,
+        {
+          requiresRequest: false,
+
+          resource: {
+            oneofKind: 'database',
+            database: {
+              kind: 'db',
+              name: 'rds-kimlisa-30',
+              desc: '',
+              protocol: 'postgres',
+              type: 'rds',
+              target_health: {
+                status: 'healthy',
+              },
+              labels: [
+                {
+                  name: 'account-id',
+                  value: '278576220453',
+                },
+                {
+                  name: 'engine-version',
+                  value: '16.3',
+                },
+                {
+                  name: 'merry',
+                  value: 'christmas',
+                },
+              ],
+              hostname: 'kimlisa-30.caelergz70vo.us-east-1.rds.amazonaws.com',
+              uri: 'kimlisa-30.caelergz70vo.us-east-1.rds.amazonaws.com:5432',
+              aws: {
+                region: 'us-east-1',
+                rds: {
+                  instance_id: 'kimlisa-30',
+                  resource_id: 'db-IXAT4NJNP7X3UUFBXTLVKKHYPI',
+                  iam_auth: false,
+                  subnets: [],
+                  vpc_id: 'vpc-092c26a0e0e802e92',
+                },
+                account_id: '278576220453',
+                iam_policy_status: 'IAM_POLICY_STATUS_FAILED',
+                status: 'available',
+              },
+              supports_interactive: true,
+            },
+          },
+        },
+        {
+          requiresRequest: false,
+          resource: {
+            oneofKind: 'database',
+            database: {
+              kind: 'db',
+              name: 'pumpkin-pie-somg-long-kind-of-name',
+              protocol: 'mysql',
+              type: 'rds',
+              target_health: {
+                status: 'unhealthy',
+              },
+              labels: [
+                {
+                  name: 'account-id',
+                  value: '278576220453',
+                },
+                {
+                  name: 'engine-version',
+                  value: '16.3',
+                },
+                {
+                  name: 'merry',
+                  value: 'christmas',
+                },
+                {
+                  name: 'vpc-id',
+                  value: '123ajdflaksjflasjdlfkajsdfklajsdlfkjsakldfjasdlf',
+                },
+                {
+                  name: 'merry',
+                  value: 'christmas',
+                },
+              ],
+              hostname: 'pumpkin-pie',
+              uri: 'pumpkin-pie:5432',
+            },
+          },
+        },
+        {
+          requiresRequest: false,
+          resource: {
+            oneofKind: 'database',
+            database: {
+              kind: 'db',
+              name: 'chocolate-shake',
+              protocol: 'mongodb',
+              type: 'rds',
+              target_health: {
+                status: 'unknown',
+              },
+              labels: [],
+              hostname: 'chocolate-shake',
+              uri: 'chocolate-shake:5432',
+            },
+          },
+        },
+      ]
         .map(p => {
           if (resourceOneOfIsServer(p.resource)) {
             return {

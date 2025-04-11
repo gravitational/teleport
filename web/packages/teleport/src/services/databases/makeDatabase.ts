@@ -21,7 +21,8 @@ import { formatDatabaseInfo } from 'shared/services/databases';
 import { Aws, Database, DatabaseServer, DatabaseService } from './types';
 
 export function makeDatabase(json: any): Database {
-  const { name, desc, protocol, type, aws, requiresRequest } = json;
+  const { name, desc, protocol, type, aws, requiresRequest, target_health } =
+    json;
 
   const labels = json.labels || [];
 
@@ -56,6 +57,9 @@ export function makeDatabase(json: any): Database {
     aws: madeAws,
     requiresRequest,
     supportsInteractive: json.supports_interactive || false,
+    targetHealth: {
+      status: target_health?.status,
+    },
   };
 }
 

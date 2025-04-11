@@ -54,6 +54,7 @@ export interface Database {
   aws?: Aws;
   requiresRequest?: boolean;
   supportsInteractive?: boolean;
+  targetHealth?: { status: 'healthy' | 'unhealthy' | 'unknown' };
 }
 
 export type DatabasesResponse = {
@@ -108,9 +109,4 @@ export type DatabaseServer = {
   hostname: string;
   hostId: string;
   targetHealth?: ResourceTargetHealth;
-};
-
-export type DatabaseServerResponse = {
-  items: DatabaseServer[];
-  startKey?: string;
 };
