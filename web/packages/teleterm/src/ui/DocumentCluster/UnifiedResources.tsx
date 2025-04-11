@@ -32,8 +32,8 @@ import {
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
   marginTransitionCss,
-  resourceStatusInfoPanel,
-} from 'shared/components/SlidingSidePanel/InfoGuide/constants';
+  resourceStatusPanelWidth,
+} from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,
@@ -230,7 +230,7 @@ export function UnifiedResources(props: {
   );
 
   return (
-    <InfoGuidePanelProvider>
+    <InfoGuidePanelProvider defaultPanelWidth={resourceStatusPanelWidth}>
       <Resources
         getAccessRequestButton={getAccessRequestButton}
         queryParams={mergedParams}
@@ -389,14 +389,14 @@ const Resources = memo(
         }),
     };
 
-    const { infoGuideConfig } = useInfoGuide();
+    const { infoGuideConfig, panelWidth } = useInfoGuide();
     const infoGuideSidePanelOpened = infoGuideConfig != null;
 
     return (
       <Box
         css={marginTransitionCss({
           sidePanelOpened: infoGuideSidePanelOpened,
-          panelWidth: infoGuideConfig?.panelWidth || resourceStatusInfoPanel,
+          panelWidth,
         })}
       >
         <SharedUnifiedResources

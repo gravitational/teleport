@@ -87,18 +87,22 @@ export function ResourceCard({
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This saves the height of the card on initial render. It's the full
-  // height when all contents fill up the card.
-  // This was required for the WarningRightEdgeBadgeIcon to stay in place
-  // when we "showAllLabels". Showing all labels makes the inner container
-  // pop out, and the container (where the svg is held) shrunk in size
-  // resulting in the auto-sizing svg to lose its place.
-  const [baseCardHeight, setBaseCardHeight] = useState(0);
+  // height when all contents fill up the card. We use a ref here to store
+  // the value to avoid extra re-rendering since there can be many
+  // UnifiedResource cards rendered.
+  // This saved value is required for the WarningRightEdgeBadgeIcon to stay
+  // in place when we "showAllLabels". Showing all labels makes the inner
+  // container pop out, and the container (where the svg is held) shrunk in
+  // size resulting in the auto-sizing svg to lose its place which led
+  // to the svg jumping around (from size diff), or disappearing altogether.
+  const baseCardHeight = useRef<number>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
   useLayoutEffect(() => {
-    setBaseCardHeight(innerContainer.current?.getBoundingClientRect().height);
+    baseCardHeight.current =
+      innerContainer.current?.getBoundingClientRect().height;
 
     if (!labelsInnerContainer.current) return;
 
@@ -312,10 +316,14 @@ export function ResourceCard({
           )}
         </CardInnerContainer>
       </CardOuterContainer>
-      {/* This is to let the WarningRightEdgeBadgeIcon stay in place while inner
-      container expands vertically from rendering all labels. */}
+      {/* This is to let the WarningRightEdgeBadgeIcon stay in place while the
+        InnerContainer pops out and expands vertically from rendering all
+        labels. */}
       {hasUnhealthyStatus && showAllLabels && (
-        <Box height={`${baseCardHeight}px`} css={{ position: 'relative' }}>
+        <Box
+          height={`${baseCardHeight?.current}px`}
+          css={{ position: 'relative' }}
+        >
           <WarningRightEdgeBadgeIcon />
         </Box>
       )}

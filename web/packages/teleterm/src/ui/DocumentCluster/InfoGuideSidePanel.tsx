@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { resourceStatusInfoPanel } from '@gravitational/shared/components/SlidingSidePanel/InfoGuide/constants';
 import { SlidingSidePanel } from 'shared/components/SlidingSidePanel';
 import {
   InfoGuideContainer,
@@ -41,7 +40,7 @@ export const InfoGuideSidePanel = () => {
     <SlidingSidePanel
       isVisible={infoGuideSidePanelOpened}
       skipAnimation={false}
-      panelWidth={infoGuideConfig?.panelWidth || resourceStatusInfoPanel}
+      panelWidth={infoGuideConfig?.panelWidth}
       zIndex={10}
       slideFrom="right"
       css={`
