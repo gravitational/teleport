@@ -625,6 +625,9 @@ const (
 	// the act of signing CSRs on behalf of the SPIFFE CA (with [VerbCreate]).
 	KindWorkloadIdentityX509IssuerOverrideCSR = "workload_identity_x509_issuer_override_csr"
 
+	// KindSigstorePolicy is the kind of teleport.workloadidentity.v1.SigstorePolicy.
+	KindSigstorePolicy = "sigstore_policy"
+
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
 	// SubKindGitHub specifies the GitHub subkind of a Git server.

@@ -5255,6 +5255,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
 		}
 		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 	}
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{

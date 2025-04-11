@@ -427,6 +427,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Overrides service")
 		}
 	}
+	if cfg.SigstorePolicies == nil {
+		cfg.SigstorePolicies, err = local.NewSigstorePolicyService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SigstorePolicies service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
@@ -543,6 +549,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
 		BackendInfoService:              cfg.BackendInfo,
+		SigstorePolicies:                cfg.SigstorePolicies,
 	}
 
 	as := Server{
@@ -768,6 +775,7 @@ type Services struct {
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Overrides
 	services.BackendInfoService
+	services.SigstorePolicies
 }
 
 // GetWebSession returns existing web session described by req.
