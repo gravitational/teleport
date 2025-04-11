@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -43,7 +42,8 @@ func NewStorage(cfg Config) (*Storage, error) {
 
 // ListProfileNames returns just the names of profiles in s.Dir.
 func (s *Storage) ListProfileNames() ([]string, error) {
-	pfNames, err := profile.ListProfileNames(s.Dir)
+	profileStore := client.NewFSProfileStore(s.Dir)
+	pfNames, err := profileStore.ListProfiles()
 	return pfNames, trace.Wrap(err)
 }
 
@@ -112,11 +112,8 @@ func (s *Storage) ResolveCluster(resourceURI uri.ResourceURI) (*Cluster, *client
 
 // Remove removes a cluster
 func (s *Storage) Remove(ctx context.Context, profileName string) error {
-	if err := profile.RemoveProfile(s.Dir, profileName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	profileStore := client.NewFSProfileStore(s.Dir)
+	return profileStore.DeleteProfile(profileName)
 }
 
 // Add adds a cluster
@@ -125,7 +122,7 @@ func (s *Storage) Remove(ctx context.Context, profileName string) error {
 // clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
 // https://github.com/gravitational/teleport/issues/13278
 func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
-	profiles, err := profile.ListProfileNames(s.Dir)
+	profiles, err := s.ListProfileNames()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
