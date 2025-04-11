@@ -613,6 +613,11 @@ func (u *Updater) readID(ctx context.Context) string {
 	return out
 }
 
+// UpdaterID derives a UUIDv5 from Teleport's host_uuid and systemd's machine-id.
+// This reduces the chance that multiple hosts will have the same updater ID, while
+// allowing both the teleport and teleport-update binaries to deterministically derive
+// the same value. This also avoids issues caused by non-UUID values in host_uuid,
+// and ensures that updaters without running agents have a unique value.
 func UpdaterID(teleportID, machineID string) (string, error) {
 	// changing this struct will change all hashes
 	obj := struct {
