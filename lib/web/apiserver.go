@@ -948,6 +948,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// DatabaseService handlers
 	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
 
+	// Database server handlers
+	h.GET("/webapi/sites/:site/databaseservers", h.WithClusterAuth(h.clusterDatabaseServersList))
+
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
