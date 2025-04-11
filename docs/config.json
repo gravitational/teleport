@@ -290,6 +290,11 @@
       "source": "/reference/agent-services/kubernetes-application-discovery/",
       "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
       "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
     }
   ]
 }
