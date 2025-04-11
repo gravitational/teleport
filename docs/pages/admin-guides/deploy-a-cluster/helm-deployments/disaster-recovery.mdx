@@ -14,7 +14,7 @@ getting started with self-hosting a Teleport cluster, and you can read about how
 to get started with the chart in the [Helm deployment
 guides](../../helm-deployments//helm-deployments.mdx).
 
-## How it works
+## Architectural overview of the disaster recovery approach  
 
 In the approach we explain in this guide, the Teleport Auth Service backends
 receive continuous backups to a secondary region. If the primary region becomes
@@ -24,28 +24,6 @@ secondary region. Since Teleport certificate authorities are already backed up
 the new region, running Teleport Agents do not need to reconnect to the cluster,
 and there is no need to recreate dynamic resources. Recovery time depends on the
 time it takes to redeploy the Auth Service and Proxy Service in the new region.
-
-## Architectural overview of the disaster recovery approach  
-
-{/* TODO: Hugo feedback: "One very common mistake people are doing (and we keep
-doing this at Teleport too 🥲) is think that outages are "clean", the resources
-just disappear, VMs shutdown, ...
-
-It's very rarely the case: zonal or regional failures usually affect only one
-service or one aspect of the region, the rest of it is still running. E.g.
-network becomes unstable, packet loss and latency increase. This is enough to
-disrupt Teleport but VMs are still running and managing to do some operations.
-
-Conversely, after the outage, the services coming back online can be as
-disruptive as the services being down."*/}
-
-{/*TODO: Hugo: "I suggest to strongly  communicate about the necessity stopping
-the old cluster before attempting to deploy a new one. This might prove
-difficult during an incident as things never break cleanly, but the first thing
-to do is to turn the partial/shadow failure into a clean one by stopping any
-process, and force-cutting already open network connections. Agents connections
-are sticky and they will happily stay connected to the broken cluster, even days
-after the DNS entry got changed." */}
 
 ### Load balancer  
 
@@ -120,7 +98,7 @@ We need both S3 for recording, and Dynamo for events.*/}
 operator should not attempt to takeover Teleport resource created from the other
 cluster if no CR exist. So I think it's OK to deploy with the operator. They
 will need to re-create all the CRs in Kube, else they will have dangling
-Teleport resources." */}
+Teleport resources."*/}
 
 1. Install the `teleport-cluster` Helm chart using the new values:
 
@@ -141,6 +119,26 @@ Teleport resources." */}
    ```
 
 ## Guidance  
+
+{/* TODO: intro paragraph*/}
+
+### Stopping the existing cluster
+
+When you detect a zonal or regional failure, it is important that you cleanly
+stop the xisting Teleport cluster. Zonal or regional failures usually affect
+only one service or compute resource.  For example, the network becomes unstable
+as packet loss and latency increase.  While outages at the cloud provider level
+disrupt the expected functioning of a Teleport cluster, some operations may
+continue successfully. After the outage has concluded, services that had
+remained functional, or that come back online, can also become disruptive.
+
+1. Stop any Teleport Auth Service and Proxy Service processes in your cluster.
+   {/*TODO: Add an example command*/}
+   
+   {/*TODO: "force-cutting already open network connections. Agents connections
+   are sticky and they will happily stay connected to the broken cluster, even
+   days after the DNS entry got changed." */}
+
 ### Recovery time objective  
 {/*TODO: Expect 15-30m of recovery time to redeploy to a new region  
 
