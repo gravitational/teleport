@@ -55,14 +55,21 @@ backend, and IAM roles prior running "helm install"." */}
 
 ### Cluster state backend (assuming DynamoDB)  
 
+The Teleport cluster state backend stores certificate authorities and dynamic
+resources {/*TODO: anything else?*/}. The most critical part of a disaster
+recovery plan is to maintain a backup of the cluster state backend. 
+
+With a backup available, the Teleport Auth Service can supply an existing
+certificate authority to sign certificates for cluster components. If you
+restore a Teleport cluster with a new backend, and do not have a backup, you
+will need to configure cluster components, such as self-hosted databases
+protected by Teleport, to trust the new CAs.
+
+
 {/*TODO: Hugo: "For KMS users, backing up their cluster might be harder than
 "tctl get all" once in a while, or running an hourly DynamoDB to s3 export. They
 must replicate the keys to the other region. See
-https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html"
-*/}
-
-{/* TODO: Explain the need to back up the cluster state backend to preserve the
-Teleport CA for existing cluster components.  */}
+https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html" */}
 
 {/* TODO: Recovery point objective implications: changes made to the Teleport
 cluster during the time taken to complete the last backup would be lost on
