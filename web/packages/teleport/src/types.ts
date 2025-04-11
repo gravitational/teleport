@@ -82,6 +82,8 @@ export enum NavTitle {
 
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
+  AccessGraphAlerts = 'Alerts',
+  AccessGraphInvestigate = 'Investigate',
   AccessGraphBrowse = 'Browse',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
