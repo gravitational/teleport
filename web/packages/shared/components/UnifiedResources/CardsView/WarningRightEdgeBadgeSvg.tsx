@@ -24,6 +24,12 @@
 export function WarningRightEdgeBadgeSvg() {
   return (
     <svg
+      /**
+       * "className" is used instead of "fill" to style (color) the svg.
+       * The svg needs to change style when user hovers anywhere in the
+       * container the svg is a part of. This required the use of "className"
+       * to target the svg as part of a container.
+       */
       className="resource-health-status-svg"
       width="32"
       height="102"
