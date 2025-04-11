@@ -173,7 +173,10 @@ func TestClientStore(t *testing.T) {
 	// create a test software and hardware key.
 	idx := KeyIndex{"test.proxy.com", "test-user", "root"}
 	softKey := a.makeSignedKey(t, idx, false)
-	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{})
+	keyInfo := idx.contextualKeyInfo()
+	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: keyInfo,
+	})
 	require.NoError(t, err)
 	hardKey := NewKey(hwPriv)
 	hardKey.KeyIndex = idx
@@ -210,6 +213,19 @@ func TestClientStore(t *testing.T) {
 				retrievedKey, err = clientStore.GetKey(idx, WithAllCerts...)
 				require.NoError(t, err)
 				require.Equal(t, key, retrievedKey)
+
+				// Get the key, now without cluster name. It should retrieve the key without certs
+				// and without a cluster name in the KeyIndex or ContextualKeyInfo (hardware keys).
+				retrievedKey, err = clientStore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""})
+				require.NoError(t, err)
+				expectKey = key.Copy()
+				expectKey.ClusterName = ""
+				expectKey.Cert = nil
+				expectKey.DBTLSCerts = make(map[string][]byte)
+				if hwPriv, ok := expectKey.PrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				require.Equal(t, expectKey, retrievedKey)
 
 				var profileDir string
 				if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
