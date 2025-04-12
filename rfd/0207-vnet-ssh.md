@@ -215,47 +215,50 @@ cluster.
 
 #### SSH client configuration
 
-When the user opts to enable VNet SSH, VNet will add a section like the
-following to `~/.ssh/config`:
+When the user opts to enable VNet SSH in Connect, VNet will add a single
+`Include` directive to `~/.ssh/config`:
 
 ```
-# Begin generated Teleport configuration for VNet
+Include "/Users/nic/Library/Application Support/tsh/vnet_ssh_config"
+```
 
+The actual path here will be set to `$TELEPORT_HOME/vnet_ssh_config`, it will
+differ on other platforms.
+If the user runs `tsh vnet` instead of Connect, we won't add anything to
+`~/.ssh/config` but the user can add the include directive on their own.
+
+`vnet_ssh_config` will include the following:
+
+```
 Host *.teleport.example.com *.leaf.teleport.example.com
-    IdentityFile "/Users/nic/.ssh/id_vnet"
-    UserKnownHostsFile "/Users/nic/.ssh/vnet_known_hosts"
-
-# End generated Teleport configuration
+    IdentityFile "/Users/nic/Library/Application Support/tsh/id_vnet"
+    GlobalKnownHostsFile "/Users/nic/Library/Application Support/tsh/vnet_known_hosts"
 ```
 
 This configures a custom identity and known hosts file for all Teleport SSH hosts.
 It will use wildcards to match Teleport cluster names of all root and leaf clusters
 in all profiles found in `$TELEPORT_HOME`.
-VNet will update this configuration section at a regular interval if the set of
-clusters changes.
+VNet will update file at a regular interval if the set of clusters changes.
 The default interval VNet will check if the set of clusters has changed will be
 30 seconds, but it may be updated early if Connect can signal VNet that the user
 has logged into or out of a new profile.
 
-`$HOME/.ssh/id_vnet` will be an Ed25519 private key that the client will use to
-make connections to VNet.
-VNet will generate this key if it does not exist and VNet SSH is enabled.
-VNet will trust the corresponding public key `$HOME/.ssh/id_vnet.pub` for
-incoming SSH connections.
+`id_vnet` will be an Ed25519 private key that the client will use to make
+connections to VNet.
+VNet will generate this key if it does not exist.
+VNet will trust the corresponding public key `id_vnet.pub` for incoming SSH
+connections.
 
-`HOME/.ssh/vnet_known_hosts` will contain a single `cert-authority` entry
-matching all Teleport clusters, the wildcard matches will be identical to the
-`Host` matches in the SSH config file.
+`vnet_known_hosts` will contain a single `cert-authority` entry
+with a wildcard match.
 Each time VNet SSH starts it will generate a new Ed25519 key to use as this host
 CA and write the public key to this file.
 The corresponding private key will remain in memory and never be written to disk.
-VNet will update this file at the same interval the SSH config file is updated to
-match all the user's Teleport clusters.
 The SSH client will trust this CA for all connections it makes to VNet.
 The contents will look like:
 
 ```
-@cert-authority *.teleport.example.com,*.leaf.teleport.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHK1sKZTW6njOZXK7mhpS7h6Hre/uKmE/UfLD1mQGTiR type=host
+@cert-authority * ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHK1sKZTW6njOZXK7mhpS7h6Hre/uKmE/UfLD1mQGTiR type=host
 ```
 
 For VNet to terminate the incoming SSH connection from the SSH client it will
@@ -264,10 +267,16 @@ present an SSH host certificate generated on the fly signed by the VNet SSH CA.
 This configuration should be compatible with OpenSSH clients, any clients or
 integrations that call out to the OpenSSH client, and any other clients that
 parse `~/.ssh/config`.
+It is intentionally as simple as possible, only setting an `IdentityFile` and
+`GlobalKnownHostsFile`, to maximize the probability that other SSH client tools
+will be able to handle it.
 It will not support PuTTY or WinSCP, or other clients that do not read
 `~/.ssh/config`.
 We can consider adding native support for PuTTY in a future release by
 implementing something similar to `tsh puttyconfig`.
+
+Note: we use `GlobalKnownHostsFile` instead of `UserKnownHostsFile` so that
+openssh will not automatically add entries to it.
 
 #### DNS resolution
 
