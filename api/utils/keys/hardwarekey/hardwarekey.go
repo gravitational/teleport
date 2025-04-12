@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
-	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -39,8 +38,13 @@ type Service interface {
 	// GetFullKeyRef gets the full [PrivateKeyRef] for an existing hardware private
 	// key in the given slot of the hardware key with the given serial number.
 	GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error)
-	// SetPINCacheTimeout sets the PIN cache timeout. The default, 0, means no PIN caching.
-	SetPINCacheTimeout(timeout time.Duration)
+	// SetPrompt sets the hardware key prompt used by the hardware key service, if applicable.
+	// This is used by Teleport Connect which sets the prompt later than the hardware key service,
+	// due to process initialization constraints.
+	SetPrompt(prompt Prompt)
+	// GetPrompt gets the hardware key prompt used by the hardware key service, or nil if
+	// the service does not support prompts.
+	GetPrompt() Prompt
 }
 
 // Signer is a hardware key implementation of [crypto.Signer].
