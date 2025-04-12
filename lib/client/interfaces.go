@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -88,6 +89,14 @@ func (idx KeyRingIndex) LogValue() slog.Value {
 		slog.String("cluster", idx.ClusterName),
 		slog.String("username", idx.Username),
 	)
+}
+
+func (idx KeyRingIndex) contextualKeyInfo() hardwarekey.ContextualKeyInfo {
+	return hardwarekey.ContextualKeyInfo{
+		ProxyHost:   idx.ProxyHost,
+		Username:    idx.Username,
+		ClusterName: idx.ClusterName,
+	}
 }
 
 // TLSCredential holds a signed TLS certificate and matching private key.
@@ -162,7 +171,7 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	priv, err := keys.NewSoftwarePrivateKey(key)
+	priv, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

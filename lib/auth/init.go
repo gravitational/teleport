@@ -332,6 +332,9 @@ type InitConfig struct {
 	// identity-related X.509 certificate overrides.
 	WorkloadIdentityX509Overrides services.WorkloadIdentityX509Overrides
 
+	// SigstorePolicies handles the storage for Sigstore policy objects.
+	SigstorePolicies services.SigstorePolicies
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
@@ -358,6 +361,9 @@ type InitConfig struct {
 
 	// StableUNIXUsers handles the storage for stable UNIX users.
 	StableUNIXUsers services.StableUNIXUsersInternal
+
+	// HealthCheckConfig manages health check config resources.
+	HealthCheckConfig services.HealthCheckConfig
 }
 
 // Init instantiates and configures an instance of AuthServer

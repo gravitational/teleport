@@ -446,7 +446,7 @@ func GeneratePrivateKeyWithAlgorithm(alg Algorithm) (*keys.PrivateKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	privateKey, err := keys.NewPrivateKey(key)
 	return privateKey, trace.Wrap(err)
 }
 

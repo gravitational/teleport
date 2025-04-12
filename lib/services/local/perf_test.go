@@ -60,9 +60,6 @@ func BenchmarkGetNodes(b *testing.B) {
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
-
-			sb.StopTimer() // stop timer while running setup
-
 			// configure the backend instance
 			var bk backend.Backend
 			var err error
@@ -83,11 +80,7 @@ func BenchmarkGetNodes(b *testing.B) {
 			// seed the test nodes
 			insertNodes(ctx, b, svc, tt.nodes)
 
-			sb.StartTimer() // restart timer for benchmark operations
-
 			benchmarkGetNodes(ctx, sb, svc, tt.nodes)
-
-			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
 	}
 }

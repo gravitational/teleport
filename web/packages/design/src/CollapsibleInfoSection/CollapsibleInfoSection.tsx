@@ -16,18 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  PropsWithChildren,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { PropsWithChildren, useId, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Button, Text } from 'design';
 import { BoxProps } from 'design/Box';
 import { Minus, Plus } from 'design/Icon';
+import { useElementSize } from 'design/utils/useElementSize';
 
 type CollapsibleInfoSectionProps = {
   /* defaultOpen is optional and determines whether the section is open or closed initially */
@@ -60,28 +55,9 @@ export const CollapsibleInfoSection = ({
 }: PropsWithChildren<CollapsibleInfoSectionProps>) => {
   const contentId = useId();
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [contentHeight, setContentHeight] = useState<number>();
   const [shouldRenderContent, setShouldRenderContent] = useState(defaultOpen);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (!defaultOpen && contentHeight === undefined) {
-      setContentHeight(0);
-    }
-    if (!contentRef.current || !shouldRenderContent) {
-      return;
-    }
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        if (entry.target === contentRef.current) {
-          setContentHeight(entry.contentRect.height);
-        }
-      }
-    });
-    ro.observe(contentRef.current);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentRef, shouldRenderContent]);
+  const [contentRef, { height: contentHeight }] =
+    useElementSize<HTMLDivElement>({ height: defaultOpen ? undefined : 0 });
 
   return (
     <Box {...boxProps}>
