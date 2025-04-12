@@ -4406,7 +4406,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	if c.PIVPINCacheTimeout != 0 {
 		innerPrompt := c.ClientStore.HardwareKeyService.GetPrompt()
-		pinCachingPrompt := hardwarekey.NewPinCachingPrompt(innerPrompt, c.PIVPINCacheTimeout)
+		pinCachingPrompt := hardwarekey.NewPINCachingPrompt(innerPrompt, c.PIVPINCacheTimeout)
 		c.ClientStore.HardwareKeyService.SetPrompt(pinCachingPrompt)
 	}
 

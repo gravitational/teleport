@@ -219,7 +219,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		return nil, nil, trace.Wrap(err)
 	}
 
-	s.CustomHardwareKeyPrompt = hardwarekey.NewPinCachingPrompt(s.CustomHardwareKeyPrompt, cfg.PIVPINCacheTimeout)
+	s.CustomHardwareKeyPrompt = hardwarekey.NewPINCachingPrompt(s.CustomHardwareKeyPrompt, cfg.PIVPINCacheTimeout)
 
 	if leafClusterName != "" {
 		clusterNameForKey = leafClusterName

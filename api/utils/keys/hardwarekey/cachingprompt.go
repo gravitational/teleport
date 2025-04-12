@@ -21,23 +21,23 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NewPinCachingPrompt returns a new pin caching HardwareKeyPrompt.
+// NewPINCachingPrompt returns a new pin caching HardwareKeyPrompt.
 // If [innerPrompt] already is a pin caching prompt, it will be
-// returned with an updated [cacheTimeout].
-func NewPinCachingPrompt(innerPrompt Prompt, cacheTimeout time.Duration) *PinCachingPrompt {
-	if p, ok := innerPrompt.(*PinCachingPrompt); ok {
-		p.PinCacheTimeout = cacheTimeout
+// returned with an updated [cacheDuration].
+func NewPINCachingPrompt(innerPrompt Prompt, cacheDuration time.Duration) *PINCachingPrompt {
+	if p, ok := innerPrompt.(*PINCachingPrompt); ok {
+		p.PinCacheTimeout = cacheDuration
 		return p
 	}
 
-	return &PinCachingPrompt{
+	return &PINCachingPrompt{
 		Prompt:          innerPrompt,
-		PinCacheTimeout: cacheTimeout,
+		PinCacheTimeout: cacheDuration,
 	}
 }
 
-// PinCachingPrompt is a [Prompt] wrapped with PIN caching.
-type PinCachingPrompt struct {
+// PINCachingPrompt is a [Prompt] wrapped with PIN caching.
+type PINCachingPrompt struct {
 	Prompt
 	// PinCacheTimeout configures the duration that the PIN will be cached.
 	PinCacheTimeout time.Duration
@@ -46,7 +46,9 @@ type PinCachingPrompt struct {
 	cachedPINExpiry time.Time
 }
 
-func (p *PinCachingPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, keyInfo ContextualKeyInfo) (string, error) {
+// AskPIN returned the cached PIN if it is not expired. Otherwise, it uses
+// the inner prompt to prompt the user for PIN, caching and returning it.
+func (p *PINCachingPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, keyInfo ContextualKeyInfo) (string, error) {
 	if p.cachedPIN != "" && time.Now().Before(p.cachedPINExpiry) {
 		return p.cachedPIN, nil
 	}
@@ -62,7 +64,8 @@ func (p *PinCachingPrompt) AskPIN(ctx context.Context, requirement PINPromptRequ
 	return pin, nil
 }
 
-func (p *PinCachingPrompt) ChangePIN(ctx context.Context, keyInfo ContextualKeyInfo) (*PINAndPUK, error) {
+// ChangePIN uses the inner prompt to prompt the user to change their PIN, then it caches the PIN
+func (p *PINCachingPrompt) ChangePIN(ctx context.Context, keyInfo ContextualKeyInfo) (*PINAndPUK, error) {
 	PINAndPUK, err := p.Prompt.ChangePIN(ctx, keyInfo)
 	if err != nil {
 		return nil, trace.Wrap(err)
