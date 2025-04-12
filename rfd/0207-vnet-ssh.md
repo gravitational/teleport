@@ -289,16 +289,25 @@ When the VNet process receives a DNS query this is how it will be resolved:
 1. If the name does not match `*.<cluster name>` or
    `*.<leaf cluster name>.<root cluster name>` for any profile, the request will
    be forwarded to upstream DNS servers.
+1. VNet will assign a free IP address to the FQDN, but at this point it will not
+   know if this IP will later resolve to an SSH host or a TCP app.
+1. VNet will return the IP address in an authoritative DNS answer.
+
+#### Connection forwarding
+
+When the VNet process receives a TCP connection at an address that has been
+assigned to an FQDN but does not yet know if there is a matching app or SSH host:
+1. The existing TCP app lookup will run first, if the address matches a TCP app
+   then the IP will be permanently assigned to that app and regular TCP app
+   forwarding will take over.
 1. VNet will apply any matching proxy templates found in the user's
-   `TELEPORT_HOME`.
+   `TELEPORT_HOME` to the FQDN.
 1. VNet will query the matching cluster to see if any SSH servers have a
    matching SSH server using the `ResolveSSHTarget` rpc.
 1. If a match is found a free IP will be assigned to that SSH server and it
    will be returned in an authoritative DNS answer.
 1. If no matching server is found a `NXDOMAIN` response will be returned with
    no cache TTL.
-
-#### Connection forwarding
 
 Here is a sequence diagram for an example VNet SSH session with per-session MFA:
 
