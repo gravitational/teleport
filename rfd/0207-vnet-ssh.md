@@ -233,6 +233,8 @@ If the user runs `tsh vnet` instead of Connect, we won't add anything to
 Host *.teleport.example.com *.leaf.teleport.example.com
     IdentityFile "/Users/nic/Library/Application Support/tsh/id_vnet"
     GlobalKnownHostsFile "/Users/nic/Library/Application Support/tsh/vnet_known_hosts"
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking yes
 ```
 
 This configures a custom identity and known hosts file for all Teleport SSH hosts.
