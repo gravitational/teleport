@@ -71,23 +71,31 @@ import "C"
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"math"
+	"net"
 	"os"
 	"runtime/cgo"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 func init() {
@@ -299,12 +307,6 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	// [addr] need only be valid for the duration of
-	// C.client_run. It is copied on the Rust side and
-	// thus can be freed here.
-	addr := C.CString(c.cfg.Addr)
-	defer C.free(unsafe.Pointer(addr))
-
 	// [kdcAddr] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.
@@ -324,10 +326,10 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		return trace.BadParameter("user cert was nil")
 	}
 
-	key_der, err := utils.UnsafeSliceData(userKeyDER)
+	keyDER, err := utils.UnsafeSliceData(userKeyDER)
 	if err != nil {
 		return trace.Wrap(err)
-	} else if key_der == nil {
+	} else if keyDER == nil {
 		return trace.BadParameter("user key was nil")
 	}
 
@@ -344,13 +346,93 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		nextHostID = nextHostID[uint32Len:]
 	}
 
+	rdpConn, err := net.DialTimeout("tcp", c.cfg.Addr, 5*time.Second)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return trace.Wrap(err, "Connection Timed Out\n\n"+
+			"Teleport could not connect to the host within the timeout period. "+
+			"This could be due to a firewall blocking connections, an overloaded system, "+
+			"or network congestion. To resolve this issue, ensure that the Teleport agent "+
+			"has connectivity to the Windows host.\n\n"+
+			"Use \"nc -vz HOST 3389\" to help debug this issue.")
+	} else if err != nil {
+		return trace.Wrap(err, "dialing from Go")
+	}
+	defer rdpConn.Close()
+
+	rdpConnDupe, err := dupeConn(rdpConn.(*net.TCPConn))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+	if err != nil {
+		_ = unix.Close(int(rdpConnDupe))
+		return trace.Wrap(err)
+	}
+
+	leftDupe, err := dupeConn(left)
+	if err != nil {
+		_ = unix.Close(int(rdpConnDupe))
+		return trace.Wrap(err)
+	}
+	_ = left.Close()
+
+	go func() {
+		defer rdpConn.Close()
+		defer right.Close()
+		n, err := right.Read(make([]byte, 1))
+		if err != nil || n < 1 {
+			c.cfg.Logger.ErrorContext(ctx, "missed TLS upgrade signal", "error", err)
+			return
+		}
+
+		// RDP uses TLS for encryption, but not authentication, so disable TLS verification.
+		rdpConnTLS := tls.Client(rdpConn, &tls.Config{
+			InsecureSkipVerify: true, //#nosec
+		})
+		if err := func() error {
+			handshakeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			return rdpConnTLS.HandshakeContext(handshakeCtx)
+		}(); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "TLS handshake failed", "error", err)
+			return
+		}
+
+		spki := rdpConnTLS.ConnectionState().PeerCertificates[0].RawSubjectPublicKeyInfo
+		if len(spki) > math.MaxUint32 {
+			panic("spki length greater than uint32")
+		}
+		if _, err := right.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(spki)))); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to RDP client", "error", err)
+			return
+		}
+		if _, err := right.Write(spki); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to RDP client", "error", err)
+			return
+		}
+
+		var wg sync.WaitGroup
+		defer wg.Wait()
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, err := io.Copy(right, rdpConnTLS)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from TLS connection to RDP client", "error", err)
+		}()
+		go func() {
+			defer wg.Done()
+			_, err := io.Copy(rdpConnTLS, right)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from RDP client to TLS connection", "error", err)
+		}()
+	}()
+
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			ad:               C.bool(c.cfg.AD),
 			nla:              C.bool(c.cfg.NLA),
 			go_username:      username,
-			go_addr:          addr,
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
@@ -358,13 +440,16 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			cert_der:     (*C.uint8_t)(cert_der),
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(key_der),
+			key_der:                 (*C.uint8_t)(keyDER),
 			screen_width:            C.uint16_t(c.requestedWidth),
 			screen_height:           C.uint16_t(c.requestedHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 			client_id:               cHostID,
+
+			conn_fd: C.int(rdpConnDupe),
+			tls_fd:  C.int(leftDupe),
 		},
 	)
 
@@ -399,6 +484,28 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	c.sendTDPAlert(message, tdp.SeverityError)
 
 	return nil
+}
+
+func dupeConn(c syscall.Conn) (int32, error) {
+	sc, err := c.SyscallConn()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	var dupe int32
+	var ctrlErr error
+	if err := sc.Control(func(fd uintptr) {
+		d, err := unix.FcntlInt(fd, unix.F_DUPFD_CLOEXEC, 0)
+		if err != nil {
+			ctrlErr = err
+		}
+		dupe = int32(d)
+	}); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if ctrlErr != nil {
+		return 0, trace.Wrap(ctrlErr)
+	}
+	return dupe, nil
 }
 
 func (c *Client) stopRustRDP() error {

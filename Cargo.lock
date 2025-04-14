@@ -1614,16 +1614,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ironrdp-tls"
-version = "0.1.1"
-source = "git+https://github.com/Devolutions/IronRDP?rev=dd221bf22401c4635798ec012724cba7e6d503b2#dd221bf22401c4635798ec012724cba7e6d503b2"
-dependencies = [
- "tokio",
- "tokio-rustls",
- "x509-cert",
-]
-
-[[package]]
 name = "ironrdp-tokio"
 version = "0.2.1"
 source = "git+https://github.com/Devolutions/IronRDP?rev=dd221bf22401c4635798ec012724cba7e6d503b2#dd221bf22401c4635798ec012724cba7e6d503b2"
@@ -2355,7 +2345,6 @@ name = "rdp-client"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.8.0",
- "boring",
  "byteorder",
  "bytes",
  "cbindgen",
@@ -2370,7 +2359,6 @@ dependencies = [
  "ironrdp-rdpsnd",
  "ironrdp-session",
  "ironrdp-svc",
- "ironrdp-tls",
  "ironrdp-tokio",
  "iso7816",
  "iso7816-tlv",
@@ -2383,7 +2371,6 @@ dependencies = [
  "rand 0.9.0",
  "reqwest",
  "rsa",
- "rustls",
  "sspi",
  "tempfile",
  "tokio",
