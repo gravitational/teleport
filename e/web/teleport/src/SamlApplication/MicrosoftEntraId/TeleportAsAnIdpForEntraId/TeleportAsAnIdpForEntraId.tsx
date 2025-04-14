@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import { Box, Flex, Indicator, Link, Mark, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -8,28 +8,36 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { ButtonDownloadMetadataFile } from 'e-teleport/SamlApplication/components/ButtonDownloadMetadataFile';
-import { useSamlApplication } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import {
+  checkDefaultAttributePerPreset,
+  useSamlApplication,
+} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { microsoftEntraIdPresetSpec } from 'e-teleport/services/idp/types';
 import {
   ActionButtons,
   Header,
   HeaderSubtitle,
   StyledBox,
 } from 'teleport/Discover/Shared';
-import { useDiscover } from 'teleport/Discover/useDiscover';
+import { SamlMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 /**
  * TeleportAsAnIdpForEntraId is a component to configure Entra ID
  * with Teleport SAML IdP metadata.
  */
 export function TeleportAsAnIdpForEntraId() {
-  const { prevStep, nextStep } = useDiscover();
+  const { prevStep, nextStep, isUpdateFlow, agentMeta } = useDiscover();
   const {
     runFetchMetadataValues,
     fetchMetadataValuesAttempt,
+    guidedToggle,
     setGuidedToggle,
+    upsertRequest,
+    setUpsertRequest,
+    guidedConfig,
+    setGuidedConfig,
   } = useSamlApplication();
-
-  setGuidedToggle(true);
 
   useEffect(() => {
     if (fetchMetadataValuesAttempt.status === '') {
@@ -37,12 +45,57 @@ export function TeleportAsAnIdpForEntraId() {
     }
   }, [runFetchMetadataValues, fetchMetadataValuesAttempt]);
 
-  const [tenantId, setTenantId] = useState('');
+  // value of agentMeta will be defined if user is coming to
+  // this screen from update Discover flow or coming back from the
+  // next screen. But it's value will be undefined if the user is coming
+  // to this screen from the "Enroll New Resource" Discover screen.
+  const samlMeta: SamlMeta = agentMeta
+    ? agentMeta
+    : defaultSamlMetaForMicrosoftEntraId;
+
+  useEffect(() => {
+    if (guidedToggle === null) {
+      setGuidedToggle(true);
+      setGuidedConfig({ samlMicrosoftEntraId: samlMeta.samlMicrosoftEntraId });
+    }
+  }, [guidedToggle, setGuidedToggle, setGuidedConfig, isUpdateFlow, samlMeta]);
+
+  function setTenantId(e: React.ChangeEvent<HTMLInputElement>) {
+    setGuidedConfig({
+      ...guidedConfig,
+      samlMicrosoftEntraId: {
+        ...guidedConfig.samlMicrosoftEntraId,
+        tenantId: e.target.value,
+      },
+    });
+  }
 
   const handleNext = (v: Validator) => {
     if (!v.validate()) {
       return;
     }
+
+    const entraPresetSpec = microsoftEntraIdPresetSpec(
+      guidedConfig.samlMicrosoftEntraId.tenantId
+    );
+    // we don't set default attribute value in update flow as user may have previously
+    // opted for manual configuration.
+    const defaultAttribute =
+      !isUpdateFlow &&
+      checkDefaultAttributePerPreset(
+        SamlServiceProviderPreset.MicrosoftEntraId,
+        upsertRequest.attributeMapping
+      )
+        ? upsertRequest.attributeMapping
+        : entraPresetSpec.attribute_mapping;
+
+    setUpsertRequest({
+      ...upsertRequest,
+      entityID: entraPresetSpec.entity_id,
+      acsURL: entraPresetSpec.acs_url,
+      attributeMapping: defaultAttribute,
+      launchURLs: entraPresetSpec.launch_urls,
+    });
 
     nextStep();
   };
@@ -61,11 +114,13 @@ export function TeleportAsAnIdpForEntraId() {
       return (
         <Box mb={4}>
           <Header>
-            Configure Microsoft Entra ID with Teleport SAML IdP Metadata
+            Configure Teleport as an identity provider for Microsoft Entra
+            External ID
           </Header>
           <HeaderSubtitle>
-            You need to configure Microsoft Entra ID with Teleport SAML identity
-            provider metadata.
+            By configuring Teleport as an external SAML IdP for Microsoft Entra
+            External ID, users can access Azure portal, CLI or any custom
+            application set up in Azure by authenticating with Teleport.
           </HeaderSubtitle>
 
           <AzurePrerequisites />
@@ -103,12 +158,19 @@ export function TeleportAsAnIdpForEntraId() {
               <>
                 <StyledBox>
                   <Text bold>Step 2: Enter Microsoft Entra ID Tenant ID </Text>
-                  <AddTenantId tenantId={tenantId} setTenantId={setTenantId} />
+                  <AddTenantId
+                    tenantId={guidedConfig.samlMicrosoftEntraId.tenantId}
+                    setTenantId={setTenantId}
+                  />
                 </StyledBox>
 
                 <ActionButtons
                   onProceed={() => handleNext(validator)}
-                  onPrev={prevStep}
+                  /**
+                   * In an update flow, users should be prevent from navigating to
+                   * the root Discover resource selection page.
+                   */
+                  onPrev={isUpdateFlow ? null : prevStep}
                 />
               </>
             )}
@@ -121,7 +183,7 @@ export function TeleportAsAnIdpForEntraId() {
 function AzurePrerequisites() {
   return (
     <>
-      <Text fontSize={2} bold>
+      <Text fontSize={2} bold mb={1}>
         Prerequisites:
       </Text>
       <Flex gap={6} bg="levels.surface" borderRadius={2}>
@@ -129,8 +191,7 @@ function AzurePrerequisites() {
           <li>
             <Flex alignItems="center">
               <Text>
-                Microsoft Entra "Global Administrator" role that allows to
-                create SAML IdP&nbsp;
+                Microsoft Entra ID "Global Administrator" role&nbsp;
                 <Link
                   target="_blank"
                   href="https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/permissions-reference#global-administrator"
@@ -140,7 +201,10 @@ function AzurePrerequisites() {
                 .
               </Text>
               <Flex ml={1}>
-                <IconTooltip>Always assign least privileged roles.</IconTooltip>
+                <IconTooltip>
+                  You need permissions to create an external identity provider,
+                  manage users and link billing subscription
+                </IconTooltip>
               </Flex>
             </Flex>
           </li>
@@ -169,7 +233,7 @@ function AddTenantId({
   setTenantId,
 }: {
   tenantId: string;
-  setTenantId: (e: string) => void;
+  setTenantId: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <>
@@ -179,14 +243,23 @@ function AddTenantId({
         will find Tenant ID. Copy and paste the Tenant ID value below.
       </Text>
       <FieldInput
+        name="tenantId"
+        // TODO(sshah): Add tenant ID validation. The length and format
+        // looks uuid v4 but need to double confirm.
         rule={requiredField('Tenant ID is required')}
         label="Tenant ID"
         toolTipContent="The value of Tenant ID will be used to derive SAML service provider entity ID and launch URL."
         value={tenantId}
         placeholder="e14205e2-0342-4d9b-9a00-60f7bc19648b"
         width="500px"
-        onChange={e => setTenantId(e.target.value)}
+        onChange={e => setTenantId(e)}
       />
     </>
   );
 }
+
+const defaultSamlMetaForMicrosoftEntraId: SamlMeta = {
+  samlMicrosoftEntraId: {
+    tenantId: '',
+  },
+};

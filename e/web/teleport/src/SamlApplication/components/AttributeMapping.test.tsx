@@ -2,6 +2,7 @@ import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 import Validation, { useValidation } from 'shared/components/Validation';
 
 import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import { microsoftEntraIdPresetSpec } from 'e-teleport/services/idp/types';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { AttributeMapping } from './AttributeMapping';
@@ -180,7 +181,7 @@ test('attribute maping row enabled if isGuide=false, and known preset', async ()
   expect(screen.getByText('user.spec.traits.firstname')).toBeEnabled();
 });
 
-test('attribute maping row disabled if isGuide=true and known preset', async () => {
+test('attribute maping row disabled if isGuide=true and gcp-workforce preset', async () => {
   render(
     <Validation>
       <AttributeMapping
@@ -205,4 +206,27 @@ test('attribute maping row disabled if isGuide=true and known preset', async () 
   expect(screen.getByDisplayValue('firstname')).toBeEnabled();
   expect(screen.getByText('basic')).toBeEnabled();
   expect(screen.getByText('user.spec.traits.firstname')).toBeEnabled();
+});
+
+test('attribute maping row disabled if isGuide=true and microsoft-entra-id preset', async () => {
+  const msEntraSpec = Object.assign({}, emptyUpsertRequest);
+  msEntraSpec.attributeMapping.push(
+    ...microsoftEntraIdPresetSpec().attribute_mapping
+  );
+  render(
+    <Validation>
+      <AttributeMapping
+        spConfig={msEntraSpec}
+        setSPConfig={jest.fn()}
+        addAttrMap={jest.fn()}
+        attrMapErr={{ emptyName: false, emptyValue: false }}
+        setAttrMapErr={jest.fn()}
+        disabled={false}
+        preset={SamlServiceProviderPreset.MicrosoftEntraId}
+        isGuided={true}
+      />
+    </Validation>
+  );
+  const presetAttr = microsoftEntraIdPresetSpec().attribute_mapping[0];
+  expect(screen.getByDisplayValue(presetAttr.name)).toBeDisabled();
 });

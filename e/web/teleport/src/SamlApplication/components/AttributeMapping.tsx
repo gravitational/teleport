@@ -1,7 +1,16 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonIcon, Flex, H2, LabelInput, Link, Text } from 'design';
+import {
+  Box,
+  ButtonIcon,
+  Flex,
+  H2,
+  LabelInput,
+  Link,
+  Mark,
+  Text,
+} from 'design';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
 import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
@@ -14,6 +23,7 @@ import { Option } from 'shared/components/Select';
 
 import {
   gcpWorkforcePresetSpec,
+  microsoftEntraIdPresetSpec,
   type CreateSamlIdpServiceProviderRequest,
 } from 'e-teleport/services/idp/types';
 import {
@@ -58,47 +68,12 @@ export function AttributeMapping({
     setSPConfig({ ...spConfig, attributeMapping: newList });
   }
 
-  const attributeMappingDocsUrl =
-    'https://goteleport.com/docs/admin-guides/access-controls/idps/saml-attribute-mapping/';
-
-  function SubHeading() {
-    switch (preset) {
-      case SamlServiceProviderPreset.GcpWorkforce:
-        if (isGuided) {
-          return (
-            <P mb={4}>
-              An attribute named "roles" with values containing Teleport roles
-              for user will be sent by default. You can configure additional
-              attribute mapping below. Please refer to the{' '}
-              <Link href={attributeMappingDocsUrl} target="_blank">
-                attribute mapping docs
-              </Link>{' '}
-              for reference.
-            </P>
-          );
-        }
-        break;
-      default:
-        return (
-          <P mb={4}>
-            Teleport sends username as "uid" attribute and roles as
-            "eduPersonAffiliation" attribute. If you want other attributes to
-            contain username, roles or other user traits, you can specify them
-            below as{' '}
-            <Link href={attributeMappingDocsUrl} target="_blank">
-              predicate expressions.
-            </Link>
-          </P>
-        );
-    }
-  }
-
   return (
     <>
       <H2 mb={2} mt={8}>
         Attribute mapping (optional)
       </H2>
-      <SubHeading />
+      <SubHeading preset={preset} isGuided={isGuided} />
       <Box>
         {spConfig.attributeMapping.length > 0 && (
           <Flex mt={2} mb={1}>
@@ -295,6 +270,61 @@ function urnToFriendlyName(nameFormat: string): string {
   }
 }
 
+function SubHeading({
+  preset,
+  isGuided,
+}: {
+  preset: SamlServiceProviderPreset;
+  isGuided: boolean;
+}) {
+  const docsUrl =
+    'https://goteleport.com/docs/admin-guides/access-controls/idps/saml-attribute-mapping/';
+  const DocsCopy = (
+    <>
+      Please refer to the{' '}
+      <Link href={docsUrl} target="_blank">
+        attribute mapping docs
+      </Link>{' '}
+      for reference.
+    </>
+  );
+  const Default = (
+    <P mb={4}>
+      Teleport sends username as "uid" attribute and roles as
+      "eduPersonAffiliation" attribute. If you want other attributes to contain
+      username, roles or other user traits, you can specify them as predicate
+      expressions. {DocsCopy}
+    </P>
+  );
+  switch (preset) {
+    case SamlServiceProviderPreset.GcpWorkforce:
+      if (isGuided) {
+        return (
+          <P mb={4}>
+            An attribute named "roles" with values containing Teleport roles for
+            user will be sent by default. You can configure additional attribute
+            mapping below. {DocsCopy}
+          </P>
+        );
+      }
+      return Default;
+    case SamlServiceProviderPreset.MicrosoftEntraId:
+      return (
+        <P mb={4}>
+          An attribute named &nbsp;
+          <Mark>
+            http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress
+          </Mark>
+          &nbsp; with value containing Teleport username will be sent by
+          default. You can configure additional attribute mapping below.{' '}
+          {DocsCopy}
+        </P>
+      );
+    default:
+      return Default;
+  }
+}
+
 /**
  * Checks if attribute row should be disabled.
  * Only the attribute name value is expected to be unique.
@@ -311,6 +341,10 @@ function disableAttributeRow(
   switch (preset) {
     case SamlServiceProviderPreset.GcpWorkforce:
       return gcpWorkforcePresetSpec().attribute_mapping.some(
+        presetAttribute => presetAttribute.name === currentAttribute.name
+      );
+    case SamlServiceProviderPreset.MicrosoftEntraId:
+      return microsoftEntraIdPresetSpec().attribute_mapping.some(
         presetAttribute => presetAttribute.name === currentAttribute.name
       );
     default:

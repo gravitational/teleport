@@ -5,9 +5,9 @@ import { Text } from 'design';
 import {
   AddMetadataGeneric,
   ConfigureServiceProvider,
-  UPDATE_NOTE,
 } from 'e-teleport/SamlApplication/components/ConfigureServiceProvider';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 /**
  * AddEntraSpToTeleport is a component to configure SAML service provider spec
@@ -18,18 +18,13 @@ export function AddEntraSpToTeleport() {
     useDiscover();
 
   const header: React.ReactNode = isUpdateFlow
-    ? 'Update Microsoft Entra ID Service Provider'
-    : 'Add Microsoft Entra ID SAML Service Provider To Teleport';
+    ? 'Update Microsoft Entra External ID service provider'
+    : 'Add Microsoft Entra External ID service provider To Teleport';
 
   const subtitle: React.ReactNode = (
     <Text>
-      The Entity ID, ACS URL and attribute mapping values are derived from the
-      Tenant ID value provided in the previous step.
-      {isUpdateFlow && (
-        <>
-          <br /> {UPDATE_NOTE}
-        </>
-      )}
+      The Entity ID, ACS URL and default attribute is already configured for
+      you.
     </Text>
   );
 
@@ -43,6 +38,7 @@ export function AddEntraSpToTeleport() {
       agentMeta={agentMeta}
       SpMetadataConfigComponent={AddMetadataGeneric}
       isUpdateFlow={isUpdateFlow}
+      preset={SamlServiceProviderPreset.MicrosoftEntraId}
     />
   );
 }

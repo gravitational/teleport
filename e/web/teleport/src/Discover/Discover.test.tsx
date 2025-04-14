@@ -48,14 +48,14 @@ const renderDiscover = () => {
   );
 };
 
-test('displays all resources by default', () => {
+test('displays all resources by default', async () => {
   renderDiscover();
 
   expect(
     screen.getAllByTestId(
       getGuideTileId({ kind: ResourceKind.SamlApplication })
     )
-  ).toHaveLength(3);
+  ).toHaveLength(4);
 
   const samlGenericEl = screen.getByText('SAML Application (Generic)');
   expect(samlGenericEl).toBeInTheDocument();
@@ -80,6 +80,18 @@ test('displays all resources by default', () => {
   fireEvent.click(samlGrafanaEl);
   expect(
     screen.getByText(`Configure Grafana with Teleport's IdP Metadata`)
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Back/i }));
+
+  const samlMicrosoftEntraIdEl = screen.getByText(
+    'Microsoft Entra External ID'
+  );
+  expect(samlMicrosoftEntraIdEl).toBeInTheDocument();
+  fireEvent.click(samlMicrosoftEntraIdEl);
+  expect(
+    await screen.findByText(
+      `Configure Teleport as an identity provider for Microsoft Entra External ID`
+    )
   ).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /Back/i }));
 });

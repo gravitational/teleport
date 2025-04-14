@@ -181,5 +181,16 @@ export function checkDefaultAttributePerPreset(
     }
   }
 
+  if (preset === SamlServiceProviderPreset.GcpWorkforce) {
+    for (let a in attributes) {
+      if (
+        attributes[a].name ===
+        'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'
+      ) {
+        exists = true;
+      }
+    }
+  }
+
   return exists;
 }

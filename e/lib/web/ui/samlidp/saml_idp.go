@@ -24,6 +24,8 @@ type CreateSAMLIdPServiceProviderRequest struct {
 	Preset string `json:"preset,omitempty"`
 	// Labels are SAML service provider resource metadata labels.
 	Labels map[string]string `json:"labels,omitempty"`
+	// LaunchURLs configures custom landing URLs for service provider.
+	LaunchURLs []string `json:"launchURLs,omitempty"`
 }
 
 // TransformToProtoType transforms SAMLIdPServiceProvider to
@@ -42,6 +44,7 @@ func TransformToProtoType(req CreateSAMLIdPServiceProviderRequest) (*types.SAMLI
 			ACSURL:           req.ACSURL,
 			AttributeMapping: req.AttributeMapping,
 			Preset:           req.Preset,
+			LaunchURLs:       req.LaunchURLs,
 		},
 	}
 	if err := sp.CheckAndSetDefaults(); err != nil {

@@ -1,4 +1,8 @@
 import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
+import {
+  AddEntraSpToTeleport,
+  TeleportAsAnIdpForEntraId,
+} from 'e-teleport/SamlApplication/MicrosoftEntraId';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
@@ -47,6 +51,23 @@ export const SamlApplicationResource: ResourceViewConfig = {
           {
             title: 'Add GCP Workforce Pool to Teleport',
             component: AddWorkforcePoolToTeleport,
+            eventName: DiscoverEvent.DeployService,
+          },
+        ];
+        break;
+      case SamlServiceProviderPreset.MicrosoftEntraId:
+        title = 'Add SAML Application (Microsoft Entra ID)';
+        configureResourceViews = [
+          {
+            title:
+              'Configure Teleport as an identity provider for Microsoft Entra External ID',
+            component: TeleportAsAnIdpForEntraId,
+            eventName: DiscoverEvent.Started,
+          },
+          {
+            title:
+              'Add Microsoft Entra External ID service provider to Teleport',
+            component: AddEntraSpToTeleport,
             eventName: DiscoverEvent.DeployService,
           },
         ];

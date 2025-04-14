@@ -115,6 +115,11 @@ function samlResponseToAgentMeta(resp: SamlIdpServiceProvider) {
       poolProviderName: resp.metadata.name,
     };
   }
+  if (resp.spec.preset === SamlServiceProviderPreset.MicrosoftEntraId) {
+    samlMeta.samlMicrosoftEntraId = {
+      tenantId: msEntraTenantIdFromEntityId(resp.spec.entity_id),
+    };
+  }
   samlMeta.samlGeneric.spec.entity_descriptor =
     samlMeta.samlGeneric.spec.entity_descriptor.trim();
   return samlMeta;
@@ -129,6 +134,19 @@ function poolNameFromEntityId(entityId: string): string {
     // While a URL is expected, user may have misconfigured
     // the field so we'll just swallow an error here and return
     // an empty poolName string.
+    return '';
+  }
+}
+
+function msEntraTenantIdFromEntityId(entityId: string): string {
+  try {
+    // Expected format of the tenantId:
+    // https://login.microsoftonline.com/<tenant_id>/
+    return new URL(entityId).pathname.split('/')[1];
+  } catch {
+    // While a URL is expected, user may have misconfigured
+    // the field so we'll just swallow an error here and return
+    // an empty tenantId string.
     return '';
   }
 }
