@@ -35,8 +35,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
-// yubiKeyService is a globally shared YubiKeyService used to share mutually yubikey
-// connections and prompt mutex logic across the process in cases where [NewYubiKeyService]
+// yubiKeyService is a global YubiKeyService used to share yubikey connections
+// and prompt mutex logic across the process in cases where [NewYubiKeyService]
 // is called multiple times.
 //
 // TODO(Joerger): Ensure all clients initialize [NewYubiKeyService] only once so we can
