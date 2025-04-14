@@ -53,8 +53,6 @@ import (
 const (
 	// BinaryName specifies the name of the updater binary.
 	BinaryName = "teleport-update"
-	// SystemdMachineIDFile is a path containing a machine-unique identifier created by systemd.
-	SystemdMachineIDFile = "/etc/machine-id"
 )
 
 const (
@@ -71,6 +69,8 @@ const (
 	requiredUmask = 0o022
 	// teleportHostIDFileName is the name of Teleport's host ID file.
 	teleportHostIDFileName = "host_uuid"
+	// systemdMachineIDFile is a path containing a machine-unique identifier created by systemd.
+	systemdMachineIDFile = "/etc/machine-id"
 )
 
 // Log keys
@@ -134,7 +134,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		InsecureSkipVerify:  cfg.InsecureSkipVerify,
 		UpdateConfigFile:    filepath.Join(ns.Dir(), updateConfigName),
 		UpdateIDFile:        ns.updaterIDFile,
-		MachineIDFile:       SystemdMachineIDFile,
+		MachineIDFile:       systemdMachineIDFile,
 		TeleportIDFile:      filepath.Join(ns.dataDir, teleportHostIDFileName),
 		TeleportConfigFile:  ns.configFile,
 		TeleportServiceName: filepath.Base(ns.serviceFile),
