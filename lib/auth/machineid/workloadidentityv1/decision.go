@@ -54,14 +54,14 @@ func decide(
 	}
 
 	// Now we can cook up some templating...
-	templated, err := expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetId(), attrs)
+	templated, err := expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetId(), &expression.Environment{Attrs: attrs})
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.id")
 		return d
 	}
 	d.templatedWorkloadIdentity.Spec.Spiffe.Id = templated
 
-	templated, err = expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetHint(), attrs)
+	templated, err = expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetHint(), &expression.Environment{Attrs: attrs})
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.hint")
 		return d
@@ -69,7 +69,7 @@ func decide(
 	d.templatedWorkloadIdentity.Spec.Spiffe.Hint = templated
 
 	for i, san := range wi.GetSpec().GetSpiffe().GetX509().GetDnsSans() {
-		templated, err = expression.RenderTemplate(san, attrs)
+		templated, err = expression.RenderTemplate(san, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.dns_sans[%d]", i)
 			return d
@@ -89,7 +89,7 @@ func decide(
 	if st != nil {
 		dst := d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate
 
-		templated, err = expression.RenderTemplate(st.CommonName, attrs)
+		templated, err = expression.RenderTemplate(st.CommonName, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -99,7 +99,7 @@ func decide(
 		}
 		dst.CommonName = templated
 
-		templated, err = expression.RenderTemplate(st.Organization, attrs)
+		templated, err = expression.RenderTemplate(st.Organization, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -109,7 +109,7 @@ func decide(
 		}
 		dst.Organization = templated
 
-		templated, err = expression.RenderTemplate(st.OrganizationalUnit, attrs)
+		templated, err = expression.RenderTemplate(st.OrganizationalUnit, &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -191,7 +191,7 @@ func evaluateRules(
 ruleLoop:
 	for _, rule := range wi.GetSpec().GetRules().GetAllow() {
 		if rule.GetExpression() != "" {
-			pass, err := expression.Evaluate(rule.GetExpression(), attrs)
+			pass, err := expression.Evaluate(rule.GetExpression(), &expression.Environment{Attrs: attrs})
 			if err != nil {
 				return err
 			}
@@ -251,7 +251,7 @@ func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb
 
 		// We treat string values as templates.
 		case *structpb.Value_StringValue:
-			renderedString, err := expression.RenderTemplate(value.StringValue, attrs)
+			renderedString, err := expression.RenderTemplate(value.StringValue, &expression.Environment{Attrs: attrs})
 			if err != nil {
 				return nil, trace.Wrap(err, "templating claim: %s", fieldName)
 			}
