@@ -19,7 +19,12 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  createTeleportContext,
+  getAcl,
+  noAccess,
+} from 'teleport/mocks/contexts';
+import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { RoleDiffProps, RoleDiffState } from '../Roles';
@@ -73,6 +78,24 @@ test('Preview Identity Security button displays for cloud users', async () => {
     )
   );
   expect(screen.getByText('Preview Identity Security')).toBeInTheDocument();
+});
+
+test('Preview Identity Security button does not show if user does not have update ACL', async () => {
+  cfg.isCloud = true;
+  const ctx = createTeleportContext({
+    customAcl: { ...getAcl(), accessGraphSettings: noAccess },
+  });
+  render(
+    getComponent(
+      makeRoleDiffProps({
+        roleDiffState: RoleDiffState.Disabled,
+      }),
+      ctx
+    )
+  );
+  expect(
+    screen.queryByText('Preview Identity Security')
+  ).not.toBeInTheDocument();
 });
 
 test('DEMO_READY displays roll diff visualizer with demo banner', async () => {
@@ -139,8 +162,8 @@ function makeRoleDiffProps(props?: Partial<RoleDiffProps>) {
   };
 }
 
-function getComponent(props: RoleDiffProps) {
-  const ctx = createTeleportContext();
+function getComponent(props: RoleDiffProps, customCtx?: TeleportContext) {
+  const ctx = customCtx || createTeleportContext();
   return (
     <TeleportContextProvider ctx={ctx}>
       <RoleEditorVisualizer currentFlow="creating" roleDiffProps={props} />
