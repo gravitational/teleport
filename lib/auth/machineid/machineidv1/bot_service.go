@@ -166,7 +166,9 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbRead); err != nil {
+	if err := authCtx.MaybeAccessToKind(
+		types.KindBot, types.VerbRead,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -188,6 +190,12 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err, "converting from resources")
 	}
 
+	if err := authCtx.CheckAccessToResource153(
+		bot, types.KindBot, types.VerbRead,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return bot, nil
 }
 
@@ -200,7 +208,11 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbList); err != nil {
+	// Check generally if this user may have the ability to list bots - ignoring
+	// where conditions.
+	if err := authCtx.MaybeAccessToKind(
+		types.KindBot, types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -241,6 +253,14 @@ func (bs *BotService) ListBots(
 			)
 			continue
 		}
+
+		// Check if user can access this specific Bot.
+		if err := authCtx.CheckAccessToResource153(
+			bot, types.KindBot, types.VerbList,
+		); err != nil {
+			continue
+		}
+
 		bots = append(bots, bot)
 	}
 
