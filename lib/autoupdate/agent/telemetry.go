@@ -130,9 +130,9 @@ func ReadHelloUpdaterInfo() (*proto.UpdaterV2Info, error) {
 	// TODO(hugoShaka or sclevine): After the new UUId logic, add the UUID export here
 
 	switch {
-	case conf.Spec.Enabled == false:
+	case !conf.Spec.Enabled:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_DISABLED
-	case conf.Spec.Pinned == true:
+	case conf.Spec.Pinned:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_PINNED
 	default:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_OK
