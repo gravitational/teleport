@@ -392,6 +392,9 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Authorizer: p.authServer.Authorizer,
 			Storage:    p.authServer.AuthServer.Services,
 			Emitter:    p.authServer.Emitter,
+			// deliberately bypass the cache when getting CAs
+			CAGetter: p.authServer.AuthServer.Services,
+			KeyStore: p.authServer.AuthServer.GetKeyStore(),
 
 			ClusterName: clusterName.GetClusterName(),
 		})
