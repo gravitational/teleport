@@ -25,10 +25,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/utils/typical"
 	"github.com/gravitational/trace"
 )
 
-const funcSigstorePolicySatisfied = "sigstore.policy_satisfied"
+const funcNameSigstorePolicySatisfied = "sigstore.policy_satisfied"
 
 // SigstorePolicyNames finds the names of all Sigstore policies referred to by
 // the given WorkloadIdentity rule expression, so that we can load an evaluate
@@ -54,7 +55,7 @@ func SigstorePolicyNames(rule string) ([]string, error) {
 				return trace.Wrap(err, "determining function name")
 			}
 
-			if funcName == funcSigstorePolicySatisfied {
+			if funcName == funcNameSigstorePolicySatisfied {
 				// If this is a call to `sigstore.policy_satisfied`, collect the
 				// string literal arguments.
 				args, err := stringLitArgs(node)
@@ -160,3 +161,21 @@ func stringLitArgs(call *ast.CallExpr) ([]string, error) {
 	}
 	return args, nil
 }
+
+var funcSigstorePolicySatisfied = typical.UnaryVariadicFunctionWithEnv(func(env *Environment, names ...string) (bool, error) {
+	if env.SigstorePolicyResults == nil {
+		return false, trace.BadParameter("no Sigstore policy results available")
+	}
+
+	for _, name := range names {
+		err, ok := env.SigstorePolicyResults[name]
+		if !ok {
+			// This should not happen because we validate the policies up-front.
+			return false, trace.BadParameter("no result available for Sigstore policy %q", name)
+		}
+		if err != nil {
+			return false, nil
+		}
+	}
+	return true, nil
+})

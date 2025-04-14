@@ -19,6 +19,7 @@
 package expression
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -32,6 +33,15 @@ import (
 type Environment struct {
 	// Attrs will be exposed as top-level variables in the expression language.
 	Attrs *workloadidentityv1pb.Attrs
+
+	// SigstorePolicyResults contains the errors (or nil for success) from
+	// evaluating Sigstore policies. You can check if a given policy was
+	// satisfied by calling the `sigstore.policy_satisfied` function in your
+	// rule expression.
+	//
+	// You cannot currently refer to Sigstore policies from templates, only
+	// boolean expressions.
+	SigstorePolicyResults map[string]error
 }
 
 // message satisfies messageEnv[T].
@@ -39,7 +49,30 @@ func (e *Environment) message() *workloadidentityv1pb.Attrs { return e.Attrs }
 
 var (
 	templateExpressionParser = must(expression.NewTraitsExpressionParser[*Environment](templateVars))
-	booleanExpressionParser  = must(expression.NewTraitsExpressionParser[*Environment](expressionVars))
+
+	booleanExpressionParser = func() *typical.Parser[*Environment, any] {
+		vars := protoMessageVariables[*workloadidentityv1pb.Attrs, *Environment](false)
+
+		// In the context of a boolean expression, we support multi-valued traits
+		// so you can use `contains`.
+		vars["user.traits"] = typical.DynamicMapFunction(func(env *Environment, key string) (expression.Set, error) {
+			traits := make(map[string][]string)
+			for _, v := range env.Attrs.GetUser().GetTraits() {
+				traits[v.GetKey()] = append(traits[v.GetKey()], v.Values...)
+			}
+			return expression.NewSet(traits[key]...), nil
+		})
+
+		defParserSpec := expression.DefaultParserSpec[*Environment]()
+		defParserSpec.Variables = vars
+		defParserSpec.Functions[funcNameSigstorePolicySatisfied] = funcSigstorePolicySatisfied
+
+		parser, err := typical.NewParser[*Environment, any](defParserSpec)
+		if err != nil {
+			panic(fmt.Sprintf("failed to construct parser: %v", err))
+		}
+		return parser
+	}()
 
 	templateVars = func() map[string]typical.Variable {
 		vars := protoMessageVariables[*workloadidentityv1pb.Attrs, *Environment](true)
@@ -69,21 +102,6 @@ var (
 					strings.Join(vals, ", "),
 				)
 			}
-		})
-		return vars
-	}()
-
-	expressionVars = func() map[string]typical.Variable {
-		vars := protoMessageVariables[*workloadidentityv1pb.Attrs, *Environment](false)
-
-		// In the context of a binary expression, we support multi-valued traits
-		// so you can use `contains`.
-		vars["user.traits"] = typical.DynamicMapFunction(func(env *Environment, key string) (expression.Set, error) {
-			traits := make(map[string][]string)
-			for _, v := range env.Attrs.GetUser().GetTraits() {
-				traits[v.GetKey()] = append(traits[v.GetKey()], v.Values...)
-			}
-			return expression.NewSet(traits[key]...), nil
 		})
 		return vars
 	}()

@@ -19,6 +19,7 @@
 package expression_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -153,4 +154,33 @@ func TestEvaluate_Traits(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.True(t, result)
+}
+
+func TestEvaluate_SigstorePolicies(t *testing.T) {
+	env := &expression.Environment{
+		SigstorePolicyResults: map[string]error{
+			"github-provenance":      nil,
+			"security-team-approval": errors.New("no artifact signature"),
+		},
+	}
+
+	result, err := expression.Evaluate(
+		`sigstore.policy_satisfied("github-provenance")`,
+		env,
+	)
+	require.NoError(t, err)
+	require.True(t, result)
+
+	result, err = expression.Evaluate(
+		`sigstore.policy_satisfied("security-team-approval")`,
+		env,
+	)
+	require.NoError(t, err)
+	require.False(t, result)
+
+	_, err = expression.Evaluate(
+		`sigstore.policy_satisfied("does-not-exist")`,
+		env,
+	)
+	require.ErrorContains(t, err, "no result available for Sigstore policy")
 }
