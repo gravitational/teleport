@@ -23,7 +23,11 @@ import { render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { ApiError } from 'teleport/services/api/parseError';
+import ResourceService, {
+  Role,
+  RoleWithYaml,
+} from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
@@ -74,6 +78,15 @@ beforeEach(() => {
       return toFauxYaml(withDefaults(req.resource));
     });
   jest.spyOn(userEventService, 'captureUserEvent').mockImplementation(() => {});
+  jest
+    .spyOn(ResourceService.prototype, 'fetchRole')
+    .mockImplementation(async name => {
+      // Pretend that we never have a name collision.
+      throw new ApiError({
+        message: `role ${name} is not found`,
+        response: { status: 404 } as Response,
+      });
+    });
 });
 
 afterEach(() => {
