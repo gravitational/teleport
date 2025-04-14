@@ -53,7 +53,7 @@ func NewX509OverridesService(cfg X509OverridesServiceConfig) (*X509OverridesServ
 // X509OverridesService is a fully featured implementation of
 // [workloadidentityv1pb.X509OverridesServiceServer].
 type X509OverridesService struct {
-	workloadidentityv1pb.UnsafeX509OverridesServiceServer
+	workloadidentityv1pb.UnimplementedX509OverridesServiceServer
 
 	authorizer authz.Authorizer
 	storage    services.WorkloadIdentityX509Overrides

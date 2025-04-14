@@ -5,7 +5,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/okta"
+	eservices "github.com/gravitational/teleport/e/lib/services"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -37,6 +39,18 @@ func StartServices(ctx context.Context, plugin *Plugin) (func(), error) {
 	if err != nil {
 		return cleanup, trace.Wrap(err)
 	}
+
+	overrideCache, err := eservices.NewWorkloadIdentityX509IssuerOverrideCache(
+		plugin.authServer.AuthServer.Services,
+		plugin.authServer.GetBackend(),
+		plugin.logger.With(teleport.ComponentKey, "workload_identity_x509_issuer_override"),
+		ctx,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	plugin.authServer.AuthServer.SetWorkloadIdentityX509CAOverrideGetter(overrideCache)
+	go overrideCache.RunWatcher(ctx)
 
 	return cleanup, nil
 }
