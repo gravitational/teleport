@@ -457,6 +457,8 @@ spec:
       # May not be modified after resource creation. Note that public keys may
       # be rotated, so refer to `.status.bound_keypair.bound_public_key` for the
       # currently bound key information.
+      # This key should be written in SSH public key format, including the
+      # algorithm.
       initial_public_key: null
 
       # If set, use an explicit initial joining secret; if both this and
@@ -487,6 +489,15 @@ spec:
       # expired.
       may_join_until: "2026-03-01T21:45:40.104524Z"
 
+      # Insecure is an optional flag that enables insecure joining and
+      # rejoining. This method disables generation counter checks during joining
+      # and rejoining. When combined with the `unlimited` flag, this allows
+      # unlimited reuse of this token provided the client has access to the
+      # keypair. This may be useful in certain cases - like use in unsupported
+      # CI/CD providers - but cannot offer the same security assurances and
+      # should be used with care.
+      insecure: false
+
     # If set, the bot will perform a keypair rotation on its next renewal after
     # it is informed of the change to this field. This flag will be reset to
     # `false` by Auth upon successful keypair rotation.
@@ -501,6 +512,7 @@ status:
     initial_join_secret: <random>
 
     # The public key of the bot associated with this token, set on first join.
+    # This key is written in SSH public key format.
     bound_public_key: <data>
 
     # The current bot instance UUID. A new UUID is issued on rejoin; the
@@ -1000,14 +1012,24 @@ administrator.
 This is likely dependent on [Scoped RBAC](https://github.com/gravitational/teleport/pull/38078),
 which is still in the planning stage.
 
-### Alternative/Future: Explicitly Insecure Token Joining
+### Future: Explicitly Insecure Token Joining
 
 There are perfectly valid use cases for allowing relatively insecure access to
 resources that do not have strict trust requirements, and Teleport's RBAC system
 is robust enough to only allow these bots access to an acceptable subset of
-resources. It may be worthwhile to add an `insecure-shared-secret` join method
-that allows for arbitrary joining in use cases that still fall through the
-cracks, so long as end users understand the security implications.
+resources.
+
+Initially, we will provide a minimal version of this via the
+`.spec.bound_keypair.joining.insecure` flag, which bypasses the generation
+counter check. When combined with the `unlimited` flag, this allows for
+effectively unlimited joining, provided a keypair can still be provided. This
+should be enough to enable basic support on otherwise-unsupported CI/CD
+provides, at least provided a keypair can be stored in a platform secret.
+
+Alternatively, it may be worthwhile to add an `insecure-shared-secret` join
+method that further reduces security enforcement, and allows for arbitrary
+joining in use cases that still fall through the cracks, so long as end users
+understand the security implications.
 
 ### Alternative: Client-side multi-token support
 
