@@ -61,7 +61,7 @@ export const SAML_APPLICATIONS: SelectResourceSpec[] = [
   },
   {
     id: DiscoverGuideId.ApplicationSamlMicrosoftEntraId,
-    name: 'Azure Console Access',
+    name: 'Microsoft Entra External ID',
     kind: ResourceKind.SamlApplication,
     samlMeta: { preset: SamlServiceProviderPreset.MicrosoftEntraId },
     keywords: [
@@ -73,7 +73,7 @@ export const SAML_APPLICATIONS: SelectResourceSpec[] = [
       'azure',
       'entra-id',
     ],
-    icon: 'azure',
+    icon: 'entraid',
     event: DiscoverEventResource.SamlApplication,
   },
 ];
