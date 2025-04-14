@@ -191,7 +191,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	}
 
 	if err := authCtx.CheckAccessToResource153(
-		bot, types.KindBot, types.VerbRead,
+		bot, types.VerbRead,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -256,7 +256,7 @@ func (bs *BotService) ListBots(
 
 		// Check if user can access this specific Bot.
 		if err := authCtx.CheckAccessToResource153(
-			bot, types.KindBot, types.VerbList,
+			bot, types.VerbList,
 		); err != nil {
 			continue
 		}
