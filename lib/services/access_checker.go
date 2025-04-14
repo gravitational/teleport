@@ -667,6 +667,7 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 		deniedRoleSet = append(deniedRoleSet, role)
 
 	}
+
 	// The collected role list can be empty and that should be ok, we want to
 	// leave the behavior of what happens when a user is created with default
 	// "no roles" configuration up to the target database.
@@ -699,7 +700,7 @@ func (a *accessChecker) GetDatabasePermissions(database types.Database) (allow t
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
 func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error) {
 	// When auto-user provisioning is enabled, only Teleport username is allowed.
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		result := NewEnumerationResult()
 		autoUser, err := a.DatabaseAutoUserMode(database)
 		if err != nil {
@@ -774,10 +775,10 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
+		err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true})
+		if err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
-
 	}
 
 	entities = apiutils.Deduplicate(append(entities, extraEntities...))
