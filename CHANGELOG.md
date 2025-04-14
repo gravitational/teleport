@@ -1,5 +1,23 @@
 # Changelog
 
+## 17.4.4 (04/14/25)
+
+* Fixed formatting of Ed25519 SSH keys for PuTTY users. [#53972](https://github.com/gravitational/teleport/pull/53972)
+* Support Oracle join method in Workload Identity templating and rule evaluation. [#53945](https://github.com/gravitational/teleport/pull/53945)
+* Workload ID: the Kubernetes, Podman, and Docker attestors now capture the container image digest. [#53939](https://github.com/gravitational/teleport/pull/53939)
+* Fixed web UI and tsh issues when a SAML metadata URL takes an unusually long time to respond. [#53933](https://github.com/gravitational/teleport/pull/53933)
+* Updated Go to 1.23.8. [#53918](https://github.com/gravitational/teleport/pull/53918)
+* Added support for specifying a WorkloadIdentity-specific maximum TTL. [#53902](https://github.com/gravitational/teleport/pull/53902)
+* Fixed Azure VM auto discovery when not filtering by resource group. [#53899](https://github.com/gravitational/teleport/pull/53899)
+* Added new `proxy_protocol_allow_downgrade` field to the `proxy_service` configuration in support of environments where single stack IPv6 sources are connecting to single stack IPv4 destinations. This feature is not compatible with IP pinning. [#53885](https://github.com/gravitational/teleport/pull/53885)
+* Support for managing the WorkloadIdentity resource in the Teleport Kubernetes Operator. [#53862](https://github.com/gravitational/teleport/pull/53862)
+* Added detailed audit events for SFTP sessions on agentless nodes. [#53836](https://github.com/gravitational/teleport/pull/53836)
+* Teleport-update: Add `last_update` metadata and update tracking UUID. [#53828](https://github.com/gravitational/teleport/pull/53828)
+* Restrict agent update days to Mon-Thu on Cloud. [#53765](https://github.com/gravitational/teleport/pull/53765)
+
+Enterprise:
+* Fixed an issue in the Identity Center group provisioning where group and group membership provisioning was skipped if the provisioning service failed to get user account of Access List member.
+
 ## 17.4.3 (04/07/25)
 
 * Fixed throttling in the DynamoDB backend event stream for tables with a high amount of stream shards. [#53804](https://github.com/gravitational/teleport/pull/53804)
