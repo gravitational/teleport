@@ -180,6 +180,29 @@ func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Req
 	}, nil
 }
 
+// clusterDatabaseServersList returns a list of database servers in a form the UI can present.
+func (h *Handler) clusterDatabaseServersList(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := convertListResourcesRequest(r, types.KindDatabaseServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, err := client.GetResourcePage[types.DatabaseServer](r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:    page.Resources,
+		StartKey: page.NextKey,
+	}, nil
+}
+
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
 func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)

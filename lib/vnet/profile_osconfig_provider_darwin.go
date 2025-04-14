@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
@@ -59,8 +59,13 @@ func newProfileOSConfigProvider(tunName, ipv6Prefix, dnsAddr, homePath string, d
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(Joerger): CLIPrompt shouldn't work here if this is being run in the background
+	// from Teleport Connect. Do we need to connect to the daemon service to use that prompt
+	// mechanism?
+	hwKeyService := piv.NewYubiKeyService(nil /*prompt*/)
+
 	p := &profileOSConfigProvider{
-		clientStore:        client.NewFSClientStore(homePath),
+		clientStore:        client.NewFSClientStore(homePath, client.WithHardwareKeyService(hwKeyService)),
 		clusterConfigCache: NewClusterConfigCache(clockwork.NewRealClock()),
 		daemonClientCred:   daemonClientCred,
 		tunName:            tunName,
@@ -93,7 +98,7 @@ func (p *profileOSConfigProvider) targetOSConfig(ctx context.Context) (*osConfig
 	// to access p.homePath that it sent when starting the daemon.
 	// Otherwise a client could make the daemon read a profile out of any directory.
 	if err := doWithDroppedRootPrivileges(ctx, p.daemonClientCred, func() error {
-		profileNames, err := profile.ListProfileNames(p.homePath)
+		profileNames, err := p.clientStore.ListProfiles()
 		if err != nil {
 			return trace.Wrap(err, "listing user profiles")
 		}

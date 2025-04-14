@@ -838,8 +838,8 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 // This is necessary because identity files do not store the proxy address.
 // Additionally, the [clusterName] argument can ve used to target a leaf cluster
 // rather than the default root cluster.
-func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string) (*client.Store, error) {
-	clientStore := client.NewMemClientStore()
+func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string, opts ...client.StoreConfigOpt) (*client.Store, error) {
+	clientStore := client.NewMemClientStore(opts...)
 	if err := LoadIdentityFileIntoClientStore(clientStore, identityFile, proxyAddr, clusterName); err != nil {
 		return nil, trace.Wrap(err)
 	}
