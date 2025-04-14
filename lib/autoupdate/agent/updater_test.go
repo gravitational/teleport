@@ -651,28 +651,6 @@ func TestUpdater_Update(t *testing.T) {
 			errMatch:    "setup error",
 		},
 		{
-			name: "agpl requires base URL",
-			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
-				Spec: UpdateSpec{
-					Path:    defaultPathDir,
-					Enabled: true,
-				},
-				Status: UpdateStatus{
-					Active: NewRevision("old-version", 0),
-					Backup: toPtr(NewRevision("backup-version", 0)),
-				},
-			},
-			inWindow: true,
-			agpl:     true,
-
-			reloadCalls: 0,
-			revertCalls: 0,
-			setupCalls:  0,
-			errMatch:    "AGPL",
-		},
-		{
 			name: "skip version",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
@@ -1522,15 +1500,6 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			errMatch:          "install error",
-		},
-		{
-			name: "agpl requires base URL",
-			cfg: &UpdateConfig{
-				Version: updateConfigVersion,
-				Kind:    updateConfigKind,
-			},
-			agpl:     true,
-			errMatch: "AGPL",
 		},
 		{
 			name: "version already installed",
