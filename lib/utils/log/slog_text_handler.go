@@ -35,6 +35,7 @@ import (
 // manner as configured by the Teleport configuration.
 type SlogTextHandler struct {
 	cfg SlogTextHandlerConfig
+	out slogTextHandlerWriter
 	// withCaller indicates whether the location the log was emitted from
 	// should be included in the output message.
 	withCaller bool
@@ -57,14 +58,10 @@ type SlogTextHandler struct {
 	groups []string
 	// nOpenGroups the number of groups opened in preformatted.
 	nOpenGroups int
+}
 
-	// mu protects out - it needs to be a pointer so that all cloned
-	// SlogTextHandler returned from WithAttrs and WithGroup share the
-	// same mutex. Otherwise, output may be garbled since each clone
-	// will use its own copy of the mutex to protect out. See
-	// https://github.com/golang/go/issues/61321 for more details.
-	mu  *sync.Mutex
-	out outputWriter
+type slogTextHandlerWriter interface {
+	Write(buf *buffer, component string, level slog.Level) error
 }
 
 // SlogTextHandlerConfig allow the SlogTextHandler functionality
@@ -87,16 +84,17 @@ type SlogTextHandlerConfig struct {
 
 // NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
 func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler {
+	return NewSlogTextHandlerWithWriter(NewIOWriter(w), cfg)
+}
+
+func NewSlogTextHandlerWithWriter(writer slogTextHandlerWriter, cfg SlogTextHandlerConfig) *SlogTextHandler {
 	if cfg.Padding == 0 {
 		cfg.Padding = defaultComponentPadding
 	}
 
 	handler := SlogTextHandler{
-		cfg: cfg,
-		out: outputWriterFn(func(buf *buffer, component string, level slog.Level) error {
-			_, err := w.Write(*buf)
-			return err
-		}),
+		cfg:           cfg,
+		out:           writer,
 		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
 		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
 	}
@@ -106,16 +104,6 @@ func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler
 	}
 
 	return &handler
-}
-
-type outputWriter interface {
-	Write(buf *buffer, component string, level slog.Level) error
-}
-
-type outputWriterFn func(buf *buffer, component string, level slog.Level) error
-
-func (f outputWriterFn) Write(buf *buffer, component string, level slog.Level) error {
-	return f(buf, component, level)
 }
 
 // Enabled returns whether the provided level will be included in output.
@@ -243,8 +231,6 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.out.Write(state.buf, rawComponent, r.Level)
 }
 
@@ -377,16 +363,16 @@ func (s *SlogTextHandler) WithGroup(name string) slog.Handler {
 	return s2
 }
 
-type SlogTextHandlerOutputIO struct {
+type ioWriter struct {
 	mu  sync.Mutex
 	out io.Writer
 }
 
-func NewSlogTextHandlerOutputIO(w io.Writer) *SlogTextHandlerOutputIO {
-	return &SlogTextHandlerOutputIO{out: w}
+func NewIOWriter(w io.Writer) *ioWriter {
+	return &ioWriter{out: w}
 }
 
-func (o *SlogTextHandlerOutputIO) Write(buf *buffer, rawComponent string, level slog.Level) error {
+func (o *ioWriter) Write(buf *buffer, rawComponent string, level slog.Level) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 

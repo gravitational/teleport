@@ -22,13 +22,11 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 )
 
 // Config configures teleport logging
@@ -82,10 +80,6 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 			return slog.Default(), level, nil
 		}
 	case LogOutputOSLog:
-		if runtime.GOOS != constants.DarwinOS {
-			return nil, nil, trace.BadParameter("os_log is supported only on macOS")
-		}
-
 		if format != "text" {
 			return nil, nil, trace.BadParameter("os_log is supported as output only when format is set to text")
 		}
@@ -130,25 +124,24 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
+		var writer slogTextHandlerWriter
 		if loggerConfig.Output == LogOutputOSLog {
-			handler, err := NewSlogOSLogTextHandler(loggerConfig.OSLogSubsystem, SlogTextHandlerConfig{
-				Level:            level,
-				EnableColors:     loggerConfig.EnableColors,
-				ConfiguredFields: configuredFields,
-				Padding:          loggerConfig.Padding,
-			})
+			//nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
+			writer, err = NewOSLogWriter(loggerConfig.OSLogSubsystem)
+			//nolint:staticcheck // SA4023.
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
-			logger = slog.New(handler)
 		} else {
-			logger = slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{
-				Level:            level,
-				EnableColors:     loggerConfig.EnableColors,
-				ConfiguredFields: configuredFields,
-				Padding:          loggerConfig.Padding,
-			}))
+			writer = NewIOWriter(w)
 		}
+
+		logger = slog.New(NewSlogTextHandlerWithWriter(writer, SlogTextHandlerConfig{
+			Level:            level,
+			EnableColors:     loggerConfig.EnableColors,
+			ConfiguredFields: configuredFields,
+			Padding:          loggerConfig.Padding,
+		}))
 		slog.SetDefault(logger)
 	case "json":
 		logger = slog.New(NewSlogJSONHandler(w, SlogJSONHandlerConfig{

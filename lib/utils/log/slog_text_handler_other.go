@@ -19,6 +19,7 @@ package log
 
 import "github.com/gravitational/trace"
 
-func NewSlogOSLogTextHandler(subsystem string, cfg SlogTextHandlerConfig) (*SlogTextHandler, error) {
-	return nil, trace.NotImplemented("can only use os_log on macOS")
+//nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
+func NewOSLogWriter(subsystem string) (slogTextHandlerWriter, error) {
+	return nil, trace.NotImplemented("os_log is supported on macOS")
 }

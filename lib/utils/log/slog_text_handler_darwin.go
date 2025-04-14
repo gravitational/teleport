@@ -18,30 +18,10 @@ package log
 
 import (
 	"log/slog"
-	"slices"
 	"sync"
 
 	"github.com/gravitational/teleport/lib/utils/log/oslog"
 )
-
-func NewSlogOSLogTextHandler(subsystem string, cfg SlogTextHandlerConfig) (*SlogTextHandler, error) {
-	if cfg.Padding == 0 {
-		cfg.Padding = defaultComponentPadding
-	}
-
-	handler := SlogTextHandler{
-		cfg:           cfg,
-		out:           newOSLogWritter(subsystem),
-		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
-		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
-	}
-
-	if handler.cfg.ConfiguredFields == nil {
-		handler.cfg.ConfiguredFields = defaultFormatFields
-	}
-
-	return &handler, nil
-}
 
 // osLogWriter is an [outputWriter] that writes to os_log, the
 // unified logging system on macOS.
@@ -51,14 +31,14 @@ type osLogWriter struct {
 	loggers   map[string]*oslog.Logger
 }
 
-// newOSLogWritter creates a new output that writes to os_log. All oslog.Logger
-// instances created by this output are going to use the given subsystem, whereas the category comes
-// from the component passed to the Write method.
-func newOSLogWritter(subsystem string) *osLogWriter {
+// NewOSLogWriter creates a new output that writes to os_log. All oslog.Logger instances created by
+// this output are going to use the given subsystem, whereas the category comes from the component
+// passed to the Write method.
+func NewOSLogWriter(subsystem string) (*osLogWriter, error) {
 	return &osLogWriter{
 		subsystem: subsystem,
 		loggers:   map[string]*oslog.Logger{},
-	}
+	}, nil
 }
 
 // Write sends the message from buf to os_log and maps level to a specific oslog.OsLogType.
