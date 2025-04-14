@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/accessmonitoring"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -2568,6 +2569,21 @@ func (process *TeleportProcess) initAuthService() error {
 			logger.ErrorContext(process.GracefulExitContext(), "expiry starting", "error", err)
 		}
 		return trace.Wrap(err)
+	})
+
+	accessMonitoringService, err := accessmonitoring.NewAccessMonitoringService(accessmonitoring.Config{
+		Logger: logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentAuth, "access_monitoring_service")),
+		Backend: b,
+		Client:  authServer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.RegisterFunc("auth.access_monitoring_service", func() error {
+		return trace.Wrap(accessMonitoringService.Run(process.GracefulExitContext()),
+			"running access_monitoring_service")
 	})
 
 	// execute this when process is asked to exit:
