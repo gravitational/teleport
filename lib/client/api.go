@@ -1286,10 +1286,10 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			// Initialize empty client store to prevent panics.
 			tc.ClientStore = NewMemClientStore()
 		} else {
-			tc.ClientStore = NewFSClientStore(c.KeysDir)
-			if c.CustomHardwareKeyPrompt != nil {
-				tc.ClientStore.SetCustomHardwareKeyPrompt(tc.CustomHardwareKeyPrompt)
-			}
+			// TODO (Joerger): init hardware key service (and client store) earlier where it can
+			// be properly shared.
+			hardwareKeyService := piv.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
+			tc.ClientStore = NewFSClientStore(c.KeysDir, WithHardwareKeyService(hardwareKeyService))
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
 				tc.ClientStore.KeyStore = NewMemKeyStore()
@@ -4004,13 +4004,14 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		// TODO(Joerger): Initialize the hardware key service early in the process and store
-		// it in the client store. This allows the process to properly share PIV connections
-		// and prompt logic (pin caching, etc.).
-		hwks := piv.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
-		priv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, hardwarekey.PrivateKeyConfig{
 			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
 			CustomSlot: tc.PIVSlot,
+			ContextualKeyInfo: hardwarekey.ContextualKeyInfo{
+				ProxyHost:   tc.WebProxyHost(),
+				Username:    tc.Username,
+				ClusterName: tc.SiteName,
+			},
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

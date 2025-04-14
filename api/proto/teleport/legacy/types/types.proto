@@ -7267,6 +7267,10 @@ message PluginOktaStatusDetailsSSO {
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
   // sync.
   string app_name = 3;
+
+  // OktaGroupEveryoneMappedRoles are the role(s) that will be granted to Okta users
+  // through SSO or synchronization.
+  repeated string okta_group_everyone_mapped_roles = 4;
 }
 
 // PluginOktaStatusDetailsAppGroupSync are details related to the
