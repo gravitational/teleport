@@ -71,7 +71,8 @@ func (c *Config) CheckAndSetDefaults() error {
 // AccessMonitoringService monitors access events and applies access monitoring
 // rules.
 type AccessMonitoringService struct {
-	cfg Config
+	cfg     Config
+	monitor *accessmonitoring.AccessMonitor
 }
 
 // NewAccessMonitoringSerivce returns a new access monitoring service.
@@ -107,6 +108,24 @@ func (s *AccessMonitoringService) Run(ctx context.Context) (err error) {
 	// Configure access review handlers.
 	monitor.AddAccessMonitoringRuleHandler(accessReviewHandler.HandleAccessMonitoringRule)
 	monitor.AddAccessRequestHandler(accessReviewHandler.HandleAccessRequest)
+	s.monitor = monitor
 
-	return trace.Wrap(monitor.Run(ctx))
+	return trace.Wrap(s.tryAndCatch(ctx))
+}
+
+// tryAndCatch tries to run the access monitoring service and recovers from potential
+// panic by converting them into errors. This ensures that a critical bug in the
+// service cannot bring down the whole Teleport cluster.
+func (s *AccessMonitoringService) tryAndCatch(ctx context.Context) (err error) {
+	// If something terribly bad happens while running, we recover and return an error
+	defer func() {
+		if r := recover(); r != nil {
+			s.cfg.Logger.ErrorContext(ctx, "Recovered from panic in the access_monitoring_service",
+				"panic", r)
+			err = trace.NewAggregate(err, trace.Errorf("Panic recovered while running: %v", r))
+		}
+	}()
+
+	err = trace.Wrap(s.monitor.Run(ctx))
+	return
 }
