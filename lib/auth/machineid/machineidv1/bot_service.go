@@ -373,15 +373,20 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbCreate, types.VerbUpdate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// Support reused MFA for bulk tctl create requests.
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
@@ -425,15 +430,20 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbUpdate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -551,6 +561,18 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 	return bs.backend.DeleteRole(ctx, role.GetName())
 }
 
+// dummyBotWithName returns a dummy bot with the given name. This is used
+// for evaluating RBAC for the Delete RPC
+func dummyBotWithName(name string) *pb.Bot {
+	return &pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+}
+
 // DeleteBot deletes an existing bot. It will throw an error if the bot does
 // not exist.
 func (bs *BotService) DeleteBot(
@@ -566,16 +588,17 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if req.BotName == "" {
 		return nil, trace.BadParameter("bot_name: must be non-empty")
+	}
+
+	if err := authCtx.CheckAccessToResource153(
+		dummyBotWithName(req.BotName), types.VerbDelete,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	err = trace.NewAggregate(
