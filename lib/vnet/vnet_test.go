@@ -875,13 +875,15 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	clientApp := newFakeClientApp(map[string]testClusterSpec{
 		"root.example.com": {
 			apps: []appSpec{
-				appSpec{publicAddr: "echo"},
+				appSpec{publicAddr: "echo1"},
+				appSpec{publicAddr: "echo2"},
 			},
 			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
 				"leaf.example.com": {
 					apps: []appSpec{
-						appSpec{publicAddr: "echo"},
+						appSpec{publicAddr: "echo1"},
+						appSpec{publicAddr: "echo2"},
 					},
 					cidrRange: "192.168.2.0/24",
 				},
@@ -933,8 +935,12 @@ func testRemoteAppProvider(t *testing.T, alg cryptosuites.Algorithm) {
 	})
 
 	for _, app := range []string{
-		"echo.root.example.com",
-		"echo.leaf.example.com",
+		"echo1.root.example.com",
+		"echo2.root.example.com",
+		"echo1.root.example.com",
+		"echo1.leaf.example.com",
+		"echo2.leaf.example.com",
+		"echo1.leaf.example.com",
 	} {
 		conn, err := p.dialHost(ctx, app, 123)
 		require.NoError(t, err)

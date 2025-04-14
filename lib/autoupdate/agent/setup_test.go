@@ -344,58 +344,6 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 	}
 }
 
-func TestNamespace_EnsureID(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		exists bool
-		fails  bool
-	}{
-		{
-			name: "does not exist",
-		},
-		{
-			name:   "exists",
-			exists: true,
-		},
-		{
-			name:  "fails",
-			fails: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ns := &Namespace{
-				log:           slog.Default(),
-				updaterIDFile: filepath.Join(t.TempDir(), "id"),
-			}
-			if tt.exists {
-				err := os.WriteFile(ns.updaterIDFile, []byte("test"), os.ModePerm)
-				require.NoError(t, err)
-			}
-			if tt.fails {
-				ns.updaterIDFile = ""
-			}
-			p, err := ns.EnsureID()
-			require.Equal(t, ns.updaterIDFile, p)
-			if tt.fails {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			b, err := os.ReadFile(ns.updaterIDFile)
-			require.NoError(t, err)
-
-			if tt.exists {
-				require.Equal(t, "test", string(b))
-			} else {
-				require.Len(t, b, 36)
-			}
-		})
-	}
-}
-
 // In the future, the latest version of the updater may need to read a version of teleport.yaml that has
 // an unsupported version which is supported by the updater-managed version of Teleport.
 // This test will break if Teleport removes a field that the updater reads.

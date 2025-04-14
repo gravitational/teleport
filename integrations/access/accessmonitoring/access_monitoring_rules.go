@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/accessmonitoring"
 )
 
 const (
@@ -145,7 +146,7 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 	recipientSet := common.NewRecipientSet()
 
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
+		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -172,7 +173,7 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 	log := logger.Get(ctx)
 	recipientSet := stringset.New()
 	for _, rule := range amrh.getAccessMonitoringRules() {
-		match, err := EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
+		match, err := accessmonitoring.EvaluateCondition(rule.Spec.Condition, getAccessRequestExpressionEnv(req))
 		if err != nil {
 			log.WarnContext(ctx, "Failed to parse access monitoring notification rule",
 				"error", err,
@@ -238,8 +239,8 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 }
 
 // getAccessRequestExpressionEnv returns the expression env of the access request.
-func getAccessRequestExpressionEnv(req types.AccessRequest) AccessRequestExpressionEnv {
-	return AccessRequestExpressionEnv{
+func getAccessRequestExpressionEnv(req types.AccessRequest) accessmonitoring.AccessRequestExpressionEnv {
+	return accessmonitoring.AccessRequestExpressionEnv{
 		Roles:              req.GetRoles(),
 		SuggestedReviewers: req.GetSuggestedReviewers(),
 		Annotations:        req.GetSystemAnnotations(),

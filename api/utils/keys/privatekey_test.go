@@ -1,5 +1,3 @@
-//go:build pivtest
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -40,7 +38,6 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/api/utils/keys/piv"
 )
 
 func TestMarshalAndParseKey(t *testing.T) {
@@ -52,10 +49,15 @@ func TestMarshalAndParseKey(t *testing.T) {
 	_, edKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	// TODO(Joerger): Once the hardware key service is provided to the key parsing logic,
-	// use [hardwarekey.NewMockHardwareKeyService] and remove pivtest build tag
-	s := piv.NewYubiKeyService(nil)
-	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{})
+	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
+		ProxyHost:   "billy.io",
+		Username:    "Billy@billy.io",
+		ClusterName: "billy.io",
+	}
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: contextualKeyInfo,
+	})
 	require.NoError(t, err)
 
 	for keyType, key := range map[string]crypto.Signer{
@@ -67,9 +69,9 @@ func TestMarshalAndParseKey(t *testing.T) {
 		t.Run(keyType, func(t *testing.T) {
 			keyPEM, err := keys.MarshalPrivateKey(key)
 			require.NoError(t, err)
-			gotKey, err := keys.ParsePrivateKey(keyPEM)
+			gotKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s), keys.WithContextualKeyInfo(contextualKeyInfo))
 			require.NoError(t, err)
-			assert.Empty(t, cmp.Diff(key, gotKey.Signer), "parsed private key is not equal to the original")
+			assert.Empty(t, cmp.Diff(key, gotKey.Signer, cmpopts.IgnoreUnexported(hardwarekey.Signer{})), "parsed private key is not equal to the original")
 
 			pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 			require.NoError(t, err)

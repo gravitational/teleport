@@ -703,6 +703,13 @@ const (
 	// workload_identity_x509_issuer_override.delete event.
 	WorkloadIdentityX509IssuerOverrideDeleteCode = "WID008I"
 
+	// SigstorePolicyCreateCode is the Sigstore policy create event code.
+	SigstorePolicyCreateCode = "TSSP001I"
+	// SigstorePolicyUpdateCode is the Sigstore policy update event code.
+	SigstorePolicyUpdateCode = "TSSP002I"
+	// SigstorePolicyDeleteCode is the Sigstore policy delete event code.
+	SigstorePolicyDeleteCode = "TSSP003I"
+
 	// HealthCheckConfigCreateCode is the health check config create event code.
 	HealthCheckConfigCreateCode = "THCC001I"
 	// HealthCheckConfigUpdateCode is the health check config update event code.
