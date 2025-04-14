@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
-func TestPinCachingPrompt(t *testing.T) {
+func TestPINCachingPrompt(t *testing.T) {
 	ctx := context.Background()
 
 	// Note: locally this test gets flaky around 10µs.
@@ -42,8 +42,8 @@ func TestPinCachingPrompt(t *testing.T) {
 		timer := time.NewTimer(cacheDuration)
 
 		// Check that the PIN remains cached.
-		for range 3 {
-			pin, _ := cachingPrompt.AskPIN(ctx, hardwarekey.PINRequired, hardwarekey.ContextualKeyInfo{})
+		for i := 0; i < 3; i++ {
+			pin, err := cachingPrompt.AskPIN(ctx, hardwarekey.PINRequired, hardwarekey.ContextualKeyInfo{})
 			require.NoError(t, err)
 			require.Equal(t, cachedPIN, pin)
 		}
@@ -58,12 +58,13 @@ func TestPinCachingPrompt(t *testing.T) {
 	t.Run("ChangePIN", func(t *testing.T) {
 		// ChangePIN should prompt and cache a new PIN for 100ms.
 		pinAndPUK, err := cachingPrompt.ChangePIN(ctx, hardwarekey.ContextualKeyInfo{})
+		require.NoError(t, err)
 		cachedPIN := pinAndPUK.PIN
 		timer := time.NewTimer(cacheDuration)
 
 		// Check that the PIN remains cached.
-		for range 3 {
-			pin, _ := cachingPrompt.AskPIN(ctx, hardwarekey.PINRequired, hardwarekey.ContextualKeyInfo{})
+		for i := 0; i < 3; i++ {
+			pin, err := cachingPrompt.AskPIN(ctx, hardwarekey.PINRequired, hardwarekey.ContextualKeyInfo{})
 			require.NoError(t, err)
 			require.Equal(t, cachedPIN, pin)
 		}
@@ -82,7 +83,7 @@ type randPINPrompt struct {
 }
 
 func (p *randPINPrompt) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
-	return p.randPin(), nil
+	return p.randPIN(), nil
 }
 
 func (p *randPINPrompt) Touch(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) error {
@@ -91,7 +92,7 @@ func (p *randPINPrompt) Touch(ctx context.Context, keyInfo hardwarekey.Contextua
 
 func (p *randPINPrompt) ChangePIN(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) (*hardwarekey.PINAndPUK, error) {
 	return &hardwarekey.PINAndPUK{
-		PIN: p.randPin(),
+		PIN: p.randPIN(),
 	}, nil
 }
 
@@ -99,7 +100,7 @@ func (p *randPINPrompt) ConfirmSlotOverwrite(ctx context.Context, message string
 	return false, nil
 }
 
-func (p *randPINPrompt) randPin() string {
+func (p *randPINPrompt) randPIN() string {
 	randomNumber := 10000000 + rand.Intn(90000000)
 	for randomNumber == p.lastPin {
 		randomNumber = 10000000 + rand.Intn(90000000)
