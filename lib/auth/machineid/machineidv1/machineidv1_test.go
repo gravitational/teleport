@@ -1442,6 +1442,7 @@ func TestListBots(t *testing.T) {
 			{
 				Resources: []string{types.KindBot},
 				Verbs:     []string{types.VerbList},
+				Where:     `startsWith(resource.metadata.name, "foo")`,
 			},
 		})
 	require.NoError(t, err)
