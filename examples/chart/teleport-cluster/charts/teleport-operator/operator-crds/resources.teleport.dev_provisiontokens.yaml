@@ -147,6 +147,8 @@ spec:
                     description: Joining contains parameters related to all join attempts.
                     nullable: true
                     properties:
+                      insecure:
+                        type: boolean
                       may_join_until:
                         format: date-time
                         type: string

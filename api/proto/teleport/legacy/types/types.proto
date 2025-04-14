@@ -1904,6 +1904,15 @@ message ProvisionTokenSpecV2BoundKeypair {
       (gogoproto.nullable) = true,
       (gogoproto.jsontag) = "may_join_until"
     ];
+
+    // Insecure is an optional flag that enables insecure joining and rejoining.
+    // This method disables generation counter checks during joining and
+    // rejoining. When combined with the `unlimited` flag, this allows unlimited
+    // reuse of this token provided the client has access to the keypair. This
+    // may be useful in certain cases - like use in unsupported CI/CD providers
+    // - but cannot offer the same security assurances and should be used with
+    // care.
+    bool Insecure = 4 [(gogoproto.jsontag) = "insecure"];
   }
 
   // Onboarding contains parameters related to initial joining and keypair
