@@ -6,7 +6,8 @@
 GOLANG_VERSION ?= go1.23.8
 GOLANGCI_LINT_VERSION ?= v1.64.7
 
-NODE_VERSION ?= 20.18.0
+# NOTE: Remember to update engines.node in package.json to match the major version.
+NODE_VERSION ?= 22.14.0
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.81.0
