@@ -96,6 +96,8 @@ func TestCreateBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 				},
@@ -123,6 +125,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "success",
 						Labels: map[string]string{
@@ -231,6 +235,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "success-with-expiry",
 						Labels: map[string]string{
@@ -374,6 +380,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: nil,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -390,6 +398,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: &headerv1.Metadata{},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -406,6 +416,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "terminator",
 					},
@@ -422,6 +434,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "empty-string-role",
 					},
@@ -501,6 +515,8 @@ func TestUpdateBot(t *testing.T) {
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
 			},
@@ -544,6 +560,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: preExistingBot.Metadata.Name,
 					},
@@ -675,6 +693,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "bernard-lowe",
 					},
@@ -694,6 +714,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
 					},
@@ -712,6 +734,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "",
 					},
@@ -733,6 +757,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "foo",
 					},
@@ -752,6 +778,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "foo",
 					},
@@ -773,6 +801,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: preExistingBot.Metadata.Name,
 					},
@@ -863,6 +893,8 @@ func TestUpsertBot(t *testing.T) {
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
 				Labels: map[string]string{
@@ -905,6 +937,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "new",
 						Labels: map[string]string{
@@ -1003,6 +1037,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "new-with-expiry",
 						Labels: map[string]string{
@@ -1184,6 +1220,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: nil,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -1200,6 +1238,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: &headerv1.Metadata{},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -1216,6 +1256,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "empty-string-role",
 					},
@@ -1301,6 +1343,8 @@ func TestGetBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 					Labels: map[string]string{
@@ -1412,6 +1456,8 @@ func TestListBots(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 					Labels: map[string]string{
@@ -1430,6 +1476,8 @@ func TestListBots(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing-2",
 				},
@@ -1534,6 +1582,8 @@ func TestDeleteBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 				},
@@ -1548,6 +1598,8 @@ func TestDeleteBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing-3",
 				},

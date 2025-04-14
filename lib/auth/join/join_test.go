@@ -162,6 +162,8 @@ func TestRegister_Bot(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: "test",
 		},
@@ -304,6 +306,8 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			botName := uuid.NewString()
 			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
