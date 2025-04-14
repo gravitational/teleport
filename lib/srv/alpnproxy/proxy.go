@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -298,6 +300,14 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := metrics.RegisterPrometheusCollectors(
+		alpnConnTotal,
+		alpnConnInFlight,
+		alpnConnHandlerError,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Proxy{
 		cfg:                cfg,
 		log:                cfg.Log,
@@ -332,7 +342,8 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// For example in ReverseTunnel handles connection asynchronously and closing conn after
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
-			if err := p.handleConn(ctx, clientConn, nil); err != nil {
+			if err := p.handleConn(ctx, clientConn, nil, "serve"); err != nil {
+				alpnConnHandlerError.WithLabelValues("serve").Inc()
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
 					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
@@ -372,8 +383,8 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 //  5. For backward compatibility check RouteToDatabase identity field
 //     was set if yes forward to the generic TLS DB handler.
 //  6. Forward connection to the handler obtained in step 2.
-func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config) error {
-	hello, conn, err := p.readHelloMessageWithoutTLSTermination(ctx, clientConn)
+func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config, metricPath string) error {
+	hello, conn, err := p.readHelloMessageWithoutTLSTermination(ctx, clientConn, metricPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -503,7 +514,7 @@ func (p *Proxy) getTLSConfig(desc *HandlerDecs, defaultOverride *tls.Config) *tl
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
 // incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
 // net.Conn should be used for further operation.
-func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
+func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn net.Conn, metricPath string) (*tls.ClientHelloInfo, net.Conn, error) {
 	buff := new(bytes.Buffer)
 	var hello *tls.ClientHelloInfo
 	tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
@@ -526,7 +537,58 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn 
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return hello, newBufferedConn(conn, buff), nil
+	return hello,
+		newMetricConn(
+			newBufferedConn(conn, buff),
+			hello,
+			metricPath,
+		),
+		nil
+}
+
+// TODO(greedy52) temporary for debugging
+type metricConn struct {
+	net.Conn
+	clientProtocol string
+	path           string
+	decOnce        sync.Once
+}
+
+func newMetricConn(conn net.Conn, hello *tls.ClientHelloInfo, path string) net.Conn {
+	var clientProtocol string
+	if len(hello.SupportedProtos) > 0 {
+		clientProtocol = hello.SupportedProtos[0]
+	}
+	switch {
+	case len(clientProtocol) == 0:
+		// This likely come from the connection upgrade as the load balancer drops ALPN.
+		clientProtocol = "unspecified"
+	case strings.Contains(clientProtocol, "@"):
+		// teleport-auth@<encoded>.teleport.cluster.local
+		clientProtocol, _, _ = strings.Cut(clientProtocol, "@")
+	}
+
+	alpnConnTotal.WithLabelValues(clientProtocol, path).Inc()
+	alpnConnInFlight.WithLabelValues(clientProtocol, path).Inc()
+	return &metricConn{
+		Conn:           conn,
+		clientProtocol: clientProtocol,
+		path:           path,
+	}
+}
+
+// NetConn returns the underlying net.Conn.
+func (c *metricConn) NetConn() net.Conn {
+	return c.Conn
+}
+
+func (c *metricConn) Close() error {
+	c.decOnce.Do(func() {
+		alpnConnInFlight.WithLabelValues(c.clientProtocol, c.path).Dec()
+	})
+
+	// Do not wrap
+	return c.Conn.Close()
 }
 
 func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, connInfo ConnectionInfo) error {
@@ -632,9 +694,48 @@ func (p *Proxy) Close() error {
 // to handle incoming connections by this ALPN proxy server.
 func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config) ConnectionHandler {
 	return func(ctx context.Context, conn net.Conn) error {
-		return p.handleConn(ctx, conn, defaultOverride)
+		if err := p.handleConn(ctx, conn, defaultOverride, "upgrade"); err != nil {
+			// Track it.
+			alpnConnHandlerError.WithLabelValues("upgrade").Inc()
+			// Make sure we close the connection on error
+			if cerr := conn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
+				p.log.WithError(cerr).Warnf("Failed to close client connection.")
+			}
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 }
+
+var (
+	alpnConnTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "alpnproxy",
+			Name:      "proxy_server_conn_total",
+			Help:      "Number of total alpn conn.",
+		},
+		[]string{"alpn", "path"},
+	)
+	alpnConnInFlight = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "alpnproxy",
+			Name:      "proxy_server_conn",
+			Help:      "Number of in-flight alpn conn.",
+		},
+		[]string{"alpn", "path"},
+	)
+	alpnConnHandlerError = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "alpnproxy",
+			Name:      "proxy_server_handler_error",
+			Help:      "Number of handler error.",
+		},
+		[]string{"path"},
+	)
+)
 
 // ConnectionHandler defines a function for serving incoming connections.
 type ConnectionHandler func(ctx context.Context, conn net.Conn) error
