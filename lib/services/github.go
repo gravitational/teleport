@@ -163,7 +163,15 @@ func UnmarshalOSSGithubConnector(bytes []byte, opts ...MarshalOption) (types.Git
 
 // MarshalGithubConnector marshals a GithubConnector resource to JSON.
 func MarshalGithubConnector(connector types.GithubConnector, opts ...MarshalOption) ([]byte, error) {
-	return MarshalResource(connector, opts...)
+	marshal, ok := getResourceMarshaler(connector.GetKind())
+	if !ok {
+		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", connector.GetKind())
+	}
+	m, err := marshal(connector, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return m, nil
 }
 
 // MarshalOSSGithubConnector marshals the open source variant of the GithubConnector resource to JSON.
