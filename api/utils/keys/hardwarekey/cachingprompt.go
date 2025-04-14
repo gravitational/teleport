@@ -24,19 +24,19 @@ import (
 
 // NewPINCachingPrompt returns a new pin caching HardwareKeyPrompt.
 // If [innerPrompt] already is a pin caching prompt, it will be
-// returned with an updated [cacheDuration].
-func NewPINCachingPrompt(innerPrompt Prompt, cacheDuration time.Duration) *PINCachingPrompt {
+// returned with an updated [cacheTTL].
+func NewPINCachingPrompt(innerPrompt Prompt, cacheTTL time.Duration) *PINCachingPrompt {
 	if p, ok := innerPrompt.(*PINCachingPrompt); ok {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
-		p.pinTTL = cacheDuration
+		p.cacheTTL = cacheTTL
 		return p
 	}
 
 	return &PINCachingPrompt{
-		Prompt: innerPrompt,
-		pinTTL: cacheDuration,
+		Prompt:   innerPrompt,
+		cacheTTL: cacheTTL,
 	}
 }
 
@@ -49,8 +49,8 @@ type PINCachingPrompt struct {
 	// mu currently protects all fields.
 	mu sync.Mutex
 
-	// pinTTL is the configured duration that a cached PIN will be valid.
-	pinTTL time.Duration
+	// cacheTTL is the configured duration that a cached PIN will be valid.
+	cacheTTL time.Duration
 	// pin is the cached PIN.
 	pin string
 	// pinExpiry is the expiration time of the currently cached PIN.
@@ -73,7 +73,7 @@ func (p *PINCachingPrompt) AskPIN(ctx context.Context, requirement PINPromptRequ
 	}
 
 	p.pin = pin
-	p.pinExpiry = time.Now().Add(p.pinTTL)
+	p.pinExpiry = time.Now().Add(p.cacheTTL)
 
 	return pin, nil
 }
@@ -89,7 +89,7 @@ func (p *PINCachingPrompt) ChangePIN(ctx context.Context, keyInfo ContextualKeyI
 	}
 
 	p.pin = PINAndPUK.PIN
-	p.pinExpiry = time.Now().Add(p.pinTTL)
+	p.pinExpiry = time.Now().Add(p.cacheTTL)
 
 	return PINAndPUK, nil
 }

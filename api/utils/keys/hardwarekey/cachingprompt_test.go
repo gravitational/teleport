@@ -32,14 +32,14 @@ func TestPINCachingPrompt(t *testing.T) {
 	ctx := context.Background()
 
 	// Note: locally this test gets flaky around 10µs.
-	cacheDuration := 10 * time.Millisecond
-	cachingPrompt := hardwarekey.NewPINCachingPrompt(&randPINPrompt{}, cacheDuration)
+	cacheTTL := 10 * time.Millisecond
+	cachingPrompt := hardwarekey.NewPINCachingPrompt(&randPINPrompt{}, cacheTTL)
 
 	t.Run("AskPIN", func(t *testing.T) {
 		// prompt and cache a new PIN for 100ms.
 		cachedPIN, err := cachingPrompt.AskPIN(ctx, hardwarekey.PINRequired, hardwarekey.ContextualKeyInfo{})
 		require.NoError(t, err)
-		timer := time.NewTimer(cacheDuration)
+		timer := time.NewTimer(cacheTTL)
 
 		// Check that the PIN remains cached.
 		for i := 0; i < 3; i++ {
@@ -60,7 +60,7 @@ func TestPINCachingPrompt(t *testing.T) {
 		pinAndPUK, err := cachingPrompt.ChangePIN(ctx, hardwarekey.ContextualKeyInfo{})
 		require.NoError(t, err)
 		cachedPIN := pinAndPUK.PIN
-		timer := time.NewTimer(cacheDuration)
+		timer := time.NewTimer(cacheTTL)
 
 		// Check that the PIN remains cached.
 		for i := 0; i < 3; i++ {
