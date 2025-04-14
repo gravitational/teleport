@@ -2269,7 +2269,7 @@ version: v1
 	require.Empty(t, cmp.Diff(
 		&expected,
 		&resource,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		protocmp.Transform(),
 	))
 
@@ -2314,7 +2314,7 @@ version: v1
 	require.Empty(t, cmp.Diff(
 		&expected,
 		&resource,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		protocmp.Transform(),
 	))
 
@@ -2370,7 +2370,7 @@ version: v1
 	require.Empty(t, cmp.Diff(
 		&expected,
 		&resource,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		protocmp.Transform(),
 	))
 
