@@ -19,10 +19,13 @@
 package discovery
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"slices"
@@ -32,7 +35,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	cloudtrailtypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -735,6 +742,15 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 		return trace.Wrap(err)
 	}
 
+	if matcher.SqsPolling != nil {
+		go func() {
+			err := s.pollEventsFromSQSFiles(ctx, accountID, matcher, eventsC)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error extracting events from SQS files", "error", err)
+			}
+		}()
+	}
+
 	var size int
 	var events []*accessgraphv1alpha.AWSCloudTrailEvent
 	const maxSize = 3 * 1024 * 1024 // 3MB
@@ -749,9 +765,10 @@ func (s *Server) startCloudTrailWatcher(ctx context.Context, startDate time.Time
 			for _, event := range evts.events {
 				size += gproto.Size(event)
 			}
-			state[evts.region] = evts.cursor
+			if !evts.fromS3 {
+				state[evts.region] = evts.cursor
+			}
 			events = append(events, evts.events...)
-
 			sendData = size >= maxSize
 		}
 
@@ -900,7 +917,17 @@ func (s *Server) pollCloudTrailForRegion(ctx context.Context,
 			//		continue
 			//	}
 			// Convert the event to a protobuf struct.
-			events = append(events, convertCloudTrailEventToAccessGraphResources(event, accountID, region))
+			structEvent := cloudTrailEventToStructPB(event)
+			if structEvent == nil {
+				s.Log.ErrorContext(ctx, "Failed to unmarshal event.", "event", event)
+				continue
+			}
+			protoEvent, err := convertCloudTrailEventToAccessGraphResources(structEvent, accountID, region)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Failed to convert event.", "event", event, "error", err)
+				continue
+			}
+			events = append(events, protoEvent)
 			lastCursor.lastEventTime = aws.ToTime(event.EventTime)
 		}
 		if len(events) > 0 {
@@ -954,14 +981,12 @@ type eventChannelPayload struct {
 	events []*accessgraphv1alpha.AWSCloudTrailEvent
 	cursor cursor
 	region string
+	fromS3 bool
 }
 
-func convertCloudTrailEventToAccessGraphResources(
+func cloudTrailEventToStructPB(
 	event cloudtrailtypes.Event,
-	accountID string,
-	region string,
-) *accessgraphv1alpha.AWSCloudTrailEvent {
-
+) *structpb.Struct {
 	// Convert the event to a protobuf struct.
 	structEvent := &structpb.Struct{}
 	if event.CloudTrailEvent != nil && len(*event.CloudTrailEvent) > 2 {
@@ -972,27 +997,55 @@ func convertCloudTrailEventToAccessGraphResources(
 			slog.ErrorContext(context.TODO(), "Failed to unmarshal event.", "error", err)
 		}
 	}
+	return structEvent
+}
 
-	structEvent.Fields["source_region"] = structpb.NewStringValue(region)
+func convertCloudTrailEventToAccessGraphResources(
+	event *structpb.Struct,
+	accountID string,
+	region string,
+) (*accessgraphv1alpha.AWSCloudTrailEvent, error) {
+
+	event.Fields["source_region"] = structpb.NewStringValue(region)
 	var resources []*accessgraphv1alpha.AWSCloudTrailEventResource
-	for _, resource := range event.Resources {
+	/*for _, resource := range event.Resources {
+
 		resources = append(resources, &accessgraphv1alpha.AWSCloudTrailEventResource{
 			Name: aws.ToString(resource.ResourceName),
 			Type: aws.ToString(resource.ResourceType),
 		})
+	}*/
+	t, err := time.Parse(time.RFC3339, event.GetFields()["eventTime"].GetStringValue())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &accessgraphv1alpha.AWSCloudTrailEvent{
-		AccessKeyId:     aws.ToString(event.AccessKeyId),
-		CloudTrailEvent: structEvent,
-		EventId:         aws.ToString(event.EventId),
-		EventName:       aws.ToString(event.EventName),
-		ServiceSource:   aws.ToString(event.EventSource),
-		EndTime:         timestamppb.New(aws.ToTime(event.EventTime)),
-		ReadOnly:        aws.ToString(event.ReadOnly) == "true",
+		AccessKeyId:     getMultiField([]string{"userIdentity", "accessKeyId"}, (*structpb.Value).GetStringValue, event),
+		CloudTrailEvent: event,
+		EventId:         event.GetFields()["eventID"].GetStringValue(),
+		EventName:       event.GetFields()["eventName"].GetStringValue(),
+		ServiceSource:   event.GetFields()["eventSource"].GetStringValue(),
+		EndTime:         timestamppb.New(t),
+		ReadOnly:        event.GetFields()["readOnly"].GetBoolValue(),
 		Resources:       resources,
-		Username:        aws.ToString(event.Username),
+		Username:        getMultiField([]string{"userIdentity", "arn"}, (*structpb.Value).GetStringValue, event),
 		AwsAccountId:    accountID,
+	}, nil
+}
+
+func getMultiField[T any](keys []string, extractor func(*structpb.Value) T, v *structpb.Struct) T {
+	structValue := v
+	if len(keys) > 1 {
+		last := v.Fields[keys[0]]
+		for _, key := range keys[1 : len(keys)-1] {
+			last = last.GetStructValue().GetFields()[key]
+			if v == nil {
+				return extractor(last)
+			}
+		}
+		structValue = last.GetStructValue()
 	}
+	return extractor(structValue.GetFields()[keys[len(keys)-1]])
 }
 
 func stateToProtoState(startDate time.Time, state map[string]cursor) *accessgraphv1alpha.AWSCloudTrailResumeState {
@@ -1014,18 +1067,21 @@ func stateToProtoState(startDate time.Time, state map[string]cursor) *accessgrap
 	return resumeState
 }
 
-func (a *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWSSync) (string, error) {
+func getOptions(matcher *types.AccessGraphAWSSync) []awsconfig.OptionsFn {
 	opts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
 	}
 	if matcher.AssumeRole != nil {
 		opts = append(opts, awsconfig.WithAssumeRole(matcher.AssumeRole.RoleARN, matcher.AssumeRole.ExternalID))
 	}
+	return opts
+}
 
+func (a *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWSSync) (string, error) {
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because groups are global */
-		opts...,
+		getOptions(matcher)...,
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -1039,4 +1095,178 @@ func (a *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWS
 	}
 
 	return aws.ToString(req.Account), nil
+}
+
+func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- eventChannelPayload) error {
+	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, matcher.SqsPolling.Region, getOptions(matcher)...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sqsClient := sqs.NewFromConfig(awsCfg)
+
+	s3Client := s3.NewFromConfig(awsCfg)
+	input := &sqs.ReceiveMessageInput{
+		QueueUrl:            aws.String(matcher.SqsPolling.SQSQueue),
+		MaxNumberOfMessages: 10,
+		WaitTimeSeconds:     10,
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		default:
+			resp, err := sqsClient.ReceiveMessage(ctx, input)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(resp.Messages) == 0 {
+				continue
+			}
+			wg := &sync.WaitGroup{}
+			for _, message := range resp.Messages {
+				wg.Add(1)
+				func(message sqstypes.Message) {
+					defer wg.Done()
+					var sqsEvent sqsFileEvent
+					body := aws.ToString(message.Body)
+					err := json.Unmarshal([]byte(body), &sqsEvent)
+					if err != nil {
+						a.Log.ErrorContext(ctx, "Failed to unmarshal SQS message", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+						return
+					}
+
+					if len(sqsEvent.S3ObjectKey) == 0 {
+						a.Log.ErrorContext(ctx, "SQS message does not contain S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+						return
+					}
+					for _, objectKey := range sqsEvent.S3ObjectKey {
+						if len(objectKey) == 0 {
+							a.Log.ErrorContext(ctx, "SQS message contains empty S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+							continue
+						}
+						events, err := downloadCloudTrailFileAndParse(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
+						if err != nil {
+							a.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+							continue
+						}
+						var agEvents = make([]*accessgraphv1alpha.AWSCloudTrailEvent, 0, len(events))
+						for _, event := range events {
+							agEvent, err := convertCloudTrailEventToAccessGraphResources((*structpb.Struct)(event), accountID, "")
+							if err != nil {
+								a.Log.ErrorContext(ctx, "Failed to convert CloudTrail event to access graph resources", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+								continue
+							}
+							agEvents = append(agEvents, agEvent)
+						}
+						if len(agEvents) == 0 {
+							a.Log.ErrorContext(ctx, "No events found in S3 object", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+							continue
+						}
+						// send the events to the access graph service
+						evts := chunkBySize(agEvents, 3*1024*1024)
+						for _, chunk := range evts {
+							select {
+							case <-ctx.Done():
+								a.Log.InfoContext(ctx, "Stopping cloud trail poller for region")
+								return
+							case eventsC <- eventChannelPayload{
+								events: chunk,
+								fromS3: true,
+							}:
+							}
+						}
+					}
+				}(message)
+			}
+			wg.Wait()
+			// Delete the message from the queue
+			var deleteMessages []sqstypes.DeleteMessageBatchRequestEntry
+			for _, message := range resp.Messages {
+				deleteMessages = append(deleteMessages, sqstypes.DeleteMessageBatchRequestEntry{
+					Id:            aws.String(uuid.NewString()),
+					ReceiptHandle: message.ReceiptHandle,
+				})
+			}
+			out, err := sqsClient.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
+				QueueUrl: aws.String(matcher.SqsPolling.SQSQueue),
+				Entries:  deleteMessages,
+			})
+			if err != nil {
+				return trace.Wrap(err, "error on calling DeleteMessageBatch")
+			}
+			for _, entry := range out.Failed {
+				return trace.Errorf("failed to delete message with ID %s, sender fault %v: %s", aws.ToString(entry.Id), entry.SenderFault, aws.ToString(entry.Message))
+			}
+		}
+	}
+}
+
+func chunkBySize(events []*accessgraphv1alpha.AWSCloudTrailEvent, size int) [][]*accessgraphv1alpha.AWSCloudTrailEvent {
+	var chunks [][]*accessgraphv1alpha.AWSCloudTrailEvent
+	var chunk []*accessgraphv1alpha.AWSCloudTrailEvent
+	var chunkSize int
+	for _, event := range events {
+		eventSize := gproto.Size(event)
+		if chunkSize+eventSize > size {
+			chunks = append(chunks, slices.Clone(chunk))
+			chunk = chunk[:0]
+			chunkSize = 0
+		}
+		chunk = append(chunk, event)
+		chunkSize += eventSize
+	}
+	if len(chunk) > 0 {
+		chunks = append(chunks, chunk)
+	}
+	return chunks
+}
+
+type sqsFileEvent struct {
+	S3Bucket    string   `json:"s3Bucket"`
+	S3ObjectKey []string `json:"s3ObjectKey"`
+}
+
+// downloadCloudTrailFileAndParse downloads a CloudTrail file from S3 and parses it.
+// The file is expected to be in gzip format and the maximimum uncompressed size is 50MB
+// (the maximum size of a CloudTrail file) so we can read it into memory.
+func downloadCloudTrailFileAndParse(ctx context.Context, client *s3.Client, bucket, key string) ([]*Event, error) {
+	getObjInput := &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	}
+
+	resp, err := client.GetObject(ctx, getObjInput)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Decompress gzip stream
+	gzr, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzr.Close()
+
+	type CloudTrailFile struct {
+		Records []*Event `json:"Records"`
+	}
+	// Decode the top-level JSON
+	var ctFile CloudTrailFile
+	decoder := json.NewDecoder(gzr)
+	if err := decoder.Decode(&ctFile); err != nil {
+		return nil, fmt.Errorf("failed to decode CloudTrail JSON: %w", err)
+	}
+
+	return ctFile.Records, nil
+}
+
+type Event structpb.Struct
+
+func (e *Event) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	err := protojson.Unmarshal(data, (*structpb.Struct)(e))
+	return trace.Wrap(err)
 }

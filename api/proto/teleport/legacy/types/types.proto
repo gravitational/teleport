@@ -8266,6 +8266,11 @@ message AccessGraphSync {
   repeated AccessGraphAzureSync Azure = 3 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
+message AccessGraphAWSSyncSQSPolling {
+  string Region = 1 [(gogoproto.jsontag) = "region,omitempty"];
+  string SQSQueue = 2 [(gogoproto.jsontag) = "sqs_queue,omitempty"];
+}
+
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
 message AccessGraphAWSSync {
   // Regions are AWS regions to import resources from.
@@ -8275,6 +8280,7 @@ message AccessGraphAWSSync {
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
   bool EnableCloudTrailPolling = 5 [(gogoproto.jsontag) = "enable_cloudtrail_polling,omitempty"];
+  AccessGraphAWSSyncSQSPolling sqs_polling = 6 [(gogoproto.jsontag) = "sqs_polling,omitempty"];
 }
 
 // AccessGraphAzureSync is a configuration for Azure Access Graph service poll service.
