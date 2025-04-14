@@ -19,10 +19,16 @@
 package agent
 
 import (
-	"github.com/gravitational/teleport/api/client/proto"
+	"bytes"
+	"context"
+	"errors"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gravitational/teleport/api/client/proto"
 
 	"github.com/gravitational/trace"
 )
@@ -112,27 +118,37 @@ func hasParentDir(dir, parent string) (bool, error) {
 // that can be reported in the inventory hello message.
 // This function performs io operations, its usage must be cached
 // (the downstream inventory handler does this for us).
-func ReadHelloUpdaterInfo() (*proto.UpdaterV2Info, error) {
+func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string) (*proto.UpdaterV2Info, error) {
 	info := &proto.UpdaterV2Info{}
 
 	configPath := os.Getenv(updateConfigPathEnvVar)
 	if configPath == "" {
-		return nil, trace.NotFound("config file %q not found", configPath)
+		return nil, trace.NotFound("config file %q not specified", configPath)
 	}
 
-	conf, err := readConfig(configPath)
+	cfg, err := readConfig(configPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading config file %q", configPath)
 	}
 
-	info.UpdateGroup = conf.Spec.Group
+	info.UpdateGroup = cfg.Spec.Group
 
-	// TODO(hugoShaka or sclevine): After the new UUId logic, add the UUID export here
+	mid, err := os.ReadFile(SystemdMachineIDFile)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", SystemdMachineIDFile, errorKey, err)
+	}
+	id, err := FindDBPID(cfg.Status.IDFile, bytes.TrimSpace(mid), bytes.TrimSpace([]byte(hostUUID)), true)
+	if err != nil {
+		log.ErrorContext(ctx, "Unable to generate unique ID for this host.", errorKey, err)
+		log.ErrorContext(ctx, "The Teleport agent may not be tracked, and may fail if used as a canary.")
+	} else {
+		info.UpdateUUID = []byte(id)
+	}
 
 	switch {
-	case conf.Spec.Enabled == false:
+	case !cfg.Spec.Enabled:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_DISABLED
-	case conf.Spec.Pinned == true:
+	case cfg.Spec.Pinned:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_PINNED
 	default:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_OK
