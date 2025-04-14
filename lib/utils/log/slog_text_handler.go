@@ -61,7 +61,7 @@ type SlogTextHandler struct {
 }
 
 type slogTextHandlerWriter interface {
-	Write(buf *buffer, component string, level slog.Level) error
+	Write(bytes []byte, component string, level slog.Level) error
 }
 
 // SlogTextHandlerConfig allow the SlogTextHandler functionality
@@ -231,7 +231,9 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	}
 
-	return s.out.Write(state.buf, rawComponent, r.Level)
+	state.buf.WriteByte('\n')
+
+	return s.out.Write(*state.buf, rawComponent, r.Level)
 }
 
 func formatLevel(value slog.Level, enableColors bool) string {
@@ -372,11 +374,10 @@ func NewIOWriter(w io.Writer) *ioWriter {
 	return &ioWriter{out: w}
 }
 
-func (o *ioWriter) Write(buf *buffer, rawComponent string, level slog.Level) error {
+func (o *ioWriter) Write(bytes []byte, rawComponent string, level slog.Level) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	// TODO: Should I do buf.WriteByte instead of append here?
-	_, err := o.out.Write(append(*buf, '\n'))
+	_, err := o.out.Write(bytes)
 	return err
 }

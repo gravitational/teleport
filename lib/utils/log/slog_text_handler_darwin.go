@@ -43,7 +43,7 @@ func NewOSLogWriter(subsystem string) (*osLogWriter, error) {
 
 // Write sends the message from buf to os_log and maps level to a specific oslog.OsLogType.
 // os_log truncates messages by default, see [oslog.Logger.Log] for more details.
-func (o *osLogWriter) Write(buf *buffer, rawComponent string, level slog.Level) error {
+func (o *osLogWriter) Write(bytes []byte, rawComponent string, level slog.Level) error {
 	logger := o.getLogger(rawComponent)
 
 	var osLogType oslog.OsLogType
@@ -63,7 +63,7 @@ func (o *osLogWriter) Write(buf *buffer, rawComponent string, level slog.Level) 
 		osLogType = oslog.OsLogTypeDefault
 	}
 
-	logger.Log(osLogType, buf.String())
+	logger.Log(osLogType, string(bytes))
 
 	return nil
 }
