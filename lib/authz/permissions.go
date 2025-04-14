@@ -1503,6 +1503,16 @@ func (c *Context) CheckAccessToResource(resource types.Resource, verb string, ad
 	return c.CheckAccessToRule(ruleCtx, resource.GetKind(), verb, additionalVerbs...)
 }
 
+// CheckAccessToResource153 will ensure that the user has access to the given verbs for the given resource.
+func (c *Context) CheckAccessToResource153(resource types.Resource153, verb string, additionalVerbs ...string) error {
+	ruleCtx := &services.Context{
+		User:        c.User,
+		Resource153: resource,
+	}
+
+	return c.CheckAccessToRule(ruleCtx, resource.GetKind(), verb, additionalVerbs...)
+}
+
 // CheckAccessToRule will ensure that the user has access to the given verbs for the given [services.Context] and kind.
 // Prefer to use [Context.CheckAccessToKind] or [Context.CheckAccessToResource] for common checks.
 func (c *Context) CheckAccessToRule(ruleCtx *services.Context, kind string, verb string, additionalVerbs ...string) error {

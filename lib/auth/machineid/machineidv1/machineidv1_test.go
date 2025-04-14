@@ -89,7 +89,7 @@ func TestCreateBot(t *testing.T) {
 			{
 				Resources: []string{types.KindBot},
 				Verbs:     []string{types.VerbCreate},
-				Where:     `startsWith(name, "foo")`,
+				Where:     `startsWith(resource.metadata.name, "foo")`,
 			},
 		})
 	require.NoError(t, err)
@@ -388,7 +388,7 @@ func TestCreateBot(t *testing.T) {
 					},
 				},
 			},
-			assertError: require.NoError,
+			assertError: require.Error,
 		},
 		{
 			name: "bot already exists",
