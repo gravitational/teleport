@@ -366,6 +366,14 @@ type protoResource153ToLegacyAdapter struct {
 	resource153ToLegacyAdapter
 }
 
+// UnwrapT is an escape hatch for Resource153 instances that are piped down into
+// the codebase as a legacy Resource.
+//
+// Ideally you shouldn't depend on this.
+func (r *protoResource153ToLegacyAdapter[T]) UnwrapT() T {
+	return r.inner
+}
+
 // MarshalJSON adds support for marshaling the wrapped resource (instead of
 // marshaling the adapter itself).
 func (r *protoResource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {

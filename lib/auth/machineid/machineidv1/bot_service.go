@@ -263,8 +263,8 @@ func (bs *BotService) CreateBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource(
-		types.ProtoResource153ToLegacy(req.Bot),
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
 		types.VerbCreate,
 	); err != nil {
 		return nil, trace.Wrap(err)
