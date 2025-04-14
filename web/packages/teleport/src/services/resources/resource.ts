@@ -118,6 +118,14 @@ class ResourceService {
       .then(res => makeResourceList<'role'>(res));
   }
 
+  async fetchRole(name: string): Promise<RoleResource> {
+    return makeResource<'role'>(
+      await api.get(cfg.getRoleUrl(name), undefined, undefined, {
+        allowRoleNotFound: true,
+      })
+    );
+  }
+
   createTrustedCluster(content: string) {
     return api
       .post(cfg.getTrustedClustersUrl(), { content })

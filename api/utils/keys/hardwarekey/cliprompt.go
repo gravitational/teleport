@@ -58,7 +58,7 @@ func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
 
 // AskPIN prompts the user for a PIN. If the requirement is [PINOptional],
 // the prompt will offer the default PIN as a default value.
-func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement) (string, error) {
+func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, _ ContextualKeyInfo) (string, error) {
 	message := "Enter your YubiKey PIV PIN"
 	if requirement == PINOptional {
 		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
@@ -68,7 +68,7 @@ func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement
 }
 
 // Touch prompts the user to touch the hardware key.
-func (c *cliPrompt) Touch(_ context.Context) error {
+func (c *cliPrompt) Touch(_ context.Context, _ ContextualKeyInfo) error {
 	_, err := fmt.Fprintln(c.writer, "Tap your YubiKey")
 	return trace.Wrap(err)
 }
@@ -77,7 +77,7 @@ func (c *cliPrompt) Touch(_ context.Context) error {
 // If the provided PUK is the default value, it will ask for a new PUK as well.
 // If an invalid PIN or PUK is provided, the user will be re-prompted until a
 // valid value is provided.
-func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
+func (c *cliPrompt) ChangePIN(ctx context.Context, _ ContextualKeyInfo) (*PINAndPUK, error) {
 	var pinAndPUK = &PINAndPUK{}
 	for {
 		fmt.Fprintf(c.writer, "Please set a new 6-8 character PIN.\n")
@@ -155,7 +155,7 @@ func (c *cliPrompt) ChangePIN(ctx context.Context) (*PINAndPUK, error) {
 }
 
 // ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
-func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error) {
+func (c *cliPrompt) ConfirmSlotOverwrite(ctx context.Context, message string, _ ContextualKeyInfo) (bool, error) {
 	confirmation, err := prompt.Confirmation(ctx, c.writer, c.reader, message)
 	return confirmation, trace.Wrap(err)
 }

@@ -38,6 +38,7 @@ func TestReserveUploadPart(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 
@@ -60,6 +61,7 @@ func TestUploadPart(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 
@@ -138,6 +140,7 @@ func TestCompleteUpload(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			handler, err := NewHandler(Config{
 				Directory: t.TempDir(),
+				OpenFile:  os.OpenFile,
 			})
 			require.NoError(t, err)
 
