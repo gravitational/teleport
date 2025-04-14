@@ -649,11 +649,11 @@ func readIfPresent(path string) string {
 // Calls with persist set to true are not reentrant.
 func FindDBPID(path string, systemID, namespaceID []byte, persist bool) (string, error) {
 	idBytes, err := os.ReadFile(path)
-	if err == nil {
-		return string(bytes.TrimSpace(idBytes)), nil
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return "", trace.Wrap(err)
 	}
-	if !errors.Is(err, fs.ErrNotExist) {
-		return "", err
+	if s := bytes.TrimSpace(idBytes); err == nil && len(s) > 0 {
+		return string(s), nil
 	}
 	id, err := generateDBPID(systemID, namespaceID)
 	if err != nil {
