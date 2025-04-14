@@ -1,5 +1,5 @@
 kubernetes_service:
-    enabled: "yes"
+    enabled: true
     # Optional Public & Listen Addr: Set these if you are connecting to
     # Teleport running inside a Kubernetes cluster instead of using a
     # reverse tunnel.
