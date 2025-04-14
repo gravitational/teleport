@@ -415,6 +415,66 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	require.Equal(t, &types.Labels{"env": []string{"prod"}}, respResourceMatcher.Labels)
 }
 
+type listDatabaseServerResp struct {
+	Items []types.DatabaseServerV3 `json:"items"`
+}
+
+func TestHandleDatabaseServerGet(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	user := "user"
+	roleDatabaseServer, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabaseServer,
+					[]string{types.VerbRead, types.VerbList}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, user, []types.Role{roleDatabaseServer})
+
+	var listDBServerResp listDatabaseServerResp
+
+	// No database server exists
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservers"), nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServerResp))
+
+	require.Empty(t, listDBServerResp.Items)
+
+	// Adding one database server
+	dbServiceName := uuid.NewString()
+	dbService001, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseServerSpecV3{HostID: dbServiceName, Hostname: "some-hostname",
+		Database: &types.DatabaseV3{Metadata: types.Metadata{Name: "postgres"},
+			Spec: types.DatabaseSpecV3{Protocol: "postgres", URI: "some-uri"}}})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertDatabaseServer(ctx, dbService001)
+	require.NoError(t, err)
+
+	// The API returns one database server.
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservers"), nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServerResp))
+
+	dbServers := listDBServerResp.Items
+	require.Len(t, dbServers, 1)
+	respDBServer := dbServers[0]
+
+	require.Equal(t, dbServiceName, respDBServer.GetHostID())
+	require.Equal(t, "some-hostname", respDBServer.GetHostname())
+}
+
 func TestHandleSQLServerConfigureScript(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)

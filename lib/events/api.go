@@ -875,6 +875,13 @@ const (
 	// workload_identity_x509_issuer_override is deleted.
 	WorkloadIdentityX509IssuerOverrideDeleteEvent = "workload_identity_x509_issuer_override.delete"
 
+	// SigstorePolicyCreateEvent is emitted when a SigstorePolicy resource is created.
+	SigstorePolicyCreateEvent = "sigstore_policy.create"
+	// SigstorePolicyUpdateEvent is emitted when a SigstorePolicy resource is updated.
+	SigstorePolicyUpdateEvent = "sigstore_policy.update"
+	// SigstorePolicyDeleteEvent is emitted when a SigstorePolicy resource is deleted.
+	SigstorePolicyDeleteEvent = "sigstore_policy.delete"
+
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
 

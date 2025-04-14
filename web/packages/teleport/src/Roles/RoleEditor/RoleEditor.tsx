@@ -65,6 +65,7 @@ export type RoleEditorProps = {
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
   onRoleUpdate?(r: Role): void;
+  demoMode?: boolean;
 };
 
 /**
@@ -78,9 +79,11 @@ export const RoleEditor = ({
   onCancel,
   onSave,
   onRoleUpdate,
+  demoMode,
 }: RoleEditorProps) => {
   const roleTesterEnabled =
-    cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled();
+    (cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled()) ||
+    demoMode;
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
   // standard/YAML tab switcher and the switched panels.
@@ -91,10 +94,10 @@ export const RoleEditor = ({
 
   useEffect(() => {
     const { roleModel, validationResult } = standardModel;
-    if (roleModel && validationResult?.isValid) {
+    if (roleTesterEnabled && roleModel && validationResult?.isValid) {
       onRoleUpdate?.(roleEditorModelToRole(roleModel));
     }
-  }, [standardModel, onRoleUpdate]);
+  }, [standardModel, onRoleUpdate, roleTesterEnabled, demoMode]);
 
   const [yamlModel, setYamlModel] = useState<YamlEditorModel>({
     content: originalRole?.yaml ?? '',

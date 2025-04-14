@@ -32,8 +32,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -42,7 +40,6 @@ import (
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
-	var hardwareKeyPromptConstructor func(clusterURI uri.ResourceURI) hardwarekey.Prompt
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -59,9 +56,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) hardwarekey.Prompt {
-			return hardwareKeyPromptConstructor(rootClusterURI)
-		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -83,7 +77,8 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
 	// construct the prompt before creating Storage.
-	hardwareKeyPromptConstructor = daemonService.NewHardwareKeyPromptConstructor
+	storage.CustomHardwareKeyPrompt = daemonService.NewHardwareKeyPrompt()
+
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr:           cfg.Addr,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,

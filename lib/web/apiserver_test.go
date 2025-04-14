@@ -11388,3 +11388,87 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 		})
 	}
 }
+
+// TestPingWithSAMLURL asserts that /webapi/ping and other endpoints necessary
+// for local user login return successfully even when a SAML connector is
+// configured with an entity descriptor URL that hangs when requested.
+func TestPingWithSAMLURL(t *testing.T) {
+	t.Parallel()
+
+	const entityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+                  entityID="https://test-idp.example.com/metadata">
+  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+        <KeyName>test-signing-key</KeyName>
+        <X509Data>
+          <X509Certificate></X509Certificate>
+        </X509Data>
+      </KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://test-idp.example.com/sso"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>`
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start an HTTP server to serve the SAML entity descriptor. At first it
+	// needs to not hang and return a valid response so that the test can upsert
+	// the SAML connector.
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	requestShouldHang := false
+	httpServer := &http.Server{
+		Addr: l.Addr().String(),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if requestShouldHang {
+				<-r.Context().Done()
+			}
+			w.Write([]byte(entityDescriptor))
+		}),
+	}
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "HTTP server",
+		Task: func(ctx context.Context) error {
+			if err := httpServer.Serve(l); !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
+			return nil
+		},
+		Terminate: httpServer.Close,
+	})
+
+	// Upsert the test SAML connector.
+	connector, err := types.NewSAMLConnector("test-idp", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "test-idp.example.com/acs",
+		EntityDescriptorURL:      "http://" + l.Addr().String() + "/metadata",
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "roles", Value: "^(.*)$", Roles: []string{"$1"}},
+		},
+	})
+	require.NoError(t, err)
+	pack := newWebPack(t, 1)
+	_, err = pack.server.Auth().CreateSAMLConnector(ctx, connector)
+	require.NoError(t, err)
+
+	// Set the HTTP server to start hanging requests for the entity descriptor.
+	requestShouldHang = true
+	clt := pack.proxies[0].newClient(t)
+	for _, endpoint := range []string{
+		clt.Endpoint("webapi", "ping"),
+		clt.Endpoint("webapi", "ping", connector.GetName()),
+		clt.Endpoint("web", "config.js"),
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			// Requests for the URL should succeed quickly.
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			_, err := clt.Get(ctx, endpoint, nil)
+			assert.NoError(t, err)
+		})
+	}
+}
