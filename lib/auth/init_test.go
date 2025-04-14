@@ -1452,6 +1452,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+	require.Equal(t, []string{"Mon", "Tue", "Wed", "Thu"}, agentWindow.Weekdays)
 
 	// change the served hour
 	mu.Lock()
