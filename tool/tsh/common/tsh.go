@@ -3136,7 +3136,7 @@ func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecke
 		return nil, trace.BadParameter("unrecognized database type %T", db)
 	}
 
-	if db.SupportsAutoUsers() && db.GetAdminUser().Name != "" {
+	if db.IsAutoUsersEnabled() {
 		roles, err := accessChecker.CheckDatabaseRoles(db, nil)
 		if err != nil {
 			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", db.GetName(), err)
@@ -3185,7 +3185,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	}
 
 	// Add a note for auto-provisioned user.
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
 			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)

@@ -118,7 +118,7 @@ func printDatabaseTable(cfg printDatabaseTableConfig) {
 }
 
 func formatDatabaseRolesForDB(database types.Database, accessChecker services.AccessChecker) string {
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		// may happen if fetching the role set failed for any reason.
 		if accessChecker == nil {
 			return "(unknown)"
