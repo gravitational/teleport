@@ -43,12 +43,12 @@ func TestAttestHardwareKey(t *testing.T) {
 
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	basicKey, err := keys.NewPrivateKey(priv, nil)
+	basicKey, err := keys.NewPrivateKey(priv)
 	require.NoError(t, err)
 
 	priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	hardwareKey, err := keys.NewPrivateKey(priv, nil)
+	hardwareKey, err := keys.NewPrivateKey(priv)
 	require.NoError(t, err)
 	hardwareKeyPubDER, err := x509.MarshalPKIXPublicKey(hardwareKey.Public())
 	require.NoError(t, err)
