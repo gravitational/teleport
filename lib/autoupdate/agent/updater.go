@@ -618,7 +618,7 @@ func (u *Updater) readID(ctx context.Context) string {
 	}
 	out, err := FindDBPID(u.UpdateIDFile, bytes.TrimSpace(mid), bytes.TrimSpace(tid), false)
 	if err != nil {
-		u.Log.ErrorContext(ctx, "Unable to generate unique ID for this host.")
+		u.Log.ErrorContext(ctx, "Unable to generate unique ID for this host.", errorKey, err)
 		u.Log.ErrorContext(ctx, "The Teleport agent may not be tracked, and may fail if used as a canary.")
 		return ""
 	}
