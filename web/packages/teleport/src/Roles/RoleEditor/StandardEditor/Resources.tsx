@@ -165,27 +165,27 @@ export const resourceAccessSections: Record<
   }
 > = {
   kube_cluster: {
-    title: 'Kubernetes',
+    title: 'Kubernetes Access',
     component: KubernetesAccessSection,
   },
   node: {
-    title: 'Servers',
+    title: 'SSH Server Access',
     component: ServerAccessSection,
   },
   app: {
-    title: 'Applications',
+    title: 'Application Access',
     component: AppAccessSection,
   },
   db: {
-    title: 'Databases',
+    title: 'Database Access',
     component: DatabaseAccessSection,
   },
   windows_desktop: {
-    title: 'Windows Desktops',
+    title: 'Windows Desktop Access',
     component: WindowsDesktopAccessSection,
   },
   git_server: {
-    title: 'GitHub Organizations',
+    title: 'GitHub Organization Access',
     component: GitHubOrganizationAccessSection,
   },
 };
