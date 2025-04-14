@@ -190,7 +190,7 @@ func StatementForEKSAccess() *Statement {
 // StatementForAWSOIDCRoleTrustRelationship returns the Trust Relationship to allow the OpenID Connect Provider
 // set up during the AWS OIDC Onboarding to assume this Role.
 func StatementForAWSOIDCRoleTrustRelationship(partition, accountID, providerURL string, audiences []string) *Statement {
-	federatedARN := fmt.Sprintf("arn:%s:iam::%s:oidc-provider/%s", partition,accountID, providerURL)
+	federatedARN := fmt.Sprintf("arn:%s:iam::%s:oidc-provider/%s", partition, accountID, providerURL)
 	federatedAudience := fmt.Sprintf("%s:aud", providerURL)
 
 	return &Statement{
