@@ -25,8 +25,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/utils/typical"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const funcNameSigstorePolicySatisfied = "sigstore.policy_satisfied"

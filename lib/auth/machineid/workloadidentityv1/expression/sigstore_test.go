@@ -21,9 +21,10 @@ package expression_test
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
 )
 
 func TestSigstorePolicyNames(t *testing.T) {

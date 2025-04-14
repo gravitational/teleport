@@ -42,13 +42,14 @@ func decide(
 	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	attrs *workloadidentityv1pb.Attrs,
+	sigstore SigstorePolicyEvaluator,
 ) *decision {
 	d := &decision{
 		templatedWorkloadIdentity: proto.Clone(wi).(*workloadidentityv1pb.WorkloadIdentity),
 	}
 
 	// First, evaluate the rules.
-	if err := evaluateRules(wi, attrs); err != nil {
+	if err := evaluateRules(ctx, wi, attrs, sigstore); err != nil {
 		d.reason = trace.Wrap(err, "attributes did not pass rule evaluation")
 		return d
 	}
@@ -182,16 +183,32 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 }
 
 func evaluateRules(
+	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	attrs *workloadidentityv1pb.Attrs,
+	sigstore SigstorePolicyEvaluator,
 ) error {
 	if len(wi.GetSpec().GetRules().GetAllow()) == 0 {
 		return nil
 	}
+
+	sigstorePolicyResults, err := evaluateSigstorePolicies(
+		ctx,
+		wi.GetSpec().GetRules().GetAllow(),
+		attrs,
+		sigstore,
+	)
+	if err != nil {
+		return trace.Wrap(err, "evaluating Sigstore policies")
+	}
+
 ruleLoop:
 	for _, rule := range wi.GetSpec().GetRules().GetAllow() {
 		if rule.GetExpression() != "" {
-			pass, err := expression.Evaluate(rule.GetExpression(), &expression.Environment{Attrs: attrs})
+			pass, err := expression.Evaluate(rule.GetExpression(), &expression.Environment{
+				Attrs:                 attrs,
+				SigstorePolicyResults: sigstorePolicyResults,
+			})
 			if err != nil {
 				return err
 			}
@@ -232,6 +249,26 @@ ruleLoop:
 	}
 	// TODO: Eventually, we'll need to work support for deny rules into here.
 	return trace.AccessDenied("no matching rule found")
+}
+
+func evaluateSigstorePolicies(
+	ctx context.Context,
+	rules []*workloadidentityv1pb.WorkloadIdentityRule,
+	attrs *workloadidentityv1pb.Attrs,
+	sigstore SigstorePolicyEvaluator,
+) (map[string]error, error) {
+	sigstorePolicyNames := make([]string, 0)
+	for _, rule := range rules {
+		if rule.GetExpression() == "" {
+			continue
+		}
+		names, err := expression.SigstorePolicyNames(rule.Expression)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing rule expression")
+		}
+		sigstorePolicyNames = append(sigstorePolicyNames, names...)
+	}
+	return sigstore.Evaluate(ctx, sigstorePolicyNames, attrs)
 }
 
 func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb.Attrs) (*structpb.Struct, error) {
