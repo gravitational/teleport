@@ -41,6 +41,12 @@ spec:
     port: 443
     targetPort: 3080
     protocol: TCP
+{{- if .Values.enableProxyPeering}}
+  - name: peer
+    port: 3021
+    targetPort: 3021
+    protocol: TCP
+{{- end }}
 {{- if ne $proxy.proxyListenerMode "multiplex" }}
   - name: sshproxy
     port: 3023
