@@ -145,7 +145,7 @@ type Database interface {
 	// IsUsernameCaseInsensitive returns true if the database username is case
 	// insensitive.
 	IsUsernameCaseInsensitive() bool
-	// IsAutoUsersEnabled reutrns true if the database have auto user
+	// IsAutoUsersEnabled returns true if the database has auto user
 	// provisioning enabled.
 	IsAutoUsersEnabled() bool
 }
@@ -1133,8 +1133,8 @@ func (d *DatabaseV3) IsUsernameCaseInsensitive() bool {
 	return d.GetProtocol() == DatabaseProtocolCockroachDB
 }
 
-// IsAutoUsersEnabled reutrns true if the database have auto user provisioning
-// enabled.
+// IsAutoUsersEnabled returns true if the database has auto user
+// provisioning enabled.
 func (d *DatabaseV3) IsAutoUsersEnabled() bool {
 	return d.SupportsAutoUsers() && d.GetAdminUser().Name != ""
 }

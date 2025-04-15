@@ -302,7 +302,7 @@ type Database struct {
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
-	// DatabaseNames is the list of allowed Database RBAC roles that the user can login.
+	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
 	DatabaseRoles []string `json:"database_roles,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
