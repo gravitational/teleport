@@ -306,6 +306,18 @@ export interface ACL {
      * @generated from protobuf field: bool review_requests = 15;
      */
     reviewRequests: boolean;
+    /**
+     * Indicates whether the user can share a local directory with the remote machine during desktop sessions.
+     *
+     * @generated from protobuf field: bool directory_sharing_enabled = 16;
+     */
+    directorySharingEnabled: boolean;
+    /**
+     * Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
+     *
+     * @generated from protobuf field: bool clipboard_sharing_enabled = 17;
+     */
+    clipboardSharingEnabled: boolean;
 }
 /**
  * ResourceAccess describes access verbs
@@ -656,12 +668,16 @@ class ACL$Type extends MessageType<ACL> {
             { no: 12, name: "access_requests", kind: "message", T: () => ResourceAccess },
             { no: 13, name: "recorded_sessions", kind: "message", T: () => ResourceAccess },
             { no: 14, name: "active_sessions", kind: "message", T: () => ResourceAccess },
-            { no: 15, name: "review_requests", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 15, name: "review_requests", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 16, name: "directory_sharing_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 17, name: "clipboard_sharing_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ACL>): ACL {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.reviewRequests = false;
+        message.directorySharingEnabled = false;
+        message.clipboardSharingEnabled = false;
         if (value !== undefined)
             reflectionMergePartial<ACL>(this, message, value);
         return message;
@@ -712,6 +728,12 @@ class ACL$Type extends MessageType<ACL> {
                     break;
                 case /* bool review_requests */ 15:
                     message.reviewRequests = reader.bool();
+                    break;
+                case /* bool directory_sharing_enabled */ 16:
+                    message.directorySharingEnabled = reader.bool();
+                    break;
+                case /* bool clipboard_sharing_enabled */ 17:
+                    message.clipboardSharingEnabled = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -767,6 +789,12 @@ class ACL$Type extends MessageType<ACL> {
         /* bool review_requests = 15; */
         if (message.reviewRequests !== false)
             writer.tag(15, WireType.Varint).bool(message.reviewRequests);
+        /* bool directory_sharing_enabled = 16; */
+        if (message.directorySharingEnabled !== false)
+            writer.tag(16, WireType.Varint).bool(message.directorySharingEnabled);
+        /* bool clipboard_sharing_enabled = 17; */
+        if (message.clipboardSharingEnabled !== false)
+            writer.tag(17, WireType.Varint).bool(message.clipboardSharingEnabled);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
