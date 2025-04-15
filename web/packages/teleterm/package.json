@@ -35,7 +35,7 @@
     "winston": "^3.3.3"
   },
   "devDependencies": {
-    "@electron/notarize": "^3.0.1",
+    "@electron/notarize": "^2.5.0",
     "@gravitational/build": "^1.0.0",
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
