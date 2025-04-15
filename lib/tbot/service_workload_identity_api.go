@@ -270,7 +270,7 @@ func (s *WorkloadIdentityAPIService) authenticateClient(
 		return log, nil, nil
 	}
 	log = log.With(
-		"workload", att,
+		"workload", workloadAttrsForLog(att),
 	)
 
 	return log, att, nil
@@ -447,6 +447,10 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 		return nil, trace.Wrap(err)
 	}
 
+	if len(creds) == 0 {
+		s.attestor.Failed(ctx, attest)
+	}
+
 	// Convert the private key to PKCS#8 format as per SPIFFE spec.
 	pkcs8PrivateKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
@@ -540,6 +544,7 @@ func (s *WorkloadIdentityAPIService) FetchJWTSVID(
 	// > server SHOULD respond with the "PermissionDenied" gRPC status code.
 	if len(creds) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, attr)
 		return nil, status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",

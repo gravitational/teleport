@@ -22,6 +22,7 @@ import (
 	"log/slog"
 
 	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/gravitational/trace"
 
@@ -35,15 +36,25 @@ const maxPayloads = 25
 
 // DiscoveryConfig contains configuration for the Sigstore discovery process.
 type DiscoveryConfig struct {
-	Logger   *slog.Logger
-	Keychain authn.Keychain
+	Logger               *slog.Logger
+	Keychain             authn.Keychain
+	AdditionalRegistries []string
 }
 
 // Discover signatures and attestations for the given image digest.
-func Discover(ctx context.Context, name, digest string, cfg DiscoveryConfig) ([]*workloadidentityv1.SigstoreVerificationPayload, error) {
-	repo, err := NewRepository(name, cfg.Logger, cfg.Keychain)
+func Discover(ctx context.Context, image, digest string, cfg DiscoveryConfig) ([]*workloadidentityv1.SigstoreVerificationPayload, error) {
+	ref, err := name.ParseReference(image)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing image reference")
+	}
+
+	registries := []name.Registry{ref.Context().Registry}
+	for _, host := range cfg.AdditionalRegistries {
+		reg, err := name.NewRegistry(host)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing registry host: %s", host)
+		}
+		registries = append(registries, reg)
 	}
 
 	hash, err := v1.NewHash(digest)
@@ -51,13 +62,37 @@ func Discover(ctx context.Context, name, digest string, cfg DiscoveryConfig) ([]
 		return nil, trace.Wrap(err, "parsing image digest")
 	}
 
+	payloads := make([]*workloadidentityv1.SigstoreVerificationPayload, 0)
+	for _, reg := range registries {
+		name := reg.Repo(ref.Context().RepositoryStr())
+
+		repo, err := NewRepository(name, cfg.Logger, cfg.Keychain)
+		if err != nil {
+			return nil, trace.Wrap(err, "constructing repository")
+		}
+
+		if regPayloads, err := discover(ctx, repo, hash); err == nil {
+			payloads = append(payloads, regPayloads...)
+		} else {
+			cfg.Logger.WarnContext(ctx, "Failed to discover signatures from registry",
+				"registry", reg.Name(),
+				"image", image,
+				"image_digest", digest,
+				"error", err,
+			)
+		}
+	}
+	return payloads, nil
+}
+
+func discover(ctx context.Context, repo *Repository, digest v1.Hash) ([]*workloadidentityv1.SigstoreVerificationPayload, error) {
 	type discoveryMethod interface {
 		Discover(context.Context) ([]*workloadidentityv1.SigstoreVerificationPayload, error)
 	}
 	var payloads []*workloadidentityv1.SigstoreVerificationPayload
 	for _, method := range []discoveryMethod{
-		NewCosignSignatureDiscoveryMethod(repo, hash),
-		NewBundleDiscoveryMethod(repo, hash),
+		NewCosignSignatureDiscoveryMethod(repo, digest),
+		NewBundleDiscoveryMethod(repo, digest),
 	} {
 		p, err := method.Discover(ctx)
 		if err != nil {

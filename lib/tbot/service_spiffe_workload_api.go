@@ -558,7 +558,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 		return log, nil, nil
 	}
 	log = log.With(
-		"workload", att,
+		"workload", workloadAttrsForLog(att),
 	)
 
 	return log, att, nil
@@ -595,6 +595,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	//   reconnect with another call to the FetchX509SVID RPC after a backoff.
 	if len(svidReqs) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, creds)
 		return status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",
@@ -721,6 +722,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	// > server SHOULD respond with the "PermissionDenied" gRPC status code.
 	if len(svidReqs) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, creds)
 		return nil, status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",

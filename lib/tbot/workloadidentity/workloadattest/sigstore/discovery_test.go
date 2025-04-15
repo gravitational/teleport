@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package sigstore_test
 
 import (
@@ -25,10 +26,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/v1/types"
 	bundlepb "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	commonpb "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/stretchr/testify/assert"
@@ -36,16 +35,19 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestDiscovery_SimpleSigning(t *testing.T) {
-	registry := runRegistry(t)
+	registry := sigstore.RunTestRegistry(t, sigstore.NoAuth)
 
 	payloads, err := sigstore.Discover(
 		context.Background(),
 		fmt.Sprintf("%s/simple-signing:v1", registry),
 		"sha256:21c76c650023cac8d753af4cb591e6f7450c6e2b499b5751d4a21e26e2fc5012",
-		sigstore.DiscoveryConfig{},
+		sigstore.DiscoveryConfig{
+			Logger: utils.NewSlogLoggerForTests(),
+		},
 	)
 	require.NoError(t, err)
 	require.Len(t, payloads, 2)
@@ -115,13 +117,15 @@ func TestDiscovery_SimpleSigning(t *testing.T) {
 }
 
 func TestDiscovery_Attestations(t *testing.T) {
-	registry := runRegistry(t)
+	registry := sigstore.RunTestRegistry(t, sigstore.NoAuth)
 
 	payloads, err := sigstore.Discover(
 		context.Background(),
 		fmt.Sprintf("%s/attestations:v1", registry),
 		"sha256:32c91fcdf8b41ef78cf63e7be080a366597fd5a748480f5d2a6dc0cff5203807",
-		sigstore.DiscoveryConfig{},
+		sigstore.DiscoveryConfig{
+			Logger: utils.NewSlogLoggerForTests(),
+		},
 	)
 	require.NoError(t, err)
 	require.Len(t, payloads, 1)
@@ -142,8 +146,10 @@ func TestDiscovery_Attestations(t *testing.T) {
 
 func TestDiscovery_InfiniteRedirects(t *testing.T) {
 	// Check that a malicious registry can't DoS us with infinite redirects.
+	var requests int
 	server := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requests++
 			http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		}),
 	)
@@ -156,49 +162,10 @@ func TestDiscovery_InfiniteRedirects(t *testing.T) {
 		context.Background(),
 		fmt.Sprintf("%s/foo:v1", regURL.Host),
 		"sha256:32c91fcdf8b41ef78cf63e7be080a366597fd5a748480f5d2a6dc0cff5203807",
-		sigstore.DiscoveryConfig{},
+		sigstore.DiscoveryConfig{
+			Logger: utils.NewSlogLoggerForTests(),
+		},
 	)
-	require.ErrorContains(t, err, "stopped after 10 redirects")
-}
-
-func runRegistry(t *testing.T) string {
-	t.Helper()
-
-	server := http.FileServer(http.Dir("./testdata"))
-
-	registry := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// go-containerregistry checks the Content-Type header to determine
-			// whether the registry supports the Referrers API.
-			if strings.Contains(r.URL.Path, "referrers") {
-				w.Header().Set("Content-Type", string(types.OCIImageIndex))
-			}
-			rt := &responseTracker{ResponseWriter: w}
-			server.ServeHTTP(rt, r)
-			t.Logf("%s %s (%d)", r.Method, r.URL.Path, rt.Status())
-		}),
-	)
-	t.Cleanup(registry.Close)
-
-	regURL, err := url.Parse(registry.URL)
 	require.NoError(t, err)
-
-	return regURL.Host
-}
-
-type responseTracker struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rt *responseTracker) WriteHeader(statusCode int) {
-	rt.statusCode = statusCode
-	rt.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (rt *responseTracker) Status() int {
-	if rt.statusCode == 0 {
-		return http.StatusOK
-	}
-	return rt.statusCode
+	require.Equal(t, 10, requests)
 }
