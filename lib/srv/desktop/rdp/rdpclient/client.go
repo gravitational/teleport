@@ -435,9 +435,11 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		}
 
 		if m, ok := msg.(tdp.Ping); ok {
-			conn, err := net.Dial("tcp", c.cfg.Addr)
-			if err == nil {
-				conn.Close()
+			if os.Getenv("TELEPORT_DISABLE_WINDOWS_DESKTOP_PING") != "true" {
+				conn, err := net.Dial("tcp", c.cfg.Addr)
+				if err == nil {
+					conn.Close()
+				}
 			}
 			c.cfg.Conn.WriteMessage(m)
 			continue
