@@ -6,6 +6,7 @@ settings:
 
 overrides:
   '@bundled-es-modules/cookie>cookie': 0.7.1
+  jsdom@^20.0.3>nwsapi@^2: 2.2.9
 
 pnpmfileChecksum: sha256-UhbfH9wqbTOi0Lx+Gm0eQ8EkqLSQxYCWXAFDAbl28uo=
 
@@ -5783,6 +5784,9 @@ packages:
 
   nwsapi@2.2.13:
     resolution: {integrity: sha512-cTGB9ptp9dY9A5VbMSe7fQBcl/tt22Vcqdq8+eN93rblOuE0aCFu4aZ2vMwct/2t+lFnosm8RkQW1I0Omb1UtQ==}
+
+  nwsapi@2.2.9:
+    resolution: {integrity: sha512-2f3F0SEEer8bBu0dsNCFF50N0cTThV1nWFYcEYFZttdW0lDAoybv9cQoK7X7/68Z89S7FoRrVjP1LPX4XRf9vg==}
 
   nyc@15.1.0:
     resolution: {integrity: sha512-jMW04n9SxKdKi1ZMGhvUTHBN0EICCRkHemEoE5jm6mTYcqcdas0ATzgUgejlQUHMvpnOZqGB5Xxsv9KxJW1j8A==}
@@ -13267,7 +13271,7 @@ snapshots:
       http-proxy-agent: 5.0.0
       https-proxy-agent: 5.0.1
       is-potential-custom-element-name: 1.0.1
-      nwsapi: 2.2.13
+      nwsapi: 2.2.9
       parse5: 7.1.2
       saxes: 6.0.0
       symbol-tree: 3.2.4
@@ -13927,6 +13931,8 @@ snapshots:
       path-key: 3.1.1
 
   nwsapi@2.2.13: {}
+
+  nwsapi@2.2.9: {}
 
   nyc@15.1.0:
     dependencies:
