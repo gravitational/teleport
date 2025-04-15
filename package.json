@@ -49,8 +49,5 @@
       "e/web/*"
     ]
   },
-  "packageManager": "yarn@1.22.22",
-  "engines": {
-    "node": "^22"
-  }
+  "packageManager": "yarn@1.22.22"
 }
