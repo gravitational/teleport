@@ -143,7 +143,7 @@ function ConnectForm(props: {
                 formatCreateLabel: userInput =>
                   `Use "${userInput}" database name`,
                 toolTipContent:
-                  'You can type on the select box to use a custom database name instead of the available options.',
+                  'You can type in the select box to use a custom database name instead of the available options.',
               }}
               rule={requiredField('Database name is required')}
             />
