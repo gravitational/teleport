@@ -17,6 +17,7 @@
 package piv_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
@@ -48,7 +49,9 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	s := piv.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
+	promptReader := prompt.NewFakeReader()
+	prompt := hardwarekey.NewCLIPrompt(os.Stderr, promptReader)
+	s := piv.NewYubiKeyService(prompt)
 
 	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
@@ -64,6 +67,13 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, priv.WarmupHardwareKey(ctx))
 
+	// Set pin and handle expected prompts.
+	setupPINPrompt := func(t *testing.T) {
+		const testPIN = "123123"
+		require.NoError(t, y.SetPIN(pivgo.DefaultPIN, testPIN))
+		promptReader.AddString(testPIN).AddString(testPIN)
+	}
+
 	for _, policy := range []hardwarekey.PromptPolicy{
 		hardwarekey.PromptPolicyNone,
 		hardwarekey.PromptPolicyTouch,
@@ -73,8 +83,10 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 		for _, customSlot := range []bool{true, false} {
 			t.Run(fmt.Sprintf("policy:%+v", policy), func(t *testing.T) {
 				t.Run(fmt.Sprintf("custom slot:%v", customSlot), func(t *testing.T) {
-					resetYubikey(t, y)
-					setupPINPrompt(t, y)
+					setupPINPrompt(t)
+					t.Cleanup(func() {
+						resetYubikey(t, y)
+					})
 
 					var slot hardwarekey.PIVSlotKeyString = ""
 					if customSlot {
@@ -89,7 +101,7 @@ func TestGetYubiKeyPrivateKey_Interactive(t *testing.T) {
 					require.NoError(t, err)
 
 					// test HardwareSigner methods
-					require.Equal(t, policy, priv.GetPrivateKeyPolicy())
+					require.Equal(t, policy, priv.GetPrivateKeyPolicy().GetPromptPolicy())
 					require.NotNil(t, priv.GetAttestationStatement())
 					require.True(t, priv.IsHardware())
 
@@ -122,7 +134,10 @@ func TestOverwritePrompt(t *testing.T) {
 
 	ctx := context.Background()
 
-	s := piv.NewYubiKeyService(hardwarekey.NewStdCLIPrompt())
+	promptWriter := bytes.NewBuffer([]byte{})
+	promptReader := prompt.NewFakeReader()
+	prompt := hardwarekey.NewCLIPrompt(promptWriter, promptReader)
+	s := piv.NewYubiKeyService(prompt)
 
 	y, err := piv.FindYubiKey(0)
 	require.NoError(t, err)
@@ -135,14 +150,14 @@ func TestOverwritePrompt(t *testing.T) {
 
 	testOverwritePrompt := func(t *testing.T) {
 		// Fail to overwrite slot when user denies
-		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
+		promptReader.AddString("n")
 		_, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
 			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
 		})
 		require.True(t, trace.IsCompareFailed(err), "Expected compare failed error but got %v", err)
 
 		// Successfully overwrite slot when user accepts
-		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
+		promptReader.AddString("y")
 		_, err = keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
 			Policy: hardwarekey.PromptPolicy{TouchRequired: true},
 		})
@@ -177,17 +192,4 @@ func TestOverwritePrompt(t *testing.T) {
 func resetYubikey(t *testing.T, y *piv.YubiKey) {
 	t.Helper()
 	require.NoError(t, y.Reset())
-}
-
-func setupPINPrompt(t *testing.T, y *piv.YubiKey) {
-	t.Helper()
-
-	// Set pin for tests.
-	const testPIN = "123123"
-	require.NoError(t, y.SetPIN(pivgo.DefaultPIN, testPIN))
-
-	// Handle PIN prompt.
-	oldStdin := prompt.Stdin()
-	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
-	prompt.SetStdin(prompt.NewFakeReader().AddString(testPIN).AddString(testPIN))
 }
