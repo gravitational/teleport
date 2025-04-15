@@ -931,6 +931,14 @@ func TestUpsertBot(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	botWhereCreator, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-where-creator", []string{}, []types.Rule{
+		{
+			Resources: []string{types.KindBot},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			Where:     `startsWith(resource.metadata.name, "foo")`,
+		},
+	})
+	require.NoError(t, err)
 	testRole, err := auth.CreateRole(ctx, srv.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 	unprivilegedUser, err := auth.CreateUser(ctx, srv.Auth(), "no-perms", testRole)
@@ -1244,9 +1252,56 @@ func TestUpsertBot(t *testing.T) {
 			},
 		},
 		{
+			name: "new with where",
+			user: botWhereCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "foo-new",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+					},
+				},
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "failed new with where",
+			user: botWhereCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "not-foo-new",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req:  &machineidv1pb.UpsertBotRequest{},
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "not-foo-new",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+					},
+				},
+			},
 
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
@@ -1376,6 +1431,17 @@ func TestGetBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
+	botGetterWhereUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"bot-getter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBot},
+				Verbs:     []string{types.VerbRead},
+			},
+		})
+	require.NoError(t, err)
 	testRole, err := auth.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
@@ -1407,6 +1473,22 @@ func TestGetBot(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	preExistingBot2, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "foo-pre-existing",
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name        string
@@ -1418,6 +1500,26 @@ func TestGetBot(t *testing.T) {
 		{
 			name: "success",
 			user: botGetterUser.GetName(),
+			req: &machineidv1pb.GetBotRequest{
+				BotName: preExistingBot.Metadata.Name,
+			},
+
+			assertError: require.NoError,
+			want:        preExistingBot,
+		},
+		{
+			name: "success with where",
+			user: botGetterWhereUser.GetName(),
+			req: &machineidv1pb.GetBotRequest{
+				BotName: preExistingBot2.Metadata.Name,
+			},
+
+			assertError: require.NoError,
+			want:        preExistingBot2,
+		},
+		{
+			name: "no permissions with where",
+			user: botGetterWhereUser.GetName(),
 			req: &machineidv1pb.GetBotRequest{
 				BotName: preExistingBot.Metadata.Name,
 			},
@@ -1644,6 +1746,18 @@ func TestDeleteBot(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
+	botWhereDeleterUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"bot-deleter-where",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBot},
+				Verbs:     []string{types.VerbDelete},
+				Where:     `startsWith(resource.metadata.name, "foo")`,
+			},
+		})
+	require.NoError(t, err)
 	testRole, err := auth.CreateRole(
 		ctx, srv.Auth(), "test-role", types.RoleSpecV6{},
 	)
@@ -1698,6 +1812,38 @@ func TestDeleteBot(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	preExistingBot4, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "foo-pre-existing",
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	preExistingBot5, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "not-foo-pre-existing",
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name                  string
@@ -1714,6 +1860,25 @@ func TestDeleteBot(t *testing.T) {
 			},
 			assertError:           require.NoError,
 			checkResourcesDeleted: true,
+		},
+		{
+			name: "success with where",
+			user: botWhereDeleterUser.GetName(),
+			req: &machineidv1pb.DeleteBotRequest{
+				BotName: preExistingBot4.Metadata.Name,
+			},
+			assertError:           require.NoError,
+			checkResourcesDeleted: true,
+		},
+		{
+			name: "no permissions with where",
+			user: botWhereDeleterUser.GetName(),
+			req: &machineidv1pb.DeleteBotRequest{
+				BotName: preExistingBot5.Metadata.Name,
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
 		},
 		{
 			name: "no permissions",
