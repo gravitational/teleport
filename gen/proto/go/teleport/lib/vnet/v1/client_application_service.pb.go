@@ -98,7 +98,8 @@ type AuthenticateProcessRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Version is the admin process version.
 	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
-	// PipePath is the path to a named pipe used for process authentication.
+	// PipePath is the path to a named pipe used for process authentication on
+	// Windows. The client application must dial the pipe
 	PipePath      string `protobuf:"bytes,2,opt,name=pipe_path,json=pipePath,proto3" json:"pipe_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -194,6 +195,145 @@ func (x *AuthenticateProcessResponse) GetVersion() string {
 	return ""
 }
 
+// ReportNetworkStackInfoRequest is a request to report network stack
+// information to the client application.
+type ReportNetworkStackInfoRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// NetworkStackInfo holds network stack information.
+	NetworkStackInfo *NetworkStackInfo `protobuf:"bytes,1,opt,name=network_stack_info,json=networkStackInfo,proto3" json:"network_stack_info,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ReportNetworkStackInfoRequest) Reset() {
+	*x = ReportNetworkStackInfoRequest{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportNetworkStackInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportNetworkStackInfoRequest) ProtoMessage() {}
+
+func (x *ReportNetworkStackInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportNetworkStackInfoRequest.ProtoReflect.Descriptor instead.
+func (*ReportNetworkStackInfoRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ReportNetworkStackInfoRequest) GetNetworkStackInfo() *NetworkStackInfo {
+	if x != nil {
+		return x.NetworkStackInfo
+	}
+	return nil
+}
+
+// NetworkStackInfo holds static information about the VNet networking stack.
+type NetworkStackInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// InterfaceName is the name of the TUN interface used by VNet.
+	InterfaceName string `protobuf:"bytes,1,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
+	// Ipv6Prefix the the IPv5 prefix under which VNet assigns IPv6 addresses.
+	Ipv6Prefix    string `protobuf:"bytes,2,opt,name=ipv6_prefix,json=ipv6Prefix,proto3" json:"ipv6_prefix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkStackInfo) Reset() {
+	*x = NetworkStackInfo{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkStackInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkStackInfo) ProtoMessage() {}
+
+func (x *NetworkStackInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkStackInfo.ProtoReflect.Descriptor instead.
+func (*NetworkStackInfo) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *NetworkStackInfo) GetInterfaceName() string {
+	if x != nil {
+		return x.InterfaceName
+	}
+	return ""
+}
+
+func (x *NetworkStackInfo) GetIpv6Prefix() string {
+	if x != nil {
+		return x.Ipv6Prefix
+	}
+	return ""
+}
+
+// ReportNetworkStackInfoResponse is currently empty.
+type ReportNetworkStackInfoResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportNetworkStackInfoResponse) Reset() {
+	*x = ReportNetworkStackInfoResponse{}
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportNetworkStackInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportNetworkStackInfoResponse) ProtoMessage() {}
+
+func (x *ReportNetworkStackInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportNetworkStackInfoResponse.ProtoReflect.Descriptor instead.
+func (*ReportNetworkStackInfoResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{4}
+}
+
 // PingRequest is a request for the Ping rpc.
 type PingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -203,7 +343,7 @@ type PingRequest struct {
 
 func (x *PingRequest) Reset() {
 	*x = PingRequest{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[2]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -215,7 +355,7 @@ func (x *PingRequest) String() string {
 func (*PingRequest) ProtoMessage() {}
 
 func (x *PingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[2]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -228,7 +368,7 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{5}
 }
 
 // PingResponse is a response for the Ping rpc.
@@ -240,7 +380,7 @@ type PingResponse struct {
 
 func (x *PingResponse) Reset() {
 	*x = PingResponse{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[3]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -252,7 +392,7 @@ func (x *PingResponse) String() string {
 func (*PingResponse) ProtoMessage() {}
 
 func (x *PingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[3]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -265,7 +405,7 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{6}
 }
 
 // ResolveAppInfoRequest is a request for ResolveAppInfo.
@@ -279,7 +419,7 @@ type ResolveAppInfoRequest struct {
 
 func (x *ResolveAppInfoRequest) Reset() {
 	*x = ResolveAppInfoRequest{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[4]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -291,7 +431,7 @@ func (x *ResolveAppInfoRequest) String() string {
 func (*ResolveAppInfoRequest) ProtoMessage() {}
 
 func (x *ResolveAppInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[4]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -304,7 +444,7 @@ func (x *ResolveAppInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveAppInfoRequest.ProtoReflect.Descriptor instead.
 func (*ResolveAppInfoRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ResolveAppInfoRequest) GetFqdn() string {
@@ -325,7 +465,7 @@ type ResolveAppInfoResponse struct {
 
 func (x *ResolveAppInfoResponse) Reset() {
 	*x = ResolveAppInfoResponse{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[5]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +477,7 @@ func (x *ResolveAppInfoResponse) String() string {
 func (*ResolveAppInfoResponse) ProtoMessage() {}
 
 func (x *ResolveAppInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[5]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -350,7 +490,7 @@ func (x *ResolveAppInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveAppInfoResponse.ProtoReflect.Descriptor instead.
 func (*ResolveAppInfoResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ResolveAppInfoResponse) GetAppInfo() *AppInfo {
@@ -383,7 +523,7 @@ type AppInfo struct {
 
 func (x *AppInfo) Reset() {
 	*x = AppInfo{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[6]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -395,7 +535,7 @@ func (x *AppInfo) String() string {
 func (*AppInfo) ProtoMessage() {}
 
 func (x *AppInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[6]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -408,7 +548,7 @@ func (x *AppInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppInfo.ProtoReflect.Descriptor instead.
 func (*AppInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{6}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *AppInfo) GetAppKey() *AppKey {
@@ -462,7 +602,7 @@ type AppKey struct {
 
 func (x *AppKey) Reset() {
 	*x = AppKey{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[7]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -474,7 +614,7 @@ func (x *AppKey) String() string {
 func (*AppKey) ProtoMessage() {}
 
 func (x *AppKey) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[7]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -487,7 +627,7 @@ func (x *AppKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AppKey.ProtoReflect.Descriptor instead.
 func (*AppKey) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{7}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AppKey) GetProfile() string {
@@ -531,7 +671,7 @@ type DialOptions struct {
 
 func (x *DialOptions) Reset() {
 	*x = DialOptions{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[8]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -543,7 +683,7 @@ func (x *DialOptions) String() string {
 func (*DialOptions) ProtoMessage() {}
 
 func (x *DialOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[8]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -556,7 +696,7 @@ func (x *DialOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DialOptions.ProtoReflect.Descriptor instead.
 func (*DialOptions) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{8}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DialOptions) GetWebProxyAddr() string {
@@ -608,7 +748,7 @@ type ReissueAppCertRequest struct {
 
 func (x *ReissueAppCertRequest) Reset() {
 	*x = ReissueAppCertRequest{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[9]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -620,7 +760,7 @@ func (x *ReissueAppCertRequest) String() string {
 func (*ReissueAppCertRequest) ProtoMessage() {}
 
 func (x *ReissueAppCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[9]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -633,7 +773,7 @@ func (x *ReissueAppCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReissueAppCertRequest.ProtoReflect.Descriptor instead.
 func (*ReissueAppCertRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{9}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ReissueAppCertRequest) GetAppInfo() *AppInfo {
@@ -661,7 +801,7 @@ type ReissueAppCertResponse struct {
 
 func (x *ReissueAppCertResponse) Reset() {
 	*x = ReissueAppCertResponse{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[10]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -673,7 +813,7 @@ func (x *ReissueAppCertResponse) String() string {
 func (*ReissueAppCertResponse) ProtoMessage() {}
 
 func (x *ReissueAppCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[10]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -686,7 +826,7 @@ func (x *ReissueAppCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReissueAppCertResponse.ProtoReflect.Descriptor instead.
 func (*ReissueAppCertResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{10}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ReissueAppCertResponse) GetCert() []byte {
@@ -723,7 +863,7 @@ type SignForAppRequest struct {
 
 func (x *SignForAppRequest) Reset() {
 	*x = SignForAppRequest{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[11]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -735,7 +875,7 @@ func (x *SignForAppRequest) String() string {
 func (*SignForAppRequest) ProtoMessage() {}
 
 func (x *SignForAppRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[11]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -748,7 +888,7 @@ func (x *SignForAppRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignForAppRequest.ProtoReflect.Descriptor instead.
 func (*SignForAppRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{11}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SignForAppRequest) GetAppKey() *AppKey {
@@ -797,7 +937,7 @@ type SignForAppResponse struct {
 
 func (x *SignForAppResponse) Reset() {
 	*x = SignForAppResponse{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[12]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -809,7 +949,7 @@ func (x *SignForAppResponse) String() string {
 func (*SignForAppResponse) ProtoMessage() {}
 
 func (x *SignForAppResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[12]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -822,7 +962,7 @@ func (x *SignForAppResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignForAppResponse.ProtoReflect.Descriptor instead.
 func (*SignForAppResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{12}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SignForAppResponse) GetSignature() []byte {
@@ -843,7 +983,7 @@ type OnNewConnectionRequest struct {
 
 func (x *OnNewConnectionRequest) Reset() {
 	*x = OnNewConnectionRequest{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[13]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -855,7 +995,7 @@ func (x *OnNewConnectionRequest) String() string {
 func (*OnNewConnectionRequest) ProtoMessage() {}
 
 func (x *OnNewConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[13]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -868,7 +1008,7 @@ func (x *OnNewConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnNewConnectionRequest.ProtoReflect.Descriptor instead.
 func (*OnNewConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{13}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *OnNewConnectionRequest) GetAppKey() *AppKey {
@@ -887,7 +1027,7 @@ type OnNewConnectionResponse struct {
 
 func (x *OnNewConnectionResponse) Reset() {
 	*x = OnNewConnectionResponse{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[14]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -899,7 +1039,7 @@ func (x *OnNewConnectionResponse) String() string {
 func (*OnNewConnectionResponse) ProtoMessage() {}
 
 func (x *OnNewConnectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[14]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -912,7 +1052,7 @@ func (x *OnNewConnectionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnNewConnectionResponse.ProtoReflect.Descriptor instead.
 func (*OnNewConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{14}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{17}
 }
 
 // OnInvalidLocalPortRequest is a request for OnInvalidLocalPort.
@@ -931,7 +1071,7 @@ type OnInvalidLocalPortRequest struct {
 
 func (x *OnInvalidLocalPortRequest) Reset() {
 	*x = OnInvalidLocalPortRequest{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[15]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -943,7 +1083,7 @@ func (x *OnInvalidLocalPortRequest) String() string {
 func (*OnInvalidLocalPortRequest) ProtoMessage() {}
 
 func (x *OnInvalidLocalPortRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[15]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -956,7 +1096,7 @@ func (x *OnInvalidLocalPortRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnInvalidLocalPortRequest.ProtoReflect.Descriptor instead.
 func (*OnInvalidLocalPortRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{15}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *OnInvalidLocalPortRequest) GetAppInfo() *AppInfo {
@@ -982,7 +1122,7 @@ type OnInvalidLocalPortResponse struct {
 
 func (x *OnInvalidLocalPortResponse) Reset() {
 	*x = OnInvalidLocalPortResponse{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[16]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -994,7 +1134,7 @@ func (x *OnInvalidLocalPortResponse) String() string {
 func (*OnInvalidLocalPortResponse) ProtoMessage() {}
 
 func (x *OnInvalidLocalPortResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[16]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1007,7 +1147,7 @@ func (x *OnInvalidLocalPortResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnInvalidLocalPortResponse.ProtoReflect.Descriptor instead.
 func (*OnInvalidLocalPortResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{16}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{19}
 }
 
 // GetTargetOSConfigurationRequest is a request for the target host OS configuration.
@@ -1019,7 +1159,7 @@ type GetTargetOSConfigurationRequest struct {
 
 func (x *GetTargetOSConfigurationRequest) Reset() {
 	*x = GetTargetOSConfigurationRequest{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[17]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1031,7 +1171,7 @@ func (x *GetTargetOSConfigurationRequest) String() string {
 func (*GetTargetOSConfigurationRequest) ProtoMessage() {}
 
 func (x *GetTargetOSConfigurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[17]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1044,7 +1184,7 @@ func (x *GetTargetOSConfigurationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTargetOSConfigurationRequest.ProtoReflect.Descriptor instead.
 func (*GetTargetOSConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{17}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{20}
 }
 
 // GetTargetOSConfigurationResponse is a response including the target host OS configuration.
@@ -1058,7 +1198,7 @@ type GetTargetOSConfigurationResponse struct {
 
 func (x *GetTargetOSConfigurationResponse) Reset() {
 	*x = GetTargetOSConfigurationResponse{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[18]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1070,7 +1210,7 @@ func (x *GetTargetOSConfigurationResponse) String() string {
 func (*GetTargetOSConfigurationResponse) ProtoMessage() {}
 
 func (x *GetTargetOSConfigurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[18]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1083,7 +1223,7 @@ func (x *GetTargetOSConfigurationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTargetOSConfigurationResponse.ProtoReflect.Descriptor instead.
 func (*GetTargetOSConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{18}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetTargetOSConfigurationResponse) GetTargetOsConfiguration() *TargetOSConfiguration {
@@ -1113,7 +1253,7 @@ type TargetOSConfiguration struct {
 
 func (x *TargetOSConfiguration) Reset() {
 	*x = TargetOSConfiguration{}
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1125,7 +1265,7 @@ func (x *TargetOSConfiguration) String() string {
 func (*TargetOSConfiguration) ProtoMessage() {}
 
 func (x *TargetOSConfiguration) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1138,7 +1278,7 @@ func (x *TargetOSConfiguration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TargetOSConfiguration.ProtoReflect.Descriptor instead.
 func (*TargetOSConfiguration) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{19}
+	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *TargetOSConfiguration) GetDnsZones() []string {
@@ -1164,7 +1304,14 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1b\n" +
 	"\tpipe_path\x18\x02 \x01(\tR\bpipePath\"7\n" +
 	"\x1bAuthenticateProcessResponse\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion\"\r\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\"u\n" +
+	"\x1dReportNetworkStackInfoRequest\x12T\n" +
+	"\x12network_stack_info\x18\x01 \x01(\v2&.teleport.lib.vnet.v1.NetworkStackInfoR\x10networkStackInfo\"Z\n" +
+	"\x10NetworkStackInfo\x12%\n" +
+	"\x0einterface_name\x18\x01 \x01(\tR\rinterfaceName\x12\x1f\n" +
+	"\vipv6_prefix\x18\x02 \x01(\tR\n" +
+	"ipv6Prefix\" \n" +
+	"\x1eReportNetworkStackInfoResponse\"\r\n" +
 	"\vPingRequest\"\x0e\n" +
 	"\fPingResponse\"+\n" +
 	"\x15ResolveAppInfoRequest\x12\x12\n" +
@@ -1220,9 +1367,10 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\x04Hash\x12\x14\n" +
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
-	"\vHASH_SHA256\x10\x022\x95\a\n" +
+	"\vHASH_SHA256\x10\x022\x9b\b\n" +
 	"\x18ClientApplicationService\x12z\n" +
-	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12M\n" +
+	"\x13AuthenticateProcess\x120.teleport.lib.vnet.v1.AuthenticateProcessRequest\x1a1.teleport.lib.vnet.v1.AuthenticateProcessResponse\x12\x83\x01\n" +
+	"\x16ReportNetworkStackInfo\x123.teleport.lib.vnet.v1.ReportNetworkStackInfoRequest\x1a4.teleport.lib.vnet.v1.ReportNetworkStackInfoResponse\x12M\n" +
 	"\x04Ping\x12!.teleport.lib.vnet.v1.PingRequest\x1a\".teleport.lib.vnet.v1.PingResponse\x12k\n" +
 	"\x0eResolveAppInfo\x12+.teleport.lib.vnet.v1.ResolveAppInfoRequest\x1a,.teleport.lib.vnet.v1.ResolveAppInfoResponse\x12k\n" +
 	"\x0eReissueAppCert\x12+.teleport.lib.vnet.v1.ReissueAppCertRequest\x1a,.teleport.lib.vnet.v1.ReissueAppCertResponse\x12_\n" +
@@ -1245,63 +1393,69 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP() []
 }
 
 var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_teleport_lib_vnet_v1_client_application_service_proto_goTypes = []any{
 	(Hash)(0),                                // 0: teleport.lib.vnet.v1.Hash
 	(*AuthenticateProcessRequest)(nil),       // 1: teleport.lib.vnet.v1.AuthenticateProcessRequest
 	(*AuthenticateProcessResponse)(nil),      // 2: teleport.lib.vnet.v1.AuthenticateProcessResponse
-	(*PingRequest)(nil),                      // 3: teleport.lib.vnet.v1.PingRequest
-	(*PingResponse)(nil),                     // 4: teleport.lib.vnet.v1.PingResponse
-	(*ResolveAppInfoRequest)(nil),            // 5: teleport.lib.vnet.v1.ResolveAppInfoRequest
-	(*ResolveAppInfoResponse)(nil),           // 6: teleport.lib.vnet.v1.ResolveAppInfoResponse
-	(*AppInfo)(nil),                          // 7: teleport.lib.vnet.v1.AppInfo
-	(*AppKey)(nil),                           // 8: teleport.lib.vnet.v1.AppKey
-	(*DialOptions)(nil),                      // 9: teleport.lib.vnet.v1.DialOptions
-	(*ReissueAppCertRequest)(nil),            // 10: teleport.lib.vnet.v1.ReissueAppCertRequest
-	(*ReissueAppCertResponse)(nil),           // 11: teleport.lib.vnet.v1.ReissueAppCertResponse
-	(*SignForAppRequest)(nil),                // 12: teleport.lib.vnet.v1.SignForAppRequest
-	(*SignForAppResponse)(nil),               // 13: teleport.lib.vnet.v1.SignForAppResponse
-	(*OnNewConnectionRequest)(nil),           // 14: teleport.lib.vnet.v1.OnNewConnectionRequest
-	(*OnNewConnectionResponse)(nil),          // 15: teleport.lib.vnet.v1.OnNewConnectionResponse
-	(*OnInvalidLocalPortRequest)(nil),        // 16: teleport.lib.vnet.v1.OnInvalidLocalPortRequest
-	(*OnInvalidLocalPortResponse)(nil),       // 17: teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	(*GetTargetOSConfigurationRequest)(nil),  // 18: teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
-	(*GetTargetOSConfigurationResponse)(nil), // 19: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	(*TargetOSConfiguration)(nil),            // 20: teleport.lib.vnet.v1.TargetOSConfiguration
-	(*types.AppV3)(nil),                      // 21: types.AppV3
+	(*ReportNetworkStackInfoRequest)(nil),    // 3: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
+	(*NetworkStackInfo)(nil),                 // 4: teleport.lib.vnet.v1.NetworkStackInfo
+	(*ReportNetworkStackInfoResponse)(nil),   // 5: teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	(*PingRequest)(nil),                      // 6: teleport.lib.vnet.v1.PingRequest
+	(*PingResponse)(nil),                     // 7: teleport.lib.vnet.v1.PingResponse
+	(*ResolveAppInfoRequest)(nil),            // 8: teleport.lib.vnet.v1.ResolveAppInfoRequest
+	(*ResolveAppInfoResponse)(nil),           // 9: teleport.lib.vnet.v1.ResolveAppInfoResponse
+	(*AppInfo)(nil),                          // 10: teleport.lib.vnet.v1.AppInfo
+	(*AppKey)(nil),                           // 11: teleport.lib.vnet.v1.AppKey
+	(*DialOptions)(nil),                      // 12: teleport.lib.vnet.v1.DialOptions
+	(*ReissueAppCertRequest)(nil),            // 13: teleport.lib.vnet.v1.ReissueAppCertRequest
+	(*ReissueAppCertResponse)(nil),           // 14: teleport.lib.vnet.v1.ReissueAppCertResponse
+	(*SignForAppRequest)(nil),                // 15: teleport.lib.vnet.v1.SignForAppRequest
+	(*SignForAppResponse)(nil),               // 16: teleport.lib.vnet.v1.SignForAppResponse
+	(*OnNewConnectionRequest)(nil),           // 17: teleport.lib.vnet.v1.OnNewConnectionRequest
+	(*OnNewConnectionResponse)(nil),          // 18: teleport.lib.vnet.v1.OnNewConnectionResponse
+	(*OnInvalidLocalPortRequest)(nil),        // 19: teleport.lib.vnet.v1.OnInvalidLocalPortRequest
+	(*OnInvalidLocalPortResponse)(nil),       // 20: teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	(*GetTargetOSConfigurationRequest)(nil),  // 21: teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
+	(*GetTargetOSConfigurationResponse)(nil), // 22: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	(*TargetOSConfiguration)(nil),            // 23: teleport.lib.vnet.v1.TargetOSConfiguration
+	(*types.AppV3)(nil),                      // 24: types.AppV3
 }
 var file_teleport_lib_vnet_v1_client_application_service_proto_depIdxs = []int32{
-	7,  // 0: teleport.lib.vnet.v1.ResolveAppInfoResponse.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	8,  // 1: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	21, // 2: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
-	9,  // 3: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
-	7,  // 4: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	8,  // 5: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	0,  // 6: teleport.lib.vnet.v1.SignForAppRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
-	8,  // 7: teleport.lib.vnet.v1.OnNewConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
-	7,  // 8: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
-	20, // 9: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
-	1,  // 10: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
-	3,  // 11: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
-	5,  // 12: teleport.lib.vnet.v1.ClientApplicationService.ResolveAppInfo:input_type -> teleport.lib.vnet.v1.ResolveAppInfoRequest
-	10, // 13: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
-	12, // 14: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
-	14, // 15: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:input_type -> teleport.lib.vnet.v1.OnNewConnectionRequest
-	16, // 16: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
-	18, // 17: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
-	2,  // 18: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
-	4,  // 19: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
-	6,  // 20: teleport.lib.vnet.v1.ClientApplicationService.ResolveAppInfo:output_type -> teleport.lib.vnet.v1.ResolveAppInfoResponse
-	11, // 21: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
-	13, // 22: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
-	15, // 23: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:output_type -> teleport.lib.vnet.v1.OnNewConnectionResponse
-	17, // 24: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
-	19, // 25: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
-	18, // [18:26] is the sub-list for method output_type
-	10, // [10:18] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	4,  // 0: teleport.lib.vnet.v1.ReportNetworkStackInfoRequest.network_stack_info:type_name -> teleport.lib.vnet.v1.NetworkStackInfo
+	10, // 1: teleport.lib.vnet.v1.ResolveAppInfoResponse.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	11, // 2: teleport.lib.vnet.v1.AppInfo.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	24, // 3: teleport.lib.vnet.v1.AppInfo.app:type_name -> types.AppV3
+	12, // 4: teleport.lib.vnet.v1.AppInfo.dial_options:type_name -> teleport.lib.vnet.v1.DialOptions
+	10, // 5: teleport.lib.vnet.v1.ReissueAppCertRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	11, // 6: teleport.lib.vnet.v1.SignForAppRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	0,  // 7: teleport.lib.vnet.v1.SignForAppRequest.hash:type_name -> teleport.lib.vnet.v1.Hash
+	11, // 8: teleport.lib.vnet.v1.OnNewConnectionRequest.app_key:type_name -> teleport.lib.vnet.v1.AppKey
+	10, // 9: teleport.lib.vnet.v1.OnInvalidLocalPortRequest.app_info:type_name -> teleport.lib.vnet.v1.AppInfo
+	23, // 10: teleport.lib.vnet.v1.GetTargetOSConfigurationResponse.target_os_configuration:type_name -> teleport.lib.vnet.v1.TargetOSConfiguration
+	1,  // 11: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:input_type -> teleport.lib.vnet.v1.AuthenticateProcessRequest
+	3,  // 12: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:input_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoRequest
+	6,  // 13: teleport.lib.vnet.v1.ClientApplicationService.Ping:input_type -> teleport.lib.vnet.v1.PingRequest
+	8,  // 14: teleport.lib.vnet.v1.ClientApplicationService.ResolveAppInfo:input_type -> teleport.lib.vnet.v1.ResolveAppInfoRequest
+	13, // 15: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:input_type -> teleport.lib.vnet.v1.ReissueAppCertRequest
+	15, // 16: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:input_type -> teleport.lib.vnet.v1.SignForAppRequest
+	17, // 17: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:input_type -> teleport.lib.vnet.v1.OnNewConnectionRequest
+	19, // 18: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:input_type -> teleport.lib.vnet.v1.OnInvalidLocalPortRequest
+	21, // 19: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:input_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationRequest
+	2,  // 20: teleport.lib.vnet.v1.ClientApplicationService.AuthenticateProcess:output_type -> teleport.lib.vnet.v1.AuthenticateProcessResponse
+	5,  // 21: teleport.lib.vnet.v1.ClientApplicationService.ReportNetworkStackInfo:output_type -> teleport.lib.vnet.v1.ReportNetworkStackInfoResponse
+	7,  // 22: teleport.lib.vnet.v1.ClientApplicationService.Ping:output_type -> teleport.lib.vnet.v1.PingResponse
+	9,  // 23: teleport.lib.vnet.v1.ClientApplicationService.ResolveAppInfo:output_type -> teleport.lib.vnet.v1.ResolveAppInfoResponse
+	14, // 24: teleport.lib.vnet.v1.ClientApplicationService.ReissueAppCert:output_type -> teleport.lib.vnet.v1.ReissueAppCertResponse
+	16, // 25: teleport.lib.vnet.v1.ClientApplicationService.SignForApp:output_type -> teleport.lib.vnet.v1.SignForAppResponse
+	18, // 26: teleport.lib.vnet.v1.ClientApplicationService.OnNewConnection:output_type -> teleport.lib.vnet.v1.OnNewConnectionResponse
+	20, // 27: teleport.lib.vnet.v1.ClientApplicationService.OnInvalidLocalPort:output_type -> teleport.lib.vnet.v1.OnInvalidLocalPortResponse
+	22, // 28: teleport.lib.vnet.v1.ClientApplicationService.GetTargetOSConfiguration:output_type -> teleport.lib.vnet.v1.GetTargetOSConfigurationResponse
+	20, // [20:29] is the sub-list for method output_type
+	11, // [11:20] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_vnet_v1_client_application_service_proto_init() }
@@ -1309,14 +1463,14 @@ func file_teleport_lib_vnet_v1_client_application_service_proto_init() {
 	if File_teleport_lib_vnet_v1_client_application_service_proto != nil {
 		return
 	}
-	file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[11].OneofWrappers = []any{}
+	file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc), len(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   20,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
