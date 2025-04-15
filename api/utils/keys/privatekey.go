@@ -63,8 +63,7 @@ type PrivateKey struct {
 
 // NewPrivateKey returns a new PrivateKey for a crypto.Signer.
 // [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey, or *hardwarekey.PrivateKey.
-// TODO(Joerger): Remove the variadic argument once /e is updated to not provide it.
-func NewPrivateKey(signer crypto.Signer, _ ...[]byte) (*PrivateKey, error) {
+func NewPrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 	keyPEM, err := MarshalPrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
