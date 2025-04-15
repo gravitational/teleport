@@ -579,7 +579,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database, userRequeste
 
 	switch {
 	case !result.createDatabaseUserMode().IsEnabled():
-		return nil, nil
+		return []string{}, nil
 
 	// If user requested a list of roles, make sure all requested roles are
 	// allowed.

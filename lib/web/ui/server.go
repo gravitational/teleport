@@ -354,7 +354,10 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 		}
 	}
 	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
-		dbRoles = roles
+		// Avoid assigning empty slice to keep the resulting roles nil.
+		if len(roles) > 0 {
+			dbRoles = roles
+		}
 	}
 
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
