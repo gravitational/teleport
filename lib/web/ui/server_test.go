@@ -759,8 +759,6 @@ func makeTestDatabase(t *testing.T, labels map[string]string, autoProvisioningEn
 	return db
 }
 
-type mockAccessCheckerDatabaseOptions struct{}
-
 type mockDatabaseInteractiveChecker struct {
 	supports bool
 }

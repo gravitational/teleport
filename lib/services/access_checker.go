@@ -579,7 +579,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database, userRequeste
 
 	switch {
 	case !result.createDatabaseUserMode().IsEnabled():
-		return []string{}, nil
+		return nil, nil
 
 	// If user requested a list of roles, make sure all requested roles are
 	// allowed.
@@ -775,8 +775,7 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true})
-		if err == nil {
+		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 	}
