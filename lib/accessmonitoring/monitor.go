@@ -138,6 +138,9 @@ func (s *AccessMonitor) Run(ctx context.Context) error {
 			},
 		}, s.run)
 		if err != nil {
+			if s.cfg.FailFast {
+				return trace.Wrap(err)
+			}
 			s.cfg.Logger.ErrorContext(
 				ctx,
 				"Encountered a fatal error, it will restart after backoff.",
@@ -145,9 +148,6 @@ func (s *AccessMonitor) Run(ctx context.Context) error {
 				"error", err,
 				"restart_after", waitWithJitter,
 			)
-			if s.cfg.FailFast {
-				return trace.Wrap(err)
-			}
 		}
 		select {
 		case <-ctx.Done():
