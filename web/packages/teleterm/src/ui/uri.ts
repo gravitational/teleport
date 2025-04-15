@@ -111,9 +111,9 @@ export const paths = {
   app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
   appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId?/apps/:appId',
   windowsDesktop:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/windowsDesktops/:windowsDesktopId',
+    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/windows_desktops/:windowsDesktopId',
   windowsDesktopLeaf:
-    '/clusters/:rootClusterId/leaves/:leafClusterId?/windowsDesktops/:windowsDesktopId',
+    '/clusters/:rootClusterId/leaves/:leafClusterId?/windows_desktops/:windowsDesktopId',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',

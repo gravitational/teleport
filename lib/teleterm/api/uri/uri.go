@@ -36,8 +36,8 @@ var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kubes/:kubeName/
 var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName/namespaces/:kubeNamespaceName")
 var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
 var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
-var pathWindowsDesktops = urlpath.New("/clusters/:cluster/windowsDesktops/:windowsDesktopName")
-var pathLeafWindowsDesktops = urlpath.New("/clusters/:cluster/leaves/:leaf/windowsDesktops/:windowsDesktopName")
+var pathWindowsDesktops = urlpath.New("/clusters/:cluster/windows_desktops/:windowsDesktopName")
+var pathLeafWindowsDesktops = urlpath.New("/clusters/:cluster/leaves/:leaf/windows_desktops/:windowsDesktopName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
