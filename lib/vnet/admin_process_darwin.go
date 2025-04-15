@@ -18,12 +18,15 @@ package vnet
 
 import (
 	"context"
-	"os"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 	"golang.zx2c4.com/wireguard/tun"
 
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
@@ -36,67 +39,97 @@ import (
 // socket at config.socketPath is deleted, ctx is canceled, or until
 // encountering an unrecoverable error.
 func RunDarwinAdminProcess(ctx context.Context, config daemon.Config) error {
+	log.InfoContext(ctx, "Running VNet admin process")
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "checking daemon process config")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	serviceCreds, err := readCredentials(config.ServiceCredentialPath)
+	if err != nil {
+		return trace.Wrap(err, "reading service IPC credentials")
+	}
+	clt, err := newClientApplicationServiceClient(ctx, serviceCreds, config.ClientApplicationServiceAddr)
+	if err != nil {
+		return trace.Wrap(err, "creating user process client")
+	}
+	defer clt.close()
 
-	tunName, err := createAndSendTUNDevice(ctx, config.SocketPath)
+	tun, tunName, err := createTUNDevice(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer tun.Close()
 
-	osConfigProvider, err := newProfileOSConfigProvider(tunName, config.IPv6Prefix, config.DNSAddr, config.HomePath, config.ClientCred)
+	networkStackConfig, err := newNetworkStackConfig(tun, clt)
 	if err != nil {
-		return trace.Wrap(err, "creating profileOSConfigProvider")
+		return trace.Wrap(err, "creating network stack config")
+	}
+	networkStack, err := newNetworkStack(networkStackConfig)
+	if err != nil {
+		return trace.Wrap(err, "creating network stack")
+	}
+
+	if err := clt.ReportNetworkStackInfo(ctx, &vnetv1.NetworkStackInfo{
+		InterfaceName: tunName,
+		Ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
+	}); err != nil {
+		return trace.Wrap(err, "reporting network stack info to client application")
+	}
+
+	osConfigProvider, err := newRemoteOSConfigProvider(
+		clt,
+		tunName,
+		networkStackConfig.ipv6Prefix.String(),
+		networkStackConfig.dnsIPv6.String(),
+	)
+	if err != nil {
+		return trace.Wrap(err, "creating OS config provider")
 	}
 	osConfigurator := newOSConfigurator(osConfigProvider)
 
-	errCh := make(chan error)
-	go func() {
-		errCh <- trace.Wrap(osConfigurator.runOSConfigurationLoop(ctx))
-	}()
-
-	// Stay alive until we get an error on errCh, indicating that the osConfig loop exited.
-	// If the socket is deleted, indicating that the unprivileged process exited, cancel the context
-	// and then wait for the osConfig loop to exit and send an err on errCh.
-	ticker := time.NewTicker(daemon.CheckUnprivilegedProcessInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if _, err := os.Stat(config.SocketPath); err != nil {
-				log.DebugContext(ctx, "failed to stat socket path, assuming parent exited")
-				cancel()
-				return trace.Wrap(<-errCh)
-			}
-		case err := <-errCh:
-			return trace.Wrap(err)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		if err := networkStack.run(ctx); err != nil {
+			return trace.Wrap(err, "running network stack")
 		}
-	}
+		return errors.New("network stack terminated")
+	})
+	g.Go(func() error {
+		if err := osConfigurator.runOSConfigurationLoop(ctx); err != nil {
+			return trace.Wrap(err, "running OS configuration loop")
+		}
+		return errors.New("OS configuration loop terminated")
+	})
+	g.Go(func() error {
+		tick := time.Tick(time.Second)
+		for {
+			select {
+			case <-tick:
+				if err := clt.Ping(ctx); err != nil {
+					return trace.Wrap(err, "failed to ping client application, it may have exited, shutting down")
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	})
+	return trace.Wrap(g.Wait(), "running VNet admin process")
 }
 
-// createAndSendTUNDevice creates a virtual network TUN device and sends the open file descriptor on
-// socketPath. It returns the name of the TUN device or an error.
-func createAndSendTUNDevice(ctx context.Context, socketPath string) (string, error) {
-	tun, tunName, err := createTUNDevice(ctx)
+func newNetworkStackConfig(tun tunDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
+	appProvider := newRemoteAppProvider(clt)
+	appResolver := newTCPAppResolver(appProvider, clockwork.NewRealClock())
+	ipv6Prefix, err := newIPv6Prefix()
 	if err != nil {
-		return "", trace.Wrap(err, "creating TUN device")
+		return nil, trace.Wrap(err, "creating new IPv6 prefix")
 	}
-
-	defer func() {
-		// We can safely close the TUN device in the admin process after it has been sent on the socket.
-		if err := tun.Close(); err != nil {
-			log.WarnContext(ctx, "Failed to close TUN device.", "error", trace.Wrap(err))
-		}
-	}()
-
-	if err := sendTUNNameAndFd(socketPath, tunName, tun.File()); err != nil {
-		return "", trace.Wrap(err, "sending TUN over socket")
-	}
-	return tunName, nil
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
+	return &networkStackConfig{
+		tunDevice:          tun,
+		ipv6Prefix:         ipv6Prefix,
+		dnsIPv6:            dnsIPv6,
+		tcpHandlerResolver: appResolver,
+	}, nil
 }
 
 func createTUNDevice(ctx context.Context) (tun.Device, string, error) {

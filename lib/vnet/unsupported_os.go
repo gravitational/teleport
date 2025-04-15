@@ -24,13 +24,15 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
+
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 // ErrVnetNotImplemented is an error indicating that VNet is not implemented on the host OS.
 var ErrVnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 
-func runPlatformUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, NetworkStackInfo, error) {
-	return nil, NetworkStackInfo{}, trace.Wrap(ErrVnetNotImplemented)
+func runPlatformUserProcess(_ context.Context, _ *UserProcessConfig) (*ProcessManager, *vnetv1.NetworkStackInfo, error) {
+	return nil, nil, trace.Wrap(ErrVnetNotImplemented)
 }
 
 type platformOSConfigState struct{}
