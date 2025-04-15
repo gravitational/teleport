@@ -1,5 +1,21 @@
 # Changelog
 
+## 16.5.2 (04/14/25)
+
+* Workload ID: the Kubernetes, Podman, and Docker attestors now capture the container image digest. [#53940](https://github.com/gravitational/teleport/pull/53940)
+* Fixed web UI and tsh issues when a SAML metadata URL takes an unusually long time to respond. [#53934](https://github.com/gravitational/teleport/pull/53934)
+* Updated Go to 1.23.8. [#53919](https://github.com/gravitational/teleport/pull/53919)
+* Fixed Azure VM auto discovery when not filtering by resource group. [#53900](https://github.com/gravitational/teleport/pull/53900)
+* Added new `proxy_protocol_allow_downgrade` field to the `proxy_service` configuration in support of environments where single stack IPv6 sources are connecting to single stack IPv4 destinations. This feature is not compatible with IP pinning. [#53884](https://github.com/gravitational/teleport/pull/53884)
+
+## 16.5.1 (04/08/25)
+
+* Added additional tracking metadata to teleport-update. [#53829](https://github.com/gravitational/teleport/pull/53829)
+* Fixed throttling in the DynamoDB backend event stream for tables with a high amount of stream shards. [#53805](https://github.com/gravitational/teleport/pull/53805)
+* Reduce backend load in clusters with large numbers of Windows desktops. [#53720](https://github.com/gravitational/teleport/pull/53720)
+* Workload ID: Support for adding custom claims to JWT-SVIDs. [#53586](https://github.com/gravitational/teleport/pull/53586)
+* Kubernetes app discovery now supports an additional annotation for apps that are served on a sub-path of an HTTP service. [#53095](https://github.com/gravitational/teleport/pull/53095)
+
 ## 16.5.0 (03/28/25)
 
 ### Automatic Updates

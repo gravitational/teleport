@@ -21,7 +21,6 @@ package dynamo
 import (
 	"context"
 	"errors"
-	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -71,6 +70,12 @@ func (b *Backend) asyncPollStreams(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+type shardClosedError struct{}
+
+func (shardClosedError) Error() string {
+	return "shard closed"
 }
 
 func (b *Backend) pollStreams(externalCtx context.Context) error {
@@ -150,8 +155,8 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
-	ticker := time.NewTicker(b.PollStreamPeriod)
-	defer ticker.Stop()
+	timer := time.NewTimer(b.PollStreamPeriod)
+	defer timer.Stop()
 
 	for {
 		select {
@@ -164,7 +169,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 					return trace.BadParameter("empty shard ID")
 				}
 				delete(set, event.shardID)
-				if !errors.Is(event.err, io.EOF) {
+				if !errors.Is(event.err, shardClosedError{}) {
 					b.Debugf("Shard ID %v closed with error: %v, resetting buffers.", event.shardID, event.err)
 					return trace.Wrap(event.err)
 				}
@@ -172,10 +177,11 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			} else {
 				b.buf.Emit(event.events...)
 			}
-		case <-ticker.C:
+		case <-timer.C:
 			if err := refreshShards(false); err != nil {
 				return trace.Wrap(err)
 			}
+			timer.Reset(b.PollStreamPeriod)
 		case <-ctx.Done():
 			b.Tracef("Context is closing, returning.")
 			return nil
@@ -218,32 +224,23 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
 	shardID := aws.StringValue(shard.ShardId)
-	for {
+	for iterator != nil {
 		select {
 		case <-ctx.Done():
 			return trace.ConnectionProblem(ctx.Err(), "context is closing")
 		case <-ticker.C:
-			out, err := b.streams.GetRecordsWithContext(ctx, &dynamodbstreams.GetRecordsInput{
-				ShardIterator: iterator,
-			})
-			if err != nil {
-				return convertError(err)
-			}
-			if len(out.Records) > 0 {
-				b.Tracef("Got %v new stream shard records.", len(out.Records))
-			}
-			if len(out.Records) == 0 {
-				if out.NextShardIterator == nil {
-					b.Tracef("Shard is closed: %v.", aws.StringValue(shard.ShardId))
-					return io.EOF
-				}
-				iterator = out.NextShardIterator
-				continue
-			}
-			if out.NextShardIterator == nil {
-				b.Tracef("Shard is closed: %v.", aws.StringValue(shard.ShardId))
-				return io.EOF
-			}
+		}
+
+		out, err := b.streams.GetRecordsWithContext(ctx, &dynamodbstreams.GetRecordsInput{
+			ShardIterator: iterator,
+		})
+		if err != nil {
+			return convertError(err)
+		}
+
+		if len(out.Records) > 0 {
+			b.Tracef("Got %v new stream shard records.", len(out.Records))
+
 			events := make([]backend.Event, 0, len(out.Records))
 			for i := range out.Records {
 				event, err := toEvent(out.Records[i])
@@ -257,9 +254,13 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 				return trace.ConnectionProblem(ctx.Err(), "context is closing")
 			case eventsC <- shardEvent{shardID: shardID, events: events}:
 			}
-			iterator = out.NextShardIterator
 		}
+
+		iterator = out.NextShardIterator
 	}
+
+	b.Tracef("Shard is closed: %v.", shardID)
+	return shardClosedError{}
 }
 
 // collectActiveShards collects shards
@@ -279,6 +280,12 @@ func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([
 			return filterActiveShards(out), nil
 		}
 		input.ExclusiveStartShardId = streamInfo.StreamDescription.LastEvaluatedShardId
+		select {
+		case <-ctx.Done():
+			// let the next call deal with the context error
+		case <-time.After(200 * time.Millisecond):
+			// 10 calls per second with two auths, with ample margin
+		}
 	}
 }
 
