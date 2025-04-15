@@ -6862,8 +6862,14 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).Run()
-			tt.assertError(t, err)
+
+			// Add some resiliency for cases where connections are attempted
+			// prior to the inventory being updated to contain the target node
+			// above.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				out, err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).CombinedOutput()
+				tt.assertError(t, err, string(out))
+			}, 20*time.Second, 100*time.Millisecond)
 		})
 	}
 }
