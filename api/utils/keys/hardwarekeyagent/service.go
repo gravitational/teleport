@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
-// AgentService is an agent-based implementation of [hardwarekey.Service].
-type AgentService struct {
+// Service is an agent-based implementation of [hardwarekey.Service].
+type Service struct {
 	// Used for signature requests to the service.
 	agentClient *Client
 	// Used for non signature methods and as a fallback for signatures if the
@@ -36,25 +36,25 @@ type AgentService struct {
 	fallbackService hardwarekey.Service
 }
 
-// NewAgentService creates a new hardware key agent service from the given
+// NewService creates a new hardware key service from the given
 // agent client and fallback service. The fallback service is used for
 // non-signature methods of [hardwarekey.Service] which are not implemented
 // by the agent. Generally this fallback service is only used during login.
-func NewAgentService(agentClient *Client, fallbackService hardwarekey.Service) *AgentService {
-	return &AgentService{
+func NewService(agentClient *Client, fallbackService hardwarekey.Service) *Service {
+	return &Service{
 		agentClient:     agentClient,
 		fallbackService: fallbackService,
 	}
 }
 
 // NewPrivateKey creates or retrieves a hardware private key for the given config.
-func (s *AgentService) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
+func (s *Service) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
 	return s.fallbackService.NewPrivateKey(ctx, config)
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (s *AgentService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (s *Service) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	// First try to sign with the agent, then fallback to the direct service if needed.
 	signature, err := s.agentClient.Sign(ctx, ref, keyInfo, rand, digest, opts)
 	if err != nil {
@@ -66,6 +66,6 @@ func (s *AgentService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 }
 
 // TODO(Joerger): DELETE IN v19.0.0
-func (s *AgentService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
+func (s *Service) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return s.fallbackService.GetFullKeyRef(serialNumber, slotKey)
 }

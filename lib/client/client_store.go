@@ -129,7 +129,7 @@ func NewHardwareKeyService(ctx context.Context, prompt hardwarekey.Prompt) hardw
 	agentDir := hardwarekeyagent.DefaultAgentDir()
 	agentClient, err := hardwarekeyagent.NewClient(ctx, agentDir)
 	if err == nil {
-		hwks = hardwarekeyagent.NewAgentService(agentClient, hwks)
+		hwks = hardwarekeyagent.NewService(agentClient, hwks)
 	}
 
 	return hwks

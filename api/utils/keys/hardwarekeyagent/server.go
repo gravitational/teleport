@@ -48,6 +48,7 @@ const (
 	certFileName = "cert.pem"
 )
 
+// DefaultAgentDir is the default dir for the hardware key agent's socket and certificate files.
 func DefaultAgentDir() string {
 	return filepath.Join(os.TempDir(), dirName)
 }
@@ -78,7 +79,7 @@ func NewServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string) (
 		grpc.Creds(credentials.NewServerTLSFromCert(&cert)),
 		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
 	)
-	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &service{s: s})
+	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &serverService{s: s})
 
 	return &Server{
 		dir:                keyAgentDir,
@@ -155,13 +156,13 @@ func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
 	return keys.X509KeyPair(creds.Cert, creds.PrivateKey)
 }
 
-type service struct {
+type serverService struct {
 	hardwarekeyagentv1.UnimplementedHardwareKeyAgentServiceServer
 	s hardwarekey.Service
 }
 
 // Sign the given digest with the specified hardware private key.
-func (s *service) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest) (*hardwarekeyagentv1.Signature, error) {
+func (s *serverService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest) (*hardwarekeyagentv1.Signature, error) {
 	slotKey, err := pivSlotKeyFromProto(req.KeyRef.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -218,36 +219,43 @@ func (s *service) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest)
 }
 
 // Ping the server and get its PID.
-func (s *service) Ping(ctx context.Context, req *hardwarekeyagentv1.PingRequest) (*hardwarekeyagentv1.PingResponse, error) {
+func (s *serverService) Ping(ctx context.Context, req *hardwarekeyagentv1.PingRequest) (*hardwarekeyagentv1.PingResponse, error) {
 	return &hardwarekeyagentv1.PingResponse{
 		Pid: uint32(os.Getpid()),
 	}, nil
 }
 
 func pivSlotKeyFromProto(pivSlot hardwarekeyagentv1.PIVSlotKey) (hardwarekey.PIVSlotKey, error) {
+	var slotKey hardwarekey.PIVSlotKey
 	switch pivSlot {
 	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A:
-		return 0x9a, nil
+		slotKey = hardwarekey.PIVSlot9A
 	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9C:
-		return 0x9c, nil
+		slotKey = hardwarekey.PIVSlot9C
 	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9D:
-		return 0x9d, nil
+		slotKey = hardwarekey.PIVSlot9D
 	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9E:
-		return 0x9e, nil
+		slotKey = hardwarekey.PIVSlot9E
 	default:
 		return 0, trace.BadParameter("unknown piv slot key for proto enum %d", pivSlot)
 	}
+
+	if err := slotKey.Validate(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return slotKey, nil
 }
 
 func pivSlotKeyToProto(slotKey hardwarekey.PIVSlotKey) (hardwarekeyagentv1.PIVSlotKey, error) {
 	switch slotKey {
-	case 0x9a:
+	case hardwarekey.PIVSlot9A:
 		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A, nil
-	case 0x9c:
+	case hardwarekey.PIVSlot9C:
 		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9C, nil
-	case 0x9d:
+	case hardwarekey.PIVSlot9D:
 		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9D, nil
-	case 0x9e:
+	case hardwarekey.PIVSlot9E:
 		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9E, nil
 	default:
 		return 0, trace.BadParameter("unknown proto enum for piv slot key %d", slotKey)

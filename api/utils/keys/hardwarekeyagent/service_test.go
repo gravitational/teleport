@@ -46,7 +46,7 @@ func TestHardwareKeyAgent_Service(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare the agent service.
-	agentService := hardwarekeyagent.NewAgentService(agentClient, mockService)
+	agentService := hardwarekeyagent.NewService(agentClient, mockService)
 
 	// Create a new key.
 	hwSigner, err := agentService.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
