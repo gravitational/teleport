@@ -19,7 +19,6 @@
 package discovery
 
 import (
-	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -39,7 +38,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -266,11 +264,15 @@ func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	const maxMessageSize = 50 * 1024 * 1024 // 50MB
 	opts = append(opts,
 		opt,
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize),
+			grpc.MaxCallSendMsgSize(maxMessageSize),
+		),
 	)
 
 	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
@@ -746,9 +748,11 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time,
 		return trace.Wrap(err)
 	}
 
+	filePayload := make(chan payloadChannelMessage, 1)
+
 	if matcher.SqsPolling != nil {
 		go func() {
-			err := s.pollEventsFromSQSFiles(ctx, accountID, matcher, eventsC)
+			err := s.pollEventsFromSQSFiles(ctx, accountID, matcher, filePayload)
 			if err != nil {
 				s.Log.ErrorContext(ctx, "Error extracting events from SQS files", "error", err)
 			}
@@ -774,6 +778,23 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time,
 			}
 			events = append(events, evts.events...)
 			sendData = size >= maxSize
+		case file := <-filePayload:
+			err := stream.Send(
+				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
+					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_EventsFile{
+						EventsFile: &accessgraphv1alpha.AWSCloudTrailEventsFile{
+							Payload:      file.payload,
+							AwsAccountId: file.accountID,
+						},
+					},
+				},
+			)
+			if err != nil {
+				err = consumeTillErr(stream)
+				s.Log.ErrorContext(ctx, "Failed to send access graph service events", "error", err)
+				return trace.Wrap(err)
+			}
+			continue
 		}
 
 		if sendData {
@@ -1105,7 +1126,12 @@ func (a *Server) getAccountId(ctx context.Context, matcher *types.AccessGraphAWS
 	return aws.ToString(req.Account), nil
 }
 
-func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- eventChannelPayload) error {
+type payloadChannelMessage struct {
+	payload   []byte
+	accountID string
+}
+
+func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, matcher *types.AccessGraphAWSSync, eventsC chan<- payloadChannelMessage) error {
 	awsCfg, err := a.AWSConfigProvider.GetConfig(ctx, matcher.SqsPolling.Region, getOptions(matcher)...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1118,6 +1144,7 @@ func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, m
 		MaxNumberOfMessages: 10,
 		WaitTimeSeconds:     10,
 	}
+	parallelDownloads := make(chan struct{}, 100)
 	for {
 		select {
 		case <-ctx.Done():
@@ -1130,11 +1157,12 @@ func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, m
 			if len(resp.Messages) == 0 {
 				continue
 			}
-			wg := &sync.WaitGroup{}
 			for _, message := range resp.Messages {
-				wg.Add(1)
-				func(message sqstypes.Message) {
-					defer wg.Done()
+				parallelDownloads <- struct{}{}
+				go func(message sqstypes.Message) {
+					defer func() {
+						<-parallelDownloads
+					}()
 					var sqsEvent sqsFileEvent
 					body := aws.ToString(message.Body)
 					err := json.Unmarshal([]byte(body), &sqsEvent)
@@ -1152,81 +1180,34 @@ func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, m
 							a.Log.ErrorContext(ctx, "SQS message contains empty S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
 							continue
 						}
-						events, err := downloadCloudTrailFileAndParse(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
+						payload, err := downloadCloudTrailFile(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
 						if err != nil {
 							a.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
 							continue
 						}
-						var agEvents = make([]*accessgraphv1alpha.AWSCloudTrailEvent, 0, len(events))
-						for _, event := range events {
-							agEvent, err := convertCloudTrailEventToAccessGraphResources((*structpb.Struct)(event), accountID, "")
+
+						select {
+						case <-ctx.Done():
+							return
+						case eventsC <- payloadChannelMessage{
+							payload:   payload,
+							accountID: accountID,
+						}:
+							_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+								QueueUrl:      aws.String(matcher.SqsPolling.SQSQueue),
+								ReceiptHandle: message.ReceiptHandle,
+							})
 							if err != nil {
-								a.Log.ErrorContext(ctx, "Failed to convert CloudTrail event to access graph resources", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
-								continue
+								a.Log.ErrorContext(ctx, "Failed to delete message from sqs", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
 							}
-							agEvents = append(agEvents, agEvent)
-						}
-						if len(agEvents) == 0 {
-							a.Log.ErrorContext(ctx, "No events found in S3 object", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
-							continue
-						}
-						// send the events to the access graph service
-						evts := chunkBySize(agEvents, 3*1024*1024)
-						for _, chunk := range evts {
-							select {
-							case <-ctx.Done():
-								a.Log.InfoContext(ctx, "Stopping cloud trail poller for region")
-								return
-							case eventsC <- eventChannelPayload{
-								events: chunk,
-								fromS3: true,
-							}:
-							}
+
 						}
 					}
 				}(message)
 			}
-			wg.Wait()
-			// Delete the message from the queue
-			var deleteMessages []sqstypes.DeleteMessageBatchRequestEntry
-			for _, message := range resp.Messages {
-				deleteMessages = append(deleteMessages, sqstypes.DeleteMessageBatchRequestEntry{
-					Id:            aws.String(uuid.NewString()),
-					ReceiptHandle: message.ReceiptHandle,
-				})
-			}
-			out, err := sqsClient.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
-				QueueUrl: aws.String(matcher.SqsPolling.SQSQueue),
-				Entries:  deleteMessages,
-			})
-			if err != nil {
-				return trace.Wrap(err, "error on calling DeleteMessageBatch")
-			}
-			for _, entry := range out.Failed {
-				return trace.Errorf("failed to delete message with ID %s, sender fault %v: %s", aws.ToString(entry.Id), entry.SenderFault, aws.ToString(entry.Message))
-			}
-		}
-	}
-}
 
-func chunkBySize(events []*accessgraphv1alpha.AWSCloudTrailEvent, size int) [][]*accessgraphv1alpha.AWSCloudTrailEvent {
-	var chunks [][]*accessgraphv1alpha.AWSCloudTrailEvent
-	var chunk []*accessgraphv1alpha.AWSCloudTrailEvent
-	var chunkSize int
-	for _, event := range events {
-		eventSize := gproto.Size(event)
-		if chunkSize+eventSize > size {
-			chunks = append(chunks, slices.Clone(chunk))
-			chunk = chunk[:0]
-			chunkSize = 0
 		}
-		chunk = append(chunk, event)
-		chunkSize += eventSize
 	}
-	if len(chunk) > 0 {
-		chunks = append(chunks, chunk)
-	}
-	return chunks
 }
 
 type sqsFileEvent struct {
@@ -1234,10 +1215,7 @@ type sqsFileEvent struct {
 	S3ObjectKey []string `json:"s3ObjectKey"`
 }
 
-// downloadCloudTrailFileAndParse downloads a CloudTrail file from S3 and parses it.
-// The file is expected to be in gzip format and the maximimum uncompressed size is 50MB
-// (the maximum size of a CloudTrail file) so we can read it into memory.
-func downloadCloudTrailFileAndParse(ctx context.Context, client *s3.Client, bucket, key string) ([]*Event, error) {
+func downloadCloudTrailFile(ctx context.Context, client *s3.Client, bucket, key string) ([]byte, error) {
 	getObjInput := &s3.GetObjectInput{
 		Bucket: &bucket,
 		Key:    &key,
@@ -1249,32 +1227,10 @@ func downloadCloudTrailFileAndParse(ctx context.Context, client *s3.Client, buck
 	}
 	defer resp.Body.Close()
 
-	// Decompress gzip stream
-	gzr, err := gzip.NewReader(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gzr.Close()
-
-	type CloudTrailFile struct {
-		Records []*Event `json:"Records"`
-	}
-	// Decode the top-level JSON
-	var ctFile CloudTrailFile
-	decoder := json.NewDecoder(gzr)
-	if err := decoder.Decode(&ctFile); err != nil {
-		return nil, fmt.Errorf("failed to decode CloudTrail JSON: %w", err)
+		return nil, fmt.Errorf("failed to read object body: %w", err)
 	}
 
-	return ctFile.Records, nil
-}
-
-type Event structpb.Struct
-
-func (e *Event) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 {
-		return nil
-	}
-	err := protojson.Unmarshal(data, (*structpb.Struct)(e))
-	return trace.Wrap(err)
+	return body, nil
 }

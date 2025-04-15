@@ -526,7 +526,16 @@ message AWSCloudTrailStreamRequest {
   oneof action {
     AWSCloudTrailConfig config = 1; // Export configuration, e.g. start date. // Config negatiation phase
     AWSCloudTrailEvents events = 2; // Batch of  log events and resume state.
+    AWSCloudTrailEventsFile events_file = 3;
   }
+}
+
+// AWSCloudTrailEventsFile holds the cloudtrail file.
+message AWSCloudTrailEventsFile {
+  // Gziped json encoded s3 payload.
+  bytes payload = 1;
+  // The AWS account id of the account where the log is originated from.
+  string aws_account_id = 2;
 }
 
 // AWSCloudTrailConfig is the configuration for exporting AWS audit logs.
