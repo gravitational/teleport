@@ -18,6 +18,8 @@ plugins:
       - npm
       - exec
       - --yes
+      - --prefer-offline
+      # this version should be kept in sync with build.assets/Dockerfile-grpcbox
       - --package=@protobuf-ts/plugin@2.9.3
       - --
       - protoc-gen-ts
