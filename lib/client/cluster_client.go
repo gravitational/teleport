@@ -21,6 +21,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -583,12 +584,18 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		return keyRing, proto.MFARequired_MFA_REQUIRED_NO, trace.Wrap(err)
 	}
 
-	// TODO add retry on expire
 	if params.ReusableMFAResponse != nil {
 		log.DebugContext(ctx, "MFA is required but reusable MFA response is provided")
 		params.ExistingCreds = keyRing
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
-		return keyRing, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
+		switch {
+		case services.IsExpiredReusableMFAResponseError(err):
+			// If reusable MFA response is expired, break the switch to perform
+			// ceremony again.
+			fmt.Fprintln(c.tc.Stderr, "Current MFA session has expired.")
+		default:
+			return keyRing, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
+		}
 	}
 
 	// Perform the MFA ceremony and add the new credential to the KeyRing.
