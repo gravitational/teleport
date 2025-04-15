@@ -460,6 +460,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
+			requestGroup:      "default",
 			errMatch:          "install error",
 		},
 		{
@@ -476,7 +477,8 @@ func TestUpdater_Update(t *testing.T) {
 					Active: NewRevision("16.3.0", 0),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "version already installed outside of window",
@@ -492,6 +494,7 @@ func TestUpdater_Update(t *testing.T) {
 					Active: NewRevision("16.3.0", 0),
 				},
 			},
+			requestGroup: "default",
 		},
 		{
 			name: "version detects as linked",
@@ -510,6 +513,7 @@ func TestUpdater_Update(t *testing.T) {
 			linkedRevisions: []Revision{NewRevision("16.3.0", 0)},
 			inWindow:        true,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -536,6 +540,7 @@ func TestUpdater_Update(t *testing.T) {
 			},
 			inWindow: true,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -564,6 +569,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow:        true,
 			linkedRevisions: []Revision{NewRevision("backup-version", 0)},
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -588,7 +594,8 @@ func TestUpdater_Update(t *testing.T) {
 					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "config does not exist",
@@ -611,6 +618,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			flags:    autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
@@ -644,6 +652,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			setupErr: errors.New("setup error"),
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -673,10 +682,11 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			agpl:     true,
 
-			reloadCalls: 0,
-			revertCalls: 0,
-			setupCalls:  0,
-			errMatch:    "AGPL",
+			requestGroup: "default",
+			reloadCalls:  0,
+			revertCalls:  0,
+			setupCalls:   0,
+			errMatch:     "AGPL",
 		},
 		{
 			name: "skip version",
@@ -694,7 +704,8 @@ func TestUpdater_Update(t *testing.T) {
 					Skip:   toPtr(NewRevision("16.3.0", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "pinned version",
@@ -712,7 +723,8 @@ func TestUpdater_Update(t *testing.T) {
 					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 	}
 
@@ -1486,6 +1498,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1503,6 +1516,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1528,6 +1542,7 @@ func TestUpdater_Install(t *testing.T) {
 
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
+			requestGroup:      "default",
 			errMatch:          "install error",
 		},
 		{
@@ -1536,8 +1551,9 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 			},
-			agpl:     true,
-			errMatch: "AGPL",
+			agpl:         true,
+			requestGroup: "default",
+			errMatch:     "AGPL",
 		},
 		{
 			name: "version already installed",
@@ -1552,6 +1568,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         false,
 		},
@@ -1570,6 +1587,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevision:   NewRevision("backup-version", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1587,6 +1605,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 		},
 		{
@@ -1595,6 +1614,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1604,6 +1624,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1619,6 +1640,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			revertCalls:       1,
 			setupCalls:        1,
 			reloadCalls:       1,
@@ -1639,6 +1661,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			revertCalls:       1,
 			setupCalls:        1,
 			errMatch:          "setup error",
@@ -1650,6 +1673,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1661,6 +1685,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
