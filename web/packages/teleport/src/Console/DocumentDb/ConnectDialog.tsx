@@ -158,7 +158,7 @@ function ConnectForm(props: {
                 formatCreateLabel: userInput =>
                   `Use "${userInput}" database user`,
                 toolTipContent:
-                  'You can type on the select box to use a custom database user instead of the available options.',
+                  'You can type in the select box to use a custom database user instead of the available options.',
               }}
               rule={requiredField('Database user is required')}
               isDisabled={props.db.autoUsersEnabled}
@@ -181,7 +181,7 @@ function ConnectForm(props: {
                   formatCreateLabel: userInput =>
                     `Use "${userInput}" database role`,
                   toolTipContent:
-                    'You can type on the select box to use a custom database role in addition to the available options.',
+                    'You can type in the select box to use a custom database role in addition to the available options.',
                 }}
                 rule={requiredField('At least one database role is required')}
               />
