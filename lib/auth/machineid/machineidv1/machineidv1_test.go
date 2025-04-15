@@ -1442,6 +1442,17 @@ func TestListBots(t *testing.T) {
 			{
 				Resources: []string{types.KindBot},
 				Verbs:     []string{types.VerbList},
+			},
+		})
+	require.NoError(t, err)
+	botListWhereUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"bot-lister-where",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindBot},
+				Verbs:     []string{types.VerbList},
 				Where:     `startsWith(resource.metadata.name, "foo")`,
 			},
 		})
@@ -1489,6 +1500,22 @@ func TestListBots(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	preExistingBot3, err := client.BotServiceClient().CreateBot(
+		ctx,
+		&machineidv1pb.CreateBotRequest{
+			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "foo-pre-existing-2",
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name        string
@@ -1506,6 +1533,18 @@ func TestListBots(t *testing.T) {
 				Bots: []*machineidv1pb.Bot{
 					preExistingBot,
 					preExistingBot2,
+					preExistingBot3,
+				},
+			},
+		},
+		{
+			name:        "success with where",
+			user:        botListWhereUser.GetName(),
+			req:         &machineidv1pb.ListBotsRequest{},
+			assertError: require.NoError,
+			want: &machineidv1pb.ListBotsResponse{
+				Bots: []*machineidv1pb.Bot{
+					preExistingBot3,
 				},
 			},
 		},
