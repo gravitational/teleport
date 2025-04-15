@@ -1,5 +1,12 @@
 # Changelog
 
+## 15.4.32 (04/14/25)
+
+* Fixed web UI and tsh issues when a SAML metadata URL takes an unusually long time to respond. [#53935](https://github.com/gravitational/teleport/pull/53935)
+* Updated Go to 1.23.8. [#53920](https://github.com/gravitational/teleport/pull/53920)
+* Fixed Azure VM auto discovery when not filtering by resource group. [#53901](https://github.com/gravitational/teleport/pull/53901)
+* Restrict agent update days to Mon-Thu on Cloud. [#53767](https://github.com/gravitational/teleport/pull/53767)
+
 ## 15.4.31 (04/09/25)
 
 * Fixed throttling in the DynamoDB backend event stream for tables with a high amount of stream shards. [#53806](https://github.com/gravitational/teleport/pull/53806)
