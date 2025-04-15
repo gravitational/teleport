@@ -52,7 +52,8 @@ func newPIVAgentCommand(parent *kingpin.CmdClause) *pivAgentCommand {
 
 func (c *pivAgentCommand) run(cf *CLIConf) error {
 	hwKeyService := piv.NewYubiKeyService(nil /*prompt*/)
-	s, err := hardwarekeyagent.NewServer(cf.Context, hwKeyService)
+	agentDir := hardwarekeyagent.DefaultAgentDir()
+	s, err := hardwarekeyagent.NewServer(cf.Context, hwKeyService, agentDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}

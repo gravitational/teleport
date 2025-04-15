@@ -22,7 +22,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
-	"log/slog"
 	"math"
 	"net"
 	"os"
@@ -36,33 +35,22 @@ import (
 	hardwarekeyagentv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/hardwarekeyagent/v1"
 )
 
-// AgentClient is a hardware key agent client implementation of [hardwarekey.Service].
-type AgentClient struct {
-	client        hardwarekeyagentv1.HardwareKeyAgentServiceClient
-	directService hardwarekey.Service
+// Client is a hardware key agent client.
+type Client struct {
+	hardwarekeyagentv1.HardwareKeyAgentServiceClient
 }
 
-// NewClient creates a new hardware key agent client. If the hardware key agent connection
-// fails, this client will fallback to the given direct hardware key service.
-func NewClient(ctx context.Context, directService hardwarekey.Service) (*AgentClient, error) {
-	client, err := newClient()
-	if err != nil {
+// NewClient opens a new hardware key agent client connected to the server
+// based out of the given directory.
+//
+// [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
+func NewClient(ctx context.Context, keyAgentDir string) (*Client, error) {
+	socketPath := filepath.Join(keyAgentDir, sockName)
+	if _, err := os.Stat(socketPath); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &AgentClient{
-		client:        client,
-		directService: directService,
-	}, nil
-}
-
-func newClient() (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
-	agentPath := filepath.Join(os.TempDir(), dirName, sockName)
-	if _, err := os.Stat(agentPath); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certPath := filepath.Join(os.TempDir(), dirName, certFileName)
+	certPath := filepath.Join(keyAgentDir, certFileName)
 	creds, err := credentials.NewClientTLSFromFile(certPath, "localhost")
 	if err != nil {
 		return nil, err
@@ -72,33 +60,21 @@ func newClient() (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
 	// we provide "passthrough:" to skip grpc's address resolution and
 	// a custom [net] dialer to connect to the socket.
 	cc, err := grpc.NewClient("passthrough:", grpc.WithTransportCredentials(creds), grpc.WithContextDialer(func(_ context.Context, addr string) (net.Conn, error) {
-		return net.Dial("unix", agentPath)
+		return net.Dial("unix", socketPath)
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return hardwarekeyagentv1.NewHardwareKeyAgentServiceClient(cc), nil
-}
-
-// NewPrivateKey creates or retrieves a hardware private key for the given config.
-func (c *AgentClient) NewPrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*hardwarekey.Signer, error) {
-	return c.directService.NewPrivateKey(ctx, config)
+	return &Client{
+		HardwareKeyAgentServiceClient: hardwarekeyagentv1.NewHardwareKeyAgentServiceClient(cc),
+	}, nil
 }
 
 // Sign performs a cryptographic signature using the specified hardware
 // private key and provided signature parameters.
-func (c *AgentClient) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	signature, err := c.agentSign(ctx, ref, keyInfo, rand, digest, opts)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to perform signature over hardware key agent, falling back to direct hardware key service", "agent_err", err)
-		signature, err = c.directService.Sign(ctx, ref, keyInfo, rand, digest, opts)
-	}
-
-	return signature, trace.Wrap(err)
-}
-
-func (c *AgentClient) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, _ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+// Implements [hardwarekey.Service].Sign
+func (c *Client) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	slotKey, err := pivSlotKeyToProto(ref.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -169,15 +145,10 @@ func (c *AgentClient) agentSign(ctx context.Context, ref *hardwarekey.PrivateKey
 		// TODO: Add command to sign request for prompt context.
 	}
 
-	resp, err := c.client.Sign(ctx, req)
+	resp, err := c.HardwareKeyAgentServiceClient.Sign(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return resp.Signature, nil
-}
-
-// TODO(Joerger): DELETE IN v19.0.0
-func (c *AgentClient) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
-	return c.directService.GetFullKeyRef(serialNumber, slotKey)
 }

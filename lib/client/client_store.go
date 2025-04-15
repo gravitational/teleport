@@ -124,15 +124,15 @@ func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.Pr
 // is found, this will return a hardware key agent service with a direct PIV service as backup.
 // Otherwise, the direct PIV service will be returned.
 func NewHardwareKeyService(ctx context.Context, prompt hardwarekey.Prompt) hardwarekey.Service {
-	pivService := piv.NewYubiKeyService(prompt)
-	agentService, err := hardwarekeyagent.NewClient(ctx, pivService)
+	var hwks hardwarekey.Service = piv.NewYubiKeyService(prompt)
+
+	agentDir := hardwarekeyagent.DefaultAgentDir()
+	agentClient, err := hardwarekeyagent.NewClient(ctx, agentDir)
 	if err == nil {
-		return agentService
-	} else {
-		slog.ErrorContext(ctx, "failed to connect to the hardware key agent", "err", err)
+		hwks = hardwarekeyagent.NewAgentService(agentClient, hwks)
 	}
 
-	return pivService
+	return hwks
 }
 
 // AddKeyRing adds the given key ring to the key store. The key's trusted certificates are

@@ -104,7 +104,8 @@ func Serve(ctx context.Context, cfg Config) error {
 	var hardwareKeyAgentServer *hardwarekeyagent.Server
 	if cfg.HardwareKeyAgent {
 		hardwareKeyService := piv.NewYubiKeyService(daemonService.NewHardwareKeyPrompt())
-		hardwareKeyAgentServer, err = hardwarekeyagent.NewServer(ctx, hardwareKeyService)
+		agentDir := hardwarekeyagent.DefaultAgentDir()
+		hardwareKeyAgentServer, err = hardwarekeyagent.NewServer(ctx, hardwareKeyService, agentDir)
 		if err != nil {
 			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
 		} else {

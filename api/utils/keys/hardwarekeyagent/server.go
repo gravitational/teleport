@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -47,21 +48,28 @@ const (
 	certFileName = "cert.pem"
 )
 
+func DefaultAgentDir() string {
+	return filepath.Join(os.TempDir(), dirName)
+}
+
 // Server implementation [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
 type Server struct {
+	dir                string
 	hardwareKeyService hardwarekey.Service
 	grpcServer         *grpc.Server
 	listener           net.Listener
 }
 
-// NewServer returns a new hardware key agent server.
-func NewServer(ctx context.Context, s hardwarekey.Service) (*Server, error) {
-	l, err := newAgentListener(ctx)
+// NewServer returns a new hardware key agent server based out of the given directory.
+//
+// [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
+func NewServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string) (*Server, error) {
+	l, err := newAgentListener(ctx, keyAgentDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := generateServerCert()
+	cert, err := generateServerCert(keyAgentDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,6 +81,7 @@ func NewServer(ctx context.Context, s hardwarekey.Service) (*Server, error) {
 	hardwarekeyagentv1.RegisterHardwareKeyAgentServiceServer(grpcServer, &service{s: s})
 
 	return &Server{
+		dir:                keyAgentDir,
 		hardwareKeyService: s,
 		grpcServer:         grpcServer,
 		listener:           l,
@@ -89,10 +98,12 @@ func (s *Server) Serve(ctx context.Context) error {
 // Stop the hardware key agent server.
 func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
+	if err := os.RemoveAll(s.dir); err != nil {
+		slog.DebugContext(context.TODO(), "failed to clear hardware key agent directory")
+	}
 }
 
-func newAgentListener(ctx context.Context) (net.Listener, error) {
-	keyAgentDir := filepath.Join(os.TempDir(), dirName)
+func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
 	if err := os.MkdirAll(keyAgentDir, 0o700); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,7 +118,7 @@ func newAgentListener(ctx context.Context) (net.Listener, error) {
 
 	// A hardware key agent already exists in the given path. Before replacing it,
 	// try to connect to it and see if it is active.
-	client, err := newClient()
+	client, err := NewClient(ctx, keyAgentDir)
 	if err == nil {
 		pong, err := client.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
 		if err == nil {
@@ -120,16 +131,16 @@ func newAgentListener(ctx context.Context) (net.Listener, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return newAgentListener(ctx)
+	return newAgentListener(ctx, keyAgentDir)
 }
 
-func generateServerCert() (tls.Certificate, error) {
+func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
 	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil /*ipAddresses*/)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}
 
-	certPath := filepath.Join(os.TempDir(), dirName, certFileName)
+	certPath := filepath.Join(keyAgentDir, certFileName)
 	f, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
