@@ -717,7 +717,18 @@ func TestUpdateBot(t *testing.T) {
 		{
 			name: "no permissions",
 			user: unprivilegedUser.GetName(),
-			req:  &machineidv1pb.UpdateBotRequest{},
+			req: &machineidv1pb.UpdateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "valid-bot",
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{beforeRole.GetName()},
+					},
+				},
+			},
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
 			},
