@@ -117,13 +117,13 @@ After adding them, a new Application appears in Teleport which can be given acce
 
 When setting up access to AWS using Teleport, the Administrator is informed that Teleport uses Roles Anywhere Profiles as resources.
 
-After completing the set up, they are informed that there's no Profiles in their account.
+Given they haven't used Roles Anywhere before, they are asked to go to AWS Web Console and create the Profiles.
+This is a pre-requirement to proceed with the integration set up.
 
-Given they haven't used Roles Anywhere before, they must go to AWS Web Console and create the Profiles.
 When creating the Profiles, they will add the existing IAM Roles.
 As a pre-requirement for adding the IAM Roles into Profiles, they must change the Trust Policy of each IAM Role so that it can be used by Roles Anywhere.
 
-After doing this, they get back to Teleport and after a couple of minutes the Profiles will appear as resources they can assign to users and can use to access their AWS account by assuming an IAM Role.
+After doing this, they get back to Teleport and are allowed to complete the set up.
 
 **As a Teleport Administrator, I want to give users of team "Dev" read-only access to AWS Account, and ability to request read-write access to it**
 
@@ -131,8 +131,7 @@ There are two Profiles, each with only one IAM Role: ReadOnlyAccess and ReadWrit
 
 This use case is also valid for situations where a Profile has multiple Roles. Example: S3ReadOnlyAccess and EC2ReadOnlyAccess for the ReadOnly Profile.
 
-When setting up the AWS Access, the administrator enables the Role per Profile auto creation.
-This creates as many Teleport Roles as Profiles, but each Teleport Role only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
+After setting up AWS Access, Teleport creates a Role for each Profile, which only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
 
 They also create a new Teleport Role which allows access to requesting access to the ReadWriteAccess: RequestReadWriteAccess.
 The administrator changes the "Dev" access list and adds the two roles: ReadOnlyAccess and RequestReadWriteAccess.
@@ -143,8 +142,7 @@ This way, "Dev" members can now access the ReadOnlyAccess but can also request a
 
 There are two Profiles, each with only one IAM Role: ReadOnlyAccess and ReadWriteAccess.
 
-When setting up the AWS Access, the administrator enables the Role per Profile auto creation.
-This creates as many Teleport Roles as Profiles, but each Teleport Role only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
+After setting up AWS Access, Teleport creates a Role for each Profile, which only allows access to a single Profile (using `app_labels` for RBAC checks on the application, and `aws_role_arn` rule for AWS IAM Roles allowed to assume).
 
 The administrator assigns the ReadOnlyAccess to all their users, and creates another Role that allows users to request access to the ReadWriteAccess Role.
 
@@ -263,6 +261,8 @@ In order to assume a given Role, it must be present on both:
 - Profile's allowed IAM Roles
 - Teleport's `aws_role_arn` list for the User.
 
+Teleport Roles with those required values (`app_labels` and `aws_role_arn`) are automatically created when synchronizing the Profiles.
+
 As an example, assuming the following IAM Roles Anywhere Profile:
 ```yaml
 name: ProfileA
@@ -279,6 +279,7 @@ A Teleport Application will be created with the following metadata:
 kind: app_server
 metadata:
   labels:
+    teleport.dev/aws-roles-anywhere-arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/ac1f655b-aaaa-aaaa-aaaa-aaaaaaaaaaaa
     Team: ABC
     Env: Prod
   name: ProfileA
@@ -287,6 +288,7 @@ spec:
     kind: app
     metadata:
       labels:
+          teleport.dev/aws-roles-anywhere-arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/ac1f655b-aaaa-aaaa-aaaa-aaaaaaaaaaaa
           Team: ABC
           Env: Prod
       name: ProfileA
@@ -302,7 +304,7 @@ spec:
 version: v3
 ```
 
-And the following Teleport Role would grant access:
+And the following Teleport Role is automatically created:
 ```yaml
 kind: role
 metadata:
@@ -311,6 +313,7 @@ metadata:
 spec:
   allow:
     app_labels:
+      teleport.dev/aws-roles-anywhere-arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/ac1f655b-aaaa-aaaa-aaaa-aaaaaaaaaaaa
       Team: ABC
       Env: Prod
     aws_role_arns:
@@ -348,6 +351,8 @@ After accepting the names, they are asked to run a set up script in CloudShell.
 
 Users must now copy the resources ARN into teleport and test the connection (ie is teleport able to list profiles?).
 
+A first poll is issued and the user can only proceed if they have at least one valid profile with at least one IAM Role assigned.
+
 After this point, Teleport is able to sync IAM Roles Anywhere Profiles as Teleport AWS Application Access resources.
 
 #### Configure Access screen
@@ -363,10 +368,8 @@ If the IAM Role is not compatible with the teleport's trust anchor, then a warni
 
 This can happen, for example, when the IAM Role's Trust Policy has a condition statement that only accepts other Trust Anchor ARN.
 
-Users can also decide whether they want to allow access to all Profiles from Teleport, or only an explicit subset or even use a regular expression matcher against the Profile name.
+Users can also decide whether they want to allow access to all Profiles from Teleport, or use a regular expression matcher against the Profile name.
 By default, all Profiles are imported.
-
-Users can also chose whether to create a Teleport Role for each IAM Roles Anywhere Profile, which eases the configuration for granting access to other users.
 
 ### Integration Dashboard
 Teleport has a status page for viewing the AWS OIDC Integration status.
@@ -442,11 +445,7 @@ spec:
       profile_arn: <profile arn>
       role_arn: <role arn>
       profile_filter:
-        - include:
-          arn: <profile arn>
-        - include:
-          regex_name: <regex for the name>
-      create_role_per_profile: <true|false>
+        regex_name: <regex for the name>          
 status:
   aws_ra:
     sync:
@@ -471,13 +470,7 @@ spec:
       profile_arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a3
       role_arn: arn:aws:iam::123456789012:role/role-for-rolesanywhere-listprofiles
       profile_filter:
-        - include:
-          arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a4
-        - include:
-          arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a5
-        - include:
-          name_regex: ^TeleportProfiles.*$
-      create_role_per_profile: true
+        regex_name: ^TeleportProfiles.*$
 status:
   aws_ra:
     sync:
@@ -503,6 +496,7 @@ spec:
       name: awsra-my-profile
       labels:
         env: prod
+        teleport.dev/aws-roles-anywhere-arn: arn:aws:rolesanywhere:eu-west-2:123456789012:profile/6778b17c-bb31-4c06-8c77-b773496094a3
     spec:
       cloud: AWS
       integration: awsra-my-integration
@@ -600,7 +594,7 @@ This new CA is backed by a ECDSA key, according to our current recommended crypt
 
 A single CA will be created per Teleport cluster.
 
-We decided to proceed with a new CA, given the trade-offs described above.
+**We decided to proceed with a new CA, given the trade-offs described above.**
 
 #### CA certificate
 When setting the trust anchor in AWS IAM Roles Anywhere, we'll add the new CA certificate.
@@ -668,7 +662,7 @@ This is already the behavior on existing AWS Access flows. See [#46551](https://
 When the Teleport User session is higher than 12 hours, the AWS Session will be at most 12 hours.
 
 #### Session name
-In order to keep track of API calls in CloudTrail, Roles Anywhere service sets the AWS Session Name when generating the credentials.
+In order to keep track of API calls in AWS CloudTrail, Roles Anywhere service sets the AWS Session Name when generating the credentials.
 
 This identifier can be one of the following:
 - X.509 serial number
@@ -753,12 +747,12 @@ Its format should match the following specification:
 }
 ```
 
-When the logs out using `tsh logout`, all the profiles that use `credential_process = tsh apps config ...` will be removed from `~/.aws/config`.
+When the user logs out using `tsh logout`, all the profiles that use `credential_process = tsh apps config ...` will be removed from `~/.aws/config`.
 
 #### AWS configuration profiles
 Users are required to pass `--profile <profile>` or set the `AWS_PROFILE` environment variable to access AWS, which can be tedious.
 
-Instead, users can use set teleport as the default profile either editing the `~/.aws/config` or by passing the `--set-as-default-profile` when doing `tsh apps login`:
+Instead, users can set a default profile either editing the `~/.aws/config` or by passing the `--set-as-default-profile` when doing `tsh apps login`:
 ```conf
 [default]
 # Do not change. Managed by tsh.
@@ -864,24 +858,13 @@ message AWSRASyncConfiguration {
   // Only matching Profiles will be synced.
   // Logical OR is applied when multiple filters are present.
   // Empty list of filters ensures all Profiles are synchronized.
-  repeated AWSRAProfileFilter ProfileFilter = 4;
-
-  // CreateRolePerProfile indicates whether a Teleport Role should be created by profile.
-  // If enabled, a Role is created by each Profile.
-  // This Role only allows access to this specific Profile and their AWS Role ARNs.
-  bool CreateRolePerProfile = 5;
+  AWSRAProfileFilter ProfileFilter = 4;
 }
 
 message AWSRAProfileFilter {
-  // Include describes the AWS Resource filter to apply
-  oneof include {
-    // ARN indicates that the resource should be filtered by ARN.
-    string ARN = 1;
-
-    // NameRegex indicates that the resource should be included when its name matches
-    // the supplied regex.
-    string name_regex = 2;
-  }
+  // NameRegex indicates that the resource should be included when its name matches
+  // the supplied regex.
+  string name_regex = 1;
 }
 ```
 
