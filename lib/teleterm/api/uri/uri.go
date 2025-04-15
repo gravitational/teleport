@@ -36,6 +36,8 @@ var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kubes/:kubeName/
 var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName/namespaces/:kubeNamespaceName")
 var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
 var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
+var pathWindowsDesktops = urlpath.New("/clusters/:cluster/windows_desktops/:windowsDesktopName")
+var pathLeafWindowsDesktops = urlpath.New("/clusters/:cluster/leaves/:leaf/windows_desktops/:windowsDesktopName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -154,6 +156,21 @@ func (r ResourceURI) GetAppName() string {
 	return ""
 }
 
+// GetWindowsDesktopName extracts the Windows desktop name from r. Returns an empty string if the path is not a Windows desktop URI.
+func (r ResourceURI) GetWindowsDesktopName() string {
+	result, ok := pathWindowsDesktops.Match(r.path)
+	if ok {
+		return result.Params["windowsDesktopName"]
+	}
+
+	result, ok = pathLeafWindowsDesktops.Match(r.path)
+	if ok {
+		return result.Params["windowsDesktopName"]
+	}
+
+	return ""
+}
+
 // GetServerUUID extracts the server UUID from r. Returns an empty string if path is not a server URI.
 func (r ResourceURI) GetServerUUID() string {
 	result, ok := pathServers.Match(r.path)
@@ -206,6 +223,12 @@ func (r ResourceURI) AppendKube(name string) ResourceURI {
 	return r
 }
 
+// AppendWindowsDesktop appends Windows desktop name segment to the URI.
+func (r ResourceURI) AppendWindowsDesktop(name string) ResourceURI {
+	r.path = fmt.Sprintf("%v/windowsDesktops/%v", r.path, name)
+	return r
+}
+
 // AppendKubeResourceNamespace appends kube resource namespace segment to the URI.
 func (r ResourceURI) AppendKubeResourceNamespace(kubeNamespaceName string) ResourceURI {
 	r.path = fmt.Sprintf("%v/namespaces/%v", r.path, kubeNamespaceName)
@@ -254,4 +277,9 @@ func (r ResourceURI) IsKube() bool {
 // IsApp returns true if URI is an app resource.
 func (r ResourceURI) IsApp() bool {
 	return r.GetAppName() != ""
+}
+
+// IsWindowsDesktop returns true if URI is a windows desktop resource.
+func (r ResourceURI) IsWindowsDesktop() bool {
+	return r.GetWindowsDesktopName() != ""
 }

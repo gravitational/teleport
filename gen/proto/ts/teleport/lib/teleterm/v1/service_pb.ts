@@ -37,6 +37,7 @@ import { DeviceConfirmationToken } from "../../../devicetrust/v1/device_confirma
 import { DeviceWebToken } from "../../../devicetrust/v1/device_web_token_pb";
 import { UnifiedResourcePreferences } from "../../../userpreferences/v1/unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "../../../userpreferences/v1/cluster_preferences_pb";
+import { WindowsDesktop } from "./windows_desktop_pb";
 import { App } from "./app_pb";
 import { Kube } from "./kube_pb";
 import { Database } from "./database_pb";
@@ -1083,6 +1084,12 @@ export interface PaginatedResource {
          * @generated from protobuf field: teleport.lib.teleterm.v1.App app = 4;
          */
         app: App;
+    } | {
+        oneofKind: "windowsDesktop";
+        /**
+         * @generated from protobuf field: teleport.lib.teleterm.v1.WindowsDesktop windows_desktop = 6;
+         */
+        windowsDesktop: WindowsDesktop;
     } | {
         oneofKind: undefined;
     };
@@ -4827,6 +4834,7 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
             { no: 2, name: "server", kind: "message", oneof: "resource", T: () => Server },
             { no: 3, name: "kube", kind: "message", oneof: "resource", T: () => Kube },
             { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App },
+            { no: 6, name: "windows_desktop", kind: "message", oneof: "resource", T: () => WindowsDesktop },
             { no: 5, name: "requires_request", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
@@ -4867,6 +4875,12 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
                         app: App.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).app)
                     };
                     break;
+                case /* teleport.lib.teleterm.v1.WindowsDesktop windows_desktop */ 6:
+                    message.resource = {
+                        oneofKind: "windowsDesktop",
+                        windowsDesktop: WindowsDesktop.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).windowsDesktop)
+                    };
+                    break;
                 case /* bool requires_request */ 5:
                     message.requiresRequest = reader.bool();
                     break;
@@ -4894,6 +4908,9 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
         /* teleport.lib.teleterm.v1.App app = 4; */
         if (message.resource.oneofKind === "app")
             App.internalBinaryWrite(message.resource.app, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.WindowsDesktop windows_desktop = 6; */
+        if (message.resource.oneofKind === "windowsDesktop")
+            WindowsDesktop.internalBinaryWrite(message.resource.windowsDesktop, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         /* bool requires_request = 5; */
         if (message.requiresRequest !== false)
             writer.tag(5, WireType.Varint).bool(message.requiresRequest);

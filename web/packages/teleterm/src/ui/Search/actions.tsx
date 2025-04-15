@@ -23,6 +23,7 @@ import {
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToWindowsDesktop,
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
@@ -216,6 +217,40 @@ export function mapToAction(
               protocol,
               dbUser: dbUser.value,
             },
+            {
+              origin: 'search_bar',
+            }
+          );
+        },
+      };
+    }
+    case 'windows_desktop': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
+      return {
+        type: 'parametrized-action',
+        searchResult: result,
+        parameter: {
+          getSuggestions: async () =>
+            result.resource.logins.map(login => ({
+              value: login,
+              displayText: login,
+            })),
+          placeholder: 'Provide desktop user',
+          allowOnlySuggestions: true,
+          noSuggestionsAvailableMessage: 'No users found.',
+        },
+        perform: login => {
+          const { uri } = result.resource;
+          return connectToWindowsDesktop(
+            ctx,
+            { uri, login: login.value },
             {
               origin: 'search_bar',
             }

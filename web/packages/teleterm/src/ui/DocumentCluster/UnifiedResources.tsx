@@ -45,6 +45,7 @@ import {
 import { waitForever } from 'shared/utils/wait';
 
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -65,6 +66,7 @@ import {
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
   ConnectServerActionButton,
+  ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
 import { useResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
@@ -438,6 +440,10 @@ const Resources = memo(
             kind: 'kube_cluster',
             disabled: false,
           },
+          {
+            kind: 'windows_desktop',
+            disabled: false,
+          },
         ]}
         NoResources={
           <NoResources
@@ -527,6 +533,25 @@ const mapToSharedResource = (
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,
+        },
+      };
+    }
+    case 'windows_desktop': {
+      const { resource: desktop } = resource;
+
+      return {
+        resource: {
+          kind: 'windows_desktop' as const,
+          os: 'windows',
+          labels: desktop.labels,
+          addr: getWindowsDesktopAddrWithoutDefaultPort(desktop),
+          name: desktop.name,
+          requiresRequest: resource.requiresRequest,
+        },
+        ui: {
+          ActionButton: (
+            <ConnectWindowsDesktopActionButton windowsDesktop={desktop} />
+          ),
         },
       };
     }
