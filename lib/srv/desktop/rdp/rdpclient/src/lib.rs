@@ -48,9 +48,11 @@ mod cliprdr;
 mod license;
 mod network_client;
 mod piv;
+mod qoim;
 mod rdpdr;
 mod ssl;
 mod util;
+mod x11;
 
 /// rdpclient_init_log should be called at initialization time to set up
 /// logging on the rdpclient side.

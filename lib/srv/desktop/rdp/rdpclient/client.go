@@ -288,17 +288,21 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	c.cfg.Logger.InfoContext(ctx, "Rust RDP loop starting")
 	defer c.cfg.Logger.InfoContext(ctx, "Rust RDP loop finished")
 
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// [username] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
+	if c.cfg.Addr == "somenodename.cluster.local" {
+
+	}
+
+	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	
 	// [addr] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.

@@ -44,6 +44,8 @@ picky-asn1-x509 = "0.14.3"
 picky-krb = "0.9.4"
 reqwest = { version = "0.12", default-features = false }
 rustls = { version = "0.23.23", default-features = false, features = ["aws-lc-rs"] }
+rustix = { version = "1.0.5", features = ["pipe"] }
+x11rb = { version = "0.13.1", features = ["image", "randr", "damage", "xtest", "extra-traits"] }
 
 [build-dependencies]
 cbindgen = "0.28.0"
