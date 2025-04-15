@@ -4,83 +4,78 @@ description: Access Azure Portal and CLI by authenticating with Teleport SAML Id
 ---
 
 This guide explains how to integrate Teleport SAML IdP with [Microsoft Entra External ID](https://learn.microsoft.com/en-us/entra/external-id/)
-so users can access Azure Portal and CLI by authenticating with Teleport.
+so that users can access Azure Portal and CLI by authenticating with Teleport.
 
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
-- If you're new to SAML, consider reviewing our [SAML identity provider (IdP)
-Reference](../../../reference/access-controls/saml-idp.mdx) before proceeding.
-- User with permission to create a service provider resource in Teleport. The preset `editor` role has this permission.
+- If you're new to SAML, consider reviewing our [SAML identity provider (IdP)](../../../reference/access-controls/saml-idp.mdx) 
+reference before proceeding.
+- Teleport user with permission to create a SAML service provider resource. The preset `editor` role has this permission.
 - Access to Microsoft Entra ID tenant and Azure subscription. 
-- Microsoft Entra ID "Global Administrator" role to create external identity provider, create and manage users
-and groups and manage billing subscriptions.
+- Microsoft Entra ID user with permissions to create an identity provider, create and manage users, assign roles,
+and manage billing subscriptions. The "Global Administrator" role grants all the required permissions to follow this guide. We 
+recommend to scope down administrative permission in production.
 
 
 ## Step 1/5. Determine if DNS update is required
 
-In Microsoft Entra ID, user identity and an identity provider is tied to a domain.
+When you create an identity provider in Microsoft Entra ID, you need to associate a 
+domain name with the identity provider so the user accounts that belongs to the domain 
+are federated to the associated identity provider for authentication.
 
-For example, given a user `alice@example.com`, Entra ID associates `example.com` domain 
-as the source of identity for user `alice`. So for the user `alice@example.com` to be authenticated 
-with Teleport SAML IdP, Teleport SAML IdP must be associated with the domain `example.com`. 
+For example, given a user account `alice@example.com`, in order to authenticate this user with Teleport, 
+the domain `example.com` must be associated with the Teleport SAML IdP. 
 
-A domain can be associated with an IdP in two ways:
-- Assign a domain name to the IdP when adding that IdP to the Microsoft Entra External ID. In this case, the domain 
-name and the root domain of the Teleport cluster must match. For example, you can associate `example.com` domain 
-as long as Teleport cluster is hosted under the same domain `example.com`, `*.example.com` etc. 
-- Update DNS TXT record of the domain that points the value of `DirectFedAuthUrl` to the IdP SSO URL.
+A domain can be associated with an IdP in two places:
+- Assign a domain name to the IdP when adding that IdP to the Microsoft Entra External ID. 
+- Assign a domain name to the IdP after the IdP is created.
 
-In both the cases, the domain name must be unique to the Entra ID tenant. If a domain is already associated with another 
-IdP you may have configured in Entra ID, that domain cannot be shared with Teleport SAML IdP.
+In both the cases, if your Teleport cluster and the user account belong to different domains, 
+you must update the DNS `TXT` record of the domain. Refer to the table below. 
 
-As an example, in order to associate user with domain `example.com` (e.g. `alice@example.com`) with Teleport SAML IdP 
-hosted under domain `mytenant.teleport.sh`, you must update `TXT` record of `example.com` with the following value
+| Domain | User account | Teleport cluster | Domain association |
+| - | - | - | - |
+| example.com | alice@example.com | https://example.com, https://teleport.example.com | Domain can be associated without DNS update. |
+| example.com | alice@example.com | https://mytenant.teleport.sh| Domain can be associated but DNS update is required. |
+
+In the second example where the DNS update is required, you need to update `TXT` record of the `example.com` so that 
+the `DirectFedAuthUrl` value of the `TXT` record points to SAML IdP SSO URL of `mytenant.teleport.sh` cluster.  
 ```
 example.com.  IN   TXT   DirectFedAuthUrl=https://mytenant.teleport.sh/enterprise/saml-idp/sso
 ```
 
-For self-hosted Teleport cluster, given a user `alice@example.com`:
- - If the domain under which Teleport cluster is hosted belongs to the same domain configured for 
- user accounts, i.e. `teleport.example.com` you do not need to update the DNS record.
- - If the Teleport cluster is hosted in a different domain, i.e. `teleport.mycompany.com`, 
- you must update the DNS record of `example.com`.
+For the self-hosted Teleport cluster, determine if DNS update is required based on the reference table shown above. 
 
-For Teleport Cloud cluster, you must update the `DNS` record of your domain to point
-value of `DirectFedAuthUrl` to the SAML IdP SSO URL of Teleport cluster. Because your Teleport cluster is 
+For the Teleport Cloud cluster, you must update the DNS record of your domain. Because your Teleport cluster is 
 always hosted under `mytenant.teleport.sh` domain and your user account will not belong to the `teleport.sh` domain.
-
-Multiple domain can be federated as long as DNS of those domain name is updated to let the Microsoft 
-Entra ID know that each such domain is associated with Teleport SAML IdP. 
-
-To summarize, you must update the DNS record of the domain configured for if your Teleport cluster 
-and user account belong to different domains.
-
 
 ## Step 2/5. Configure Teleport as an external identity provider
 
-In this step, we configure Teleport SAML IdP as an external identity provider in Entra External ID
-and add Entra External ID as a service provider in Teleport. 
-
-Teleport Web UI offers a guided flow to configure Teleport as a SAML IdP for Entra External ID.
+In this step, we configure Teleport SAML IdP as an identity provider in Microsoft Entra External ID
+and add Microsoft Entra External ID as a service provider in Teleport. Teleport Web UI offers a guided 
+flow to configure end-to-end SAML integration.
 
 From the Teleport Web UI, locate **Add New > Resource** menu. From the list of resource catalog
 select **Microsoft Entra External ID** tile. 
 
 ![Add new resource](../../../../img/access-controls/saml-idp/ms-entra-external-id/add-new-resource.png)
 
-In the configuration UI, as a first step, the Web UI guides you through steps of adding 
-Teleport as an external identity provider in Entra ID.
+As a first step, the Web UI guides you through steps of adding 
+Teleport as an identity provider in Microsoft Entra ID.
 
 You can locate **Microsoft Entra External ID** in Azure portal under Azure services.
 
-![Add new SAML IdP in Entra External ID](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-add-idp.png)
+![Add new SAML IdP in Microsoft Entra External ID](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-add-idp.png)
 
-Once you add Teleport as SAML IdP in Entra External ID, you will need to copy Entra ID `Tenant ID` from
+Note that while adding Teleport as an identity provider, you need to provide domain name 
+as explained in the Step 1 of this guide.
+
+Once you add Teleport as SAML IdP in Microsoft Entra External ID, you will need to copy Entra ID `Tenant ID` from
 Azure portal and provide the value to the configuration UI and move to the next step. 
 
-As a second step of the configuration, you will notice that the Web UI already configures the SAML service provider 
-entity ID, ACS URL and default attribute mapping value that is required for the integration. 
+As a second step of the service provider configuration, you will notice that the Web UI already configures 
+the SAML service provider entity ID, ACS URL and default attribute mapping value that is required for the integration. 
 These values are generated based on preset values and Entra ID tenant ID.
 
 For reference, the values that are auto-configured are as listed below:
@@ -90,47 +85,49 @@ For reference, the values that are auto-configured are as listed below:
 - Attribute:
   - Name: `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`
   - Value: `uid`
-- Launch URL: `https://portal.azure.com/<entra-id-tenant-id>`
+- Launch URL: `https://portal.azure.com/<entra-id-tenant-id>`. The launch URL is where users are sent to after
+a successful authentication with Teleport.
 
 Provide a display name for this integration (e.g. `azure_portal`) and click on button named 
 `Finish` to register service provider. 
 
 ## Step 3/5. Create and invite user
 
+In this step, we will create and invite an external user that authenticates with Teleport SAML IdP.
+<Admonition type="info" title="User account domain name">
+The user that is invited should have a matching domain name associated with Teleport SAML IdP. 
+Refer to the Step 1 of this guide.
+</Admonition>
+
 Locate and select **Users** menu under Azure services.
 From the **Users** page, click `+ New User` button and select "Invite external user" option. 
 
 ![Invite External User](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-invite-user.png)
 
-Fill up details for this user and click the "Review + invite" button to invite this user. 
+Fill up details for this user as needed to set up the account. You will notice the a default value for
+"Invite redirect URL" field that points to `https://myapplications.microsoft.com/` is set for this user. This URL is where Microsoft will 
+the user after their first authentication. You can update this URL if you want to redirect user to different URL specific 
+to Azure portal.
+Ensure that the default user type "Guest" remains unchanged. 
 
-Ensure that default user type "Guest" remains unchanged. 
+Click the `Review + invite` button to invite this user. 
 
 For this guide, we created a user named `alice@example.com`
-
-<Admonition type="info" title="User email domain name">
-
-The user that is invited should have a matching domain name associated with Teleport SAML IdP. 
-See Step 1.
-
-</Admonition>
-
-Once a user invitation is sent, this user can sign in to Azure portal by authenticating with Teleport.
 
 As an invited user, the first step is to redeem the invitation. They can do so by clicking on 
 invitation link that can be found in the invitation email. As part of the redemption process, 
 Microsoft asks users to confirm their consent to share user details with the IdP.
 
-![User constent](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-user-consent.png)
+![User consent](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-user-consent.png)
 
-Users must accept the consent in order to enable authentication via Teleport.
+Users must accept the consent in order to enable authentication via Teleport. 
+
 
 ## Step 4/5. Grant Azure roles to the user
 
-By default, there aren't any permissions granted to the invited users.
-
-The general process to grant roles is to create a [Azure Resource Group](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/manage-resource-groups-portal#what-is-a-resource-group)
-that maps Azure roles with roles with users/groups.
+By default, there aren't any permissions granted to the invited users. The general process to grant roles is 
+to create a [Azure Resource Group](https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/manage-resource-groups-portal#what-is-a-resource-group)
+that maps Azure roles with users and groups.
 
 The example below demonstrates role assignment for a user group. Say we want to grant 
 user `alice@example.com` an Azure role to manage virtual machines.
@@ -141,8 +138,7 @@ Create a user group named `teleport-dev-vm` with user `alice@example.com` as its
 ![Entra ID create user group](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-create-group.png)
 
 In Azure portal, select **Resource Groups** menu and create a new resource group named `teleport-dev-vm-pool`.
-Make a note of the subscription that you select for this resource group. We will need this subscription in the next step.
-
+Make a note of the subscription that you selected for this resource group. We will need this subscription in the next step.
 
 ![Entra ID create resource group](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-create-resource-group.png)
 
@@ -151,7 +147,7 @@ Then under **Access control (IAM)** menu and click `+ Add` button and select "Ad
 
 ![Entra ID resource group IAM](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-resource-group-iam.png)
 
-In the role assignment UI, first, select the "Virtual Machine Contributor" role. This role allows assigned user/group
+In the role assignment UI, first, select the "Virtual Machine Contributor" role. This role allows assigned users or groups
 to manage VMs in Azure. Next, select the group `teleport-dev-vm` as a member. Finally, create the role assignment.
 
 Your review assignment UI should look like the image below.
@@ -163,23 +159,21 @@ Click **Review + assign** button to finish role assignment.
 We've now created a role and resource assignment, where users that are member of `teleport-dev-vm` group can access 
 resource under `teleport-dev-vm-pool` resource group with the privilege granted by "Virtual Machine Contributor" role.
 
-##  Step 5/5. Link Azure subscription to Entra External ID
+##  Step 5/5. Link Azure subscription to Microsoft Entra External ID
 
-The Entra External ID must be linked with an existing billing subscription. 
+The Microsoft Entra External ID must be linked with an existing billing subscription. 
 
 This is required so the users can access and billed for Azure resources available under the linked subscription. 
 
-![Entra External ID link subscription](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-link-subscription.png)
+![Microsoft Entra External ID link subscription](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-link-subscription.png)
 
-In the Auzure portal, under **Microsoft Entra External ID** page, link an active subscription to External ID. 
+In the Azure portal, under **Microsoft Entra External ID** page, link an active subscription to External ID. 
 Make sure to select the same subscription that you selected while creating the resource group in Step 4. 
 
 Once the subscription is linked, user `alice@example.com` will be able to access VM resources available
 under `teleport-dev-vm-pool` resource group.
 
-## FAQ
-
-### How to authenticate Azure CLI as an external user
+## Azure CLI access
 
 Users can authenticate Azure CLI with Teleport by providing a tenant ID to `az login` command.
 ```bash
@@ -189,15 +183,69 @@ az login --tenant <tenant_id>
 The command will open a web browser window that redirects the user to authenticate with Teleport SAML IdP. 
 Upon successful authentication, Entra ID responds with credentials for the CLI.
 
+## User access audit logs
+
+User access logs can be found in both Teleport Web UI and Azure portal.
+
+In Teleport, each user authentication with SAML IdP is logged and the event can be found in the audit log.
+```json
+{
+  "cluster_name": "mytenant.teleport.sh",
+  "code": "TSI000I",
+  "ei": 0,
+  "event": "saml.idp.auth",
+  "service_provider_entity_id": "https://login.microsoftonline.com/<tenant_id>>/",
+  "sid": "",
+  "success": true,
+  "time": "2025-04-15T14:43:40.057Z",
+  "uid": "d6fa48a4-8bfd-420c-992c-24bba11fb30a",
+  "user": "alice@example.com"
+}
+```
+
+The same login event can also be found in Azure portal under **User > Sign-in logs** page.
+
+## FAQ
+
+### Configuring an existing Microsoft Entra ID users to to authenticate with Teleport
+
+To configure an existing Microsoft Entra ID user to authenticate with Teleport, they must be converted to an "external" user.
+
+First open user profile in Azure portal. 
+
+![Entra ID convert internal user to external user](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-convert-user.png)
+
+In the user profile, under the "B2B invitation" tile, click on a link that states "Convert to external user". In the following 
+UI that opens after clicking the link, you will be able to convert this user to an external user.
+
+Note that you cannot convert an already federated user account to authenticate with Teleport. This restriction is placed by 
+Microsoft Entra ID because in this situation, the user account domain is already associated with another identity provider.
+
+Also note that the user email cannot contain a domain that is already configured in Microsoft Entra ID, and that domain is not 
+assigned to the Teleport SAML IdP. This restriction applies when inviting new "external" users too. See Step 1 of 
+this guide to understand association of a domain with the IdP.
+
 ### How to automate external user invitation
 
 Users can be bulk invited using the [Microsoft Graph API](https://learn.microsoft.com/en-us/graph/api/invitation-post?view=graph-rest-1.0&tabs=powershell#example-1-invite-a-guest-user).
 
-### Converting an existing internal user to an external user
+### External user collaboration setting
 
-Existing users can be converted from an "internal" type to an "external" type. 
+You can configure who can invite external users, what resources they have access to by default 
+and self-service sign up to application configured in Azure tenant and account removal.
 
-However, the following limitations apply:
-- Existing federated users cannot be converted from an "internal" user to an "external" user.
-- User email cannot contain a domain that is already configured in Entra ID, and that domain is not assigned to the Teleport SAML IdP. This restriction applies
-when inviting new "external" users too.
+These configuration options can be found in Azure portal under **External Identities > External collaboration settings**.
+
+### Associating multiple domain names
+
+Multiple domain can be federated as long as DNS of those domain name is updated to let the Microsoft 
+Entra ID knows that each such domain is associated with Teleport SAML IdP. 
+
+First, open domain configuration menu for the selected identity provider
+![Entra ID update IdP domain](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-update-domain.png)
+
+Then add a new domain name.
+![Entra ID associate new domain with the IdP](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-add-new-domain.png)
+
+Note that the rules of DNS update applies here as well. 
+
