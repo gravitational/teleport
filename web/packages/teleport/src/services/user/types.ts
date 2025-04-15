@@ -111,6 +111,7 @@ export interface Acl {
   contacts: Access;
   fileTransferAccess: boolean;
   gitServers: Access;
+  accessGraphSettings: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
