@@ -28,13 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/linux"
 )
 
-const (
-	// ZypperPublicKeyEndpoint is the endpoint that contains the Teleport's GPG production Key.
-	ZypperPublicKeyEndpoint = "https://zypper.releases.teleport.dev/gpg"
-	// zypperRepoEndpoint is the repo endpoint for Zypper based distros.
-	zypperRepoEndpoint = "https://zypper.releases.teleport.dev/"
-)
-
 // Zypper is a wrapper for apt package manager.
 // This package manager is used in OpenSUSE/SLES and distros based on this distribution.
 type Zypper struct {
@@ -76,7 +69,12 @@ func NewZypper(cfg *ZypperConfig) (*Zypper, error) {
 }
 
 // AddTeleportRepository adds the Teleport repository to the current system.
-func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
+func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string, productionRepo bool) error {
+	zypperRepoEndpoint, zypperRepoKeyEndpoint, err := repositoryEndpoint(productionRepo, zypper)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Teleport repo only targets the major version of the target distros.
 	versionID := strings.Split(linuxInfo.VersionID, ".")[0]
 
@@ -84,8 +82,8 @@ func (pm *Zypper) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OS
 		versionID = "15" // tumbleweed uses dated VERSION_IDs like 20230702
 	}
 
-	pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "rpm --import "+ZypperPublicKeyEndpoint)
-	importPublicKeyCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--import", ZypperPublicKeyEndpoint)
+	pm.logger.InfoContext(ctx, "Trusting Teleport repository key", "command", "rpm --import "+zypperRepoKeyEndpoint)
+	importPublicKeyCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--import", zypperRepoKeyEndpoint)
 	importPublicKeyCMDOutput, err := importPublicKeyCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(importPublicKeyCMDOutput))
