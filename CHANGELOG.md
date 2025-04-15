@@ -1,5 +1,13 @@
 # Changelog
 
+## 16.5.2 (04/14/25)
+
+* Workload ID: the Kubernetes, Podman, and Docker attestors now capture the container image digest. [#53940](https://github.com/gravitational/teleport/pull/53940)
+* Fixed web UI and tsh issues when a SAML metadata URL takes an unusually long time to respond. [#53934](https://github.com/gravitational/teleport/pull/53934)
+* Updated Go to 1.23.8. [#53919](https://github.com/gravitational/teleport/pull/53919)
+* Fixed Azure VM auto discovery when not filtering by resource group. [#53900](https://github.com/gravitational/teleport/pull/53900)
+* Added new `proxy_protocol_allow_downgrade` field to the `proxy_service` configuration in support of environments where single stack IPv6 sources are connecting to single stack IPv4 destinations. This feature is not compatible with IP pinning. [#53884](https://github.com/gravitational/teleport/pull/53884)
+
 ## 16.5.1 (04/08/25)
 
 * Added additional tracking metadata to teleport-update. [#53829](https://github.com/gravitational/teleport/pull/53829)
