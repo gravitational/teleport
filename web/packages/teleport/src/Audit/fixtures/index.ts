@@ -253,7 +253,7 @@ export const events = [
   {
     id: '66b827b2-1b0b-512b-965d-6c789388d3c9',
     code: 'T5005I',
-    event: 'access_request.expiry',
+    event: 'access_request.expire',
     time: '2020-06-05T19:26:53Z',
     uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
   },
