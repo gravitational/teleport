@@ -1500,6 +1500,27 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a Workload Identity X.509 Issuer Override [${name}]`;
     },
   },
+  [eventCodes.SIGSTORE_POLICY_CREATE]: {
+    type: 'sigstore_policy.create',
+    desc: 'Sigstore Policy Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: {
+    type: 'sigstore_policy.update',
+    desc: 'Sigstore Policy Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_DELETE]: {
+    type: 'sigstore_policy.delete',
+    desc: 'Sigstore Policy Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Sigstore Policy [${name}]`;
+    },
+  },
   [eventCodes.LOGIN_RULE_CREATE]: {
     type: 'login_rule.create',
     desc: 'Login Rule Created',

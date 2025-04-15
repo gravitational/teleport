@@ -167,7 +167,11 @@ export type KubernetesVerb =
   | 'portforward';
 
 export type Rule = {
-  resources?: ResourceKind[];
+  /**
+   * Typically, this is ResourceKind[], though in general, we allow
+   * unrecognized legacy resource types.
+   */
+  resources?: string[];
   verbs?: Verb[];
   where?: string;
 };
@@ -220,6 +224,7 @@ export enum ResourceKind {
   GithubConnector = 'github',
   GlobalNotification = 'global_notification',
   HeadlessAuthentication = 'headless_authentication',
+  HealthCheckConfig = 'health_check_config',
   Identity = 'identity',
   IdentityCenterAccount = 'aws_ic_account',
   IdentityCenterAccountAssignment = 'aws_ic_account_assignment',

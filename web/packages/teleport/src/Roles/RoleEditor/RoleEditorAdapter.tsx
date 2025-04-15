@@ -30,7 +30,7 @@ import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
-import { RolesProps } from '../Roles';
+import { RoleDiffState, RolesProps } from '../Roles';
 import { RoleEditor } from './RoleEditor';
 import { RoleEditorVisualizer } from './RoleEditorVisualizer';
 
@@ -76,6 +76,8 @@ export function RoleEditorAdapter({
 
   return (
     <Flex flex="1">
+      {/* This component's width influences how we lay out the permission
+          checkboxes in AdminRules. */}
       <Flex
         flexDirection="column"
         borderLeft={1}
@@ -109,6 +111,7 @@ export function RoleEditorAdapter({
             onCancel={onCancel}
             onSave={onSave}
             onRoleUpdate={onRoleUpdate}
+            demoMode={roleDiffProps?.roleDiffState === RoleDiffState.DemoReady}
           />
         )}
       </Flex>

@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -421,9 +422,21 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Overrides service")
 		}
 	}
+	if cfg.SigstorePolicies == nil {
+		cfg.SigstorePolicies, err = local.NewSigstorePolicyService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SigstorePolicies service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
+		}
+	}
+	if cfg.HealthCheckConfig == nil {
+		cfg.HealthCheckConfig, err = local.NewHealthCheckConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
 		}
 	}
 
@@ -530,6 +543,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		SigstorePolicies:                cfg.SigstorePolicies,
+		HealthCheckConfig:               cfg.HealthCheckConfig,
 	}
 
 	as := Server{
@@ -764,6 +779,8 @@ type Services struct {
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
 	services.WorkloadIdentityX509Overrides
+	services.SigstorePolicies
+	services.HealthCheckConfig
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1040,6 +1057,10 @@ type Server struct {
 
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
+
+	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
+	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
+	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
 
 	inventory *inventory.Controller
 
@@ -1367,6 +1388,7 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	agentWindow, _ := cmc.GetAgentUpgradeWindow()
 
 	agentWindow.UTCStartHour = uint32(startHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
@@ -2222,9 +2244,9 @@ type certRequest struct {
 	// TLS certificate.
 	tlsPublicKey []byte
 	// sshPublicKeyAttestationStatement is an attestation statement associated with sshPublicKey.
-	sshPublicKeyAttestationStatement *keys.AttestationStatement
+	sshPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 	// tlsPublicKeyAttestationStatement is an attestation statement associated with tlsPublicKey.
-	tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	tlsPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 
 	// user is a user to generate certificate for
 	user services.UserState
@@ -2467,8 +2489,8 @@ type GenerateUserTestCertsRequest struct {
 	RouteToCluster          string
 	PinnedIP                string
 	MFAVerified             string
-	SSHAttestationStatement *keys.AttestationStatement
-	TLSAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
 }
@@ -3490,7 +3512,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 type attestHardwareKeyParams struct {
 	requiredKeyPolicy    keys.PrivateKeyPolicy
 	pubKey               crypto.PublicKey
-	attestationStatement *keys.AttestationStatement
+	attestationStatement *hardwarekey.AttestationStatement
 	sessionTTL           time.Duration
 	readOnlyAuthPref     readonly.AuthPreference
 	userName             string
@@ -7820,6 +7842,26 @@ func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Str
 		servers, err := resources.AsServers()
 		return servers, trace.Wrap(err)
 	})
+}
+
+// SetWorkloadIdentityX509CAOverrideGetter sets the underlying
+// [services.WorkloadIdentityX509CAOverrideGetter] used by the auth server for
+// the implementation of [Server.GetWorkloadIdentityX509CAOverride] (provided by
+// enterprise code). Not safe for concurrent access, so it should only be called
+// during setup.
+func (a *Server) SetWorkloadIdentityX509CAOverrideGetter(getter services.WorkloadIdentityX509CAOverrideGetter) {
+	a.workloadIdentityX509CAOverrideGetter = getter
+}
+
+// GetWorkloadIdentityX509CAOverride implements
+// [services.WorkloadIdentityX509CAOverrideGetter] by optionally delegating to
+// an underlying implementation (provided by enterprise code).
+func (a *Server) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	getter := a.workloadIdentityX509CAOverrideGetter
+	if getter == nil {
+		return ca, nil, nil
+	}
+	return getter.GetWorkloadIdentityX509CAOverride(ctx, name, ca)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

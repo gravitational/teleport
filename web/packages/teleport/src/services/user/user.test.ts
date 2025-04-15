@@ -58,6 +58,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    accessGraphSettings: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     accessMonitoringRule: {
       list: false,
       read: false,
@@ -413,7 +420,10 @@ test('excludeUserFields when updating user', async () => {
     allTraits: {},
   };
 
-  await user.updateUser(userReq, ExcludeUserField.AllTraits);
+  await user.updateUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.AllTraits,
+  });
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -422,7 +432,10 @@ test('excludeUserFields when updating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.updateUser(userReq, ExcludeUserField.Traits);
+  await user.updateUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.Traits,
+  });
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -441,7 +454,10 @@ test('excludeUserFields when creating user', async () => {
     allTraits: {},
   };
 
-  await user.createUser(userReq, ExcludeUserField.AllTraits);
+  await user.createUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.AllTraits,
+  });
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {
@@ -455,7 +471,10 @@ test('excludeUserFields when creating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.createUser(userReq, ExcludeUserField.Traits);
+  await user.createUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.Traits,
+  });
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {
