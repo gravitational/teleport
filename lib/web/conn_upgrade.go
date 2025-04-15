@@ -157,7 +157,12 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 	waitConn := newWaitConn(ctx, conn)
 	defer waitConn.WaitForClose()
 
-	return h.cfg.ALPNHandler(ctx, waitConn)
+	if err := h.cfg.ALPNHandler(ctx, waitConn); err != nil {
+		// TODO(greedy52) temporary debugging
+		h.logger.DebugContext(ctx, "Failed to run ALPN handler through connection upgrade", "error", err)
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error {
