@@ -31,8 +31,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	hardwarekeyagentv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/hardwarekeyagent/v1"
 )
 
 // Client is a hardware key agent client.
@@ -75,7 +75,7 @@ func NewClient(ctx context.Context, keyAgentDir string) (*Client, error) {
 // private key and provided signature parameters.
 // Implements [hardwarekey.Service].Sign
 func (c *Client) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	slotKey, err := pivSlotKeyToProto(ref.SlotKey)
+	slotKey, err := hardwarekey.PIVSlotKeyToProto(ref.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

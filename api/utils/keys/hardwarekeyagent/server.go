@@ -35,10 +35,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	hardwarekeyagentv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -163,7 +163,7 @@ type serverService struct {
 
 // Sign the given digest with the specified hardware private key.
 func (s *serverService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignRequest) (*hardwarekeyagentv1.Signature, error) {
-	slotKey, err := pivSlotKeyFromProto(req.KeyRef.SlotKey)
+	slotKey, err := hardwarekey.PIVSlotKeyFromProto(req.KeyRef.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -223,41 +223,4 @@ func (s *serverService) Ping(ctx context.Context, req *hardwarekeyagentv1.PingRe
 	return &hardwarekeyagentv1.PingResponse{
 		Pid: uint32(os.Getpid()),
 	}, nil
-}
-
-func pivSlotKeyFromProto(pivSlot hardwarekeyagentv1.PIVSlotKey) (hardwarekey.PIVSlotKey, error) {
-	var slotKey hardwarekey.PIVSlotKey
-	switch pivSlot {
-	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A:
-		slotKey = hardwarekey.PIVSlot9A
-	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9C:
-		slotKey = hardwarekey.PIVSlot9C
-	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9D:
-		slotKey = hardwarekey.PIVSlot9D
-	case hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9E:
-		slotKey = hardwarekey.PIVSlot9E
-	default:
-		return 0, trace.BadParameter("unknown piv slot key for proto enum %d", pivSlot)
-	}
-
-	if err := slotKey.Validate(); err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return slotKey, nil
-}
-
-func pivSlotKeyToProto(slotKey hardwarekey.PIVSlotKey) (hardwarekeyagentv1.PIVSlotKey, error) {
-	switch slotKey {
-	case hardwarekey.PIVSlot9A:
-		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A, nil
-	case hardwarekey.PIVSlot9C:
-		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9C, nil
-	case hardwarekey.PIVSlot9D:
-		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9D, nil
-	case hardwarekey.PIVSlot9E:
-		return hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9E, nil
-	default:
-		return 0, trace.BadParameter("unknown proto enum for piv slot key %d", slotKey)
-	}
 }

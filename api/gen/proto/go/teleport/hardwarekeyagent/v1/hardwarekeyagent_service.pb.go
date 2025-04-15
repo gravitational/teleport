@@ -18,7 +18,7 @@
 // versions:
 // 	protoc-gen-go v1.36.6
 // 	protoc        (unknown)
-// source: teleport/lib/teleterm/hardwarekeyagent/v1/hardwarekeyagent_service.proto
+// source: teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto
 
 package hardwarekeyagentv1
 
@@ -82,11 +82,11 @@ func (x PIVSlotKey) String() string {
 }
 
 func (PIVSlotKey) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[0].Descriptor()
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[0].Descriptor()
 }
 
 func (PIVSlotKey) Type() protoreflect.EnumType {
-	return &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[0]
+	return &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[0]
 }
 
 func (x PIVSlotKey) Number() protoreflect.EnumNumber {
@@ -95,7 +95,7 @@ func (x PIVSlotKey) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PIVSlotKey.Descriptor instead.
 func (PIVSlotKey) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{0}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{0}
 }
 
 // Hash refers to a specific hash function used during signing.
@@ -135,11 +135,11 @@ func (x Hash) String() string {
 }
 
 func (Hash) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[1].Descriptor()
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[1].Descriptor()
 }
 
 func (Hash) Type() protoreflect.EnumType {
-	return &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[1]
+	return &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes[1]
 }
 
 func (x Hash) Number() protoreflect.EnumNumber {
@@ -148,7 +148,7 @@ func (x Hash) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Hash.Descriptor instead.
 func (Hash) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{1}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{1}
 }
 
 // PingRequest is a request to Ping.
@@ -160,7 +160,7 @@ type PingRequest struct {
 
 func (x *PingRequest) Reset() {
 	*x = PingRequest{}
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[0]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -172,7 +172,7 @@ func (x *PingRequest) String() string {
 func (*PingRequest) ProtoMessage() {}
 
 func (x *PingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[0]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -185,7 +185,7 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{0}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{0}
 }
 
 // PingResponse is a response to Ping.
@@ -199,7 +199,7 @@ type PingResponse struct {
 
 func (x *PingResponse) Reset() {
 	*x = PingResponse{}
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[1]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -211,7 +211,7 @@ func (x *PingResponse) String() string {
 func (*PingResponse) ProtoMessage() {}
 
 func (x *PingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[1]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -224,7 +224,7 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{1}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PingResponse) GetPid() uint32 {
@@ -240,7 +240,7 @@ type SignRequest struct {
 	// Digest is a hashed message to sign.
 	Digest []byte `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
 	// Hash is the hash function used to prepare the digest.
-	Hash Hash `protobuf:"varint,2,opt,name=hash,proto3,enum=teleport.lib.teleterm.hardwarekeyagent.v1.Hash" json:"hash,omitempty"`
+	Hash Hash `protobuf:"varint,2,opt,name=hash,proto3,enum=teleport.hardwarekeyagent.v1.Hash" json:"hash,omitempty"`
 	// SaltLength specifies the length of the salt added to the digest before a signature.
 	// This salt length is precomputed by the client, following the crypto/rsa implementation.
 	// Only used, and required, for PSS RSA signatures.
@@ -261,7 +261,7 @@ type SignRequest struct {
 
 func (x *SignRequest) Reset() {
 	*x = SignRequest{}
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[2]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -273,7 +273,7 @@ func (x *SignRequest) String() string {
 func (*SignRequest) ProtoMessage() {}
 
 func (x *SignRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[2]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -286,7 +286,7 @@ func (x *SignRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignRequest.ProtoReflect.Descriptor instead.
 func (*SignRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SignRequest) GetDigest() []byte {
@@ -344,7 +344,7 @@ type Signature struct {
 
 func (x *Signature) Reset() {
 	*x = Signature{}
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[3]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -356,7 +356,7 @@ func (x *Signature) String() string {
 func (*Signature) ProtoMessage() {}
 
 func (x *Signature) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[3]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -369,7 +369,7 @@ func (x *Signature) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Signature.ProtoReflect.Descriptor instead.
 func (*Signature) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Signature) GetSignature() []byte {
@@ -385,7 +385,7 @@ type KeyRef struct {
 	// SerialNumber is the serial number of the hardware key.
 	SerialNumber uint32 `protobuf:"varint,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
 	// SlotKey is a PIV slot key reference.
-	SlotKey PIVSlotKey `protobuf:"varint,2,opt,name=slot_key,json=slotKey,proto3,enum=teleport.lib.teleterm.hardwarekeyagent.v1.PIVSlotKey" json:"slot_key,omitempty"`
+	SlotKey PIVSlotKey `protobuf:"varint,2,opt,name=slot_key,json=slotKey,proto3,enum=teleport.hardwarekeyagent.v1.PIVSlotKey" json:"slot_key,omitempty"`
 	// PublicKey is the public key encoded in PKIX, ASN.1 DER form. If the public key does
 	// not match the private key currently in the hardware key's PIV slot, the signature
 	// will fail early.
@@ -396,7 +396,7 @@ type KeyRef struct {
 
 func (x *KeyRef) Reset() {
 	*x = KeyRef{}
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[4]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -408,7 +408,7 @@ func (x *KeyRef) String() string {
 func (*KeyRef) ProtoMessage() {}
 
 func (x *KeyRef) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[4]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -421,7 +421,7 @@ func (x *KeyRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyRef.ProtoReflect.Descriptor instead.
 func (*KeyRef) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *KeyRef) GetSerialNumber() uint32 {
@@ -472,7 +472,7 @@ type KeyInfo struct {
 
 func (x *KeyInfo) Reset() {
 	*x = KeyInfo{}
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[5]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -484,7 +484,7 @@ func (x *KeyInfo) String() string {
 func (*KeyInfo) ProtoMessage() {}
 
 func (x *KeyInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[5]
+	mi := &file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -497,7 +497,7 @@ func (x *KeyInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeyInfo.ProtoReflect.Descriptor instead.
 func (*KeyInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *KeyInfo) GetTouchRequired() bool {
@@ -535,27 +535,27 @@ func (x *KeyInfo) GetClusterName() string {
 	return ""
 }
 
-var File_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto protoreflect.FileDescriptor
+var File_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto protoreflect.FileDescriptor
 
-const file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc = "" +
+const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc = "" +
 	"\n" +
-	"Hteleport/lib/teleterm/hardwarekeyagent/v1/hardwarekeyagent_service.proto\x12)teleport.lib.teleterm.hardwarekeyagent.v1\"\r\n" +
+	";teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto\x12\x1cteleport.hardwarekeyagent.v1\"\r\n" +
 	"\vPingRequest\" \n" +
 	"\fPingResponse\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\rR\x03pid\"\xc0\x02\n" +
+	"\x03pid\x18\x01 \x01(\rR\x03pid\"\x99\x02\n" +
 	"\vSignRequest\x12\x16\n" +
-	"\x06digest\x18\x01 \x01(\fR\x06digest\x12C\n" +
-	"\x04hash\x18\x02 \x01(\x0e2/.teleport.lib.teleterm.hardwarekeyagent.v1.HashR\x04hash\x12\x1f\n" +
+	"\x06digest\x18\x01 \x01(\fR\x06digest\x126\n" +
+	"\x04hash\x18\x02 \x01(\x0e2\".teleport.hardwarekeyagent.v1.HashR\x04hash\x12\x1f\n" +
 	"\vsalt_length\x18\x03 \x01(\rR\n" +
-	"saltLength\x12J\n" +
-	"\akey_ref\x18\x04 \x01(\v21.teleport.lib.teleterm.hardwarekeyagent.v1.KeyRefR\x06keyRef\x12M\n" +
-	"\bkey_info\x18\x05 \x01(\v22.teleport.lib.teleterm.hardwarekeyagent.v1.KeyInfoR\akeyInfo\x12\x18\n" +
+	"saltLength\x12=\n" +
+	"\akey_ref\x18\x04 \x01(\v2$.teleport.hardwarekeyagent.v1.KeyRefR\x06keyRef\x12@\n" +
+	"\bkey_info\x18\x05 \x01(\v2%.teleport.hardwarekeyagent.v1.KeyInfoR\akeyInfo\x12\x18\n" +
 	"\acommand\x18\x06 \x01(\tR\acommand\")\n" +
 	"\tSignature\x12\x1c\n" +
-	"\tsignature\x18\x01 \x01(\fR\tsignature\"\xa5\x01\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"\x98\x01\n" +
 	"\x06KeyRef\x12#\n" +
-	"\rserial_number\x18\x01 \x01(\rR\fserialNumber\x12P\n" +
-	"\bslot_key\x18\x02 \x01(\x0e25.teleport.lib.teleterm.hardwarekeyagent.v1.PIVSlotKeyR\aslotKey\x12$\n" +
+	"\rserial_number\x18\x01 \x01(\rR\fserialNumber\x12C\n" +
+	"\bslot_key\x18\x02 \x01(\x0e2(.teleport.hardwarekeyagent.v1.PIVSlotKeyR\aslotKey\x12$\n" +
 	"\x0epublic_key_der\x18\x03 \x01(\fR\fpublicKeyDer\"\xb1\x01\n" +
 	"\aKeyInfo\x12%\n" +
 	"\x0etouch_required\x18\x01 \x01(\bR\rtouchRequired\x12!\n" +
@@ -575,44 +575,44 @@ const file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_pr
 	"\x10HASH_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tHASH_NONE\x10\x01\x12\x0f\n" +
 	"\vHASH_SHA256\x10\x02\x12\x0f\n" +
-	"\vHASH_SHA512\x10\x032\x8c\x02\n" +
-	"\x17HardwareKeyAgentService\x12y\n" +
-	"\x04Ping\x126.teleport.lib.teleterm.hardwarekeyagent.v1.PingRequest\x1a7.teleport.lib.teleterm.hardwarekeyagent.v1.PingResponse\"\x00\x12v\n" +
-	"\x04Sign\x126.teleport.lib.teleterm.hardwarekeyagent.v1.SignRequest\x1a4.teleport.lib.teleterm.hardwarekeyagent.v1.Signature\"\x00BmZkgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/hardwarekeyagent/v1;hardwarekeyagentv1b\x06proto3"
+	"\vHASH_SHA512\x10\x032\xd8\x01\n" +
+	"\x17HardwareKeyAgentService\x12_\n" +
+	"\x04Ping\x12).teleport.hardwarekeyagent.v1.PingRequest\x1a*.teleport.hardwarekeyagent.v1.PingResponse\"\x00\x12\\\n" +
+	"\x04Sign\x12).teleport.hardwarekeyagent.v1.SignRequest\x1a'.teleport.hardwarekeyagent.v1.Signature\"\x00BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1b\x06proto3"
 
 var (
-	file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData []byte
+	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescOnce sync.Once
+	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData []byte
 )
 
-func file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc), len(file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc)))
+func file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP() []byte {
+	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescOnce.Do(func() {
+		file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc), len(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc)))
 	})
-	return file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData
+	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = []any{
-	(PIVSlotKey)(0),      // 0: teleport.lib.teleterm.hardwarekeyagent.v1.PIVSlotKey
-	(Hash)(0),            // 1: teleport.lib.teleterm.hardwarekeyagent.v1.Hash
-	(*PingRequest)(nil),  // 2: teleport.lib.teleterm.hardwarekeyagent.v1.PingRequest
-	(*PingResponse)(nil), // 3: teleport.lib.teleterm.hardwarekeyagent.v1.PingResponse
-	(*SignRequest)(nil),  // 4: teleport.lib.teleterm.hardwarekeyagent.v1.SignRequest
-	(*Signature)(nil),    // 5: teleport.lib.teleterm.hardwarekeyagent.v1.Signature
-	(*KeyRef)(nil),       // 6: teleport.lib.teleterm.hardwarekeyagent.v1.KeyRef
-	(*KeyInfo)(nil),      // 7: teleport.lib.teleterm.hardwarekeyagent.v1.KeyInfo
+var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = []any{
+	(PIVSlotKey)(0),      // 0: teleport.hardwarekeyagent.v1.PIVSlotKey
+	(Hash)(0),            // 1: teleport.hardwarekeyagent.v1.Hash
+	(*PingRequest)(nil),  // 2: teleport.hardwarekeyagent.v1.PingRequest
+	(*PingResponse)(nil), // 3: teleport.hardwarekeyagent.v1.PingResponse
+	(*SignRequest)(nil),  // 4: teleport.hardwarekeyagent.v1.SignRequest
+	(*Signature)(nil),    // 5: teleport.hardwarekeyagent.v1.Signature
+	(*KeyRef)(nil),       // 6: teleport.hardwarekeyagent.v1.KeyRef
+	(*KeyInfo)(nil),      // 7: teleport.hardwarekeyagent.v1.KeyInfo
 }
-var file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs = []int32{
-	1, // 0: teleport.lib.teleterm.hardwarekeyagent.v1.SignRequest.hash:type_name -> teleport.lib.teleterm.hardwarekeyagent.v1.Hash
-	6, // 1: teleport.lib.teleterm.hardwarekeyagent.v1.SignRequest.key_ref:type_name -> teleport.lib.teleterm.hardwarekeyagent.v1.KeyRef
-	7, // 2: teleport.lib.teleterm.hardwarekeyagent.v1.SignRequest.key_info:type_name -> teleport.lib.teleterm.hardwarekeyagent.v1.KeyInfo
-	0, // 3: teleport.lib.teleterm.hardwarekeyagent.v1.KeyRef.slot_key:type_name -> teleport.lib.teleterm.hardwarekeyagent.v1.PIVSlotKey
-	2, // 4: teleport.lib.teleterm.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.lib.teleterm.hardwarekeyagent.v1.PingRequest
-	4, // 5: teleport.lib.teleterm.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.lib.teleterm.hardwarekeyagent.v1.SignRequest
-	3, // 6: teleport.lib.teleterm.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.lib.teleterm.hardwarekeyagent.v1.PingResponse
-	5, // 7: teleport.lib.teleterm.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.lib.teleterm.hardwarekeyagent.v1.Signature
+var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs = []int32{
+	1, // 0: teleport.hardwarekeyagent.v1.SignRequest.hash:type_name -> teleport.hardwarekeyagent.v1.Hash
+	6, // 1: teleport.hardwarekeyagent.v1.SignRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
+	7, // 2: teleport.hardwarekeyagent.v1.SignRequest.key_info:type_name -> teleport.hardwarekeyagent.v1.KeyInfo
+	0, // 3: teleport.hardwarekeyagent.v1.KeyRef.slot_key:type_name -> teleport.hardwarekeyagent.v1.PIVSlotKey
+	2, // 4: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.hardwarekeyagent.v1.PingRequest
+	4, // 5: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.hardwarekeyagent.v1.SignRequest
+	3, // 6: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.hardwarekeyagent.v1.PingResponse
+	5, // 7: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.hardwarekeyagent.v1.Signature
 	6, // [6:8] is the sub-list for method output_type
 	4, // [4:6] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
@@ -620,27 +620,27 @@ var file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_prot
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() }
-func file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() {
-	if File_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto != nil {
+func init() { file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() }
+func file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() {
+	if File_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc), len(file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc), len(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes,
-		DependencyIndexes: file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs,
-		EnumInfos:         file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes,
-		MessageInfos:      file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes,
+		GoTypes:           file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes,
+		DependencyIndexes: file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs,
+		EnumInfos:         file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes,
+		MessageInfos:      file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes,
 	}.Build()
-	File_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto = out.File
-	file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = nil
-	file_teleport_lib_teleterm_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs = nil
+	File_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto = out.File
+	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = nil
+	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs = nil
 }

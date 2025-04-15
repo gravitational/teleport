@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package hardwarekeyagent_test
+package hardwarekey_test
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
+	libhardwarekey "github.com/gravitational/teleport/lib/hardwarekey"
 )
 
 func TestHardwareKeyAgent_Server(t *testing.T) {
@@ -35,39 +35,39 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 
 	// Prepare the agent server
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	s, err := hardwarekeyagent.NewServer(ctx, mockService, agentDir)
+	server, err := libhardwarekey.NewAgentServer(ctx, mockService, agentDir)
 	require.NoError(t, err)
-	t.Cleanup(s.Stop)
+	t.Cleanup(server.Stop)
 
 	serverErr := make(chan error, 1)
 	go func() {
-		serverErr <- s.Serve(ctx)
+		serverErr <- server.Serve(ctx)
 	}()
 
 	// Should fail to open a new server in the same directory.
-	_, err = hardwarekeyagent.NewServer(ctx, mockService, agentDir)
+	_, err = libhardwarekey.NewAgentServer(ctx, mockService, agentDir)
 	require.Error(t, err)
 
 	// Existing server should be unaffected.
-	clt, err := hardwarekeyagent.NewClient(ctx, agentDir)
+	clt, err := libhardwarekey.NewAgentClient(ctx, agentDir)
 	require.NoError(t, err)
 	_, err = clt.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
 	require.NoError(t, err)
 
 	// If the server stops gracefully, the directory should be cleaned up and a new server can be started.
-	s.Stop()
+	server.Stop()
 	time.Sleep(time.Second)
 	_, err = os.Stat(agentDir)
 	require.ErrorIs(t, err, os.ErrNotExist)
-	s, err = hardwarekeyagent.NewServer(ctx, mockService, agentDir)
+	server, err = libhardwarekey.NewAgentServer(ctx, mockService, agentDir)
 	require.NoError(t, err)
-	t.Cleanup(s.Stop)
+	t.Cleanup(server.Stop)
 
 	// If the server is unresponsive, it should be replaced by a call to NewServer.
 	// Use a timeoutCtx so that the failed Ping request fails quickly.
 	timeoutCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
-	s, err = hardwarekeyagent.NewServer(timeoutCtx, mockService, agentDir)
+	server, err = libhardwarekey.NewAgentServer(timeoutCtx, mockService, agentDir)
 	require.NoError(t, err)
-	t.Cleanup(s.Stop)
+	t.Cleanup(server.Stop)
 }

@@ -18,7 +18,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: teleport/lib/teleterm/hardwarekeyagent/v1/hardwarekeyagent_service.proto
+// source: teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto
 
 package hardwarekeyagentv1
 
@@ -35,8 +35,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HardwareKeyAgentService_Ping_FullMethodName = "/teleport.lib.teleterm.hardwarekeyagent.v1.HardwareKeyAgentService/Ping"
-	HardwareKeyAgentService_Sign_FullMethodName = "/teleport.lib.teleterm.hardwarekeyagent.v1.HardwareKeyAgentService/Sign"
+	HardwareKeyAgentService_Ping_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Ping"
+	HardwareKeyAgentService_Sign_FullMethodName = "/teleport.hardwarekeyagent.v1.HardwareKeyAgentService/Sign"
 )
 
 // HardwareKeyAgentServiceClient is the client API for HardwareKeyAgentService service.
@@ -177,7 +177,7 @@ func _HardwareKeyAgentService_Sign_Handler(srv interface{}, ctx context.Context,
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var HardwareKeyAgentService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "teleport.lib.teleterm.hardwarekeyagent.v1.HardwareKeyAgentService",
+	ServiceName: "teleport.hardwarekeyagent.v1.HardwareKeyAgentService",
 	HandlerType: (*HardwareKeyAgentServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -190,5 +190,5 @@ var HardwareKeyAgentService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/lib/teleterm/hardwarekeyagent/v1/hardwarekeyagent_service.proto",
+	Metadata: "teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto",
 }
