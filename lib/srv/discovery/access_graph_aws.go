@@ -39,6 +39,7 @@ import (
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -1145,69 +1146,76 @@ func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, m
 		WaitTimeSeconds:     10,
 	}
 	parallelDownloads := make(chan struct{}, 100)
-	for {
-		select {
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		default:
-			resp, err := sqsClient.ReceiveMessage(ctx, input)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if len(resp.Messages) == 0 {
-				continue
-			}
-			for _, message := range resp.Messages {
-				parallelDownloads <- struct{}{}
-				go func(message sqstypes.Message) {
-					defer func() {
-						<-parallelDownloads
-					}()
-					var sqsEvent sqsFileEvent
-					body := aws.ToString(message.Body)
-					err := json.Unmarshal([]byte(body), &sqsEvent)
+	errG, ctx := errgroup.WithContext(ctx)
+	for i := 0; i < 10; i++ {
+		errG.Go(func() error {
+			for {
+				select {
+				case <-ctx.Done():
+					return trace.Wrap(ctx.Err())
+				default:
+					resp, err := sqsClient.ReceiveMessage(ctx, input)
 					if err != nil {
-						a.Log.ErrorContext(ctx, "Failed to unmarshal SQS message", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
-						return
+						return trace.Wrap(err)
 					}
-
-					if len(sqsEvent.S3ObjectKey) == 0 {
-						a.Log.ErrorContext(ctx, "SQS message does not contain S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
-						return
+					if len(resp.Messages) == 0 {
+						continue
 					}
-					for _, objectKey := range sqsEvent.S3ObjectKey {
-						if len(objectKey) == 0 {
-							a.Log.ErrorContext(ctx, "SQS message contains empty S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
-							continue
-						}
-						payload, err := downloadCloudTrailFile(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
-						if err != nil {
-							a.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
-							continue
-						}
-
-						select {
-						case <-ctx.Done():
-							return
-						case eventsC <- payloadChannelMessage{
-							payload:   payload,
-							accountID: accountID,
-						}:
-							_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
-								QueueUrl:      aws.String(matcher.SqsPolling.SQSQueue),
-								ReceiptHandle: message.ReceiptHandle,
-							})
+					for _, message := range resp.Messages {
+						parallelDownloads <- struct{}{}
+						go func(message sqstypes.Message) {
+							defer func() {
+								<-parallelDownloads
+							}()
+							var sqsEvent sqsFileEvent
+							body := aws.ToString(message.Body)
+							err := json.Unmarshal([]byte(body), &sqsEvent)
 							if err != nil {
-								a.Log.ErrorContext(ctx, "Failed to delete message from sqs", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+								a.Log.ErrorContext(ctx, "Failed to unmarshal SQS message", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+								return
 							}
 
-						}
-					}
-				}(message)
-			}
+							if len(sqsEvent.S3ObjectKey) == 0 {
+								a.Log.ErrorContext(ctx, "SQS message does not contain S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+								return
+							}
+							for _, objectKey := range sqsEvent.S3ObjectKey {
+								if len(objectKey) == 0 {
+									a.Log.ErrorContext(ctx, "SQS message contains empty S3 object key", "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+									continue
+								}
+								payload, err := downloadCloudTrailFile(ctx, s3Client, sqsEvent.S3Bucket, objectKey)
+								if err != nil {
+									a.Log.ErrorContext(ctx, "Failed to download and parse S3 object", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+									continue
+								}
 
-		}
+								select {
+								case <-ctx.Done():
+									return
+								case eventsC <- payloadChannelMessage{
+									payload:   payload,
+									accountID: accountID,
+								}:
+									_, err := sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+										QueueUrl:      aws.String(matcher.SqsPolling.SQSQueue),
+										ReceiptHandle: message.ReceiptHandle,
+									})
+									if err != nil {
+										a.Log.ErrorContext(ctx, "Failed to delete message from sqs", "error", err, "message_payload", body, "nessage_id", aws.ToString(message.MessageId))
+									}
+
+								}
+							}
+						}(message)
+					}
+
+				}
+			}
+			return nil
+		})
 	}
+	return nil
 }
 
 type sqsFileEvent struct {
