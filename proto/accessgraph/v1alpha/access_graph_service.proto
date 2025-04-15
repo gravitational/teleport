@@ -533,6 +533,7 @@ message AWSCloudTrailStreamRequest {
 message AWSCloudTrailConfig {
   google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
   repeated string regions = 2;
+  google.protobuf.Timestamp end_date = 3; // End date for exporting audit logs.
 }
 
 // AuditLogEvents bundles a batch of unstructured audit log events with the
@@ -560,6 +561,7 @@ message AWSCloudTrailStreamResponse {
 message AWSCloudTrailResumeState {
   map<string, AWSCloudTrailResumeRegionState> regions_state = 1;
   google.protobuf.Timestamp start_date = 2; // Start date for exporting audit logs.
+  google.protobuf.Timestamp end_date = 3; // End date for exporting audit logs.
 }
 
 // AWSCloudTrailResumeRegionState holds the state for a particular region.
