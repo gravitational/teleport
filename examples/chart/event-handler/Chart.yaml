@@ -1,4 +1,4 @@
-.version: &version "15.4.32"
+.version: &version "15.4.32-dev.ravicious.1"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
