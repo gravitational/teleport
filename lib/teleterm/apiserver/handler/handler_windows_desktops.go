@@ -17,11 +17,7 @@
 package handler
 
 import (
-	"net"
-	"strconv"
-
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/ui"
 )
@@ -29,17 +25,11 @@ import (
 func newAPIWindowsDesktop(clusterDesktop clusters.WindowsDesktop) *api.WindowsDesktop {
 	desktop := clusterDesktop.WindowsDesktop
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(desktop.GetAllLabels()))
-	// Strip the default RDP port from the address since it is unimportant to display.
-	addr := desktop.GetAddr()
-	host, port, err := net.SplitHostPort(addr)
-	if err == nil && port == strconv.Itoa(defaults.RDPListenPort) {
-		addr = host
-	}
 
 	return &api.WindowsDesktop{
 		Uri:    clusterDesktop.URI.String(),
 		Name:   desktop.GetName(),
-		Addr:   addr,
+		Addr:   desktop.GetAddr(),
 		Logins: clusterDesktop.Logins,
 		Labels: apiLabels,
 	}

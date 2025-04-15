@@ -34,6 +34,7 @@ import {
   TshdRpcError,
 } from 'teleterm/services/tshd/cloneableClient';
 import type * as types from 'teleterm/services/tshd/types';
+import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import type { ResourceTypeFilter } from 'teleterm/ui/Search/searchResult';
 import type * as uri from 'teleterm/ui/uri';
 
@@ -115,6 +116,17 @@ export class ResourcesService {
             resource: {
               ...r.resource,
               addrWithProtocol: getAppAddrWithProtocol(r.resource),
+            },
+          };
+        }
+        if (r.kind === 'windows_desktop') {
+          return {
+            ...r,
+            resource: {
+              ...r.resource,
+              addrWithoutDefaultPort: getWindowsDesktopAddrWithoutDefaultPort(
+                r.resource
+              ),
             },
           };
         }
@@ -246,7 +258,7 @@ export type SearchResultApp = {
 };
 export type SearchResultWindowsDesktop = {
   kind: 'windows_desktop';
-  resource: WindowsDesktop;
+  resource: WindowsDesktop & { addrWithoutDefaultPort: string };
   requiresRequest: boolean;
 };
 

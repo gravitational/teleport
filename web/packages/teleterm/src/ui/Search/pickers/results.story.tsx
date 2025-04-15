@@ -20,6 +20,7 @@ import { useState } from 'react';
 
 import { Flex } from 'design';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
@@ -32,6 +33,7 @@ import {
   makeServer,
   makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
+import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { routing } from 'teleterm/ui/uri';
 import type * as uri from 'teleterm/ui/uri';
@@ -107,6 +109,14 @@ export const ResultsNarrow = () => {
 function makeAppWithAddr(props: Partial<App>) {
   const app = makeApp(props);
   return { ...app, addrWithProtocol: getAppAddrWithProtocol(app) };
+}
+
+function makeWindowsDesktopWithoutDefaultPort(props: Partial<WindowsDesktop>) {
+  const desktop = makeWindowsDesktop(props);
+  return {
+    ...desktop,
+    addrWithoutDefaultPort: getWindowsDesktopAddrWithoutDefaultPort(desktop),
+  };
 }
 
 const SearchResultItems = () => {
@@ -475,7 +485,7 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'windows_desktop',
       requiresRequest: false,
-      resource: makeWindowsDesktop({
+      resource: makeWindowsDesktopWithoutDefaultPort({
         uri: `${clusterUri}/windowsDesktops/long-name`,
         name: 'super-long-windows-desktop-name-with-uuid-7a96e498-88ec-442f-a25b-569fa9150123c',
         labels: makeLabelsList({
@@ -488,7 +498,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'windows_desktop',
-      resource: makeWindowsDesktop({
+      resource: makeWindowsDesktopWithoutDefaultPort({
         uri: `${clusterUri}/windowsDesktops/long-label-list`,
         name: 'long-label-list',
         labels: makeLabelsList({
@@ -503,7 +513,7 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'windows_desktop',
       requiresRequest: true,
-      resource: makeWindowsDesktop({
+      resource: makeWindowsDesktopWithoutDefaultPort({
         uri: `${clusterUri}/windowsDesktops/short-label-list`,
         name: 'short-label-list',
         labels: makeLabelsList({

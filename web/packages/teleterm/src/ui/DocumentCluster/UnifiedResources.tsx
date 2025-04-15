@@ -45,6 +45,7 @@ import {
 import { waitForever } from 'shared/utils/wait';
 
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -543,7 +544,7 @@ const mapToSharedResource = (
           kind: 'windows_desktop' as const,
           os: 'windows',
           labels: desktop.labels,
-          addr: desktop.addr,
+          addr: getWindowsDesktopAddrWithoutDefaultPort(desktop),
           name: desktop.name,
           requiresRequest: resource.requiresRequest,
         },

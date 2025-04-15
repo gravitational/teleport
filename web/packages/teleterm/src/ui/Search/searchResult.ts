@@ -122,7 +122,7 @@ export const searchableFields: {
   // The friendly name is constructed *after* fetching apps, but since it is
   // made from the value of a label, the server-side search can find it.
   app: ['name', 'friendlyName', 'desc', 'addrWithProtocol'],
-  windows_desktop: ['name', 'addr'],
+  windows_desktop: ['name', 'addrWithoutDefaultPort'],
 } as const;
 
 export interface ResourceTypeSearchFilter {

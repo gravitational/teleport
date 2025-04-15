@@ -831,7 +831,10 @@ export function WindowsDesktopItem(
           flex-shrink: 0;
         `}
       >
-        <HighlightField field="addr" searchResult={searchResult} />
+        <HighlightField
+          field="addrWithoutDefaultPort"
+          searchResult={searchResult}
+        />
       </span>
     </ResourceFields>
   );
