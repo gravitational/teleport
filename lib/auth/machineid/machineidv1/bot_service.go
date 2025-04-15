@@ -658,7 +658,7 @@ func (bs *BotService) DeleteBot(
 // that these fields are set correctly.
 func setKindAndVersion(b *pb.Bot) error {
 	if b == nil {
-		return trace.BadParameter("must be non-nil bot")
+		return trace.BadParameter("bot: must be non-nil")
 	}
 	if b.Kind == "" {
 		b.Kind = types.KindBot
