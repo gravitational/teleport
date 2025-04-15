@@ -341,6 +341,12 @@ export interface PromptHardwareKeyPINRequest {
      * @generated from protobuf field: bool pin_optional = 2;
      */
     pinOptional: boolean;
+    /**
+     * Command is an optional command string to provide context for the prompt.
+     *
+     * @generated from protobuf field: string command = 3;
+     */
+    command: string;
 }
 /**
  * Response for PromptHardwareKeyPIN.
@@ -365,6 +371,12 @@ export interface PromptHardwareKeyTouchRequest {
      * @generated from protobuf field: string root_cluster_uri = 1;
      */
     rootClusterUri: string;
+    /**
+     * Command is an optional command string to provide context for the prompt.
+     *
+     * @generated from protobuf field: string command = 3;
+     */
+    command: string;
 }
 /**
  * Response for PromptHardwareKeyTouch.
@@ -1307,13 +1319,15 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest", [
             { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "pin_optional", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 2, name: "pin_optional", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "command", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyPINRequest>): PromptHardwareKeyPINRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.rootClusterUri = "";
         message.pinOptional = false;
+        message.command = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyPINRequest>(this, message, value);
         return message;
@@ -1328,6 +1342,9 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
                     break;
                 case /* bool pin_optional */ 2:
                     message.pinOptional = reader.bool();
+                    break;
+                case /* string command */ 3:
+                    message.command = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1347,6 +1364,9 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
         /* bool pin_optional = 2; */
         if (message.pinOptional !== false)
             writer.tag(2, WireType.Varint).bool(message.pinOptional);
+        /* string command = 3; */
+        if (message.command !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.command);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1408,12 +1428,14 @@ export const PromptHardwareKeyPINResponse = new PromptHardwareKeyPINResponse$Typ
 class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTouchRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "command", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyTouchRequest>): PromptHardwareKeyTouchRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.rootClusterUri = "";
+        message.command = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyTouchRequest>(this, message, value);
         return message;
@@ -1425,6 +1447,9 @@ class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTo
             switch (fieldNo) {
                 case /* string root_cluster_uri */ 1:
                     message.rootClusterUri = reader.string();
+                    break;
+                case /* string command */ 3:
+                    message.command = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1441,6 +1466,9 @@ class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTo
         /* string root_cluster_uri = 1; */
         if (message.rootClusterUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        /* string command = 3; */
+        if (message.command !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.command);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

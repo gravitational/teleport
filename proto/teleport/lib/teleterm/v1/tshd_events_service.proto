@@ -211,6 +211,8 @@ message PromptHardwareKeyPINRequest {
   string root_cluster_uri = 1;
   // Specifies if a PIN is optional, allowing the user to set it up if left empty.
   bool pin_optional = 2;
+  // Command is an optional command string to provide context for the prompt.
+  string command = 3;
 }
 
 // Response for PromptHardwareKeyPIN.
@@ -222,6 +224,8 @@ message PromptHardwareKeyPINResponse {
 // Request for PromptHardwareKeyTouchRequest.
 message PromptHardwareKeyTouchRequest {
   string root_cluster_uri = 1;
+  // Command is an optional command string to provide context for the prompt.
+  string command = 3;
 }
 
 // Response for PromptHardwareKeyTouch.

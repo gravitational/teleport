@@ -968,7 +968,9 @@ type PromptHardwareKeyPINRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	// Specifies if a PIN is optional, allowing the user to set it up if left empty.
-	PinOptional   bool `protobuf:"varint,2,opt,name=pin_optional,json=pinOptional,proto3" json:"pin_optional,omitempty"`
+	PinOptional bool `protobuf:"varint,2,opt,name=pin_optional,json=pinOptional,proto3" json:"pin_optional,omitempty"`
+	// Command is an optional command string to provide context for the prompt.
+	Command       string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1015,6 +1017,13 @@ func (x *PromptHardwareKeyPINRequest) GetPinOptional() bool {
 		return x.PinOptional
 	}
 	return false
+}
+
+func (x *PromptHardwareKeyPINRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
 }
 
 // Response for PromptHardwareKeyPIN.
@@ -1067,8 +1076,10 @@ func (x *PromptHardwareKeyPINResponse) GetPin() string {
 type PromptHardwareKeyTouchRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Command is an optional command string to provide context for the prompt.
+	Command       string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PromptHardwareKeyTouchRequest) Reset() {
@@ -1104,6 +1115,13 @@ func (*PromptHardwareKeyTouchRequest) Descriptor() ([]byte, []int) {
 func (x *PromptHardwareKeyTouchRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
+	}
+	return ""
+}
+
+func (x *PromptHardwareKeyTouchRequest) GetCommand() string {
+	if x != nil {
+		return x.Command
 	}
 	return ""
 }
@@ -1630,14 +1648,16 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12!\n" +
 	"\fredirect_url\x18\x04 \x01(\tR\vredirectUrl\"0\n" +
 	"\x11PromptMFAResponse\x12\x1b\n" +
-	"\ttotp_code\x18\x01 \x01(\tR\btotpCode\"j\n" +
+	"\ttotp_code\x18\x01 \x01(\tR\btotpCode\"\x84\x01\n" +
 	"\x1bPromptHardwareKeyPINRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12!\n" +
-	"\fpin_optional\x18\x02 \x01(\bR\vpinOptional\"0\n" +
+	"\fpin_optional\x18\x02 \x01(\bR\vpinOptional\x12\x18\n" +
+	"\acommand\x18\x03 \x01(\tR\acommand\"0\n" +
 	"\x1cPromptHardwareKeyPINResponse\x12\x10\n" +
-	"\x03pin\x18\x01 \x01(\tR\x03pin\"I\n" +
+	"\x03pin\x18\x01 \x01(\tR\x03pin\"c\n" +
 	"\x1dPromptHardwareKeyTouchRequest\x12(\n" +
-	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\" \n" +
+	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12\x18\n" +
+	"\acommand\x18\x03 \x01(\tR\acommand\" \n" +
 	"\x1ePromptHardwareKeyTouchResponse\"M\n" +
 	"!PromptHardwareKeyPINChangeRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\"i\n" +

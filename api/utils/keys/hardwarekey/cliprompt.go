@@ -58,18 +58,22 @@ func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
 
 // AskPIN prompts the user for a PIN. If the requirement is [PINOptional],
 // the prompt will offer the default PIN as a default value.
-func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, _ ContextualKeyInfo) (string, error) {
-	message := "Enter your YubiKey PIV PIN"
+func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, keyInfo ContextualKeyInfo) (string, error) {
+	message := fmt.Sprintf("Hardware key PIN is required to continue with command %q\n", keyInfo.Command)
+
+	message += "Enter your YubiKey PIV PIN"
 	if requirement == PINOptional {
-		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
+		message += " [blank to use default PIN]"
 	}
+
 	password, err := prompt.Password(ctx, c.writer, c.reader, message)
 	return password, trace.Wrap(err)
 }
 
 // Touch prompts the user to touch the hardware key.
-func (c *cliPrompt) Touch(_ context.Context, _ ContextualKeyInfo) error {
-	_, err := fmt.Fprintln(c.writer, "Tap your YubiKey")
+func (c *cliPrompt) Touch(_ context.Context, keyInfo ContextualKeyInfo) error {
+	message := fmt.Sprintf("Hardware key touch is required to continue with command %q\nTap your YubiKey", keyInfo.Command)
+	_, err := fmt.Fprintln(c.writer, message)
 	return trace.Wrap(err)
 }
 

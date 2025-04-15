@@ -21,8 +21,11 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"log/slog"
+	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -120,6 +123,17 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		}
 	}
 
+	command, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var commandString string = fmt.Sprintf("%v %v", command, strings.Join(os.Args[:3], " "))
+	if len(os.Args) > 3 {
+		// Abbreviate the command displayed in prompts.
+		commandString += " ..."
+	}
+
 	req := &hardwarekeyagentv1.SignRequest{
 		Digest:     digest,
 		Hash:       hash,
@@ -136,7 +150,7 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 			Username:      keyInfo.Username,
 			ClusterName:   keyInfo.ClusterName,
 		},
-		// TODO: Add command to sign request for prompt context.
+		Command: commandString,
 	}
 
 	resp, err := s.agentClient.Sign(ctx, req)
