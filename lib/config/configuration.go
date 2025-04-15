@@ -1454,6 +1454,8 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
+	cfg.SSH.ForceListenInTunnel = fc.SSH.ForceListenInTunnel
+
 	return nil
 }
 
