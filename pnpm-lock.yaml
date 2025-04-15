@@ -6450,8 +6450,8 @@ packages:
   no-case@3.0.4:
     resolution: {integrity: sha512-fgAN3jGAh+RoxUGZHTSOLJIqUc2wmoBwGR4tbpNAKmmovFoWq0OdRkb0VkldReO2a2iBT/OEulG9XSUc10r3zg==}
 
-  node-abi@3.71.0:
-    resolution: {integrity: sha512-SZ40vRiy/+wRTf21hxkkEjPJZpARzUMVcJoQse2EF8qkUWbbO2z7vd5oA/H6bVH6SZQ5STGcu0KRDS7biNRfxw==}
+  node-abi@3.74.0:
+    resolution: {integrity: sha512-c5XK0MjkGBrQPGYG24GBADZud0NCbznxNx0ZkS+ebUTrmV1qTDxPxSL8zEAPURXSbLRWVexxmP4986BziahL5w==}
     engines: {node: '>=10'}
 
   node-addon-api@1.7.2:
@@ -9825,7 +9825,7 @@ snapshots:
       detect-libc: 2.0.3
       fs-extra: 10.1.0
       got: 11.8.6
-      node-abi: 3.71.0
+      node-abi: 3.74.0
       node-api-version: 0.2.0
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
@@ -16552,7 +16552,7 @@ snapshots:
       lower-case: 2.0.2
       tslib: 2.6.3
 
-  node-abi@3.71.0:
+  node-abi@3.74.0:
     dependencies:
       semver: 7.6.2
 
