@@ -16,8 +16,8 @@ package hardwarekey_test
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
-	"strconv"
 	"testing"
 	"time"
 
@@ -76,9 +76,7 @@ func TestPINCachingPrompt(t *testing.T) {
 
 }
 
-type randPINPrompt struct {
-	lastPin int
-}
+type randPINPrompt struct{}
 
 func (p *randPINPrompt) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
 	return p.randPIN(), nil
@@ -99,10 +97,5 @@ func (p *randPINPrompt) ConfirmSlotOverwrite(ctx context.Context, message string
 }
 
 func (p *randPINPrompt) randPIN() string {
-	randomNumber := 10000000 + rand.Intn(90000000)
-	for randomNumber == p.lastPin {
-		randomNumber = 10000000 + rand.Intn(90000000)
-	}
-	p.lastPin = randomNumber
-	return strconv.Itoa(randomNumber)
+	return fmt.Sprintf("%08d", rand.Intn(100000000))
 }
