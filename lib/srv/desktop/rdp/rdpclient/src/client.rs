@@ -1413,7 +1413,10 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             height: params.screen_height,
         },
         enable_tls: true,
+        #[cfg(not(feature = "fips"))]
         enable_credssp: params.ad && params.nla,
+        #[cfg(feature = "fips")]
+        enable_credssp: false,
         credentials: Credentials::SmartCard {
             config: params.ad.then(|| SmartCardIdentity {
                 csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
