@@ -26,6 +26,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|max_session_ttl|string|The max session TTL value for the bot's internal role. Unless specified, bots may not request a value beyond the default maximum TTL of 12 hours. This value may not be larger than 7 days (168 hours).|
 |roles|[]string|The roles that the bot should be able to impersonate.|
 |traits|[][object](#spectraits-items)|The traits that will be associated with the bot for the purposes of role templating.  Where multiple specified with the same name, these will be merged by the server.|
 

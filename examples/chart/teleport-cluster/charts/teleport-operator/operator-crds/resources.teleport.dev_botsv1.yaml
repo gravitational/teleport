@@ -35,6 +35,13 @@ spec:
           spec:
             description: Bot resource definition v1 from Teleport
             properties:
+              max_session_ttl:
+                description: The max session TTL value for the bot's internal role.
+                  Unless specified, bots may not request a value beyond the default
+                  maximum TTL of 12 hours. This value may not be larger than 7 days
+                  (168 hours).
+                format: duration
+                type: string
               roles:
                 description: The roles that the bot should be able to impersonate.
                 items:
