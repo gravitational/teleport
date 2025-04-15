@@ -722,6 +722,7 @@ func TestUpdater_Update(t *testing.T) {
 			ns := &Namespace{
 				installDir:     dir,
 				defaultPathDir: "ignored",
+				updaterIDFile:  "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -813,9 +814,6 @@ func TestUpdater_Update(t *testing.T) {
 			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
-			}
-			updater.EnsureUpdateID = func() (string, error) {
-				return "updater-id-file", nil
 			}
 
 			ctx := context.Background()
@@ -1644,6 +1642,7 @@ func TestUpdater_Install(t *testing.T) {
 				installDir:       dir,
 				defaultPathDir:   defaultPathDir,
 				defaultProxyAddr: "default-proxy",
+				updaterIDFile:    "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -1746,9 +1745,6 @@ func TestUpdater_Install(t *testing.T) {
 			updater.SetupNamespace = func(_ context.Context, path string) error {
 				revertSetupCalls++
 				return nil
-			}
-			updater.EnsureUpdateID = func() (string, error) {
-				return "updater-id-file", nil
 			}
 
 			ctx := context.Background()
@@ -1948,6 +1944,103 @@ func TestUpdater_Setup(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errMatch)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestFindDBPID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		existingID  string
+		systemID    string
+		namespaceID string
+		persist     bool
+
+		result   string
+		resFile  string
+		errMatch string
+	}{
+		{
+			name:     "no ids",
+			errMatch: "empty",
+		},
+		{
+			name:        "both ids",
+			systemID:    "test1",
+			namespaceID: "test2",
+			result:      "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+		},
+		{
+			name:     "systemID",
+			systemID: "test1",
+			result:   "6abf58ef-f6cc-55ae-91e2-376af6b0ba90",
+		},
+		{
+			name:        "systemID matching namespaceID",
+			namespaceID: "test1",
+			result:      "35321002-ed1c-51e3-a3b3-cbf0f0bc2d88",
+		},
+		{
+			name:        "namespaceID",
+			namespaceID: "test2",
+			result:      "906a648e-038b-576a-893e-d6b32a9d8aee",
+		},
+		{
+			name:     "namespaceID matching systemID",
+			systemID: "test2",
+			result:   "42929c01-bcc8-5a49-af36-e5f21344d5f5",
+		},
+		{
+			name:        "existing file not replaced",
+			existingID:  "existing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			result:      "existing",
+			resFile:     "existing",
+		},
+		{
+			name:        "existing file not replaced on persist",
+			existingID:  "existing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			persist:     true,
+			result:      "existing",
+			resFile:     "existing",
+		},
+		{
+			name:        "persisted when missing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			persist:     true,
+			result:      "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+			resFile:     "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := filepath.Join(t.TempDir(), "existing")
+			if tt.existingID != "" {
+				err := os.WriteFile(existing, []byte(tt.existingID), os.ModePerm)
+				require.NoError(t, err)
+			}
+			s, err := FindDBPID(existing, []byte(tt.systemID), []byte(tt.namespaceID), tt.persist)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.result, s)
+
+			if tt.resFile != "" {
+				b, err := os.ReadFile(existing)
+				require.NoError(t, err)
+				require.Equal(t, tt.resFile, string(b))
+			} else {
+				require.NoFileExists(t, existing)
 			}
 		})
 	}
