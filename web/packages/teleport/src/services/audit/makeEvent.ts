@@ -164,7 +164,7 @@ export const formatters: Formatters = {
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${truncateStr(search_as_roles.join(','), 80)}]`,
   },
   [eventCodes.ACCESS_REQUEST_EXPIRY]: {
-    type: 'access_request.expiry',
+    type: 'access_request.expire',
     desc: 'Access Request Expired',
     format: ({ id }) => `Access request [${id}] has expired`,
   },
