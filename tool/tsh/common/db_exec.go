@@ -467,17 +467,23 @@ func (c *sharedDatabaseExecClient) issueCert(ctx context.Context, dbInfo *databa
 		AccessRequests:      c.profile.ActiveRequests,
 		RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
 		ReusableMFAResponse: c.reusableMFAResponse,
-		OnMFAResponse: func(response *proto.MFAAuthenticateResponse) {
-			c.reusableMFAResponse = response
-		},
 	}
 
-	keyRing, _, err := c.clusterClient.IssueUserCertsWithMFA(ctx, params)
+	result, err := c.clusterClient.IssueUserCertsWithMFA(ctx, params)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	dbCert, err := keyRing.DBTLSCert(dbInfo.RouteToDatabase.ServiceName)
-	return dbCert, trace.Wrap(err)
+
+	// Save the reusable MFA response.
+	if result.MFAResponse != nil {
+		c.reusableMFAResponse = result.MFAResponse
+	}
+
+	dbCert, err := result.KeyRing.DBTLSCert(dbInfo.RouteToDatabase.ServiceName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return dbCert, nil
 }
 
 func (c *sharedDatabaseExecClient) listDatabasesWithFilter(ctx context.Context, filter *proto.ListResourcesRequest) (databases []types.Database, err error) {

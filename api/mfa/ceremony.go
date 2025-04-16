@@ -36,8 +36,6 @@ type Ceremony struct {
 	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
 	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge.
 	SSOMFACeremonyConstructor SSOMFACeremonyConstructor
-	// OnMFAResponse is a callback to receive retrieved MFA response.
-	OnMFAResponse func(*proto.MFAAuthenticateResponse)
 }
 
 // SSOMFACeremony is an SSO MFA ceremony.

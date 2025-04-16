@@ -1673,7 +1673,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
-			desc: "fail regular db with reuse",
+			desc: "fail reuse not allowed for requester",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
 					TLSPublicKey: tlsPub,
