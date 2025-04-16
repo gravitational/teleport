@@ -121,8 +121,14 @@ function validateMetadata(
   return runRules(model, metadataRules);
 }
 
+const mustBeFalse = (message: string) => (value: boolean) => () => ({
+  valid: !value,
+  message: value ? message : '',
+});
+
 const metadataRules = {
   name: requiredField('Role name is required'),
+  nameCollision: mustBeFalse('Role with this name already exists'),
   labels: nonEmptyLabels,
 };
 export type MetadataValidationResult = RuleSetValidationResult<

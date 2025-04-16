@@ -132,7 +132,6 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:              f.RecoveryCodes,
 		AccessMonitoringConfigured: f.AccessMonitoringConfigured,
 		Entitlements:               f.EntitlementsToProto(),
-		CloudAnonymizationKey:      f.CloudAnonymizationKey,
 	}
 
 	// remove setLegacyLogic in v18

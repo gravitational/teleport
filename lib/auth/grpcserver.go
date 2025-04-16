@@ -5350,12 +5350,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
 	workloadIdentityIssuanceService, err := workloadidentityv1.NewIssuanceService(&workloadidentityv1.IssuanceServiceConfig{
-		Authorizer:  cfg.Authorizer,
-		Cache:       cfg.AuthServer.Cache,
-		Emitter:     cfg.Emitter,
-		Clock:       cfg.AuthServer.GetClock(),
-		KeyStore:    cfg.AuthServer.keyStore,
-		ClusterName: clusterName.GetClusterName(),
+		Authorizer:     cfg.Authorizer,
+		Cache:          cfg.AuthServer.Cache,
+		Emitter:        cfg.Emitter,
+		Clock:          cfg.AuthServer.GetClock(),
+		KeyStore:       cfg.AuthServer.keyStore,
+		OverrideGetter: cfg.AuthServer,
+		ClusterName:    clusterName.GetClusterName(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity issuance service")
@@ -5394,6 +5395,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			return nil, trace.Wrap(err, "creating workload identity X509 overrides service")
 		}
 		workloadidentityv1pb.RegisterX509OverridesServiceServer(server, srv)
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 	}
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{

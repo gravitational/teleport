@@ -180,6 +180,16 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 
 	start := srv.AuthServer.Clock().Now()
 
+	botSessionTTLOverride := WithRoleMutator(func(role types.Role) {
+		// Bots have a longer max TTL than the default MaxSessionTTL value
+		// (30h), so the longer value must be manually set to actually get certs
+		// of the longer duration. The bot service manages this value when it
+		// creates bots, but this test creates the user/role by hand.
+		opts := role.GetOptions()
+		opts.MaxSessionTTL = types.Duration(defaults.MaxRenewableCertTTL)
+		role.SetOptions(opts)
+	})
+
 	for _, test := range []struct {
 		desc         string
 		renewable    bool
@@ -233,7 +243,8 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
-			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil)
+			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil, botSessionTTLOverride)
+
 			require.NoError(t, err)
 			authPref, err := srv.Auth().GetAuthPreference(ctx)
 			require.NoError(t, err)

@@ -25,7 +25,11 @@ import { render, screen, userEvent } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { Role, RoleWithYaml } from 'teleport/services/resources';
+import { ApiError } from 'teleport/services/api/parseError';
+import ResourceService, {
+  Role,
+  RoleWithYaml,
+} from 'teleport/services/resources';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { StandardEditor, StandardEditorProps } from './StandardEditor';
@@ -53,11 +57,23 @@ let user: UserEvent;
 
 beforeEach(() => {
   user = userEvent.setup();
+  jest
+    .spyOn(ResourceService.prototype, 'fetchRole')
+    .mockImplementation(async name => {
+      // Make sure that validation never fails because of a role name collision.
+      throw new ApiError({
+        message: `role ${name} is not found`,
+        response: { status: 404 } as Response,
+      });
+    });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 test('adding and removing sections', async () => {
   render(<TestStandardEditor originalRole={newRoleWithYaml(newRole())} />);
-  expect(getAllSectionNames()).toEqual(['Role Information']);
   await user.click(getTabByName('Resources'));
   expect(getAllSectionNames()).toEqual([]);
 
@@ -105,28 +121,6 @@ test('adding and removing sections', async () => {
   expect(getAllSectionNames()).toEqual([]);
 });
 
-test('collapsed sections still apply validation', async () => {
-  const onSave = jest.fn();
-  render(
-    <TestStandardEditor
-      originalRole={newRoleWithYaml(newRole())}
-      onSave={onSave}
-    />
-  );
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name *'));
-  // Collapse the section.
-  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(onSave).not.toHaveBeenCalled();
-
-  // Expand the section, make it valid.
-  await user.click(screen.getByRole('heading', { name: 'Role Information' }));
-  await user.type(screen.getByLabelText('Role Name *'), 'foo');
-  await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(onSave).toHaveBeenCalled();
-});
-
 test('invisible tabs still apply validation', async () => {
   const onSave = jest.fn();
   render(
@@ -135,8 +129,10 @@ test('invisible tabs still apply validation', async () => {
       onSave={onSave}
     />
   );
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name *'));
+
+  // Cause a validation error by adding an empty label.
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+
   // Switch to a different tab.
   await user.click(getTabByName('Resources'));
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
@@ -144,7 +140,8 @@ test('invisible tabs still apply validation', async () => {
 
   // Switch back, make it valid.
   await user.click(getTabByName('Invalid data Overview'));
-  await user.type(screen.getByLabelText('Role Name *'), 'foo');
+  await user.type(screen.getByPlaceholderText('label key'), 'foo');
+  await user.type(screen.getByPlaceholderText('label value'), 'bar');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).toHaveBeenCalled();
 });
@@ -157,8 +154,9 @@ test('hidden validation errors should not propagate to tab headings', async () =
       onSave={onSave}
     />
   );
-  // Intentionally cause a validation error.
-  await user.clear(screen.getByLabelText('Role Name *'));
+
+  // Cause a validation error by adding an empty label.
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
   expect(onSave).not.toHaveBeenCalled();
 

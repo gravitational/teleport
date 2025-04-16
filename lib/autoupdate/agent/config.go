@@ -222,16 +222,8 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Path != "" {
 		spec.Path = override.Path
 	}
-	if override.Group != "" {
-		spec.Group = override.Group
-	}
-	switch override.BaseURL {
-	case "":
-	case "default":
-		spec.BaseURL = ""
-	default:
-		spec.BaseURL = override.BaseURL
-	}
+	spec.Group = overrideOptional(spec.Group, override.Group)
+	spec.BaseURL = overrideOptional(spec.BaseURL, override.BaseURL)
 	if spec.BaseURL != "" &&
 		!strings.HasPrefix(strings.ToLower(spec.BaseURL), "https://") {
 		return trace.Errorf("Teleport download base URL %s must use TLS (https://)", spec.BaseURL)
@@ -245,11 +237,24 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	return nil
 }
 
+func overrideOptional(orig, override string) string {
+	switch override {
+	case "":
+		return orig
+	case "default":
+		return ""
+	default:
+		return override
+	}
+}
+
 // Status of the agent auto-updates system.
 type Status struct {
 	UpdateSpec   `yaml:",inline"`
 	UpdateStatus `yaml:",inline"`
 	FindResp     `yaml:",inline"`
+	// ID is the updater ID.
+	ID string `yaml:"id,omitempty"`
 }
 
 // FindResp summarizes the auto-update status response from cluster.
@@ -262,6 +267,4 @@ type FindResp struct {
 	Jitter time.Duration `yaml:"jitter"`
 	// AGPL installations cannot use the official CDN.
 	AGPL bool `yaml:"agpl,omitempty"`
-	// ID provided to the updater.
-	ID string `yaml:"id,omitempty"`
 }
