@@ -51,12 +51,7 @@ export function MainE() {
       features={getEnterpriseFeatures()}
       customBanners={customBanners}
       inviteCollaboratorsFeedback={inviteCollaboratorsFeedback}
-      topBarProps={
-        cfg.oss.customTheme && {
-          CustomLogo: CustomLogos[cfg.oss.customTheme],
-          showPoweredByLogo: !!CustomLogos[cfg.oss.customTheme],
-        }
-      }
+      CustomLogo={cfg.oss.customTheme && CustomLogos[cfg.oss.customTheme]}
     />
   );
 }
