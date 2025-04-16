@@ -135,7 +135,7 @@ export const makeLeafCluster = (
   ...props,
 });
 
-export const makeAcl = (props: Partial<ACL> = {}) => ({
+export const makeAcl = (props: Partial<ACL> = {}): ACL => ({
   recordedSessions: {
     list: true,
     read: true,
@@ -241,6 +241,8 @@ export const makeAcl = (props: Partial<ACL> = {}) => ({
     use: true,
   },
   reviewRequests: true,
+  directorySharingEnabled: true,
+  clipboardSharingEnabled: true,
   ...props,
 });
 
