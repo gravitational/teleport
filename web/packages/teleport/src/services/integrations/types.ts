@@ -267,7 +267,8 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id'
   | 'datadog'
-  | 'aws-identity-center';
+  | 'aws-identity-center'
+  | 'scim';
 
 export type PluginOktaSpec = {
   // The plaintext of the bearer token that Okta will use
