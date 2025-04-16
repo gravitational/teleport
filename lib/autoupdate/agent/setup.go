@@ -297,8 +297,12 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		ns.updaterServiceFile,
 		ns.updaterTimerFile,
 		ns.teleportDropInFile,
+		ns.deprecatedDropInFile,
 		ns.needrestartConfFile,
 	} {
+		if p == "" {
+			continue
+		}
 		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return trace.Wrap(err, "failed to remove %s", filepath.Base(p))
 		}
