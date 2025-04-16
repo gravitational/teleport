@@ -353,24 +353,25 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string) error {
 		Path:              path,
 		UpdaterConfigFile: filepath.Join(ns.Dir(), updateConfigName),
 	}
-	err := writeSystemTemplate(ns.updaterServiceFile, updateServiceTemplate, params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = writeSystemTemplate(ns.updaterTimerFile, updateTimerTemplate, params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = writeSystemTemplate(ns.teleportDropInFile, teleportDropInTemplate, params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = writeSystemTemplate(ns.deprecatedDropInFile, deprecatedDropInTemplate, params)
-	if err != nil {
-		return trace.Wrap(err)
+
+	for _, v := range []struct {
+		path, tmpl string
+	}{
+		{ns.updaterServiceFile, updateServiceTemplate},
+		{ns.updaterTimerFile, updateTimerTemplate},
+		{ns.teleportDropInFile, teleportDropInTemplate},
+		{ns.deprecatedDropInFile, deprecatedDropInTemplate},
+	} {
+		if v.path == "" {
+			continue
+		}
+		err := writeSystemTemplate(v.path, v.tmpl, params)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	// Needrestart config is non-critical for updater functionality.
-	_, err = os.Stat(filepath.Dir(ns.needrestartConfFile))
+	_, err := os.Stat(filepath.Dir(ns.needrestartConfFile))
 	if os.IsNotExist(err) {
 		return nil // needrestart is not present
 	}
@@ -390,9 +391,6 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string) error {
 // writeSystemTemplate atomically writes a template to a system file, creating any needed directories.
 // Temporarily files are stored in the target path to ensure the file has needed SELinux contexts.
 func writeSystemTemplate(path, t string, values any) error {
-	if path == "" {
-		return nil
-	}
 	dir, file := filepath.Split(path)
 	if err := os.MkdirAll(dir, systemDirMode); err != nil {
 		return trace.Wrap(err)
