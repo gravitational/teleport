@@ -44,6 +44,13 @@ services:
     attestors:
       kubernetes:
         enabled: false
+      podman:
+        enabled: false
+      docker:
+        enabled: false
+      systemd:
+        enabled: false
+      unix: {}
     credential_ttl: 30s
     renewal_interval: 15s
   - type: example
@@ -76,6 +83,13 @@ services:
     attestors:
       kubernetes:
         enabled: false
+      podman:
+        enabled: false
+      docker:
+        enabled: false
+      systemd:
+        enabled: false
+      unix: {}
     selector:
       name: my-workload-identity
     credential_ttl: 30s

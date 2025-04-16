@@ -233,7 +233,7 @@ func collectDeviceData(_ CollectDataMode) (*devicepb.DeviceCollectedData, error)
 	return dcd, nil
 }
 
-// activateCredentialInElevated child uses `runas` to trigger a child process
+// activateCredentialInElevatedChild uses `runas` to trigger a child process
 // with elevated privileges. This is necessary because the process must have
 // elevated privileges in order to invoke the TPM 2.0 ActivateCredential
 // command.

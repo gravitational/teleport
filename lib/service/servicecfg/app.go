@@ -93,6 +93,12 @@ type App struct {
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredAppNames []string
 
+	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
+	// request originated from. This should be true if your proxy has multiple proxy public addrs and you
+	// want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
+	// setting this value to true will overwrite that public address in the web UI.
+	UseAnyProxyPublicAddr bool
+
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS
@@ -160,7 +166,7 @@ func (a *App) CheckAndSetDefaults() error {
 	// are invalid subdomains because for trusted clusters the name is used to
 	// construct the domain that the application will be available at.
 	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", a.Name)
+		return trace.BadParameter("application name %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", a.Name)
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {

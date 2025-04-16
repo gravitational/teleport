@@ -5,7 +5,10 @@ cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
 teleportFlavor='{{.TeleportFlavor}}' # teleport or teleport-ent
 successMessage='{{.SuccessMessage}}'
-teleportArgs='{{.TeleportArgs}}'
+entrypointArgs='{{.EntrypointArgs}}'
+entrypoint='{{.Entrypoint}}'
+packageSuffix='{{ if .TeleportFIPS }}fips-{{ end }}bin.tar.gz'
+fips='{{ if .TeleportFIPS }}true{{ end }}'
 
 # shellcheck disable=all
 # Use $HOME or / as base dir
@@ -17,20 +20,24 @@ ARCH=$({{.BinUname}} -m)
 trap 'rm -rf -- "$tempDir"' EXIT
 
 teleportTarballName() {
-    if [ ${OS} = "Darwin" ]; then
-        echo ${teleportFlavor}-${teleportVersion}-darwin-universal-bin.tar.gz
+    if [ "${OS}" = "Darwin" ]; then
+        if [ "$fips" = "true"]; then
+            echo "FIPS version of Teleport is not compatible with MacOS. Please run this script in a Linux machine."
+            return 1
+        fi
+        echo "${teleportFlavor}-${teleportVersion}-darwin-universal-${packageSuffix}"
         return 0
     fi;
 
-    if [ ${OS} != "Linux" ]; then
+    if [ "${OS}" != "Linux" ]; then
         echo "Only MacOS and Linux are supported." >&2
         return 1
     fi;
 
-    if [ ${ARCH} = "armv7l" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm-bin.tar.gz"
-    elif [ ${ARCH} = "aarch64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm64-bin.tar.gz"
-    elif [ ${ARCH} = "x86_64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-amd64-bin.tar.gz"
-    elif [ ${ARCH} = "i686" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-386-bin.tar.gz"
+    if [ ${ARCH} = "armv7l" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm-${packageSuffix}"
+    elif [ ${ARCH} = "aarch64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-arm64-${packageSuffix}"
+    elif [ ${ARCH} = "x86_64" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-amd64-${packageSuffix}"
+    elif [ ${ARCH} = "i686" ]; then echo "${teleportFlavor}-${teleportVersion}-linux-386-${packageSuffix}"
     else
         echo "Invalid Linux architecture ${ARCH}." >&2
         return 1
@@ -40,12 +47,12 @@ teleportTarballName() {
 main() {
     tarballName=$(teleportTarballName)
     echo "Downloading from ${cdnBaseURL}/${tarballName} and extracting teleport to ${tempDir} ..."
-    curl --show-error --fail --location ${cdnBaseURL}/${tarballName} | tar xzf - -C ${tempDir} ${teleportFlavor}/teleport
+    curl --show-error --fail --location "${cdnBaseURL}/${tarballName}" | tar xzf - -C "${tempDir}" "${teleportFlavor}/${entrypoint}"
 
-    mkdir -p ${tempDir}/bin
-    mv ${tempDir}/${teleportFlavor}/teleport ${tempDir}/bin/teleport
-    echo "> ${tempDir}/bin/teleport ${teleportArgs} $@"
-    {{.TeleportCommandPrefix}} ${tempDir}/bin/teleport ${teleportArgs} $@ && echo $successMessage
+    mkdir -p "${tempDir}/bin"
+    mv "${tempDir}/${teleportFlavor}/${entrypoint}" "${tempDir}/bin/${entrypoint}"
+    echo "> ${tempDir}/bin/${entrypoint} ${entrypointArgs} $@"
+    {{.TeleportCommandPrefix}} "${tempDir}/bin/${entrypoint}" ${entrypointArgs} $@ && echo "$successMessage"
 }
 
 main $@

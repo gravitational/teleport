@@ -47,6 +47,9 @@ export type JoinToken = {
   gcp?: {
     allow: GCPRules[];
   };
+  oracle?: {
+    allow: OracleRules[];
+  };
 };
 
 // JoinRole defines built-in system roles and are roles associated with
@@ -82,7 +85,8 @@ export type JoinMethod =
   | 'circleci'
   | 'gitlab'
   | 'kubernetes'
-  | 'tpm';
+  | 'tpm'
+  | 'oracle';
 
 // JoinRule is a rule that a joining node must match in order to use the
 // associated token.
@@ -104,6 +108,12 @@ export type GCPRules = {
   service_accounts: string[];
 };
 
+export type OracleRules = {
+  tenancy: string;
+  parent_compartments: string[];
+  regions: string[];
+};
+
 export type JoinTokenRulesObject = AWSRules | GCPRules;
 
 export type CreateJoinTokenRequest = {
@@ -120,6 +130,9 @@ export type CreateJoinTokenRequest = {
   allow?: JoinTokenRulesObject[];
   gcp?: {
     allow: GCPRules[];
+  };
+  oracle?: {
+    allow: OracleRules[];
   };
 };
 

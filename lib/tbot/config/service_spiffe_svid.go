@@ -38,6 +38,7 @@ const (
 	SVIDPEMPath            = "svid.pem"
 	SVIDKeyPEMPath         = "svid_key.pem"
 	SVIDTrustBundlePEMPath = "svid_bundle.pem"
+	SVIDCRLPemPath         = "svid_crl.pem"
 )
 
 // SVIDRequestSANs is the configuration for the SANs of a single SVID request.

@@ -12,13 +12,13 @@ reliable client IP information is important from a security standpoint,
 because features like audit logging and IP pinning depend on it. If the PROXY
 protocol is not configured correctly, these features will be compromised.
 
-<Notice type="note">
+<Admonition type="note">
 
 Users of Teleport Enterprise (Cloud) do not need to manage PROXY protocol
 setting. Teleport-managed Auth Service and Proxy Service deployments run behind
 an L4 load balancer with the PROXY protocol configured. 
 
-</Notice>
+</Admonition>
 
 ## How it works
 
@@ -125,10 +125,10 @@ IP pinning will not work if `proxy_protocol` setting wasn't explicitly set in
 the config. Connections that are marked with `0` as the source port will be
 rejected during IP pinning checks.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 The default unspecified value mode is not suitable for production. It is only
 suitable for test environments. 
 
-</Notice>
+</Admonition>
 

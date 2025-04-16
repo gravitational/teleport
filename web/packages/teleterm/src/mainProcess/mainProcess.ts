@@ -37,6 +37,7 @@ import Logger from 'teleterm/logger';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
   ChildProcessAddresses,
+  MainProcessClient,
   MainProcessIpc,
   RendererIpc,
   TERMINATE_MESSAGE,
@@ -339,9 +340,62 @@ export default class MainProcess {
       })
     );
 
-    ipcMain.handle('main-process-force-focus-window', () => {
-      this.windowsManager.forceFocusWindow();
-    });
+    ipcMain.handle(
+      MainProcessIpc.SaveTextToFile,
+      async (
+        _,
+        {
+          text,
+          defaultBasename,
+        }: Parameters<MainProcessClient['saveTextToFile']>[0]
+      ): ReturnType<MainProcessClient['saveTextToFile']> => {
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          // Don't trust the renderer and make sure defaultBasename is indeed a basename only.
+          // defaultPath accepts different kinds of paths. For security reasons, the renderer should
+          // not be able to influence _where_ the file is saved, only how the file is named.
+          defaultPath: path.basename(defaultBasename),
+          properties: [
+            'createDirectory', // macOS only
+            'showOverwriteConfirmation', // Linux only.
+          ],
+        });
+
+        if (canceled) {
+          return { canceled };
+        }
+
+        try {
+          await fs.writeFile(filePath, text, {
+            // Overwrite file.
+            flag: 'w',
+          });
+        } catch (error) {
+          // Log the original error on this side of the context bridge.
+          this.logger.error(`Could not save text to "${filePath}"`, error);
+          throw error;
+        }
+
+        return { canceled };
+      }
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.ForceFocusWindow,
+      async (
+        _,
+        args?: Parameters<MainProcessClient['forceFocusWindow']>[0]
+      ) => {
+        if (args?.wait && args.signal?.aborted) {
+          return;
+        }
+
+        this.windowsManager.forceFocusWindow();
+
+        if (args?.wait) {
+          await this.windowsManager.waitForWindowFocus(args.signal);
+        }
+      }
+    );
 
     // Used in the `tsh install` command on macOS to make the bundled tsh available in PATH.
     // Returns true if tsh got successfully installed, false if the user closed the osascript

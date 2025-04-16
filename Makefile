@@ -397,9 +397,10 @@ $(BUILDDIR)/tsh:
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
-$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG))
+# We force cgo to be disabled, else the compiler might decide to enable it.
+$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG),CGO_ENABLED=0)
 # Build mode pie requires CGO
-$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
+$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(findstring CGO_ENABLED=1,$(TBOT_CGO_FLAGS)), -buildmode=pie)
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
 
@@ -535,7 +536,7 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 	# Clean up wasm-pack build artifacts
-	rm -rf web/packages/teleport/src/ironrdp/pkg/
+	rm -rf web/packages/shared/libs/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
@@ -914,7 +915,7 @@ test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) ensure-gotestsum 
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -1313,7 +1314,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'target/**' \
 		-ignore 'version.go' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
-		-ignore 'web/packages/teleport/src/ironrdp/**' \
+		-ignore 'web/packages/shared/libs/ironrdp/**' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'webassets/**' \
 		-ignore 'ignoreme'

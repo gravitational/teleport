@@ -24,7 +24,10 @@ import api from 'teleport/services/api';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
 import auth, { MfaChallengeScope } from '../auth/auth';
-import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
+import {
+  withGenericUnsupportedError,
+  withUnsupportedLabelFeatureErrorConversion,
+} from '../version/unsupported';
 import {
   AwsDatabaseVpcsResponse,
   AwsOidcDeployDatabaseServicesRequest,
@@ -42,6 +45,7 @@ import {
   Integration,
   IntegrationCreateRequest,
   IntegrationCreateResult,
+  IntegrationDeleteRequest,
   IntegrationDiscoveryRules,
   IntegrationKind,
   IntegrationListResponse,
@@ -127,8 +131,10 @@ export const integrationService = {
       .then(makeIntegration);
   },
 
-  deleteIntegration(name: string): Promise<void> {
-    return api.delete(cfg.getIntegrationsUrl(name));
+  deleteIntegration(req: IntegrationDeleteRequest): Promise<void> {
+    return api
+      .delete(cfg.getDeleteIntegrationUrlV2(req))
+      .catch(err => withGenericUnsupportedError(err, 'v17.3.0'));
   },
 
   fetchThumbprint(): Promise<string> {
@@ -466,7 +472,7 @@ export const integrationService = {
   fetchAwsOidcDatabaseServices(
     name: string,
     resourceType: AwsResource,
-    regions: string[]
+    regions?: string[]
   ): Promise<AWSOIDCListDeployedDatabaseServiceResponse> {
     return api
       .post(cfg.getAwsOidcDatabaseServices(name, resourceType, regions), null)
@@ -499,22 +505,23 @@ export const integrationService = {
         integration: resp.integration,
         lastStateChange: resp.lastStateChange,
         description: resp.description,
+        title: resp.title,
         discoverEc2: {
           instances: resp.discoverEc2?.instances,
-          accountId: resp.discoverEc2?.accountId,
+          account_id: resp.discoverEc2?.account_id,
           region: resp.discoverEc2?.region,
-          ssmDocument: resp.discoverEc2?.ssmDocument,
-          installerScript: resp.discoverEc2?.installerScript,
+          ssm_document: resp.discoverEc2?.ssm_document,
+          installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
           clusters: resp.discoverEks?.instances,
-          accountId: resp.discoverEks?.accountId,
+          account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
-          appAutoDiscover: resp.discoverEks?.appAutoDiscover,
+          app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
           databases: resp.discoverRds?.instances,
-          accountId: resp.discoverRds?.accountId,
+          account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
       };
@@ -532,6 +539,7 @@ export const integrationService = {
           taskType: resp.taskType,
           state: resp.state,
           issueType: resp.issueType,
+          title: resp.title,
           integration: resp.integration,
           lastStateChange: resp.lastStateChange,
         };
@@ -590,7 +598,7 @@ function makeIntegration(json: any): Integration {
     return {
       ...commonFields,
       resourceType: 'integration',
-      details: `GitHub Organization "${github.organization}"`,
+      details: `GitHub repository access for organization "${github.organization}"`,
       spec: {
         organization: github.organization,
       },

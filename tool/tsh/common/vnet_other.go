@@ -15,7 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build !darwin && !windows
-// +build !darwin,!windows
 
 package common
 
@@ -36,6 +35,14 @@ func newPlatformVnetAdminSetupCommand(app *kingpin.Application) vnetCLICommand {
 }
 
 func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCLICommand {
+	return vnetCommandNotSupported{}
+}
+
+func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
+}
+
+func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
 	return vnetCommandNotSupported{}
 }
 

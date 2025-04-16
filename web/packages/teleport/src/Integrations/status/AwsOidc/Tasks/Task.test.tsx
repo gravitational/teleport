@@ -34,31 +34,34 @@ test('renders ec2 impacts', async () => {
     integration: '',
     lastStateChange: '2025-02-11T20:32:19.482607921Z',
     issueType: 'ec2-ssm-invocation-failure',
+    title: 'ec2 ssm invocation failure',
     description:
       'Teleport failed to access the SSM Agent to auto enroll the instance.\nSome instances failed to communicate with the AWS Systems Manager service to execute the install script.\n\nUsually this happens when:\n\n**Missing policies**\n\nThe IAM Role used by the integration might be missing some required permissions.\nEnsure the following actions are allowed in the IAM Role used by the integration:\n- `ec2:DescribeInstances`\n- `ssm:DescribeInstanceInformation`\n- `ssm:GetCommandInvocation`\n- `ssm:ListCommandInvocations`\n- `ssm:SendCommand`\n\n**SSM Document is invalid**\n\nTeleport uses an SSM Document to run an installation script.\nIf the document is changed or removed, it might no longer work.',
     discoverEks: undefined,
     discoverRds: undefined,
     discoverEc2: {
       region: 'us-east-2',
-      accountId: undefined,
-      ssmDocument: undefined,
-      installerScript: undefined,
+      account_id: undefined,
+      ssm_document: undefined,
+      installer_script: undefined,
       instances: {
         'i-016e32a5882f5ee81': {
           instance_id: 'i-016e32a5882f5ee81',
+          resourceUrl: '',
           name: undefined,
-          invocationUrl: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          invocation_url: 'some-run-url',
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
         'i-065818031835365cc': {
           instance_id: 'i-065818031835365cc',
+          resourceUrl: '',
           name: 'aws-test',
-          invocationUrl: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          invocation_url: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
       },
     },
@@ -73,12 +76,11 @@ test('renders ec2 impacts', async () => {
   await screen.findByText('Details');
 
   expect(getTableCellContents()).toEqual({
-    header: ['Instance ID', 'Instance Name'],
-    rows: [
-      ['i-016e32a5882f5ee81', ''],
-      ['i-065818031835365cc', 'aws-test'],
-    ],
+    header: ['Instances', 'Invocation Link'],
+    rows: [['i-016e32a5882f5ee81', ''], ['i-065818031835365ccaws-test']],
   });
+
+  expect(screen.getByRole('link')).toHaveAttribute('href', 'some-run-url');
 
   jest.resetAllMocks();
 });
@@ -92,26 +94,29 @@ test('renders eks impacts', async () => {
     integration: 'integration-001',
     lastStateChange: '2025-02-11T20:32:19.482607921Z',
     issueType: 'eks-failure',
+    title: 'eks failure',
     description:
       'Only EKS Clusters whose status is active can be automatically enrolled into teleport.\n',
     discoverEc2: undefined,
     discoverRds: undefined,
     discoverEks: {
-      accountId: undefined,
+      account_id: undefined,
       region: undefined,
-      appAutoDiscover: false,
+      app_auto_discover: false,
       clusters: {
         'i-016e32a5882f5ee81': {
           name: 'i-016e32a5882f5ee81',
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          resourceUrl: '',
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
         'i-065818031835365cc': {
           name: 'i-065818031835365cc',
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          resourceUrl: '',
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
       },
     },
@@ -141,29 +146,32 @@ test('renders rds impacts', async () => {
     integration: 'integration-001',
     lastStateChange: '2025-02-11T20:32:19.482607921Z',
     issueType: 'rds-failure',
+    title: 'rds failure',
     description:
       'The Teleport Database Service uses [IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html) to communicate with RDS.\n',
     discoverEks: undefined,
     discoverEc2: undefined,
     discoverRds: {
-      accountId: undefined,
+      account_id: undefined,
       region: undefined,
       databases: {
         'i-016e32a5882f5ee81': {
           name: 'i-016e32a5882f5ee81',
-          isCluster: undefined,
+          resourceUrl: '',
+          is_cluster: undefined,
           engine: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
         'i-065818031835365cc': {
           name: 'i-065818031835365cc',
-          isCluster: undefined,
+          resourceUrl: '',
+          is_cluster: undefined,
           engine: undefined,
-          discoveryConfig: undefined,
-          discoveryGroup: undefined,
-          syncTime: undefined,
+          discovery_config: undefined,
+          discovery_group: undefined,
+          sync_time: undefined,
         },
       },
     },

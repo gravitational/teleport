@@ -38,9 +38,10 @@ import {
   ResourceAccess,
   RoleEditorModel,
   RuleModel,
+  VerbModel,
 } from './standardmodel';
 
-const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
+export const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
   'namespace',
   'kube_node',
   'persistentvolume',
@@ -52,7 +53,7 @@ const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
 export type RoleEditorModelValidationResult = {
   metadata: MetadataValidationResult;
   resources: ResourceAccessValidationResult[];
-  rules: AccessRuleValidationResult[];
+  rules: AdminRuleValidationResult[];
   /**
    * isValid is true if all the fields in the validation result are valid.
    */
@@ -92,7 +93,7 @@ export function validateRoleEditorModel(
     previousResult?.resources
   );
 
-  const rulesResult = validateAccessRuleList(
+  const rulesResult = validateAdminRuleList(
     model.rules,
     previousModel?.rules,
     previousResult?.rules
@@ -306,34 +307,40 @@ export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
 
 export type GitHubOrganizationAccessValidationResult = ValidationResult;
 
-export function validateAccessRuleList(
+export function validateAdminRuleList(
   rules: RuleModel[],
   previousRules: RuleModel[],
-  previousResults: AccessRuleValidationResult[]
-): AccessRuleValidationResult[] {
+  previousResults: AdminRuleValidationResult[]
+): AdminRuleValidationResult[] {
   if (previousRules === rules) {
     return previousResults;
   }
   return rules.map((rule, i) =>
-    validateAccessRule(rule, previousRules?.[i], previousResults?.[i])
+    validateAdminRule(rule, previousRules?.[i], previousResults?.[i])
   );
 }
 
-export const validateAccessRule = (
+export const validateAdminRule = (
   rule: RuleModel,
   previousRule: RuleModel,
-  previousResult: AccessRuleValidationResult
-): AccessRuleValidationResult => {
+  previousResult: AdminRuleValidationResult
+): AdminRuleValidationResult => {
   if (previousRule === rule) {
     return previousResult;
   }
-  return runRules(rule, accessRuleValidationRules);
+  return runRules(rule, adminRuleValidationRules);
 };
 
-const accessRuleValidationRules = {
-  resources: requiredField('At least one resource kind is required'),
-  verbs: requiredField('At least one permission is required'),
+/** Ensures that at least one verb is checked. */
+const requiredVerbs = (message: string) => (verbs: VerbModel[]) => () => {
+  const valid = verbs.some(v => v.checked);
+  return { valid, message: valid ? '' : message };
 };
-export type AccessRuleValidationResult = RuleSetValidationResult<
-  typeof accessRuleValidationRules
+
+const adminRuleValidationRules = {
+  resources: requiredField('At least one resource kind is required'),
+  verbs: requiredVerbs('At least one permission is required'),
+};
+export type AdminRuleValidationResult = RuleSetValidationResult<
+  typeof adminRuleValidationRules
 >;

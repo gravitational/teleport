@@ -76,7 +76,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	clusterName, err := tlsServer.Auth().GetClusterName()
+	clusterName, err := tlsServer.Auth().GetClusterName(ctx)
 	require.NoError(t, err)
 
 	roles := map[string]types.RoleSpecV6{

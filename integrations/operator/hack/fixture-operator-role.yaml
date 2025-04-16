@@ -81,5 +81,21 @@ spec:
           - read
           - update
           - delete
+      - resources:
+          - bot
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - workload_identity
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
   deny: {}
 version: v7

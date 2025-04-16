@@ -17,7 +17,6 @@
  */
 
 import { Suspense, useEffect, useState } from 'react';
-import styled from 'styled-components';
 
 import {
   Alert,
@@ -38,6 +37,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 
 import { CatchError } from 'teleport/components/CatchError';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { StyledBox } from 'teleport/Discover/Shared';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { ResourceLabelTooltip } from 'teleport/Discover/Shared/ResourceLabelTooltip';
@@ -575,10 +575,3 @@ const InstallHelmChart = ({
     </>
   );
 };
-
-const StyledBox = styled(Box)`
-  max-width: 1000px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  padding: ${props => `${props.theme.space[3]}px`};
-  border-radius: ${props => `${props.theme.space[2]}px`};
-`;

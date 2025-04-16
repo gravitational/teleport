@@ -169,7 +169,11 @@ export type KubernetesVerb =
   | 'portforward';
 
 export type Rule = {
-  resources?: ResourceKind[];
+  /**
+   * Typically, this is ResourceKind[], though in general, we allow
+   * unrecognized legacy resource types.
+   */
+  resources?: string[];
   verbs?: Verb[];
   where?: string;
 };
@@ -470,3 +474,10 @@ export type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
 };
 
 export type CreateOrOverwriteGitServer = CreateOrOverwriteGithubServer;
+
+// AccessMonitoringRuleState defines the desired states of the access monitoring
+// rule subject.
+export type AccessMonitoringRuleState = '' | 'reviewed';
+
+// AccessReviewDecision defines the access review propsed states.
+export type AccessReviewDecision = '' | 'APPROVED' | 'DENIED';

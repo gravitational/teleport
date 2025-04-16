@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -212,7 +213,11 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.DeleteIntegration(r.Context(), integrationName); err != nil {
+	deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources"))
+	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
+		Name:                      integrationName,
+		DeleteAssociatedResources: deleteAssociatedResources,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -301,14 +306,25 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 
 	var nextPage string
 	for {
-		filters := &usertasksv1.ListUserTasksFilters{Integration: req.integration.GetName()}
+		filters := &usertasksv1.ListUserTasksFilters{
+			Integration: req.integration.GetName(),
+			TaskState:   usertasks.TaskStateOpen,
+		}
 		userTasks, nextToken, err := req.userTasksClient.ListUserTasks(ctx, 0, nextPage, filters)
 		if err != nil {
 			return nil, err
 		}
+
+		ret.UnresolvedUserTasks += len(userTasks)
+
 		for _, userTask := range userTasks {
-			if userTask.GetSpec().GetState() == usertasks.TaskStateOpen {
-				ret.UnresolvedUserTasks++
+			switch userTask.GetSpec().GetTaskType() {
+			case usertasks.TaskTypeDiscoverEC2:
+				ret.AWSEC2.UnresolvedUserTasks++
+			case usertasks.TaskTypeDiscoverEKS:
+				ret.AWSEKS.UnresolvedUserTasks++
+			case usertasks.TaskTypeDiscoverRDS:
+				ret.AWSRDS.UnresolvedUserTasks++
 			}
 		}
 

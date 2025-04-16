@@ -33,10 +33,10 @@ import Dialog, {
 } from 'design/Dialog';
 import { NewTab as NewTabIcon } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 import { getDatabaseIconName } from 'shared/components/UnifiedResources/shared/viewItemsFactory';
 import { DbProtocol } from 'shared/services/databases';
 
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import { AuthType } from 'teleport/services/user';
@@ -137,7 +137,7 @@ export default function ConnectDialog({
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Login to Teleport'}
+          {' - Log in to Teleport'}
           <TextSelectCopy
             mt="2"
             text={generateTshLoginCommand({

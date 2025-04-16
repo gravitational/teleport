@@ -76,9 +76,9 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 
 	allowedLogins := []string{idx.Username, "root"}
@@ -400,9 +400,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	require.NotEmpty(b, certPEM)
 
-	keyPEM, err := keys.MarshalPrivateKey(key)
-	require.NoError(b, err)
-	privateKey, err := keys.NewPrivateKey(key, keyPEM)
+	privateKey, err := keys.NewPrivateKey(key)
 	require.NoError(b, err)
 
 	kubeCred := TLSCredential{
@@ -436,7 +434,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	require.NoError(b, err)
 
 	b.Run("LoadKeysToKubeFromStore", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var wg sync.WaitGroup
 			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
@@ -458,7 +456,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	// Compare against a naive GetKeyRing call which loads the key and cert for
 	// all active kube clusters, not just the one requested.
 	b.Run("GetKeyRing", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var wg sync.WaitGroup
 			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {

@@ -31,6 +31,10 @@ import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
 import { Failed } from 'design/CardError';
+import {
+  InfoGuidePanelProvider,
+  useInfoGuide,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -38,6 +42,10 @@ import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
+import {
+  infoGuidePanelWidth,
+  InfoGuideSidePanel,
+} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
@@ -189,19 +197,21 @@ export function Main(props: MainProps) {
       <Wrapper>
         <MainContainer>
           <Navigation />
-          <ContentWrapper>
-            <ContentMinWidth>
-              <BannerList
-                banners={banners}
-                customBanners={props.customBanners}
-                billingBanners={featureFlags.billing && props.billingBanners}
-                onBannerDismiss={dismissAlert}
-              />
-              <Suspense fallback={null}>
-                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
-              </Suspense>
-            </ContentMinWidth>
-          </ContentWrapper>
+          <InfoGuidePanelProvider>
+            <ContentWrapper>
+              <ContentMinWidth>
+                <BannerList
+                  banners={banners}
+                  customBanners={props.customBanners}
+                  billingBanners={featureFlags.billing && props.billingBanners}
+                  onBannerDismiss={dismissAlert}
+                />
+                <Suspense fallback={null}>
+                  <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
+                </Suspense>
+              </ContentMinWidth>
+            </ContentWrapper>
+          </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
       {displayOnboardDiscover && (
@@ -302,6 +312,8 @@ export const useNoMinWidth = () => {
 
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+  const { infoGuideConfig } = useInfoGuide();
+  const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -312,10 +324,18 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           flex: 1;
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
           min-height: 0;
+          margin-right: ${infoGuideSidePanelOpened
+            ? infoGuideConfig?.panelWidth || infoGuidePanelWidth
+            : '0'}px;
+          transition: ${infoGuideSidePanelOpened
+            ? 'margin 150ms'
+            : 'margin 300ms'};
+          overflow-y: auto;
         `}
       >
         {children}
       </div>
+      <InfoGuideSidePanel />
     </ContentMinWidthContext.Provider>
   );
 };

@@ -26,6 +26,8 @@ import {
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { DeleteRequestOptions } from './IntegrationOperations';
+
 export function useIntegrationOperation() {
   const { clusterId } = useStickyClusterId();
 
@@ -37,8 +39,12 @@ export function useIntegrationOperation() {
     setOperation({ type: 'none' });
   }
 
-  function remove() {
-    return integrationService.deleteIntegration(operation.item.name);
+  function remove(opt: DeleteRequestOptions = {}) {
+    return integrationService.deleteIntegration({
+      name: operation.item.name,
+      clusterId,
+      deleteAssociatedResources: opt.deleteAssociatedResources,
+    });
   }
 
   async function edit(req: EditableIntegrationFields) {

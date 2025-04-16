@@ -1184,8 +1184,7 @@ func BenchmarkValidateRole(b *testing.B) {
 	})
 	require.NoError(b, err)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		require.NoError(b, ValidateRole(role))
 	}
 }
@@ -2572,12 +2571,13 @@ func TestMFAVerificationInterval(t *testing.T) {
 		{
 			name: "Single role with MFA requirement, TTL adjusted to MFA verification interval",
 			roles: []types.RoleV6{
-				{Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						RequireMFAType:          types.RequireMFAType_SESSION,
-						MFAVerificationInterval: 5 * time.Minute,
+				{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RequireMFAType:          types.RequireMFAType_SESSION,
+							MFAVerificationInterval: 5 * time.Minute,
+						},
 					},
-				},
 				},
 			},
 			enforce:     false,
@@ -4885,7 +4885,6 @@ func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *test
 	for _, tc := range tt {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
 		t.Run(tc.name, func(t *testing.T) {
-
 			allowedRoles := accessChecker.GetAllowedSearchAsRolesForKubeResourceKind(tc.requestType)
 			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
 		})
@@ -7050,9 +7049,6 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	}
 	userTraits := wrappers.Traits{}
 
-	// Initialization is complete, start the benchmark timer.
-	b.ResetTimer()
-
 	// Build a map of all allowed logins.
 	allowLogins := map[string]bool{}
 	for _, role := range set {
@@ -7062,7 +7058,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 	}
 
 	// Check access to all 4,000 nodes.
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
 				// note: we don't check the error here because this benchmark

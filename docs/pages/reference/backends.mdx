@@ -13,8 +13,8 @@ read/write ratio, mutability, etc.).
 | Data type               | Description                                                                                                                                 | Supported storage backends                                                                             |
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | core cluster state      | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB                |
-| audit events            | JSON-encoded events from the audit log (e.g. user logins, RBAC changes)                                                                     | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, GCP Firestore |
-| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, AWS S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage         |
+| audit events            | Events from the audit log (e.g. user logins, RBAC changes)                                                                                  | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, Amazon S3, GCP Firestore |
+| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, Amazon S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage         |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy)                                                                       | Local directory, Kubernetes Secret                                                                     |
 
 ## Cluster state
@@ -856,7 +856,7 @@ To configure Teleport to use DynamoDB:
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
   populated with the addresses of your cluster's Auth Service instances.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 AWS can throttle DynamoDB if more than two processes are reading from the same
 stream's shard simultaneously, so you must not deploy more than two Auth Service
@@ -864,7 +864,7 @@ instances that read from a DynamoDB backend. For details on DynamoDB Streams,
 read the [AWS
 documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html).
 
-</Notice>
+</Admonition>
 
 ```yaml
 teleport:
@@ -984,12 +984,13 @@ Glue table.
 You can set up the required infrastructure to support the Athena backend with
 the following Terraform script:
 
-<Details title="Terraform script" opened={false}>
+<details>
+<summary>Terraform script"</summary>
 ```
 (!examples/athena/variables.tf!)
 (!examples/athena/athena.tf!)
 ```
-</Details>
+</details>
 
 ### Configuring the Athena audit log backend
 

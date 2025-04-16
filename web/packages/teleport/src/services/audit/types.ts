@@ -238,6 +238,8 @@ export const eventCodes = {
   WORKLOAD_IDENTITY_CREATE: `WID001I`,
   WORKLOAD_IDENTITY_UPDATE: `WID002I`,
   WORKLOAD_IDENTITY_DELETE: `WID003I`,
+  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE: `WID007I`,
+  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE: `WID008I`,
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -315,6 +317,15 @@ export const eventCodes = {
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
   AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
   AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
+  AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
+  AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
+  AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
+  AUTOUPDATE_VERSION_CREATE: 'AUV001I',
+  AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
+  AUTOUPDATE_VERSION_DELETE: 'AUV003I',
+  HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
+  HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
+  HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
 } as const;
 
 /**
@@ -1346,6 +1357,14 @@ export type RawEvents = {
     typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
     HasName
   >;
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE,
+    HasName
+  >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_CREATE,
     HasName
@@ -1802,6 +1821,54 @@ export type RawEvents = {
   >;
   [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
     typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_DELETE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
+    HasName
   >;
 };
 

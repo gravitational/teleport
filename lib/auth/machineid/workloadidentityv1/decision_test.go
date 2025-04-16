@@ -18,9 +18,13 @@ package workloadidentityv1
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -72,188 +76,6 @@ func Test_decide(t *testing.T) {
 			d := decide(context.Background(), tt.wid, tt.attrs)
 			require.Equal(t, tt.wantIssue, d.shouldIssue)
 			tt.assertReason(t, d.reason)
-		})
-	}
-}
-
-func Test_getFieldStringValue(t *testing.T) {
-	tests := []struct {
-		name       string
-		in         *workloadidentityv1pb.Attrs
-		attr       string
-		want       string
-		requireErr require.ErrorAssertionFunc
-	}{
-		{
-			name: "success",
-			in: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "jeff",
-				},
-			},
-			attr:       "user.name",
-			want:       "jeff",
-			requireErr: require.NoError,
-		},
-		{
-			// This test ensures that the proto name (e.g service_account) is
-			// used instead of the Go name (e.g serviceAccount).
-			name: "underscored",
-			in: &workloadidentityv1pb.Attrs{
-				Join: &workloadidentityv1pb.JoinAttrs{
-					Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
-						ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
-							Namespace: "default",
-						},
-					},
-				},
-			},
-			attr:       "join.kubernetes.service_account.namespace",
-			want:       "default",
-			requireErr: require.NoError,
-		},
-		{
-			name: "bool",
-			in: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "jeff",
-				},
-				Workload: &workloadidentityv1pb.WorkloadAttrs{
-					Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
-						Attested: true,
-					},
-				},
-			},
-			attr:       "workload.unix.attested",
-			want:       "true",
-			requireErr: require.NoError,
-		},
-		{
-			name: "int32",
-			in: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "jeff",
-				},
-				Workload: &workloadidentityv1pb.WorkloadAttrs{
-					Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
-						Pid: 123,
-					},
-				},
-			},
-			attr:       "workload.unix.pid",
-			want:       "123",
-			requireErr: require.NoError,
-		},
-		{
-			name: "uint32",
-			in: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "jeff",
-				},
-				Workload: &workloadidentityv1pb.WorkloadAttrs{
-					Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
-						Gid: 123,
-					},
-				},
-			},
-			attr:       "workload.unix.gid",
-			want:       "123",
-			requireErr: require.NoError,
-		},
-		{
-			name: "non-string final field",
-			in: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "user",
-				},
-			},
-			attr: "user",
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "attribute \"user\" of type \"message\" cannot be converted to string")
-			},
-		},
-		{
-			// We mostly just want this to not panic.
-			name:       "nil root",
-			in:         nil,
-			attr:       "user.name",
-			want:       "",
-			requireErr: require.NoError,
-		},
-		{
-			// We mostly just want this to not panic.
-			name: "nil submessage",
-			in: &workloadidentityv1pb.Attrs{
-				User: nil,
-			},
-			attr:       "user.name",
-			want:       "",
-			requireErr: require.NoError,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := getFieldStringValue(tt.in, tt.attr)
-			tt.requireErr(t, gotErr)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func Test_templateString(t *testing.T) {
-	tests := []struct {
-		name       string
-		in         string
-		want       string
-		attrs      *workloadidentityv1pb.Attrs
-		requireErr require.ErrorAssertionFunc
-	}{
-		{
-			name: "success mixed",
-			in:   "hello{{user.name}}.{{user.name}} {{ workload.kubernetes.pod_name }}//{{ workload.kubernetes.namespace}}",
-			want: "hellojeff.jeff pod1//default",
-			attrs: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "jeff",
-				},
-				Workload: &workloadidentityv1pb.WorkloadAttrs{
-					Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
-						PodName:   "pod1",
-						Namespace: "default",
-					},
-				},
-			},
-			requireErr: require.NoError,
-		},
-		{
-			name: "success with spaces",
-			in:   "hello {{user.name}}",
-			want: "hello jeff",
-			attrs: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "jeff",
-				},
-			},
-			requireErr: require.NoError,
-		},
-		{
-			name: "fail due to unset",
-			in:   "hello {{workload.kubernetes.pod_name}}",
-			attrs: &workloadidentityv1pb.Attrs{
-				User: &workloadidentityv1pb.UserAttrs{
-					Name: "jeff",
-				},
-			},
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "attribute \"workload.kubernetes.pod_name\" unset")
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := templateString(tt.in, tt.attrs)
-			tt.requireErr(t, gotErr)
-			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -537,6 +359,44 @@ func Test_evaluateRules(t *testing.T) {
 			attrs:      attrs,
 			requireErr: noMatchRule,
 		},
+		{
+			name: "expression: pass",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{Expression: `user.name == "foo"`},
+						},
+					},
+				},
+			},
+			attrs:      attrs,
+			requireErr: require.NoError,
+		},
+		{
+			name: "expression: fail",
+			wid: &workloadidentityv1pb.WorkloadIdentity{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+					Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+						Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
+							{Expression: `user.name == "not-foo"`},
+						},
+					},
+				},
+			},
+			attrs:      attrs,
+			requireErr: noMatchRule,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -544,4 +404,118 @@ func Test_evaluateRules(t *testing.T) {
 			tt.requireErr(t, err)
 		})
 	}
+}
+
+func TestTemplateExtraClaims_Success(t *testing.T) {
+	const inputJSON = `
+		{
+			"simple-string": "hello world",
+			"simple-number": 1234,
+			"simple-bool": true,
+			"null": null,
+			"object": {
+				"message": "hello, {{user.name}}",
+				"workload": {
+					"podman": {
+						"pod_name": "{{workload.podman.pod.name}}",
+						"labels": ["{{workload.podman.pod.labels[\"a\"]}}", "{{workload.podman.pod.labels[\"b\"]}}", "c"]
+					}
+				}
+			}
+		}
+	`
+
+	const expectedOutputJSON = `
+	{
+		"simple-string": "hello world",
+		"simple-number": 1234,
+		"simple-bool": true,
+		"null": null,
+		"object": {
+			"message": "hello, Bobby",
+			"workload": {
+				"podman": {
+					"pod_name": "webserver",
+					"labels": ["a", "b", "c"]
+				}
+			}
+		}
+	}
+	`
+
+	var input, expectedOutput *structpb.Struct
+	err := json.Unmarshal([]byte(inputJSON), &input)
+	require.NoError(t, err)
+
+	err = json.Unmarshal([]byte(expectedOutputJSON), &expectedOutput)
+	require.NoError(t, err)
+
+	output, err := templateExtraClaims(input, &workloadidentityv1pb.Attrs{
+		User: &workloadidentityv1pb.UserAttrs{
+			Name: "Bobby",
+		},
+		Workload: &workloadidentityv1pb.WorkloadAttrs{
+			Podman: &workloadidentityv1pb.WorkloadAttrsPodman{
+				Pod: &workloadidentityv1pb.WorkloadAttrsPodmanPod{
+					Name:   "webserver",
+					Labels: map[string]string{"a": "a", "b": "b"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedOutput, output, protocmp.Transform()))
+}
+
+func TestTemplateExtraClaims_Failure(t *testing.T) {
+	const claimsJSON = `
+		{
+			"foo": {
+				"bar": {
+					"baz": ["a", {"b":"{{blah}}"}, "c"]
+				}
+			}
+		}
+	`
+
+	var rawClaims *structpb.Struct
+	err := json.Unmarshal([]byte(claimsJSON), &rawClaims)
+	require.NoError(t, err)
+
+	_, err = templateExtraClaims(rawClaims, &workloadidentityv1pb.Attrs{})
+	require.ErrorContains(t, err, "templating claim: foo.bar.baz[1].b")
+	require.ErrorContains(t, err, `unknown identifier: "blah"`)
+}
+
+func TestTemplateExtraClaims_TooDeeplyNested(t *testing.T) {
+	const claimsJSON = `
+		{
+			"1": {
+				"2": {
+					"3": {
+						"4": {
+							"5": {
+								"6": {
+									"7": {
+										"8": {
+											"9": {
+												"10": "very deep"
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	`
+
+	var rawClaims *structpb.Struct
+	err := json.Unmarshal([]byte(claimsJSON), &rawClaims)
+	require.NoError(t, err)
+
+	_, err = templateExtraClaims(rawClaims, &workloadidentityv1pb.Attrs{})
+	require.ErrorContains(t, err, "cannot contain more than 10 levels of nesting")
 }

@@ -17,10 +17,12 @@
 package workloadidentityv1
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -35,6 +37,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -137,10 +140,24 @@ func (s *IssuanceService) deriveAttrs(
 		Join: authzCtx.Identity.GetIdentity().JoinAttributes,
 	}
 
+	for key, values := range authzCtx.Identity.GetIdentity().Traits {
+		attrs.User.Traits = append(attrs.User.Traits, &traitv1.Trait{
+			Key:    key,
+			Values: values,
+		})
+	}
+
 	return attrs, nil
 }
 
-var defaultMaxTTL = 24 * time.Hour
+const (
+	// defaultMaxTTL defines the max requestable TTL for SVIDs where the
+	// workload identity resource does not specify a maximum TTL.
+	defaultMaxTTL = 24 * time.Hour
+	// defaultTTL defines the TTL when a client has not requested a specific
+	// TTL.
+	defaultTTL = 1 * time.Hour
+)
 
 func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
@@ -196,6 +213,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 			decision.templatedWorkloadIdentity,
 			v.X509SvidParams,
 			req.RequestedTtl.AsDuration(),
+			attrs,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing X509 SVID")
@@ -212,6 +230,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 			decision.templatedWorkloadIdentity,
 			v.JwtSvidParams,
 			req.RequestedTtl.AsDuration(),
+			attrs,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing JWT SVID")
@@ -296,6 +315,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 				wi,
 				v.X509SvidParams,
 				req.RequestedTtl.AsDuration(),
+				attrs,
 			)
 			if err != nil {
 				return nil, trace.Wrap(
@@ -319,6 +339,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 				wi,
 				v.JwtSvidParams,
 				req.RequestedTtl.AsDuration(),
+				attrs,
 			)
 			if err != nil {
 				return nil, trace.Wrap(
@@ -416,11 +437,31 @@ func (s *IssuanceService) getX509CA(
 	return tlsCA, nil
 }
 
+func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
+	if in == nil {
+		return nil, nil
+	}
+	attrBytes, err := json.Marshal(in)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling join attributes")
+	}
+	out := &apievents.Struct{}
+	if err := out.UnmarshalJSON(attrBytes); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling join attributes")
+	}
+	return out, nil
+}
+
 func baseEvent(
 	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	spiffeID spiffeid.ID,
-) *apievents.SPIFFESVIDIssued {
+	attrs *workloadidentityv1pb.Attrs,
+) (*apievents.SPIFFESVIDIssued, error) {
+	structAttrs, err := rawAttrsToStruct(attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling attributes")
+	}
 	return &apievents.SPIFFESVIDIssued{
 		Metadata: apievents.Metadata{
 			Type: events.SPIFFESVIDIssuedEvent,
@@ -432,20 +473,29 @@ func baseEvent(
 		Hint:                     wi.GetSpec().GetSpiffe().GetHint(),
 		WorkloadIdentity:         wi.GetMetadata().GetName(),
 		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
-	}
+		Attributes:               structAttrs,
+	}, nil
 }
 
 func calculateTTL(
+	ctx context.Context,
+	log *slog.Logger,
 	clock clockwork.Clock,
 	requestedTTL time.Duration,
+	configuredMaxTTL time.Duration,
 ) (time.Time, time.Time, time.Time, time.Duration) {
-	ttl := time.Hour
-	if requestedTTL != 0 {
-		ttl = requestedTTL
-		if ttl > defaultMaxTTL {
-			ttl = defaultMaxTTL
-		}
+	ttl := cmp.Or(requestedTTL, defaultTTL)
+	maxTTL := cmp.Or(configuredMaxTTL, defaultMaxTTL)
+
+	if ttl > maxTTL {
+		log.InfoContext(
+			ctx,
+			"Requested SVID TTL exceeds maximum, using maximum instead",
+			"requested_ttl", ttl,
+			"max_ttl", maxTTL)
+		ttl = maxTTL
 	}
+
 	now := clock.Now()
 	notBefore := now.Add(-1 * time.Minute)
 	notAfter := now.Add(ttl)
@@ -458,6 +508,7 @@ func (s *IssuanceService) issueX509SVID(
 	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.X509SVIDParams,
 	requestedTTL time.Duration,
+	attrs *workloadidentityv1pb.Attrs,
 ) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueX509SVID")
 	defer func() { tracing.EndSpan(span, err) }()
@@ -477,7 +528,13 @@ func (s *IssuanceService) issueX509SVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	_, notBefore, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
+	_, notBefore, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		requestedTTL,
+		wid.GetSpec().GetSpiffe().GetX509().GetMaximumTtl().AsDuration(),
+	)
 
 	pubKey, err := x509.ParsePKIXPublicKey(params.PublicKey)
 	if err != nil {
@@ -508,7 +565,10 @@ func (s *IssuanceService) issueX509SVID(
 		return nil, trace.Wrap(err)
 	}
 
-	evt := baseEvent(ctx, wid, spiffeID)
+	evt, err := baseEvent(ctx, wid, spiffeID, attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating base event")
+	}
 	evt.SVIDType = "x509"
 	evt.SerialNumber = serialString
 	evt.DNSSANs = wid.GetSpec().GetSpiffe().GetX509().GetDnsSans()
@@ -585,6 +645,7 @@ func (s *IssuanceService) issueJWTSVID(
 	wid *workloadidentityv1pb.WorkloadIdentity,
 	params *workloadidentityv1pb.JWTSVIDParams,
 	requestedTTL time.Duration,
+	attrs *workloadidentityv1pb.Attrs,
 ) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueJWTSVID")
 	defer func() { tracing.EndSpan(span, err) }()
@@ -604,7 +665,13 @@ func (s *IssuanceService) issueJWTSVID(
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	now, _, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
+	now, _, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		requestedTTL,
+		wid.GetSpec().GetSpiffe().GetJwt().GetMaximumTtl().AsDuration(),
+	)
 
 	jti, err := utils.CryptoRandomHex(jtiLength)
 	if err != nil {
@@ -619,12 +686,17 @@ func (s *IssuanceService) issueJWTSVID(
 
 		SetIssuedAt: now,
 		SetExpiry:   notAfter,
+
+		PrivateClaims: wid.GetSpec().GetSpiffe().GetJwt().GetExtraClaims().AsMap(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "signing jwt")
 	}
 
-	evt := baseEvent(ctx, wid, spiffeID)
+	evt, err := baseEvent(ctx, wid, spiffeID, attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating base event")
+	}
 	evt.SVIDType = "jwt"
 	evt.JTI = jti
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {

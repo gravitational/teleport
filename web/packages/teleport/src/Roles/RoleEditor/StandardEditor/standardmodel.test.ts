@@ -31,6 +31,7 @@ import {
   Rule,
   SessionRecordingMode,
   SSHPortForwarding,
+  Verb,
 } from 'teleport/services/resources';
 
 import presetRoles from '../../../../../../../gen/preset-roles.json';
@@ -40,9 +41,11 @@ import {
   unsupportedValueWithReplacement,
 } from './errors';
 import {
+  allowedVerbsForResourceKinds,
   createDBUserModeOptionsMap,
   createHostUserModeOptionsMap,
   defaultRoleVersion,
+  gitHubOrganizationsToModel,
   KubernetesAccess,
   kubernetesResourceKindOptionsMap,
   kubernetesVerbOptionsMap,
@@ -57,7 +60,6 @@ import {
   roleVersionOptionsMap,
   sessionRecordingModeOptionsMap,
   sshPortForwardingModeOptionsMap,
-  verbOptionsMap,
 } from './standardmodel';
 import { withDefaults } from './withDefaults';
 
@@ -174,6 +176,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'cthulhu', value: 'cthulhu' },
             { label: 'sandman', value: 'sandman' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -220,6 +223,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             'account1@some-project.iam.gserviceaccount.com',
             'account2@some-project.iam.gserviceaccount.com',
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -259,6 +263,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'auditor', value: 'auditor' },
           ],
           dbServiceLabels: [{ name: 'foo', value: 'bar' }],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -286,13 +291,14 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'alice', value: 'alice' },
             { label: 'bob', value: 'bob' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
   },
 
   {
-    name: 'GitHub organization',
+    name: 'GitHub organizations',
     role: {
       ...minimalRole(),
       spec: {
@@ -311,6 +317,7 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             { label: 'illuminati', value: 'illuminati' },
             { label: 'reptilians', value: 'reptilians' },
           ],
+          hideValidationErrors: false,
         },
       ],
     },
@@ -543,6 +550,69 @@ test.each<
   }
 );
 
+test.each<{
+  name: string;
+  permissions: GitHubPermission[];
+  expected: ReturnType<typeof gitHubOrganizationsToModel>;
+}>([
+  {
+    name: 'empty permissions array',
+    permissions: [],
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'some organizations',
+    permissions: [{ orgs: ['foo', 'bar'] }],
+    expected: {
+      model: [
+        { label: 'foo', value: 'foo' },
+        { label: 'bar', value: 'bar' },
+      ],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'empty permissions object',
+    permissions: [{}],
+    expected: {
+      model: [],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'empty organizations array',
+    permissions: [{ orgs: [] }],
+    expected: { model: [], conversionErrors: [] },
+  },
+  {
+    name: 'multiple permission objects',
+    permissions: [{ orgs: ['foo1', 'foo2'] }, { orgs: ['bar'] }],
+    expected: {
+      model: [
+        { label: 'foo1', value: 'foo1' },
+        { label: 'foo2', value: 'foo2' },
+        { label: 'bar', value: 'bar' },
+      ],
+      conversionErrors: [],
+    },
+  },
+  {
+    name: 'invalid fields',
+    permissions: [{ orgs: ['foo'], unknownField: 123 } as GitHubPermission],
+    expected: {
+      model: [{ label: 'foo', value: 'foo' }],
+      conversionErrors: simpleConversionErrors(
+        ConversionErrorType.UnsupportedField,
+        ['spec.allow.github_permissions[0].unknownField']
+      ),
+    },
+  },
+])('gitHubOrganizationsToModel(): $name', ({ permissions, expected }) => {
+  expect(
+    gitHubOrganizationsToModel(permissions, 'spec.allow.github_permissions')
+  ).toEqual(expected);
+});
+
 describe('roleToRoleEditorModel', () => {
   const minRole = minimalRole();
   const minRoleModel = minimalRoleModel();
@@ -558,6 +628,7 @@ describe('roleToRoleEditorModel', () => {
     resources: [],
     users: [],
     roleVersion: defaultRoleVersion,
+    hideValidationErrors: false,
   });
 
   test('unknown and invalid fields are reported as conversion errors', () => {
@@ -585,6 +656,11 @@ describe('roleToRoleEditorModel', () => {
           rules: [
             { ruleUnknown: 123 } as Rule,
             { verbs: ['create', 'illegal'] } as Rule,
+            // These are all technically valid, but you can't rotate a node
+            // (though it might be fun).
+            { resources: ['node'], verbs: ['read', 'rotate'] } as Rule,
+            // Other verbs are unsupported along with a wildcard.
+            { resources: ['node'], verbs: ['*', 'read'] } as Rule,
           ],
         },
         deny: { ...minRole.spec.deny, denyUnknown: 123 },
@@ -633,12 +709,14 @@ describe('roleToRoleEditorModel', () => {
           errors: simpleConversionErrors(ConversionErrorType.UnsupportedValue, [
             'spec.allow.kubernetes_resources[1].verbs[0]',
             'spec.allow.rules[1].verbs[1]',
+            'spec.allow.rules[2].verbs[1]',
             'spec.options.ssh_port_forwarding',
           ]),
         },
         {
           type: ConversionErrorType.UnsupportedValueWithReplacement,
           errors: [
+            unsupportedValueWithReplacement('spec.allow.rules[3].verbs', ['*']),
             unsupportedValueWithReplacement(
               'spec.options.cert_format',
               'standard'
@@ -694,12 +772,42 @@ describe('roleToRoleEditorModel', () => {
         {
           kind: 'git_server',
           organizations: [{ label: 'foo', value: 'foo' }],
+          hideValidationErrors: false,
         },
       ],
       rules: [
         expect.any(Object),
         expect.objectContaining({
-          verbs: [{ value: 'create', label: 'create' }],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: false },
+            { verb: 'list', checked: false },
+            { verb: 'create', checked: true },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
+        }),
+        expect.objectContaining({
+          resources: [{ label: 'node', value: 'node' }],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: false },
+            { verb: 'create', checked: false },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
+        }),
+        expect.objectContaining({
+          resources: [{ label: 'node', value: 'node' }],
+          allVerbs: true,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: true },
+            { verb: 'update', checked: true },
+            { verb: 'delete', checked: true },
+          ],
         }),
       ],
       options: {
@@ -865,6 +973,7 @@ describe('roleToRoleEditorModel', () => {
             { label: 'bob', value: 'bob' },
           ],
           roleVersion: defaultRoleVersion,
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -892,6 +1001,7 @@ describe('roleToRoleEditorModel', () => {
           awsRoleARNs: [],
           azureIdentities: [],
           gcpServiceAccounts: [],
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -909,7 +1019,7 @@ describe('roleToRoleEditorModel', () => {
                 resources: [ResourceKind.User, ResourceKind.DatabaseService],
                 verbs: ['read', 'list'],
               },
-              { resources: [ResourceKind.Lock], verbs: ['create'] },
+              { resources: [ResourceKind.Lock], verbs: ['*'] },
               {
                 resources: [ResourceKind.Session],
                 verbs: ['read', 'list'],
@@ -928,20 +1038,44 @@ describe('roleToRoleEditorModel', () => {
             resourceKindOptionsMap.get(ResourceKind.User),
             resourceKindOptionsMap.get(ResourceKind.DatabaseService),
           ],
-          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: false },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
           where: '',
+          hideValidationErrors: false,
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
-          verbs: [verbOptionsMap.get('create')],
+          allVerbs: true,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: true },
+            { verb: 'update', checked: true },
+            { verb: 'delete', checked: true },
+          ],
           where: '',
+          hideValidationErrors: false,
         },
         {
           id: expect.any(String),
           resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
-          verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+          allVerbs: false,
+          verbs: [
+            { verb: 'read', checked: true },
+            { verb: 'list', checked: true },
+            { verb: 'create', checked: false },
+            { verb: 'update', checked: false },
+            { verb: 'delete', checked: false },
+          ],
           where: 'contains(session.participants, user.metadata.name)',
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -968,6 +1102,7 @@ describe('roleToRoleEditorModel', () => {
             { label: 'foo', value: 'foo' },
             { label: 'bar', value: 'bar' },
           ],
+          hideValidationErrors: false,
         },
       ],
     } as RoleEditorModel);
@@ -1056,6 +1191,7 @@ describe('roleEditorModelToRole', () => {
               { label: 'bob', value: 'bob' },
             ],
             roleVersion: defaultRoleVersion,
+            hideValidationErrors: false,
           },
         ],
       })
@@ -1097,20 +1233,46 @@ describe('roleEditorModelToRole', () => {
               resourceKindOptionsMap.get(ResourceKind.User),
               resourceKindOptionsMap.get(ResourceKind.DatabaseService),
             ],
-            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            allVerbs: false,
+            verbs: [
+              { verb: 'read', checked: true },
+              { verb: 'list', checked: true },
+              { verb: 'create', checked: false },
+              { verb: 'update', checked: false },
+              { verb: 'delete', checked: false },
+            ],
             where: '',
+            hideValidationErrors: false,
           },
           {
             id: 'dummy-id-2',
             resources: [resourceKindOptionsMap.get(ResourceKind.Lock)],
-            verbs: [verbOptionsMap.get('create')],
+            allVerbs: true,
+            verbs: [
+              { verb: 'read', checked: false },
+              { verb: 'list', checked: false },
+              // Set one of these to `true` to make sure it's ignored and
+              // overridden by `allVerbs`. Shouldn't happen, but just in case.
+              { verb: 'create', checked: true },
+              { verb: 'update', checked: false },
+              { verb: 'delete', checked: false },
+            ],
             where: '',
+            hideValidationErrors: false,
           },
           {
-            id: expect.any(String),
+            id: 'dummy-id-3',
             resources: [resourceKindOptionsMap.get(ResourceKind.Session)],
-            verbs: [verbOptionsMap.get('read'), verbOptionsMap.get('list')],
+            allVerbs: false,
+            verbs: [
+              { verb: 'read', checked: true },
+              { verb: 'list', checked: true },
+              { verb: 'create', checked: false },
+              { verb: 'update', checked: false },
+              { verb: 'delete', checked: false },
+            ],
             where: 'contains(session.participants, user.metadata.name)',
+            hideValidationErrors: false,
           },
         ],
       })
@@ -1121,7 +1283,7 @@ describe('roleEditorModelToRole', () => {
         allow: {
           rules: [
             { resources: ['user', 'db_service'], verbs: ['read', 'list'] },
-            { resources: ['lock'], verbs: ['create'] },
+            { resources: ['lock'], verbs: ['*'] },
             {
               resources: ['session'],
               verbs: ['read', 'list'],
@@ -1150,4 +1312,41 @@ test('labelsModelToLabels', () => {
     doubleFoo: ['bar1', 'bar2'],
     tripleFoo: ['bar1', 'bar2', 'bar3'],
   } as Labels);
+});
+
+test.each<{ kinds: string[]; verbs: Verb[] }>([
+  // Typical case
+  {
+    kinds: [ResourceKind.Node],
+    verbs: ['read', 'list', 'create', 'update', 'delete'],
+  },
+  // Additional verbs
+  {
+    kinds: [ResourceKind.CertAuthority],
+    verbs: [
+      'read',
+      'list',
+      'create',
+      'update',
+      'delete',
+      'readnosecrets',
+      'rotate',
+    ],
+  },
+  // Combining verbs from more than one resource kind
+  {
+    kinds: [ResourceKind.SAMLConnector, ResourceKind.Device],
+    verbs: [
+      'read',
+      'list',
+      'create',
+      'update',
+      'delete',
+      'readnosecrets',
+      'create_enroll_token',
+      'enroll',
+    ],
+  },
+])('allowedVerbsForResourceKinds($kinds)', ({ kinds, verbs }) => {
+  expect(allowedVerbsForResourceKinds(kinds)).toEqual(verbs);
 });

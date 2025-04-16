@@ -19,17 +19,21 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io/fs"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -57,6 +61,9 @@ const (
 	reservedFreeDisk = 10_000_000
 	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
 	debugSocketFileName = "debug.sock" // 10 MB
+	// requiredUmask must be set before this package can be used.
+	// Use syscall.Umask to set when no other goroutines are running.
+	requiredUmask = 0o022
 )
 
 // Log keys
@@ -66,6 +73,24 @@ const (
 	backupKey = "backup_version"
 	errorKey  = "error"
 )
+
+var (
+	initTime = time.Now().UTC()
+)
+
+// SetRequiredUmask sets the umask to match the systemd umask that the teleport-update service will execute with.
+// This ensures consistent file permissions.
+// NOTE: This must be run in main.go before any goroutines that create files are started.
+func SetRequiredUmask(ctx context.Context, log *slog.Logger) {
+	warnUmask(ctx, log, syscall.Umask(requiredUmask))
+}
+
+func warnUmask(ctx context.Context, log *slog.Logger, old int) {
+	if old&^requiredUmask != 0 {
+		log.WarnContext(ctx, "Restrictive umask detected. Umask has been changed to 0022 for teleport-update and all child processes.")
+		log.WarnContext(ctx, "All files created by teleport-update will have permissions set according to this umask.")
+	}
+}
 
 // NewLocalUpdater returns a new Updater that auto-updates local
 // installations of the Teleport agent.
@@ -97,13 +122,14 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	validator := Validator{Log: cfg.Log}
 	debugClient := debug.NewClient(filepath.Join(ns.dataDir, debugSocketFileName))
 	return &Updater{
-		Log:                cfg.Log,
-		Pool:               certPool,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-		UpdateConfigPath:   filepath.Join(ns.Dir(), updateConfigName),
-		TeleportConfigPath: ns.configFile,
-		DefaultProxyAddr:   ns.defaultProxyAddr,
-		DefaultPathDir:     ns.defaultPathDir,
+		Log:                 cfg.Log,
+		Pool:                certPool,
+		InsecureSkipVerify:  cfg.InsecureSkipVerify,
+		UpdateConfigFile:    filepath.Join(ns.Dir(), updateConfigName),
+		TeleportConfigFile:  ns.configFile,
+		TeleportServiceName: filepath.Base(ns.serviceFile),
+		DefaultProxyAddr:    ns.defaultProxyAddr,
+		DefaultPathDir:      ns.defaultPathDir,
 		Installer: &LocalInstaller{
 			InstallDir:              filepath.Join(ns.Dir(), versionsDirName),
 			TargetServiceFile:       ns.serviceFile,
@@ -113,7 +139,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			Log:                     cfg.Log,
 			ReservedFreeTmpDisk:     reservedFreeDisk,
 			ReservedFreeInstallDisk: reservedFreeDisk,
-			TransformService:        ns.replaceTeleportService,
+			TransformService:        ns.ReplaceTeleportService,
 			ValidateBinary:          validator.IsBinary,
 			Template:                autoupdate.DefaultCDNURITemplate,
 		},
@@ -149,6 +175,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 		},
 		SetupNamespace:    ns.Setup,
 		TeardownNamespace: ns.Teardown,
+		LogConfigWarnings: ns.LogWarnings,
+		EnsureUpdateID:    ns.EnsureID,
 	}, nil
 }
 
@@ -173,6 +201,7 @@ type LocalUpdaterConfig struct {
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
+// SetRequiredUmask must be called before any methods are executed, except for Status.
 type Updater struct {
 	// Log contains a logger.
 	Log *slog.Logger
@@ -180,10 +209,12 @@ type Updater struct {
 	Pool *x509.CertPool
 	// InsecureSkipVerify skips TLS verification.
 	InsecureSkipVerify bool
-	// UpdateConfigPath contains the path to the agent auto-updates configuration.
-	UpdateConfigPath string
-	// TeleportConfig contains the path to Teleport's configuration.
-	TeleportConfigPath string
+	// UpdateConfigFile contains the path to the agent auto-updates configuration.
+	UpdateConfigFile string
+	// TeleportConfigFile contains the path to Teleport's configuration.
+	TeleportConfigFile string
+	// TeleportServiceName contains the full name of the systemd service for Teleport
+	TeleportServiceName string
 	// DefaultProxyAddr contains Teleport's proxy address. This may differ from the updater's.
 	DefaultProxyAddr string
 	// DefaultPathDir contains the default path that Teleport binaries should be installed into.
@@ -199,6 +230,11 @@ type Updater struct {
 	SetupNamespace func(ctx context.Context, path string) error
 	// TeardownNamespace removes all traces of the updater service in the current Namespace, including Teleport.
 	TeardownNamespace func(ctx context.Context) error
+	// LogConfigWarnings logs warnings related to the configuration Namespace.
+	LogConfigWarnings func(ctx context.Context, pathDir string)
+	// EnsureUpdateID generates and/or retrieves an ID for the updater, ensuring it is persisted.
+	// This ID is read by the Teleport agent and used to schedule progressive updates.
+	EnsureUpdateID func() (string, error)
 }
 
 // Installer provides an API for installing Teleport agents.
@@ -246,10 +282,14 @@ var (
 	ErrNotNeeded = errors.New("not needed")
 	// ErrNotSupported is returned when the operation is not supported on the platform.
 	ErrNotSupported = errors.New("not supported on this platform")
+	// ErrNotAvailable is returned when the operation is not available at the current version of the platform.
+	ErrNotAvailable = errors.New("not available at this version")
 	// ErrNoBinaries is returned when no binaries are available to be linked.
 	ErrNoBinaries = errors.New("no binaries available to link")
 	// ErrFilePresent is returned when a file is present.
 	ErrFilePresent = errors.New("file present")
+	// ErrNotInstalled is returned when Teleport is not installed.
+	ErrNotInstalled = errors.New("not installed")
 )
 
 // Process provides an API for interacting with a running Teleport process.
@@ -295,6 +335,8 @@ type OverrideConfig struct {
 	ForceFlags autoupdate.InstallFlags
 	// AllowOverwrite of installed binaries.
 	AllowOverwrite bool
+	// AllowProxyConflict when proxies in teleport.yaml and update.yaml are mismatched.
+	AllowProxyConflict bool
 }
 
 func deref[T any](ptr *T) T {
@@ -315,19 +357,26 @@ func toPtr[T any](t T) *T {
 // This function is idempotent.
 func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, override); err != nil {
 		return trace.Wrap(err)
 	}
+	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
+	cfg.Status.IDFile, err = u.EnsureUpdateID()
+	if err != nil {
+		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
+	}
 
 	if cfg.Spec.Proxy == "" {
 		cfg.Spec.Proxy = u.DefaultProxyAddr
 	} else if u.DefaultProxyAddr != "" &&
-		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) {
-		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
+		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) &&
+		!override.AllowProxyConflict {
+		u.Log.ErrorContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
+		return trace.Errorf("refusing to install with conflicting proxy addresses, pass --allow-proxy-conflict to override")
 	}
 	if cfg.Spec.Path == "" {
 		cfg.Spec.Path = u.DefaultPathDir
@@ -361,8 +410,9 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 
 	if err := u.update(ctx, cfg, target, override.AllowOverwrite, resp.AGPL); err != nil {
 		if errors.Is(err, ErrFilePresent) && !override.AllowOverwrite {
-			u.Log.WarnContext(ctx, "Use --overwrite to force removal of existing binaries installed via script.")
-			u.Log.WarnContext(ctx, "If a teleport rpm or deb package is installed, upgrade it to the latest version and retry. DO NOT USE --overwrite.")
+			u.Log.ErrorContext(ctx, "A non-packaged or outdated installation of Teleport was detected on this system.")
+			u.Log.ErrorContext(ctx, "Use --overwrite to force immediate removal of any existing binaries installed manually or via script.")
+			u.Log.ErrorContext(ctx, "Alternatively, if a Teleport RPM or DEB package is installed, upgrade it to the latest version and retry without --overwrite.")
 		}
 		return trace.Wrap(err)
 	}
@@ -373,11 +423,13 @@ func (u *Updater) Install(ctx context.Context, override OverrideConfig) error {
 	// Only write the configuration file if the initial update succeeds.
 	// Note: skip_version is never set on failed enable, only failed update.
 
-	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	u.Log.InfoContext(ctx, "Configuration updated.")
-	return trace.Wrap(u.notices(ctx))
+	u.LogConfigWarnings(ctx, cfg.Spec.Path)
+	u.notices(ctx)
+	return nil
 }
 
 // sameProxies returns true if both proxies addresses are the same.
@@ -403,7 +455,7 @@ func sameProxies(a, b string) bool {
 // Before attempting this, Remove attempts to gracefully recover the system-packaged version of Teleport (if present).
 // This function is idempotent.
 func (u *Updater) Remove(ctx context.Context, force bool) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -421,19 +473,40 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	}
 
 	// Do not link system package installation if the installation we are removing
-	// is not installed into /usr/local/bin.
+	// is not installed into /usr/local/bin. In this case, we also need to make sure
+	// it is clear we are not going to recover the package's systemd service if it
+	// was overwritten.
 	if filepath.Clean(cfg.Spec.Path) != filepath.Clean(defaultPathDir) {
-		return u.removeWithoutSystem(ctx, cfg, force)
+		if u.TeleportServiceName == serviceName {
+			if !force {
+				u.Log.ErrorContext(ctx, "Default Teleport systemd service would be removed, and --force was not passed.")
+				u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system.")
+				return trace.Errorf("unable to remove Teleport completely without --force")
+			} else {
+				u.Log.WarnContext(ctx, "Default Teleport systemd service will be removed since --force was passed.")
+				u.Log.WarnContext(ctx, "Teleport will be removed from this system.")
+			}
+		}
+		return u.removeWithoutSystem(ctx, cfg)
 	}
 	revert, err := u.Installer.LinkSystem(ctx)
 	if errors.Is(err, ErrNoBinaries) {
-		return u.removeWithoutSystem(ctx, cfg, force)
+		if !force {
+			u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed.")
+			u.Log.ErrorContext(ctx, "Refusing to remove Teleport from this system entirely without --force.")
+			return trace.Errorf("unable to remove Teleport completely without --force")
+		} else {
+			u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, but --force was passed.")
+			u.Log.WarnContext(ctx, "Teleport will be removed from this system entirely.")
+		}
+		return u.removeWithoutSystem(ctx, cfg)
 	}
 	if err != nil {
 		return trace.Wrap(err, "failed to link")
 	}
 
-	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Restoring packaged version of Teleport before removing.")
+	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected.")
+	u.Log.InfoContext(ctx, "Restoring packaged version of Teleport before removing.")
 
 	revertConfig := func(ctx context.Context) bool {
 		if ok := revert(ctx); !ok {
@@ -479,7 +552,8 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 		u.Log.ErrorContext(ctx, "Reverting symlinks due to failed restart.")
 		if ok := revertConfig(ctx); ok {
 			if err := u.Process.Reload(ctx); err != nil && !errors.Is(err, ErrNotNeeded) {
-				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting. Installation likely broken.", errorKey, err)
+				u.Log.ErrorContext(ctx, "Failed to reload Teleport after reverting.", errorKey, err)
+				u.Log.ErrorContext(ctx, "Installation likely broken.")
 			} else {
 				u.Log.WarnContext(ctx, "Teleport updater detected an error with the new installation and successfully reverted it.")
 			}
@@ -494,15 +568,10 @@ func (u *Updater) Remove(ctx context.Context, force bool) error {
 	return nil
 }
 
-func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig, force bool) error {
-	if !force {
-		u.Log.ErrorContext(ctx, "No packaged installation of Teleport was found, and --force was not passed. Refusing to remove Teleport from this system.")
-		return trace.Errorf("unable to remove Teleport completely without --force")
-	} else {
-		u.Log.WarnContext(ctx, "No packaged installation of Teleport was found, and --force was passed. Teleport will be removed from this system.")
-	}
-	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected. Attempting to unlink and remove.")
-	ok, err := isActiveOrEnabled(ctx, u.Process)
+func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig) error {
+	u.Log.InfoContext(ctx, "Updater-managed installation of Teleport detected.")
+	u.Log.InfoContext(ctx, "Attempting to unlink and remove.")
+	ok, err := u.Process.IsActive(ctx)
 	if err != nil && !errors.Is(err, ErrNotSupported) {
 		return trace.Wrap(err)
 	}
@@ -520,36 +589,35 @@ func (u *Updater) removeWithoutSystem(ctx context.Context, cfg *UpdateConfig, fo
 	return nil
 }
 
-// isActiveOrEnabled returns true if the service is active or enabled.
-func isActiveOrEnabled(ctx context.Context, s Process) (bool, error) {
-	enabled, err := s.IsEnabled(ctx)
+// readID returns the update ID, if present on disk.
+// Errors will be logged.
+func (u *Updater) readID(ctx context.Context, path string) string {
+	idBytes, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return ""
+	}
 	if err != nil {
-		return false, trace.Wrap(err)
+		u.Log.ErrorContext(ctx, "Failed to read update ID file.", "path", path, errorKey, err)
+		return ""
 	}
-	if enabled {
-		return true, nil
-	}
-	active, err := s.IsActive(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	if active {
-		return true, nil
-	}
-	return false, nil
+	return string(bytes.TrimSpace(idBytes))
 }
 
 // Status returns all available local and remote fields related to agent auto-updates.
 // Status is safe to run concurrently with other Updater commands.
+// Status does not write files, and therefore does not require SetRequiredUmask.
 func (u *Updater) Status(ctx context.Context) (Status, error) {
 	var out Status
 	// Read configuration from update.yaml.
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return out, trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return out, trace.Wrap(err)
+	}
+	if cfg.Spec.Proxy == "" {
+		return out, trace.Wrap(ErrNotInstalled)
 	}
 	out.UpdateSpec = cfg.Spec
 	out.UpdateStatus = cfg.Status
@@ -560,13 +628,14 @@ func (u *Updater) Status(ctx context.Context) (Status, error) {
 		return out, trace.Wrap(err)
 	}
 	out.FindResp = resp
+	out.IDFile = "" // actual ID is is find response
 	return out, nil
 }
 
 // Disable disables agent auto-updates.
 // This function is idempotent.
 func (u *Updater) Disable(ctx context.Context) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -575,7 +644,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 		return nil
 	}
 	cfg.Spec.Enabled = false
-	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
@@ -584,7 +653,7 @@ func (u *Updater) Disable(ctx context.Context) error {
 // Unpin allows the current version to be changed by Update.
 // This function is idempotent.
 func (u *Updater) Unpin(ctx context.Context) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -593,7 +662,7 @@ func (u *Updater) Unpin(ctx context.Context) error {
 		return nil
 	}
 	cfg.Spec.Pinned = false
-	if err := writeConfig(u.UpdateConfigPath, cfg); err != nil {
+	if err := writeConfig(u.UpdateConfigFile, cfg); err != nil {
 		return trace.Wrap(err, "failed to write %s", updateConfigName)
 	}
 	return nil
@@ -606,16 +675,17 @@ func (u *Updater) Unpin(ctx context.Context) error {
 // This function is idempotent.
 func (u *Updater) Update(ctx context.Context, now bool) error {
 	// Read configuration from update.yaml and override any new values passed as flags.
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
 	if err := validateConfigSpec(&cfg.Spec, OverrideConfig{}); err != nil {
 		return trace.Wrap(err)
 	}
-	if u.DefaultProxyAddr != "" &&
-		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) {
-		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml. Unexpected updates may occur.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
+	// Always ensure the ID file is created, even if we do not write the path to disk on this run.
+	cfg.Status.IDFile, err = u.EnsureUpdateID()
+	if err != nil {
+		u.Log.ErrorContext(ctx, "Failed to write updater ID file. Update tracking is degraded.", "id_file", cfg.Status.IDFile, errorKey, err)
 	}
 
 	active := cfg.Status.Active
@@ -623,6 +693,12 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	if !cfg.Spec.Enabled {
 		u.Log.InfoContext(ctx, "Automatic updates disabled.", activeKey, active)
 		return nil
+	}
+
+	if u.DefaultProxyAddr != "" &&
+		!sameProxies(cfg.Spec.Proxy, u.DefaultProxyAddr) {
+		u.Log.WarnContext(ctx, "Proxy specified in update.yaml does not match teleport.yaml.", "update_proxy", cfg.Spec.Proxy, "teleport_proxy", u.DefaultProxyAddr)
+		u.Log.WarnContext(ctx, "Unexpected updates may occur.")
 	}
 
 	if cfg.Spec.Path == "" {
@@ -681,12 +757,22 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	default:
 		u.Log.InfoContext(ctx, "Update available. Initiating update.", targetKey, target, activeKey, active)
 	}
-	if !now {
-		time.Sleep(resp.Jitter)
+	if !now && resp.Jitter > 0 {
+		select {
+		case <-time.After(time.Duration(rand.Int64N(int64(resp.Jitter)))):
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
 	}
-
+	cfg.Status.LastUpdate = &LastUpdate{
+		Time:   initTime.Truncate(time.Millisecond),
+		Target: target,
+	}
 	updateErr := u.update(ctx, cfg, target, false, resp.AGPL)
-	writeErr := writeConfig(u.UpdateConfigPath, cfg)
+	if updateErr == nil {
+		cfg.Status.LastUpdate.Success = true
+	}
+	writeErr := writeConfig(u.UpdateConfigFile, cfg)
 	if writeErr != nil {
 		writeErr = trace.Wrap(writeErr, "failed to write %s", updateConfigName)
 	} else {
@@ -694,7 +780,7 @@ func (u *Updater) Update(ctx context.Context, now bool) error {
 	}
 	// Show notices last
 	if updateErr == nil && now {
-		updateErr = u.notices(ctx)
+		u.notices(ctx)
 	}
 	return trace.NewAggregate(updateErr, writeErr)
 }
@@ -707,12 +793,14 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to parse proxy server address")
 	}
+	id := u.readID(ctx, cfg.Status.IDFile)
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,
 		ProxyAddr:   addr.Addr,
 		Insecure:    u.InsecureSkipVerify,
 		Timeout:     30 * time.Second,
 		UpdateGroup: cfg.Spec.Group,
+		UpdateID:    id,
 		Pool:        u.Pool,
 	})
 	if err != nil {
@@ -739,6 +827,7 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig) (FindResp, error)
 		InWindow: resp.AutoUpdate.AgentAutoUpdate,
 		Jitter:   time.Duration(jitterSec) * time.Second,
 		AGPL:     agpl,
+		ID:       id,
 	}, nil
 }
 
@@ -862,10 +951,10 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	if r := deref(cfg.Status.Backup); r.Version != "" {
 		u.Log.InfoContext(ctx, "Backup version set.", backupKey, r)
 	}
-
-	return trace.Wrap(u.cleanup(ctx, cfg, []Revision{
+	u.cleanup(ctx, cfg, []Revision{
 		target, active, backup,
-	}))
+	})
+	return nil
 }
 
 // Setup writes updater configuration and verifies the Teleport installation.
@@ -890,10 +979,11 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 		u.Log.WarnContext(ctx, "Skipping all systemd setup because systemd is not running.")
 		return nil
 	}
-	if err != nil {
+	if errors.Is(err, ErrNotAvailable) {
+		u.Log.DebugContext(ctx, "Systemd version is outdated. Skipping SELinux verification.")
+	} else if err != nil {
 		return trace.Wrap(err, "failed to determine if new version of Teleport has an installed systemd service")
-	}
-	if !present {
+	} else if !present {
 		return trace.Errorf("cannot find systemd service for new version of Teleport, check SELinux settings")
 	}
 
@@ -913,45 +1003,52 @@ func (u *Updater) Setup(ctx context.Context, path string, restart bool) error {
 }
 
 // notices displays final notices after install or update.
-func (u *Updater) notices(ctx context.Context) error {
+func (u *Updater) notices(ctx context.Context) {
 	enabled, err := u.Process.IsEnabled(ctx)
 	if errors.Is(err, ErrNotSupported) {
 		u.Log.WarnContext(ctx, "Teleport is installed, but systemd is not present to start it.")
 		u.Log.WarnContext(ctx, "After configuring teleport.yaml, your system must also be configured to start Teleport.")
-		return nil
+		return
+	}
+	if errors.Is(err, ErrNotAvailable) {
+		u.Log.WarnContext(ctx, "Remember to use systemctl to enable and start Teleport.")
+		return
 	}
 	if err != nil {
-		return trace.Wrap(err, "failed to query Teleport systemd enabled status")
+		u.Log.ErrorContext(ctx, "Failed to determine if Teleport is enabled.", errorKey, err)
+		return
 	}
 	active, err := u.Process.IsActive(ctx)
 	if err != nil {
-		return trace.Wrap(err, "failed to query Teleport systemd active status")
+		u.Log.ErrorContext(ctx, "Failed to determine if Teleport is active.", errorKey, err)
+		return
 	}
 	if !enabled && active {
 		u.Log.WarnContext(ctx, "Teleport is installed and started, but not configured to start on boot.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can enable it with: systemctl enable teleport")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable it.",
+			"command", "systemctl enable "+u.TeleportServiceName)
 	}
 	if !active && enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed and enabled at boot, but not running.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can start it with: systemctl start teleport")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must start it.",
+			"command", "systemctl start "+u.TeleportServiceName)
 	}
 	if !active && !enabled {
 		u.Log.WarnContext(ctx, "Teleport is installed, but not running or enabled at boot.")
-		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you can enable and start it with: systemctl enable teleport --now")
+		u.Log.WarnContext(ctx, "After configuring teleport.yaml, you must enable and start.",
+			"command", "systemctl enable --now "+u.TeleportServiceName)
 	}
-
-	return nil
 }
 
 // cleanup orphan installations
-func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revision) error {
+func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revision) {
 	revs, err := u.Installer.List(ctx)
 	if err != nil {
 		u.Log.ErrorContext(ctx, "Failed to read installed versions.", errorKey, err)
-		return nil
+		return
 	}
 	if len(revs) < 3 {
-		return nil
+		return
 	}
 	u.Log.WarnContext(ctx, "More than two versions of Teleport are installed. Removing unused versions.", "count", len(revs))
 	for _, v := range revs {
@@ -969,7 +1066,6 @@ func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revisio
 		}
 		u.Log.WarnContext(ctx, "Deleted unused version of Teleport.", "version", v)
 	}
-	return nil
 }
 
 // LinkPackage creates links from the system (package) installation of Teleport, if they are needed.
@@ -977,7 +1073,7 @@ func (u *Updater) cleanup(ctx context.Context, cfg *UpdateConfig, keep []Revisio
 // LinkPackage returns an error only if an unknown version of Teleport is present (e.g., manually copied files).
 // This function is idempotent.
 func (u *Updater) LinkPackage(ctx context.Context) error {
-	cfg, err := readConfig(u.UpdateConfigPath)
+	cfg, err := readConfig(u.UpdateConfigFile)
 	if err != nil {
 		return trace.Wrap(err, "failed to read %s", updateConfigName)
 	}
@@ -1011,10 +1107,11 @@ func (u *Updater) LinkPackage(ctx context.Context) error {
 		return trace.Wrap(err, "failed to sync systemd configuration")
 	} else {
 		present, err := u.Process.IsPresent(ctx)
-		if err != nil {
+		if errors.Is(err, ErrNotAvailable) {
+			u.Log.DebugContext(ctx, "Systemd version is outdated. Skipping SELinux verification.")
+		} else if err != nil {
 			return trace.Wrap(err, "failed to determine if Teleport has an installed systemd service")
-		}
-		if !present {
+		} else if !present {
 			return trace.Errorf("cannot find systemd service for Teleport, check SELinux settings")
 		}
 	}
