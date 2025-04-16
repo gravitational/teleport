@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
@@ -147,6 +148,7 @@ type windowsService struct{}
 // "no error". You can also indicate if exit code, if any, is service specific
 // or not by using svcSpecificEC parameter.
 func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
+	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
 	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
@@ -168,7 +170,7 @@ loop:
 				}
 				status <- svc.Status{State: state, Accepts: cmdsAccepted}
 			case svc.Stop:
-				slog.InfoContext(ctx, "Received stop command, shutting down service")
+				logger.InfoContext(ctx, "Received stop command, shutting down service")
 				// Cancel the context passed to s.run to terminate the
 				// networking stack.
 				cancel()
@@ -176,15 +178,15 @@ loop:
 				status <- svc.Status{State: svc.StopPending}
 			}
 		case <-terminateTimedOut:
-			slog.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
+			logger.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
 				slog.Duration("timeout", terminateTimeout))
 			exitCode = 1
 			break loop
 		case err := <-errCh:
 			if err == nil || errors.Is(err, context.Canceled) {
-				slog.InfoContext(ctx, "Service terminated")
+				logger.InfoContext(ctx, "Service terminated")
 			} else {
-				slog.ErrorContext(ctx, "Service terminated", "error", err)
+				logger.ErrorContext(ctx, "Service terminated", "error", err)
 				exitCode = 1
 			}
 			break loop
