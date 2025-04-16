@@ -17,7 +17,7 @@ package hardwarekey_test
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -97,5 +97,5 @@ func (p *randPINPrompt) ConfirmSlotOverwrite(ctx context.Context, message string
 }
 
 func (p *randPINPrompt) randPIN() string {
-	return fmt.Sprintf("%08d", rand.Intn(100000000))
+	return fmt.Sprintf("%08d", rand.IntN(100000000))
 }
