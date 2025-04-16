@@ -210,7 +210,7 @@ func TestClientStore(t *testing.T) {
 			t.Parallel()
 
 			testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-				clientStore.hwKeyService = hwks
+				clientStore.HardwareKeyService = hwks
 
 				// Add key should add the key and trusted certs to their respective stores.
 				err := clientStore.AddKeyRing(keyRing)
@@ -222,7 +222,7 @@ func TestClientStore(t *testing.T) {
 				require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
 
 				// Getting the key from the key store should have no trusted certs.
-				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.hwKeyService, WithAllCerts...)
+				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.HardwareKeyService, WithAllCerts...)
 				require.NoError(t, err)
 				expectKeyRing := keyRing.Copy()
 				expectKeyRing.TrustedCerts = nil
