@@ -31,6 +31,7 @@ import (
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
@@ -45,7 +46,7 @@ type vnetClientApplication struct {
 }
 
 func newVnetClientApplication(cf *CLIConf) (*vnetClientApplication, error) {
-	hwks := client.NewHardwareKeyService(cf.Context, nil /*prompt*/)
+	hwks := libhwk.NewService(cf.Context, nil /*prompt*/)
 	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 
 	p := &vnetClientApplication{

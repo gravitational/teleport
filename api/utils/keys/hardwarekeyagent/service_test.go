@@ -19,49 +19,195 @@ package hardwarekeyagent_test
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"net"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
 )
 
-func TestHardwareKeyAgent_Service(t *testing.T) {
+func TestHardwareKeyAgentService(t *testing.T) {
 	ctx := context.Background()
-	agentDir := t.TempDir()
 
 	// Prepare the agent server
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	s, err := hardwarekeyagent.NewServer(ctx, mockService, agentDir)
-	require.NoError(t, err)
-	t.Cleanup(s.Stop)
+	server := hardwarekeyagent.NewServer(ctx, mockService, insecure.NewCredentials())
+	t.Cleanup(server.Stop)
 
+	agentDir := t.TempDir()
+	socketPath := filepath.Join(agentDir, "agent.sock")
+	l, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+
+	serverErr := make(chan error, 1)
 	go func() {
-		s.Serve(ctx)
+		serverErr <- server.Serve(l)
 	}()
 
 	// Prepare the agent client
-	agentClient, err := hardwarekeyagent.NewClient(ctx, agentDir)
+	agentClient, err := hardwarekeyagent.NewClient(ctx, socketPath, insecure.NewCredentials())
 	require.NoError(t, err)
 
-	// Prepare the agent service.
-	agentService := hardwarekeyagent.NewService(agentClient, mockService)
+	agentService := hardwarekeyagent.NewService(agentClient, hardwarekey.NewMockHardwareKeyService(nil /*prompt*/))
+	agentServiceWithFallback := hardwarekeyagent.NewService(agentClient, mockService)
 
-	// Create a new key.
-	hwSigner, err := agentService.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
-		Policy: hardwarekey.PromptPolicyNone,
+	for _, tc := range []struct {
+		name      string
+		algorithm hardwarekey.Algorithm
+		opts      crypto.SignerOpts
+		expectErr bool
+	}{
+		{
+			name:      "EC256 Unsupported hash",
+			algorithm: hardwarekey.AlgorithmEC256,
+			opts:      crypto.MD5,
+			expectErr: true, // unsupported hash
+		},
+		{
+			name:      "EC256 No hash",
+			algorithm: hardwarekey.AlgorithmEC256,
+			opts:      crypto.Hash(0),
+		},
+		{
+			name:      "EC256 SHA256",
+			algorithm: hardwarekey.AlgorithmEC256,
+			opts:      crypto.SHA256,
+		},
+		{
+			name:      "EC256 SHA512",
+			algorithm: hardwarekey.AlgorithmEC256,
+			opts:      crypto.SHA512,
+		},
+		{
+			name:      "ED25519 No hash",
+			algorithm: hardwarekey.AlgorithmEd25519,
+			opts:      crypto.Hash(0),
+		},
+		{
+			name:      "ED25519 SHA256",
+			algorithm: hardwarekey.AlgorithmEd25519,
+			opts:      crypto.SHA256,
+			expectErr: true, // sha256 not supported
+		},
+		{
+			name:      "ED25519 SHA512",
+			algorithm: hardwarekey.AlgorithmEd25519,
+			opts:      crypto.SHA512,
+		},
+		{
+			name:      "RSA2048 No hash",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts:      crypto.Hash(0),
+		},
+		{
+			name:      "RSA2048 SHA256",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts:      crypto.SHA256,
+		},
+		{
+			name:      "RSA2048 SHA512",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts:      crypto.SHA512,
+		},
+		{
+			name:      "RSA2048 No hash PSS signature",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts: &rsa.PSSOptions{
+				SaltLength: 10,
+				Hash:       crypto.Hash(0),
+			},
+		},
+		{
+			name:      "RSA2048 SHA256 PSS signature",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts: &rsa.PSSOptions{
+				SaltLength: 10,
+				Hash:       crypto.SHA256,
+			},
+			expectErr: true, // hash required for pss signature
+		},
+		{
+			name:      "RSA2048 SHA256 PSSSaltLengthAuto",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts: &rsa.PSSOptions{
+				SaltLength: rsa.PSSSaltLengthAuto,
+				Hash:       crypto.SHA256,
+			},
+		},
+		{
+			name:      "RSA2048 SHA256 PSSSaltLengthEqualsHash",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts: &rsa.PSSOptions{
+				SaltLength: rsa.PSSSaltLengthEqualsHash,
+				Hash:       crypto.SHA256,
+			},
+		},
+		{
+			name:      "RSA2048 SHA512 PSS signature",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts: &rsa.PSSOptions{
+				SaltLength: 10,
+				Hash:       crypto.SHA512,
+			},
+		},
+		{
+			name:      "RSA2048 SHA512 PSSSaltLengthAuto",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts: &rsa.PSSOptions{
+				SaltLength: rsa.PSSSaltLengthAuto,
+				Hash:       crypto.SHA512,
+			},
+		},
+		{
+			name:      "RSA2048 SHA512 PSSSaltLengthEqualsHash",
+			algorithm: hardwarekey.AlgorithmRSA2048,
+			opts: &rsa.PSSOptions{
+				SaltLength: rsa.PSSSaltLengthEqualsHash,
+				Hash:       crypto.SHA512,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(mockService.Reset)
+
+			// Create a new key directly in the service.
+			hwSigner, err := mockService.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{
+				Algorithm: tc.algorithm,
+			})
+			require.NoError(t, err)
+
+			// Mock a hashed digest.
+			digest := make([]byte, 100)
+			if hash := tc.opts.HashFunc(); hash != 0 {
+				digest = make([]byte, hash.Size())
+			}
+
+			// Perform a signature over the agent.
+			_, err = agentService.Sign(ctx, hwSigner.Ref, hwSigner.KeyInfo, rand.Reader, digest, tc.opts)
+			if tc.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+
+	t.Run("fallback", func(t *testing.T) {
+		mockService.Reset()
+
+		// Create a new key.
+		hwSigner, err := agentServiceWithFallback.NewPrivateKey(ctx, hardwarekey.PrivateKeyConfig{})
+		require.NoError(t, err)
+
+		// If the server stops, the service should fallback to the fallback service.
+		server.Stop()
+		err = hwSigner.WarmupHardwareKey(ctx)
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
-
-	// Perform a signature using the service.
-	hash := crypto.SHA512
-	digest := make([]byte, hash.Size())
-	_, err = hwSigner.Sign(nil, digest, crypto.SHA512)
-	require.NoError(t, err)
-
-	// If the server stops, the service should fallback to the fallback service.
-	s.Stop()
-	_, err = hwSigner.Sign(nil, digest, crypto.SHA512)
-	require.NoError(t, err)
 }

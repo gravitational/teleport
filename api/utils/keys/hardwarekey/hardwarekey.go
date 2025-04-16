@@ -241,6 +241,9 @@ type PrivateKeyConfig struct {
 	//   - touch & pin   -> 9d
 	//   - touch & !pin  -> 9e
 	CustomSlot PIVSlotKeyString
+	// Algorithm is the key algorithm to use. Defaults to [AlgorithmEC256].
+	// [AlgorithmEd25519] is not supported by all hardware keys.
+	Algorithm Algorithm
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
 }
@@ -254,3 +257,12 @@ type ContextualKeyInfo struct {
 	// ClusterName is a Teleport cluster name that the key is associated with.
 	ClusterName string
 }
+
+// Algorithm is a key algorithm option.
+type Algorithm int
+
+const (
+	AlgorithmEC256 Algorithm = iota + 1
+	AlgorithmEd25519
+	AlgorithmRSA2048
+)

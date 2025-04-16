@@ -33,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
-	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -118,21 +116,6 @@ func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ..
 // NewHardwarePrivateKey create a new hardware private key with the given configuration in this client store.
 func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*keys.PrivateKey, error) {
 	return keys.NewHardwarePrivateKey(ctx, s.HardwareKeyService, config)
-}
-
-// NewHardwareKeyService prepares a new hardware key service. If a running hardware key agent
-// is found, this will return a hardware key agent service with a direct PIV service as backup.
-// Otherwise, the direct PIV service will be returned.
-func NewHardwareKeyService(ctx context.Context, prompt hardwarekey.Prompt) hardwarekey.Service {
-	var hwks hardwarekey.Service = piv.NewYubiKeyService(prompt)
-
-	agentDir := hardwarekeyagent.DefaultAgentDir()
-	agentClient, err := hardwarekeyagent.NewClient(ctx, agentDir)
-	if err == nil {
-		hwks = hardwarekeyagent.NewService(agentClient, hwks)
-	}
-
-	return hwks
 }
 
 // AddKeyRing adds the given key ring to the key store. The key's trusted certificates are

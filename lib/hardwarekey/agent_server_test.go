@@ -26,7 +26,7 @@ import (
 
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	libhardwarekey "github.com/gravitational/teleport/lib/hardwarekey"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 )
 
 func TestHardwareKeyAgent_Server(t *testing.T) {
@@ -35,7 +35,7 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 
 	// Prepare the agent server
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	server, err := libhardwarekey.NewAgentServer(ctx, mockService, agentDir)
+	server, err := libhwk.NewAgentServer(ctx, mockService, agentDir)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)
 
@@ -45,11 +45,11 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	}()
 
 	// Should fail to open a new server in the same directory.
-	_, err = libhardwarekey.NewAgentServer(ctx, mockService, agentDir)
+	_, err = libhwk.NewAgentServer(ctx, mockService, agentDir)
 	require.Error(t, err)
 
 	// Existing server should be unaffected.
-	clt, err := libhardwarekey.NewAgentClient(ctx, agentDir)
+	clt, err := libhwk.NewAgentClient(ctx, agentDir)
 	require.NoError(t, err)
 	_, err = clt.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	time.Sleep(time.Second)
 	_, err = os.Stat(agentDir)
 	require.ErrorIs(t, err, os.ErrNotExist)
-	server, err = libhardwarekey.NewAgentServer(ctx, mockService, agentDir)
+	server, err = libhwk.NewAgentServer(ctx, mockService, agentDir)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)
 
@@ -67,7 +67,7 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	// Use a timeoutCtx so that the failed Ping request fails quickly.
 	timeoutCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
-	server, err = libhardwarekey.NewAgentServer(timeoutCtx, mockService, agentDir)
+	server, err = libhwk.NewAgentServer(timeoutCtx, mockService, agentDir)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)
 }

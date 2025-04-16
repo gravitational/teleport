@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 )
 
 type pivCommands struct {
@@ -52,8 +52,7 @@ func newPIVAgentCommand(parent *kingpin.CmdClause) *pivAgentCommand {
 
 func (c *pivAgentCommand) run(cf *CLIConf) error {
 	hwKeyService := piv.NewYubiKeyService(nil /*prompt*/)
-	agentDir := hardwarekeyagent.DefaultAgentDir()
-	s, err := hardwarekeyagent.NewServer(cf.Context, hwKeyService, agentDir)
+	s, err := libhwk.NewAgentServer(cf.Context, hwKeyService, libhwk.DefaultAgentDir())
 	if err != nil {
 		return trace.Wrap(err)
 	}
