@@ -101,6 +101,7 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 	case AlgorithmEd25519:
 		_, priv, err = ed25519.GenerateKey(rand.Reader)
 	case AlgorithmRSA2048:
+		//nolint:forbidigo // Allow /api to generate RSA key without importing Teleport.
 		priv, err = rsa.GenerateKey(rand.Reader, 2048)
 	default:
 		return nil, trace.BadParameter("unknown algorithm option %v", config.Algorithm)
