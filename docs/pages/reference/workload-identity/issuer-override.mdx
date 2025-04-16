@@ -9,9 +9,9 @@ The X.509 issuer override functionality provides a way to replace the self-signe
 A valid Teleport Enterprise license is required to use X.509 issuer override feature of Teleport Workload Identity.
 </Admonition>
 
-<Admonition type="note" title="Version requirement">
+## Prerequisites
+
 The X.509 issuer override feature was introduced in Teleport 17.4.5. Clusters running an older version of the control plane won't support the feature, and credentials issued to older versions of `tbot` or `tsh` will be issued by the internal Teleport certificate authority even if an override is configured in the cluster.
-</Admonition>
 
 ## Configuration
 
