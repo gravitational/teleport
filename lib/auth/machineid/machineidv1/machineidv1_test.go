@@ -89,7 +89,7 @@ func TestCreateBot(t *testing.T) {
 			{
 				Resources: []string{types.KindBot},
 				Verbs:     []string{types.VerbCreate},
-				Where:     `startsWith(resource.metadata.name, "foo")`,
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
 			},
 		})
 	require.NoError(t, err)
@@ -916,7 +916,7 @@ func TestUpsertBot(t *testing.T) {
 		{
 			Resources: []string{types.KindBot},
 			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
-			Where:     `startsWith(resource.metadata.name, "foo")`,
+			Where:     `has_prefix(resource.metadata.name, "foo")`,
 		},
 	})
 	require.NoError(t, err)
@@ -1566,7 +1566,7 @@ func TestListBots(t *testing.T) {
 			{
 				Resources: []string{types.KindBot},
 				Verbs:     []string{types.VerbList},
-				Where:     `startsWith(resource.metadata.name, "foo")`,
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
 			},
 		})
 	require.NoError(t, err)
@@ -1717,7 +1717,7 @@ func TestDeleteBot(t *testing.T) {
 			{
 				Resources: []string{types.KindBot},
 				Verbs:     []string{types.VerbDelete},
-				Where:     `startsWith(resource.metadata.name, "foo")`,
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
 			},
 		})
 	require.NoError(t, err)

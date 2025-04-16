@@ -175,7 +175,7 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 				}
 				return string(ca.GetType()), nil
 			},
-			"startsWith": func(a, b interface{}) predicate.BoolPredicate {
+			"has_prefix": func(a, b interface{}) predicate.BoolPredicate {
 				return func() bool {
 					aval, ok := a.(string)
 					if !ok {
