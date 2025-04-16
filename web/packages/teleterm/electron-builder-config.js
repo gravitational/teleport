@@ -190,6 +190,10 @@ module.exports = {
         from: env.CONNECT_WINTUN_DLL_PATH,
         to: './bin/wintun.dll',
       },
+      {
+        from: '../../../lib/utils/log/eventlog/msgfile.dll',
+        to: './bin/msgfile.dll',
+      },
     ].filter(Boolean),
   },
   nsis: {
