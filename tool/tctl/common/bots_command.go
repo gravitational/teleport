@@ -306,6 +306,8 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 	}
 
 	bot := &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: c.botName,
 		},
