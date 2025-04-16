@@ -43,6 +43,7 @@ func NewClient(ctx context.Context, socketPath string, creds credentials.Transpo
 
 	cc, err := grpc.NewClient("passthrough:",
 		grpc.WithTransportCredentials(creds),
+		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		// The [grpc] library fails to resolve unix sockets on Windows, so
 		// we provide "passthrough:" to skip grpc's address resolution and
 		// a custom [net] dialer to connect to the socket.

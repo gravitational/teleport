@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -76,23 +77,18 @@ type Server struct {
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
 func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string) (*Server, error) {
-	// Check for an existing hardware key agent server and destroy it if it's unresponsive.
-	if err := checkAndDestroyExistingServer(ctx, keyAgentDir); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := os.MkdirAll(keyAgentDir, 0o700); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	socketPath := filepath.Join(keyAgentDir, sockName)
-	l, err := net.Listen("unix", socketPath)
+	l, err := newAgentListener(ctx, keyAgentDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	cert, err := generateServerCert(keyAgentDir)
 	if err != nil {
+		l.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -104,24 +100,31 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 	}, nil
 }
 
-func checkAndDestroyExistingServer(ctx context.Context, keyAgentDir string) error {
-	if _, err := os.Stat(keyAgentDir); errors.Is(err, os.ErrNotExist) {
-		return nil
+func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
+	socketPath := filepath.Join(keyAgentDir, sockName)
+	l, err := net.Listen("unix", socketPath)
+	if err == nil {
+		return l, nil
+	} else if !errors.Is(err, syscall.EADDRINUSE) {
+		return nil, trace.Wrap(err)
 	}
 
-	// Check if there is an active, responsive agent server in the given directory.
-	if client, err := NewAgentClient(ctx, keyAgentDir); err == nil {
-		if resp, err := client.Ping(ctx, &hardwarekeyagentv1.PingRequest{}); err == nil {
-			return trace.AlreadyExists("another agent instance is already running; PID: %d", resp.Pid)
-		} else {
-			slog.WarnContext(ctx, "error", "err", err)
+	// A hardware key agent already exists in the given path. Before replacing it,
+	// try to connect to it and see if it is active.
+	client, err := NewAgentClient(ctx, keyAgentDir)
+	if err == nil {
+		pong, err := client.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
+		if err == nil {
+			return nil, trace.AlreadyExists("another agent instance is already running; PID: %d", pong.Pid)
 		}
-	} else {
-		slog.WarnContext(ctx, "error", "err", err)
 	}
 
-	// Couldn't connect to the agent, destroy it so we can replace it.
-	return trace.Wrap(os.RemoveAll(keyAgentDir))
+	// If it isn't running, remove the socket and try again.
+	if err := os.Remove(socketPath); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newAgentListener(ctx, keyAgentDir)
 }
 
 func generateServerCert(keyAgentDir string) (tls.Certificate, error) {

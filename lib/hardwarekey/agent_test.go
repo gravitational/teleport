@@ -18,6 +18,7 @@ package hardwarekey_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -56,9 +57,10 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 
 	// If the server stops gracefully, the directory should be cleaned up and a new server can be started.
 	server.Stop()
-	time.Sleep(time.Second)
-	_, err = os.Stat(agentDir)
-	require.ErrorIs(t, err, os.ErrNotExist)
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(agentDir)
+		return errors.Is(err, os.ErrNotExist)
+	}, time.Second, 100*time.Millisecond)
 	server, err = libhwk.NewAgentServer(ctx, mockService, agentDir)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)
