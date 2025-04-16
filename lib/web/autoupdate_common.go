@@ -218,17 +218,24 @@ func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Chann
 
 // getTriggerFromWindowThenChannel gets the target version from the RFD109 maintenance window and channels.
 func (h *Handler) getTriggerFromWindowThenChannel(ctx context.Context, groupName string) (bool, error) {
-	// Caching the CMC for 10 seconds because this resource is cached neither by the auth nor the proxy.
+	// Caching the CMC for 60 seconds because this resource is cached neither by the auth nor the proxy.
 	// And this function can be accessed via unauthenticated endpoints.
 	cmc, err := utils.FnCacheGet(ctx, h.clusterMaintenanceConfigCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
 		return h.cfg.ProxyClient.GetClusterMaintenanceConfig(ctx)
 	})
 
-	// If we have a CMC, we check if the window is active, else we just check if the update is critical.
-	if err == nil && cmc.WithinUpgradeWindow(h.clock.Now()) {
-		return true, nil
+	// If there's no CMC or we failed to get it, we fallback directly to the channel
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			h.logger.WarnContext(ctx, "Failed to get cluster maintenance config", "error", err)
+		}
+		return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, groupName)
 	}
 
+	// If we have a CMC, we check if the window is active, else we just check if the update is critical.
+	if cmc.WithinUpgradeWindow(h.clock.Now()) {
+		return true, nil
+	}
 	return getTriggerFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, groupName)
 }
 
