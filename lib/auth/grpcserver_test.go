@@ -3323,7 +3323,7 @@ func TestLocksCRUD(t *testing.T) {
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
-			Node: "node",
+			ServerID: "node",
 		},
 		Message: "node compromised",
 	})

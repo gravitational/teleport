@@ -5067,7 +5067,7 @@ func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (rev
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker, h.cfg.AccessPoint), nil
+	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy

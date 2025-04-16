@@ -268,7 +268,6 @@ func (t LockTarget) IsEmpty() bool {
 	return t.User == "" &&
 		t.Role == "" &&
 		t.Login == "" &&
-		t.Node == "" &&
 		t.MFADevice == "" &&
 		t.WindowsDesktop == "" &&
 		t.AccessRequest == "" &&
@@ -289,13 +288,7 @@ func (t LockTarget) Match(lock Lock) bool {
 		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
 		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
 		(t.Device == "" || lockTarget.Device == t.Device) &&
-		((t.Node == "" && t.ServerID == "") ||
-			// Node lock overrides ServerID lock because we want to keep backwards compatibility
-			// with previous versions of Teleport where a node lock only locked the ssh_service
-			// and not the other services running on that host.
-			// Newer versions of Teleport will lock all services based on the ServerID field.
-			(lockTarget.Node != "" && lockTarget.Node == t.Node) ||
-			(lockTarget.ServerID != "" && lockTarget.ServerID == t.ServerID))
+		(t.ServerID == "" || lockTarget.ServerID == t.ServerID)
 }
 
 // String returns string representation of the LockTarget.
@@ -312,6 +305,5 @@ func (t LockTarget) Equals(t2 LockTarget) bool {
 		t.WindowsDesktop == t2.WindowsDesktop &&
 		t.AccessRequest == t2.AccessRequest &&
 		t.Device == t2.Device &&
-		t.ServerID == t2.ServerID &&
-		t.Node == t2.Node
+		t.ServerID == t2.ServerID
 }
