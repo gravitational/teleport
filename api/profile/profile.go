@@ -110,6 +110,9 @@ type Profile struct {
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
 	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot"`
 
+	// PIVPINCacheTTL specifies how long to cache the user's PIV PIN.
+	PIVPINCacheTTL time.Duration `yaml:"piv_pin_cache_ttl"`
+
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.
 	MissingClusterDetails bool

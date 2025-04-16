@@ -2372,6 +2372,13 @@ message HardwareKey {
   // SerialNumberValidation holds settings for hardware key serial number validation.
   // By default, serial number validation is disabled.
   HardwareKeySerialNumberValidation SerialNumberValidation = 2 [(gogoproto.jsontag) = "serial_number_validation,omitempty"];
+
+  // PinCacheTTL is the amount of time in nanoseconds that Teleport clients
+  // will cache the user's PIV PIN when hardware key PIN policy is enabled.
+  int64 PinCacheTTL = 3 [
+    (gogoproto.jsontag) = "pin_cache_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 message HardwareKeySerialNumberValidation {
