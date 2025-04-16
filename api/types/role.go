@@ -300,8 +300,8 @@ type Role interface {
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
 }
 
-// NewRole constructs new standard V7 role.
-// This creates a V7 role with V4+ RBAC semantics.
+// NewRole constructs new standard V8 role.
+// This creates a V8 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
 	// When incrementing the role version, make sure to update the
 	// role version in the asset file used by the UI.
@@ -1032,7 +1032,7 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 && r.Version != V7 {
+	if !slices.Contains([]string{V3, V4, V5, V6, V7}, r.Version) {
 		// When incrementing the role version, make sure to update the
 		// role version in the asset file used by the UI.
 		// See: web/packages/teleport/src/Roles/templates/role.yaml
@@ -1182,6 +1182,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
+	// TODO(@creack,@flyinghermit): Create a dedicate validation path for V8 once we have logic changes.
 	case V7, V8:
 		// Kubernetes resources default to {kind:*, name:*, namespace:*} for v7 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {

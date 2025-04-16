@@ -27,7 +27,6 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"slices"
 	"strconv"
 	"time"
 
@@ -2055,51 +2054,43 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
-	role = maybeDowngradeRoleCRD(role, clientVersion)
-
+	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
 }
 
-var minSupportedCRDVersion = semver.Version{Major: 18, Minor: 0, Patch: 0}
+var minSupportedRoleV8Version = semver.New(utils.VersionBeforeAlpha("18.0.0"))
 
-// We introduced support for CRDs in Teleport v18. To avoid unexpected access, if there
-// is a CRD in the deny list from an older role, deny all access.
-// If there is a CRD in the allow list, it gets discarded in older versions and will
-// result in less access than expected until the customer upgrades.
-func maybeDowngradeRoleCRD(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
-	// If we are V18 or higher, we don't need to downgrade the role, return as is.
+// maybeDowngradeRoleVersionToV7 downgrades the role version to V7 if
+// the client version passed through the gRPC metadata is below the version
+// specified in minSupportedRoleV8Version.
+//
+// TODO(@creack,@flyinghermit): Downgrade role appropriately when introducing role v8 semantics changes.
+//
+//	Currently, only downgrades the version as there is no logic change.
+func maybeDowngradeRoleVersionToV7(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	switch role.GetVersion() {
+	case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7:
+		return role
+	}
 	if supported, err := utils.MinVerWithoutPreRelease(
 		clientVersion.String(),
-		minSupportedCRDVersion.String()); supported || err != nil {
+		minSupportedRoleV8Version.String()); supported || err != nil {
 		return role
 	}
 
-	// For the `allow` list, keep all valid entries and discard the rest.
-	var allow []types.KubernetesResource
-	for _, kubeResource := range role.GetKubeResources(types.Allow) {
-		if slices.Contains(types.KubernetesResourcesKinds, kubeResource.Kind) || kubeResource.Kind == types.Wildcard {
-			allow = append(allow, kubeResource)
-		}
-	}
-	role.SetKubeResources(types.Allow, allow)
+	// Make a shallow copy of the role so that we don't mutate the original.
+	// This is necessary because the role is shared
+	// between multiple clients sessions when notifying about changes in watchers.
+	// If we mutate the original role, it will be mutated for all clients
+	// which can cause panics since it causes a race condition.
+	role = apiutils.CloneProtoMsg(role)
+	role.Version = types.V7
 
-	// For the `deny` list, if there is a CRD, deny all access.
-	denyAll := false
-	for _, kubeResource := range role.GetKubeResources(types.Deny) {
-		if !slices.Contains(types.KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != types.Wildcard {
-			denyAll = true
-			break
-		}
+	reason := fmt.Sprintf(`Role V8 is only supported from the client version %q and above.`, minSupportedRoleV8Version)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
 	}
-	if denyAll {
-		role.SetKubeResources(types.Deny, []types.KubernetesResource{{
-			Kind:      types.Wildcard,
-			Namespace: types.Wildcard,
-			Name:      types.Wildcard,
-			Verbs:     []string{types.Wildcard},
-		}})
-	}
-
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
 	return role
 }
 
