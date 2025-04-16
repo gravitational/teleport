@@ -53,8 +53,8 @@ type Store struct {
 
 // StoreConfig contains shared config options for Store.
 type StoreConfig struct {
-	log          *logrus.Entry
-	hwKeyService hardwarekey.Service
+	log                *logrus.Entry
+	HardwareKeyService hardwarekey.Service
 }
 
 // StoreConfigOpt applies configuration options.
@@ -63,7 +63,7 @@ type StoreConfigOpt func(o *StoreConfig)
 // WithHardwareKeyService sets the hardware key service.
 func WithHardwareKeyService(hwKeyService hardwarekey.Service) StoreConfigOpt {
 	return func(o *StoreConfig) {
-		o.hwKeyService = hwKeyService
+		o.HardwareKeyService = hwKeyService
 	}
 }
 
@@ -116,7 +116,7 @@ func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ..
 
 // NewHardwarePrivateKey create a new hardware private key with the given configuration in this client store.
 func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*keys.PrivateKey, error) {
-	return keys.NewHardwarePrivateKey(ctx, s.hwKeyService, config)
+	return keys.NewHardwarePrivateKey(ctx, s.HardwareKeyService, config)
 }
 
 // AddKey adds the given key to the key store. The key's trusted certificates are
@@ -163,7 +163,7 @@ func IsNoCredentialsError(err error) bool {
 // found or is missing data (certificates, etc.), then an ErrNoCredentials error
 // is returned.
 func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
-	key, err := s.KeyStore.GetKey(idx, s.hwKeyService, opts...)
+	key, err := s.KeyStore.GetKey(idx, s.HardwareKeyService, opts...)
 	if trace.IsNotFound(err) {
 		return nil, newNoCredentialsError(err)
 	} else if err != nil {

@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -217,6 +218,8 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	s.CustomHardwareKeyPrompt = hardwarekey.NewPINCachingPrompt(s.CustomHardwareKeyPrompt, cfg.PIVPINCacheTTL)
 
 	if leafClusterName != "" {
 		clusterNameForKey = leafClusterName
