@@ -417,7 +417,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	defer c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming finished")
 
 	// we will disable ping only if the env var is truthy
-	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_WINDOWS_DESKTOP_PING"))
+	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING"))
 
 	var withheldResize *tdp.ClientScreenSpec
 	for {
