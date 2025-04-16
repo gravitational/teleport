@@ -67,6 +67,14 @@ type AccessChecker interface {
 	// CheckAccessToRule checks access to a rule within a namespace.
 	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
 
+	// GuessIfAccessIsPossible guesses if access is possible for an entire category
+	// of resources.
+	// It responds the question: "is it possible that there is a resource of this
+	// kind that the current user can access?".
+	// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+	// for resource X appear"?). Most callers should use CheckAccessToRule instead.
+	GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error
+
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
 	CheckLoginDuration(ttl time.Duration) ([]string, error)
