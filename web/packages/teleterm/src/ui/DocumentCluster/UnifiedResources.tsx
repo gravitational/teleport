@@ -18,7 +18,7 @@
 
 import { memo, useCallback, useEffect, useMemo } from 'react';
 
-import { ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
+import { Box, ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
 import * as icons from 'design/Icon';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
@@ -26,6 +26,14 @@ import {
   UserPreferences,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import {
+  InfoGuidePanelProvider,
+  useInfoGuide,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+import {
+  marginTransitionCss,
+  resourceStatusPanelWidth,
+} from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,
@@ -68,6 +76,7 @@ import {
   ConnectServerActionButton,
   ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
+import { InfoGuideSidePanel } from './InfoGuideSidePanel';
 import { useResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
 
@@ -223,26 +232,28 @@ export function UnifiedResources(props: {
   );
 
   return (
-    <Resources
-      getAccessRequestButton={getAccessRequestButton}
-      queryParams={mergedParams}
-      onParamsChange={onParamsChange}
-      clusterUri={props.clusterUri}
-      userPreferencesAttempt={userPreferencesAttempt}
-      updateUserPreferences={updateUserPreferences}
-      userPreferences={userPreferences}
-      canAddResources={canAddResources}
-      canUseConnectMyComputer={canUseConnectMyComputer}
-      openConnectMyComputerDocument={openConnectMyComputerDocument}
-      onResourcesRefreshRequest={onResourcesRefreshRequest}
-      bulkAddResources={bulkAddResources}
-      getAddedItemsCount={getAddedItemsCount}
-      discoverUrl={discoverUrl}
-      integratedAccessRequests={integratedAccessRequests}
-      // Reset the component state when query params object change.
-      // JSON.stringify on the same object will always produce the same string.
-      key={`${JSON.stringify(mergedParams)}-${JSON.stringify(integratedAccessRequests)}`}
-    />
+    <InfoGuidePanelProvider defaultPanelWidth={resourceStatusPanelWidth}>
+      <Resources
+        getAccessRequestButton={getAccessRequestButton}
+        queryParams={mergedParams}
+        onParamsChange={onParamsChange}
+        clusterUri={props.clusterUri}
+        userPreferencesAttempt={userPreferencesAttempt}
+        updateUserPreferences={updateUserPreferences}
+        userPreferences={userPreferences}
+        canAddResources={canAddResources}
+        canUseConnectMyComputer={canUseConnectMyComputer}
+        openConnectMyComputerDocument={openConnectMyComputerDocument}
+        onResourcesRefreshRequest={onResourcesRefreshRequest}
+        bulkAddResources={bulkAddResources}
+        getAddedItemsCount={getAddedItemsCount}
+        discoverUrl={discoverUrl}
+        integratedAccessRequests={integratedAccessRequests}
+        // Reset the component state when query params object change.
+        // JSON.stringify on the same object will always produce the same string.
+        key={`${JSON.stringify(mergedParams)}-${JSON.stringify(integratedAccessRequests)}`}
+      />
+    </InfoGuidePanelProvider>
   );
 }
 
@@ -380,80 +391,91 @@ const Resources = memo(
         }),
     };
 
+    const { infoGuideConfig, panelWidth } = useInfoGuide();
+    const infoGuideSidePanelOpened = infoGuideConfig != null;
+
     return (
-      <SharedUnifiedResources
-        params={props.queryParams}
-        setParams={props.onParamsChange}
-        unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
-        bulkActions={
-          props.integratedAccessRequests.supported === 'yes'
-            ? [
-                {
-                  key: 'requestAccess',
-                  Icon: icons.AddCircle,
-                  text:
-                    props.getAddedItemsCount() > 0
-                      ? 'Add/Remove to Request'
-                      : 'Request Access',
-                  disabled: false,
-                  action: selectedResources =>
-                    props.bulkAddResources(
-                      selectedResources.map(sharedResource =>
-                        getUnifiedResourceFromSharedResource(
-                          sharedResource.resource
+      <Box
+        css={marginTransitionCss({
+          sidePanelOpened: infoGuideSidePanelOpened,
+          panelWidth,
+        })}
+      >
+        <SharedUnifiedResources
+          params={props.queryParams}
+          setParams={props.onParamsChange}
+          unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+          bulkActions={
+            props.integratedAccessRequests.supported === 'yes'
+              ? [
+                  {
+                    key: 'requestAccess',
+                    Icon: icons.AddCircle,
+                    text:
+                      props.getAddedItemsCount() > 0
+                        ? 'Add/Remove to Request'
+                        : 'Request Access',
+                    disabled: false,
+                    action: selectedResources =>
+                      props.bulkAddResources(
+                        selectedResources.map(sharedResource =>
+                          getUnifiedResourceFromSharedResource(
+                            sharedResource.resource
+                          )
                         )
-                      )
-                    ),
-                },
-              ]
-            : []
-        }
-        unifiedResourcePreferences={
-          props.userPreferences.unifiedResourcePreferences
-        }
-        updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
-          props.updateUserPreferences({ unifiedResourcePreferences })
-        }
-        pinning={pinning}
-        availabilityFilter={
-          props.integratedAccessRequests.supported === 'yes'
-            ? props.integratedAccessRequests.availabilityFilter
-            : undefined
-        }
-        resources={sharedResources}
-        resourcesFetchAttempt={attempt}
-        fetchResources={fetch}
-        availableKinds={[
-          {
-            kind: 'node',
-            disabled: false,
-          },
-          {
-            kind: 'app',
-            disabled: false,
-          },
-          {
-            kind: 'db',
-            disabled: false,
-          },
-          {
-            kind: 'kube_cluster',
-            disabled: false,
-          },
-          {
-            kind: 'windows_desktop',
-            disabled: false,
-          },
-        ]}
-        NoResources={
-          <NoResources
-            canCreate={props.canAddResources}
-            discoverUrl={props.discoverUrl}
-            canUseConnectMyComputer={props.canUseConnectMyComputer}
-            onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
-          />
-        }
-      />
+                      ),
+                  },
+                ]
+              : []
+          }
+          unifiedResourcePreferences={
+            props.userPreferences.unifiedResourcePreferences
+          }
+          updateUnifiedResourcesPreferences={unifiedResourcePreferences =>
+            props.updateUserPreferences({ unifiedResourcePreferences })
+          }
+          pinning={pinning}
+          availabilityFilter={
+            props.integratedAccessRequests.supported === 'yes'
+              ? props.integratedAccessRequests.availabilityFilter
+              : undefined
+          }
+          resources={sharedResources}
+          resourcesFetchAttempt={attempt}
+          fetchResources={fetch}
+          availableKinds={[
+            {
+              kind: 'node',
+              disabled: false,
+            },
+            {
+              kind: 'app',
+              disabled: false,
+            },
+            {
+              kind: 'db',
+              disabled: false,
+            },
+            {
+              kind: 'kube_cluster',
+              disabled: false,
+            },
+            {
+              kind: 'windows_desktop',
+              disabled: false,
+            },
+          ]}
+          NoResources={
+            <NoResources
+              canCreate={props.canAddResources}
+              discoverUrl={props.discoverUrl}
+              canUseConnectMyComputer={props.canUseConnectMyComputer}
+              onConnectMyComputerCtaClick={props.openConnectMyComputerDocument}
+            />
+          }
+        />
+        <InfoGuideSidePanel />
+      </Box>
     );
   }
 );
