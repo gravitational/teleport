@@ -19,6 +19,7 @@ package vnet
 import (
 	"cmp"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -180,8 +181,10 @@ loop:
 			exitCode = 1
 			break loop
 		case err := <-errCh:
-			slog.ErrorContext(ctx, "Windows VNet service terminated", "error", err)
-			if err != nil {
+			if err == nil || errors.Is(err, context.Canceled) {
+				slog.InfoContext(ctx, "Service terminated")
+			} else {
+				slog.ErrorContext(ctx, "Service terminated", "error", err)
 				exitCode = 1
 			}
 			break loop
