@@ -45,9 +45,6 @@ const (
 
 	// unitScheduleFile is the name of the file to which the unit schedule is exported.
 	unitScheduleFile = "schedule"
-
-	// scheduleNop is the name of the no-op schedule.
-	scheduleNop = "nop"
 )
 
 // ExportFunc represents the ExportUpgradeWindows rpc exposed by auth servers.
