@@ -243,7 +243,7 @@ type PrivateKeyConfig struct {
 	CustomSlot PIVSlotKeyString
 	// Algorithm is the key algorithm to use. Defaults to [AlgorithmEC256].
 	// [AlgorithmEd25519] is not supported by all hardware keys.
-	Algorithm Algorithm
+	Algorithm SignatureAlgorithm
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
 }
@@ -258,11 +258,11 @@ type ContextualKeyInfo struct {
 	ClusterName string
 }
 
-// Algorithm is a key algorithm option.
-type Algorithm int
+// SignatureAlgorithm is a signature key algorithm option.
+type SignatureAlgorithm int
 
 const (
-	AlgorithmEC256 Algorithm = iota + 1
-	AlgorithmEd25519
-	AlgorithmRSA2048
+	SignatureAlgorithmEC256 SignatureAlgorithm = iota + 1
+	SignatureAlgorithmEd25519
+	SignatureAlgorithmRSA2048
 )

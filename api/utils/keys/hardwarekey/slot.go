@@ -41,7 +41,7 @@ func (k PIVSlotKey) Validate() error {
 	case pivSlot9A, pivSlot9C, pivSlot9D, pivSlot9E:
 		return nil
 	default:
-		return trace.BadParameter("invalid PIV slot key %d", k)
+		return trace.BadParameter("invalid PIV slot key 0x%x", k)
 	}
 }
 

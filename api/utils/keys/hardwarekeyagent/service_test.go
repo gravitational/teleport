@@ -59,65 +59,65 @@ func TestHardwareKeyAgentService(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
-		algorithm hardwarekey.Algorithm
+		algorithm hardwarekey.SignatureAlgorithm
 		opts      crypto.SignerOpts
 		expectErr bool
 	}{
 		{
 			name:      "EC256 Unsupported hash",
-			algorithm: hardwarekey.AlgorithmEC256,
+			algorithm: hardwarekey.SignatureAlgorithmEC256,
 			opts:      crypto.MD5,
 			expectErr: true, // unsupported hash
 		},
 		{
 			name:      "EC256 No hash",
-			algorithm: hardwarekey.AlgorithmEC256,
+			algorithm: hardwarekey.SignatureAlgorithmEC256,
 			opts:      crypto.Hash(0),
 		},
 		{
 			name:      "EC256 SHA256",
-			algorithm: hardwarekey.AlgorithmEC256,
+			algorithm: hardwarekey.SignatureAlgorithmEC256,
 			opts:      crypto.SHA256,
 		},
 		{
 			name:      "EC256 SHA512",
-			algorithm: hardwarekey.AlgorithmEC256,
+			algorithm: hardwarekey.SignatureAlgorithmEC256,
 			opts:      crypto.SHA512,
 		},
 		{
 			name:      "ED25519 No hash",
-			algorithm: hardwarekey.AlgorithmEd25519,
+			algorithm: hardwarekey.SignatureAlgorithmEd25519,
 			opts:      crypto.Hash(0),
 		},
 		{
 			name:      "ED25519 SHA256",
-			algorithm: hardwarekey.AlgorithmEd25519,
+			algorithm: hardwarekey.SignatureAlgorithmEd25519,
 			opts:      crypto.SHA256,
 			expectErr: true, // sha256 not supported
 		},
 		{
 			name:      "ED25519 SHA512",
-			algorithm: hardwarekey.AlgorithmEd25519,
+			algorithm: hardwarekey.SignatureAlgorithmEd25519,
 			opts:      crypto.SHA512,
 		},
 		{
 			name:      "RSA2048 No hash",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts:      crypto.Hash(0),
 		},
 		{
 			name:      "RSA2048 SHA256",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts:      crypto.SHA256,
 		},
 		{
 			name:      "RSA2048 SHA512",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts:      crypto.SHA512,
 		},
 		{
 			name:      "RSA2048 No hash PSS signature",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts: &rsa.PSSOptions{
 				SaltLength: 10,
 				Hash:       crypto.Hash(0),
@@ -126,7 +126,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		},
 		{
 			name:      "RSA2048 SHA256 PSS signature",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts: &rsa.PSSOptions{
 				SaltLength: 10,
 				Hash:       crypto.SHA256,
@@ -134,7 +134,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		},
 		{
 			name:      "RSA2048 SHA256 PSSSaltLengthAuto",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts: &rsa.PSSOptions{
 				SaltLength: rsa.PSSSaltLengthAuto,
 				Hash:       crypto.SHA256,
@@ -142,7 +142,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		},
 		{
 			name:      "RSA2048 SHA256 PSSSaltLengthEqualsHash",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts: &rsa.PSSOptions{
 				SaltLength: rsa.PSSSaltLengthEqualsHash,
 				Hash:       crypto.SHA256,
@@ -150,7 +150,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		},
 		{
 			name:      "RSA2048 SHA512 PSS signature",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts: &rsa.PSSOptions{
 				SaltLength: 10,
 				Hash:       crypto.SHA512,
@@ -158,7 +158,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		},
 		{
 			name:      "RSA2048 SHA512 PSSSaltLengthAuto",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts: &rsa.PSSOptions{
 				SaltLength: rsa.PSSSaltLengthAuto,
 				Hash:       crypto.SHA512,
@@ -166,7 +166,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 		},
 		{
 			name:      "RSA2048 SHA512 PSSSaltLengthEqualsHash",
-			algorithm: hardwarekey.AlgorithmRSA2048,
+			algorithm: hardwarekey.SignatureAlgorithmRSA2048,
 			opts: &rsa.PSSOptions{
 				SaltLength: rsa.PSSSaltLengthEqualsHash,
 				Hash:       crypto.SHA512,

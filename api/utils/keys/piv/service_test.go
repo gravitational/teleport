@@ -140,11 +140,11 @@ func TestNewHardwarePrivateKey_Interactive(t *testing.T) {
 		for algorithm, config := range map[string]hardwarekey.PrivateKeyConfig{
 			"EC256": {
 				CustomSlot: "9a",
-				Algorithm:  hardwarekey.AlgorithmEC256,
+				Algorithm:  hardwarekey.SignatureAlgorithmEC256,
 			},
 			"RSA2048": {
 				CustomSlot: "9c",
-				Algorithm:  hardwarekey.AlgorithmRSA2048,
+				Algorithm:  hardwarekey.SignatureAlgorithmRSA2048,
 			},
 		} {
 			t.Run(fmt.Sprintf("algorithm:%v", algorithm), func(t *testing.T) {

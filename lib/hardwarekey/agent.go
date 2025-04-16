@@ -124,7 +124,11 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 		return nil, trace.Wrap(err)
 	}
 
-	return newAgentListener(ctx, keyAgentDir)
+	if l, err = net.Listen("unix", socketPath); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return l, nil
 }
 
 func generateServerCert(keyAgentDir string) (tls.Certificate, error) {

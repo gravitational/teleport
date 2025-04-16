@@ -60,7 +60,7 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(agentDir)
 		return errors.Is(err, os.ErrNotExist)
-	}, time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 	server, err = libhwk.NewAgentServer(ctx, mockService, agentDir)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)

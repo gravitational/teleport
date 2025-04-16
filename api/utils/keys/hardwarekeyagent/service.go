@@ -95,7 +95,7 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 	var saltLength int
 	if pssOpts, ok := opts.(*rsa.PSSOptions); ok {
 		if pssOpts.Hash == 0 {
-			return nil, trace.BadParameter("hash must be specified to for PSS signature")
+			return nil, trace.BadParameter("hash must be specified for PSS signature")
 		}
 
 		rsaPub, ok := ref.PublicKey.(*rsa.PublicKey)
