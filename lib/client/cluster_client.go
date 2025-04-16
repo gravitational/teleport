@@ -314,7 +314,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.DebugContext(ctx, "Attempting to issue a single-use user certificate with an MFA check")
-	keyRing, err = c.performSessionMFACeremony(ctx,
+	result, err := c.performSessionMFACeremony(ctx,
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
@@ -328,7 +328,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
-	am, err := keyRing.AsAuthMethod()
+	am, err := result.KeyRing.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(ceremonyFailedErr{err})
 	}
@@ -438,7 +438,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 
 // performSessionMFACeremony runs the mfa ceremony to completion.
 // If successful the returned [KeyRing] will be authorized to connect to the target.
-func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, keyRing *KeyRing) (*KeyRing, error) {
+func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, keyRing *KeyRing) (*PerformSessionMFACeremonyResult, error) {
 	newUserKeys, certsReq, err := rootClient.prepareUserCertsRequest(ctx, params, keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -471,18 +471,24 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		KeyRing:           keyRing,
 		newUserKeys:       newUserKeys,
 	}, promptOpts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if params.OnMFAResponse != nil && result.MFAResponse != nil {
-		params.OnMFAResponse(result.MFAResponse)
-	}
-	return result.KeyRing, nil
+	return result, trace.Wrap(err)
+}
+
+// IssueUserCertsWithMFAResult contains the produced result from a
+// IssueUserCertsWithMFA call.
+type IssueUserCertsWithMFAResult struct {
+	// KeyRing is the client key ring to add the new certificates to.
+	KeyRing *KeyRing
+	// MFARequired is the MFA requirement of the resource.
+	MFARequired proto.MFARequired
+	// MFAResponse is the response of the MFA challenge, if a ceremony is
+	// performed.
+	MFAResponse *proto.MFAAuthenticateResponse
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
 // to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
-func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*KeyRing, proto.MFARequired, error) {
+func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*IssueUserCertsWithMFAResult, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"ClusterClient/IssueUserCertsWithMFA",
@@ -502,7 +508,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		var err error
 		keyRing, err = c.tc.localAgent.GetKeyRing(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
-			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -514,17 +520,17 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		if authClient == nil {
 			authClient, err = c.ConnectToCluster(ctx, params.RouteToCluster)
 			if err != nil {
-				return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 		}
 
 		mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
 		if err != nil {
-			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		resp, err := authClient.IsMFARequired(ctx, mfaRequiredReq)
 		if err != nil {
-			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		mfaRequired = resp.Required
 
@@ -551,7 +557,10 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 
 	// SSH certs can be used without embedding the node name.
 	if !mfaRequired && params.usage() == proto.UserCertsRequest_SSH && keyRing.Cert != nil {
-		return keyRing, proto.MFARequired_MFA_REQUIRED_NO, nil
+		return &IssueUserCertsWithMFAResult{
+			KeyRing:     keyRing,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 
 	// At this point, a connection to the root cluster is required to generate
@@ -560,7 +569,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	if params.RouteToCluster != certClient.root {
 		authClient, err := c.ConnectToRootCluster(ctx)
 		if err != nil {
-			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		certClient = &ClusterClient{
@@ -581,7 +590,13 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		log.DebugContext(ctx, "MFA not required for access")
 		params.ReusableMFAResponse = nil
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
-		return keyRing, proto.MFARequired_MFA_REQUIRED_NO, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &IssueUserCertsWithMFAResult{
+			KeyRing:     keyRing,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}, nil
 	}
 
 	if params.ReusableMFAResponse != nil {
@@ -594,18 +609,27 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 			// ceremony again.
 			fmt.Fprintln(c.tc.Stderr, "Current MFA session has expired.")
 		default:
-			return keyRing, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
+			return &IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
 		}
 	}
 
 	// Perform the MFA ceremony and add the new credential to the KeyRing.
-	keyRing, err := c.performSessionMFACeremony(ctx, certClient, params, keyRing)
+	result, err := c.performSessionMFACeremony(ctx, certClient, params, keyRing)
 	if err != nil {
-		return nil, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
+		return &IssueUserCertsWithMFAResult{
+			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		}, trace.Wrap(err)
 	}
 
 	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
-	return keyRing, proto.MFARequired_MFA_REQUIRED_YES, nil
+	return &IssueUserCertsWithMFAResult{
+		KeyRing:     keyRing,
+		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+		MFAResponse: result.MFAResponse,
+	}, nil
 }
 
 // PerformSessionMFARootClient is a subset of Auth methods required for MFA.
@@ -654,9 +678,14 @@ type newUserKeys struct {
 	ssh, tls, app, db, kube *keys.PrivateKey
 }
 
-type SessionMFACeremonyResult struct {
-	KeyRing     *KeyRing
-	NewCerts    *proto.Certs
+// PerformSessionMFACeremonyResult contains the produced result of a successful
+// PerformSessionMFACeremony call.
+type PerformSessionMFACeremonyResult struct {
+	// KeyRing is the client key ring to add the new certificates to.
+	KeyRing *KeyRing
+	// NewCerts are newly issued certificates.
+	NewCerts *proto.Certs
+	// MFAResponse is the response of the MFA challenge.
 	MFAResponse *proto.MFAAuthenticateResponse
 }
 
@@ -676,7 +705,7 @@ type SessionMFACeremonyResult struct {
 //  4. Call RootAuthClient.GenerateUserCerts
 //
 // Returns the modified params.Key and the GenerateUserCertsResponse, or an error.
-func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACeremonyParams, promptOpts ...mfa.PromptOpt) (*SessionMFACeremonyResult, error) {
+func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACeremonyParams, promptOpts ...mfa.PromptOpt) (*PerformSessionMFACeremonyResult, error) {
 	rootClient := params.RootAuthClient
 	currentClient := params.CurrentAuthClient
 	mfaRequiredReq := params.MFARequiredReq
@@ -740,7 +769,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 
 	// Nothing more to do.
 	if keyRing == nil {
-		return &SessionMFACeremonyResult{
+		return &PerformSessionMFACeremonyResult{
 			NewCerts:    newCerts,
 			MFAResponse: mfaResp,
 		}, nil
@@ -785,7 +814,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	}
 	keyRing.ClusterName = certsReq.RouteToCluster
 
-	return &SessionMFACeremonyResult{
+	return &PerformSessionMFACeremonyResult{
 		KeyRing:     keyRing,
 		NewCerts:    newCerts,
 		MFAResponse: mfaResp,
