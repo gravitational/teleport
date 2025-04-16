@@ -122,6 +122,7 @@ func TestHardwareKeyAgentService(t *testing.T) {
 				SaltLength: 10,
 				Hash:       crypto.Hash(0),
 			},
+			expectErr: true, // hash required for pss signature
 		},
 		{
 			name:      "RSA2048 SHA256 PSS signature",
@@ -130,7 +131,6 @@ func TestHardwareKeyAgentService(t *testing.T) {
 				SaltLength: 10,
 				Hash:       crypto.SHA256,
 			},
-			expectErr: true, // hash required for pss signature
 		},
 		{
 			name:      "RSA2048 SHA256 PSSSaltLengthAuto",
