@@ -7480,6 +7480,10 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
+			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
+				trace.IsNotFound(err) {
+				return nil, services.NewExpiredReusableMFAResponseError(err.Error())
+			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
 

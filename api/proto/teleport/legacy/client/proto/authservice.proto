@@ -241,6 +241,10 @@ message UserCertsRequest {
     TSH_KUBE_LOCAL_PROXY_HEADLESS = 3;
     // TSH_APP_LOCAL_PROXY is set when the request was sent by a tsh app local proxy.
     TSH_APP_LOCAL_PROXY = 4;
+    // TSH_DB_EXEC is set when the request was sent by a tsh db exec local proxy
+    // tunnel. Requests from this requester allows reuse of the MFA session
+    // response but TTL is limited to single use TTL.
+    TSH_DB_EXEC = 5;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];

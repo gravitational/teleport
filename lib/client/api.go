@@ -1717,8 +1717,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
-	return keyRing, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 // CreateAccessRequestV2 registers a new access request with the auth server.
