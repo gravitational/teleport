@@ -56,9 +56,10 @@ List will be removed from Teleport on the next sync.
 
 - An Okta organization with admin access.
 
-Enabling the Okta integration will make Teleport take ownership over app and
-group assignments in Okta and can make changes within Okta based on your
-Teleport RBAC configuration. To limit the scope of the integration, ensure that:
+Enabling the Okta integration with bidirectional sync enabled will make Teleport
+take ownership over app and group assignments in Okta and can make changes
+within Okta based on your Teleport RBAC configuration. To limit the scope of the
+integration, ensure that:
 
 - (Optional) You have organized your Okta applications and groups into [Okta
   resource
@@ -105,8 +106,10 @@ To configure user group and application imports:
    with `^` and end with `$`, and use the [Google
    RE2](https://github.com/google/re2/wiki/Syntax) regular expression syntax.
 
-   When filters are added, the results of the user group or application list
-   will update with the results of your filter applied.
+   When filters are added, the list of user groups will update with the results
+   of your filter applied. If no filters are provided, Teleport treats the value
+   as the wildcard `*`, even if the **Sync All User Groups** switch is
+   unchecked.
 
 1. In **Step 3**, repeat these steps for applications. As with user groups, you
    can optionally deselect **Sync All Applications** and enter application

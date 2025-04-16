@@ -99,6 +99,10 @@ You can delete the Okta integration by taking the following steps:
    $ tctl plugins cleanup okta
    ```
 
+   If any Access Lists created by the integration are nested members or owners
+   of Teleport-created Access Lists, cleanup will fail. Any nested Access Lists
+   need to be unassigned before you can perform a cleanup.
+
    <Admonition type="warning">
    If the Okta integration is still active, removing Okta-sourced Access Lists
    could revoke Okta access from users in your organization. Exercise caution
