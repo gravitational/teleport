@@ -483,6 +483,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 						if req.MFAResponse != nil && req.MFAResponse.Response == nil {
 							return nil, services.NewExpiredReusableMFAResponseError("not found")
 						}
+						// The second call should continue here.
 						return defaultGenerateUserCerts(ctx, req)
 					},
 				},

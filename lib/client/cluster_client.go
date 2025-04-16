@@ -476,9 +476,10 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 // IssueUserCertsWithMFAResult contains the produced result from a
 // IssueUserCertsWithMFA call.
 type IssueUserCertsWithMFAResult struct {
-	// KeyRing is the client key ring to add the new certificates to.
+	// KeyRing is the client key ring that contains the new certificates.
 	KeyRing *KeyRing
-	// MFARequired is the MFA requirement of the resource.
+	// MFARequired is the MFA requirement of the resource. This may be returned
+	// if MFA requirement check is successful but ceremony fails.
 	MFARequired proto.MFARequired
 	// MFAResponse is the response of the MFA challenge, if a ceremony is
 	// performed.
@@ -680,7 +681,7 @@ type newUserKeys struct {
 // PerformSessionMFACeremonyResult contains the produced result of a successful
 // PerformSessionMFACeremony call.
 type PerformSessionMFACeremonyResult struct {
-	// KeyRing is the client key ring to add the new certificates to.
+	// KeyRing is the client key ring that contains the new certificates.
 	KeyRing *KeyRing
 	// NewCerts are newly issued certificates.
 	NewCerts *proto.Certs

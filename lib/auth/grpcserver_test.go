@@ -1766,7 +1766,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				fakeClock:     fakeClock,
-				advanceTime:   2 * teleport.UserSingleUseCertTTL,
+				advanceTime:   defaults.WebauthnChallengeTimeout + time.Second,
 				authnHandler:  registered.webAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.True(t, services.IsExpiredReusableMFAResponseError(err), err)
