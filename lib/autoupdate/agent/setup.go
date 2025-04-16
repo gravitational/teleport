@@ -201,6 +201,7 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 		updaterTimerFile:    filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
 		teleportDropInFile:  filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
 		needrestartConfFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
+		// no deprecatedDropInFile, as teleport-upgrade does not conflict with namespaced installs
 	}, nil
 }
 
