@@ -48,3 +48,9 @@ func (s *unavailableYubiKeyPIVService) Sign(_ context.Context, _ *hardwarekey.Pr
 func (s *unavailableYubiKeyPIVService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
+
+func (s *unavailableYubiKeyPIVService) SetPrompt(_ hardwarekey.Prompt) {}
+
+func (s *unavailableYubiKeyPIVService) GetPrompt() hardwarekey.Prompt {
+	return nil
+}
