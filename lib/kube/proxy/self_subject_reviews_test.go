@@ -37,7 +37,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 	// Once a new session is created, this mock will write to
 	// stdout and stdin (if available) the pod name, followed
 	// by copying the contents of stdin into both streams.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := testingkubemock.NewKubeAPIMock(testingkubemock.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
@@ -366,10 +366,9 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			// create a user with full access to kubernetes Pods.
+			// Create a user with full access to kubernetes Pods.
 			// (kubernetes_user and kubernetes_groups specified)
 			userID := uuid.New().String()
 			user, _ := testCtx.CreateUserAndRole(

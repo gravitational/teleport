@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"path"
 
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
@@ -544,7 +545,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 
 	case *unstructured.Unstructured:
 		if o.IsList() {
-			hasElemts := filterUnstructuredList(d.verb, o, d.allowedResources, d.deniedResources, d.log)
+			hasElemts := filterUnstructuredList(d.verb, o, d.allowedResources, d.deniedResources)
 			return hasElemts, true, nil
 		}
 
@@ -784,7 +785,7 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 // filterUnstructuredList filters the unstructured list object to exclude resources
 // that the user must not have access to.
 // The filtered list is re-assigned to `obj.Object["items"]`.
-func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource, log *slog.Logger) (hasElems bool) {
+func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource) (hasElems bool) {
 	const (
 		itemsKey = "items"
 	)
@@ -800,7 +801,8 @@ func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed
 
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
-		r := getKubeResource(utils.KubeCustomResource, verb, &resource)
+		kind := path.Join(resource.GetAPIVersion(), resource.GetKind())
+		r := getKubeResource(kind, verb, &resource)
 		if result, err := matchKubernetesResource(
 			r,
 			allowed, denied,
