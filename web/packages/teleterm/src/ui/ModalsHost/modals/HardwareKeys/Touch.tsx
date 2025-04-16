@@ -40,10 +40,7 @@ export function Touch(props: {
         width: '100%',
       })}
     >
-      <CommonHeader
-        onCancel={props.onCancel}
-        rootClusterUri={props.req.rootClusterUri}
-      />
+      <CommonHeader onCancel={props.onCancel} proxyHost={props.req.proxyHost} />
 
       <DialogContent mb={4}>
         <Flex
@@ -55,7 +52,12 @@ export function Touch(props: {
           `}
         >
           <Image mb={4} width="200px" src={svgHardwareKey} />
-          <P2 bold>Touch your YubiKey</P2>
+          <P2 bold>
+            Touch your YubiKey to continue
+            {props.req.command != ''
+              ? ` with command "${props.req.command}"`
+              : ''}
+          </P2>
           <LinearProgress />
         </Flex>
       </DialogContent>

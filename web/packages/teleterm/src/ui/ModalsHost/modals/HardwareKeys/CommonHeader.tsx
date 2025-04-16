@@ -20,18 +20,11 @@ import { ButtonIcon, H2 } from 'design';
 import { DialogHeader } from 'design/Dialog';
 import * as icons from 'design/Icon';
 
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
-
-export function CommonHeader(props: {
-  onCancel(): void;
-  rootClusterUri: RootClusterUri;
-}) {
-  const rootClusterName = routing.parseClusterName(props.rootClusterUri);
-
+export function CommonHeader(props: { onCancel(): void; proxyHost: string }) {
   return (
     <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
       <H2 mb={4}>
-        Unlock hardware key to access <strong>{rootClusterName}</strong>
+        Verify your identity on <strong>{props.proxyHost}</strong>
       </H2>
 
       <ButtonIcon

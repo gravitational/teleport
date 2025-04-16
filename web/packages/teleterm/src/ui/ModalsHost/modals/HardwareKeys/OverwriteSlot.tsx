@@ -49,7 +49,7 @@ export function OverwriteSlot(props: {
       >
         <CommonHeader
           onCancel={props.onCancel}
-          rootClusterUri={props.req.rootClusterUri}
+          proxyHost={props.req.proxyHost}
         />
 
         <DialogContent mb={4}>

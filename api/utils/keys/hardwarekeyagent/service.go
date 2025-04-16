@@ -123,16 +123,12 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		}
 	}
 
-	command, err := os.Executable()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Trim leading path from command for user readability.
+	command := os.Args[0]
+	if i := strings.LastIndex(command, "/"); i != -1 {
+		command = command[i+1:]
 	}
-
-	var commandString string = fmt.Sprintf("%v %v", command, strings.Join(os.Args[:3], " "))
-	if len(os.Args) > 3 {
-		// Abbreviate the command displayed in prompts.
-		commandString += " ..."
-	}
+	commandString := fmt.Sprintf("%v %v", command, strings.Join(os.Args[1:], " "))
 
 	req := &hardwarekeyagentv1.SignRequest{
 		Digest:     digest,
