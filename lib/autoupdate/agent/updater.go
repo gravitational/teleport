@@ -884,12 +884,16 @@ func (u *Updater) find(ctx context.Context, cfg *UpdateConfig, id string) (FindR
 	if err != nil {
 		return FindResp{}, trace.Wrap(err, "failed to parse proxy server address")
 	}
+	group := cfg.Spec.Group
+	if group == "" {
+		group = "default"
+	}
 	resp, err := webclient.Find(&webclient.Config{
 		Context:     ctx,
 		ProxyAddr:   addr.Addr,
 		Insecure:    u.InsecureSkipVerify,
 		Timeout:     30 * time.Second,
-		UpdateGroup: cfg.Spec.Group,
+		UpdateGroup: group,
 		UpdateID:    id,
 		Pool:        u.Pool,
 	})

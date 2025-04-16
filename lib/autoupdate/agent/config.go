@@ -222,16 +222,8 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Path != "" {
 		spec.Path = override.Path
 	}
-	if override.Group != "" {
-		spec.Group = override.Group
-	}
-	switch override.BaseURL {
-	case "":
-	case "default":
-		spec.BaseURL = ""
-	default:
-		spec.BaseURL = override.BaseURL
-	}
+	spec.Group = overrideOptional(spec.Group, override.Group)
+	spec.BaseURL = overrideOptional(spec.BaseURL, override.BaseURL)
 	if spec.BaseURL != "" &&
 		!strings.HasPrefix(strings.ToLower(spec.BaseURL), "https://") {
 		return trace.Errorf("Teleport download base URL %s must use TLS (https://)", spec.BaseURL)
@@ -243,6 +235,17 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 		spec.Pinned = true
 	}
 	return nil
+}
+
+func overrideOptional(orig, override string) string {
+	switch override {
+	case "":
+		return orig
+	case "default":
+		return ""
+	default:
+		return override
+	}
 }
 
 // Status of the agent auto-updates system.
