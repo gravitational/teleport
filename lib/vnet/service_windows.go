@@ -21,8 +21,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -32,6 +30,8 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -124,9 +124,12 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 
 // ServiceMain runs the Windows VNet admin service.
 func ServiceMain() error {
-	if err := setupServiceLogger(); err != nil {
+	closeFn, err := setupServiceLogger()
+	if err != nil {
 		return trace.Wrap(err, "setting up logger for service")
 	}
+	defer closeFn()
+
 	if err := svc.Run(serviceName, &windowsService{}); err != nil {
 		return trace.Wrap(err, "running Windows service")
 	}
@@ -216,27 +219,11 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 	return nil
 }
 
-func setupServiceLogger() error {
-	logFile, err := serviceLogFile()
+func setupServiceLogger() (func() error, error) {
+	handler, close, err := logutils.NewSlogEventLogHandler("vnet", slog.LevelDebug)
 	if err != nil {
-		return trace.Wrap(err, "creating log file for service")
+		return nil, trace.Wrap(err, "initializing log handler")
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})))
-	return nil
-}
-
-func serviceLogFile() (*os.File, error) {
-	// TODO(nklaassen): find a better path for Windows service logs.
-	exePath, err := os.Executable()
-	if err != nil {
-		return nil, trace.Wrap(err, "getting current executable path")
-	}
-	dir := filepath.Dir(exePath)
-	logFile, err := os.Create(filepath.Join(dir, "logs.txt"))
-	if err != nil {
-		return nil, trace.Wrap(err, "creating log file")
-	}
-	return logFile, nil
+	slog.SetDefault(slog.New(handler))
+	return close, nil
 }
