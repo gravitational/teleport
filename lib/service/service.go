@@ -1177,23 +1177,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		switch upgraderKind {
 		case types.UpgraderKindTeleportUpdate:
-			isDefault, err := autoupdate.IsManagedAndDefault()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if !isDefault {
-				// Only write the nop schedule for the default updater.
-				// Suffixed installations of Teleport can coexist with the old upgrader system.
-				break
-			}
-			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := driver.ForceNop(process.ExitContext()); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Unable to disable the teleport-upgrade command provided by the deprecated teleport-ent-updater package.", "error", err)
-				process.logger.WarnContext(process.ExitContext(), "If the deprecated teleport-ent-updater package is installed, please ensure /etc/teleport-upgrade.d/schedule contains 'nop'.")
-			}
+			// Exports are not required for teleport-update
 		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
