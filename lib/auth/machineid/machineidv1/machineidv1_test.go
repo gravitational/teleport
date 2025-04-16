@@ -1444,12 +1444,13 @@ func TestGetBot(t *testing.T) {
 	require.NoError(t, err)
 	botGetterWhereUser, _, err := auth.CreateUserAndRole(
 		srv.Auth(),
-		"bot-getter",
+		"bot-getter-where",
 		[]string{},
 		[]types.Rule{
 			{
 				Resources: []string{types.KindBot},
 				Verbs:     []string{types.VerbRead},
+				Where:     `has_prefix(resource.metadata.name, "foo")`,
 			},
 		})
 	require.NoError(t, err)
@@ -1534,9 +1535,9 @@ func TestGetBot(t *testing.T) {
 			req: &machineidv1pb.GetBotRequest{
 				BotName: preExistingBot.Metadata.Name,
 			},
-
-			assertError: require.NoError,
-			want:        preExistingBot,
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
 		},
 		{
 			name: "no permissions",

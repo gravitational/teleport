@@ -193,7 +193,9 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	if err := authCtx.CheckAccessToResource153(
 		bot, types.VerbRead,
 	); err != nil {
-		return nil, trace.Wrap(err)
+		// Return NotFound rather than Forbidden to avoid leaking existence of
+		// bot.
+		return nil, trace.NotFound("bot %q not found", req.BotName)
 	}
 
 	return bot, nil
