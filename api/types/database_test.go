@@ -1189,3 +1189,42 @@ func TestDatabaseOracleRDS(t *testing.T) {
 	}, database.GetAWS())
 	require.Equal(t, DatabaseTypeRDSOracle, database.GetType())
 }
+
+func TestIsAutoUsersEnabled(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec           DatabaseSpecV3
+		expectedResult bool
+	}{
+		"postgres with admin user": {
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "localhost:5432",
+				AdminUser: &DatabaseAdminUser{
+					Name:            "teleport-admin",
+					DefaultDatabase: "teleport",
+				},
+			},
+			expectedResult: true,
+		},
+		"postgres without admin user": {
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "localhost:5432",
+			},
+			expectedResult: false,
+		},
+		"unsupported protocol": {
+			spec: DatabaseSpecV3{
+				Protocol: "redis",
+				URI:      "localhost:6379",
+			},
+			expectedResult: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			db, err := NewDatabaseV3(Metadata{Name: "test"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedResult, db.IsAutoUsersEnabled())
+		})
+	}
+}
