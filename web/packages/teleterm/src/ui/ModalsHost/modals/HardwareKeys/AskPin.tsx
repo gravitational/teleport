@@ -65,9 +65,13 @@ export function AskPin(props: {
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
                 <P2 color="text.slightlyMuted">
                   Enter your YubiKey PIV PIN to continue
-                  {props.req.command != ''
-                    ? ` with command "${props.req.command}"`
-                    : ''}
+                  {props.req.command && ' with command:'}
+                  <br />
+                  {
+                    props.req.command &&
+                      props.req.command /**TODO(Joerger): style text */
+                  }
+                  <br />
                   {props.req.pinOptional &&
                     'To change the default PIN, leave the field blank.'}
                 </P2>
