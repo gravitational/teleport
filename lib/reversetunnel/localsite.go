@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
+	"github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -184,6 +185,11 @@ func (s *localSite) NodeWatcher() (*services.GenericWatcher[types.Server, readon
 	return s.srv.NodeWatcher, nil
 }
 
+// GitServerWatcher returns a Git server watcher for this cluster.
+func (s *localSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+	return s.srv.GitServerWatcher, nil
+}
+
 // GetClient returns a client to the full Auth Server API.
 func (s *localSite) GetClient() (authclient.ClientI, error) {
 	return s.client, nil
@@ -248,6 +254,10 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 }
 
 func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	if params.TargetServer != nil && params.TargetServer.GetKind() == types.KindGitServer {
+		return s.dialAndForwardGit(params)
+	}
+
 	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -259,7 +269,6 @@ func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error
 	if shouldDialAndForward(params, recConfig) {
 		return s.dialAndForward(params)
 	}
-
 	// Attempt to perform a direct TCP dial.
 	return s.DialTCP(params)
 }
@@ -344,6 +353,52 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 	case <-ctx.Done():
 	case <-wait:
 	}
+}
+
+func (s *localSite) dialAndForwardGit(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
+	s.logger.DebugContext(s.srv.ctx, "Dialing and forwarding git", "from", params.From, "to", params.To)
+
+	dialStart := s.srv.Clock.Now()
+	targetConn, err := s.dialDirect(params)
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "failed to connect to git server")
+	}
+
+	// Get a host certificate for the forwarding node from the cache.
+	hostCertificate, err := s.certificateCache.getHostCertificate(context.TODO(), params.Address, params.Principals)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a forwarding server that serves a single SSH connection on it. This
+	// server does not need to close, it will close and release all resources
+	// once conn is closed.
+	serverConfig := &git.ForwardServerConfig{
+		AuthClient:      s.client,
+		AccessPoint:     s.accessPoint,
+		TargetConn:      newMetricConn(targetConn, dialTypeDirect, dialStart, s.srv.Clock),
+		SrcAddr:         params.From,
+		DstAddr:         params.To,
+		HostCertificate: hostCertificate,
+		Ciphers:         s.srv.Config.Ciphers,
+		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:   s.srv.Config.MACAlgorithms,
+		Emitter:         s.srv.Config.Emitter,
+		ParentContext:   s.srv.Context,
+		LockWatcher:     s.srv.LockWatcher,
+		HostUUID:        s.srv.ID,
+		TargetServer:    params.TargetServer,
+		Clock:           s.clock,
+		KeyManager:      s.srv.gitKeyManager,
+	}
+	remoteServer, err := git.NewForwardServer(serverConfig)
+	if err != nil {
+		s.logger.ErrorContext(s.srv.ctx, "Failed to create git forward server", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	go remoteServer.Serve()
+
+	return remoteServer.Dial()
 }
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
@@ -455,6 +510,18 @@ func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 	}
 
 	return conn, nil
+}
+
+func (s *localSite) dialDirect(params reversetunnelclient.DialParams) (net.Conn, error) {
+	dialer := proxyutils.DialerFromEnvironment(params.To.String())
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	if cnc, err := s.accessPoint.GetClusterNetworkingConfig(s.srv.Context); err != nil {
+		s.logger.WarnContext(s.srv.ctx, "Failed to get cluster networking config - using default dial timeout", "error", err)
+	} else {
+		dialTimeout = cnc.GetSSHDialTimeout()
+	}
+	return dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), dialTimeout)
 }
 
 // tryProxyPeering determines whether the node should try to be reached over
@@ -639,27 +706,18 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 	// Skip direct dial when the tunnel error is not a not found error. This
 	// means the agent is tunneling but the connection failed for some reason.
 	if !trace.IsNotFound(tunnelErr) {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
 	skip, err := s.skipDirectDial(params)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	} else if skip {
-		return nil, false, trace.ConnectionProblem(tunnelErr, tunnelMsg)
+		return nil, false, trace.ConnectionProblem(tunnelErr, "%s", tunnelMsg)
 	}
 
 	// If no tunnel connection was found, dial to the target host.
-	dialer := proxyutils.DialerFromEnvironment(params.To.String())
-
-	dialTimeout := apidefaults.DefaultIOTimeout
-	if cnc, err := s.accessPoint.GetClusterNetworkingConfig(s.srv.Context); err != nil {
-		s.logger.WarnContext(s.srv.ctx, "Failed to get cluster networking config - using default dial timeout", "error", err)
-	} else {
-		dialTimeout = cnc.GetSSHDialTimeout()
-	}
-
-	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), dialTimeout)
+	conn, directErr = s.dialDirect(params)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.logger.DebugContext(s.srv.ctx, "All attempted dial methods failed",
@@ -669,7 +727,7 @@ func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Con
 			"direct_error", directErr,
 		)
 		aggregateErr := trace.NewAggregate(tunnelErr, peerErr, directErr)
-		return nil, false, trace.ConnectionProblem(aggregateErr, directMsg)
+		return nil, false, trace.ConnectionProblem(aggregateErr, "%s", directMsg)
 	}
 
 	// Return a direct dialed connection.

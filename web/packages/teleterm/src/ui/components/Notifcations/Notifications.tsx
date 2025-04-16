@@ -17,9 +17,11 @@
  */
 
 import styled from 'styled-components';
-import { Notification } from 'shared/components/Notification';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import {
+  Notification,
+  type NotificationItem,
+} from 'shared/components/Notification';
 
 interface NotificationsProps {
   items: NotificationItem[];

@@ -55,6 +55,11 @@ type GenericReconcilerConfig[K comparable, T any] struct {
 	OnDelete func(context.Context, T) error
 	// Logger emits log messages.
 	Logger *slog.Logger
+	// AllowOriginChanges is a flag that allows the reconciler to change the
+	// origin value of a reconciled resource. By default, origin changes are
+	// disallowed to enforce segregation between of resources from different
+	// sources.
+	AllowOriginChanges bool
 }
 
 // CheckAndSetDefaults validates the reconciler configuration and sets defaults.
@@ -177,18 +182,21 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 		return nil
 	}
 
-	// Don't overwrite resource of a different origin (e.g., keep static resource from config and ignore dynamic resource)
-	registeredOrigin, err := types.GetOrigin(registered)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	newOrigin, err := types.GetOrigin(newT)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if registeredOrigin != newOrigin {
-		r.logger.WarnContext(ctx, "New resource has different origin, not updating", "name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
-		return nil
+	if !r.cfg.AllowOriginChanges {
+		// Don't overwrite resource of a different origin (e.g., keep static resource from config and ignore dynamic resource)
+		registeredOrigin, err := types.GetOrigin(registered)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newOrigin, err := types.GetOrigin(newT)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if registeredOrigin != newOrigin {
+			r.logger.WarnContext(ctx, "New resource has different origin, not updating",
+				"name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
+			return nil
+		}
 	}
 
 	// If the resource is already registered but was updated, see if its

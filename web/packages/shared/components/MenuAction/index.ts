@@ -18,7 +18,7 @@
 
 import { MenuItem, MenuItemIcon } from 'design/Menu';
 
-import MenuIcon from './MenuActionIcon';
 import MenuButton from './MenuActionButton';
+import MenuIcon from './MenuActionIcon';
 
 export { MenuIcon, MenuButton, MenuItem, MenuItemIcon };

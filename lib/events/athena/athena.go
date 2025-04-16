@@ -256,7 +256,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
-		return trace.BadParameter("LimiterRefillAmount cannot be nagative")
+		return trace.BadParameter("LimiterRefillAmount cannot be negative")
 	}
 	if cfg.LimiterBurst < 0 {
 		return trace.BadParameter("LimiterBurst cannot be negative")
@@ -538,7 +538,11 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 }
 
 func (l *Log) Close() error {
-	return trace.Wrap(l.consumerCloser.Close())
+	// consumerCloser is nil when consumer is disabled.
+	if l.consumerCloser != nil {
+		return trace.Wrap(l.consumerCloser.Close())
+	}
+	return nil
 }
 
 func (l *Log) IsConsumerDisabled() bool {
@@ -613,7 +617,7 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 			prometheus.HistogramOpts{
 				Namespace: teleport.MetricNamespace,
 				Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
-				Help:      "Duration of delation of events on SQS in parquetlog",
+				Help:      "Duration of deletion of events on SQS in parquetlog",
 				// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 				// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 				Buckets:     prometheus.ExponentialBuckets(0.001, 2, 16),

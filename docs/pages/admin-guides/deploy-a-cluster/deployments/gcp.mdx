@@ -57,7 +57,7 @@ Please replace them with values appropriate for your environment.
 ### Compute Engine: VM Instances with Instance Groups
 
 We recommend using `n1-standard-2` instances in production. It's best to separate
-Teleport's Proxy Servers and Auth Servers using instance groups for each.
+Teleport Proxy Service and Auth Service instances using instance groups for each.
 
 ### Compute Engine: Health Checks
 
@@ -70,11 +70,11 @@ see  [Admin Guide: Troubleshooting](../../management/admin/troubleshooting.mdx) 
 ### Storage: Cloud Firestore
 
 The [Firestore](https://cloud.google.com/firestore/) backend uses real-time
-updates to keep individual Auth Servers in sync, and requires Firestore configured
+updates to keep individual Auth Service instances in sync, and requires Firestore configured
 in native mode.
 
 To configure Teleport to store audit events in Firestore, add the following to
-the teleport section of your Auth Server's config file (by default it's `/etc/teleport.yaml`):
+the teleport section of your Auth Service's config file (by default it's `/etc/teleport.yaml`):
 
 ```yaml
 teleport:
@@ -123,7 +123,7 @@ Cloud DNS is used to set up the public URL of the Teleport Proxy.
 
 ### Access: Service accounts
 
-The Teleport Auth Server will need to read and write to Firestore and
+The Teleport Auth Service will need to read and write to Firestore and
 Google Cloud Storage. For this you will need a Service Account with the
 correct permissions.
 
@@ -160,14 +160,14 @@ custom role and must be used in later steps.
 $ export IAM_ROLE=<role name output from above>
 ```
 
-If you don't already have a GCP service account for your Teleport Auth Server
+If you don't already have a GCP service account for your Teleport Auth Service
 you can create one with the following command, otherwise use your existing
 service account.
 
 ```code
 $ gcloud iam service-accounts create teleport-auth-server \
-    --description="Service account for Teleport Auth Server" \
-    --display-name="Teleport Auth Server" \
+    --description="Service account for Teleport Auth Service" \
+    --display-name="Teleport Auth Service" \
     --format=yaml
 ```
 
@@ -219,14 +219,14 @@ Follow install instructions from our [installation page](../../../installation.m
 We recommend configuring Teleport as per the below steps:
 
 <Tabs>
-	<TabItem label="Open Source" scope="oss">
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`,and start it
+	<TabItem label="Teleport Community Edition" scope="oss">
+**1. Configure Teleport Auth Service** using the below example `teleport.yaml`,and start it
 using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
 #
-# Sample Teleport configuration teleport.yaml file for Auth Server
+# Sample Teleport configuration teleport.yaml file for Auth Service
 #
 teleport:
   nodename: teleport-auth-server
@@ -255,13 +255,13 @@ ssh_service:
 ```
 	</TabItem>
 	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
+**1. Configure Teleport Auth Service** using the below example `teleport.yaml`, and start it
 using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 
 ```yaml
 #
-# Sample Teleport configuration teleport.yaml file for Auth Server
+# Sample Teleport configuration teleport.yaml file for Auth Service
 #
 teleport:
   nodename: teleport-auth-server
@@ -292,7 +292,7 @@ ssh_service:
 
 (!docs/pages/includes/enterprise/obtainlicense.mdx!)
 
-Save your license file on the Auth Servers at the path,
+Save your license file on the Auth Service instances at the path,
 `/var/lib/teleport/license.pem`.
 	</TabItem>
 </Tabs>
@@ -332,7 +332,7 @@ Save the following configuration file as `/etc/teleport.yaml` on the Node:
 version: v3
 teleport:
   auth_token: (= presets.tokens.second =)
-  # Teleport agents can be joined to the cluster via the Proxy Service's
+  # Teleport Agents can be joined to the cluster via the Proxy Service's
   # public address. This will establish a reverse tunnel between the Proxy
   # Service and the agent that is used for all traffic.
   proxy_server: teleport.example.com:443

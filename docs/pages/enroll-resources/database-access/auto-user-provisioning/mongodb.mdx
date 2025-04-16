@@ -11,6 +11,10 @@ description: Configure automatic user provisioning for MongoDB.
 - A self-hosted MongoDB database enrolled with your Teleport cluster. Follow
   the [Teleport documentation](../enroll-self-hosted-databases/mongodb-self-hosted.mdx) to learn how
   to enroll your database.
+  Your MongoDB database must have Role-Based Access Control (RBAC) enabled by
+  setting
+  [`security.authorization`](https://www.mongodb.com/docs/manual/reference/configuration-options/#mongodb-setting-security.authorization)
+  to `enabled` in the configuration file.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported services">
@@ -40,7 +44,8 @@ db.getSiblingDB("admin").runCommand({
 })
 ```
 
-<Details title="Limit the grantRole action to specific databases">
+<details>
+<summary>Limit the grantRole action to specific databases</summary>
 In the above example, the `grantRole` privilege is granted to the admin user
 for all databases in order for the admin user to assign roles from all
 databases, including the `admin` database.
@@ -63,7 +68,7 @@ db.getSiblingDB("admin").runCommand({
     roles: [],
 })
 ```
-</Details>
+</details>
 
 Now create the admin user with this role:
 

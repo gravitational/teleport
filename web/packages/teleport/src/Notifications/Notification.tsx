@@ -16,37 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { formatDistanceToNowStrict } from 'date-fns';
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { formatDistanceToNowStrict } from 'date-fns';
 
-import * as Icons from 'design/Icon';
-
-import Text, { P3 } from 'design/Text';
 import { ButtonSecondary } from 'design/Button';
-
-import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
-import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import * as Icons from 'design/Icon';
+import Text, { P3 } from 'design/Text';
 import { Theme } from 'design/theme/themes/types';
-
+import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
+import { IGNORE_CLICK_CLASSNAME } from 'shared/hooks/useRefClickOutside/useRefClickOutside';
 
-import {
-  Notification as NotificationType,
-  NotificationState,
-} from 'teleport/services/notifications';
 import history from 'teleport/services/history';
-
+import {
+  NotificationState,
+  Notification as NotificationType,
+} from 'teleport/services/notifications';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useTeleport } from '..';
-
 import { NotificationContent } from './notificationContentFactory';
 import { View } from './Notifications';
 
@@ -95,15 +90,6 @@ export function Notification({
       });
   });
 
-  function onMarkAsClicked() {
-    if (notification.localNotification) {
-      ctx.storeNotifications.markNotificationAsClicked(notification.id);
-      markNotificationAsClicked(notification.id);
-      return;
-    }
-    markAsClicked();
-  }
-
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
@@ -112,23 +98,14 @@ export function Notification({
   if (view === 'Unread' && notification.clicked) {
     // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
     // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
-    if (content.kind == 'text') {
+    if (content.kind === 'text') {
       return (
-        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
-          <DialogHeader>
-            <DialogTitle>{content.title}</DialogTitle>
-          </DialogHeader>
-          <DialogContent>{content.textContent}</DialogContent>
-          <DialogFooter>
-            <ButtonSecondary
-              onClick={() => setShowTextContentDialog(false)}
-              size="small"
-              className={IGNORE_CLICK_CLASSNAME}
-            >
-              Close
-            </ButtonSecondary>
-          </DialogFooter>
-        </Dialog>
+        <TextNotificationDialog
+          showTextContentDialog={showTextContentDialog}
+          setShowTextContentDialog={setShowTextContentDialog}
+          title={content.title}
+          content={content.textContent}
+        />
       );
     }
     return null;
@@ -164,10 +141,10 @@ export function Notification({
   function onClick() {
     if (content.kind === 'text') {
       setShowTextContentDialog(true);
-      onMarkAsClicked();
+      markAsClicked();
       return;
     }
-    onMarkAsClicked();
+    markAsClicked();
     closeNotificationsList();
     history.push(content.redirectRoute);
   }
@@ -197,7 +174,7 @@ export function Notification({
           <ContentBody>
             <Text>{content.title}</Text>
             {content.kind === 'redirect' && content.QuickAction && (
-              <content.QuickAction markAsClicked={onMarkAsClicked} />
+              <content.QuickAction markAsClicked={markAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
               <Text typography="body4" color="error.main">
@@ -216,52 +193,84 @@ export function Notification({
             {!content?.hideDate && (
               <Text typography="body4">{formattedDate}</Text>
             )}
-            {!notification.localNotification && (
-              <MenuIcon
-                menuProps={{
-                  anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
-                  transformOrigin: { vertical: 'top', horizontal: 'right' },
-                  backdropProps: { className: IGNORE_CLICK_CLASSNAME },
-                }}
-                buttonIconProps={{ style: { borderRadius: '4px' } }}
-              >
-                {!isClicked && (
-                  <MenuItem
-                    onClick={onMarkAsClicked}
-                    className={IGNORE_CLICK_CLASSNAME}
-                  >
-                    Mark as read
-                  </MenuItem>
-                )}
+            <MenuIcon
+              menuProps={{
+                anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+                transformOrigin: { vertical: 'top', horizontal: 'right' },
+                backdropProps: { className: IGNORE_CLICK_CLASSNAME },
+              }}
+              buttonIconProps={{ style: { borderRadius: '4px' } }}
+            >
+              {!isClicked && (
                 <MenuItem
-                  onClick={hideNotification}
+                  onClick={markAsClicked}
                   className={IGNORE_CLICK_CLASSNAME}
                 >
-                  Hide this notification
+                  Mark as read
                 </MenuItem>
-              </MenuIcon>
-            )}
+              )}
+              <MenuItem
+                onClick={hideNotification}
+                className={IGNORE_CLICK_CLASSNAME}
+              >
+                Hide this notification
+              </MenuItem>
+            </MenuIcon>
           </SideContent>
         </ContentContainer>
       </Container>
       {content.kind === 'text' && (
-        <Dialog open={showTextContentDialog} className={IGNORE_CLICK_CLASSNAME}>
-          <DialogHeader>
-            <DialogTitle>{content.title}</DialogTitle>
-          </DialogHeader>
-          <DialogContent>{content.textContent}</DialogContent>
-          <DialogFooter>
-            <ButtonSecondary
-              onClick={() => setShowTextContentDialog(false)}
-              size="small"
-              className={IGNORE_CLICK_CLASSNAME}
-            >
-              Close
-            </ButtonSecondary>
-          </DialogFooter>
-        </Dialog>
+        <TextNotificationDialog
+          showTextContentDialog={showTextContentDialog}
+          setShowTextContentDialog={setShowTextContentDialog}
+          title={content.title}
+          content={content.textContent}
+        />
       )}
     </>
+  );
+}
+
+function TextNotificationDialog({
+  showTextContentDialog,
+  setShowTextContentDialog,
+  title,
+  content = '',
+}: {
+  showTextContentDialog: boolean;
+  setShowTextContentDialog: (show: boolean) => void;
+  title: string;
+  content: string;
+}) {
+  // The json response contains the text content with escaped newlines, so we need to replace
+  // these escaped newlines (\\n) in the response with actual newlines (\n).
+  const processedContent = content.replace(/\\n/g, '\n');
+
+  return (
+    <Dialog
+      open={showTextContentDialog}
+      className={IGNORE_CLICK_CLASSNAME}
+      dialogCss={() => ({
+        width: '100%',
+        maxWidth: '800px',
+      })}
+    >
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+      <DialogContent>
+        <div style={{ whiteSpace: 'pre-wrap' }}>{processedContent}</div>
+      </DialogContent>
+      <DialogFooter>
+        <ButtonSecondary
+          onClick={() => setShowTextContentDialog(false)}
+          size="small"
+          className={IGNORE_CLICK_CLASSNAME}
+        >
+          Close
+        </ButtonSecondary>
+      </DialogFooter>
+    </Dialog>
   );
 }
 

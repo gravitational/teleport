@@ -16,19 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+
 import { Box, Text } from 'design';
 
 import {
-  SelectCreatable,
   Option,
+  SelectCreatable,
 } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  useUserTraits,
   SetupAccessWrapper,
+  useUserTraits,
+  type State,
 } from 'teleport/Discover/Shared/SetupAccess';
-
-import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
 export default function Container() {
   const state = useUserTraits();

@@ -363,6 +363,8 @@ const (
 	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
 	AccessRequestResourceSearchCode = "T5004I"
+	// AccessRequestExpireCode is the access request expires code.
+	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -685,11 +687,50 @@ const (
 	WorkloadIdentityUpdateCode = "WID002I"
 	// WorkloadIdentityDeleteCode is the workload identity delete event code.
 	WorkloadIdentityDeleteCode = "WID003I"
+	// WorkloadIdentityX509RevocationCreateCode is the
+	// WorkloadIdentityX509Revocation create event code.
+	WorkloadIdentityX509RevocationCreateCode = "WID004I"
+	// WorkloadIdentityX509RevocationUpdateCode is the
+	// WorkloadIdentityX509Revocation update event code.
+	WorkloadIdentityX509RevocationUpdateCode = "WID005I"
+	// WorkloadIdentityX509RevocationDeleteCode is the
+	// WorkloadIdentityX509Revocation delete event code.
+	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
+	// WorkloadIdentityX509IssuerOverrideCreateCode is the code for the
+	// workload_identity_x509_issuer_override.create event.
+	WorkloadIdentityX509IssuerOverrideCreateCode = "WID007I"
+	// WorkloadIdentityX509IssuerOverrideDeleteCode is the code for the
+	// workload_identity_x509_issuer_override.delete event.
+	WorkloadIdentityX509IssuerOverrideDeleteCode = "WID008I"
+
+	// SigstorePolicyCreateCode is the Sigstore policy create event code.
+	SigstorePolicyCreateCode = "TSSP001I"
+	// SigstorePolicyUpdateCode is the Sigstore policy update event code.
+	SigstorePolicyUpdateCode = "TSSP002I"
+	// SigstorePolicyDeleteCode is the Sigstore policy delete event code.
+	SigstorePolicyDeleteCode = "TSSP003I"
+
+	// HealthCheckConfigCreateCode is the health check config create event code.
+	HealthCheckConfigCreateCode = "THCC001I"
+	// HealthCheckConfigUpdateCode is the health check config update event code.
+	HealthCheckConfigUpdateCode = "THCC002I"
+	// HealthCheckConfigDeleteCode is the health check config delete event code.
+	HealthCheckConfigDeleteCode = "THCC003I"
 
 	// GitCommandCode is the git command event code
 	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
+
+	// StableUNIXUserCreateCode is the stable UNIX user create event code.
+	StableUNIXUserCreateCode = "TSUU001I"
+
+	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
+	// sync attempt success code.
+	AWSICResourceSyncSuccessCode = "TAIC001I"
+	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
+	// sync attempt failure code.
+	AWSICResourceSyncFailureCode = "TAIC001E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -97,7 +98,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors
@@ -194,7 +195,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 	cfg.FileDescriptors = dynAddr.Descriptors
@@ -230,7 +231,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		tunnelAddr = s.root.Config.Proxy.ReverseTunnelListenAddr.String()
 	}
 
-	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster(s.root.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                staticToken,
 		ProxyAddress:         s.root.Config.Proxy.WebAddr.String(),
@@ -249,7 +250,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 	s.leaf = runTeleport(t, cfg)
 
-	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
+	_, err = s.leaf.GetAuthServer().UpsertTrustedClusterV2(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
 }
 
@@ -482,10 +483,8 @@ func mustRegisterKubeClusters(t *testing.T, ctx context.Context, authSrv *auth.S
 	require.NoError(t, wg.Wait())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		servers, err := authSrv.GetKubernetesServers(ctx)
-		assert.NoError(c, err)
 		gotNames := map[string]struct{}{}
-		for _, ks := range servers {
+		for ks := range authSrv.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
 			gotNames[ks.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {

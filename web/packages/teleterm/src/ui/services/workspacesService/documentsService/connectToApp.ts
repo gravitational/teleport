@@ -18,15 +18,16 @@
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 
-import { routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
-
 import {
-  getWebAppLaunchUrl,
-  isWebApp,
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
+  getWebAppLaunchUrl,
+  isWebApp,
 } from 'teleterm/services/tshd/app';
+import { appToAddrToCopy } from 'teleterm/services/vnet/app';
+import { IAppContext } from 'teleterm/ui/types';
+import { AppUri, routing } from 'teleterm/ui/uri';
+import { VnetAppLauncher } from 'teleterm/ui/Vnet';
 
 import { DocumentOrigin } from './types';
 
@@ -45,7 +46,7 @@ export async function connectToApp(
    * launchVnet is supposed to be provided if VNet is supported. If so, connectToApp is going to use
    * this function when targeting a TCP app. Otherwise it'll create an app gateway.
    */
-  launchVnet: null | (() => Promise<[void, Error]>),
+  launchVnet: null | VnetAppLauncher,
   target: App,
   telemetry: { origin: DocumentOrigin },
   options?: {
@@ -105,82 +106,59 @@ export async function connectToApp(
 
   // TCP app
   if (launchVnet) {
-    await connectToAppWithVnet(
-      ctx,
-      launchVnet,
-      target,
-      // We don't let the user pick the target port through the search bar on purpose. If an app
-      // allows a port range, we'd need to allow the user to input any number from the range.
-      undefined /* targetPort */
-    );
+    // We don't let the user pick the target port through the search bar on purpose. If an app
+    // allows a port range, we'd need to allow the user to input any number from the range.
+    await launchVnet({
+      addrToCopy: appToAddrToCopy(target),
+      resourceUri: target.uri,
+      isMultiPort: !!target.tcpPorts.length,
+    });
     return;
   }
 
-  await setUpAppGateway(ctx, target, telemetry);
+  let targetPort: number;
+  if (target.tcpPorts.length > 0) {
+    targetPort = target.tcpPorts[0].port;
+  }
+
+  await setUpAppGateway(ctx, target.uri, { telemetry, targetPort });
 }
 
 export async function setUpAppGateway(
   ctx: IAppContext,
-  target: App,
-  telemetry: { origin: DocumentOrigin }
+  targetUri: AppUri,
+  options: {
+    telemetry: { origin: DocumentOrigin };
+    /**
+     * targetPort allows the caller to preselect the target port for the gateway. Should be passed
+     * only for multi-port TCP apps.
+     */
+    targetPort?: number;
+  }
 ) {
-  const rootClusterUri = routing.ensureRootClusterUri(target.uri);
+  const rootClusterUri = routing.ensureRootClusterUri(targetUri);
 
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   const doc = documentsService.createGatewayDocument({
-    targetUri: target.uri,
-    origin: telemetry.origin,
-    targetName: routing.parseAppUri(target.uri).params.appId,
+    targetUri: targetUri,
+    origin: options.telemetry.origin,
+    targetName: routing.parseAppUri(targetUri).params.appId,
     targetUser: '',
+    targetSubresourceName: options.targetPort?.toString(),
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
 
   if (connectionToReuse) {
     await ctx.connectionTracker.activateItem(connectionToReuse.id, {
-      origin: telemetry.origin,
+      origin: options.telemetry.origin,
     });
   } else {
     await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }
-}
-
-export async function connectToAppWithVnet(
-  ctx: IAppContext,
-  launchVnet: () => Promise<[void, Error]>,
-  target: App,
-  targetPort: number | undefined
-) {
-  const [, err] = await launchVnet();
-  if (err) {
-    return;
-  }
-
-  let addrToCopy = target.publicAddr;
-  if (targetPort) {
-    addrToCopy = `${addrToCopy}:${targetPort}`;
-  }
-
-  try {
-    await navigator.clipboard.writeText(addrToCopy);
-  } catch (error) {
-    // On macOS, if the user uses the mouse rather than the keyboard to proceed with the osascript
-    // prompt, the Electron app throws an error about clipboard write permission being denied.
-    if (error['name'] === 'NotAllowedError') {
-      console.error(error);
-      ctx.notificationsService.notifyInfo(
-        `Connect via VNet by using ${addrToCopy}.`
-      );
-      return;
-    }
-    throw error;
-  }
-  ctx.notificationsService.notifyInfo(
-    `Connect via VNet by using ${addrToCopy} (copied to clipboard).`
-  );
 }
 
 /**

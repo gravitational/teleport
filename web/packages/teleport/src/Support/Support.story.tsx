@@ -18,10 +18,11 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
 import { ContentMinWidth } from 'teleport/Main/Main';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Props, Support } from './Support';
 
@@ -31,9 +32,11 @@ export default {
 
 const Provider = ({ children }) => (
   <ContextProvider ctx={ctx}>
-    <ContentMinWidth>
-      <MemoryRouter>{children}</MemoryRouter>
-    </ContentMinWidth>
+    <InfoGuidePanelProvider>
+      <ContentMinWidth>
+        <MemoryRouter>{children}</MemoryRouter>
+      </ContentMinWidth>
+    </InfoGuidePanelProvider>
   </ContextProvider>
 );
 

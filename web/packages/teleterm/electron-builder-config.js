@@ -2,6 +2,7 @@ const { env, platform } = require('process');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 const isMac = platform === 'darwin';
+const isWindows = platform === 'win32';
 
 // The following checks make no sense when cross-building because they check the platform of the
 // host and not the platform we're building for.
@@ -27,6 +28,10 @@ if (
 
 if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
   throw new Error('You must provide CONNECT_TSH_BIN_PATH');
+}
+
+if (isWindows && env.CONNECT_WINTUN_DLL_PATH === undefined) {
+  throw new Error('You must provide CONNECT_WINTUN_DLL_PATH');
 }
 
 // Holds tsh.app Info.plist during build. Used in afterPack.
@@ -147,29 +152,32 @@ module.exports = {
   },
   win: {
     target: ['nsis'],
-    // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
-    // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
-    signingHashAlgorithms: ['sha256'],
-    sign: customSign => {
-      if (process.env.CI !== 'true') {
-        console.warn('Not running in CI pipeline: signing will be skipped');
-        return;
-      }
+    signtoolOptions: {
+      // The algorithm passed here is not used, it only prevents the signing function from being called twice for each file.
+      // https://github.com/electron-userland/electron-builder/issues/3995#issuecomment-505725704
+      signingHashAlgorithms: ['sha256'],
+      sign: customSign => {
+        if (process.env.CI !== 'true') {
+          console.warn('Not running in CI pipeline: signing will be skipped');
+          return;
+        }
 
-      spawnSync(
-        'powershell',
-        [
-          '-noprofile',
-          '-executionpolicy',
-          'bypass',
-          '-c',
-          "$ProgressPreference = 'SilentlyContinue'; " +
-            "$ErrorActionPreference = 'Stop'; " +
-            '. ../../../build.assets/windows/build.ps1; ' +
-            `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
-        ],
-        { stdio: 'inherit' }
-      );
+        spawnSync(
+          'powershell',
+          [
+            '-noprofile',
+            '-executionpolicy',
+            'bypass',
+            '-c',
+            "$ProgressPreference = 'SilentlyContinue'; " +
+              "$ErrorActionPreference = 'Stop'; " +
+              '$PSNativeCommandUseErrorActionPreference = $true; ' +
+              '. ../../../build.assets/windows/build.ps1; ' +
+              `Invoke-SignBinary -UnsignedBinaryPath "${customSign.path}"`,
+          ],
+          { stdio: 'inherit' }
+        );
+      },
     },
     artifactName: '${productName} Setup-${version}.${ext}',
     icon: 'build_resources/icon-win.ico',
@@ -178,12 +186,20 @@ module.exports = {
         from: env.CONNECT_TSH_BIN_PATH,
         to: './bin/tsh.exe',
       },
+      env.CONNECT_WINTUN_DLL_PATH && {
+        from: env.CONNECT_WINTUN_DLL_PATH,
+        to: './bin/wintun.dll',
+      },
     ].filter(Boolean),
   },
   nsis: {
     // Turn off blockmaps since we don't support automatic updates.
     // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
     differentialPackage: false,
+    // Use a per-machine installation to support VNet.
+    // VNet installs a Windows service per-machine, and tsh.exe must be
+    // installed in a path that is not user-writable.
+    perMachine: true,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',

@@ -56,6 +56,8 @@ Replace `example-role` with a descriptive name related to your use case.
 
 Use `tctl create -f ./role.yaml` to create the role.
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`
 with the name of the role you just created:
@@ -94,7 +96,7 @@ plan later.
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by `tctl` to
-authenticate with the Teleport Auth Server.
+authenticate with the Teleport Auth Service.
 
 ## Step 3/3. Use `tctl` with the identity output
 
@@ -124,7 +126,7 @@ also be specified with the address of your Teleport Proxy or Teleport Auth
 Server.
 
 Run `tctl`, replacing `example.teleport.sh:443` with the address of your
-Teleport Proxy or Auth Server and `/opt/machine-id/identity` with the path to
+Teleport Proxy or Auth Service and `/opt/machine-id/identity` with the path to
 the generated identity file if you have modified this:
 
 ```code

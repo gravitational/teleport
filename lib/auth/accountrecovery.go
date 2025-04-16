@@ -72,7 +72,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 			"user", req.GetUsername(),
 			"error", err,
 		)
-		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
+		return nil, trace.AccessDenied("%s", startRecoveryGenericErrMsg)
 	}
 
 	if err := a.verifyRecoveryCode(ctx, req.GetUsername(), req.GetRecoveryCode()); err != nil {
@@ -86,7 +86,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 			"user", req.GetUsername(),
 			"error", err,
 		)
-		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
+		return nil, trace.AccessDenied("%s", startRecoveryGenericErrMsg)
 	}
 
 	token, err := a.createRecoveryToken(ctx, req.GetUsername(), authclient.UserTokenTypeRecoveryStart, req.GetRecoverType())
@@ -96,7 +96,7 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 			"user", req.GetUsername(),
 			"error", err,
 		)
-		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
+		return nil, trace.AccessDenied("%s", startRecoveryGenericErrMsg)
 	}
 
 	return token, nil
@@ -110,7 +110,7 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 		// It will result in an error but this avoids timing attacks which expose account presence.
 	case err != nil:
 		a.logger.ErrorContext(ctx, "Failed to fetch user to verify account recovery", "error", err)
-		return trace.AccessDenied(startRecoveryGenericErrMsg)
+		return trace.AccessDenied("%s", startRecoveryGenericErrMsg)
 	case user.GetUserType() != types.UserTypeLocal:
 		return trace.AccessDenied("only local users may perform account recovery")
 	}
@@ -184,13 +184,13 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 		recovery.GetCodes()[i].IsUsed = true
 		if err := a.UpsertRecoveryCodes(ctx, username, recovery); err != nil {
 			a.logger.ErrorContext(ctx, "Failed to update recovery code as used", "error", err)
-			return trace.AccessDenied(startRecoveryGenericErrMsg)
+			return trace.AccessDenied("%s", startRecoveryGenericErrMsg)
 		}
 		break
 	}
 
 	if !codeMatch || !hasRecoveryCodes {
-		return trace.AccessDenied(startRecoveryBadAuthnErrMsg)
+		return trace.AccessDenied("%s", startRecoveryBadAuthnErrMsg)
 	}
 
 	return nil
@@ -205,12 +205,12 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 	startToken, err := a.GetUserToken(ctx, req.GetRecoveryStartTokenID())
 	switch {
 	case err != nil:
-		return nil, trace.AccessDenied(verifyRecoveryGenericErrMsg)
+		return nil, trace.AccessDenied("%s", verifyRecoveryGenericErrMsg)
 	case startToken.GetUser() != req.Username:
-		return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
+		return nil, trace.AccessDenied("%s", verifyRecoveryBadAuthnErrMsg)
 	}
 
-	if err := a.verifyUserToken(startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
+	if err := a.verifyUserToken(ctx, startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -222,7 +222,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 				ctx,
 				"Failed to verify account recovery, expected mfa authn response, but received password",
 			)
-			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
+			return nil, trace.AccessDenied("%s", verifyRecoveryBadAuthnErrMsg)
 		}
 
 		if err := a.verifyAuthnRecovery(ctx, startToken, func() error {
@@ -237,7 +237,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 				ctx,
 				"Failed to verify account recovery, expected password, but received a mfa authn response",
 			)
-			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
+			return nil, trace.AccessDenied("%s", verifyRecoveryBadAuthnErrMsg)
 		}
 
 		if err := a.verifyAuthnRecovery(ctx, startToken, func() error {
@@ -254,7 +254,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 
 	approvedToken, err := a.createRecoveryToken(ctx, startToken.GetUser(), authclient.UserTokenTypeRecoveryApproved, startToken.GetUsage())
 	if err != nil {
-		return nil, trace.AccessDenied(verifyRecoveryGenericErrMsg)
+		return nil, trace.AccessDenied("%s", verifyRecoveryGenericErrMsg)
 	}
 
 	// Delete start token to invalidate the recovery link sent to users.
@@ -272,7 +272,7 @@ func (a *Server) verifyAuthnRecovery(ctx context.Context, startToken types.UserT
 	_, err := a.Services.GetUser(ctx, startToken.GetUser(), false)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Failed to fetch user to verify account recovery", "error", err)
-		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
+		return trace.AccessDenied("%s", verifyRecoveryGenericErrMsg)
 	}
 
 	// The error returned from authenticateFn does not guarantee sensitive info is not leaked.
@@ -284,12 +284,12 @@ func (a *Server) verifyAuthnRecovery(ctx context.Context, startToken types.UserT
 			ctx, "Encountered connection problem when verifying account recovery",
 			"error", verifyAuthnErr,
 		)
-		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
+		return trace.AccessDenied("%s", verifyRecoveryBadAuthnErrMsg)
 	case verifyAuthnErr == nil:
 		return nil
 	}
 
-	return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
+	return trace.AccessDenied("%s", verifyRecoveryBadAuthnErrMsg)
 }
 
 // CompleteAccountRecovery implements AuthService.CompleteAccountRecovery.
@@ -301,10 +301,10 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	approvedToken, err := a.GetUserToken(ctx, req.GetRecoveryApprovedTokenID())
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Encountered error when fetching recovery token", "error", err)
-		return trace.AccessDenied(completeRecoveryGenericErrMsg)
+		return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 	}
 
-	if err := a.verifyUserToken(approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(ctx, approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -316,7 +316,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 				ctx, "Failed to recover account, did not receive password as expected",
 				"received_type", logutil.TypeAttr(req.GetNewAuthnCred()),
 			)
-			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+			return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 		}
 
 		if err := services.VerifyPassword(req.GetNewPassword()); err != nil {
@@ -325,7 +325,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 
 		if err := a.UpsertPassword(approvedToken.GetUser(), req.GetNewPassword()); err != nil {
 			a.logger.ErrorContext(ctx, "Failed to upsert new password for user", "error", err)
-			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+			return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 		}
 
 	case *proto.CompleteAccountRecoveryRequest_NewMFAResponse:
@@ -334,7 +334,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 				ctx, "Failed to recover account, did not receive MFA register response as expected",
 				"received_type", logutil.TypeAttr(req.GetNewAuthnCred()),
 			)
-			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+			return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 		}
 
 		_, err = a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
@@ -355,7 +355,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	user, err := a.Services.GetUser(ctx, approvedToken.GetUser(), false /* without secrets */)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Failed to fetch user to complete account recovery", "error", err)
-		return trace.AccessDenied(completeRecoveryGenericErrMsg)
+		return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 	}
 
 	if user.GetStatus().IsLocked {
@@ -363,12 +363,12 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		_, err = a.UpsertUser(ctx, user)
 		if err != nil {
 			a.logger.ErrorContext(ctx, "Failed to upsert user completing account recovery", "error", err)
-			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+			return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 		}
 
 		if err := a.DeleteUserLoginAttempts(approvedToken.GetUser()); err != nil {
 			a.logger.ErrorContext(ctx, "Failed to delete user login attempts after completing account recovery", "error", err)
-			return trace.AccessDenied(completeRecoveryGenericErrMsg)
+			return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 		}
 	}
 
@@ -386,31 +386,31 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 	token, err := a.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Failed to fetch existing user recovery token", "error", err)
-		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+		return nil, trace.AccessDenied("%s", unableToCreateCodesMsg)
 	}
 
 	if _, err := mail.ParseAddress(token.GetUser()); err != nil {
 		a.logger.DebugContext(ctx, "Failed to create new recovery codes, username is not a valid email", "user", token.GetUser(), "error", err)
-		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+		return nil, trace.AccessDenied("%s", unableToCreateCodesMsg)
 	}
 
 	// Verify if the user is local.
 	switch user, err := a.GetUser(ctx, token.GetUser(), false /* withSecrets */); {
 	case err != nil:
 		// err swallowed on purpose.
-		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+		return nil, trace.AccessDenied("%s", unableToCreateCodesMsg)
 	case user.GetUserType() != types.UserTypeLocal:
 		return nil, trace.AccessDenied("only local users may create recovery codes")
 	}
 
-	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
+	if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	newRecovery, err := a.generateAndUpsertRecoveryCodes(ctx, token.GetUser())
 	if err != nil {
 		a.logger.ErrorContext(ctx, "Failed to generate and upsert new recovery codes", "error", err)
-		return nil, trace.AccessDenied(unableToCreateCodesMsg)
+		return nil, trace.AccessDenied("%s", unableToCreateCodesMsg)
 	}
 
 	if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
@@ -428,7 +428,7 @@ func (a *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

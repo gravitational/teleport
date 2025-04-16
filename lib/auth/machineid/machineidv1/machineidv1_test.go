@@ -32,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -96,6 +98,8 @@ func TestCreateBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 				},
@@ -123,6 +127,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "success",
 						Labels: map[string]string{
@@ -142,6 +148,8 @@ func TestCreateBot(t *testing.T) {
 								Values: []string{},
 							},
 						},
+						// Note: Deliberately omitting MaxSessionTtl here to verify
+						// the default value.
 					},
 				},
 			},
@@ -165,6 +173,7 @@ func TestCreateBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-success",
@@ -210,7 +219,7 @@ func TestCreateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -231,6 +240,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "success-with-expiry",
 						Labels: map[string]string{
@@ -251,6 +262,8 @@ func TestCreateBot(t *testing.T) {
 								Values: []string{},
 							},
 						},
+						// Note: Deliberately omitting MaxSessionTtl here to
+						// validate the default value.
 					},
 				},
 			},
@@ -275,6 +288,7 @@ func TestCreateBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-success-with-expiry",
@@ -322,7 +336,93 @@ func TestCreateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
+					},
+					Allow: types.RoleConditions{
+						Impersonate: &types.ImpersonateConditions{
+							Roles: []string{testRole.GetName()},
+						},
+						Rules: []types.Rule{
+							types.NewRule(
+								types.KindCertAuthority,
+								[]string{types.VerbReadNoSecrets},
+							),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "success with max ttl",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.CreateBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "success-with-max-ttl",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
+						Expires: timestamppb.New(expiry),
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles: []string{testRole.GetName()},
+						Traits: []*machineidv1pb.Trait{
+							{
+								Name:   constants.TraitLogins,
+								Values: []string{"root"},
+							},
+							{
+								Name:   constants.TraitKubeUsers,
+								Values: []string{},
+							},
+						},
+						MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+					},
+				},
+			},
+			assertError: require.NoError,
+			want: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "success-with-max-ttl",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
+					Expires: timestamppb.New(expiry),
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles: []string{testRole.GetName()},
+					Traits: []*machineidv1pb.Trait{
+						{
+							Name:   constants.TraitLogins,
+							Values: []string{"root"},
+						},
+					},
+					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+				},
+				Status: &machineidv1pb.BotStatus{
+					UserName: "bot-success-with-max-ttl",
+					RoleName: "bot-success-with-max-ttl",
+				},
+			},
+			wantRole: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:      "bot-success-with-max-ttl",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "success-with-max-ttl",
+					},
+					Description: "Automatically generated role for bot success-with-max-ttl",
+					Expires:     &expiry,
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -374,6 +474,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: nil,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -390,6 +492,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: &headerv1.Metadata{},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -406,6 +510,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "terminator",
 					},
@@ -422,6 +528,8 @@ func TestCreateBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.CreateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "empty-string-role",
 					},
@@ -501,6 +609,8 @@ func TestUpdateBot(t *testing.T) {
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
 			},
@@ -544,6 +654,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: preExistingBot.Metadata.Name,
 					},
@@ -561,10 +673,11 @@ func TestUpdateBot(t *testing.T) {
 								},
 							},
 						},
+						MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
 					},
 				},
 				UpdateMask: &fieldmaskpb.FieldMask{
-					Paths: []string{"spec.roles", "spec.traits"},
+					Paths: []string{"spec.roles", "spec.traits", "spec.max_session_ttl"},
 				},
 			},
 
@@ -589,6 +702,7 @@ func TestUpdateBot(t *testing.T) {
 							},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: preExistingBot.Status.UserName,
@@ -635,7 +749,7 @@ func TestUpdateBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -675,6 +789,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "bernard-lowe",
 					},
@@ -694,6 +810,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{beforeRole.GetName()},
 					},
@@ -712,6 +830,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "",
 					},
@@ -733,6 +853,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "foo",
 					},
@@ -752,6 +874,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "foo",
 					},
@@ -773,6 +897,8 @@ func TestUpdateBot(t *testing.T) {
 			user: botUpdaterUser.GetName(),
 			req: &machineidv1pb.UpdateBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: preExistingBot.Metadata.Name,
 					},
@@ -863,6 +989,8 @@ func TestUpsertBot(t *testing.T) {
 	require.NoError(t, err)
 	preExistingBot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "pre-existing",
 				Labels: map[string]string{
@@ -905,6 +1033,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "new",
 						Labels: map[string]string{
@@ -943,6 +1073,7 @@ func TestUpsertBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-new",
@@ -985,7 +1116,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1003,6 +1134,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "new-with-expiry",
 						Labels: map[string]string{
@@ -1043,6 +1176,7 @@ func TestUpsertBot(t *testing.T) {
 							Values: []string{"root"},
 						},
 					},
+					MaxSessionTtl: durationpb.New(libdefaults.DefaultBotMaxSessionTTL),
 				},
 				Status: &machineidv1pb.BotStatus{
 					UserName: "bot-new-with-expiry",
@@ -1087,7 +1221,7 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1143,7 +1277,96 @@ func TestUpsertBot(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(12 * time.Hour),
+						MaxSessionTTL: types.Duration(libdefaults.DefaultBotMaxSessionTTL),
+					},
+					Allow: types.RoleConditions{
+						Impersonate: &types.ImpersonateConditions{
+							Roles: []string{testRole.GetName()},
+						},
+						Rules: []types.Rule{
+							types.NewRule(
+								types.KindCertAuthority,
+								[]string{types.VerbReadNoSecrets},
+							),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "already exists with max session ttl",
+			user: botCreator.GetName(),
+			req: &machineidv1pb.UpsertBotRequest{
+				Bot: &machineidv1pb.Bot{
+					Metadata: &headerv1.Metadata{
+						Name: "pre-existing",
+						Labels: map[string]string{
+							"my-label":       "my-value",
+							"my-other-label": "my-other-value",
+						},
+					},
+					Spec: &machineidv1pb.BotSpec{
+						Roles:         []string{testRole.GetName()},
+						MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+					},
+				},
+			},
+
+			assertError: require.NoError,
+			want: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "pre-existing",
+					Labels: map[string]string{
+						"my-label":       "my-value",
+						"my-other-label": "my-other-value",
+					},
+				},
+				Spec: &machineidv1pb.BotSpec{
+					Roles:         []string{testRole.GetName()},
+					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
+				},
+				Status: &machineidv1pb.BotStatus{
+					UserName: "bot-pre-existing",
+					RoleName: "bot-pre-existing",
+				},
+			},
+			wantUser: &types.UserV2{
+				Kind:    types.KindUser,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "bot-pre-existing",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel:           "pre-existing",
+						types.BotGenerationLabel: "1337",
+						"my-label":               "my-value",
+						"my-other-label":         "my-other-value",
+					},
+				},
+				Spec: types.UserSpecV2{
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
+					Roles:  []string{"bot-pre-existing"},
+					Traits: nil,
+				},
+			},
+			wantRole: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V7,
+				Metadata: types.Metadata{
+					Name:      "bot-pre-existing",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "pre-existing",
+					},
+					Description: "Automatically generated role for bot pre-existing",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessionTTL: types.Duration(libdefaults.MaxRenewableCertTTL),
 					},
 					Allow: types.RoleConditions{
 						Impersonate: &types.ImpersonateConditions{
@@ -1184,6 +1407,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: nil,
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -1200,6 +1425,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:     types.KindBot,
+					Version:  types.V1,
 					Metadata: &headerv1.Metadata{},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -1216,6 +1443,8 @@ func TestUpsertBot(t *testing.T) {
 			user: botCreator.GetName(),
 			req: &machineidv1pb.UpsertBotRequest{
 				Bot: &machineidv1pb.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name: "empty-string-role",
 					},
@@ -1301,6 +1530,8 @@ func TestGetBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 					Labels: map[string]string{
@@ -1412,6 +1643,8 @@ func TestListBots(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 					Labels: map[string]string{
@@ -1430,6 +1663,8 @@ func TestListBots(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing-2",
 				},
@@ -1534,6 +1769,8 @@ func TestDeleteBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing",
 				},
@@ -1548,6 +1785,8 @@ func TestDeleteBot(t *testing.T) {
 		ctx,
 		&machineidv1pb.CreateBotRequest{
 			Bot: &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: "pre-existing-3",
 				},

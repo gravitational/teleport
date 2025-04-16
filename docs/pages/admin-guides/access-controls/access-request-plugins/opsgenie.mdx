@@ -20,13 +20,13 @@ Opsgenie.
 
 - A Teleport Enterprise Cloud account.
 
-- The Enterprise `tctl` admin tool and `tsh` client tool version >= (=teleport.version=). 
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=). 
   
   You can verify the tools you have installed by running the following commands:
 
   ```code
   $ tctl version
-  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
   
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
@@ -56,9 +56,8 @@ API.
 
 ### Create a requester role
 
-To create a user first navigate to Management -> Access -> Roles
-
-Then select 'Create New Role' and create the requester role.
+To create a user, first navigate to **Access -> Roles**. Then select **Create
+New Role** and create the requester role.
 
 ```
 kind: role
@@ -131,7 +130,7 @@ or in the schedules specified by `teleport.dev/notify-services` annotation in th
 
 (!docs/pages/includes/plugins/resolve-request.mdx!)
 
-<Admonition title="Auditing Access Requests">
+<Admonition type="info" title="Auditing Access Requests">
 
 When the Opsgenie plugin sends a notification, anyone who receives the
 notification can follow the enclosed link to an Access Request URL. While users

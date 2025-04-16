@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -40,13 +41,15 @@ import (
 // Note that this checker warns the user with suggestions on how to configure
 // the credentials correctly instead of returning errors.
 type credentialsChecker struct {
-	cloudClients     cloud.Clients
-	resourceMatchers []services.ResourceMatcher
-	logger           *slog.Logger
-	cache            *utils.FnCache
+	awsConfigProvider awsconfig.Provider
+	awsClients        awsClientProvider
+	azureClients      cloud.AzureClients
+	resourceMatchers  []services.ResourceMatcher
+	logger            *slog.Logger
+	cache             *utils.FnCache
 }
 
-func newCrednentialsChecker(cfg DiscoveryResourceCheckerConfig) (*credentialsChecker, error) {
+func newCredentialsChecker(cfg DiscoveryResourceCheckerConfig) (*credentialsChecker, error) {
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:     10 * time.Minute,
 		Context: cfg.Context,
@@ -56,10 +59,12 @@ func newCrednentialsChecker(cfg DiscoveryResourceCheckerConfig) (*credentialsChe
 	}
 
 	return &credentialsChecker{
-		cloudClients:     cfg.Clients,
-		resourceMatchers: cfg.ResourceMatchers,
-		logger:           cfg.Logger,
-		cache:            cache,
+		awsConfigProvider: cfg.AWSConfigProvider,
+		awsClients:        defaultAWSClients{},
+		azureClients:      cfg.AzureClients,
+		resourceMatchers:  cfg.ResourceMatchers,
+		logger:            cfg.Logger,
+		cache:             cache,
 	}, nil
 }
 
@@ -111,10 +116,11 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 	}
 
 	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
-		client, err := c.cloudClients.GetAWSSTSClient(ctx, "", cloud.WithAmbientCredentials())
+		awsCfg, err := c.awsConfigProvider.GetConfig(ctx, meta.Region, awsconfig.WithAmbientCredentials())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		client := c.awsClients.getSTSClient(awsCfg)
 		return aws.GetIdentityWithClient(ctx, client)
 	})
 	return identity, trace.Wrap(err)
@@ -122,7 +128,7 @@ func (c *credentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS
 
 func (c *credentialsChecker) checkAzure(ctx context.Context, database types.Database) {
 	allSubIDs, err := utils.FnCacheGet(ctx, c.cache, types.CloudAzure, func(ctx context.Context) ([]string, error) {
-		client, err := c.cloudClients.GetAzureSubscriptionClient()
+		client, err := c.azureClients.GetAzureSubscriptionClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -156,7 +162,7 @@ func (c *credentialsChecker) checkAzure(ctx context.Context, database types.Data
 
 func (c *credentialsChecker) warn(ctx context.Context, msg string, args ...any) {
 	logger := c.logger.With(
-		"help_message", `You can update "db_service.resources" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/database-access/reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.`,
+		"help_message", `You can update "db_service.resources" section of this agent's config file to filter out unwanted resources (see https://goteleport.com/docs/reference/agent-services/database-access-reference/configuration/ for more details). If this database is intended to be handled by this agent, please verify that valid cloud credentials are configured for the agent.`,
 	)
 
 	if c.isWildcardMatcher() {

@@ -18,10 +18,11 @@
 
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
+
 import renderHook from 'design/utils/renderHook';
 
-import useTabRouting from './useTabRouting';
 import ConsoleContext from './consoleContext';
+import useTabRouting from './useTabRouting';
 
 test('handling of index route', async () => {
   const ctx = new ConsoleContext();

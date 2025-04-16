@@ -69,7 +69,7 @@ func (p *azureDBServerPlugin) NewDatabaseFromServer(ctx context.Context, server 
 	}
 
 	if !server.IsAvailable() {
-		logger.DebugContext(ctx, "Skippin unavailable Azure server",
+		logger.DebugContext(ctx, "Skipping unavailable Azure server",
 			"server", server.Name,
 			"state", server.Properties.UserVisibleState)
 		return nil

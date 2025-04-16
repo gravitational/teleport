@@ -17,9 +17,9 @@
  */
 
 import {
+  createFileTransferEventsEmitter,
   FileTransferEventsEmitter,
   FileTransferListeners,
-  createFileTransferEventsEmitter,
 } from 'shared/components/FileTransfer';
 
 import { getAuthHeaders, getNoCacheHeaders } from 'teleport/services/api';

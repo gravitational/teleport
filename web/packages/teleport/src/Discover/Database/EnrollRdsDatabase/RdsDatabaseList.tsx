@@ -21,11 +21,11 @@ import { FetchStatus } from 'design/DataTable/types';
 
 import {
   DisableableCell as Cell,
-  StatusCell,
   ItemStatus,
-  RadioCell,
-  Labels,
   labelMatcher,
+  Labels,
+  RadioCell,
+  StatusCell,
 } from 'teleport/Discover/Shared';
 
 import { CheckedAwsRdsDatabase } from './SingleEnrollment';

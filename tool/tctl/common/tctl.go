@@ -25,12 +25,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -72,7 +73,7 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(ctx context.Context, commands []CLICommand) {
-	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
+	if err := tools.CheckAndUpdateLocal(ctx, os.Args[1:]); err != nil {
 		utils.FatalError(err)
 	}
 
@@ -112,7 +113,9 @@ func TryRun(commands []CLICommand, args []string) error {
 	if configFileEnv, ok := os.LookupEnv(defaults.ConfigFileEnvar); ok {
 		ccf.ConfigFile = configFileEnv
 	} else {
-		if utils.FileExists(defaults.ConfigFilePath) {
+		// Skip the default config path on windows since the C:\etc\ directory
+		// does not exist by default and low-privileged users can create the folder.
+		if runtime.GOOS != constants.WindowsOS && utils.FileExists(defaults.ConfigFilePath) {
 			ccf.ConfigFile = defaults.ConfigFilePath
 		}
 	}

@@ -18,13 +18,13 @@
 
 import styled, { useTheme } from 'styled-components';
 
-import { Text, Flex, ButtonPrimary } from 'design';
-import { P } from 'design/Text/Text';
-import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
+import { ButtonPrimary, Flex, Text } from 'design';
 import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
+import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
+import { P } from 'design/Text/Text';
 
-import { IconTooltip } from './IconTooltip';
 import { HoverTooltip } from './HoverTooltip';
+import { IconTooltip } from './IconTooltip';
 
 export default {
   title: 'Design/Tooltip',
@@ -143,7 +143,7 @@ export const WithKindError = () => (
 export const HoverToolTip = () => (
   <Flex alignItems="baseline" gap={2}>
     <span>Hover the</span>
-    <HoverTooltip position="bottom" tipContent="some popover content">
+    <HoverTooltip placement="bottom" tipContent="some popover content">
       <ButtonPrimary>button</ButtonPrimary>
     </HoverTooltip>
   </Flex>

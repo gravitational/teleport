@@ -19,14 +19,13 @@
 import { useEffect } from 'react';
 
 import {
-  useUrlFiltering,
   useServerSidePagination,
+  useUrlFiltering,
 } from 'teleport/components/hooks';
-
-import * as stores from './../stores';
-import { useConsoleContext } from './../consoleContextProvider';
-
 import type { Node } from 'teleport/services/nodes';
+
+import { useConsoleContext } from './../consoleContextProvider';
+import * as stores from './../stores';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();

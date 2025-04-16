@@ -17,11 +17,10 @@
  */
 
 import { ButtonPrimary, Input, LabelInput } from './..';
-
 import Dialog, {
-  DialogHeader,
   DialogContent,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from './index';
 

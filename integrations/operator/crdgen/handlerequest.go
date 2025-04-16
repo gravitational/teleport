@@ -19,7 +19,6 @@
 package crdgen
 
 import (
-	"fmt"
 	"os"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -34,7 +33,7 @@ import (
 )
 
 func HandleCRDRequest(req *gogoplugin.CodeGeneratorRequest) error {
-	return handleRequest(req, formatAsYAML)
+	return handleRequest(req, formatAsCRD)
 }
 
 func HandleDocsRequest(req *gogoplugin.CodeGeneratorRequest) error {
@@ -214,6 +213,15 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 				withAdditionalColumns(serverColumns),
 			},
 		},
+		{name: "TrustedClusterV2", opts: []resourceSchemaOption{withVersionInKindOverride()}},
+		{name: "Bot", opts: []resourceSchemaOption{withVersionOverride(types.V1), withVersionInKindOverride()}},
+		{
+			name: "WorkloadIdentity",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+			},
+		},
 	}
 
 	for _, resource := range resources {
@@ -223,7 +231,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		}
 		err := generator.addResource(file, resource.name, resource.opts...)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating %q", resource.name)
 		}
 	}
 
@@ -232,13 +240,12 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		if err != nil {
 			return trace.Wrap(err, "generating CRD")
 		}
-		data, ext, err := format(crd)
+		data, filename, err := format(crd, groupName, root.pluralName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		name := fmt.Sprintf("%s_%s.%v", groupName, root.pluralName, ext)
 		content := string(data)
-		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
+		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &filename, Content: &content})
 	}
 
 	return nil

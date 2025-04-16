@@ -17,12 +17,13 @@
  */
 
 import { useState } from 'react';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, H2 } from 'design';
 import * as Alerts from 'design/Alert';
-import { Box, Flex, ButtonPrimary, ButtonSecondary, H2 } from 'design';
+import { DialogContent, DialogHeader } from 'design/Dialog';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import { DialogContent, DialogHeader } from 'design/Dialog';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -34,11 +35,12 @@ export function ClusterAdd(props: {
   onSuccess(clusterUri: string): void;
   prefill: { clusterAddress: string };
 }) {
-  const { clustersService } = useAppContext();
+  const { clustersService, workspacesService } = useAppContext();
   const [{ status, statusText }, addCluster] = useAsync(
     async (addr: string) => {
       const proxyAddr = parseClusterProxyWebAddr(addr);
       const cluster = await clustersService.addRootCluster(proxyAddr);
+      workspacesService.addWorkspace(cluster.uri);
       return props.onSuccess(cluster.uri);
     }
   );

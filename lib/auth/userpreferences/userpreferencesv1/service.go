@@ -22,10 +22,8 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	userpreferences "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,7 +33,6 @@ import (
 type ServiceConfig struct {
 	Backend    services.UserPreferences
 	Authorizer authz.Authorizer
-	Logger     *logrus.Entry
 }
 
 // Service implements the teleport.userpreferences.v1.UserPreferencesService RPC service.
@@ -44,7 +41,6 @@ type Service struct {
 
 	backend    services.UserPreferences
 	authorizer authz.Authorizer
-	log        *logrus.Entry
 }
 
 // NewService returns a new user preferences gRPC service.
@@ -54,14 +50,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
-	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "userpreferences.service")
 	}
 
 	return &Service{
 		backend:    cfg.Backend,
 		authorizer: cfg.Authorizer,
-		log:        cfg.Logger,
 	}, nil
 }
 

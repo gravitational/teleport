@@ -24,7 +24,6 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
-	"io"
 	"net/url"
 	"slices"
 	"strconv"
@@ -38,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -66,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -73,11 +72,12 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/okta/oktatest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
@@ -180,6 +180,16 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 
 	start := srv.AuthServer.Clock().Now()
 
+	botSessionTTLOverride := WithRoleMutator(func(role types.Role) {
+		// Bots have a longer max TTL than the default MaxSessionTTL value
+		// (30h), so the longer value must be manually set to actually get certs
+		// of the longer duration. The bot service manages this value when it
+		// creates bots, but this test creates the user/role by hand.
+		opts := role.GetOptions()
+		opts.MaxSessionTTL = types.Duration(defaults.MaxRenewableCertTTL)
+		role.SetOptions(opts)
+	})
+
 	for _, test := range []struct {
 		desc         string
 		renewable    bool
@@ -233,7 +243,8 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
-			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil)
+			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil, botSessionTTLOverride)
+
 			require.NoError(t, err)
 			authPref, err := srv.Auth().GetAuthPreference(ctx)
 			require.NoError(t, err)
@@ -1309,37 +1320,181 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			userCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
 
-			roles, ok := userCert.Extensions[teleport.CertExtensionTeleportRoles]
-			require.True(t, ok)
-
-			parsedRoles, err := services.UnmarshalCertRoles(roles)
+			userIdent, err := sshca.DecodeIdentity(userCert)
 			require.NoError(t, err)
 
 			if len(tt.expectPrincipals) > 0 {
 				expectPrincipals := append(tt.expectPrincipals, teleport.SSHSessionJoinPrincipal)
-				require.ElementsMatch(t, expectPrincipals, userCert.ValidPrincipals, "principals must match")
+				require.ElementsMatch(t, expectPrincipals, userIdent.Principals, "principals must match")
 			}
 
 			if tt.expectRoles != nil {
-				require.ElementsMatch(t, tt.expectRoles, parsedRoles, "granted roles must match expected values")
+				require.ElementsMatch(t, tt.expectRoles, userIdent.Roles, "granted roles must match expected values")
 			} else {
-				require.ElementsMatch(t, tt.roleRequests, parsedRoles, "granted roles must match requests")
+				require.ElementsMatch(t, tt.roleRequests, userIdent.Roles, "granted roles must match requests")
 			}
 
-			_, disallowReissue := userCert.Extensions[teleport.CertExtensionDisallowReissue]
 			if len(tt.roleRequests) > 0 {
-				impersonator, ok := userCert.Extensions[teleport.CertExtensionImpersonator]
-				require.True(t, ok, "impersonator must be set if any role requests exist")
-				require.Equal(t, tt.username, impersonator, "certificate must show self-impersonation")
+				require.NotEmpty(t, userIdent.Impersonator, "impersonator must be set if any role requests exist")
+				require.Equal(t, tt.username, userIdent.Impersonator, "certificate must show self-impersonation")
 
-				require.True(t, disallowReissue)
+				require.True(t, userIdent.DisallowReissue)
 				require.True(t, impersonatedIdent.DisallowReissue)
 			} else {
-				require.False(t, disallowReissue)
+				require.False(t, userIdent.DisallowReissue)
 				require.False(t, impersonatedIdent.DisallowReissue)
 			}
 		})
 	}
+}
+
+// TestRolesRequestsExplicitAllowReissue ensures that the client can explicitly
+// request role impersonation with reissuance allowed. It then checks that the
+// impersonated client can reissue certificates but that role impersonation
+// cannot be escaped.
+func TestRolesRequestsExplicitAllowReissue(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	app, err := types.NewAppServerV3(types.Metadata{Name: "my-app"}, types.AppServerSpecV3{
+		HostID:   "my-app",
+		Hostname: "example.com",
+		App: &types.AppV3{
+			Metadata: types.Metadata{
+				Name: "my-app",
+				Labels: map[string]string{
+					"foo": "bar",
+				},
+			},
+			Spec: types.AppSpecV3{
+				URI:        "http://127.0.0.1",
+				PublicAddr: "my-app.example.com",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
+	require.NoError(t, err)
+
+	accessFooRole, err := CreateRole(ctx, srv.Auth(), "test-access-foo", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"foo"},
+			AppLabels: types.Labels{
+				"foo": []string{"bar"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	accessBarRole, err := CreateRole(ctx, srv.Auth(), "test-access-bar", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"bar"},
+		},
+	})
+	require.NoError(t, err)
+
+	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Impersonate: &types.ImpersonateConditions{
+				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a testing user.
+	user, err := CreateUser(ctx, srv.Auth(), "alice")
+	require.NoError(t, err)
+	user.AddRole(impersonatorRole.GetName())
+	user, err = srv.Auth().UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Generate cert with a role request.
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	_, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
+
+	// Request certs for only the `foo` role.
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:                sshPubKey,
+		TLSPublicKey:                tlsPubKey,
+		Username:                    user.GetName(),
+		Expires:                     time.Now().Add(time.Hour),
+		RoleRequests:                []string{accessFooRole.GetName()},
+		ReissuableRoleImpersonation: true,
+	})
+	require.NoError(t, err)
+
+	// Make an impersonated client.
+	impersonatedTLSCert, err := tls.X509KeyPair(certs.TLS, tlsPrivKey)
+	require.NoError(t, err)
+	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
+
+	ident, err := tlsca.FromSubject(
+		impersonatedTLSCert.Leaf.Subject,
+		impersonatedTLSCert.Leaf.NotAfter,
+	)
+	require.NoError(t, err)
+	require.False(t, ident.DisallowReissue)
+	require.Equal(t, []string{"test-access-foo"}, ident.Groups)
+
+	// Attempt to switch to a different role. This should be disallowed.
+	_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RoleRequests: []string{accessBarRole.GetName()},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Try generation without requesting roles. This should be allowed but
+	// we should ensure we still have our impersonated role,.
+	certs, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	parsedCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	ident, err = tlsca.FromSubject(
+		parsedCert.Subject,
+		parsedCert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.False(t, ident.DisallowReissue)
+	require.Equal(t, []string{"test-access-foo"}, ident.Groups)
+
+	// Attempt to reissue for an app access cert. This should work, we must
+	// also keep our impersonated role.
+	certs, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey: sshPubKey,
+		TLSPublicKey: tlsPubKey,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       app.GetApp().GetName(),
+			PublicAddr: app.GetApp().GetPublicAddr(),
+		},
+	})
+	require.NoError(t, err)
+	parsedCert, err = tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	ident, err = tlsca.FromSubject(
+		parsedCert.Subject,
+		parsedCert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.False(t, ident.DisallowReissue)
+	require.Equal(t, []string{"test-access-foo"}, ident.Groups)
+	require.Equal(t, "my-app", ident.RouteToApp.Name)
+	require.Equal(t, "my-app.example.com", ident.RouteToApp.PublicAddr)
+	require.NotEmpty(t, ident.RouteToApp.SessionID)
 }
 
 // TestRoleRequestDenyReimpersonation make sure role requests can't be used to
@@ -1401,7 +1556,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	impersonatedClient := srv.NewClientWithCert(impersonatedTLSCert)
 
 	// Attempt a request.
-	_, err = impersonatedClient.GetClusterName()
+	_, err = impersonatedClient.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	// Attempt to generate new certs for a different (allowed) role.
@@ -1824,12 +1979,6 @@ func BenchmarkListNodes(b *testing.B) {
 	const nodeCount = 50_000
 	const roleCount = 32
 
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetOutput(io.Discard)
-
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
@@ -1995,9 +2144,8 @@ func benchmarkListNodes(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []types.ResourceWithLabels
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
@@ -2267,7 +2415,29 @@ func TestStreamSessionEvents(t *testing.T) {
 func TestStreamSessionEvents_SessionType(t *testing.T) {
 	t.Parallel()
 
-	srv := newTestTLSServer(t)
+	authServerConfig := TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+	}
+	require.NoError(t, authServerConfig.CheckAndSetDefaults())
+
+	uploader := eventstest.NewMemoryUploader()
+	localLog, err := events.NewAuditLog(events.AuditLogConfig{
+		DataDir:       authServerConfig.Dir,
+		ServerID:      authServerConfig.ClusterName,
+		Clock:         authServerConfig.Clock,
+		UploadHandler: uploader,
+	})
+	require.NoError(t, err)
+	authServerConfig.AuditLog = localLog
+
+	as, err := NewTestAuthServer(authServerConfig)
+	require.NoError(t, err)
+
+	srv, err := as.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -2278,22 +2448,29 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 	identity := TestUser(user.GetName())
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
-	sessionID := "44c6cea8-362f-11ea-83aa-125400432324"
+	sessionID := session.NewID()
 
-	// Emitting a session end event will cause the listing to correctly locate
-	// the recording (even if there might not be a recording file to stream).
-	require.NoError(t, srv.Auth().EmitAuditEvent(ctx, &apievents.DatabaseSessionEnd{
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+	stream, err := streamer.CreateAuditStream(ctx, sessionID)
+	require.NoError(t, err)
+	// The event is not required to pass through the auth server, we only need
+	// the upload to be present.
+	require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(&apievents.DatabaseSessionStart{
 		Metadata: apievents.Metadata{
-			Type: events.DatabaseSessionEndEvent,
-			Code: events.DatabaseSessionEndCode,
+			Type: events.DatabaseSessionStartEvent,
+			Code: events.DatabaseSessionStartCode,
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: sessionID,
+			SessionID: sessionID.String(),
 		},
-	}))
+	})))
+	require.NoError(t, stream.Complete(ctx))
 
 	accessedFormat := teleport.PTY
-	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), session.ID(sessionID), 0)
+	clt.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(ctx, accessedFormat), sessionID, 0)
 
 	// Perform the listing an eventually loop to ensure the event is emitted.
 	var searchEvents []apievents.AuditEvent
@@ -5352,6 +5529,270 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	}
 }
 
+func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// 1. Create Okta-originated app server in the backend.
+
+	searchableOktaApp := newTestAppServerV3(t, srv.Auth(), "serachable-okta-app", map[string]string{
+		"name":            "serachable-okta-app",
+		types.OriginLabel: types.OriginOkta,
+	})
+
+	// 2. Create a role allowing the Okta app (used for search_as_roles)
+
+	searchRole, err := CreateRole(ctx, srv.Auth(), "serach_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"name": {searchableOktaApp.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 3. Create the user role allowing to search Okta app
+
+	aliceRole, err := CreateRole(ctx, srv.Auth(), "alice_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{
+					searchRole.GetName(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 4. Create the user
+
+	alice, err := CreateUser(ctx, srv.Auth(), "alice", aliceRole)
+	require.NoError(t, err)
+
+	// 5. Create a client for the user
+
+	aliceClt, err := srv.NewClient(TestUser(alice.GetName()))
+	require.NoError(t, err)
+
+	// 6. Prepare access requests
+
+	testAccessRequests := []types.AccessRequest{
+		// requesting app
+		mustAccessRequest(t, alice.GetName(), types.RequestState_PENDING, srv.Clock().Now(), srv.Clock().Now().Add(time.Hour),
+			[]string{}, // roles
+			[]types.ResourceID{
+				mustResourceID(srv.ClusterName(), types.KindApp, searchableOktaApp.GetName()),
+			},
+		),
+		// requesting app_server
+		mustAccessRequest(t, alice.GetName(), types.RequestState_PENDING, srv.Clock().Now(), srv.Clock().Now().Add(time.Hour),
+			[]string{}, // roles
+			[]types.ResourceID{
+				mustResourceID(srv.ClusterName(), types.KindAppServer, searchableOktaApp.GetName()),
+			},
+		),
+	}
+
+	// 7. Run tests
+
+	t.Run("requesting okta resources but no okta plugin", func(t *testing.T) {
+		// Note: Okta-originated resources present in the cluster and no Okta plugin
+		// configured is the situation where the plugin was freshly deleted and the
+		// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
+		// error is a bit confusing.
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+		}
+	})
+
+	t.Run("requesting okta resources and okta bidirectional sync enabled", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SyncAccessLists:          true,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: false,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.NoError(t, err)
+		}
+	})
+
+	t.Run("requesting okta resources and okta bidirectional sync disabled", func(t *testing.T) {
+		oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+			oktatest.NewPlugin(t,
+				oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SyncAccessLists:          true,
+					DefaultOwners:            []string{"the-owner"},
+					DisableBidirectionalSync: true,
+				}),
+			),
+		)
+
+		for _, accessRequest := range testAccessRequests {
+			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+		}
+	})
+}
+
+func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// 1. Create app resources
+
+	searchableGenericApp := newTestAppServerV3(t, srv.Auth(),
+		"test_generic_app",
+		map[string]string{
+			"find_me": "please",
+		},
+	)
+
+	searchableOktaApp := newTestAppServerV3(t, srv.Auth(),
+		"test_searchable_okta_app",
+		map[string]string{
+			"find_me":         "please",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
+
+	assignedOktaApp := newTestAppServerV3(t, srv.Auth(),
+		"test_assigned_okta_app",
+		map[string]string{
+			"owner":           "alice",
+			types.OriginLabel: types.OriginOkta,
+		},
+	)
+
+	// 2. Create a role allowing the Okta app (used for search_as_roles)
+
+	searchRole, err := CreateRole(ctx, srv.Auth(), "serach_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"find_me": {"please"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 3. Create the user role allowing access to one Okta app and allowing to search the other Okta app
+
+	aliceRole, err := CreateRole(ctx, srv.Auth(), "alice_role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"owner": []string{"alice"},
+			},
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{
+					searchRole.GetName(),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// 4. Create the user
+
+	alice, err := CreateUser(ctx, srv.Auth(), "alice", aliceRole)
+	require.NoError(t, err)
+
+	// 5. Run tests
+
+	type expected struct {
+		name        string
+		requestable bool
+	}
+
+	for _, tc := range []struct {
+		name                  string
+		useSearchAsRoles      bool
+		includeRequestable    bool
+		oktaBidirectionalSync bool
+		expectedResources     []expected
+	}{
+		{
+			name:                  "useSearchAsRoles and Okta bidirectional sync enabled",
+			useSearchAsRoles:      true,
+			oktaBidirectionalSync: true,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableOktaApp.GetName(), requestable: false}, // includes Okta searchable app
+				{name: searchableGenericApp.GetName(), requestable: false},
+			},
+		},
+		{
+			name:                  "useSearchAsRoles and Okta bidirectional sync disabled",
+			useSearchAsRoles:      true,
+			oktaBidirectionalSync: false,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableGenericApp.GetName(), requestable: false},
+			},
+		},
+		{
+			name:                  "includeRequestable and Okta bidirectional sync enabled",
+			includeRequestable:    true,
+			oktaBidirectionalSync: true,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableOktaApp.GetName(), requestable: true}, // includes Okta searchable app
+				{name: searchableGenericApp.GetName(), requestable: true},
+			},
+		},
+		{
+			name:                  "includeRequestable and Okta bidirectional sync disabled",
+			includeRequestable:    true,
+			oktaBidirectionalSync: false,
+			expectedResources: []expected{
+				{name: assignedOktaApp.GetName(), requestable: false},
+				{name: searchableGenericApp.GetName(), requestable: true},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := proto.ListUnifiedResourcesRequest{
+				SortBy:             types.SortBy{Field: "name", IsDesc: false},
+				Limit:              int32(1000),
+				IncludeRequestable: tc.includeRequestable,
+				UseSearchAsRoles:   tc.useSearchAsRoles,
+			}
+
+			oktatest.UpsertPlugin(t, srv.Auth().Plugins,
+				oktatest.NewPlugin(t, oktatest.WithSyncSettings(&types.PluginOktaSyncSettings{
+					SyncAccessLists:          true,
+					DefaultOwners:            []string{"alice"},
+					DisableBidirectionalSync: !tc.oktaBidirectionalSync,
+				})),
+			)
+
+			aliceClt, err := srv.NewClient(TestUser(alice.GetName()))
+			require.NoError(t, err)
+
+			resp, err := aliceClt.ListUnifiedResources(ctx, &req)
+			require.NoError(t, err)
+
+			var resources []expected
+			for _, resource := range resp.Resources {
+				resources = append(resources, expected{name: resource.GetAppServer().GetName(), requestable: resource.RequiresRequest})
+			}
+			require.Len(t, resources, len(tc.expectedResources))
+			require.ElementsMatch(t, tc.expectedResources, resources)
+		})
+	}
+}
+
 // TestListUnifiedResources_KindsFilter will generate multiple resources
 // and filter for only one kind.
 func TestListUnifiedResources_KindsFilter(t *testing.T) {
@@ -5419,13 +5860,12 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.Equal(t, types.KindDatabaseServer, r.GetKind())
 	}
 
-	// Check for invalid sort error message
+	// Check that sorting is not required
 	_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Kinds:  []string{types.KindDatabase},
-		Limit:  5,
-		SortBy: types.SortBy{},
+		Kinds: []string{types.KindDatabase},
+		Limit: 5,
 	})
-	require.ErrorContains(t, err, "sort field is required")
+	require.NoError(t, err, "sort field is not required")
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -5686,7 +6126,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	}
 
 	// Update the roles to prevent access to any resource kinds.
-	role.SetRules(types.Deny, []types.Rule{{Resources: services.UnifiedResourceKinds, Verbs: []string{types.VerbList, types.VerbRead}}})
+	role.SetRules(types.Deny, []types.Rule{{Resources: []string{types.Wildcard}, Verbs: []string{types.VerbList, types.VerbRead}}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
@@ -5710,7 +6150,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 		Limit:  20,
 		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-		Kinds:  []string{types.KindNode, types.KindDatabaseServer},
+		Kinds:  []string{types.KindNode, types.KindDatabase},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, resp)
@@ -6095,12 +6535,6 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	const nodeCount = 150_000
 	const roleCount = 32
 
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.PanicLevel)
-	logger.SetOutput(io.Discard)
-
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
@@ -6134,7 +6568,9 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
-			types.ServerSpecV2{},
+			types.ServerSpecV2{
+				Hostname: "node." + strconv.Itoa(i),
+			},
 			labels,
 		)
 		require.NoError(b, err)
@@ -6228,12 +6664,6 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 	const nodeCount = 150_000
 	const roleCount = 32
 
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(logutils.NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
-	logger.SetOutput(io.Discard)
-
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
@@ -6255,7 +6685,9 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
-			types.ServerSpecV2{},
+			types.ServerSpecV2{
+				Hostname: "node." + strconv.Itoa(i),
+			},
 			map[string]string{
 				"key":   id,
 				"group": "users",
@@ -6327,11 +6759,11 @@ func benchmarkListUnifiedResources(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		var resources []*proto.PaginatedResource
 		req := &proto.ListUnifiedResourcesRequest{
+			Kinds:  []string{types.KindNode},
 			SortBy: types.SortBy{IsDesc: false, Field: types.ResourceMetadataName},
 			Limit:  1_000,
 		}
@@ -6602,134 +7034,313 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	}
 }
 
-type getActiveSessionsTestCase struct {
-	name      string
-	tracker   types.SessionTracker
-	role      types.Role
-	hasAccess bool
-}
-
 func TestGetActiveSessionTrackers(t *testing.T) {
 	t.Parallel()
 
-	testCases := []getActiveSessionsTestCase{func() getActiveSessionsTestCase {
-		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
-			SessionID: "1",
-			Kind:      string(types.SSHSessionKind),
-		})
-		require.NoError(t, err)
+	type activeSessionsTestCase struct {
+		name        string
+		makeRole    func() (types.Role, error)
+		makeTracker func(testUser types.User) (types.SessionTracker, error)
+		extraSetup  func(*testing.T, *TestTLSServer)
 
-		role, err := types.NewRole("foo", types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{{
-					Resources: []string{types.KindSessionTracker},
-					Verbs:     []string{types.VerbList, types.VerbRead},
-				}},
-			},
-		})
-		require.NoError(t, err)
-
-		return getActiveSessionsTestCase{"with access simple", tracker, role, true}
-	}(), func() getActiveSessionsTestCase {
-		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
-			SessionID: "1",
-			Kind:      string(types.SSHSessionKind),
-		})
-		require.NoError(t, err)
-
-		role, err := types.NewRole("foo", types.RoleSpecV6{})
-		require.NoError(t, err)
-
-		return getActiveSessionsTestCase{"with no access rule", tracker, role, false}
-	}(), func() getActiveSessionsTestCase {
-		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
-			SessionID: "1",
-			Kind:      string(types.KubernetesSessionKind),
-		})
-		require.NoError(t, err)
-
-		role, err := types.NewRole("foo", types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{{
-					Resources: []string{types.KindSessionTracker},
-					Verbs:     []string{types.VerbList, types.VerbRead},
-					Where:     "equals(session_tracker.session_id, \"1\")",
-				}},
-			},
-		})
-		require.NoError(t, err)
-
-		return getActiveSessionsTestCase{"access with match expression", tracker, role, true}
-	}(), func() getActiveSessionsTestCase {
-		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
-			SessionID: "2",
-			Kind:      string(types.KubernetesSessionKind),
-		})
-		require.NoError(t, err)
-
-		role, err := types.NewRole("foo", types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Rules: []types.Rule{{
-					Resources: []string{types.KindSessionTracker},
-					Verbs:     []string{types.VerbList, types.VerbRead},
-					Where:     "equals(session_tracker.session_id, \"1\")",
-				}},
-			},
-		})
-		require.NoError(t, err)
-
-		return getActiveSessionsTestCase{"no access with match expression", tracker, role, false}
-	}(), func() getActiveSessionsTestCase {
-		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
-			SessionID: "1",
-			Kind:      string(types.SSHSessionKind),
-		})
-		require.NoError(t, err)
-
-		role, err := types.NewRoleWithVersion("dev", types.V3, types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				AppLabels:        types.Labels{"*": []string{"*"}},
-				DatabaseLabels:   types.Labels{"*": []string{"*"}},
-				KubernetesLabels: types.Labels{"*": []string{"*"}},
-				KubernetesResources: []types.KubernetesResource{
-					{Kind: types.KindKubePod, Name: "*", Namespace: "*", Verbs: []string{"*"}},
-				},
-				NodeLabels:           types.Labels{"*": []string{"*"}},
-				NodeLabelsExpression: `contains(user.spec.traits["cluster_ids"], labels["cluster_id"]) || contains(user.spec.traits["sub"], labels["owner"])`,
-				Logins:               []string{"{{external.sub}}"},
-				WindowsDesktopLabels: types.Labels{"cluster_id": []string{"{{external.cluster_ids}}"}},
-				WindowsDesktopLogins: []string{"{{external.sub}}", "{{external.windows_logins}}"},
-			},
-			Deny: types.RoleConditions{
-				Rules: []types.Rule{
-					{
-						Resources: []string{types.KindDatabaseServer, types.KindAppServer, types.KindSession, types.KindSSHSession, types.KindKubeService, types.KindSessionTracker},
-						Verbs:     []string{"list", "read"},
-					},
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		return getActiveSessionsTestCase{"filter bug v3 role", tracker, role, false}
-	}(),
+		checkSessionTrackers require.ValueAssertionFunc
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
+	for _, tc := range []activeSessionsTestCase{
+		{
+			name: "simple-access",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("foo", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+				})
+			},
+			checkSessionTrackers: require.NotEmpty,
+		},
+		{
+			name: "no-access-rule",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("foo", types.RoleSpecV6{})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
+		{
+			name: "access-with-match-expression",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("foo", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+							Where:     "equals(session_tracker.session_id, \"1\")",
+						}},
+					},
+				})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+				})
+			},
+			checkSessionTrackers: require.NotEmpty,
+		},
+		{
+			name: "no-access-with-match-expression",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("foo", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+							Where:     "equals(session_tracker.session_id, \"1\")",
+						}},
+					},
+				})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "2",
+					Kind:      string(types.KubernetesSessionKind),
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
+		{
+			name: "filter-bug-v3-role",
+			makeRole: func() (types.Role, error) {
+				return types.NewRoleWithVersion("dev", types.V3, types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						AppLabels:        types.Labels{"*": []string{"*"}},
+						DatabaseLabels:   types.Labels{"*": []string{"*"}},
+						KubernetesLabels: types.Labels{"*": []string{"*"}},
+						KubernetesResources: []types.KubernetesResource{
+							{Kind: types.KindKubePod, Name: "*", Namespace: "*", Verbs: []string{"*"}},
+						},
+						NodeLabels:           types.Labels{"*": []string{"*"}},
+						NodeLabelsExpression: `contains(user.spec.traits["cluster_ids"], labels["cluster_id"]) || contains(user.spec.traits["sub"], labels["owner"])`,
+						Logins:               []string{"{{external.sub}}"},
+						WindowsDesktopLabels: types.Labels{"cluster_id": []string{"{{external.cluster_ids}}"}},
+						WindowsDesktopLogins: []string{"{{external.sub}}", "{{external.windows_logins}}"},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{types.KindDatabaseServer, types.KindAppServer, types.KindSession, types.KindSSHSession, types.KindKubeService, types.KindSessionTracker},
+								Verbs:     []string{"list", "read"},
+							},
+						},
+					},
+				})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
+		{
+			name: "explicit-deny-wins", // so long as the user doesn't have join permissions
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("foo", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
+		{
+			// an explicit deny on session_tracker still allows listing
+			// for sessions that the user can join
+			name: "explicit-deny-can-join",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("observe-sessions", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						JoinSessions: []*types.SessionJoinPolicy{
+							{
+								Name:  "observe-kube-sessions",
+								Kinds: []string{string(types.KubernetesSessionKind)},
+								Modes: []string{string(types.SessionObserverMode)},
+								Roles: []string{"access"},
+							},
+						},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			extraSetup: func(t *testing.T, srv *TestTLSServer) {
+				originator, err := types.NewUser("session-originator")
+				require.NoError(t, err)
+
+				originator.AddRole("access")
+				_, err = srv.Auth().UpsertUser(context.Background(), originator)
+				require.NoError(t, err)
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.KubernetesSessionKind),
+					HostUser:  "session-originator",
+					HostPolicies: []*types.SessionTrackerPolicySet{
+						{Name: "access"},
+					},
+				})
+			},
+			checkSessionTrackers: require.NotEmpty,
+		},
+		{
+			// user who can join SSH sessions should not be able to list
+			// kubernetes sessions
+			name: "no-access-wrong-kind",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("observe-sessions", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						JoinSessions: []*types.SessionJoinPolicy{
+							{
+								Name:  "observe-ssh-sessions",
+								Kinds: []string{string(types.SSHSessionKind)},
+								Modes: []string{string(types.SessionObserverMode)},
+								Roles: []string{"access"},
+							},
+						},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSessionTracker},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			extraSetup: func(t *testing.T, srv *TestTLSServer) {
+				originator, err := types.NewUser("session-originator")
+				require.NoError(t, err)
+
+				originator.AddRole("access")
+				_, err = srv.Auth().UpsertUser(context.Background(), originator)
+				require.NoError(t, err)
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.KubernetesSessionKind),
+					HostUser:  "session-originator",
+					HostPolicies: []*types.SessionTrackerPolicySet{
+						{Name: "access"},
+					},
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
+		{
+			// Test RFD 45 logic: an exception for the legacy ssh_session resource.
+			// (Explicit deny wins, even when the user can join the session)
+			name: "rfd-45-legacy-rbac",
+			makeRole: func() (types.Role, error) {
+				return types.NewRole("observe-sessions", types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						JoinSessions: []*types.SessionJoinPolicy{
+							{
+								Name:  "observe-ssh-sessions",
+								Kinds: []string{string(types.SSHSessionKind)},
+								Modes: []string{string(types.SessionObserverMode)},
+								Roles: []string{"access"},
+							},
+						},
+					},
+					Deny: types.RoleConditions{
+						Rules: []types.Rule{{
+							Resources: []string{types.KindSSHSession},
+							Verbs:     []string{types.VerbList, types.VerbRead},
+						}},
+					},
+				})
+			},
+			extraSetup: func(t *testing.T, srv *TestTLSServer) {
+				originator, err := types.NewUser("session-originator")
+				require.NoError(t, err)
+
+				originator.AddRole("access")
+				_, err = srv.Auth().UpsertUser(context.Background(), originator)
+				require.NoError(t, err)
+			},
+			makeTracker: func(testUser types.User) (types.SessionTracker, error) {
+				return types.NewSessionTracker(types.SessionTrackerSpecV1{
+					SessionID: "1",
+					Kind:      string(types.SSHSessionKind),
+					HostUser:  "session-originator",
+					HostPolicies: []*types.SessionTrackerPolicySet{
+						{Name: "access"},
+					},
+				})
+			},
+			checkSessionTrackers: require.Empty,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			srv := newTestTLSServer(t)
-			_, err := srv.Auth().CreateRole(ctx, testCase.role)
+
+			role, err := tc.makeRole()
 			require.NoError(t, err)
 
-			_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)
+			_, err = srv.Auth().CreateRole(ctx, role)
 			require.NoError(t, err)
 
 			user, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
 
-			user.AddRole(testCase.role.GetName())
+			user.AddRole(role.GetName())
 			user, err = srv.Auth().UpsertUser(ctx, user)
+			require.NoError(t, err)
+
+			if tc.extraSetup != nil {
+				tc.extraSetup(t, srv)
+			}
+
+			tracker, err := tc.makeTracker(user)
+			require.NoError(t, err)
+
+			_, err = srv.Auth().CreateSessionTracker(ctx, tracker)
 			require.NoError(t, err)
 
 			clt, err := srv.NewClient(TestUser(user.GetName()))
@@ -6737,7 +7348,8 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 
 			found, err := clt.GetActiveSessionTrackers(ctx)
 			require.NoError(t, err)
-			require.Equal(t, testCase.hasAccess, len(found) != 0)
+
+			tc.checkSessionTrackers(t, found)
 		})
 	}
 }
@@ -8991,10 +9603,9 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
 	t.Helper()
 
-	accessRequest, err := types.NewAccessRequest(uuid.NewString(), user, roles...)
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, resourceIDs)
 	require.NoError(t, err)
 
-	accessRequest.SetRequestedResourceIDs(resourceIDs)
 	accessRequest.SetState(state)
 	accessRequest.SetCreationTime(created)
 	accessRequest.SetExpiry(expires)
@@ -9357,15 +9968,15 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 			name:                 "mfa verified",
 			adminActionAuthState: authz.AdminActionAuthMFAVerified,
 			expectResp: &proto.IsMFARequiredResponse{
-				Required:    false,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			},
 		}, {
 			name:                 "mfa verified with reuse",
 			adminActionAuthState: authz.AdminActionAuthMFAVerifiedWithReuse,
 			expectResp: &proto.IsMFARequiredResponse{
-				Required:    false,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			},
 		},
 	} {
@@ -9830,4 +10441,121 @@ func paginatedAppPermissionSet(src *identitycenterv1.PermissionSetInfo) *types.I
 		Name:         src.Name,
 		AssignmentID: src.AssignmentId,
 	}
+}
+
+func TestValidateOracleJoinToken(t *testing.T) {
+	t.Parallel()
+	makeToken := func(spec types.ProvisionTokenSpecV2) types.ProvisionToken {
+		spec.JoinMethod = types.JoinMethodOracle
+		spec.Roles = []types.SystemRole{types.RoleNode}
+		token, err := types.NewProvisionTokenFromSpec("foo", time.Now().Add(time.Hour), spec)
+		require.NoError(t, err)
+		return token
+	}
+
+	t.Run("oracle", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			token  types.ProvisionToken
+			assert require.ErrorAssertionFunc
+		}{
+			{
+				name: "ok",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.NoError,
+			},
+			{
+				name: "invalid tenant",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            "foo",
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid compartment",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{"foo", makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid region",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"invalid", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				tc.assert(t, validateOracleJoinToken(tc.token))
+			})
+		}
+	})
+}
+
+func newTestAppServerV3(t *testing.T, auth *Server, name string, labels map[string]string) *types.AppServerV3 {
+	t.Helper()
+	ctx := context.Background()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppSpecV3{
+			URI: "https://" + name + ".example.com",
+		},
+	)
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.AppServerSpecV3{
+			HostID: "test-host-id",
+			App:    app,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = auth.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err, "upserting test Application Server")
+
+	return appServer
 }

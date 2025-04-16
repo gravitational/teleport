@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -58,7 +59,7 @@ func onAzure(cf *CLIConf) error {
 
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.WithError(err).Error("Failed to close Azure app.")
+			logger.ErrorContext(cf.Context, "Failed to close Azure app", "error", err)
 		}
 	}()
 
@@ -82,9 +83,13 @@ func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azu
 	if err != nil {
 		return nil, err
 	}
+	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &azureApp{
-		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
+		localProxyApp: localProxyApp,
 		cf:            cf,
 		msiSecret:     msiSecret,
 	}, nil
@@ -132,7 +137,7 @@ func (a *azureApp) StartLocalProxies(ctx context.Context) error {
 		// but at this moment there is no clear advantage over simply issuing a new random identifier.
 		TenantID: uuid.New().String(),
 		ClientID: uuid.New().String(),
-		Identity: a.appInfo.RouteToApp.AzureIdentity,
+		Identity: a.routeToApp.AzureIdentity,
 	}
 
 	// HTTPS proxy mode
@@ -145,7 +150,7 @@ func (a *azureApp) StartLocalProxies(ctx context.Context) error {
 			if ok {
 				azureMiddleware.SetPrivateKey(signer)
 			} else {
-				log.Warn("Provided tls.Certificate has no valid private key.")
+				logger.WarnContext(ctx, "Provided tls.Certificate has no valid private key")
 			}
 		}),
 	)
@@ -160,7 +165,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// 1. `tsh az login` in one console
 		// 2. `az ...` in another console
 		// without custom config dir the second invocation will hang, attempting to connect to (inaccessible without configuration) MSI.
-		"AZURE_CONFIG_DIR": filepath.Join(profile.FullProfilePath(a.cf.HomePath), "azure", a.appInfo.RouteToApp.ClusterName, a.appInfo.RouteToApp.Name),
+		"AZURE_CONFIG_DIR": filepath.Join(profile.FullProfilePath(a.cf.HomePath), "azure", a.routeToApp.ClusterName, a.routeToApp.Name),
 		// setting MSI_ENDPOINT instructs Azure CLI to make managed identity calls on this address.
 		// the requests will be handled by tsh proxy.
 		"MSI_ENDPOINT": "https://" + types.TeleportAzureMSIEndpoint + "/" + a.msiSecret,
@@ -169,7 +174,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// This isn't portable and applications other than az CLI may have to set different env variables,
 		// add the application cert to system root store (not recommended, ultimate fallback)
 		// or use equivalent of --insecure flag.
-		"REQUESTS_CA_BUNDLE": a.appInfo.appLocalCAPath(a.cf.SiteName),
+		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
 	}
 
 	// Set proxy settings.
@@ -186,7 +191,7 @@ func (a *azureApp) RunCommand(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Running command: %q", cmd)
+	logger.DebugContext(a.cf.Context, "Running azure command", "command", logutils.StringerAttr(cmd))
 
 	cmd.Stdout = a.cf.Stdout()
 	cmd.Stderr = a.cf.Stderr()
@@ -232,7 +237,7 @@ func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (stri
 	// if flag is missing, try to find singleton identity; failing that, print available options.
 	if reqIdentity == "" {
 		if len(identities) == 1 {
-			log.Infof("Azure identity %v is selected by default as it is the only identity available for this Azure app.", identities[0])
+			logger.InfoContext(cf.Context, "Azure identity is selected by default as it is the only identity available for this Azure app", "identity", identities[0])
 			return identities[0], nil
 		}
 

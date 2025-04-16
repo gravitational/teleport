@@ -17,23 +17,22 @@
  */
 
 import {
-  Text,
-  Flex,
   AnimatedProgressBar,
   ButtonPrimary,
   ButtonSecondary,
-  H2,
   ButtonWarning,
+  Flex,
+  H2,
+  Text,
 } from 'design';
-import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import * as Icons from 'design/Icon';
+import type { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { Timeout } from 'teleport/Discover/Shared/Timeout';
 import { TextIcon } from 'teleport/Discover/Shared';
+import { Timeout } from 'teleport/Discover/Shared/Timeout';
 
 import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
-
-import type { Attempt } from 'shared/hooks/useAttemptNext';
 
 export type CreateDatabaseDialogProps = {
   pollTimeout: number;
@@ -144,7 +143,7 @@ const SuccessContent = ({ dbName, onClick }) => (
   <>
     <Text mb={5}>
       <Icons.Check size="small" ml={1} mr={2} color="success.main" />
-      Database "{dbName}" successfully registered
+      Database &quot;{dbName}&quot; successfully registered
     </Text>
     <ButtonPrimary width="100%" onClick={onClick}>
       Next

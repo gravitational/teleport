@@ -38,21 +38,7 @@ func (i *btreeItem) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
 	case *btreeItem:
 		return i.Key.Compare(other.Key) < 0
-	case *prefixItem:
-		return !iother.Less(i)
 	default:
 		return false
 	}
-}
-
-// prefixItem is used for prefix matches on a B-Tree
-type prefixItem struct {
-	// prefix is a prefix to match
-	prefix backend.Key
-}
-
-// Less is used for Btree operations
-func (p *prefixItem) Less(iother btree.Item) bool {
-	other := iother.(*btreeItem)
-	return !other.Key.HasPrefix(p.prefix)
 }

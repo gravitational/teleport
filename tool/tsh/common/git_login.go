@@ -37,7 +37,7 @@ type gitLoginCommand struct {
 
 func newGitLoginCommand(parent *kingpin.CmdClause) *gitLoginCommand {
 	cmd := &gitLoginCommand{
-		CmdClause: parent.Command("login", "Opens a browser and retrieves your login from GitHub"),
+		CmdClause: parent.Command("login", "Opens a browser and retrieves your login from GitHub."),
 	}
 
 	// TODO(greedy52) make "github-org" optional. Most likely there is only a

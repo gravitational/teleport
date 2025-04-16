@@ -76,6 +76,7 @@ const (
 	TerminalService_GetUserPreferences_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/GetUserPreferences"
 	TerminalService_UpdateUserPreferences_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/UpdateUserPreferences"
 	TerminalService_AuthenticateWebDevice_FullMethodName             = "/teleport.lib.teleterm.v1.TerminalService/AuthenticateWebDevice"
+	TerminalService_GetApp_FullMethodName                            = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -213,6 +214,9 @@ type TerminalServiceClient interface {
 	// See
 	// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
 	AuthenticateWebDevice(ctx context.Context, in *AuthenticateWebDeviceRequest, opts ...grpc.CallOption) (*AuthenticateWebDeviceResponse, error)
+	// GetApp returns details of an app resource. It does not include information about AWS roles and
+	// FQDN.
+	GetApp(ctx context.Context, in *GetAppRequest, opts ...grpc.CallOption) (*GetAppResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -636,6 +640,16 @@ func (c *terminalServiceClient) AuthenticateWebDevice(ctx context.Context, in *A
 	return out, nil
 }
 
+func (c *terminalServiceClient) GetApp(ctx context.Context, in *GetAppRequest, opts ...grpc.CallOption) (*GetAppResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAppResponse)
+	err := c.cc.Invoke(ctx, TerminalService_GetApp_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -771,6 +785,9 @@ type TerminalServiceServer interface {
 	// See
 	// https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
 	AuthenticateWebDevice(context.Context, *AuthenticateWebDeviceRequest) (*AuthenticateWebDeviceResponse, error)
+	// GetApp returns details of an app resource. It does not include information about AWS roles and
+	// FQDN.
+	GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -900,6 +917,9 @@ func (UnimplementedTerminalServiceServer) UpdateUserPreferences(context.Context,
 }
 func (UnimplementedTerminalServiceServer) AuthenticateWebDevice(context.Context, *AuthenticateWebDeviceRequest) (*AuthenticateWebDeviceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateWebDevice not implemented")
+}
+func (UnimplementedTerminalServiceServer) GetApp(context.Context, *GetAppRequest) (*GetAppResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetApp not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1624,6 +1644,24 @@ func _TerminalService_AuthenticateWebDevice_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_GetApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAppRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).GetApp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_GetApp_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).GetApp(ctx, req.(*GetAppRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1782,6 +1820,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AuthenticateWebDevice",
 			Handler:    _TerminalService_AuthenticateWebDevice_Handler,
+		},
+		{
+			MethodName: "GetApp",
+			Handler:    _TerminalService_GetApp_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

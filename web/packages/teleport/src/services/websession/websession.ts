@@ -19,15 +19,16 @@
 import Logger from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 import api from 'teleport/services/api';
+import history from 'teleport/services/history';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 
 import makeBearerToken from './makeBearerToken';
 import { RenewSessionRequest } from './types';
 
-const MAX_RENEW_TOKEN_TIME = 180000; // 3m
-const MIN_RENEW_TOKEN_TIME = 30000; // 30s
+// Time to determine when to renew session which is
+// when expiry time of token is less than 3 minutes.
+const RENEW_TOKEN_TIME = 180 * 1000;
 const TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
 const logger = Logger.create('services/session');
 
@@ -145,14 +146,34 @@ const session = {
       return false;
     }
 
-    // Renew session if token expiry time is less than renewTime (with MIN_ and
-    // MAX_RENEW_TOKEN_TIME as floor and ceiling, respectively).
+    const token = this._getBearerToken();
+    if (!token) {
+      return false;
+    }
+    // Convert seconds to millis.
+    const expiresIn = (token.expiresIn ?? 0) * 1000;
+    const sessionExpiresIn = (token.sessionExpiresIn ?? 0) * 1000;
+
+    // Session TTL decreases on every renewal, up to a point where it doesn't
+    // make sense to renew anymore, as we won't gain any extra time from it.
+    // Once values are low enough both expiresIn (token expiration) and
+    // sessionExpiresIn are set in lockstep.
+    if (
+      expiresIn > 0 &&
+      sessionExpiresIn > 0 &&
+      expiresIn >= sessionExpiresIn &&
+      sessionExpiresIn <= RENEW_TOKEN_TIME
+    ) {
+      logger.warn(
+        `Session TTL is only ${sessionExpiresIn}ms, the session will expire soon.`
+      );
+      return false;
+    }
+
     // Browsers have js timer throttling behavior in inactive tabs that can go
     // up to 100s between timer calls from testing. 3 minutes seems to be a safe number
     // with extra padding.
-    let renewTime = Math.min(this._ttl() / 10, MAX_RENEW_TOKEN_TIME);
-    renewTime = Math.max(renewTime, MIN_RENEW_TOKEN_TIME);
-    return this._timeLeft() < renewTime;
+    return this._timeLeft() < RENEW_TOKEN_TIME;
   },
 
   _renewToken(req: RenewSessionRequest = {}, signal?: AbortSignal) {
@@ -214,21 +235,6 @@ const session = {
     expiresIn = expiresIn * 1000;
     const delta = created + expiresIn - new Date().getTime();
     return delta;
-  },
-
-  _ttl() {
-    const token = this._getBearerToken();
-    if (!token) {
-      return 0;
-    }
-
-    let { expiresIn, created } = token;
-    if (!created || !expiresIn) {
-      return 0;
-    }
-
-    expiresIn = expiresIn * 1000;
-    return expiresIn;
   },
 
   _shouldCheckStatus() {

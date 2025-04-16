@@ -59,6 +59,15 @@ type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 // The transport is cached in the forwarder so that it can be reused for future
 // requests. If the transport is not cached, a new one is created and cached.
 func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, *tls.Config, error) {
+	// If the session has a kube API credentials, it means that the next hop is
+	// a Kubernetes API server. In this case, we can use the provided credentials
+	// to dial the next hop directly and never cache the transport.
+	if sess.kubeAPICreds != nil {
+		// If agent is running in agent mode, get the transport from the configured cluster
+		// credentials.
+		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
+	}
+
 	// If the cluster is remote, the key is the teleport cluster name.
 	// If the cluster is local, the key is the teleport cluster name and the kubernetes
 	// cluster name: <teleport-cluster-name>/<kubernetes-cluster-name>.
@@ -73,10 +82,6 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 		if sess.teleportCluster.isRemote {
 			// If the cluster is remote, create a new transport for the remote cluster.
 			httpTransport, tlsConfig, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
-		} else if sess.kubeAPICreds != nil {
-			// If agent is running in agent mode, get the transport from the configured cluster
-			// credentials.
-			httpTransport, tlsConfig = sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig()
 		} else if f.cfg.ReverseTunnelSrv != nil {
 			// If agent is running in proxy mode, create a new transport for the local cluster.
 			httpTransport, tlsConfig, err = f.newLocalClusterTransport(sess.kubeClusterName)

@@ -38,7 +38,8 @@ func TestResolveEndpoint(t *testing.T) {
 		desc            string
 		target          string // from X-Amz-Target in requests
 		region          string
-		wantEndpointID  string
+		useFIPS         bool
+		unsetAccountID  bool
 		wantSigningName string
 		wantURL         string
 		wantErrMsg      string
@@ -47,15 +48,21 @@ func TestResolveEndpoint(t *testing.T) {
 			desc:            "dynamodb target in us west",
 			target:          "DynamoDB_20120810.Scan",
 			region:          "us-west-1",
-			wantEndpointID:  "dynamodb",
+			wantSigningName: "dynamodb",
+			wantURL:         "https://123456789012.ddb.us-west-1.amazonaws.com",
+		},
+		{
+			desc:            "dynamodb target in us west with no account id",
+			target:          "DynamoDB_20120810.Scan",
+			region:          "us-west-1",
 			wantSigningName: "dynamodb",
 			wantURL:         "https://dynamodb.us-west-1.amazonaws.com",
+			unsetAccountID:  true,
 		},
 		{
 			desc:            "dynamodb target in china",
 			target:          "DynamoDB_20120810.Scan",
 			region:          "cn-north-1",
-			wantEndpointID:  "dynamodb",
 			wantSigningName: "dynamodb",
 			wantURL:         "https://dynamodb.cn-north-1.amazonaws.com.cn",
 		},
@@ -63,7 +70,6 @@ func TestResolveEndpoint(t *testing.T) {
 			desc:            "dynamodb streams target in us west",
 			target:          "DynamoDBStreams_20120810.ListStreams",
 			region:          "us-west-1",
-			wantEndpointID:  "streams.dynamodb",
 			wantSigningName: "dynamodb",
 			wantURL:         "https://streams.dynamodb.us-west-1.amazonaws.com",
 		},
@@ -71,7 +77,6 @@ func TestResolveEndpoint(t *testing.T) {
 			desc:            "dynamodb streams target in china",
 			target:          "DynamoDBStreams_20120810.ListStreams",
 			region:          "cn-north-1",
-			wantEndpointID:  "streams.dynamodb",
 			wantSigningName: "dynamodb",
 			wantURL:         "https://streams.dynamodb.cn-north-1.amazonaws.com.cn",
 		},
@@ -79,7 +84,6 @@ func TestResolveEndpoint(t *testing.T) {
 			desc:            "dax target in us west",
 			target:          "AmazonDAXV3.ListTags",
 			region:          "us-west-1",
-			wantEndpointID:  "dax",
 			wantSigningName: "dax",
 			wantURL:         "https://dax.us-west-1.amazonaws.com",
 		},
@@ -87,9 +91,32 @@ func TestResolveEndpoint(t *testing.T) {
 			desc:            "dax target in china",
 			target:          "AmazonDAXV3.ListTags",
 			region:          "cn-north-1",
-			wantEndpointID:  "dax",
 			wantSigningName: "dax",
 			wantURL:         "https://dax.cn-north-1.amazonaws.com.cn",
+		},
+		{
+			desc:            "dynamodb target in us west with FIPS required",
+			target:          "DynamoDB_20120810.Scan",
+			region:          "us-west-1",
+			wantSigningName: "dynamodb",
+			wantURL:         "https://dynamodb-fips.us-west-1.amazonaws.com",
+			useFIPS:         true,
+		},
+		{
+			desc:            "dynamodb streams target in us west with FIPS required",
+			target:          "DynamoDBStreams_20120810.ListStreams",
+			region:          "us-west-1",
+			wantSigningName: "dynamodb",
+			wantURL:         "https://streams.dynamodb-fips.us-west-1.amazonaws.com",
+			useFIPS:         true,
+		},
+		{
+			desc:            "dax target in us west with FIPS required",
+			target:          "AmazonDAXV3.ListTags",
+			region:          "us-west-1",
+			wantSigningName: "dax",
+			wantURL:         "https://dax-fips.us-west-1.amazonaws.com",
+			useFIPS:         true,
 		},
 		{
 			desc:       "unrecognizable target",
@@ -105,24 +132,18 @@ func TestResolveEndpoint(t *testing.T) {
 			req := &http.Request{Header: make(http.Header)}
 			req.Header.Set(libaws.AmzTargetHeader, tt.target)
 
-			// check that the correct endpoint ID is extracted.
-			endpointID, err := extractEndpointID(req)
-			if tt.wantErrMsg != "" {
-				require.Error(t, err)
-				require.ErrorContains(t, err, tt.wantErrMsg)
-				return
-			}
-			require.Equal(t, tt.wantEndpointID, endpointID)
-
 			// check that the engine resolves the correct URL.
 			db := &types.DatabaseV3{
 				Spec: types.DatabaseSpecV3{
 					URI: apiaws.DynamoDBURIForRegion(tt.region),
 					AWS: types.AWS{
 						Region:    tt.region,
-						AccountID: "12345",
+						AccountID: "123456789012",
 					},
 				},
+			}
+			if tt.unsetAccountID {
+				db.Spec.AWS.AccountID = ""
 			}
 			engine := &Engine{
 				EngineConfig: common.EngineConfig{
@@ -131,18 +152,26 @@ func TestResolveEndpoint(t *testing.T) {
 				sessionCtx: &common.Session{
 					Database: db,
 				},
+				UseFIPS: tt.useFIPS,
 			}
 			re, err := engine.resolveEndpoint(req)
+			if tt.wantErrMsg != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				return
+			}
 			require.NoError(t, err)
-			require.Equal(t, tt.wantURL, re.URL)
+			require.Equal(t, tt.wantURL, re.URL.String())
 			require.Equal(t, tt.wantSigningName, re.SigningName)
+			require.Equal(t, tt.region, re.SigningRegion)
 
 			// now use a custom URI and check that it overrides the resolved URL.
 			db.Spec.URI = "foo.com"
 			re, err = engine.resolveEndpoint(req)
 			require.NoError(t, err)
-			require.Equal(t, "https://foo.com", re.URL)
+			require.Equal(t, "https://foo.com", re.URL.String())
 			require.Equal(t, tt.wantSigningName, re.SigningName)
+			require.Equal(t, tt.region, re.SigningRegion)
 		})
 	}
 }

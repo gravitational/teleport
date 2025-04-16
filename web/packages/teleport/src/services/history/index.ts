@@ -17,5 +17,6 @@
  */
 
 import service, { getUrlParameter } from './history';
+
 export default service;
 export { getUrlParameter };

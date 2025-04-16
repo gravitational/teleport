@@ -40,10 +40,10 @@ outputs:
       name: {{ include "tbot.defaultOutputName" . }}
 {{- end }}
 {{- if .Values.outputs }}
-{{- toYaml .Values.outputs | nindent 6}}
+{{- toYaml .Values.outputs | nindent 2}}
 {{- end }}
 {{- end }}
 {{- if .Values.services }}
-services: {{- toYaml .Values.services | nindent 6}}
+services: {{- toYaml .Values.services | nindent 2}}
 {{- end }}
 {{- end -}}

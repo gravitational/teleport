@@ -17,9 +17,17 @@
  */
 
 import { formatDistanceStrict } from 'date-fns';
+
 import { pluralize } from 'shared/utils/text';
 
-import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
+import {
+  Event,
+  EventCode,
+  eventCodes,
+  Formatters,
+  RawEvent,
+  RawEvents,
+} from './types';
 
 const formatElasticsearchEvent: (
   json:
@@ -62,6 +70,66 @@ const formatElasticsearchEvent: (
   }
 
   return message;
+};
+
+const portForwardEventTypes = [
+  'port',
+  'port.local',
+  'port.remote',
+  'port.remote_conn',
+] as const;
+type PortForwardEventType = (typeof portForwardEventTypes)[number];
+type PortForwardEvent =
+  | RawEvents[typeof eventCodes.PORTFORWARD]
+  | RawEvents[typeof eventCodes.PORTFORWARD_STOP]
+  | RawEvents[typeof eventCodes.PORTFORWARD_FAILURE];
+
+const getPortForwardEventName = (event: string): string => {
+  let ev = event as PortForwardEventType;
+  if (!portForwardEventTypes.includes(ev)) {
+    ev = 'port'; // default to generic 'port' if the event type is unknown
+  }
+
+  switch (ev) {
+    case 'port':
+      return 'Port Forwarding';
+    case 'port.local':
+      return 'Local Port Forwarding';
+    case 'port.remote':
+      return 'Remote Port Forwarding';
+    case 'port.remote_conn':
+      return 'Remote Port Forwarded Connection';
+  }
+};
+
+const formatPortForwardEvent = ({
+  user,
+  code,
+  event,
+}: PortForwardEvent): string => {
+  const eventName = getPortForwardEventName(event).toLowerCase();
+
+  switch (code) {
+    case eventCodes.PORTFORWARD:
+      return `User [${user}] started ${eventName}`;
+    case eventCodes.PORTFORWARD_STOP:
+      return `User [${user}] stopped ${eventName}`;
+    case eventCodes.PORTFORWARD_FAILURE:
+      return `User [${user}] failed ${eventName}`;
+  }
+};
+
+const describePortForwardEvent = ({ code, event }: PortForwardEvent) => {
+  const eventName = getPortForwardEventName(event);
+
+  switch (code) {
+    case eventCodes.PORTFORWARD:
+      return `${eventName} Start`;
+    case eventCodes.PORTFORWARD_STOP:
+      return `${eventName} Stop`;
+    case eventCodes.PORTFORWARD_FAILURE:
+      return `${eventName} Failure`;
+  }
 };
 
 export const formatters: Formatters = {
@@ -222,19 +290,18 @@ export const formatters: Formatters = {
   },
   [eventCodes.PORTFORWARD]: {
     type: 'port',
-    desc: 'Port Forwarding Started',
-    format: ({ user }) => `User [${user}] started port forwarding`,
+    desc: describePortForwardEvent,
+    format: formatPortForwardEvent,
   },
   [eventCodes.PORTFORWARD_FAILURE]: {
     type: 'port',
-    desc: 'Port Forwarding Failed',
-    format: ({ user, error }) =>
-      `User [${user}] port forwarding request failed: ${error}`,
+    desc: describePortForwardEvent,
+    format: formatPortForwardEvent,
   },
   [eventCodes.PORTFORWARD_STOP]: {
     type: 'port',
-    desc: 'Port Forwarding Stopped',
-    format: ({ user }) => `User [${user}] stopped port forwarding`,
+    desc: describePortForwardEvent,
+    format: formatPortForwardEvent,
   },
   [eventCodes.SAML_CONNECTOR_CREATED]: {
     type: 'saml.created',
@@ -1414,6 +1481,41 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a Workload Identity [${name}]`;
     },
   },
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: {
+    type: 'workload_identity_x509_issuer_override.create',
+    desc: 'Workload Identity X.509 Issuer Override Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Workload Identity X.509 Issuer Override [${name}]`;
+    },
+  },
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: {
+    type: 'workload_identity_x509_issuer_override.delete',
+    desc: 'Workload Identity X.509 Issuer Override Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Workload Identity X.509 Issuer Override [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_CREATE]: {
+    type: 'sigstore_policy.create',
+    desc: 'Sigstore Policy Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: {
+    type: 'sigstore_policy.update',
+    desc: 'Sigstore Policy Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_DELETE]: {
+    type: 'sigstore_policy.delete',
+    desc: 'Sigstore Policy Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Sigstore Policy [${name}]`;
+    },
+  },
   [eventCodes.LOGIN_RULE_CREATE]: {
     type: 'login_rule.create',
     desc: 'Login Rule Created',
@@ -1955,6 +2057,99 @@ export const formatters: Formatters = {
       return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
+  [eventCodes.STABLE_UNIX_USER_CREATE]: {
+    type: 'stable_unix_user.create',
+    desc: 'Stable UNIX user created',
+    format: ({ stable_unix_user: { username } }) => {
+      return `Stable UNIX user for username [${username}] was created`;
+    },
+  },
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
+    type: 'aws_identity_center.resource_sync.success',
+    desc: 'AWS IAM Identity Center Resource Sync Completed',
+    format: ({
+      total_user_groups,
+      total_accounts,
+      total_account_assignments,
+      total_permission_sets,
+    }) => {
+      // user groups only imported once.
+      if (total_user_groups > 0) {
+        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
+      }
+      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
+    },
+  },
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
+    type: 'aws_identity_center.resource_sync.failed',
+    desc: 'AWS IAM Identity Center Resource Sync Failed',
+    format: ({ message }) => {
+      return message;
+    },
+  },
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
+    type: 'auto_update_config.create',
+    desc: 'Automatic Update Config Created',
+    format: ({ user }) => {
+      return `User ${user} created the Automatic Update Config`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: {
+    type: 'auto_update_config.update',
+    desc: 'Automatic Update Config Updated',
+    format: ({ user }) => {
+      return `User ${user} updated the Automatic Update Config`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: {
+    type: 'auto_update_config.delete',
+    desc: 'Automatic Update Config Deleted',
+    format: ({ user }) => {
+      return `User ${user} deleted the Automatic Update Config`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: {
+    type: 'auto_update_version.create',
+    desc: 'Automatic Update Version Created',
+    format: ({ user }) => {
+      return `User ${user} created the Automatic Update Version`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: {
+    type: 'auto_update_version.update',
+    desc: 'Automatic Update Version Updated',
+    format: ({ user }) => {
+      return `User ${user} updated the Automatic Update Version`;
+    },
+  },
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: {
+    type: 'auto_update_version.delete',
+    desc: 'Automatic Update Version Deleted',
+    format: ({ user }) => {
+      return `User ${user} deleted the Automatic Update Version`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
+    type: 'health_check_config.create',
+    desc: 'Health Check Config Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a health check config [${name}]`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
+    type: 'health_check_config.update',
+    desc: 'Health Check Config Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a health check config [${name}]`;
+    },
+  },
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
+    type: 'health_check_config.delete',
+    desc: 'Health Check Config Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a health check config [${name}]`;
+    },
+  },
 };
 
 const unknownFormatter = {
@@ -1964,9 +2159,12 @@ const unknownFormatter = {
 
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
-  const formatter = formatters[json.code] || unknownFormatter;
+  const formatter = formatters[json.code as EventCode] || unknownFormatter;
   return {
-    codeDesc: formatter.desc,
+    codeDesc:
+      typeof formatter.desc === 'function'
+        ? formatter.desc(json)
+        : formatter.desc,
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,

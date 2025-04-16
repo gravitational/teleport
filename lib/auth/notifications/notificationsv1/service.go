@@ -67,7 +67,7 @@ type Backend interface {
 	services.RoleGetter
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // Service implements the teleport.notifications.v1.NotificationsService RPC Service.
@@ -306,6 +306,10 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 	case *notificationsv1.GlobalNotificationSpec_All:
 		// Always return true if the matcher is "all."
 		return true
+
+	case *notificationsv1.GlobalNotificationSpec_ByUsers:
+		userList := matcher.ByUsers.GetUsers()
+		return slices.Contains(userList, authCtx.User.GetName())
 
 	case *notificationsv1.GlobalNotificationSpec_ByRoles:
 		matcherRoles := matcher.ByRoles.GetRoles()

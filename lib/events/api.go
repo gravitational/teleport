@@ -205,6 +205,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestExpirEvent is emitted when an access request expires.
+	AccessRequestExpireEvent = "access_request.expire"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestResourceSearch is emitted when a user searches for
@@ -262,10 +264,13 @@ const (
 	X11ForwardErr     = "error"
 
 	// Port forwarding event
-	PortForwardEvent   = "port"
-	PortForwardAddr    = "addr"
-	PortForwardSuccess = "success"
-	PortForwardErr     = "error"
+	PortForwardEvent           = "port"
+	PortForwardLocalEvent      = "port.local"
+	PortForwardRemoteEvent     = "port.remote"
+	PortForwardRemoteConnEvent = "port.remote_conn"
+	PortForwardAddr            = "addr"
+	PortForwardSuccess         = "success"
+	PortForwardErr             = "error"
 
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status
@@ -854,8 +859,50 @@ const (
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
 
+	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is created.
+	WorkloadIdentityX509RevocationCreateEvent = "workload_identity_x509_revocation.create"
+	// WorkloadIdentityX509RevocationUpdateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is updated.
+	WorkloadIdentityX509RevocationUpdateEvent = "workload_identity_x509_revocation.update"
+	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is deleted.
+	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
+	// WorkloadIdentityX509IssuerOverrideCreateEvent is emitted when a
+	// workload_identity_x509_issuer_override is written.
+	WorkloadIdentityX509IssuerOverrideCreateEvent = "workload_identity_x509_issuer_override.create"
+	// WorkloadIdentityX509IssuerOverrideDeleteEvent is emitted when a
+	// workload_identity_x509_issuer_override is deleted.
+	WorkloadIdentityX509IssuerOverrideDeleteEvent = "workload_identity_x509_issuer_override.delete"
+
+	// SigstorePolicyCreateEvent is emitted when a SigstorePolicy resource is created.
+	SigstorePolicyCreateEvent = "sigstore_policy.create"
+	// SigstorePolicyUpdateEvent is emitted when a SigstorePolicy resource is updated.
+	SigstorePolicyUpdateEvent = "sigstore_policy.update"
+	// SigstorePolicyDeleteEvent is emitted when a SigstorePolicy resource is deleted.
+	SigstorePolicyDeleteEvent = "sigstore_policy.delete"
+
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
+
+	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
+	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
+	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
+	// and reconciled to Teleport.
+	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
+	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
+	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
+
+	// HealthCheckConfigCreateEvent is emitted when a health check config
+	// resource is created.
+	HealthCheckConfigCreateEvent = "health_check_config.create"
+	// HealthCheckConfigUpdateEvent is emitted when a health check config
+	// resource is updated.
+	HealthCheckConfigUpdateEvent = "health_check_config.update"
+	// HealthCheckConfigDeleteEvent is emitted when a health check config
+	// resource is deleted.
+	HealthCheckConfigDeleteEvent = "health_check_config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

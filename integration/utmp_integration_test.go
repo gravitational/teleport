@@ -66,7 +66,7 @@ type SrvCtx struct {
 	srv        *regular.Server
 	signer     ssh.Signer
 	server     *auth.TestServer
-	clock      clockwork.FakeClock
+	clock      *clockwork.FakeClock
 	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string

@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tpm"
@@ -39,12 +40,12 @@ func (a *Server) RegisterUsingTPMMethod(
 	solveChallenge client.RegisterTPMChallengeResponseFunc,
 ) (_ *proto.Certs, err error) {
 	var provisionToken types.ProvisionToken
-	var attributeSrc joinAttributeSourcer
+	var joinFailureMetadata any
 	defer func() {
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				err, provisionToken, attributeSrc, initReq.JoinRequest,
+				ctx, err, provisionToken, joinFailureMetadata, initReq.JoinRequest,
 			)
 		}
 	}()
@@ -99,10 +100,12 @@ func (a *Server) RegisterUsingTPMMethod(
 			return solution.Solution, nil
 		},
 	})
+	if validatedEK != nil {
+		joinFailureMetadata = validatedEK
+	}
 	if err != nil {
 		return nil, trace.Wrap(err, "validating TPM EK")
 	}
-	attributeSrc = validatedEK
 
 	if err := checkTPMAllowRules(validatedEK, ptv2.Spec.TPM.Allow); err != nil {
 		return nil, trace.Wrap(err)
@@ -110,7 +113,13 @@ func (a *Server) RegisterUsingTPMMethod(
 
 	if initReq.JoinRequest.Role == types.RoleBot {
 		certs, err := a.generateCertsBot(
-			ctx, ptv2, initReq.JoinRequest, validatedEK,
+			ctx,
+			ptv2,
+			initReq.JoinRequest,
+			validatedEK,
+			&workloadidentityv1pb.JoinAttrs{
+				Tpm: validatedEK.JoinAttrs(),
+			},
 		)
 		return certs, trace.Wrap(err, "generating certs for bot")
 	}

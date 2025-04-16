@@ -25,6 +25,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -34,7 +35,7 @@ import (
 func Test_progressGroupsTimeBased(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
 	log := utils.NewSlogLoggerForTests()
-	strategy, err := newTimeBasedStrategy(log, clock)
+	strategy, err := newTimeBasedStrategy(log)
 	require.NoError(t, err)
 
 	groupName := "test-group"
@@ -44,9 +45,10 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name          string
-		initialState  []*autoupdate.AutoUpdateAgentRolloutStatusGroup
-		expectedState []*autoupdate.AutoUpdateAgentRolloutStatusGroup
+		name             string
+		initialState     []*autoupdate.AutoUpdateAgentRolloutStatusGroup
+		rolloutStartTime *timestamppb.Timestamp
+		expectedState    []*autoupdate.AutoUpdateAgentRolloutStatusGroup
 	}{
 		{
 			name: "unstarted -> unstarted",
@@ -67,6 +69,30 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
+					ConfigStartHour:  matchingStartHour,
+				},
+			},
+		},
+		{
+			name: "unstarted -> unstarted because rollout just changed",
+			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             groupName,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   lastUpdate,
+					LastUpdateReason: updateReasonCreated,
+					ConfigDays:       canStartToday,
+					ConfigStartHour:  matchingStartHour,
+				},
+			},
+			rolloutStartTime: timestamppb.New(clock.Now()),
+			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:             groupName,
+					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
+					LastUpdateTime:   timestamppb.New(clock.Now()),
+					LastUpdateReason: updateReasonRolloutChanged,
+					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 				},
 			},
@@ -300,15 +326,25 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 			},
 		},
 	}
+
+	spec := &autoupdate.AutoUpdateAgentRolloutSpec{
+		MaintenanceWindowDuration: durationpb.New(time.Hour),
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := strategy.progressRollout(ctx, tt.initialState)
+			status := &autoupdate.AutoUpdateAgentRolloutStatus{
+				Groups:    tt.initialState,
+				State:     0,
+				StartTime: tt.rolloutStartTime,
+			}
+			err := strategy.progressRollout(ctx, spec, status, clock.Now())
 			require.NoError(t, err)
 			// We use require.Equal instead of Elements match because group order matters.
 			// It's not super important for time-based, but is crucial for halt-on-error.
 			// So it's better to be more conservative and validate order never changes for
 			// both strategies.
-			require.Equal(t, tt.expectedState, tt.initialState)
+			require.Equal(t, tt.expectedState, status.Groups)
 		})
 	}
 }

@@ -19,8 +19,6 @@
 package web
 
 import (
-	"bytes"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/entitlements"
 )
@@ -31,10 +29,6 @@ import (
 func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
-
-	if !bytes.Equal(h.clusterFeatures.CloudAnonymizationKey, features.CloudAnonymizationKey) {
-		h.log.Info("Received new cloud anonymization key from server")
-	}
 
 	entitlements.BackfillFeatures(&features)
 	h.clusterFeatures = features
@@ -54,25 +48,25 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 // The watcher doesn't ping the auth server immediately upon start because features are
 // already set by the config object in `NewHandler`.
 func (h *Handler) startFeatureWatcher() {
-	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
-	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
 	ctx := h.cfg.Context
+	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
+	h.logger.InfoContext(ctx, "Proxy handler features watcher has started", "interval", h.cfg.FeatureWatchInterval)
 
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.Chan():
-			h.log.Info("Pinging auth server for features")
+			h.logger.InfoContext(ctx, "Pinging auth server for features")
 			pingResponse, err := h.GetProxyClient().Ping(ctx)
 			if err != nil {
-				h.log.WithError(err).Error("Auth server ping failed")
+				h.logger.ErrorContext(ctx, "Auth server ping failed", "error", err)
 				continue
 			}
 
 			h.SetClusterFeatures(*pingResponse.ServerFeatures)
-			h.log.WithField("features", pingResponse.ServerFeatures).Info("Done updating proxy features")
+			h.logger.InfoContext(ctx, "Done updating proxy features", "features", pingResponse.ServerFeatures)
 		case <-ctx.Done():
-			h.log.Info("Feature service has stopped")
+			h.logger.InfoContext(ctx, "Feature service has stopped")
 			return
 		}
 	}

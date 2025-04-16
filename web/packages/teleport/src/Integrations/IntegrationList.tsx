@@ -17,21 +17,21 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
+import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { IconTooltip } from 'design/Tooltip';
-import { useAsync } from 'shared/hooks/useAsync';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { IconTooltip } from 'design/Tooltip';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import cfg from 'teleport/config';
+import { getStatus } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
-
 import {
   ExternalAuditStorageIntegration,
   getStatusCodeDescription,
@@ -41,13 +41,11 @@ import {
   IntegrationStatusCode,
   Plugin,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
-
-import { getStatus } from 'teleport/Integrations/helpers';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
-type Props<IntegrationLike> = {
+type Props = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
   integrationOps?: {
@@ -62,7 +60,7 @@ export type IntegrationLike =
   | Plugin
   | ExternalAuditStorageIntegration;
 
-export function IntegrationList(props: Props<IntegrationLike>) {
+export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
@@ -71,7 +69,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (row.kind !== 'okta') return;
+    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
     return { cursor: 'pointer' };
   }
 
@@ -120,6 +118,11 @@ export function IntegrationList(props: Props<IntegrationLike>) {
         {
           altKey: 'options-btn',
           render: item => {
+            if (item.kind === IntegrationKind.AwsOidc) {
+              // do not show any action menu for aws oidc; settings are available on the dashboard
+              return;
+            }
+
             if (item.resourceType === 'plugin') {
               return (
                 <Cell align="right">
@@ -154,26 +157,14 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {/* Currently, only AWS OIDC supports editing & status dash */}
-                    {item.kind === IntegrationKind.AwsOidc && (
-                      <>
-                        <MenuItem
-                          as={InternalRouteLink}
-                          to={cfg.getIntegrationStatusRoute(
-                            item.kind,
-                            item.name
-                          )}
-                        >
-                          View Status
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() =>
-                            props.integrationOps.onEditIntegration(item)
-                          }
-                        >
-                          Edit...
-                        </MenuItem>
-                      </>
+                    {item.kind === IntegrationKind.GitHub && (
+                      <MenuItem
+                        onClick={() =>
+                          props.integrationOps.onEditIntegration(item)
+                        }
+                      >
+                        Edit...
+                      </MenuItem>
                     )}
                     <MenuItem
                       onClick={() =>

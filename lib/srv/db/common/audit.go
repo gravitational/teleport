@@ -146,6 +146,9 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			Success: true,
 		},
 		PostgresPID: session.PostgresPID,
+		ClientMetadata: events.ClientMetadata{
+			UserAgent: session.UserAgent,
+		},
 	}
 	event.SetTime(session.StartTime)
 

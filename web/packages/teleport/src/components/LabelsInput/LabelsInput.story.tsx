@@ -16,15 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react';
 import { useState } from 'react';
-import Validation from 'shared/components/Validation';
+
+import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
+import Validation from 'shared/components/Validation';
 
-import { LabelsInput, Label } from './LabelsInput';
+import { Label, LabelsInput } from './LabelsInput';
 
-export default {
+const meta: Meta = {
   title: 'Teleport/LabelsInput',
+  decorators: Story => (
+    <Box width="456px">
+      <Story />
+    </Box>
+  ),
 };
+export default meta;
 
 export const Default = () => {
   const [labels, setLables] = useState<Label[]>([]);
@@ -59,6 +68,8 @@ export const Custom = () => {
       <LabelsInput
         labels={labels}
         setLabels={setLables}
+        legend="List of Labels"
+        tooltipContent="List of labels, 'nuff said"
         labelKey={{
           fieldName: 'Custom Key Name',
           placeholder: 'custom key placeholder',
@@ -68,7 +79,6 @@ export const Custom = () => {
           placeholder: 'custom value placeholder',
         }}
         adjective="Custom Adjective"
-        inputWidth={350}
       />
     </Validation>
   );
@@ -99,9 +109,10 @@ export const AtLeastOneRequired = () => {
   return (
     <Validation>
       <LabelsInput
+        legend="Labels"
         labels={labels}
         setLabels={setLables}
-        areLabelsRequired={true}
+        required={true}
       />
     </Validation>
   );

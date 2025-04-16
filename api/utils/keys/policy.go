@@ -14,10 +14,11 @@ limitations under the License.
 package keys
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // PrivateKeyPolicy is a requirement for client private key storage.
@@ -164,7 +165,7 @@ var privateKeyPolicyErrRegex = regexp.MustCompile(`private key policy not (met|s
 
 func NewPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 	// TODO(Joerger): Replace with "private key policy not satisfied" in 16.0.0
-	return trace.BadParameter(fmt.Sprintf("private key policy not met: %s", p))
+	return trace.BadParameter("private key policy not met: %s", p)
 }
 
 // ParsePrivateKeyPolicyError checks if the given error is a private key policy
@@ -189,4 +190,42 @@ func IsPrivateKeyPolicyError(err error) bool {
 		return false
 	}
 	return privateKeyPolicyErrRegex.MatchString(err.Error())
+}
+
+// GetPromptPolicy returns this corresponding [hardwarekey.PromptPolicy].
+func (p PrivateKeyPolicy) GetPromptPolicy() hardwarekey.PromptPolicy {
+	return hardwarekey.PromptPolicy{
+		TouchRequired: p.isHardwareKeyTouchVerified(),
+		PINRequired:   p.isHardwareKeyPINVerified(),
+	}
+}
+
+func PrivateKeyPolicyFromPromptPolicy(policy hardwarekey.PromptPolicy) PrivateKeyPolicy {
+	switch policy {
+	case hardwarekey.PromptPolicyNone:
+		return PrivateKeyPolicyHardwareKey
+
+	case hardwarekey.PromptPolicyTouch:
+		return PrivateKeyPolicyHardwareKeyTouch
+
+	case hardwarekey.PromptPolicyPIN:
+		return PrivateKeyPolicyHardwareKeyPIN
+
+	case hardwarekey.PromptPolicyTouchAndPIN:
+		return PrivateKeyPolicyHardwareKeyTouchAndPIN
+
+	default:
+		// unreachable case
+		return PrivateKeyPolicyNone
+	}
+}
+
+// AttestationData is verified attestation data for a public key.
+type AttestationData struct {
+	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
+	PublicKeyDER []byte `json:"public_key"`
+	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.
+	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
+	// SerialNumber is the serial number of the Attested hardware key.
+	SerialNumber uint32 `json:"serial_number"`
 }

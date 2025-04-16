@@ -26,19 +26,20 @@ For example:
 ## Prerequisites
 
 - A Teleport cluster with WebAuthn configured.
-  See the [Second Factor: WebAuthn](./webauthn.mdx) guide.
+  See the [Harden your Cluster Against IdP Compromises](./webauthn.mdx) guide.
 - WebAuthn hardware device, such as YubiKey.
 - Machines for Headless WebAuthn activities have [Linux](../../../installation.mdx), [macOS](../../../installation.mdx) or [Windows](../../../installation.mdx) `tsh` binary installed.
 - Machines used to approve Headless WebAuthn requests have a Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary installed.
-- Optional: Teleport Connect v13.3.1+ for [seamless Headless WebAuthn approval](#optional-teleport-connect).
+- Optional: Teleport Connect for [seamless Headless WebAuthn approval](#optional-teleport-connect).
 
 ## Step 1/3. Configuration
 
 A Teleport cluster capable of WebAuthn is automatically capable of
 Headless WebAuthn without any additional configuration.
 
-<Details title="Optional: make Headless WebAuthn the default auth connector">
+<details>
+<summary>Optional: make Headless WebAuthn the default auth connector</summary>
 
 To make Headless WebAuthn the default authentication method for your Teleport
 Cluster, add `connector_name: headless` to your cluster configuration.
@@ -53,7 +54,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.com
   connector_name: headless # headless by default
@@ -65,9 +66,10 @@ Update the configuration:
 $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
-</Details>
+</details>
 
-<Details title="Alternative: disable Headless WebAuthn">
+<details>
+<summary>Alternative: disable Headless WebAuthn</summary>
 
 Headless WebAuthn is enabled automatically when WebAuthn is configured. If you
 want to forbid Headless WebAuthn in your cluster, add `headless: false` to your
@@ -83,7 +85,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: "on"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.com
   headless: false # disable Headless WebAuthn
@@ -96,7 +98,7 @@ $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
 
-</Details>
+</details>
 
 ## Step 2/3. Initiate Headless WebAuthn
 
@@ -155,7 +157,7 @@ $ tsh ssh --headless --proxy=proxy.example.com --user=alice alice@server01
 alice@server01 $
 ```
 
-<Notice type="note">
+<Admonition type="note">
   The Teleport user, `--user` parameter, is the Teleport user requesting Headless WebAuthn activity.
   If no `--user` parameter or environment variables set the OS user in the machine terminal is used.
 
@@ -165,27 +167,19 @@ alice@server01 $
   an access denied message. The user could receive an access denied message after being approved
   for their Headless WebAuthn activity since the same access rights are granted or denied as if running from
   your local terminal.
-</Notice>
+</Admonition>
 
 ## Optional: Teleport Connect
 
-Teleport Connect v13.3.1+ can also be used to approve Headless WebAuthn logins.
-Teleport Connect will automatically detect the Headless WebAuthn login attempt
-and allow you to approve or cancel the request.
+Teleport Connect can also be used to approve Headless WebAuthn logins.  Teleport
+Connect will automatically detect the Headless WebAuthn login attempt and allow
+you to approve or cancel the request.
 
-<Figure width="700">
 ![Headless Confirmation](../../../../img/headless/confirmation.png)
-</Figure>
 
 You will be prompted to tap your MFA key to complete the approval process.
 
-<Figure width="700">
 ![Headless WebAuthn Approval](../../../../img/headless/approval.png)
-</Figure>
-
-<Notice type="note">
-  This also requires a v13.3.1+ Teleport Auth Service.
-</Notice>
 
 ## Troubleshooting
 

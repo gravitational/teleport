@@ -62,7 +62,7 @@ func (s *diagnosticsService) Run(ctx context.Context) error {
 	}
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		msg := "404 - Not Found\n\nI'm a little tbot,\nshort and stout,\nthe page you seek,\nis not about.\n\nYou can find out more information about the diagnostics service at https://goteleport.com/docs/machine-id/reference/diagnostics-service/"
+		msg := "404 - Not Found\n\nI'm a little tbot,\nshort and stout,\nthe page you seek,\nis not about.\n\nYou can find out more information about the diagnostics service at https://goteleport.com/docs/reference/machine-id/diagnostics-service/"
 		_, _ = w.Write([]byte(msg))
 	}))
 	mux.Handle("/livez", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

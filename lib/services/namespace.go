@@ -53,7 +53,7 @@ func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*types.Namespace, e
 	// the namespace is always created by teleport now
 	var namespace types.Namespace
 	if err := utils.FastUnmarshal(data, &namespace); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if err := namespace.CheckAndSetDefaults(); err != nil {

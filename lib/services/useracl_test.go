@@ -109,6 +109,7 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
 	require.Empty(t, cmp.Diff(userContext.Contact, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.GitServers, denied))
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
@@ -256,7 +257,7 @@ func TestNewAccessGraph(t *testing.T) {
 	t.Run("access graph disabled", func(t *testing.T) {
 		denied := ResourceAccess{false, false, false, false, false, false}
 		userContext := NewUserACL(user, roleSet, proto.Features{}, false, false)
-		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, denied))
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, denied))
 	})
 
 	t.Run("access graph ACL is false when user doesn't have access even when enabled", func(t *testing.T) {
@@ -264,7 +265,6 @@ func TestNewAccessGraph(t *testing.T) {
 		denied := ResourceAccess{false, false, false, false, false, false}
 		userContext := NewUserACL(user, roleSet, proto.Features{AccessGraph: true}, false, true)
 		require.Empty(t, cmp.Diff(userContext.AccessGraph, denied))
-		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, denied))
 	})
 
 	t.Run("access graph ACL is true when user has access", func(t *testing.T) {

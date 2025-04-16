@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -45,6 +46,9 @@ type Fetcher interface {
 	// GetDiscoveryConfigName returns the DiscoveryConfig name that created this fetcher.
 	// Empty for Fetchers created from `teleport.yaml/discovery_service.aws.<Matcher>` matchers.
 	GetDiscoveryConfigName() string
+	// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+	// Might be empty when the fetcher is using ambient credentials.
+	IntegrationName() string
 }
 
 // WithTriggerFetchC sets a poll trigger to manual start a resource polling.
@@ -61,6 +65,13 @@ func WithPreFetchHookFn(f func()) Option {
 	}
 }
 
+// WithClock sets a clock that is used to periodically fetch new resources.
+func WithClock(clock clockwork.Clock) Option {
+	return func(w *Watcher) {
+		w.clock = clock
+	}
+}
+
 // Watcher allows callers to discover cloud instances matching specified filters.
 type Watcher struct {
 	// InstancesC can be used to consume newly discovered instances.
@@ -69,6 +80,7 @@ type Watcher struct {
 
 	fetchersFn     func() []Fetcher
 	pollInterval   time.Duration
+	clock          clockwork.Clock
 	triggerFetchC  <-chan struct{}
 	ctx            context.Context
 	cancel         context.CancelFunc
@@ -104,7 +116,7 @@ func (w *Watcher) fetchAndSubmit() {
 
 // Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
-	pollTimer := time.NewTimer(w.pollInterval)
+	pollTimer := w.clock.NewTimer(w.pollInterval)
 	defer pollTimer.Stop()
 
 	if w.triggerFetchC == nil {
@@ -120,7 +132,7 @@ func (w *Watcher) Run() {
 				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(insts, true))
 			}
 
-		case <-pollTimer.C:
+		case <-pollTimer.Chan():
 			w.fetchAndSubmit()
 			pollTimer.Reset(w.pollInterval)
 
@@ -129,7 +141,7 @@ func (w *Watcher) Run() {
 
 			// stop and drain timer
 			if !pollTimer.Stop() {
-				<-pollTimer.C
+				<-pollTimer.Chan()
 			}
 			pollTimer.Reset(w.pollInterval)
 

@@ -24,8 +24,11 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,6 +36,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -43,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
@@ -150,7 +155,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(StaticToken)
 	cfg.SetAuthServerAddress(authAddr)
@@ -409,15 +414,58 @@ func WithProxyKube(t *testing.T) TestServerOptFunc {
 	})
 }
 
+// WithDebugApp enables the app service and the debug app.
+func WithDebugApp() TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Apps.Enabled = true
+		cfg.Apps.DebugApp = true
+	})
+}
+
+// WithTestApp enables the app service and adds a test app server
+// with the given name.
+func WithTestApp(t *testing.T, name string) TestServerOptFunc {
+	appUrl := startDummyHTTPServer(t, name)
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Apps.Enabled = true
+		cfg.Apps.Apps = append(cfg.Apps.Apps,
+			servicecfg.App{
+				Name: name,
+				URI:  appUrl,
+				StaticLabels: map[string]string{
+					"name": name,
+				},
+			})
+	})
+}
+
+func startDummyHTTPServer(t *testing.T, name string) string {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", name)
+		_, _ = w.Write([]byte("hello"))
+	}))
+
+	srv.Start()
+
+	t.Cleanup(func() {
+		srv.Close()
+	})
+
+	return srv.URL
+}
+
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
-	// TODO(noah): This function relies on extremely specific cluster names
-	// being used, it should be more resilient.
+	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(isInsecure) })
+
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
 	require.NoError(t, err)
 
-	tc, err := types.NewTrustedCluster("root-cluster", types.TrustedClusterSpecV2{
+	tc, err := types.NewTrustedCluster(rootServer.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
 		Enabled:              true,
 		Token:                StaticToken,
 		ProxyAddress:         rootProxyAddr.String(),
@@ -431,13 +479,19 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	})
 	require.NoError(t, err)
 
-	_, err = leafServer.GetAuthServer().UpsertTrustedCluster(ctx, tc)
+	_, err = leafServer.GetAuthServer().UpsertTrustedClusterV2(ctx, tc)
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rt, err := rootServer.GetAuthServer().GetTunnelConnections("leaf")
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
 		assert.NoError(t, err)
 		assert.Len(t, rt, 1)
+	}, time.Second*10, time.Second)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, rts, 1)
 	}, time.Second*10, time.Second)
 }
 
@@ -495,7 +549,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -658,7 +712,17 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		var agentForwarded bool
 		var shellRequested bool
 		var execRequested bool
-		for channelReq := range channels {
+		var sftpRequested bool
+		for {
+			var channelReq ssh.NewChannel
+			select {
+			case channelReq = <-channels:
+				if channelReq == nil { // server is closed
+					return
+				}
+			case <-t.Context().Done():
+				return
+			}
 			if !assert.Equal(t, "session", channelReq.ChannelType()) {
 				assert.NoError(t, channelReq.Reject(ssh.Prohibited, "only session channels expected"))
 				continue
@@ -670,28 +734,56 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				_ = channel.Close()
 			})
 
-		outer:
-			for req := range reqs {
-				if req.WantReply {
-					assert.NoError(t, req.Reply(true, nil))
+			go func() {
+			outer:
+				for {
+					var req *ssh.Request
+					select {
+					case req = <-reqs:
+						if req == nil { // channel is closed
+							return
+						}
+					case <-t.Context().Done():
+						break outer
+					}
+					if req.WantReply {
+						assert.NoError(t, req.Reply(true, nil))
+					}
+					switch req.Type {
+					case sshutils.AgentForwardRequest:
+						agentForwarded = true
+					case sshutils.ShellRequest:
+						assert.NoError(t, channel.Close())
+						shellRequested = true
+						break outer
+					case sshutils.ExecRequest:
+						_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
+						assert.NoError(t, err)
+						assert.NoError(t, channel.Close())
+						execRequested = true
+						break outer
+					case sshutils.SubsystemRequest:
+						var r sshutils.SubsystemReq
+						err := ssh.Unmarshal(req.Payload, &r)
+						assert.NoError(t, err)
+						assert.Equal(t, "sftp", r.Name)
+						sftpRequested = true
+
+						sftpServer, err := sftp.NewServer(channel)
+						assert.NoError(t, err)
+						go sftpServer.Serve()
+						t.Cleanup(func() {
+							err := sftpServer.Close()
+							if err != nil {
+								assert.ErrorIs(t, err, io.EOF)
+							}
+						})
+						break outer
+					}
 				}
-				switch req.Type {
-				case sshutils.AgentForwardRequest:
-					agentForwarded = true
-				case sshutils.ShellRequest:
-					assert.NoError(t, channel.Close())
-					shellRequested = true
-					break outer
-				case sshutils.ExecRequest:
-					_, err := channel.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: 0}))
-					assert.NoError(t, err)
-					assert.NoError(t, channel.Close())
-					execRequested = true
-					break outer
-				}
-			}
+				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
+			}()
 		}
-		assert.True(t, (agentForwarded && shellRequested) || execRequested)
 	}()
 
 	return lis.Addr().String()

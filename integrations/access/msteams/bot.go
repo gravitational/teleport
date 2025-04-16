@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -469,7 +468,7 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 			Code:         status,
 			ErrorMessage: message,
 		}); err != nil {
-			logger.Get(ctx).Errorf("Error while emitting ms teams plugin status: %v", err)
+			b.log.ErrorContext(ctx, "Error while emitting ms teams plugin status", "error", err)
 		}
 	}
 	return trace.Wrap(err)

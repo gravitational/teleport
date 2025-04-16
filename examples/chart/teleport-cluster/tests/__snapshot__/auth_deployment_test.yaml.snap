@@ -8,7 +8,7 @@
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -25,7 +25,7 @@
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -44,7 +44,8 @@
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -56,6 +57,23 @@
         readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: auth-serviceaccount-token
       projected:
@@ -141,7 +159,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -158,7 +176,7 @@ should set nodeSelector when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -177,7 +195,8 @@ should set nodeSelector when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -192,6 +211,23 @@ should set nodeSelector when set in values:
       role: bastion
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: auth-serviceaccount-token
       projected:
@@ -238,7 +274,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -255,7 +291,7 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -274,7 +310,8 @@ should set resources when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       resources:
         limits:
           cpu: 2
@@ -293,6 +330,23 @@ should set resources when set in values:
         readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: auth-serviceaccount-token
       projected:
@@ -324,7 +378,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport-distroless:17.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:18.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -341,7 +395,7 @@ should set securityContext when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -360,7 +414,8 @@ should set securityContext when set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       securityContext:
         allowPrivilegeEscalation: false
         privileged: false
@@ -379,6 +434,23 @@ should set securityContext when set in values:
         readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: auth-serviceaccount-token
       projected:
@@ -437,7 +509,7 @@ should use OSS image and not mount license when enterprise is not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        timeoutSeconds: 5
       name: teleport
       ports:
       - containerPort: 3000
@@ -456,7 +528,8 @@ should use OSS image and not mount license when enterprise is not set in values:
           port: diag
         initialDelaySeconds: 5
         periodSeconds: 5
-        timeoutSeconds: 1
+        successThreshold: 1
+        timeoutSeconds: 5
       volumeMounts:
       - mountPath: /etc/teleport
         name: config
@@ -468,6 +541,23 @@ should use OSS image and not mount license when enterprise is not set in values:
         readOnly: true
     serviceAccountName: RELEASE-NAME
     terminationGracePeriodSeconds: 60
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: auth
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-cluster
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
     volumes:
     - name: auth-serviceaccount-token
       projected:

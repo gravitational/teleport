@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getStatus, getStatusAndLabel } from 'teleport/Integrations/helpers';
+import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
 import {
   Integration,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { getStatus, getStatusAndLabel } from 'teleport/Integrations/helpers';
-import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
 
 test.each`
   type                        | code                                       | expected

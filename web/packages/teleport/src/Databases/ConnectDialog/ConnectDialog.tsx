@@ -16,21 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Box, ButtonSecondary, Link, ButtonPrimary } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H3,
+  Link,
+  Text,
+} from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
+import { NewTab as NewTabIcon } from 'design/Icon';
+import { ResourceIcon } from 'design/ResourceIcon';
+import { TextSelectCopy } from 'shared/components/TextSelectCopy';
+import { getDatabaseIconName } from 'shared/components/UnifiedResources/shared/viewItemsFactory';
 import { DbProtocol } from 'shared/services/databases';
 
-import { NewTab as NewTabIcon } from 'design/Icon';
-
-import { AuthType } from 'teleport/services/user';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import cfg from 'teleport/config';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import { AuthType } from 'teleport/services/user';
 
 export default function ConnectDialog({
   username,
@@ -92,8 +101,21 @@ export default function ConnectDialog({
       open={true}
     >
       <DialogHeader mb={4}>
-        <DialogTitle>Connect To Database</DialogTitle>
+        <DialogTitle>
+          <Flex gap={2}>
+            Connect to:
+            <Flex gap={1}>
+              <ResourceIcon
+                name={getDatabaseIconName(dbProtocol)}
+                width="24px"
+                height="24px"
+              />
+              {dbName}
+            </Flex>
+          </Flex>
+        </DialogTitle>
       </DialogHeader>
+
       <DialogContent minHeight="240px" flex="0 0 auto">
         {supportsInteractive && (
           <Box borderBottom={1} mb={4} pb={4}>
@@ -107,10 +129,15 @@ export default function ConnectDialog({
           </Box>
         )}
         <Box mb={4}>
+          {supportsInteractive && (
+            <H3 mt={1} mb={2}>
+              Or connect in the CLI using tsh:
+            </H3>
+          )}
           <Text bold as="span">
             Step 1
           </Text>
-          {' - Login to Teleport'}
+          {' - Log in to Teleport'}
           <TextSelectCopy
             mt="2"
             text={generateTshLoginCommand({
@@ -144,7 +171,7 @@ export default function ConnectDialog({
           {`* Note: To connect with a GUI database client, see our `}
           <Link
             href={
-              'https://goteleport.com/docs/database-access/guides/gui-clients/'
+              'https://goteleport.com/docs/connect-your-client/gui-clients/'
             }
             target="_blank"
           >

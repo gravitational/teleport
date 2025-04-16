@@ -50,6 +50,10 @@ func TestValidateGitHubOrganizationName(t *testing.T) {
 			name:       "invalid charactersc",
 			checkError: require.Error,
 		},
+		{
+			name:       "org-name-is-too-looooooooooooooooooooooong",
+			checkError: require.Error,
+		},
 	}
 
 	for _, test := range tests {

@@ -16,26 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { Box, Text, Flex, Link, Mark, H3 } from 'design';
+import React, { useEffect, useState } from 'react';
+
+import { Box, Flex, H3, Link, Mark, Text } from 'design';
 import { Info as InfoIcon } from 'design/Icon';
 
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
+import { StyledBox } from 'teleport/Discover/Shared';
 import {
-  SelectCreatable,
   Option,
+  SelectCreatable,
 } from 'teleport/Discover/Shared/SelectCreatable';
 import {
-  useUserTraits,
   SetupAccessWrapper,
+  useUserTraits,
+  type State,
 } from 'teleport/Discover/Shared/SetupAccess';
-import { StyledBox } from 'teleport/Discover/Shared';
-import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { DbMeta } from 'teleport/Discover/useDiscover';
-import { Tabs } from 'teleport/components/Tabs';
+import { DatabaseServiceDeploy, DbMeta } from 'teleport/Discover/useDiscover';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
-import type { State } from 'teleport/Discover/Shared/SetupAccess';
+import { AwsRdsAuthRequirements, isAwsRds } from './AwsRdsAuthRequirements';
 
 export default function Container() {
   const state = useUserTraits();
@@ -110,7 +111,7 @@ export function SetupAccess(props: State) {
     );
   }
 
-  const { engine, location } = resourceSpec.dbMeta;
+  const { engine } = resourceSpec.dbMeta;
   let hasTraits = selectedUsers.length > 0;
   // Postgres connection testing requires both db user and a db name.
   if (engine === DatabaseEngine.Postgres) {
@@ -125,12 +126,14 @@ export function SetupAccess(props: State) {
 
   let infoContent = (
     <StyledBox mt={5}>
-      <Info dbEngine={engine} dbLocation={location} />
+      <Info
+        wantAutoDiscover={wantAutoDiscover}
+        resourceSpec={props.resourceSpec}
+        serviceDeploy={dbMeta.serviceDeploy}
+        uri={dbMeta.selectedAwsRdsDb?.uri}
+      />
     </StyledBox>
   );
-  if (wantAutoDiscover) {
-    infoContent = <AutoDiscoverInfoTabs location={location} />;
-  }
 
   return (
     <SetupAccessWrapper
@@ -143,7 +146,7 @@ export function SetupAccess(props: State) {
       infoContent={infoContent}
       // Don't allow going back to previous screen when deploy db
       // service got skipped or user auto deployed the db service.
-      onPrev={dbMeta.serviceDeployedMethod === 'manual' ? onPrev : null}
+      onPrev={dbMeta.serviceDeploy?.method === 'manual' ? onPrev : null}
       wantAutoDiscover={wantAutoDiscover}
     >
       {wantAutoDiscover && (
@@ -199,108 +202,79 @@ export function SetupAccess(props: State) {
 }
 
 const Info = (props: {
-  dbEngine: DatabaseEngine;
-  dbLocation: DatabaseLocation;
-}) => (
-  <>
-    <Flex mb={2}>
-      <InfoIcon size="medium" mr={1} />
-      <H3>To allow access using your Database Users</H3>
-    </Flex>
-    <DbEngineInstructions {...props} />
-    <Box>
-      <H3>Access Definition</H3>
-      <ul
-        css={`
-          margin-bottom: 0;
-        `}
-      >
-        <li>
-          <Mark>Database User</Mark> is the name of a user that is allowed to
-          connect to a database. A wildcard allows any user.
-        </li>
-        <li>
-          <Mark>Database Name</Mark> is the name of a logical database (aka
-          schemas) that a <Mark>Database User</Mark> will be allowed to connect
-          to within a database server. A wildcard allows any database.
-        </li>
-      </ul>
-    </Box>
-  </>
-);
+  wantAutoDiscover: boolean;
+  resourceSpec: SelectResourceSpec;
+  serviceDeploy: DatabaseServiceDeploy;
+  uri: string | undefined;
+}) => {
+  const { location } = props.resourceSpec.dbMeta;
+  return (
+    <>
+      <Flex mb={2}>
+        <InfoIcon size="medium" mr={1} />
+        {location === DatabaseLocation.Aws &&
+        isAwsRds(props.resourceSpec.id) ? (
+          <H3>IAM Database Authentication Requirements</H3>
+        ) : (
+          <H3>To allow access using your Database Users</H3>
+        )}
+      </Flex>
+      <DbEngineInstructions {...props} />
+      <Box>
+        <H3>Access Definition</H3>
+        <ul
+          css={`
+            margin-bottom: 0;
+            padding-left: ${p => p.theme.space[4]}px;
+          `}
+        >
+          <li>
+            <Mark>Database User</Mark> is the name of a user that is allowed to
+            connect to a database. A wildcard allows any user.
+          </li>
+          <li>
+            <Mark>Database Name</Mark> is the name of a logical database (aka
+            schemas) that a <Mark>Database User</Mark> will be allowed to
+            connect to within a database server. A wildcard allows any database.
+          </li>
+        </ul>
+      </Box>
+    </>
+  );
+};
 
 function DbEngineInstructions({
-  dbEngine,
-  dbLocation,
+  wantAutoDiscover,
+  resourceSpec,
+  serviceDeploy,
+  uri,
 }: {
-  dbEngine: DatabaseEngine;
-  dbLocation: DatabaseLocation;
+  wantAutoDiscover: boolean;
+  resourceSpec: SelectResourceSpec;
+  serviceDeploy: DatabaseServiceDeploy;
+  uri: string | undefined;
 }) {
-  switch (dbLocation) {
+  const { location, engine } = resourceSpec.dbMeta;
+
+  const id = resourceSpec.id;
+  switch (location) {
     case DatabaseLocation.Aws:
-      if (
-        dbEngine === DatabaseEngine.Postgres ||
-        dbEngine === DatabaseEngine.AuroraPostgres
-      ) {
+      if (isAwsRds(resourceSpec.id)) {
         return (
-          <Box mb={3}>
-            <Text mb={2}>
-              Users must have an <Mark>rds_iam</Mark> role:
-            </Text>
-            <TextSelectCopyMulti
-              bash={false}
-              lines={[
-                {
-                  text:
-                    `CREATE USER YOUR_USERNAME;\n` +
-                    `GRANT rds_iam TO YOUR_USERNAME;`,
-                },
-              ]}
-            />
-          </Box>
-        );
-      }
-      if (
-        dbEngine === DatabaseEngine.MySql ||
-        dbEngine === DatabaseEngine.AuroraMysql
-      ) {
-        return (
-          <Box mb={3}>
-            <Box mb={2}>
-              <Text mb={2}>
-                Users must have the RDS authentication plugin enabled:
-              </Text>
-              <TextSelectCopyMulti
-                bash={false}
-                lines={[
-                  {
-                    text: "CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';",
-                  },
-                ]}
-              />
-            </Box>
-            <Box>
-              <Text>
-                Created user may not have access to anything by default so let's
-                grant it some permissions:
-              </Text>
-              <TextSelectCopyMulti
-                bash={false}
-                lines={[
-                  {
-                    text: "GRANT ALL ON `%`.* TO 'alice'@'%';",
-                  },
-                ]}
-              />
-            </Box>
-          </Box>
+          <AwsRdsAuthRequirements
+            mb={4}
+            id={id}
+            wantAutoDiscover={wantAutoDiscover}
+            serviceDeploy={serviceDeploy}
+            uri={uri}
+          />
         );
       }
       break;
 
     // self-hosted databases
     default:
-      if (dbEngine === DatabaseEngine.Postgres) {
+      if (engine === DatabaseEngine.Postgres) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -333,35 +307,7 @@ function DbEngineInstructions({
         );
       }
 
-      if (dbEngine === DatabaseEngine.MongoDb) {
-        return (
-          <Box mb={3}>
-            <Text mb={2}>
-              To create a user for this database, connect to this database using
-              the <Mark>mongosh</Mark>
-              or <Mark>mongo</Mark> shell and run the following command:
-            </Text>
-            <TextSelectCopyMulti
-              bash={false}
-              lines={[
-                {
-                  text:
-                    `db.getSiblingDB("$external").runCommand(\n` +
-                    `  {\n` +
-                    `    createUser: "CN=YOUR_USERNAME",\n` +
-                    `    roles: [\n` +
-                    `      { role: "readWriteAnyDatabase", db: "admin" }\n` +
-                    `    ]\n` +
-                    `  }\n` +
-                    `)`,
-                },
-              ]}
-            />
-          </Box>
-        );
-      }
-
-      if (dbEngine === DatabaseEngine.MySql) {
+      if (engine === DatabaseEngine.MySql) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -411,30 +357,3 @@ function DbEngineInstructions({
 
   return null;
 }
-
-// If auto discovery was enabled, users need to see all supported engine info
-// to help setup access to their databases.
-const AutoDiscoverInfoTabs = ({ location }: { location: DatabaseLocation }) => {
-  return (
-    <Tabs
-      tabs={[
-        {
-          title: 'PostgreSQL',
-          content: (
-            <Box p={3}>
-              <Info dbEngine={DatabaseEngine.Postgres} dbLocation={location} />
-            </Box>
-          ),
-        },
-        {
-          title: `MySQL`,
-          content: (
-            <Box p={3}>
-              <Info dbEngine={DatabaseEngine.MySql} dbLocation={location} />
-            </Box>
-          ),
-        },
-      ]}
-    />
-  );
-};

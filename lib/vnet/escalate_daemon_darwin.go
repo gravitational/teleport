@@ -15,7 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
-// +build vnetdaemon
 
 package vnet
 
@@ -35,5 +34,5 @@ func execAdminProcess(ctx context.Context, config daemon.Config) error {
 
 // DaemonSubcommand runs the VNet daemon process.
 func DaemonSubcommand(ctx context.Context) error {
-	return trace.Wrap(daemon.Start(ctx, RunAdminProcess))
+	return trace.Wrap(daemon.Start(ctx, RunDarwinAdminProcess))
 }

@@ -3,8 +3,6 @@ title: Configuring Workload Identity and GCP Workload Identity Federation with J
 description: Configuring GCP to accept Workload Identity JWTs as authentication using Workload Identity Federation
 ---
 
-(!/docs/pages/includes/workload-id-preview.mdx!)
-
 Teleport Workload Identity issues flexible short-lived identities in JWT format.
 GCP Workload Identity Federation allows you to use these JWTs to authenticate to
 GCP services.
@@ -40,10 +38,10 @@ GCP APIs in a few ways:
 workloads which need to access Teleport Workload Identity will run. For more
 information, see the [deployment guides](../machine-id/deployment/deployment.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 Issuing JWT SVIDs with Teleport Workload Identity requires at minimum version
 16.4.3.
-</Notice>
+</Admonition>
 
 ### Deciding on a SPIFFE ID structure
 
@@ -237,23 +235,51 @@ $ gcloud storage buckets add-iam-policy-binding gs://example --member=$MEMBER --
 Now we need to configure Teleport to allow a JWT to be issued containing the
 SPIFFE ID we have chosen.
 
-Create `role.yaml` with the following content:
+First, you'll create a Workload Identity resource to define the identity and
+its characteristics. Create a new file called `workload-identity.yaml`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: /svc/example-service
+```
+
+Apply this to your cluster using `tctl`:
+
+```code
+$ tctl create -f workload-identity.yaml
+```
+
+Next, you'll create a role which grants access to this Workload Identity. Create
+`role.yaml` with the following content:
 
 ```yaml
 kind: role
 version: v6
 metadata:
-  name: my-workload-gcp
+  name: example-workload-identity-issuer
 spec:
   allow:
-    spiffe:
-      - path: /svc/example-service
+    workload_identity_labels:
+      example: ["getting-started"]
+    rules:
+    - resources:
+      - workload_identity
+      verbs:
+      - list
+      - read
 ```
 
 Replace:
 
-- `my-workload-gcp` with a descriptive name for the role.
-- `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
+- `example-workload-identity-issuer` with a descriptive name for the role.
+- The labels selector if you have modified the labels of the Workload Identity.
 
 Apply this role to your Teleport cluster using `tctl`:
 
@@ -261,10 +287,12 @@ Apply this role to your Teleport cluster using `tctl`:
 $ tctl create -f role.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 You now need to assign this role to the bot:
 
 ```code
-$ tctl bots update my-bot --add-roles my-workload-gcp
+$ tctl bots update my-bot --add-roles example-workload-identity-issuer
 ```
 
 ## Step 3/4. Issue Workload Identity JWTs
@@ -288,15 +316,13 @@ by adding the following to the `tbot` configuration file:
 
 ```yaml
 outputs:
-  - type: spiffe-svid
+  - type: workload-identity-jwt
     destination:
       type: directory
       path: /opt/workload-identity
-    svid:
-      path: /svc/example-service
-    jwts:
-      - audience: https://iam.googleapis.com/projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc
-        file_name: gcp-jwt
+    selector:
+      name: example-workload-identity
+    audiences: ["https://iam.googleapis.com/projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc"]
 ```
 
 Replace:
@@ -304,9 +330,11 @@ Replace:
 - `123456789000` with your GCP project number.
 - `workload-id-pool` with the name of your Workload Identity Federation pool.
 - `workload-id-oidc` with the name of your Workload Identity Federation provider.
+- `example-workload-identity` with the name of the Workload Identity you have
+  created.
 
 Restart your `tbot` service to apply the new configuration. You should see a
-file created at `/opt/workload-identity/gcp-jwt` containing the JWT.
+file created at `/opt/workload-identity/jwt_svid` containing the JWT.
 
 ## Step 4/4. Configure GCP CLIs and SDKs
 
@@ -321,7 +349,7 @@ You can generate this configuration file using the `gcloud` CLI:
 $ gcloud iam workload-identity-pools create-cred-config \
     projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc \
     --output-file=gcp-workload-identity.json \
-    --credential-source-file=/opt/workload-identity/gcp-jwt \
+    --credential-source-file=/opt/workload-identity/jwt_svid \
     --credential-source-type=text
 ```
 
@@ -330,7 +358,7 @@ Replace:
 - `123456789000` with your GCP project number.
 - `workload-id-pool` with the name of your Workload Identity Federation pool.
 - `workload-id-oidc` with the name of your Workload Identity Federation provider.
-- `/opt/workload-identity/gcp-jwt` with the path to the JWT file that `tbot` is
+- `/opt/workload-identity/jwt_svid` with the path to the JWT file that `tbot` is
   writing.
 
 The command should have created a file called `gcp-workload-identity.json` in

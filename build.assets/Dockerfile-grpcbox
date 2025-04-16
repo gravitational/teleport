@@ -1,39 +1,35 @@
 # syntax=docker/dockerfile:1
 
-FROM docker.io/golang:1.23
+FROM docker.io/golang:1.24.2
 
 # Image layers go from less likely to most likely to change.
 RUN apt-get update && \
-  apt-get install -y --no-install-recommends \
-    npm \
-    unzip \
-    && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends npm && \
   rm -rf /var/lib/apt/lists/*
 
-# protoc-gen-gogofast
-# Keep in sync with api/proto/buf.yaml (and buf.lock)
-# eg, "v1.3.2"
-ARG GOGO_PROTO_TAG
-RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
+# Pre-cache the `npm exec`ed packages. We execute `true` in the exec environment
+# so `npm exec` will download, build and install packages but not actually run
+# anything.
+#
+# The version should be kept in sync with buf-ts.gen.yaml.
+RUN npm exec --yes --package=@protobuf-ts/plugin@2.9.3 -- true
 
-# protoc-gen-js and protoc-gen-ts
-# eg, "1.12.4"
-ARG NODE_GRPC_TOOLS_VERSION
-# eg, "5.0.1"
-ARG NODE_PROTOC_TS_VERSION
-RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
-
-# buf
-# eg, "v1.26.1"
+# buf version including v, like "v1.26.1"
 ARG BUF_VERSION
-RUN VERSION="$BUF_VERSION"; \
-    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
+RUN go install "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}"
 
-# Pre-install go-runned binaries.
+# Pre-cache `go run`ned binaries. We use `true` as the launcher so `go run` will
+# cache the final linked binaries but not actually run anything. This can be
+# verified to work in the final image by using `go run -n` (dry-run) from the
+# teleport workdir to confirm that the binary is immediately available for
+# running.
+#
 # This is meant to be the only step that changes depending on the Teleport
 # branch.
 COPY go.mod go.sum /teleport-module/
-RUN cd /teleport-module; \
-  go install connectrpc.com/connect/cmd/protoc-gen-connect-go && \
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
-  go install google.golang.org/protobuf/cmd/protoc-gen-go
+RUN \
+  go -C /teleport-module run -exec true connectrpc.com/connect/cmd/protoc-gen-connect-go && \
+  go -C /teleport-module run -exec true github.com/gogo/protobuf/protoc-gen-gogofast && \
+  go -C /teleport-module run -exec true google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
+  go -C /teleport-module run -exec true google.golang.org/protobuf/cmd/protoc-gen-go && \
+  rm -rf /teleport-module

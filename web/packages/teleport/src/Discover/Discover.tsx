@@ -19,26 +19,27 @@
 import React from 'react';
 import { useLocation } from 'react-router';
 import { Prompt } from 'react-router-dom';
-import { Box } from 'design';
 
-import { Navigation } from 'teleport/components/Wizard/Navigation';
+import { Box, Flex } from 'design';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { FeatureBox } from 'teleport/components/Layout';
-import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
-import cfg from 'teleport/config';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
-
+import { Navigation } from 'teleport/components/Wizard/Navigation';
+import cfg from 'teleport/config';
+import type { View } from 'teleport/Discover/flow';
+import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
+import { DiscoverBox } from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
+import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
+import { DiscoverIcon } from './SelectResource/icons';
 import { EViewConfigs } from './types';
-
 import {
   DiscoverProvider,
-  useDiscover,
   DiscoverUpdateProps,
+  useDiscover,
 } from './useDiscover';
-import { DiscoverIcon } from './SelectResource/icons';
-
-import type { View } from 'teleport/Discover/flow';
 
 function DiscoverContent() {
   const {
@@ -59,7 +60,26 @@ function DiscoverContent() {
 
     const Component = currentView.component;
 
-    content = <Component {...agentProps} />;
+    const overview = getOverview({ resourceSpec: agentProps.resourceSpec });
+
+    if (!overview) {
+      content = (
+        <DiscoverBox>
+          <Component {...agentProps} />
+        </DiscoverBox>
+      );
+    } else {
+      content = (
+        <Flex alignItems="flex-start" gap={2}>
+          <DiscoverBox>
+            <Component {...agentProps} />
+          </DiscoverBox>
+          <Box mt={1}>
+            <InfoGuideButton config={getDiscoverInfoGuideConfig(overview)} />
+          </Box>
+        </Flex>
+      );
+    }
 
     if (viewConfig.wrapper) {
       content = viewConfig.wrapper(content);
@@ -76,7 +96,7 @@ function DiscoverContent() {
     <>
       <FeatureBox>
         {hasSelectedResource && (
-          <Box mt={2} mb={6}>
+          <Box mt={3} mb={6}>
             <Navigation
               currentStep={currentStep}
               views={indexedViews}

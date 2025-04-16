@@ -19,11 +19,9 @@
 import { MemoryRouter } from 'react-router';
 
 import { ContextProvider } from 'teleport';
-
 import { allAccessAcl, createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
-
 import { ConfigureBot } from './ConfigureBot';
 import { GitHubFlowProvider } from './useGitHubFlow';
 

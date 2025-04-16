@@ -134,7 +134,7 @@ func runUserResourceTest(
 	}
 
 	// Advance the clock to let the users to expire.
-	tt.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
+	tt.bk.Clock().(*clockwork.FakeClock).Advance(2 * time.Minute)
 	allUsers, err = s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Empty(t, allUsers, "expected all users to expire")

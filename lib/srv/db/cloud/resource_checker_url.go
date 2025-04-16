@@ -27,18 +27,22 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
 // urlChecker validates the database has the correct URL.
 type urlChecker struct {
-	clients     cloud.Clients
+	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
+	awsConfigProvider awsconfig.Provider
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
+
 	logger      *slog.Logger
 	warnOnError bool
 
@@ -52,9 +56,10 @@ type urlChecker struct {
 
 func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
-		clients:     cfg.Clients,
-		logger:      cfg.Logger,
-		warnOnError: getWarnOnError(),
+		awsConfigProvider: cfg.AWSConfigProvider,
+		awsClients:        defaultAWSClients{},
+		logger:            cfg.Logger,
+		warnOnError:       getWarnOnError(),
 	}
 }
 
@@ -94,6 +99,7 @@ func convIsEndpoint(isEndpoint isEndpointFunc) checkDatabaseFunc {
 func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	checkersByDatabaseType := map[string]checkDatabaseFunc{
 		types.DatabaseTypeRDS:                c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRDSOracle:          c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
 		types.DatabaseTypeRDSProxy:           c.checkAWS(c.checkRDSProxy, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
 		types.DatabaseTypeRedshift:           c.checkAWS(c.checkRedshift, convIsEndpoint(apiawsutils.IsRedshiftEndpoint)),
 		types.DatabaseTypeRedshiftServerless: c.checkAWS(c.checkRedshiftServerless, convIsEndpoint(apiawsutils.IsRedshiftServerlessEndpoint)),
@@ -121,8 +127,8 @@ func requireDatabaseIsEndpoint(ctx context.Context, database types.Database, isE
 	return trace.Wrap(convIsEndpoint(isEndpoint)(ctx, database))
 }
 
-func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int64) error {
-	wantURL := fmt.Sprintf("%v:%v", aws.StringValue(wantURLHost), aws.Int64Value(wantURLPort))
+func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int32) error {
+	wantURL := fmt.Sprintf("%v:%v", aws.ToString(wantURLHost), aws.ToInt32(wantURLPort))
 	if database.GetURI() != wantURL {
 		return trace.BadParameter("expect database URL %q but got %q for database %q", wantURL, database.GetURI(), database.GetName())
 	}

@@ -20,9 +20,9 @@ package ui
 
 import (
 	"cmp"
+	"context"
+	"log/slog"
 	"sort"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ui"
@@ -72,6 +72,9 @@ type App struct {
 	// PermissionSets holds the permission sets that this app grants access to.
 	// Only valid for Identity Center Account apps
 	PermissionSets []IdentityCenterPermissionSet `json:"permissionSets,omitempty"`
+	// SAMLAppLaunchURLs contains service provider specific authentication
+	// endpoints where user should be launched to start SAML authentication.
+	SAMLAppLaunchURLs []SAMLAppLaunchURL `json:"samlAppLaunchUrls,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -113,7 +116,7 @@ type MakeAppsConfig struct {
 	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
 	// Logger is a logger used for debugging while making an app
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool
 }
@@ -126,7 +129,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
 		if userGroup == nil {
-			c.Logger.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+			c.Logger.DebugContext(context.Background(), "Unable to find user group when creating user groups, skipping", "user_group", userGroupName)
 			continue
 		}
 
@@ -199,17 +202,27 @@ func makePermissionSets(src []*types.IdentityCenterPermissionSet) []IdentityCent
 // Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := ui.MakeLabelsWithoutInternalPrefixes(app.GetAllLabels())
+	uiLaunchURLs := func(in []string) []SAMLAppLaunchURL {
+		out := make([]SAMLAppLaunchURL, 0, len(in))
+		for _, u := range in {
+			out = append(out, SAMLAppLaunchURL{
+				URL: u,
+			})
+		}
+		return out
+	}
 	resultApp := App{
-		Kind:            types.KindApp,
-		Name:            app.GetName(),
-		Description:     "SAML Application",
-		PublicAddr:      "",
-		Labels:          labels,
-		ClusterID:       c.AppClusterName,
-		FriendlyName:    types.FriendlyName(app),
-		SAMLApp:         true,
-		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
-		RequiresRequest: c.RequiresRequest,
+		Kind:              types.KindApp,
+		Name:              app.GetName(),
+		Description:       "SAML Application",
+		PublicAddr:        "",
+		Labels:            labels,
+		ClusterID:         c.AppClusterName,
+		FriendlyName:      types.FriendlyName(app),
+		SAMLApp:           true,
+		SAMLAppPreset:     cmp.Or(app.GetPreset(), "unspecified"),
+		RequiresRequest:   c.RequiresRequest,
+		SAMLAppLaunchURLs: uiLaunchURLs(app.GetLaunchURLs()),
 	}
 
 	return resultApp
@@ -274,4 +287,13 @@ func MakeApps(c MakeAppsConfig) []App {
 	}
 
 	return result
+}
+
+// SAMLAppLaunchURLs contains service provider specific authentication
+// endpoints where user should be launched to start SAML authentication.
+type SAMLAppLaunchURL struct {
+	// Friendly name of the URL.
+	FriendlyName string `json:"friendlyName"`
+	// URL where the user should be landed onto.
+	URL string `json:"url,omitempty"`
 }

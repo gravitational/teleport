@@ -88,7 +88,7 @@ detailed below.
 
 ### Dynamic Registration mode
 
-To use Teleport application access in [dynamic registration mode](https://goteleport.com/docs/application-access/guides/dynamic-registration/),
+To use Teleport application access in [dynamic registration mode](https://goteleport.com/docs/enroll-resources/application-access/guides/dynamic-registration/),
 you will need to know the application resource selector. (`$APP_RESOURCE_KEY` and `$APP_RESOURCE_VALUE`)
 
 To listen for all application resources, set both variables to `*`.
@@ -144,7 +144,7 @@ After installing, the new application should show up in `tsh apps ls` after a fe
 
 ### Dynamic Registration mode
 
-To use Teleport database access in [dynamic registration mode](https://goteleport.com/docs/database-access/guides/dynamic-registration/),
+To use Teleport database access in [dynamic registration mode](https://goteleport.com/docs/enroll-resources/database-access/guides/dynamic-registration/),
 you will need to know the database resource selector. (`$DB_RESOURCE_KEY` and `$DB_RESOURCE_VALUE`)
 
 To listen for all database resources, set both variables to `*`.

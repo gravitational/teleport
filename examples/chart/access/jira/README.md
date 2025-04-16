@@ -120,14 +120,14 @@ The following values can be set for the Helm chart:
 
   <tr>
     <td><code>http.basicAuth.username</code></td>
-    <td>Username for the basic authentication. The plugin will require a m atching `Authorization` header in case both the username and the password are specified.</td>
+    <td>Username for the basic authentication. The plugin will require a matching `Authorization` header in case both the username and the password are specified.</td>
     <td>string</td>
     <td><code>""</code></td>
     <td>no</td>
   </tr>
   <tr>
     <td><code>http.basicAuth.password</code></td>
-    <td>Password for the basic authentication. The plugin will require a m atching `Authorization` header in case both the username and the password are specified.</td>
+    <td>Password for the basic authentication. The plugin will require a matching `Authorization` header in case both the username and the password are specified.</td>
     <td>string</td>
     <td><code>""</code></td>
     <td>no</td>

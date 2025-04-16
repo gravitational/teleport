@@ -17,12 +17,11 @@
  */
 
 import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
-
-import { KubeMeta } from '../../useDiscover';
-
 import type { KubeImpersonation } from 'teleport/services/agents';
-import type { AgentStepProps } from '../../types';
 import type { MfaChallengeResponse } from 'teleport/services/mfa';
+
+import type { AgentStepProps } from '../../types';
+import { KubeMeta } from '../../useDiscover';
 
 /**
  * @deprecated Refactor Discover/Kubernetes/TestConnection away from the container component

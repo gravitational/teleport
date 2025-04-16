@@ -100,16 +100,6 @@ func ContainSameUniqueElements[S ~[]E, E comparable](s1, s2 S) bool {
 	return true
 }
 
-// Any checks if any element of slice satisfy given predicate. If the slice is empty, it returns false.
-func Any[S ~[]E, E any](s S, predicate func(E) bool) bool {
-	for _, e := range s {
-		if predicate(e) {
-			return true
-		}
-	}
-	return false
-}
-
 // All checks if all elements of slice satisfy given predicate. If the slice is empty, it returns true.
 func All[S ~[]E, E any](s S, predicate func(E) bool) bool {
 	for _, e := range s {

@@ -21,7 +21,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,6 @@ import (
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -126,23 +124,16 @@ func (m *mockHostSudoers) WriteSudoers(name string, sudoers []string) error {
 	return nil
 }
 
-type eventSender func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error
-
 func TestStaticHostUserHandler(t *testing.T) {
 	t.Parallel()
 
-	sendEvents := func(eventList []types.Event) eventSender {
-		return func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error {
-			for _, event := range eventList {
-				select {
-				case events.events <- event:
-				case <-ctx.Done():
-					break
-				}
+	sendEvents := func(ctx context.Context, events *mockEvents, eventList []types.Event) {
+		for _, event := range eventList {
+			select {
+			case events.events <- event:
+			case <-ctx.Done():
+				break
 			}
-			events.Close()
-			<-ctx.Done()
-			return nil
 		}
 	}
 
@@ -169,18 +160,20 @@ func TestStaticHostUserHandler(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		existingUsers []*userprovisioningv2.StaticHostUser
-		sendEvents    eventSender
-		wantUsers     map[string]services.HostUsersInfo
-		wantSudoers   map[string][]string
+		name             string
+		existingUsers    []*userprovisioningv2.StaticHostUser
+		events           []types.Event
+		onEventsFinished func(ctx context.Context, clock *clockwork.FakeClock)
+		assert           assert.ErrorAssertionFunc
+		wantUsers        map[string]services.HostUsersInfo
+		wantSudoers      map[string][]string
 	}{
 		{
 			name: "ok users",
 			existingUsers: []*userprovisioningv2.StaticHostUser{
 				makeStaticHostUser("test-1", map[string]string{"foo": "bar"}, []string{"foo", "bar"}),
 			},
-			sendEvents: sendEvents([]types.Event{
+			events: []types.Event{
 				{
 					Type: types.OpInit,
 				},
@@ -190,7 +183,8 @@ func TestStaticHostUserHandler(t *testing.T) {
 						makeStaticHostUser("test-2", map[string]string{"foo": "bar"}, []string{"baz", "quux"}),
 					),
 				},
-			}),
+			},
+			assert: assert.NoError,
 			wantUsers: map[string]services.HostUsersInfo{
 				"test-1": {
 					Groups: []string{"foo", "bar"},
@@ -217,7 +211,7 @@ func TestStaticHostUserHandler(t *testing.T) {
 			existingUsers: []*userprovisioningv2.StaticHostUser{
 				makeStaticHostUser("ignore-me", map[string]string{"baz": "quux"}, []string{"foo", "bar"}),
 			},
-			sendEvents: sendEvents([]types.Event{
+			events: []types.Event{
 				{
 					Type: types.OpInit,
 				},
@@ -227,7 +221,8 @@ func TestStaticHostUserHandler(t *testing.T) {
 						makeStaticHostUser("ignore-me-too", map[string]string{"abc": "xyz"}, []string{"foo", "bar"}),
 					),
 				},
-			}),
+			},
+			assert: assert.NoError,
 		},
 		{
 			name: "ignore multiple matches",
@@ -250,13 +245,19 @@ func TestStaticHostUserHandler(t *testing.T) {
 					},
 				}),
 			},
+			events: []types.Event{
+				{
+					Type: types.OpInit,
+				},
+			},
+			assert: assert.NoError,
 		},
 		{
 			name: "update user",
 			existingUsers: []*userprovisioningv2.StaticHostUser{
 				makeStaticHostUser("test", map[string]string{"foo": "bar"}, []string{"foo"}),
 			},
-			sendEvents: sendEvents([]types.Event{
+			events: []types.Event{
 				{
 					Type: types.OpInit,
 				},
@@ -275,7 +276,8 @@ func TestStaticHostUserHandler(t *testing.T) {
 						Metadata: types.Metadata{Name: "test"},
 					},
 				},
-			}),
+			},
+			assert: assert.NoError,
 			wantUsers: map[string]services.HostUsersInfo{
 				"test": {
 					Groups: []string{"bar"},
@@ -290,101 +292,30 @@ func TestStaticHostUserHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "restart on watcher init failure",
-			sendEvents: func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error {
-				// Wait until the handler is waiting for an init event.
-				clock.BlockUntil(1)
-				// Send a wrong event type first, which will cause the handler to fail and restart.
-				select {
-				case events.events <- types.Event{
+			name: "error on watcher init failure",
+			events: []types.Event{
+				{
 					Type: types.OpPut,
 					Resource: types.Resource153ToLegacy(
 						makeStaticHostUser("test", map[string]string{"foo": "bar"}, []string{"foo"}),
 					),
-				}:
-				case <-ctx.Done():
-					return nil
-				}
-
-				// Even though the watcher timeout won't fire since the event
-				// was received first, we still need to advance the clock for
-				// it so we can guarantee that there are no waiters afterwards.
-				clock.Advance(staticHostUserWatcherTimeout)
-				// Advance past the retryer.
-				clock.BlockUntil(1)
-				clock.Advance(defaults.MaxWatcherBackoff)
-
-				// Emit events as normal.
-				return sendEvents([]types.Event{
-					{
-						Type: types.OpInit,
-					},
-					{
-						Type: types.OpPut,
-						Resource: types.Resource153ToLegacy(
-							makeStaticHostUser("test", map[string]string{"foo": "bar"}, []string{"bar"}),
-						),
-					},
-				})(ctx, events, clock)
-			},
-			wantUsers: map[string]services.HostUsersInfo{
-				"test": {
-					Groups: []string{"bar"},
-					Mode:   services.HostUserModeStatic,
-					UID:    "1234",
-					GID:    "5678",
-					Shell:  "/bin/bash",
 				},
 			},
-			wantSudoers: map[string][]string{
-				"test": {"abcd1234"},
-			},
+			assert: assert.Error,
 		},
 		{
-			name: "restart on watcher timeout failure",
-			sendEvents: func(ctx context.Context, events *mockEvents, clock clockwork.FakeClock) error {
-				// Force a timeout on waiting for the init event.
-				clock.BlockUntil(1)
+			name: "error on watcher timeout failure",
+			onEventsFinished: func(ctx context.Context, clock *clockwork.FakeClock) {
+				clock.BlockUntilContext(ctx, 1)
 				clock.Advance(staticHostUserWatcherTimeout)
-				// Advance past the retryer.
-				clock.BlockUntil(1)
-				clock.Advance(defaults.MaxWatcherBackoff)
-				// Once the handler re-watches, send events as usual.
-				return sendEvents([]types.Event{
-					{
-						Type: types.OpInit,
-					},
-					{
-						Type: types.OpPut,
-						Resource: types.Resource153ToLegacy(
-							makeStaticHostUser("test", map[string]string{"foo": "bar"}, []string{"bar"}),
-						),
-					},
-				})(ctx, events, clock)
+				// Wait to close the watcher until the test is done.
+				<-ctx.Done()
 			},
-			wantUsers: map[string]services.HostUsersInfo{
-				"test": {
-					Groups: []string{"bar"},
-					Mode:   services.HostUserModeStatic,
-					UID:    "1234",
-					GID:    "5678",
-					Shell:  "/bin/bash",
-				},
-			},
-			wantSudoers: map[string][]string{
-				"test": {"abcd1234"},
-			},
+			assert: assert.Error,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Send just an init event to the watcher by default.
-			if tc.sendEvents == nil {
-				tc.sendEvents = sendEvents([]types.Event{{
-					Type: types.OpInit,
-				}})
-			}
-
 			events := newMockEvents()
 			shu := &mockStaticHostUsers{hostUsers: tc.existingUsers}
 			users := &mockHostUsers{}
@@ -396,7 +327,13 @@ func TestStaticHostUserHandler(t *testing.T) {
 			utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 				Name: "event sender",
 				Task: func(ctx context.Context) error {
-					return trace.Wrap(tc.sendEvents(ctx, events, clock))
+					sendEvents(ctx, events, tc.events)
+					if tc.onEventsFinished != nil {
+						tc.onEventsFinished(ctx, clock)
+					}
+					events.Close()
+					<-ctx.Done()
+					return nil
 				},
 			})
 
@@ -412,9 +349,17 @@ func TestStaticHostUserHandler(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			assert.NoError(t, handler.Run(ctx))
-			assert.Equal(t, tc.wantUsers, users.upsertedUsers)
-			assert.Equal(t, tc.wantSudoers, sudoers.sudoers)
+			tc.assert(t, handler.run(ctx))
+			if tc.wantUsers != nil {
+				assert.Equal(t, tc.wantUsers, users.upsertedUsers)
+			} else {
+				assert.Empty(t, users.upsertedUsers)
+			}
+			if tc.wantSudoers != nil {
+				assert.Equal(t, tc.wantSudoers, sudoers.sudoers)
+			} else {
+				assert.Empty(t, sudoers.sudoers)
+			}
 		})
 	}
 }

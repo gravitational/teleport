@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import { Flex } from 'design';
 import { createMemoryHistory } from 'history';
-import { Router, Route } from 'react-router';
 import { http, HttpResponse } from 'msw';
+import { useState } from 'react';
+import { Route, Router } from 'react-router';
+
+import { Flex } from 'design';
 
 import cfg from 'teleport/config';
 

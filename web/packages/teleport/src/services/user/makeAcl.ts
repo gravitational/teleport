@@ -81,6 +81,8 @@ export function makeAcl(json): Acl {
   const discoverConfigs = json.discoverConfigs || defaultAccess;
 
   const contacts = json.contact || defaultAccess;
+  const gitServers = json.gitServers || defaultAccess;
+  const accessGraphSettings = json.accessGraphSettings || defaultAccess;
 
   return {
     accessList,
@@ -121,6 +123,8 @@ export function makeAcl(json): Acl {
     discoverConfigs,
     contacts,
     fileTransferAccess,
+    gitServers,
+    accessGraphSettings,
   };
 }
 

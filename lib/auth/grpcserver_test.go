@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -48,19 +47,23 @@ import (
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -84,7 +87,7 @@ import (
 func TestMFADeviceManagement(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(clockwork.FakeClock)
+	clock := testServer.Clock().(*clockwork.FakeClock)
 	ctx := context.Background()
 
 	// Enable MFA support.
@@ -564,7 +567,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	clock := testServer.Clock().(clockwork.FakeClock)
+	clock := testServer.Clock().(*clockwork.FakeClock)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -752,7 +755,7 @@ type mfaDevices struct {
 func (d *mfaDevices) totpAuthHandler(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
 	require.NotNil(t, challenge.TOTP, "nil TOTP challenge")
 
-	if c, ok := d.clock.(clockwork.FakeClock); ok {
+	if c, ok := d.clock.(*clockwork.FakeClock); ok {
 		c.Advance(30 * time.Second)
 	}
 
@@ -1515,7 +1518,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
-	fakeClock, ok := clock.(clockwork.FakeClock)
+	fakeClock, ok := clock.(*clockwork.FakeClock)
 	require.True(t, ok)
 	fakeClock.Advance(-60 * time.Second)
 
@@ -2218,6 +2221,120 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
+				},
+			},
+		},
+		{
+			desc: "fail - ssh using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					SSHPublicKey: sshPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
+					SSHLogin: "role",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - k8s using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-b",
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - db using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+						Database:    "db-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - app using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_App,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
+				},
+			},
+		},
+		{
+			desc: "fail - desktops using totp",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_WindowsDesktop,
+					RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+						WindowsDesktop: "desktop",
+						Login:          "role",
+					},
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				authnHandler: registered.totpAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
 				},
 			},
 		},
@@ -2986,6 +3103,69 @@ func TestGetSSHTargets(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rsp.Servers, 2)
 	require.ElementsMatch(t, []string{rsp.Servers[0].GetHostname(), rsp.Servers[1].GetHostname()}, []string{"foo", "Foo"})
+}
+
+func TestResolveSSHTarget(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "Foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+	upper.SetExpiry(time.Now().Add(time.Hour))
+
+	lower, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	other, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "bar",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	for _, node := range []types.Server{upper, lower, other} {
+		_, err = clt.UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	rsp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "foo", rsp.Server.GetHostname())
+
+	cnc := types.DefaultClusterNetworkingConfig()
+	cnc.SetCaseInsensitiveRouting(true)
+	_, err = clt.UpsertClusterNetworkingConfig(ctx, cnc)
+	require.NoError(t, err)
+
+	rsp, err = clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.Error(t, err)
+	require.Nil(t, rsp)
+
+	cnc.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+	_, err = clt.UpsertClusterNetworkingConfig(ctx, cnc)
+	require.NoError(t, err)
+
+	rsp, err = clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Foo", rsp.Server.GetHostname())
 }
 
 func TestNodesCRUD(t *testing.T) {
@@ -4548,12 +4728,21 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	tests := []struct {
 		name               string
 		inputInstallers    map[string]string
+		hasAgentRollout    bool
 		expectedInstallers map[string]string
 	}{
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				types.DefaultInstallerScriptName:        installer.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+		{
+			name:            "new default installers",
+			hasAgentRollout: true,
+			expectedInstallers: map[string]string{
+				types.DefaultInstallerScriptName:        installer.NewDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4564,7 +4753,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			},
 			expectedInstallers: map[string]string{
 				"my-custom-installer":                   "echo test",
-				types.DefaultInstallerScriptName:        installer.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installer.LegacyDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4585,6 +4774,25 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				_, err := grpc.DeleteAllInstallers(ctx, &emptypb.Empty{})
 				require.NoError(t, err)
 			})
+
+			if tc.hasAgentRollout {
+				rollout, err := autoupdate.NewAutoUpdateAgentRollout(
+					&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+						StartVersion:              "1.2.3",
+						TargetVersion:             "1.2.4",
+						Schedule:                  autoupdate.AgentsScheduleImmediate,
+						AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
+						Strategy:                  autoupdate.AgentsStrategyTimeBased,
+						MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
+					})
+				require.NoError(t, err)
+				_, err = grpc.AuthServer.CreateAutoUpdateAgentRollout(ctx, rollout)
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					assert.NoError(t, grpc.AuthServer.DeleteAutoUpdateAgentRollout(ctx))
+				})
+			}
 
 			for name, script := range tc.inputInstallers {
 				installer, err := types.NewInstallerV1(name, script)
@@ -4678,7 +4886,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - enabled",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    enabledRole,
 			expectedRole: enabledRole,
@@ -4686,7 +4894,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - disabled",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    disabledRole,
 			expectedRole: disabledRole,
@@ -4694,7 +4902,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date - undefined",
 			clientVersions: []string{
-				"17.1.0", "17.1.0-dev", "",
+				"17.1.0", "17.1.0-dev", "18.0.0-dev", "19.0.0", "",
 			},
 			inputRole:    undefinedRole,
 			expectedRole: undefinedRole,

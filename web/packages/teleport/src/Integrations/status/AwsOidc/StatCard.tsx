@@ -16,14 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Card, Flex, H2, Text } from 'design';
+import { formatDistanceStrict } from 'date-fns';
+import { Link as InternalLink } from 'react-router-dom';
+
+import { CardTile, Flex, H2, P2, Text } from 'design';
+import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 
-import * as Icons from 'design/Icon';
-
-import { formatDistanceStrict } from 'date-fns';
-
-import { ResourceTypeSummary } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
+import { EnrollCard } from 'teleport/Integrations/status/AwsOidc/EnrollCard';
+import {
+  IntegrationKind,
+  ResourceTypeSummary,
+} from 'teleport/services/integrations';
 
 export enum AwsResource {
   ec2 = 'ec2',
@@ -31,23 +36,35 @@ export enum AwsResource {
   rds = 'rds',
 }
 
+type Item = 'clusters' | 'databases' | 'instances';
+
 type StatCardProps = {
+  name: string;
+  item: Item;
   resource: AwsResource;
   summary?: ResourceTypeSummary;
 };
 
-export function StatCard({ resource, summary }: StatCardProps) {
+export function StatCard({ name, item, resource, summary }: StatCardProps) {
   const updated = summary?.discoverLastSync
     ? new Date(summary?.discoverLastSync)
     : undefined;
   const term = getResourceTerm(resource);
 
+  if (!summary || !foundResource(summary)) {
+    return <EnrollCard resource={resource} item={item} />;
+  }
+
   return (
-    <Card
+    <CardTile
       width="33%"
-      p={3}
-      bg="levels.surface"
       data-testid={`${resource}-stats`}
+      as={InternalLink}
+      to={cfg.getIntegrationStatusResourcesRoute(
+        IntegrationKind.AwsOidc,
+        name,
+        resource
+      )}
     >
       <Flex
         flexDirection="column"
@@ -55,15 +72,19 @@ export function StatCard({ resource, summary }: StatCardProps) {
         minHeight="220px"
       >
         <Flex flexDirection="column" gap={2}>
-          <Flex alignItems="center" mb={2}>
+          <Flex alignItems="center">
             <ResourceIcon name={resource} mr={2} width="32px" height="32px" />
             <H2>{resource.toUpperCase()}</H2>
           </Flex>
+          <P2 mb={2}>
+            Auto enrolled {resource.toUpperCase()} {item} matching configured
+            labels
+          </P2>
           <Flex justifyContent="space-between" data-testid="rules">
             <Text>Enrollment Rules </Text>
             <Text>{summary?.rulesCount || 0}</Text>
           </Flex>
-          {resource == AwsResource.rds && (
+          {resource === AwsResource.rds && (
             <Flex justifyContent="space-between" data-testid="rds-agents">
               <Text>Agents </Text>
               <Text>{summary?.ecsDatabaseServiceCount || 0}</Text>
@@ -96,7 +117,7 @@ export function StatCard({ resource, summary }: StatCardProps) {
           </Text>
         )}
       </Flex>
-    </Card>
+    </CardTile>
   );
 }
 
@@ -110,4 +131,16 @@ function getResourceTerm(resource: AwsResource): string {
     default:
       return 'Instances';
   }
+}
+
+function foundResource(resource: ResourceTypeSummary): boolean {
+  if (!resource || Object.keys(resource).length === 0) {
+    return false;
+  }
+
+  if (resource.ecsDatabaseServiceCount != 0) {
+    return true;
+  }
+
+  return resource.rulesCount != 0 || resource.resourcesFound != 0;
 }

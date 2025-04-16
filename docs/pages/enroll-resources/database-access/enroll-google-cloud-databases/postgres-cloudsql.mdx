@@ -131,23 +131,26 @@ $ tsh db ls
 
 </Tabs>
 
-<Notice
+<Admonition
   type="note"
 >
 You will only be able to see databases that your Teleport role has
 access to. See our [RBAC](../rbac.mdx) guide for more details.
-</Notice>
+</Admonition>
 
 When connecting to the database, use the name of the database's service account
 that you added as an IAM database user
 [above](#step-29-create-a-service-account-for-a-database-user),
 minus the ".gserviceaccount.com" suffix. The database user name is shown on
 the Users page of your Cloud SQL instance.
-Retrieve credentials for the "cloudsql" example database and connect to it:
+Retrieve credentials for the "cloudsql" example database and connect to it,
+assigning <Var name="project-id" /> to your Google Cloud project ID:
 
 ```code
 $ tsh db connect --db-user=cloudsql-user@<Var name="project-id"/>.iam --db-name=postgres cloudsql
 ```
+
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 To log out of the database and remove credentials:
 

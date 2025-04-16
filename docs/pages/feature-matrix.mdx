@@ -1,0 +1,173 @@
+---
+title: Teleport Feature Matrix
+description: Provides a comparison of features available in Teleport products.
+---
+
+The Teleport feature matrix lists capabilities of the Teleport Infrastructure
+Identity Platform, organized by product.
+
+{/*The Feature Matrix table has unique requirements, so include styling in an
+HTML tag until we can support these requirements some other way.*/} 
+<style dangerouslySetInnerHTML={{__html: `
+  /* 
+    Shade certain rows the color of the cell dividers to provide the illusion of
+    column spans until the docs engine supports them in Markdown tables. We need
+    to update this list whenever we change the organization of the tables.
+  */
+  table:nth-of-type(1) tbody tr:nth-of-type(1),
+  table:nth-of-type(1) tbody tr:nth-of-type(5),
+  table:nth-of-type(1) tbody tr:nth-of-type(7),
+  table:nth-of-type(1) tbody tr:nth-of-type(14),
+  table:nth-of-type(1) tbody tr:nth-of-type(17),
+  table:nth-of-type(1) tbody tr:nth-of-type(25),
+  table:nth-of-type(1) tbody tr:nth-of-type(28),
+  table:nth-of-type(5) tbody tr:nth-of-type(1),
+  table:nth-of-type(5) tbody tr:nth-of-type(9),
+  table:nth-of-type(5) tbody tr:nth-of-type(19)
+  {
+    background: #dddddd;
+  }
+
+  /*
+    Since the feature matrix includes multiple tables, set a fixed cell 
+    width to ensure that all tables are aligned.
+  */
+  table {
+    table-layout: fixed;
+  }
+
+  th, td {
+    width: 18%;
+  }
+
+  th:first-child, td:first-child {
+    width: 46%;
+  }
+  `
+  }}
+/>
+
+The **Teleport Identity Infrastructure Platform** modernizes identity, access,
+and policy for infrastructure, for both human and non-human identities. Products
+include:
+
+- [Teleport Zero Trust Access](#teleport-zero-trust-access)
+- [Teleport Machine & Workload Identity](#teleport-machine--workload-identity)
+- [Teleport Identity Governance](#teleport-identity-governance)
+- [Teleport Identity Security](#teleport-identity-security)
+
+## Teleport Zero Trust Access
+
+**Teleport Zero Trust Access** provides engineers with least privileged access
+to applications, servers, databases, Kubernetes clusters, and other resources
+across distributed infrastructures.
+
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
+|---|:---:|:---:|:---:|
+|**User identity.** Authenticate users without passwords:||||
+| [Single Sign-On](./admin-guides/access-controls/sso/sso.mdx)| GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub, Google Workspace, Microsoft Entra ID, Okta, OIDC, SAML, Teleport | GitHub |
+| User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | Available In Teleport Identity Governance | Available In Teleport Identity Governance | ✖ |
+| [Hardware Private Key Support](./admin-guides/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
+|**Resource identity.** Assign a cryptographic identity to every Teleport Protected Resource:||||
+| Protecting: [Applications](./enroll-resources/application-access/getting-started.mdx), [Databases](./enroll-resources/database-access/getting-started.mdx), [Kubernetes Clusters](./enroll-resources/kubernetes-access/getting-started.mdx), [Linux Servers](./enroll-resources/server-access/getting-started.mdx), [Windows Servers](./enroll-resources/desktop-access/introduction.mdx), [Windows Desktops](./enroll-resources/desktop-access/introduction.mdx), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](./admin-guides/management/guides/github-integration.mdx) | ✔ | ✔ | ✔ (does not include Oracle support) |
+|**Secure remote access.** Zero-trust, auditable access to your infrastructure:||||
+| Dynamic, self-updating inventory | ✔ | ✔ | ✔ |
+| Supports SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
+| [Machines](./enroll-resources/machine-id/machine-id.mdx) and [workloads](./enroll-resources/workload-identity/introduction.mdx#teleport-workload-identity-vs-machine-id) | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity | Available in Teleport Machine & Workload Identity |
+| Agentless Integration with [OpenSSH Servers](./enroll-resources/server-access/openssh/openssh-agentless.mdx) | ✔ | ✔ | ✔ |
+| [IP-Based Restrictions](./admin-guides/access-controls/guides/ip-pinning.mdx) | ✔ | ✔ | ✖ |
+| [Teleport VNet](./connect-your-client/vnet.mdx) | ✔ | ✔ | ✔ |
+|**Short-lived privileges.** Ephemeral authorization granted through short-lived certificates:||||
+| [Role-Based Access Control](./admin-guides/access-controls/guides/role-templates.mdx) | ✔ | ✔ | ✔ |
+| [Just-in-Time Access Requests & Reviews](./admin-guides/access-controls/access-requests/resource-requests.mdx) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | Only can request roles through CLI  |
+|**Session recording and interactive controls.** Record, replay, join, and moderate interactive sessions:||||
+| [Session Recording with Playback](./reference/architecture/session-recording.mdx) | ✔ | ✔ | ✔ |
+| [Enhanced Session Recording](./enroll-resources/server-access/guides/bpf-session-recording.mdx) | ✔ | ✔ | ✔ |
+| [Recording Proxy Mode](./enroll-resources/server-access/guides/recording-proxy-mode.mdx) | ✖ | ✔ | ✔ |
+| Live Sessions View | SSH, Kubernetes, Desktops, Databases | SSH, Kubernetes, Desktops, Databases | SSH, Kubernetes, Desktops, Databases |
+| Protocol-Level Events, for all supported resources | ✔ | ✔ | ✔ |
+| [Dual Authorization](./admin-guides/access-controls/guides/dual-authz.mdx) | ✔ | ✔ | ✖ |
+| [Session Sharing & Moderation](./admin-guides/access-controls/guides/joining-sessions.mdx) | ✔ | ✔ | ✖ |
+|**Identity-based audit events:** ||||
+| [Structured Audit Logs](./reference/monitoring/audit.mdx) | ✔ | ✔ | ✔ |
+| [Export to SIEM](./admin-guides/management/export-audit-events/export-audit-events.mdx) | ✔ | ✔ | ✔ |
+|**Regulatory standards and frameworks:**||||
+| [FedRAMP Control](./admin-guides/access-controls/compliance-frameworks/fedramp.mdx) | ✖ | ✔ | ✖ |
+| FIPS-compliant binaries for FedRAMP (Low, Moderate, High) | ✖ | ✔ | ✖ |
+| DORA, SOX, ISO, NIS2, PCI DSS, SOC 2, HIPAA, NIST  | ✔ | ✔ | Limited |
+
+## Teleport Machine & Workload Identity
+
+**Teleport Machine & Workload Identity** is a non-human identity management
+solution that secures machine-to-machine communication with short-lived
+certificates, access control, and auditability.
+
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
+|---|:---:|:---:|:---:|
+| **Service Discovery:** Live inventory of machine and workload identities for CI/CD jobs, microservices, and others | ✔ | ✔ | ✔ |
+|**Issuance:** Provisions cryptographic identities for [machines](./enroll-resources/machine-id/getting-started.mdx) and [workloads](./enroll-resources/workload-identity/getting-started.mdx), eliminating anonymous computing and the need for static over-privileged users and automating certificate rotation | ✔ | ✔ | ✔ |
+|**Secretless Authentication:** Eliminates the need for API keys and long-term secrets with short-lived certificates.| ✔ | ✔ | ✔ |
+|**Ephemeral Authorization:** With granular ABAC/RBAC for workload interactions | ✔ | ✔ | ✔ |
+|**Auditability:** Audit data, exportable to SIEMs, for compliance reporting & reviews | ✔ | ✔ | ✔ |
+|**Integration:** Supports open-source policy agents, dev tool APIs, and Cloud IAM. Others include Jenkins, Github actions, Terraform Cloud, AWS Roles anywhere and more. | ✔ | ✔ | ✔ |
+|**HSM and TPM support** for bootstrapping, joining, and encryption | ✔ | ✔ | ✖ |
+|**Open Standards** \- JWT, SPIFFE, x509 and others to avoid vendor lock-in | ✔ | ✔ | ✔ |
+
+## Teleport Identity Governance
+
+**Teleport Identity Governance** hardens and monitors identities for both human
+and non-human identities.
+
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
+|---|:---:|:---:|:---:|
+| [JIT Access Requests](./admin-guides/access-controls/guides/dual-authz.mdx): Grant only those privileges necessary to complete the task at hand. Remove the need for super-privileged accounts. | ✔ | ✔ | Only can request roles through CLI  |
+| Automatic Access Requests & Approvals: Automate pre-defined workflows based on RBAC, ABAC, or context-based authorization. | ✔ | ✔ | ✖ |
+| [Access Lists & Access Reviews](./admin-guides/access-controls/access-lists/access-lists.mdx): Review access requests using Slack, PagerDuty, Microsoft Teams, Jira and ServiceNow. Assign managers, automate mandatory reviews, and implement custom review logic using our API and Go SDK. Integrates with AWS Identity Center. | ✔ | ✔ | ✖ |
+| [Session & Identity Locks](./admin-guides/access-controls/guides/locking.mdx): Lock suspicious or compromised identities and stop all their activity across all protocols and services. | ✔ | ✔ | ✖ |
+| [Device Trust](./admin-guides/access-controls/device-trust/guide.mdx): Require an up-to-date, registered device for each authentication. Teleport uses TPMs and secure enclaves to give every device a cryptographic identity. Restrict further by resource or MDM-authorization. | ✔ | ✔ | ✖ |
+| User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta and Entra | ✔ | ✔ | ✖ |
+| [Access Monitoring & Response](./admin-guides/access-controls/access-monitoring.mdx): Detect overly broad privileges and inspect sessions that are not using strong protection, such as multi-factor authentication or device trust. Alert on access violations and purge unused permissions with automated access rules. | ✔ | ✔ | ✖ |
+| [Okta integration](./enroll-resources/application-access/okta/okta.mdx): Configure Teleport to import and grant access to Okta applications and user groups. | ✔ | ✔ | ✖ |
+| Microsoft Entra ID directory synchronization and SSO [integration](./admin-guides/access-controls/sso/azuread.mdx) | ✔ | ✔ | ✖ |
+
+## Teleport Identity Security
+
+**Teleport Identity Security** identifies & mitigates risk in access paths.
+
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
+|---|:---:|:---:|:---:|
+| Access Graph: Import and analysis of AWS, Azure, Okta, Microsoft Entra, GitLab and AWS IAM roles | ✔ | ✔ | ✖ |
+| Discover secrets, SSH Key Scanning| ✔ | ✔ | ✖ |
+| Discover standing privileges  | ✔ | ✔ | ✖ |
+| Analyze  shadow access and drift of security posture | ✔ | ✔ | ✖ |
+| Investigate identity vulnerabilities and potential exposures | ✔ | ✔ | ✖ |
+| Monitor critical assets with [Crown Jewel](./admin-guides/teleport-policy/crown-jewels.mdx) Alerting | ✔ | ✔ | ✖ |
+
+## Platform integrations, management, licensing, and deployment
+
+|  | **Enterprise (Cloud)** | **Enterprise (Self-Hosted)** | **Community Edition** |
+|---|:---:|:---:|:---:|
+| **Integrations:** ||||
+| Infrastructure as Code (IaC): Terraform, K8s Operator | ✔ | ✔ | ✔ |
+| Cloud Providers: AWS, Azure, GCP | ✔ | ✔ | ✔ |
+| Security Information & Event Management (SIEM): Elastic, Splunk, Panther, and anything else that integrates with Fluentd | ✔ | ✔ | ✔ |
+| ITSM: ServiceNow, JIRA | ✔ | ✔ | ✖ |
+| Access Request Integration: Slack, Teams, Discord, Mattermost, PagerDuty, Opsgenie, Email | ✔ | ✔ | ✔ |
+| [Hardware Private Key Support](./admin-guides/access-controls/guides/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
+| [Hardware Security Module support](./admin-guides/deploy-a-cluster/hsm.mdx) for encryption at rest | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
+| **Management and licensing:** ||||
+| Annual or multi-year contracts, volume discounts | ✔ | ✔ | ✖ |
+| Anonymized Usage Tracking | ✔ | ✔ | Opt-in |
+| [Backend support](./reference/backends.mdx) | All data is stored in DynamoDB and S3 with server-side encryption. | Any S3-compatible storage for session records, many managed backends for custom audit log storage | Any S3-compatible storage for session records, many managed backends for custom audit log storage. |
+| Multi-region failover using Cockroach DB | ✔ | ✔ | ✖ |
+| Data storage location | Data is stored in Teleport's AWS infrastructure with audit logs/sessions optionally in customer AWS accounts. Proxy Service instances are deployed across the world for low-latency access. | Can store data anywhere in the world, on most managed cloud backends | Can store data anywhere in the world, on most managed cloud backends |
+| License | Commercial | Commercial | Commercial for binaries, with restrictions: Free usage for companies with \<100 employees and \<US$10M annual revenue. Code on GitHub distributed via AGPL-3.0  |
+| Publicly accessible domain name | A subdomain of teleport.sh | Custom | Custom |
+| [Support](https://support.goteleport.com/hc/en-us/articles/16562919750419-Priority-Support) | 24x7 (Severity 1) support with premium SLAs and account managers. | 24x7 (Severity 1) support with premium SLAs and account managers | Slack community |
+| Version support | Deploys last stable release with 2-3 week lag for stability. | All supported releases available to install and download. |  All supported releases available to install and download. |
+| **Deployment options:** ||||
+| Teleport cloud deployment | ✔ | ✖ | ✖ |
+| Self-hosted deployment| ✖ | ✔ | ✔ |
+| Multi-Region High Availability | ✔ (Teleport service) | ✔ (Customer-implemented, via a [supported blueprint](./admin-guides/deploy-a-cluster/multi-region-blueprint.mdx)) | ✖ |
+| FIPS-compliant binaries available for FedRAMP, including Low, Moderate & High | ✖ | ✔ | ✖ |
+

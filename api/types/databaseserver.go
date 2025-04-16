@@ -18,11 +18,11 @@ package types
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils"

@@ -16,16 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getContrastRatio } from '../utils/colorManipulator';
-import { lightBlue, blueGrey, yellow } from '../palette';
-import typography, { fontSizes, fontWeights } from '../typography';
 import { fonts } from '../fonts';
-
+import { blueGrey, lightBlue, yellow } from '../palette';
+import typography, { fontSizes, fontWeights } from '../typography';
+import { getContrastRatio } from '../utils/colorManipulator';
 import { SharedColors, SharedStyles } from './types';
 
 // TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work
 // by changing the minimum width on a per-view basis (Main.tsx).
 const sidebarWidth = 256;
+
+// breakpointsPx exists because while styled-system requires breakpoints to be defined as strings
+// with units, some components in our project read a container width and compare it against a
+// breakpoint – they need breakpoints to be defined as numbers.
+export const breakpointsPx = {
+  small: 600,
+  medium: 1024,
+  large: 1280,
+  700: 700,
+  900: 900,
+  1200: 1200,
+} as const;
 
 // Styles that are shared by all themes.
 export const sharedStyles: SharedStyles = {
@@ -38,15 +49,26 @@ export const sharedStyles: SharedStyles = {
   ],
   breakpoints: {
     // TODO (avatus): remove mobile/tablet/desktop breakpoints in favor of screensize descriptions
-    mobile: 400 + sidebarWidth,
-    tablet: 800 + sidebarWidth,
-    desktop: 1200 + sidebarWidth,
+    /** @deprecated Use the "small" breakpoint instead. */
+    mobile: `${400 + sidebarWidth}px`,
+    /** @deprecated Use the "medium" breakpoint instead. */
+    tablet: `${800 + sidebarWidth}px`,
+    /** @deprecated Use the "large" breakpoint instead. */
+    desktop: `${1200 + sidebarWidth}px`,
     // use these from now on
-    small: 600,
-    medium: 1024,
-    large: 1280,
+    small: `${breakpointsPx.small}px`,
+    medium: `${breakpointsPx.medium}px`,
+    large: `${breakpointsPx.large}px`,
+    700: `${breakpointsPx[700]}px`,
+    900: `${breakpointsPx[900]}px`,
+    1200: `${breakpointsPx[1200]}px`,
   },
   topBarHeight: [44, 56, 72],
+  /**
+   *
+   * idx:    0  1  2   3   4   5   6   7   8   9  10  11
+   * space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
+   */
   space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80],
   borders: [
     0,

@@ -19,7 +19,6 @@
 import { addDays, isSameDay } from 'date-fns';
 
 import { dateTimeShortFormat } from 'design/datetime';
-
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { TimeOption } from '../Shared/types';

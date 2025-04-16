@@ -21,38 +21,37 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"os"
 
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	crdgen "github.com/gravitational/teleport/integrations/operator/crdgen"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func main() {
-	log.SetLevel(log.DebugLevel)
-	log.SetOutput(os.Stderr)
+	slog.SetDefault(slog.New(logutils.NewSlogTextHandler(os.Stderr,
+		logutils.SlogTextHandlerConfig{
+			Level: slog.LevelDebug,
+		},
+	)))
 
+	ctx := context.Background()
 	inputPath := os.Getenv(crdgen.PluginInputPathEnvironment)
 	if inputPath == "" {
-		log.Error(
-			trace.BadParameter(
-				"When built with the 'debug' tag, the input path must be set through the environment variable: %s",
-				crdgen.PluginInputPathEnvironment,
-			),
-		)
+		slog.ErrorContext(ctx, "When built with the 'debug' tag, the input path must be set through the TELEPORT_PROTOC_READ_FILE environment variable")
 		os.Exit(-1)
 	}
-	log.Infof("This is a debug build, the protoc request is read from the file: '%s'", inputPath)
+	slog.InfoContext(ctx, "This is a debug build, the protoc request is read from the file", "input_path", inputPath)
 
 	req, err := crdgen.ReadRequestFromFile(inputPath)
 	if err != nil {
-		log.WithError(err).Error("error reading request from file")
+		slog.ErrorContext(ctx, "error reading request from file", "error", err)
 		os.Exit(-1)
 	}
 
 	if err := crdgen.HandleCRDRequest(req); err != nil {
-		log.WithError(err).Error("Failed to generate schema")
+		slog.ErrorContext(ctx, "Failed to generate schema", "error", err)
 		os.Exit(-1)
 	}
 }

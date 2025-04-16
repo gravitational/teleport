@@ -37,6 +37,7 @@ import { DeviceConfirmationToken } from "../../../devicetrust/v1/device_confirma
 import { DeviceWebToken } from "../../../devicetrust/v1/device_web_token_pb";
 import { UnifiedResourcePreferences } from "../../../userpreferences/v1/unified_resource_preferences_pb";
 import { ClusterUserPreferences } from "../../../userpreferences/v1/cluster_preferences_pb";
+import { WindowsDesktop } from "./windows_desktop_pb";
 import { App } from "./app_pb";
 import { Kube } from "./kube_pb";
 import { Database } from "./database_pb";
@@ -1084,6 +1085,12 @@ export interface PaginatedResource {
          */
         app: App;
     } | {
+        oneofKind: "windowsDesktop";
+        /**
+         * @generated from protobuf field: teleport.lib.teleterm.v1.WindowsDesktop windows_desktop = 6;
+         */
+        windowsDesktop: WindowsDesktop;
+    } | {
         oneofKind: undefined;
     };
     /**
@@ -1178,6 +1185,24 @@ export interface AuthenticateWebDeviceResponse {
      * @generated from protobuf field: teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
      */
     confirmationToken?: DeviceConfirmationToken;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAppRequest
+ */
+export interface GetAppRequest {
+    /**
+     * @generated from protobuf field: string app_uri = 1;
+     */
+    appUri: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetAppResponse
+ */
+export interface GetAppResponse {
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.App app = 1;
+     */
+    app?: App;
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -4809,6 +4834,7 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
             { no: 2, name: "server", kind: "message", oneof: "resource", T: () => Server },
             { no: 3, name: "kube", kind: "message", oneof: "resource", T: () => Kube },
             { no: 4, name: "app", kind: "message", oneof: "resource", T: () => App },
+            { no: 6, name: "windows_desktop", kind: "message", oneof: "resource", T: () => WindowsDesktop },
             { no: 5, name: "requires_request", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
@@ -4849,6 +4875,12 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
                         app: App.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).app)
                     };
                     break;
+                case /* teleport.lib.teleterm.v1.WindowsDesktop windows_desktop */ 6:
+                    message.resource = {
+                        oneofKind: "windowsDesktop",
+                        windowsDesktop: WindowsDesktop.internalBinaryRead(reader, reader.uint32(), options, (message.resource as any).windowsDesktop)
+                    };
+                    break;
                 case /* bool requires_request */ 5:
                     message.requiresRequest = reader.bool();
                     break;
@@ -4876,6 +4908,9 @@ class PaginatedResource$Type extends MessageType<PaginatedResource> {
         /* teleport.lib.teleterm.v1.App app = 4; */
         if (message.resource.oneofKind === "app")
             App.internalBinaryWrite(message.resource.app, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.teleterm.v1.WindowsDesktop windows_desktop = 6; */
+        if (message.resource.oneofKind === "windowsDesktop")
+            WindowsDesktop.internalBinaryWrite(message.resource.windowsDesktop, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
         /* bool requires_request = 5; */
         if (message.requiresRequest !== false)
             writer.tag(5, WireType.Varint).bool(message.requiresRequest);
@@ -5235,6 +5270,99 @@ class AuthenticateWebDeviceResponse$Type extends MessageType<AuthenticateWebDevi
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
  */
 export const AuthenticateWebDeviceResponse = new AuthenticateWebDeviceResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAppRequest$Type extends MessageType<GetAppRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAppRequest", [
+            { no: 1, name: "app_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetAppRequest>): GetAppRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.appUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetAppRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppRequest): GetAppRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string app_uri */ 1:
+                    message.appUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetAppRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string app_uri = 1; */
+        if (message.appUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.appUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppRequest
+ */
+export const GetAppRequest = new GetAppRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetAppResponse$Type extends MessageType<GetAppResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetAppResponse", [
+            { no: 1, name: "app", kind: "message", T: () => App }
+        ]);
+    }
+    create(value?: PartialMessage<GetAppResponse>): GetAppResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetAppResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetAppResponse): GetAppResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.v1.App app */ 1:
+                    message.app = App.internalBinaryRead(reader, reader.uint32(), options, message.app);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetAppResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.v1.App app = 1; */
+        if (message.app)
+            App.internalBinaryWrite(message.app, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetAppResponse
+ */
+export const GetAppResponse = new GetAppResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5278,5 +5406,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "ListUnifiedResources", options: {}, I: ListUnifiedResourcesRequest, O: ListUnifiedResourcesResponse },
     { name: "GetUserPreferences", options: {}, I: GetUserPreferencesRequest, O: GetUserPreferencesResponse },
     { name: "UpdateUserPreferences", options: {}, I: UpdateUserPreferencesRequest, O: UpdateUserPreferencesResponse },
-    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse }
+    { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
+    { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse }
 ]);

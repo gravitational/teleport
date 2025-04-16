@@ -715,6 +715,13 @@ type NewConnHandler interface {
 	HandleNewConn(ctx context.Context, ccx *ConnectionContext) (context.Context, error)
 }
 
+// NewConnHandlerFunc wraps a function to satisfy NewConnHandler interface.
+type NewConnHandlerFunc func(ctx context.Context, ccx *ConnectionContext) (context.Context, error)
+
+func (f NewConnHandlerFunc) HandleNewConn(ctx context.Context, ccx *ConnectionContext) (context.Context, error) {
+	return f(ctx, ccx)
+}
+
 type AuthMethods struct {
 	PublicKey PublicKeyFunc
 	Password  PasswordFunc

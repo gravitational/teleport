@@ -1,0 +1,8 @@
+type: workload-identity-x509
+selector:
+  name: my-workload-identity
+destination:
+  type: memory
+include_federated_trust_bundles: true
+credential_ttl: 1m0s
+renewal_interval: 30s

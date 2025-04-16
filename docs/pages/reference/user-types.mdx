@@ -50,7 +50,7 @@ authentication method required by the upstream SSO provider. Teleport is not
 aware of the authentication method not the user credentials, it trusts the IdP
 response.
 
-If `teleport.auth_service.authentication.second_factor` is `webauthn`, Teleport
+If `teleport.auth_service.authentication.second_factors` is `["webauthn"]`, Teleport
 might ask for an additional MFA for administrative actions. This protects
 against IdP compromise.
 
@@ -82,7 +82,7 @@ integration are:
 - Automatic user locking and deletion if the user is suspended or removed in the
   IdP.
 - Ability to see all users within Teleport regardless of the last login date.
-- All IdP users are displayed in Teleport Policy's Access Graph.
+- All IdP users are displayed in Access Graph.
 
 The Okta synchronization service is in charge of creating new users when they
 are created in Okta, and locking/deleting users if they get deactivated/removed

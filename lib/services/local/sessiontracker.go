@@ -20,10 +20,10 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -160,7 +160,7 @@ func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *t
 			for _, item := range noExpiry {
 				if err := s.bk.Delete(ctx, item.Key); err != nil {
 					if !trace.IsNotFound(err) {
-						logrus.WithError(err).Error("Failed to remove stale session tracker")
+						slog.ErrorContext(ctx, "Failed to remove stale session tracker", "error", err)
 					}
 				}
 			}

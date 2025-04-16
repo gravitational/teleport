@@ -48,6 +48,13 @@ type Notifications interface {
 	UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error)
 	GetUserLastSeenNotification(ctx context.Context, username string) (*notificationsv1.UserLastSeenNotification, error)
 	DeleteUserLastSeenNotification(ctx context.Context, username string) error
+
+	// UniqueNotificationIdentifier methods should not be exposed to the client since they should only ever be used internally.
+
+	CreateUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error)
+	ListUniqueNotificationIdentifiersForPrefix(ctx context.Context, prefix string, pageSize int, startKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error)
+	GetUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error)
+	DeleteUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) error
 }
 
 // ValidateNotification verifies that the necessary fields are configured for a notification object.
@@ -168,4 +175,27 @@ func MarshalUserLastSeenNotification(userLastSeenNotification *notificationsv1.U
 // UnmarshalUserLastSeenNotification unmarshals a UserLastSeenNotification resource from JSON.
 func UnmarshalUserLastSeenNotification(data []byte, opts ...MarshalOption) (*notificationsv1.UserLastSeenNotification, error) {
 	return FastUnmarshalProtoResourceDeprecated[*notificationsv1.UserLastSeenNotification](data, opts...)
+}
+
+// ValidateUniqueNotificationIdentifier verifies that the necessary fields are configured for a unique notification identifier object.
+func ValidateUniqueNotificationIdentifier(uni *notificationsv1.UniqueNotificationIdentifier) error {
+	if uni.Spec.UniqueIdentifier == "" {
+		return trace.BadParameter("unique notification identifier key is missing")
+	}
+
+	return nil
+}
+
+// MarshalUniqueNotificationIdentifier marshals a UniqueNotificationIdentifier resource to JSON.
+func MarshalUniqueNotificationIdentifier(uni *notificationsv1.UniqueNotificationIdentifier, opts ...MarshalOption) ([]byte, error) {
+	if err := ValidateUniqueNotificationIdentifier(uni); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return FastMarshalProtoResourceDeprecated(uni, opts...)
+}
+
+// UnmarshalUniqueNotificationIdentifier unmarshals a UniqueNotificationIdentifier resource from JSON.
+func UnmarshalUniqueNotificationIdentifier(data []byte, opts ...MarshalOption) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return FastUnmarshalProtoResourceDeprecated[*notificationsv1.UniqueNotificationIdentifier](data, opts...)
 }

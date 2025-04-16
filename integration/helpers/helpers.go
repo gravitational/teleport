@@ -197,9 +197,9 @@ func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl 
 }
 
 func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username string, ttl time.Duration, sshKey, tlsKey crypto.Signer) *client.KeyRing {
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 	keyRing := client.NewKeyRing(sshPriv, tlsPriv)
 	keyRing.ClusterName = tc.Secrets.SiteName
@@ -379,7 +379,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Proxy.Enabled = false
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -417,7 +417,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 		cfg.Proxy.WebAddr,
 	}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -454,7 +454,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	db, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -487,7 +487,7 @@ func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAd
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = false
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 
 	agent, err := service.NewTeleport(cfg)
 	require.NoError(t, err)

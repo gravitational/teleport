@@ -16,24 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Box, Flex, Indicator, Link, H3 } from 'design';
+import { Box, Flex, H3, Indicator, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
-
 import { P } from 'design/Text/Text';
 
-import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import useTeleport from 'teleport/useTeleport';
 
 import {
-  HeaderSubtitle,
   ActionButtons,
-  Header,
   ButtonBlueText,
+  Header,
+  HeaderSubtitle,
 } from '../../Shared';
-
-import { useIamPolicy, State } from './useIamPolicy';
-
 import type { AgentStepProps } from '../../types';
+import { State, useIamPolicy } from './useIamPolicy';
 
 export function IamPolicy(props: AgentStepProps) {
   const ctx = useTeleport();
@@ -50,7 +47,7 @@ export function IamPolicyView({
   iamPolicyName,
 }: State) {
   return (
-    <Box maxWidth="800px">
+    <>
       <Header>Configure IAM Policy</Header>
       <HeaderSubtitle>
         Teleport needs AWS IAM permissions to be able to discover and register
@@ -123,6 +120,6 @@ export function IamPolicyView({
         />
         <ActionButtons onSkip={() => nextStep(0)} />
       </Flex>
-    </Box>
+    </>
   );
 }

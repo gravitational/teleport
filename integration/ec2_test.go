@@ -21,7 +21,7 @@ package integration
 import (
 	"context"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -31,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,14 +51,9 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-func newSilentLogger() utils.Logger {
-	logger := utils.NewLoggerForTests()
-	logger.SetLevel(logrus.PanicLevel)
-	logger.SetOutput(io.Discard)
-	return logger
-}
 
 func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
@@ -71,7 +65,7 @@ func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) 
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
-	config.Log = newSilentLogger()
+	config.Logger = slog.New(logutils.DiscardHandler{})
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -92,7 +86,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 
 	config.DataDir = t.TempDir()
 	config.SetAuthServerAddress(authAddr)
-	config.Log = newSilentLogger()
+	config.Logger = slog.New(logutils.DiscardHandler{})
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -126,7 +120,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Proxy.Enabled = false
 	config.SSH.Enabled = false
 	config.Clock = clock
-	config.Log = newSilentLogger()
+	config.Logger = slog.New(logutils.DiscardHandler{})
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -150,7 +144,7 @@ func getCallerIdentity(ctx context.Context, t *testing.T) *sts.GetCallerIdentity
 		cfg.Region, err = imdsClient.GetRegion(ctx)
 		require.NoError(t, err, "trying to get local region from IMDSv2")
 	}
-	stsClient := sts.NewFromConfig(cfg)
+	stsClient := stsutils.NewFromConfig(cfg)
 	output, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	require.NoError(t, err)
 	return output
@@ -348,7 +342,7 @@ func TestEC2Labels(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Log = newSilentLogger()
+	tconf.Logger = slog.New(logutils.DiscardHandler{})
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
@@ -473,7 +467,7 @@ func TestEC2Hostname(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Log = newSilentLogger()
+	tconf.Logger = slog.New(logutils.DiscardHandler{})
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true

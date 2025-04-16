@@ -62,6 +62,14 @@ type fakeAuth struct {
 
 	lastInstance    types.Instance
 	lastRawInstance []byte
+
+	lastServerExpiry time.Time
+}
+
+func (a *fakeAuth) getLastServerExpiry() time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lastServerExpiry
 }
 
 func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -77,6 +85,7 @@ func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.Ke
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -89,6 +98,7 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -105,6 +115,7 @@ func (a *fakeAuth) UpsertDatabaseServer(_ context.Context, server types.Database
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -121,6 +132,7 @@ func (a *fakeAuth) UpsertKubernetesServer(_ context.Context, server types.KubeSe
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -128,7 +140,7 @@ func (a *fakeAuth) DeleteKubernetesServer(ctx context.Context, hostID, name stri
 	return nil
 }
 
-func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
+func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepalives++
@@ -136,6 +148,7 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 		a.failKeepAlives--
 		return trace.Errorf("keepalive failed as test condition")
 	}
+	a.lastServerExpiry = ka.Expires
 	return a.err
 }
 
@@ -244,6 +257,10 @@ func TestSSHServerBasics(t *testing.T) {
 		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
 	)
 
+	// we will check that the expiration time will grow after keepalives and new
+	// server announces
+	expiry := auth.getLastServerExpiry()
+
 	// set up to induce some failures, but not enough to cause the control
 	// stream to be closed.
 	auth.mu.Lock()
@@ -276,6 +293,9 @@ func TestSSHServerBasics(t *testing.T) {
 		deny(sshKeepAliveErr, sshUpsertErr, sshUpsertRetryOk, handlerClose),
 	)
 
+	oldExpiry, expiry := expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
+
 	err = downstream.Send(ctx, proto.InventoryHeartbeat{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
@@ -301,6 +321,9 @@ func TestSSHServerBasics(t *testing.T) {
 		expect(sshKeepAliveOk, sshUpsertErr, sshUpsertRetryOk),
 		deny(sshKeepAliveErr, handlerClose),
 	)
+
+	oldExpiry, expiry = expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -469,6 +492,19 @@ func TestAppServerBasics(t *testing.T) {
 		deny(appUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < appCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{appKeepAliveOk, appKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < appCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
@@ -494,7 +530,7 @@ func TestAppServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(appKeepAliveOk, appKeepAliveOk, appKeepAliveOk, appUpsertErr, appUpsertRetryOk),
+		expect(appUpsertErr, appUpsertRetryOk),
 		deny(appKeepAliveErr, handlerClose),
 	)
 
@@ -529,13 +565,6 @@ func TestAppServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// apps (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveAppTick, keepAliveAppTick, keepAliveAppTick),
-		deny(appKeepAliveOk, appKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -697,6 +726,19 @@ func TestDatabaseServerBasics(t *testing.T) {
 		deny(dbUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < dbCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{dbKeepAliveOk, dbKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < dbCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
@@ -722,7 +764,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(dbKeepAliveOk, dbKeepAliveOk, dbKeepAliveOk, dbUpsertErr, dbUpsertRetryOk),
+		expect(dbUpsertErr, dbUpsertRetryOk),
 		deny(dbKeepAliveErr, handlerClose),
 	)
 
@@ -757,13 +799,6 @@ func TestDatabaseServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// dbs (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveDatabaseTick, keepAliveDatabaseTick, keepAliveDatabaseTick),
-		deny(dbKeepAliveOk, dbKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -1314,6 +1349,19 @@ func TestKubernetesServerBasics(t *testing.T) {
 		deny(kubeUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < kubeCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{kubeKeepAliveOk, kubeKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < kubeCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			KubernetesServer: &types.KubernetesServerV3{
@@ -1340,7 +1388,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(kubeKeepAliveOk, kubeKeepAliveOk, kubeKeepAliveOk, kubeUpsertErr, kubeUpsertRetryOk),
+		expect(kubeUpsertErr, kubeUpsertRetryOk),
 		deny(kubeKeepAliveErr, handlerClose),
 	)
 
@@ -1375,13 +1423,6 @@ func TestKubernetesServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// apps (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveKubeTick, keepAliveKubeTick, keepAliveKubeTick),
-		deny(kubeKeepAliveOk, kubeKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure

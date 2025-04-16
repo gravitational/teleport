@@ -16,38 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Logger from 'shared/libs/logger';
-
 import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
-import webSession from 'teleport/services/websession';
-import history from 'teleport/services/history';
+import Logger from 'shared/libs/logger';
+
 import cfg, {
   UrlDbConnectParams,
   UrlKubeExecParams,
   UrlSshParams,
 } from 'teleport/config';
-import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
+import { getHostName } from 'teleport/services/api';
+import ClustersService from 'teleport/services/clusters';
+import history from 'teleport/services/history';
+import ServiceNodes from 'teleport/services/nodes';
 import serviceSession, {
-  Session,
   ParticipantList,
   ParticipantMode,
+  Session,
 } from 'teleport/services/session';
-import ServiceNodes from 'teleport/services/nodes';
-import ClustersService from 'teleport/services/clusters';
-import { StoreUserContext } from 'teleport/stores';
 import usersService from 'teleport/services/user';
+import webSession from 'teleport/services/websession';
+import { StoreUserContext } from 'teleport/stores';
 
 import {
-  StoreParties,
-  StoreDocs,
-  DocumentSsh,
-  DocumentKubeExec,
   Document,
   DocumentDb,
+  DocumentKubeExec,
+  DocumentSsh,
+  StoreDocs,
+  StoreParties,
 } from './stores';
 
 const logger = Logger.create('teleport/console');
@@ -128,8 +128,8 @@ export default class ConsoleContext {
       title: params.kubeId,
       url,
       created: new Date(),
-      mode: null,
-
+      mode: params.mode,
+      sid: params.sid,
       kubeCluster: params.kubeId,
       kubeNamespace: '',
       pod: '',
@@ -192,7 +192,9 @@ export default class ConsoleContext {
   }
 
   getKubeExecDocumentUrl(kubeExecParams: UrlKubeExecParams) {
-    return cfg.getKubeExecConnectRoute(kubeExecParams);
+    return kubeExecParams.sid
+      ? cfg.getKubeExecSessionRoute(kubeExecParams)
+      : cfg.getKubeExecConnectRoute(kubeExecParams);
   }
 
   getDbDocumentUrl(dbConnectParams: UrlDbConnectParams) {
@@ -260,6 +262,11 @@ export default class ConsoleContext {
         baseUrl = cfg.api.ttyWsAddr;
         break;
       case 'k8s':
+        ttyParams = {
+          sid,
+          mode,
+        };
+
         baseUrl = cfg.api.ttyKubeExecWsAddr;
         break;
       case 'db':

@@ -20,12 +20,12 @@ This is especially useful for:
 In this guide, we will build a small demo application to show you how to
 generate Teleport roles using Teleport's API client library.
 
-<Notice type="danger">
+<Admonition type="danger">
 
 The program we will build in this guide is intended as a learning tool. **Do not
 connect it to your production Teleport cluster.**  Use a demo cluster instead.
 
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -141,6 +141,8 @@ namespace/app created
 role.rbac.authorization.k8s.io/pod-reader created
 rolebinding.rbac.authorization.k8s.io/read-pods created
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 Next, define a cluster role and cluster role binding that allow users in the
 `ops` group to read, create, and execute commands on pods in all namespaces. Add
@@ -324,7 +326,7 @@ Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
 
 ```code
-$ tctl tokens add --type=kube,app,discovery --ttl=10000h --format=json
+$ tctl tokens add --type=kube,app,discovery --format=text
 ```
 
 Copy this token so you can use it when running the Teleport Kubernetes Service.

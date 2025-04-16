@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode } from 'react';
-
+import { Fragment, ReactNode } from 'react';
 import { useTheme } from 'styled-components';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
 import Flex from '../Flex';
 import Text from '../Text';
-
-import { TeleportGearIcon } from './TeleportGearIcon';
 import { SVGIconProps } from './common';
+import { TeleportGearIcon } from './TeleportGearIcon';
 
 export default {
   title: 'Design/Icon',
@@ -40,14 +38,14 @@ export const CustomIcons = () => {
         const size = 64;
 
         return (
-          <>
+          <Fragment key={icon}>
             <IconBox text={icon}>
               <IconContainer Icon={S} size={size} />
             </IconBox>
             <IconBox text={icon}>
               <IconCircle Icon={S} size={size} />
             </IconBox>
-          </>
+          </Fragment>
         );
       })}
     </Flex>

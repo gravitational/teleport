@@ -31,13 +31,16 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -203,6 +206,10 @@ type Identity struct {
 
 	// UserType indicates if the User was created by an SSO Provider or locally.
 	UserType types.UserType
+
+	// JoinAttributes holds the attributes that resulted from the
+	// Bot/Agent join process.
+	JoinAttributes *workloadidentityv1pb.JoinAttrs
 }
 
 // RouteToApp holds routing information for applications.
@@ -556,6 +563,13 @@ var (
 	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
 	// instance identifier into a certificate.
 	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
+
+	// JoinAttributesASN1ExtensionOID is an extension that encodes the
+	// attributes that resulted from the Bot/Agent join process.
+	JoinAttributesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
+
+	// ADStatusOID is an extension OID used to indicate that we're connecting to AD-joined desktop.
+	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
 )
 
 // Device Trust OIDs.
@@ -895,6 +909,24 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if id.JoinAttributes != nil && shouldPersistJoinAttrs() {
+		encoded, err := protojson.MarshalOptions{
+			// Use the proto field names as this is what we use in the
+			// templating engine and this being consistent for any user who
+			// inspects the cert is kind.
+			UseProtoNames: true,
+		}.Marshal(id.JoinAttributes)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err, "encoding join attributes as protojson")
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  JoinAttributesASN1ExtensionOID,
+				Value: string(encoded),
+			},
+		)
+	}
+
 	// Device extensions.
 	if devID := id.DeviceExtensions.DeviceID; devID != "" {
 		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
@@ -1158,6 +1190,19 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if val, ok := attr.Value.(string); ok {
 				id.UserType = types.UserType(val)
 			}
+		case attr.Type.Equal(JoinAttributesASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.JoinAttributes = &workloadidentityv1pb.JoinAttrs{}
+				unmarshaler := protojson.UnmarshalOptions{
+					// We specifically want to DiscardUnknown or unmarshaling
+					// will fail if the proto message was issued by a newer
+					// auth server w/ new fields.
+					DiscardUnknown: true,
+				}
+				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 	}
 
@@ -1311,4 +1356,11 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), nil
+}
+
+// shouldPersistJoinAttrs returns true if the join attributes should be persisted
+// into the X509 identity. This provides an emergency "off" handle for this
+// new behavior until we are confident it is working as expected.
+func shouldPersistJoinAttrs() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_JOIN_ATTRS") != "yes"
 }

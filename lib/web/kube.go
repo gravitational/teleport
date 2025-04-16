@@ -21,6 +21,8 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -30,9 +32,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -47,13 +49,15 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
-// podHandler connects Kube exec session and web-based terminal via a websocket.
-type podHandler struct {
+// podExecHandler connects Kube exec session and web-based terminal via a websocket.
+type podExecHandler struct {
 	teleportCluster     string
 	configTLSServerName string
 	configServerAddr    string
@@ -62,7 +66,6 @@ type podHandler struct {
 	sctx                *SessionContext
 	ws                  *websocket.Conn
 	keepAliveInterval   time.Duration
-	log                 *logrus.Entry
 	logger              *slog.Logger
 	userClient          authclient.ClientI
 	localCA             types.CertAuthority
@@ -122,7 +125,7 @@ func (r *PodExecRequest) Validate() error {
 
 // ServeHTTP sends session metadata to web UI to signal beginning of the session, then
 // handles Kube exec request and connects it to web based terminal input/output.
-func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
+func (p *podExecHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 	// Allow closing websocket if the user logs out before exiting
 	// the session.
 	p.sctx.AddClosers(p)
@@ -130,7 +133,10 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: p.sess})
 	if err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "failed marshaling session data", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
 		return
 	}
 
@@ -142,30 +148,39 @@ func (p *podHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "failed marshaling message envelope", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
+
 		return
 	}
 
 	err = p.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "failed write session data message", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
+
 		return
 	}
 
 	if err := p.handler(r); err != nil {
-		p.sendAndLogError(err)
+		p.logger.ErrorContext(r.Context(), "handling kube session unexpectedly terminated", "error", err)
+		if err := p.sendErrorMessage(err); err != nil {
+			p.logger.ErrorContext(r.Context(), "failed to send error message to client", "error", err)
+		}
 	}
 }
 
-func (p *podHandler) Close() error {
+func (p *podExecHandler) Close() error {
 	return trace.Wrap(p.ws.Close())
 }
 
-func (p *podHandler) sendAndLogError(err error) {
-	p.log.Error(err)
-
+func (p *podExecHandler) sendErrorMessage(err error) error {
 	if p.closedByClient.Load() {
-		return
+		return nil
 	}
 
 	envelope := &terminal.Envelope{
@@ -176,16 +191,17 @@ func (p *podHandler) sendAndLogError(err error) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		p.log.WithError(err).Error("failed to marshal error message")
-		return
+		return trace.Wrap(err, "creating envelope payload")
 	}
 	if err := p.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
-		p.log.WithError(err).Error("failed to send error message")
+		return trace.Wrap(err, "writing error message")
 	}
+
+	return nil
 }
 
-func (p *podHandler) handler(r *http.Request) error {
-	p.log.Debug("Creating websocket stream for a kube exec request")
+func (p *podExecHandler) handler(r *http.Request) error {
+	p.logger.DebugContext(r.Context(), "Creating websocket stream for a kube exec request")
 
 	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
@@ -196,7 +212,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	defaultCloseHandler := p.ws.CloseHandler()
 	p.ws.SetCloseHandler(func(code int, text string) error {
 		p.closedByClient.Store(true)
-		p.log.Debug("websocket connection was closed by client")
+		p.logger.DebugContext(r.Context(), "websocket connection was closed by client")
 
 		cancel()
 		// Call the default close handler if one was set.
@@ -229,7 +245,13 @@ func (p *podHandler) handler(r *http.Request) error {
 		Width:  p.req.Term.Winsize().Width,
 		Height: p.req.Term.Winsize().Height,
 	})
-	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: p.ws, Logger: p.log, Handlers: map[string]terminal.WSHandlerFunc{defaults.WebsocketResize: p.handleResize(resizeQueue)}})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{
+		WS:     p.ws,
+		Logger: p.logger,
+		Handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketResize: p.handleResize(resizeQueue),
+		},
+	})
 
 	certsReq := clientproto.UserCertsRequest{
 		TLSPublicKey:      publicKeyPEM,
@@ -284,7 +306,7 @@ func (p *podHandler) handler(r *http.Request) error {
 	}
 
 	kubeReq.VersionedParams(option, scheme.ParameterCodec)
-	p.log.Debugf("Web kube exec request URL: %s", kubeReq.URL())
+	p.logger.DebugContext(ctx, "Web kube exec request created", "url", logutils.StringerAttr(kubeReq.URL()))
 
 	wsExec, err := remotecommand.NewWebSocketExecutor(restConfig, "POST", kubeReq.URL().String())
 	if err != nil {
@@ -315,37 +337,37 @@ func (p *podHandler) handler(r *http.Request) error {
 	if p.req.IsInteractive {
 		// Send close envelope to web terminal upon exit without an error.
 		if err := stream.SendCloseMessage(""); err != nil {
-			p.log.WithError(err).Error("unable to send close event to web client.")
+			p.logger.ErrorContext(ctx, "unable to send close event to web client", "error", err)
 		}
 	}
 
 	if err := stream.Close(); err != nil {
-		p.log.WithError(err).Error("unable to close websocket stream to web client.")
+		p.logger.ErrorContext(ctx, "unable to close websocket stream to web client", "error", err)
 		return nil
 	}
 
-	p.log.Debug("Sent close event to web client.")
+	p.logger.DebugContext(ctx, "Sent close event to web client", "error", err)
 
 	return nil
 }
 
-func (p *podHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, terminal.Envelope) {
+func (p *podExecHandler) handleResize(termSizeQueue *termSizeQueue) func(context.Context, terminal.Envelope) {
 	return func(ctx context.Context, envelope terminal.Envelope) {
 		var e map[string]any
 		if err := json.Unmarshal([]byte(envelope.Payload), &e); err != nil {
-			p.log.Warnf("Failed to parse resize payload: %v", err)
+			p.logger.WarnContext(ctx, "Failed to parse resize payload", "error", err)
 			return
 		}
 
 		size, ok := e["size"].(string)
 		if !ok {
-			p.log.Errorf("expected size to be of type string, got type %T instead", size)
+			p.logger.ErrorContext(ctx, "got unexpected size type, expected type string", "size_type", logutils.TypeAttr(size))
 			return
 		}
 
 		params, err := session.UnmarshalTerminalParams(size)
 		if err != nil {
-			p.log.Warnf("Failed to retrieve terminal size: %v", err)
+			p.logger.WarnContext(ctx, "Failed to retrieve terminal size", "error", err)
 			return
 		}
 
@@ -406,3 +428,192 @@ func createKubeRestConfig(serverAddr, tlsServerName string, ca types.CertAuthori
 		},
 	}, nil
 }
+
+func (h *Handler) joinKubernetesSession(
+	ctx context.Context,
+	sessionID string,
+	mode types.SessionParticipantMode,
+	sctx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+	ws *websocket.Conn,
+) error {
+	h.logger.InfoContext(ctx, "Attempting to join kubernetes existing session",
+		"session_id", sessionID,
+		"mode", mode,
+		"user", sctx.GetUser(),
+	)
+
+	if _, err := session.ParseID(sessionID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tracker, err := clt.GetSessionTracker(ctx, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if tracker.GetSessionKind() != types.KubernetesSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
+		return trace.NotFound("Kubernetes session %v not found", sessionID)
+	}
+
+	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: session.Session{
+		Kind:                  types.KubernetesSessionKind,
+		ID:                    session.ID(tracker.GetName()),
+		Login:                 tracker.GetLogin(),
+		KubernetesClusterName: tracker.GetKubeCluster(),
+		ServerHostname:        tracker.GetHostname(),
+	}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{
+		WS:     ws,
+		Logger: h.logger,
+		// Disable all out of band handling of requests
+		Handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketResize:               func(ctx context.Context, envelope terminal.Envelope) {},
+			defaults.WebsocketFileTransferRequest:  func(ctx context.Context, envelope terminal.Envelope) {},
+			defaults.WebsocketFileTransferDecision: func(ctx context.Context, envelope terminal.Envelope) {},
+		},
+	})
+
+	envelopeBytes, err := gogoproto.Marshal(&terminal.Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketSessionMetadata,
+		Payload: string(sessionMetadataResponse),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := stream.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+		return trace.Wrap(err)
+	}
+
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kubeAddr, tlsServerName, err := h.getKubeExecClusterData(netConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
+	if err != nil {
+		return trace.Wrap(err, "failed getting user private key from the session")
+	}
+
+	privateKeyPEM, err := pk.SoftwarePrivateKeyPEM()
+	if err != nil {
+		return trace.Wrap(err, "failed getting software private key")
+	}
+	publicKeyPEM, err := keys.MarshalPublicKey(pk.Public())
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal public key")
+	}
+
+	certsReq := clientproto.UserCertsRequest{
+		TLSPublicKey:      publicKeyPEM,
+		Username:          sctx.GetUser(),
+		Expires:           sctx.cfg.Session.GetExpiryTime(),
+		Format:            constants.CertificateFormatStandard,
+		RouteToCluster:    tracker.GetClusterName(),
+		KubernetesCluster: tracker.GetKubeCluster(),
+		Usage:             clientproto.UserCertsRequest_Kubernetes,
+	}
+
+	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+		CurrentAuthClient: clt,
+		RootAuthClient:    sctx.cfg.RootClient,
+		MFACeremony:       newMFACeremony(stream.WSStream, sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFAAgainstRoot:    sctx.cfg.RootClusterName == tracker.GetClusterName(),
+		MFARequiredReq: &clientproto.IsMFARequiredRequest{
+			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: tracker.GetKubeCluster()},
+		},
+		CertsReq: &certsReq,
+	})
+	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
+		return trace.Wrap(err, "failed performing mfa ceremony")
+	}
+
+	if certs == nil {
+		certs, err = sctx.cfg.RootClient.GenerateUserCerts(ctx, certsReq)
+		if err != nil {
+			return trace.Wrap(err, "failed issuing user certs")
+		}
+	}
+
+	hostCA, err := h.auth.accessPoint.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: h.auth.clusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	certPool := x509.NewCertPool()
+	for _, keyPair := range hostCA.GetTrustedTLSKeyPairs() {
+		if ok := certPool.AppendCertsFromPEM(keyPair.Cert); !ok {
+			return trace.BadParameter("invalid ca format")
+		}
+	}
+
+	session, err := client.NewKubeSession(ctx,
+		client.KubeSessionConfig{
+			KubeProxyAddr:                 strings.TrimPrefix(kubeAddr, "https://"),
+			WebProxyAddr:                  h.cfg.ProxyWebAddr.String(),
+			TLSRoutingConnUpgradeRequired: netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex,
+			EnableEscapeSequences:         true,
+			Tracker:                       tracker,
+			TLSConfig: &tls.Config{
+				RootCAs:    certPool,
+				ServerName: tlsServerName,
+				GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+					cert, err := tls.X509KeyPair(certs.TLS, privateKeyPEM)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					return &cert, nil
+				},
+			},
+			Mode: mode,
+			AuthClient: func(ctx context.Context) (authclient.ClientI, error) {
+				return noopAuthClientCloser{clt}, nil
+			},
+			Ceremony: newMFACeremony(stream.WSStream, nil),
+			Stdin:    stream,
+			Stdout:   stream,
+			Stderr:   stderrWriter{stream: stream},
+		})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session.Wait()
+
+	if err := session.Detach(); err != nil && !terminal.IsOKWebsocketCloseError(err) {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+type noopAuthClientCloser struct {
+	authclient.ClientI
+}
+
+func (noopAuthClientCloser) Close() error { return nil }

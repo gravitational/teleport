@@ -498,6 +498,9 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindHealthCheckConfig is the resource for health check configuration.
+	KindHealthCheckConfig = "health_check_config"
+
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -556,6 +559,8 @@ const (
 	KindUserLastSeenNotification = "user_last_seen_notification"
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
+	// KindUniqueNotificationIdentifier is a resource which tracks a unique identifier for a notification and is used to prevent duplicate notifications in certain cases.
+	KindUniqueNotificationIdentifier = "unique_notification_identifier"
 
 	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
 	// a Teleport SSH node type.
@@ -605,10 +610,29 @@ const (
 	// KindWorkloadIdentity is the WorkloadIdentity resource.
 	KindWorkloadIdentity = "workload_identity"
 
+	// KindWorkloadIdentityX509Revocation is the WorkloadIdentityX509Revocation
+	// resource.
+	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
+
+	// KindWorkloadIdentityX509IssuerOverride is the kind of
+	// teleport.workloadidentity.v1.X509IssuerOverride.
+	KindWorkloadIdentityX509IssuerOverride = "workload_identity_x509_issuer_override"
+
+	// KindWorkloadIdentityX509IssuerOverrideCSR is the pseudo-kind representing
+	// the act of signing CSRs on behalf of the SPIFFE CA (with [VerbCreate]).
+	KindWorkloadIdentityX509IssuerOverrideCSR = "workload_identity_x509_issuer_override_csr"
+
+	// KindSigstorePolicy is the kind of teleport.workloadidentity.v1.SigstorePolicy.
+	KindSigstorePolicy = "sigstore_policy"
+
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
 	SubKindGitHub = "github"
+
+	// KindStableUNIXUser is the RBAC-only kind to refer to interactions with
+	// stable UNIX users.
+	KindStableUNIXUser = "stable_unix_user"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
@@ -837,10 +861,14 @@ const (
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
 	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
 	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+	// DiscoveryPathLabel optionally specifies a context path for apps created from Kubernetes services.
+	DiscoveryPathLabel = TeleportNamespace + "/path"
 	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
 	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
+	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
+	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1164,6 +1192,39 @@ const (
 	NotificationAccessRequestDeniedSubKind = "access-request-denied"
 	// NotificationAccessRequestPromotedSubKind is the subkind for a notification for a user's access request being promoted to an access list.
 	NotificationAccessRequestPromotedSubKind = "access-request-promoted"
+
+	// NotificationAccessListReviewDue14dSubKind is the subkind for a notification for an access list review due in less than 14 days.
+	NotificationAccessListReviewDue14dSubKind = "access-list-review-due-14d"
+
+	// NotificationAccessListReviewDue7dSubKind is the subkind for a notification for an access list review due in less than 7 days.
+	NotificationAccessListReviewDue7dSubKind = "access-list-review-due-7d"
+
+	// NotificationAccessListReviewDue3dSubKind is the subkind for a notification for an access list review due in less than 3 days.
+	NotificationAccessListReviewDue3dSubKind = "access-list-review-due-3d"
+
+	// NotificationAccessListReviewDue0dSubKind is the subkind for a notification for an access list review due today.
+	NotificationAccessListReviewDue0dSubKind = "access-list-review-due-0d"
+
+	// NotificationAccessListReviewOverdue3dSubKind is the subkind for a notification for an access list review overdue by 3 days.
+	NotificationAccessListReviewOverdue3dSubKind = "access-list-review-overdue-3d"
+
+	// NotificationAccessListReviewOverdue7dSubKind is the subkind for a notification for an access list review overdue by 7 days.
+	NotificationAccessListReviewOverdue7dSubKind = "access-list-review-overdue-7d"
+)
+
+const (
+	// NotificationIdentifierPrefixAccessListDueReminder14d is the prefix for unique notification identifiers for 14d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder14d = "access_list_14d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder7d is the prefix for unique notification identifiers for 7d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder7d = "access_list_7d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder3d is the prefix for unique notification identifiers for 3d access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder3d = "access_list_3d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder0d is the prefix for unique notification identifiers for 0d (today) access list review reminders.
+	NotificationIdentifierPrefixAccessListDueReminder0d = "access_list_0d_due_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder30d is the prefix for unique notification identifiers for 3d overdue access list review reminders.
+	NotificationIdentifierPrefixAccessListOverdue3d = "access_list_3d_overdue_reminder"
+	// NotificationIdentifierPrefixAccessListDueReminder30d is the prefix for unique notification identifiers for 7d overdue access list review reminders.
+	NotificationIdentifierPrefixAccessListOverdue7d = "access_list_7d_overdue_reminder"
 )
 
 const (
@@ -1186,6 +1247,7 @@ const (
 	InstanceMetadataTypeEC2      InstanceMetadataType = "EC2"
 	InstanceMetadataTypeAzure    InstanceMetadataType = "Azure"
 	InstanceMetadataTypeGCP      InstanceMetadataType = "GCP"
+	InstanceMetadataTypeOracle   InstanceMetadataType = "Oracle"
 )
 
 // OriginValues lists all possible origin values.
@@ -1496,5 +1558,19 @@ const (
 const (
 	// GitHubOrgServerDomain is the sub domain used in the hostname of a
 	// types.Server to indicate the GitHub organization of a Git server.
-	GitHubOrgServerDomain = "github-org"
+	GitHubOrgServerDomain = "teleport-github-org"
 )
+
+// AccessMonitoringRuleState specifies the desired state of an access monitoring
+// rule subject.
+type AccessMonitoringRuleState string
+
+const (
+	// AccessMonitoringRuleStateReviewed indicates that the access monitoring
+	// rule subject should be reviewed.
+	AccessMonitoringRuleStateReviewed = "reviewed"
+)
+
+// BuiltInAutomaticReview is used within access monitoring rules and indicates
+// that the automatic_review rule should be monitored by Teleport.
+const BuiltInAutomaticReview = "builtin"

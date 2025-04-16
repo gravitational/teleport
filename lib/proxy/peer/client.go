@@ -781,7 +781,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 			Timeout:             peerTimeout,
 			PermitWithoutStream: true,
 		}),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin": {}}]}`),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "Error dialing proxy %q", params.peerID)

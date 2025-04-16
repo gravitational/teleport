@@ -1,119 +1,4 @@
 {
-  "navigation": [
-    {
-      "icon": "home",
-      "title": "Get Started",
-      "entries": [
-        {
-          "title": "Introduction to Teleport",
-          "slug": "/"
-        },
-        {
-           "title": "Get Started",
-           "slug": "/get-started/"
-        },
-        {
-          "title": "Core Concepts",
-          "slug": "/core-concepts/"
-        },
-        {
-          "title": "Installation",
-          "slug": "/installation/"
-        },
-        {
-          "title": "Upgrading",
-          "slug": "/upgrading/upgrading/",
-          "entries": [
-            {
-              "title": "Compatibility Overview",
-              "slug": "/upgrading/overview/"
-            },
-            {
-              "title": "Set up Automatic Agent Updates",
-              "slug": "/upgrading/automatic-agent-updates/"
-            },
-            {
-              "title": "Upgrading Reference",
-              "slug": "/upgrading/upgrading-reference/"
-	    }
-          ]
-        },
-        {
-          "title": "FAQ",
-          "slug": "/faq/"
-        },
-        {
-          "title": "Usage Reporting and Billing",
-          "slug": "/usage-billing/",
-          "forScopes": ["cloud", "enterprise"]
-        },
-        {
-          "title": "Upcoming Releases",
-          "slug": "/upcoming-releases/"
-        },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
-        {
-          "title": "Changelog",
-          "slug": "/changelog/"
-        }
-      ]
-    },
-    {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
-    },
-    {
-      "icon": "connect",
-      "title": "User Guides",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/connect-your-client/introduction/"
-        },
-        {
-          "title": "Using tsh",
-          "slug": "/connect-your-client/tsh/"
-        },
-        {
-          "title": "Using the Web UI",
-          "slug": "/connect-your-client/web-ui/"
-        },
-        {
-          "title": "Using Teleport Connect",
-          "slug": "/connect-your-client/teleport-connect/"
-        },
-        {
-          "title": "Using VNet",
-          "slug": "/connect-your-client/vnet/"
-        },
-        {
-          "title": "Using PuTTY and WinSCP",
-          "slug": "/connect-your-client/putty-winscp/"
-        },
-        {
-          "title": "Database GUI Clients",
-          "slug": "/connect-your-client/gui-clients/"
-        }
-      ]
-    },
-    {
-      "title": "Enroll Resources",
-      "icon": "layers",
-      "generateFrom": "enroll-resources",
-      "entries": []
-    },
-    {
-      "icon": "book",
-      "title": "References",
-      "entries": [],
-      "generateFrom": "reference"
-    }
-  ],
   "variables": {
     "clusterDefaults": {
       "clusterName": "teleport.example.com",
@@ -132,8 +17,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "16.4.9",
-      "major_version": "16",
+      "version": "17.4.1",
+      "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -193,7 +78,7 @@
       "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
       "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
       "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
+      "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
       "version": "1.0.0"
@@ -209,5 +94,207 @@
       }
     }
   },
-  "redirects": []
+  "redirects": [
+    {
+      "source": "/admin-guides/access-controls/guides/moderated-sessions/",
+      "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
+      "destination": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/deployments/ibm/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/ibm/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_githubconnectors/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-githubconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_loginrules/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-loginrules/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_oidcconnectors/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-oidcconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_oktaimportrules/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-oktaimportrules/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_openssheiceserversv2/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-openssheiceserversv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_opensshserversv2/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-opensshserversv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_provisiontokens/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-provisiontokens/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_roles/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-roles/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_rolesv6/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-rolesv6/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_rolesv7/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-rolesv7/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_samlconnectors/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-samlconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_users/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-users/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/workload-identity/workload-attestation/",
+      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+       "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/role-templates/",
+      "destination": "/admin-guides/access-controls/guides/role-templates/",
+      "permanent": true
+    },
+    {
+
+      "source": "/enterprise/sso/",
+      "destination": "/admin-guides/access-controls/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/headless/",
+      "destination": "/admin-guides/access-controls/guides/headless/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/okta/hosted-guide/",
+      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/architecture/tls-routing/",
+      "destination": "/reference/architecture/tls-routing/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/",
+      "destination": "/enroll-resources/desktop-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/google-workspace/",
+      "destination": "/admin-guides/access-controls/sso/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/",
+      "destination": "/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/introduction/",
+      "destination": "/enroll-resources/machine-id/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/reference/telemetry/",
+      "destination": "/reference/machine-id/telemetry/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/reference/v16-upgrade-guide/",
+      "destination": "/reference/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/management/export-audit-events/fluentd/",
+      "destination": "/admin-guides/management/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/github-sso/",
+      "destination": "/admin-guides/access-controls/sso/github-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/device-trust/guide/",
+      "destination": "/admin-guides/access-controls/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/",
+      "destination": "/admin-guides/access-controls/sso/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/access-request-plugins/",
+      "destination": "/admin-guides/access-controls/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/automatic-agent-updates/",
+      "destination": "/upgrading/agent-managed-updates-v1/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/compliance-frameworks/fedramp/",
+      "destination": "/admin-guides/access-controls/compliance-frameworks/fedramp/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/introduction/",
+      "destination": "/enroll-resources/server-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/",
+      "destination": "/reference/agent-services/auto-discovery-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
+      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/kubernetes-application-discovery/",
+      "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
+    }
+  ]
 }

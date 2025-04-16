@@ -17,8 +17,9 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { Flex, H3 } from 'design';
 import styled from 'styled-components';
+
+import { Flex, H3 } from 'design';
 
 import { MenuLogin } from './MenuLogin';
 import { LoginItem, MenuLoginHandle } from './types';

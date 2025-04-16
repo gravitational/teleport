@@ -22,12 +22,16 @@ import (
 	"context"
 
 	"github.com/distribution/reference"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/gravitational/trace"
 	"github.com/opencontainers/go-digest"
+	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 )
 
 type insecureValidator struct {
-	name string
+	name            string
+	registryOptions []ociremote.Option
 }
 
 // Name returns the validator name
@@ -47,7 +51,7 @@ func (v *insecureValidator) Name() string {
 // image is valid. Using this validator makes you vulnerable in case of image
 // registry compromise.
 func (v *insecureValidator) ValidateAndResolveDigest(ctx context.Context, image reference.NamedTagged) (NamedTaggedDigested, error) {
-	ref, err := NamedTaggedToDigest(image)
+	ref, err := NamedTaggedToDigest(image, v.registryOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -59,8 +63,9 @@ func (v *insecureValidator) ValidateAndResolveDigest(ctx context.Context, image 
 // NewInsecureValidator returns an img.Validator that only resolves the image
 // but does not check its signature. This must not be confused with
 // NewNopValidator that returns a validator that always validate without resolving.
-func NewInsecureValidator(name string) Validator {
+func NewInsecureValidator(name string, keyChain authn.Keychain) Validator {
 	return &insecureValidator{
-		name: name,
+		name:            name,
+		registryOptions: []ociremote.Option{ociremote.WithRemoteOptions(remote.WithAuthFromKeychain(keyChain))},
 	}
 }

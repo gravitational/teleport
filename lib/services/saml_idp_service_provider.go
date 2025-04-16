@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"slices"
 	"strings"
@@ -28,7 +29,6 @@ import (
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -90,7 +90,7 @@ func UnmarshalSAMLIdPServiceProvider(data []byte, opts ...MarshalOption) (types.
 	case types.V1:
 		var s types.SAMLIdPServiceProviderV1
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -139,7 +139,10 @@ func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor, quiet bool) error {
 		filtered := slices.DeleteFunc(ed.SPSSODescriptors[i].AssertionConsumerServices, func(acs saml.IndexedEndpoint) bool {
 			if err := ValidateAssertionConsumerService(acs); err != nil {
 				if !quiet {
-					log.Warnf("AssertionConsumerService binding for entity %q is invalid and will be ignored: %v", ed.EntityID, err)
+					slog.WarnContext(context.Background(), "AssertionConsumerService binding for entity is invalid and will be ignored",
+						"entity_id", ed.EntityID,
+						"error", err,
+					)
 				}
 				return true
 			}

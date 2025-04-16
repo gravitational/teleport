@@ -169,7 +169,7 @@ manually set the `SSL_CERT_FILE` or `SSL_CERT_DIR` environment variable on the
 command line. For example:
 
 ```code
-sudo SSL_CERT_FILE=<Var name="path-to-rootCA-pem" /> teleport start --config=/etc/teleport.yaml
+sudo SSL_CERT_FILE="path/to/rootCA-pem" teleport start --config=/etc/teleport.yaml
 ```
 
 You should specify the `SSL_CERT_FILE` and `SSL_CERT_DIR` environment variables as command-line
@@ -194,7 +194,10 @@ about a user's Teleport roles or traits, you can configure Teleport to omit
 this information from the JWT. This will result in a smaller JWT that is less
 likely to exceed the limit.
 
+{/* vale messaging.protocol-products = NO */}
 This configuration is available under the `jwt_claims` property of the
 application's `rewrite` configuration. See
 [Web Application Access](./guides/connecting-apps.mdx#configuring-the-jwt-token)
 for details.
+{/* vale messaging.protocol-products = YES */}
+

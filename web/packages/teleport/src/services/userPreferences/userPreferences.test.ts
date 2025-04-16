@@ -21,17 +21,16 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
 import {
-  getCurrentTheme,
-  getNextTheme,
-  updateFavicon,
-} from 'teleport/ThemeProvider';
-
-import {
   BackendUserPreferences,
   convertBackendUserPreferences,
   convertUserPreferences,
   isBackendUserPreferences,
 } from 'teleport/services/userPreferences/userPreferences';
+import {
+  getCurrentTheme,
+  getNextTheme,
+  updateFavicon,
+} from 'teleport/ThemeProvider';
 
 test('should convert the old cluster user preferences format to the new one', () => {
   // this is how the backend currently returns cluster preferences - as an array of strings

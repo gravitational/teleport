@@ -19,16 +19,17 @@
 import React, { useState } from 'react';
 
 import { Flex, Link } from 'design';
-import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { CheckboxInput } from 'design/Checkbox';
+import Table, { Cell } from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 import { IconTooltip } from 'design/Tooltip';
-
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { SecurityGroup } from 'teleport/services/integrations';
-import { SecurityGroupRule } from 'teleport/services/integrations';
+import {
+  SecurityGroup,
+  SecurityGroupRule,
+} from 'teleport/services/integrations';
 
 import { SecurityGroupRulesDialog } from './SecurityGroupRulesDialog';
 

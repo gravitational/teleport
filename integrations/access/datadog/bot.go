@@ -162,7 +162,7 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
 	teamNames, err := common.GetNamesFromAnnotations(req, annotationKey)
 	if err != nil {
-		log.Debug("Automatic approvals annotation is empty or unspecified.")
+		log.DebugContext(ctx, "Automatic approvals annotation is empty or unspecified")
 		return nil, nil
 	}
 

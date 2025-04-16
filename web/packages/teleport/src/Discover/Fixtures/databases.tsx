@@ -16,39 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
-
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-  ResourceSpec,
-} from 'teleport/Discover/SelectResource';
+import { DbMeta } from 'teleport/Discover/useDiscover';
+import { IamPolicyStatus } from 'teleport/services/databases';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { DbMeta } from 'teleport/Discover/useDiscover';
-import { IamPolicyStatus } from 'teleport/services/databases';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
 
-import { DATABASES } from '../SelectResource/databases';
-import { ResourceKind } from '../Shared';
+import { DATABASES } from '../SelectResource/resources';
 
-import { TeleportProvider } from './fixtures';
+export const resourceSpecAwsRdsPostgres = DATABASES.find(
+  d => d.id === DiscoverGuideId.DatabaseAwsRdsPostgres
+);
 
-export function getDbResourceSpec(
-  engine: DatabaseEngine,
-  location?: DatabaseLocation
-): ResourceSpec {
-  return {
-    ...DATABASES[0],
-    dbMeta: {
-      engine,
-      location,
-    },
-  };
-}
+export const resourceSpecAwsRdsAuroraMysql = DATABASES.find(
+  d => d.id === DiscoverGuideId.DatabaseAwsRdsAuroraMysql
+);
 
-export function getDbMeta(): DbMeta {
+export const resourceSpecAwsRdsMySql = DATABASES.find(
+  d => d.id === DiscoverGuideId.DatabaseAwsRdsMysqlMariaDb
+);
+
+export const resourceSpecSelfHostedPostgres = DATABASES.find(
+  d => d.id === DiscoverGuideId.DatabasePostgres
+);
+
+export const resourceSpecSelfHostedMysql = DATABASES.find(
+  d => d.id === DiscoverGuideId.DatabaseMysql
+);
+
+export function getSelectedAwsPostgresDbMeta(): DbMeta {
   return {
     resourceName: 'db-name',
     awsRegion: 'us-east-1',
@@ -100,18 +98,3 @@ export function getDbMeta(): DbMeta {
     },
   };
 }
-
-export const ComponentWrapper: React.FC<
-  PropsWithChildren<{ resourceSpec?: ResourceSpec; dbMeta?: DbMeta }>
-> = ({ children, resourceSpec, dbMeta }) => (
-  <TeleportProvider
-    agentMeta={dbMeta || getDbMeta()}
-    resourceKind={ResourceKind.Database}
-    resourceSpec={
-      resourceSpec ||
-      getDbResourceSpec(DatabaseEngine.Postgres, DatabaseLocation.Aws)
-    }
-  >
-    {children}
-  </TeleportProvider>
-);

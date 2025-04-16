@@ -182,7 +182,7 @@ func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Sess
 }
 
 // managedUserCredFetchFunc fetches user password on the fly.
-func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.Auth, users common.Users) fetchCredentialsFunc {
+func managedUserCredFetchFunc(sessionCtx *common.Session, users common.Users) fetchCredentialsFunc {
 	return func(ctx context.Context) (string, string, error) {
 		username := sessionCtx.DatabaseUser
 		password, err := users.GetPassword(ctx, sessionCtx.Database, username)

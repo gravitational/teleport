@@ -15,7 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
-// +build vnetdaemon
 
 package common
 
@@ -34,6 +33,8 @@ const (
 	vnetDaemonSubCommand = "vnet-daemon"
 )
 
+// vnetDaemonCommand implements the vnet-daemon subcommand to run the VNet MacOS
+// daemon.
 type vnetDaemonCommand struct {
 	*kingpin.CmdClause
 	// Launch daemons added through SMAppService are launched from a static .plist file, hence
@@ -41,7 +42,7 @@ type vnetDaemonCommand struct {
 	// Instead, the daemon expects the arguments to be sent over XPC from an unprivileged process.
 }
 
-func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
+func newPlatformVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
 	return &vnetDaemonCommand{
 		CmdClause: app.Command(vnetDaemonSubCommand, "Start the VNet daemon").Hidden(),
 	}

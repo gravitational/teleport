@@ -22,13 +22,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
 	"testing"
 	"testing/slogtest"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -41,16 +39,17 @@ import (
 func TestSlogTextHandler(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	now := clock.Now().UTC().Format(time.RFC3339)
+	now := clock.Now().UTC()
 
 	// Create a handler that doesn't report the caller and automatically sets
 	// the time to whatever time the fake clock has in UTC time. Since the timestamp
 	// is not important for this test overriding, it allows the regex to be simpler.
 	var buf bytes.Buffer
 	h := NewSlogTextHandler(&buf, SlogTextHandlerConfig{
+		ConfiguredFields: []string{LevelField, ComponentField, TimestampField},
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
-				a.Value = slog.StringValue(now)
+				a.Value = slog.TimeValue(now)
 			}
 			return a
 		},
@@ -62,8 +61,7 @@ func TestSlogTextHandler(t *testing.T) {
 	// Group 2: verbosity level of output
 	// Group 3: message contents
 	// Group 4: additional attributes
-	regex := fmt.Sprintf("^(?:(%s)?)\\s?([A-Z]{4})\\s+(\\w+)(?:\\s(.*))?$", now)
-	lineRegex := regexp.MustCompile(regex)
+	lineRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)?\s?([A-Z]{4})\s+(\w+)(?:\s(.*))?$`)
 
 	results := func() []map[string]any {
 		var ms []map[string]any
@@ -75,7 +73,7 @@ func TestSlogTextHandler(t *testing.T) {
 			var m map[string]any
 			matches := lineRegex.FindSubmatch(line)
 			if len(matches) == 0 {
-				assert.Failf(t, "log output did not match regular expression", "regex: %s output: %s", regex, string(line))
+				assert.Failf(t, "log output did not match regular expression", "regex: %s output: %s", lineRegex.String(), string(line))
 				ms = append(ms, m)
 				continue
 			}

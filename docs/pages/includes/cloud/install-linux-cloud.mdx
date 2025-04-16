@@ -4,13 +4,14 @@
   Add the Teleport repository to your repository list:
 
   ```code
+  $ sudo mkdir -p /etc/apt/keyrings
   # Download Teleport's PGP public key
   $ sudo curl https://apt.releases.teleport.dev/gpg \
-  -o /usr/share/keyrings/teleport-archive-keyring.asc
+  -o /etc/apt/keyrings/teleport-archive-keyring.asc
   # Source variables about OS version
   $ source /etc/os-release
   # Add the Teleport APT repository for cloud.
-  $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+  $ echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \
   https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/cloud" \
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
@@ -43,8 +44,6 @@
   # Install Teleport and the Teleport updater
   $ sudo yum install "teleport-ent-$TELEPORT_VERSION" teleport-ent-updater
 
-  # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-  # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
   ```
 
   </TabItem>
@@ -67,8 +66,6 @@
   # Install Teleport and the Teleport updater
   $ sudo dnf install "teleport-ent-$TELEPORT_VERSION" teleport-ent-updater
   
-  # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-  # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
   ```
 
   </TabItem>

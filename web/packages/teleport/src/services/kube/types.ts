@@ -17,6 +17,7 @@
  */
 
 import { ResourceLabel } from 'teleport/services/agents';
+
 export interface Kube {
   kind: 'kube_cluster';
   name: string;

@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { watch, type Stats } from 'fs';
+import { readFile, rename, stat, writeFile } from 'fs/promises';
 import path from 'path';
-import { watch } from 'fs';
-import { readFile, writeFile, stat, rename } from 'fs/promises';
+
+import { wait } from 'shared/utils/wait';
 
 import { makeCert } from './makeCert';
 
@@ -51,49 +53,64 @@ export async function generateAndSaveGrpcCert(
 
 /**
  * Reads a cert with given `certName` in the `certDir`.
- * If the file doesn't exist, it will wait up to 10 seconds for it.
+ * If the file doesn't exist, by default it will wait up to 10 seconds for it.
  */
 export async function readGrpcCert(
   certsDir: string,
-  certName: string
+  certName: string,
+  { timeoutMs = 10_000 } = {}
 ): Promise<Buffer> {
   const fullPath = path.join(certsDir, certName);
   const abortController = new AbortController();
 
   async function fileExistsAndHasSize(): Promise<boolean> {
-    return !!(await stat(fullPath)).size;
+    let stats: Stats;
+    try {
+      stats = await stat(fullPath);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
+
+    return !!stats.size;
   }
 
-  function watchForFile(): Promise<Buffer> {
+  function waitForFile(): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      abortController.signal.onabort = () => {
-        watcher.close();
-        clearTimeout(timeout);
-      };
+      wait(timeoutMs, abortController.signal).then(
+        () =>
+          reject(
+            new Error(
+              `Could not read ${certName} certificate within the timeout.`
+            )
+          ),
+        () => {} // Ignore abort errors.
+      );
 
-      const timeout = setTimeout(() => {
-        reject(
-          `Could not read ${certName} certificate. The operation timed out.`
-        );
-      }, 10_000);
-
-      const watcher = watch(certsDir, async (event, filename) => {
-        if (certName === filename && (await fileExistsAndHasSize())) {
-          resolve(readFile(fullPath));
+      // Watching must be started before checking if the file already exists to avoid race
+      // conditions. If we checked if the file exists and then started the watcher, the file could
+      // in theory be created between those two actions.
+      watch(
+        certsDir,
+        { signal: abortController.signal },
+        async (_, filename) => {
+          if (certName === filename && (await fileExistsAndHasSize())) {
+            resolve(readFile(fullPath));
+          }
         }
-      });
+      );
+
+      fileExistsAndHasSize().then(
+        exists => exists && resolve(readFile(fullPath)),
+        err => reject(err)
+      );
     });
   }
 
-  async function checkIfFileAlreadyExists(): Promise<Buffer> {
-    if (await fileExistsAndHasSize()) {
-      return readFile(fullPath);
-    }
-  }
-
   try {
-    // watching must be started before checking if the file already exists to avoid race conditions
-    return await Promise.any([watchForFile(), checkIfFileAlreadyExists()]);
+    return await waitForFile();
   } finally {
     abortController.abort();
   }

@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 )
 
 func ptr[T any](v T) *T {
@@ -81,6 +81,10 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 						},
 					},
 				},
+				CredentialLifetime: CredentialLifetime{
+					TTL:             1 * time.Minute,
+					RenewalInterval: 30 * time.Second,
+				},
 			},
 		},
 		{
@@ -123,6 +127,27 @@ func TestSPIFFEWorkloadAPIService_CheckAndSetDefaults(t *testing.T) {
 						},
 					},
 				}
+			},
+			want: &SPIFFEWorkloadAPIService{
+				JWTSVIDTTL: time.Minute,
+				Listen:     "unix:///var/run/spiffe.sock",
+				SVIDs: []SVIDRequestWithRules{
+					{
+						SVIDRequest: SVIDRequest{
+							Path: "/foo",
+							Hint: "hint",
+							SANS: SVIDRequestSANs{
+								DNS: []string{"example.com"},
+								IP:  []string{"10.0.0.1", "10.42.0.1"},
+							},
+						},
+					},
+				},
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.DefaultBinaryHashMaxBytes,
+					},
+				},
 			},
 		},
 		{

@@ -1,0 +1,29 @@
+#
+# Example resource for a SAML connector
+# This connector can be used for SAML endpoints like Okta
+#
+kind: saml
+version: v2
+metadata:
+  # the name of the connector
+  name: okta
+spec:
+  # Login settings
+  display: Okta
+  entity_descriptor_url: https://example.okta.com/app/<LOGIN-APP-ID>/sso/saml/metadata
+  # acs is shared by both login and MFA, meaning the same SAML provider must be used.
+  acs: https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector
+  # ...
+
+  # MFA settings
+  mfa:
+    # Enabled specifies whether this SAML connector supports MFA checks.
+    enabled: true
+    # entity_descriptor_url should point to an IdP configured app that handles MFA checks.
+    # In most cases, this value should be different from the entity_descriptor_url above.
+    entity_descriptor_url: https://example.okta.com/app/<MFA-APP-ID>/sso/saml/metadata
+    # force_reauth determines whether existing login sessions are accepted or if
+    # re-authentication is always required. Defaults to "yes". This should only be
+    # set to false if the app described above is setup to perform MFA checks on top
+    # of active user sessions.
+    force_reauth: yes

@@ -16,51 +16,48 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import styled from 'styled-components';
+
 import {
   Box,
-  Link as ExternalLink,
-  Text,
-  Flex,
   ButtonSecondary,
-  Mark,
+  Link as ExternalLink,
+  Flex,
   H3,
+  Mark,
   Subtitle3,
+  Text,
 } from 'design';
-import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
-import TextEditor from 'shared/components/TextEditor';
+import { P } from 'design/Text/Text';
 import { IconTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
-import { Rule } from 'shared/components/Validation/rules';
-import Validation, { Validator } from 'shared/components/Validation';
-import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import TextEditor from 'shared/components/TextEditor';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-
-import { P } from 'design/Text/Text';
+import Validation, { Validator } from 'shared/components/Validation';
+import { Rule } from 'shared/components/Validation/rules';
+import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import cfg from 'teleport/config';
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import { Regions } from 'teleport/services/integrations';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
-import JoinTokenService, { JoinToken } from 'teleport/services/joinToken';
-
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
-  DISCOVERY_GROUP_CLOUD,
   createDiscoveryConfig,
+  DISCOVERY_GROUP_CLOUD,
   InstallParamEnrollMode,
 } from 'teleport/services/discovery';
+import { Regions } from 'teleport/services/integrations';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import JoinTokenService, { JoinToken } from 'teleport/services/joinToken';
 import {
   DiscoverEvent,
   DiscoverEventStatus,
 } from 'teleport/services/userEvent';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ActionButtons, Header, StyledBox } from '../../Shared';
-
 import { SingleEc2InstanceInstallation } from '../Shared';
-
 import { DiscoveryConfigCreatedDialog } from './DiscoveryConfigCreatedDialog';
 
 const IAM_POLICY_NAME = 'EC2DiscoverWithSSM';
@@ -97,7 +94,7 @@ export function DiscoveryConfigSsm() {
         // This can happen if creating discovery config attempt failed
         // and the user retries.
         if (!joinTokenRef.current) {
-          joinTokenRef.current = await joinTokenService.fetchJoinToken({
+          joinTokenRef.current = await joinTokenService.fetchJoinTokenV2({
             roles: ['Node'],
             method: 'iam',
             rules: [{ awsAccountId }],
@@ -177,7 +174,7 @@ export function DiscoveryConfigSsm() {
   }
 
   return (
-    <Box maxWidth="1000px">
+    <>
       <Header>Setup Discovery Config for Teleport Discovery Service</Header>
       {cfg.isCloud ? (
         <Text>
@@ -191,9 +188,6 @@ export function DiscoveryConfigSsm() {
         </Text>
       )}
       {cfg.isCloud && <SingleEc2InstanceInstallation />}
-      {attempt.status === 'error' && (
-        <Danger mt={3}>{attempt.statusText}</Danger>
-      )}
       <StyledBox mt={4}>
         <header>
           <H3>Step 1</H3>
@@ -344,12 +338,16 @@ export function DiscoveryConfigSsm() {
         <DiscoveryConfigCreatedDialog toNextStep={nextStep} />
       )}
 
+      {attempt.status === 'error' && (
+        <Danger mt={3}>{attempt.statusText}</Danger>
+      )}
+
       <ActionButtons
         onProceed={createJoinTokenAndDiscoveryConfig}
         onPrev={prevStep}
         disableProceed={attempt.status === 'processing' || !scriptUrl}
       />
-    </Box>
+    </>
   );
 }
 

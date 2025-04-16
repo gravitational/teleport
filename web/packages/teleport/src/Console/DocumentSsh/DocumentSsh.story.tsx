@@ -16,20 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
+
 import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
-import TeleportContext from 'teleport/teleportContext';
-
 import * as stores from 'teleport/Console/stores/types';
-
-import DocumentSsh from './DocumentSsh';
+import { EventType } from 'teleport/lib/term/enums';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import type { Session } from 'teleport/services/session';
+import TeleportContext from 'teleport/teleportContext';
 
 import { TestLayout } from './../Console.story';
 import ConsoleCtx from './../consoleContext';
-
-import type { Session } from 'teleport/services/session';
+import DocumentSsh from './DocumentSsh';
+import { FileTransferRequest } from './useFileTransfer';
 
 export const Connected = () => {
   const { ctx, consoleCtx } = getContexts();
@@ -65,6 +64,28 @@ export const ServerError = () => {
   );
 };
 
+const fileTransferRequest: FileTransferRequest = {
+  sid: 'dummy-sid',
+  requestID: 'dummy-request-id',
+  requester: 'Alice',
+  approvers: [],
+  location: '/etc/teleport.yaml',
+  download: true,
+};
+
+export const FileTransferRequests = () => {
+  const { ctx, consoleCtx, tty } = getContexts();
+
+  useEffect(() => {
+    // Wait a little for the DocumentSshWrapper to register listeners.
+    setTimeout(() => {
+      tty.emit(EventType.FILE_TRANSFER_REQUEST, fileTransferRequest);
+    }, 50);
+  }, [tty]);
+
+  return <DocumentSshWrapper ctx={ctx} consoleCtx={consoleCtx} doc={doc} />;
+};
+
 type Props = {
   ctx: TeleportContext;
   consoleCtx: ConsoleCtx;
@@ -89,7 +110,7 @@ function getContexts() {
   consoleCtx.createTty = () => tty;
   consoleCtx.storeUser = ctx.storeUser;
 
-  return { ctx, consoleCtx };
+  return { ctx, consoleCtx, tty };
 }
 
 export default {

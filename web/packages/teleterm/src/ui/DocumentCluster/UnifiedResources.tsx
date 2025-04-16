@@ -16,63 +16,57 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useMemo, memo } from 'react';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 
+import { ButtonPrimary, Flex, H1, Link, ResourceIcon, Text } from 'design';
+import * as icons from 'design/Icon';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
-  UnifiedResources as SharedUnifiedResources,
-  useUnifiedResourcesFetch,
-  UnifiedResourcesQueryParams,
-  SharedUnifiedResource,
-  UnifiedResourcesPinning,
+  ListUnifiedResourcesRequest,
+  UserPreferences,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import {
   getResourceAvailabilityFilter,
   ResourceAvailabilityFilter,
+  SharedUnifiedResource,
+  UnifiedResources as SharedUnifiedResources,
+  UnifiedResourcesPinning,
+  UnifiedResourcesQueryParams,
+  useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import { Attempt } from 'shared/hooks/useAsync';
+import { NodeSubKind } from 'shared/services';
 import {
   DbProtocol,
-  formatDatabaseInfo,
   DbType,
+  formatDatabaseInfo,
 } from 'shared/services/databases';
-
-import { Flex, ButtonPrimary, Text, Link, H1, ResourceIcon } from 'design';
-
-import * as icons from 'design/Icon';
-
-import { Attempt } from 'shared/hooks/useAsync';
-
-import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { NodeSubKind } from 'shared/services';
 import { waitForever } from 'shared/utils/wait';
 
-import {
-  UserPreferences,
-  ListUnifiedResourcesRequest,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import * as uri from 'teleterm/ui/uri';
+import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
-
-import { retryWithRelogin } from 'teleterm/ui/utils';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { UnifiedResourceResponse } from 'teleterm/ui/services/resources';
 import {
-  DocumentClusterQueryParams,
   DocumentCluster,
+  DocumentClusterQueryParams,
   DocumentClusterResourceKind,
 } from 'teleterm/ui/services/workspacesService';
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
-
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import * as uri from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import {
-  ConnectServerActionButton,
-  ConnectKubeActionButton,
-  ConnectDatabaseActionButton,
-  ConnectAppActionButton,
   AccessRequestButton,
+  ConnectAppActionButton,
+  ConnectDatabaseActionButton,
+  ConnectKubeActionButton,
+  ConnectServerActionButton,
+  ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
 import { useResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
@@ -446,6 +440,10 @@ const Resources = memo(
             kind: 'kube_cluster',
             disabled: false,
           },
+          {
+            kind: 'windows_desktop',
+            disabled: false,
+          },
         ]}
         NoResources={
           <NoResources
@@ -535,6 +533,25 @@ const mapToSharedResource = (
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,
+        },
+      };
+    }
+    case 'windows_desktop': {
+      const { resource: desktop } = resource;
+
+      return {
+        resource: {
+          kind: 'windows_desktop' as const,
+          os: 'windows',
+          labels: desktop.labels,
+          addr: getWindowsDesktopAddrWithoutDefaultPort(desktop),
+          name: desktop.name,
+          requiresRequest: resource.requiresRequest,
+        },
+        ui: {
+          ActionButton: (
+            <ConnectWindowsDesktopActionButton windowsDesktop={desktop} />
+          ),
         },
       };
     }

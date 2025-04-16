@@ -16,36 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
 import { act, fireEvent, render, screen } from 'design/utils/testing';
 
-import { ContextProvider } from 'teleport';
+import { resourceSpecAwsRdsAuroraMysql } from 'teleport/Discover/Fixtures/databases';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   AwsRdsDatabase,
-  Integration,
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
   IntegrationStatusCode,
   Regions,
 } from 'teleport/services/integrations';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
-import {
-  DbMeta,
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
-
 import { userEventService } from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -69,7 +56,7 @@ const mockAwsRdsDb: AwsRdsDatabase = {
   subnets: ['subnet1', 'subnet2'],
 };
 
-const mocKIntegration: Integration = {
+const mockIntegration: IntegrationAwsOidc = {
   kind: IntegrationKind.AwsOidc,
   name: integrationName,
   resourceType: 'integration',
@@ -85,6 +72,14 @@ describe('test AutoDeploy.tsx', () => {
   jest.useFakeTimers();
 
   beforeEach(() => {
+    jest
+      .spyOn(integrationService, 'deployDatabaseServices')
+      .mockResolvedValue('dashboard-url');
+
+    jest
+      .spyOn(userEventService, 'captureDiscoverEvent')
+      .mockResolvedValue(undefined as never);
+
     jest.spyOn(integrationService, 'fetchAwsSubnets').mockResolvedValue({
       nextToken: '',
       subnets: [
@@ -119,9 +114,9 @@ describe('test AutoDeploy.tsx', () => {
   }
 
   test('clicking button renders command', async () => {
-    const { teleCtx, discoverCtx } = getMockedContexts();
+    const { teleCtx } = getMockedContexts();
 
-    renderAutoDeploy(teleCtx, discoverCtx);
+    renderAutoDeploy(teleCtx);
     await waitForSubnetsAndSecurityGroups();
 
     fireEvent.click(screen.getByText(/generate command/i));
@@ -135,9 +130,9 @@ describe('test AutoDeploy.tsx', () => {
   });
 
   test('invalid role name', async () => {
-    const { teleCtx, discoverCtx } = getMockedContexts();
+    const { teleCtx } = getMockedContexts();
 
-    renderAutoDeploy(teleCtx, discoverCtx);
+    renderAutoDeploy(teleCtx);
     await waitForSubnetsAndSecurityGroups();
 
     expect(
@@ -159,9 +154,9 @@ describe('test AutoDeploy.tsx', () => {
   });
 
   test('deploy hint states', async () => {
-    const { teleCtx, discoverCtx } = getMockedContexts();
+    const { teleCtx } = getMockedContexts();
 
-    renderAutoDeploy(teleCtx, discoverCtx);
+    renderAutoDeploy(teleCtx);
     await waitForSubnetsAndSecurityGroups();
 
     fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
@@ -207,74 +202,33 @@ describe('test AutoDeploy.tsx', () => {
 });
 
 const TEST_PING_INTERVAL = 1000 * 60 * 5; // 5 minutes
+const agentMeta: AgentMeta = {
+  resourceName: 'db1',
+  awsRegion: region,
+  awsIntegration: mockIntegration,
+  selectedAwsRdsDb: mockAwsRdsDb,
+  agentMatcherLabels: mockDbLabels,
+};
 
 function getMockedContexts() {
   const teleCtx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db1',
-      awsRegion: region,
-      awsIntegration: mocKIntegration,
-      selectedAwsRdsDb: mockAwsRdsDb,
-      agentMatcherLabels: mockDbLabels,
-    } as DbMeta,
-    currentStep: 0,
-    nextStep: jest.fn(x => x),
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      dbMeta: {
-        location: DatabaseLocation.Aws,
-        engine: DatabaseEngine.AuroraMysql,
-      },
-    } as any,
-    viewConfig: null,
-    exitFlow: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: jest.fn(x => x),
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
-  jest
-    .spyOn(integrationService, 'deployDatabaseServices')
-    .mockResolvedValue('dashboard-url');
 
   jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
     agents: [],
   });
 
-  jest
-    .spyOn(userEventService, 'captureDiscoverEvent')
-    .mockResolvedValue(undefined as never);
-
-  return { teleCtx, discoverCtx };
+  return { teleCtx };
 }
 
-function renderAutoDeploy(
-  ctx: TeleportContext,
-  discoverCtx: DiscoverContextState
-) {
+function renderAutoDeploy(ctx: TeleportContext) {
   return render(
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'database' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecAwsRdsAuroraMysql}
+      interval={TEST_PING_INTERVAL}
+      teleportCtx={ctx}
     >
-      <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <PingTeleportProvider
-              interval={TEST_PING_INTERVAL}
-              resourceKind={ResourceKind.Database}
-            >
-              <AutoDeploy />
-            </PingTeleportProvider>
-          </DiscoverProvider>
-        </FeaturesContextProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <AutoDeploy />
+    </RequiredDiscoverProviders>
   );
 }

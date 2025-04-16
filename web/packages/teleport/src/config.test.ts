@@ -19,9 +19,9 @@
 import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
 
 import cfg, {
-  UrlDeployServiceIamConfigureScriptParams,
-  UrlAwsOidcConfigureIdp,
   UrlAwsConfigureIamScriptParams,
+  UrlAwsOidcConfigureIdp,
+  UrlDeployServiceIamConfigureScriptParams,
 } from './config';
 
 test('getDeployServiceIamConfigureScriptPath formatting', async () => {

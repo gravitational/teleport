@@ -33,6 +33,7 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
+import "teleport/lib/teleterm/v1/windows_desktop.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
 import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
@@ -177,6 +178,10 @@ service TerminalService {
   // See
   // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
   rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
+
+  // GetApp returns details of an app resource. It does not include information about AWS roles and
+  // FQDN.
+  rpc GetApp(GetAppRequest) returns (GetAppResponse);
 }
 
 message EmptyResponse {}
@@ -618,6 +623,7 @@ message PaginatedResource {
     Server server = 2;
     Kube kube = 3;
     App app = 4;
+    WindowsDesktop windows_desktop = 6;
   }
   bool requires_request = 5;
 }
@@ -659,4 +665,12 @@ message AuthenticateWebDeviceResponse {
   // Device confirmation token to be sent to the browser that originated the
   // authentication attempt.
   teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
+}
+
+message GetAppRequest {
+  string app_uri = 1;
+}
+
+message GetAppResponse {
+  App app = 1;
 }

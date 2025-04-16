@@ -19,6 +19,7 @@
 package usertasksv1
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"time"
@@ -87,8 +88,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 
 // Reader contains the methods defined for cache access.
 type Reader interface {
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
-	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 }
 
@@ -131,7 +131,7 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 		return nil, trace.Wrap(err)
 	}
 
-	s.updateStatus(req.UserTask)
+	s.updateStatus(req.UserTask, nil /* existing user task */)
 
 	rsp, err := s.backend.CreateUserTask(ctx, req.UserTask)
 	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
@@ -179,6 +179,8 @@ func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserT
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEc2().GetInstances()))
 	case usertasks.TaskTypeDiscoverEKS:
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEks().GetClusters()))
+	case usertasks.TaskTypeDiscoverRDS:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverRds().GetDatabases()))
 	}
 	return ret
 }
@@ -194,7 +196,7 @@ func (s *Service) ListUserTasks(ctx context.Context, req *usertasksv1.ListUserTa
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken)
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, req.Filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -216,7 +218,10 @@ func (s *Service) ListUserTasksByIntegration(ctx context.Context, req *usertasks
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, nextToken, err := s.cache.ListUserTasksByIntegration(ctx, req.PageSize, req.PageToken, req.Integration)
+	filters := &usertasksv1.ListUserTasksFilters{
+		Integration: req.Integration,
+	}
+	rsp, nextToken, err := s.cache.ListUserTasks(ctx, req.PageSize, req.PageToken, filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -264,10 +269,7 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 	}
 
 	stateChanged := existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
-
-	if stateChanged {
-		s.updateStatus(req.UserTask)
-	}
+	s.updateStatus(req.UserTask, existingUserTask)
 
 	rsp, err := s.backend.UpdateUserTask(ctx, req.UserTask)
 	s.emitUpdateAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
@@ -333,9 +335,7 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 		stateChanged = existingUserTask.GetSpec().GetState() != req.GetUserTask().GetSpec().GetState()
 	}
 
-	if stateChanged {
-		s.updateStatus(req.UserTask)
-	}
+	s.updateStatus(req.UserTask, existingUserTask)
 
 	rsp, err := s.backend.UpsertUserTask(ctx, req.UserTask)
 	s.emitUpsertAuditEvent(ctx, existingUserTask, req.GetUserTask(), authCtx, err)
@@ -350,9 +350,20 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 	return rsp, nil
 }
 
-func (s *Service) updateStatus(ut *usertasksv1.UserTask) {
+func (s *Service) updateStatus(ut *usertasksv1.UserTask, existing *usertasksv1.UserTask) {
+	// Default status for UserTask.
 	ut.Status = &usertasksv1.UserTaskStatus{
 		LastStateChange: timestamppb.New(s.clock.Now()),
+	}
+
+	if existing != nil {
+		// Inherit everything from existing UserTask.
+		ut.Status.LastStateChange = cmp.Or(existing.GetStatus().GetLastStateChange(), ut.Status.LastStateChange)
+
+		// Update specific values.
+		if existing.GetSpec().GetState() != ut.GetSpec().GetState() {
+			ut.Status.LastStateChange = timestamppb.New(s.clock.Now())
+		}
 	}
 }
 

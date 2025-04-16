@@ -508,7 +508,7 @@ func assertKeyAlgorithm(t *testing.T, expectedAlgorithm cryptosuites.Algorithm, 
 
 type testPack struct {
 	backends []*backendDesc
-	clock    clockwork.FakeClock
+	clock    *clockwork.FakeClock
 }
 
 type backendDesc struct {

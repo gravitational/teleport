@@ -106,7 +106,7 @@ type fakeDialer struct {
 func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	conn, ok := f.siteConns[clusterName]
 	if !ok {
-		return nil, trace.NotFound(clusterName)
+		return nil, trace.NotFound("%s", clusterName)
 	}
 
 	return conn, nil
@@ -116,7 +116,7 @@ func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
-		return nil, trace.NotFound(key)
+		return nil, trace.NotFound("%s", key)
 	}
 
 	return conn, nil

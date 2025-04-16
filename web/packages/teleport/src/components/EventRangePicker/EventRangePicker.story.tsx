@@ -18,9 +18,8 @@
 
 import { useState } from 'react';
 
-import RangePicker from './EventRangePicker';
-
 import { EventRange, getRangeOptions } from '.';
+import RangePicker from './EventRangePicker';
 
 export default {
   title: 'Teleport/RangePicker',

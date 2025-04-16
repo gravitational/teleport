@@ -21,14 +21,14 @@ package kubeconfig
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -36,11 +36,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentKubeClient,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentKubeClient)
 
 const (
 	// teleportKubeClusterNameExtension is the name of the extension that
@@ -268,7 +267,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 		} else if !trace.IsBadParameter(err) {
 			return trace.Wrap(err)
 		}
-		log.WithError(err).Warn("Kubernetes integration is not supported when logging in with a hardware private key.")
+		log.WarnContext(context.Background(), "Kubernetes integration is not supported when logging in with a hardware private key", "error", err)
 	}
 
 	return SaveConfig(path, *config, fs)
@@ -493,7 +492,7 @@ func PathFromEnv() string {
 	var configPath string
 	if len(parts) > 0 {
 		configPath = parts[0]
-		log.Debugf("Using kubeconfig from environment: %q.", configPath)
+		log.DebugContext(context.Background(), "Using kubeconfig from environment", "config_path", configPath)
 	}
 
 	return configPath

@@ -35,7 +35,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -64,16 +63,17 @@ func (s *AuthSuite) GenerateHostCert(t *testing.T) {
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
-	cert, err := s.A.GenerateHostCert(
-		services.HostCertParams{
-			CASigner:      caSigner,
-			PublicHostKey: pub,
-			HostID:        "00000000-0000-0000-0000-000000000000",
-			NodeName:      "auth.example.com",
-			ClusterName:   "example.com",
-			Role:          types.RoleAdmin,
-			TTL:           time.Hour,
-		})
+	cert, err := s.A.GenerateHostCert(sshca.HostCertificateRequest{
+		CASigner:      caSigner,
+		PublicHostKey: pub,
+		HostID:        "00000000-0000-0000-0000-000000000000",
+		NodeName:      "auth.example.com",
+		TTL:           time.Hour,
+		Identity: sshca.Identity{
+			ClusterName: "example.com",
+			SystemRole:  types.RoleAdmin,
+		},
+	})
 	require.NoError(t, err)
 
 	certificate, err := sshutils.ParseCertificate(cert)
@@ -95,15 +95,17 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
-	cert, err := s.A.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         pub,
-		Username:              "user",
-		AllowedLogins:         []string{"centos", "root"},
-		TTL:                   time.Hour,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		CertificateFormat:     constants.CertificateFormatStandard,
+	cert, err := s.A.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:          caSigner,
+		PublicUserKey:     pub,
+		TTL:               time.Hour,
+		CertificateFormat: constants.CertificateFormatStandard,
+		Identity: sshca.Identity{
+			Username:              "user",
+			Principals:            []string{"centos", "root"},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+		},
 	})
 	require.NoError(t, err)
 
@@ -112,81 +114,91 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(1*time.Hour))
 	require.NoError(t, err)
 
-	cert, err = s.A.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         pub,
-		Username:              "user",
-		AllowedLogins:         []string{"root"},
-		TTL:                   -20,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		CertificateFormat:     constants.CertificateFormatStandard,
+	cert, err = s.A.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:          caSigner,
+		PublicUserKey:     pub,
+		TTL:               -20,
+		CertificateFormat: constants.CertificateFormatStandard,
+		Identity: sshca.Identity{
+			Username:              "user",
+			Principals:            []string{"root"},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+		},
 	})
 	require.NoError(t, err)
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
 	require.NoError(t, err)
 
-	_, err = s.A.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         pub,
-		Username:              "user",
-		AllowedLogins:         []string{"root"},
-		TTL:                   0,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		CertificateFormat:     constants.CertificateFormatStandard,
+	_, err = s.A.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:          caSigner,
+		PublicUserKey:     pub,
+		TTL:               0,
+		CertificateFormat: constants.CertificateFormatStandard,
+		Identity: sshca.Identity{
+			Username:              "user",
+			Principals:            []string{"root"},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+		},
 	})
 	require.NoError(t, err)
 	err = checkCertExpiry(cert, s.Clock.Now().Add(-1*time.Minute), s.Clock.Now().Add(apidefaults.MinCertDuration))
 	require.NoError(t, err)
 
-	_, err = s.A.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         pub,
-		Username:              "user",
-		AllowedLogins:         []string{"root"},
-		TTL:                   time.Hour,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		CertificateFormat:     constants.CertificateFormatStandard,
+	_, err = s.A.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:          caSigner,
+		PublicUserKey:     pub,
+		TTL:               time.Hour,
+		CertificateFormat: constants.CertificateFormatStandard,
+		Identity: sshca.Identity{
+			Username:              "user",
+			Principals:            []string{"root"},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+		},
 	})
 	require.NoError(t, err)
 
 	inRoles := []string{"role-1", "role-2"}
 	impersonator := "alice"
-	cert, err = s.A.GenerateUserCert(services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         pub,
-		Username:              "user",
-		Impersonator:          impersonator,
-		AllowedLogins:         []string{"root"},
-		TTL:                   time.Hour,
-		PermitAgentForwarding: true,
-		PermitPortForwarding:  true,
-		CertificateFormat:     constants.CertificateFormatStandard,
-		Roles:                 inRoles,
+	cert, err = s.A.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:          caSigner,
+		PublicUserKey:     pub,
+		TTL:               time.Hour,
+		CertificateFormat: constants.CertificateFormatStandard,
+		Identity: sshca.Identity{
+			Username:              "user",
+			Impersonator:          impersonator,
+			Principals:            []string{"root"},
+			PermitAgentForwarding: true,
+			PermitPortForwarding:  true,
+			Roles:                 inRoles,
+		},
 	})
 	require.NoError(t, err)
 	parsedCert, err := sshutils.ParseCertificate(cert)
 	require.NoError(t, err)
-	outRoles, err := services.UnmarshalCertRoles(parsedCert.Extensions[teleport.CertExtensionTeleportRoles])
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(outRoles, inRoles))
 
-	outImpersonator := parsedCert.Extensions[teleport.CertExtensionImpersonator]
-	require.Empty(t, cmp.Diff(outImpersonator, impersonator))
+	parsedIdent, err := sshca.DecodeIdentity(parsedCert)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(parsedIdent.Roles, inRoles))
+
+	require.Empty(t, cmp.Diff(parsedIdent.Impersonator, impersonator))
 
 	// Check that MFAVerified and PreviousIdentityExpires are encoded into ssh cert
 	clock := clockwork.NewFakeClock()
-	cert, err = s.A.GenerateUserCert(services.UserCertParams{
-		CASigner:                caSigner,
-		PublicUserKey:           pub,
-		Username:                "user",
-		AllowedLogins:           []string{"root"},
-		TTL:                     time.Minute,
-		CertificateFormat:       constants.CertificateFormatStandard,
-		MFAVerified:             "mfa-device-id",
-		PreviousIdentityExpires: clock.Now().Add(time.Hour),
+	cert, err = s.A.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:          caSigner,
+		PublicUserKey:     pub,
+		TTL:               time.Minute,
+		CertificateFormat: constants.CertificateFormatStandard,
+		Identity: sshca.Identity{
+			Username:                "user",
+			Principals:              []string{"root"},
+			MFAVerified:             "mfa-device-id",
+			PreviousIdentityExpires: clock.Now().Add(time.Hour),
+		},
 	})
 	require.NoError(t, err)
 	parsedCert, err = sshutils.ParseCertificate(cert)
@@ -202,14 +214,16 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 		const devID = "deviceid1"
 		const devTag = "devicetag1"
 		const devCred = "devicecred1"
-		certRaw, err := s.A.GenerateUserCert(services.UserCertParams{
-			CASigner:           caSigner,          // Required.
-			PublicUserKey:      pub,               // Required.
-			Username:           "llama",           // Required.
-			AllowedLogins:      []string{"llama"}, // Required.
-			DeviceID:           devID,
-			DeviceAssetTag:     devTag,
-			DeviceCredentialID: devCred,
+		certRaw, err := s.A.GenerateUserCert(sshca.UserCertificateRequest{
+			CASigner:      caSigner, // Required.
+			PublicUserKey: pub,      // Required.
+			Identity: sshca.Identity{
+				Username:           "llama",           // Required.
+				Principals:         []string{"llama"}, // Required.
+				DeviceID:           devID,
+				DeviceAssetTag:     devTag,
+				DeviceCredentialID: devCred,
+			},
 		})
 		require.NoError(t, err, "GenerateUserCert failed")
 
@@ -223,13 +237,15 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	t.Run("github identity", func(t *testing.T) {
 		githubUserID := "1234567"
 		githubUsername := "github-user"
-		certRaw, err := s.A.GenerateUserCert(services.UserCertParams{
-			CASigner:       caSigner,          // Required.
-			PublicUserKey:  pub,               // Required.
-			Username:       "llama",           // Required.
-			AllowedLogins:  []string{"llama"}, // Required.
-			GitHubUserID:   githubUserID,
-			GitHubUsername: githubUsername,
+		certRaw, err := s.A.GenerateUserCert(sshca.UserCertificateRequest{
+			CASigner:      caSigner, // Required.
+			PublicUserKey: pub,      // Required.
+			Identity: sshca.Identity{
+				Username:       "llama",           // Required.
+				Principals:     []string{"llama"}, // Required.
+				GitHubUserID:   githubUserID,
+				GitHubUsername: githubUsername,
+			},
 		})
 		require.NoError(t, err, "GenerateUserCert failed")
 

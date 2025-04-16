@@ -17,11 +17,11 @@
  */
 
 import {
+  createContext,
+  FC,
+  PropsWithChildren,
   useContext,
   useState,
-  FC,
-  createContext,
-  PropsWithChildren,
 } from 'react';
 
 import { FileTransferDialogDirection } from './FileTransferStateless';

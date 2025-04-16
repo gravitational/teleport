@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -83,9 +84,10 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 			return nil, trace.Wrap(err, "loading default AWS config")
 		}
 		if stsClient == nil {
-			stsClient = sts.NewFromConfig(awsCfg, func(o *sts.Options) {
+			stsClient = stsutils.NewFromConfig(awsCfg, func(o *sts.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
+
 		}
 		if kmsClient == nil {
 			kmsClient = kms.NewFromConfig(awsCfg, func(o *kms.Options) {

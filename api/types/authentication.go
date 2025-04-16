@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
@@ -134,7 +135,7 @@ type AuthPreference interface {
 	// GetHardwareKey returns the hardware key settings configured for the cluster.
 	GetHardwareKey() (*HardwareKey, error)
 	// GetPIVSlot returns the configured piv slot for the cluster.
-	GetPIVSlot() keys.PIVSlot
+	GetPIVSlot() hardwarekey.PIVSlotKeyString
 	// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
 	// serial number validation settings.
 	GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error)
@@ -191,6 +192,11 @@ type AuthPreference interface {
 	// CheckSignatureAlgorithmSuite returns an error if the current signature
 	// algorithm suite is incompatible with [params].
 	CheckSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams) error
+
+	// GetStableUNIXUserConfig returns the stable UNIX user configuration.
+	GetStableUNIXUserConfig() *StableUNIXUserConfig
+	// SetStableUNIXUserConfig sets the stable UNIX user configuration.
+	SetStableUNIXUserConfig(*StableUNIXUserConfig)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -414,7 +420,7 @@ func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 // GetU2F gets the U2F configuration settings.
 func (c *AuthPreferenceV2) GetU2F() (*U2F, error) {
 	if c.Spec.U2F == nil {
-		return nil, trace.NotFound("U2F is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/u2f/")
+		return nil, trace.NotFound("U2F is not configured in this cluster")
 	}
 	return c.Spec.U2F, nil
 }
@@ -426,7 +432,7 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 
 func (c *AuthPreferenceV2) GetWebauthn() (*Webauthn, error) {
 	if c.Spec.Webauthn == nil {
-		return nil, trace.NotFound("Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/access-controls/guides/webauthn/")
+		return nil, trace.NotFound("Webauthn is not configured in this cluster, please contact your administrator and ask them to follow https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/")
 	}
 	return c.Spec.Webauthn, nil
 }
@@ -486,9 +492,9 @@ func (c *AuthPreferenceV2) GetHardwareKey() (*HardwareKey, error) {
 }
 
 // GetPIVSlot returns the configured piv slot for the cluster.
-func (c *AuthPreferenceV2) GetPIVSlot() keys.PIVSlot {
+func (c *AuthPreferenceV2) GetPIVSlot() hardwarekey.PIVSlotKeyString {
 	if hk, err := c.GetHardwareKey(); err == nil {
-		return keys.PIVSlot(hk.PIVSlot)
+		return hardwarekey.PIVSlotKeyString(hk.PIVSlot)
 	}
 	return ""
 }
@@ -671,6 +677,19 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 	return nil
 }
 
+// GetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) GetStableUNIXUserConfig() *StableUNIXUserConfig {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.StableUnixUserConfig
+}
+
+// SetStableUNIXUserConfig implements [AuthPreference].
+func (c *AuthPreferenceV2) SetStableUNIXUserConfig(cfg *StableUNIXUserConfig) {
+	c.Spec.StableUnixUserConfig = cfg
+}
+
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -718,7 +737,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		const deprecationMessage = `` +
 			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
 			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`
+			`Refer to https://goteleport.com/docs/admin-guides/access-controls/guides/webauthn/`
 		slog.WarnContext(context.Background(), deprecationMessage)
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	case "":
@@ -822,7 +841,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	if hk, err := c.GetHardwareKey(); err == nil && hk.PIVSlot != "" {
-		if err := keys.PIVSlot(hk.PIVSlot).Validate(); err != nil {
+		if err := hardwarekey.PIVSlotKeyString(hk.PIVSlot).Validate(); err != nil {
 			return trace.Wrap(err)
 		}
 	}

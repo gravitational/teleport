@@ -34,8 +34,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -152,6 +154,58 @@ func TestRenewableIdentity(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	require.True(t, parsed.Renewable)
+}
+
+func TestJoinAttributes(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now().Add(1 * time.Hour)
+
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	identity := Identity{
+		Username:      "bot-bernard",
+		Groups:        []string{"bot-bernard"},
+		BotName:       "bernard",
+		BotInstanceID: "1234-5678",
+		Expires:       expires,
+		JoinAttributes: &workloadidentityv1pb.JoinAttrs{
+			Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
+				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+					Namespace: "default",
+					Name:      "foo",
+				},
+				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+					Name: "bar",
+				},
+			},
+		},
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+	require.NotNil(t, subj)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+
+	parsed, err := FromSubject(cert.Subject, expires)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	require.Empty(t, cmp.Diff(parsed, &identity, protocmp.Transform()))
 }
 
 // TestKubeExtensions test ASN1 subject kubernetes extensions

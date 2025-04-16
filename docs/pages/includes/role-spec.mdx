@@ -476,6 +476,12 @@ spec:
         # 'foo.example.com'.
         dns_sans: ["foo.svc.example.com"]
 
+    # GitHub-related permissions used for proxying Git commands.
+    github_permissions:
+      # List of GitHub organizations the user has access to.
+    - orgs:
+      - my-org
+
     # rules allow a user holding this role to modify other resources
     # matching the expressions below
     # supported resources:
@@ -495,7 +501,6 @@ spec:
     #
     # session            - session playback records
     # session_tracker    - an active session
-    # ssh_session        - allows seeing active sessions page
     # instance           - a Teleport instance
     # event              - structured audit logging event
     #
@@ -511,6 +516,7 @@ spec:
     # kube_cluster          - Kubernetes cluster resource
     # token                 - provisioning token resource
     # cert_authority        - certificate authority resource
+    # git_server            - Git server resource
     #
     # cluster_name              - resource that contains the cluster name.
     # cluster_config            - resource that holds cluster level config

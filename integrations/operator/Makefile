@@ -82,7 +82,9 @@ crdgen: ## Generate CRDs
 PROTOS = \
 	teleport/loginrule/v1/loginrule.proto \
 	teleport/accesslist/v1/accesslist.proto \
-	teleport/legacy/types/types.proto
+	teleport/legacy/types/types.proto \
+	teleport/machineid/v1/bot.proto \
+	teleport/workloadidentity/v1/resource.proto
 
 .PHONY: manifests
 manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
@@ -154,7 +156,7 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -trimpath -o bin/manager main.go namespace.go config.go
+	go build -trimpath -tags "kustomize_disable_go_plugin_support" -o bin/manager main.go namespace.go config.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

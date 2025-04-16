@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -158,7 +159,7 @@ func TestCLIPrompt(t *testing.T) {
 			name: "OK prefer webauthn over sso",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, SSO]. Continuing with WEBAUTHN.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso>.\n\n" +
 				"Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
@@ -174,7 +175,7 @@ func TestCLIPrompt(t *testing.T) {
 			name: "OK prefer webauthn+otp over sso",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp>.\n\n" +
 				"Tap any security key or enter a code from a OTP device\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
@@ -212,7 +213,7 @@ func TestCLIPrompt(t *testing.T) {
 			name: "OK prefer webauthn over otp when stdin hijack disallowed",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, OTP]. Continuing with WEBAUTHN.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,otp>.\n\n" +
 				"Tap any security key\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
@@ -228,7 +229,7 @@ func TestCLIPrompt(t *testing.T) {
 			name: "OK webauthn or otp with stdin hijack allowed, choose webauthn",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp>.\n\n" +
 				"Tap any security key or enter a code from a OTP device\n",
 			challenge: &proto.MFAAuthenticateChallenge{
 				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
@@ -248,7 +249,7 @@ func TestCLIPrompt(t *testing.T) {
 			name: "OK webauthn or otp with stdin hijack allowed, choose otp",
 			expectStdOut: "" +
 				"Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN and OTP.\n" +
-				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n" +
+				"If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,sso,otp>.\n\n" +
 				"Tap any security key or enter a code from a OTP device\n",
 			stdin: "123456",
 			challenge: &proto.MFAAuthenticateChallenge{
@@ -413,6 +414,91 @@ Enter your security key PIN:
 				cfg.SSOMFACeremony = nil
 			},
 			expectErr: trace.BadParameter("client does not support any available MFA methods [WEBAUTHN, SSO], see debug logs for details"),
+		},
+		{
+			name: "NOK otp with per-session MFA",
+			challenge: &proto.MFAAuthenticateChallenge{
+				TOTP: &proto.TOTPChallenge{},
+			},
+			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
+				cfg.Extensions = &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				}
+			},
+			expectErr: trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA"),
+		},
+		{
+			name: "NOK prefer otp with per-session MFA",
+			challenge: &proto.MFAAuthenticateChallenge{
+				TOTP: &proto.TOTPChallenge{},
+			},
+			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
+				cfg.Extensions = &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				}
+				cfg.PreferOTP = true
+			},
+			expectErr: trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA, can not specify --mfa-mode=otp"),
+		},
+		{
+			name:         "OK webauthn or otp with stdin hijack and per-session MFA, no choice presented",
+			expectStdOut: "Tap any security key\n",
+			challenge: &proto.MFAAuthenticateChallenge{
+				TOTP:              &proto.TOTPChallenge{},
+				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
+			},
+			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
+				cfg.Extensions = &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				}
+				cfg.AllowStdinHijack = true
+			},
+			// expect to go down normal webauthn path instead of promptWebauthnAndOTP
+			expectResp: &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: &webauthnpb.CredentialAssertionResponse{},
+				},
+			},
+		},
+		{
+			name:         "OK webauthn with per-session MFA",
+			expectStdOut: "Tap any security key\n",
+			challenge: &proto.MFAAuthenticateChallenge{
+				WebauthnChallenge: &webauthnpb.CredentialAssertion{},
+			},
+			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
+				cfg.Extensions = &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				}
+				cfg.AllowStdinHijack = true
+			},
+			// expect to go down normal webauthn path instead of promptWebauthnAndOTP
+			expectResp: &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: &webauthnpb.CredentialAssertionResponse{},
+				},
+			},
+		},
+		{
+			name:         "OK sso with per-session MFA",
+			expectStdOut: "", // sso stdout is handled internally in the SSO ceremony, which is mocked in this test.
+			challenge: &proto.MFAAuthenticateChallenge{
+				SSOChallenge: &proto.SSOChallenge{},
+			},
+			modifyPromptConfig: func(cfg *mfa.CLIPromptConfig) {
+				cfg.Extensions = &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				}
+				cfg.AllowStdinHijack = true
+			},
+			expectResp: &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_SSO{
+					SSO: &proto.SSOResponse{
+						RequestId: "request-id",
+						Token:     "mfa-token",
+					},
+				},
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

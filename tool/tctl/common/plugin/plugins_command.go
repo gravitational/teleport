@@ -56,6 +56,8 @@ type pluginInstallArgs struct {
 	okta    oktaArgs
 	scim    scimArgs
 	entraID entraArgs
+	netIQ   netIQArgs
+	awsIC   awsICArgs
 }
 
 type scimArgs struct {
@@ -102,6 +104,8 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallOkta(p.install.cmd)
 	p.initInstallSCIM(p.install.cmd)
 	p.initInstallEntra(p.install.cmd)
+	p.initInstallNetIQ(p.install.cmd)
+	p.initInstallAWSIC(p.install.cmd)
 }
 
 func (p *PluginsCommand) initInstallSCIM(parent *kingpin.CmdClause) {
@@ -326,6 +330,10 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallSCIM
 	case p.install.entraID.cmd.FullCommand():
 		commandFunc = p.InstallEntra
+	case p.install.netIQ.cmd.FullCommand():
+		commandFunc = p.InstallNetIQ
+	case p.install.awsIC.cmd.FullCommand():
+		commandFunc = p.InstallAWSIC
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	default:

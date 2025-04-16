@@ -22,19 +22,17 @@ For information about other ways to enroll and discover Kubernetes clusters, see
 
 - Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool, 
   version >= (=teleport.version=). 
-  
-  For Teleport Enterprise and Teleport Enterprise Cloud, you should
-  use the Enterprise version of `tctl`. 
+
   You can verify the tools you have installed by running the following commands:
 
   ```code
   $ tctl version
-  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
-  
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
-
+  
   You can download these tools by following the appropriate [Installation 
   instructions](../../installation.mdx#linux) for your environment.
 
@@ -72,12 +70,14 @@ impersonates the `viewers` group when proxying requests from the user.
        - viewers
      deny: {}
    ```
-
+   
 1. Apply your changes:
 
    ```code
    $ tctl create -f kube-access.yaml
    ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="kube-access"!)
 
@@ -168,7 +168,9 @@ To set up and test access:
    Kubernetes cluster and verify access through Teleport. Alternatively, run the
    commands shown below:
 
-   Authenticate to your Teleport cluster:
+   Authenticate to your Teleport cluster, assigning 
+   <Var name="teleport.example.com"/> to your cluster domain and 
+   <Var name="admin@example.com"/> to your Teleport username:
 
    ```code
    $ tsh login --proxy=<Var name="teleport.example.com"/>:443 --auth=local --user=<Var name="admin@example.com"/> <Var name="teleport.example.com"/>
@@ -180,7 +182,8 @@ To set up and test access:
    $ tsh kube ls
    ```
 
-   Retrieve credentials to access your Kubernetes cluster:
+   Retrieve credentials to access your Kubernetes cluster, replacing 
+   <Var name="Kubernetes-cluster-name"/> with your Kubernetes cluster name:
 
    ```code
    $ tsh kube login <Var name="Kubernetes-cluster-name"/>

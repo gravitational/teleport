@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	containerpb "cloud.google.com/go/container/apiv1/containerpb"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +37,7 @@ func TestGKEFetcher(t *testing.T) {
 		location     string
 		filterLabels types.Labels
 		projectID    string
+		errs         map[string]error
 	}
 	tests := []struct {
 		name string
@@ -110,11 +112,26 @@ func TestGKEFetcher(t *testing.T) {
 			},
 			want: gkeClustersToResources(t, gkeMockClusters...),
 		},
+		{
+			name: "list everything but one project misses permissions",
+			args: args{
+				location: "uswest2",
+				filterLabels: types.Labels{
+					"env": []string{"prod", "stg"},
+				},
+				projectID: "*",
+				errs: map[string]error{
+					"p2": trace.AccessDenied("no access"),
+				},
+			},
+			want: gkeClustersToResources(t, gkeMockClusters[:4]...),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			client := newPopulatedGCPMock(tt.args.errs)
 			cfg := GKEFetcherConfig{
-				GKEClient:     newPopulatedGCPMock(),
+				GKEClient:     client,
 				ProjectClient: newPopulatedGCPProjectsMock(),
 				FilterLabels:  tt.args.filterLabels,
 				Location:      tt.args.location,
@@ -134,9 +151,13 @@ func TestGKEFetcher(t *testing.T) {
 type mockGKEAPI struct {
 	gcp.GKEClient
 	clusters []gcp.GKECluster
+	errs     map[string]error
 }
 
 func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, location string) ([]gcp.GKECluster, error) {
+	if err, ok := m.errs[projectID]; ok {
+		return nil, err
+	}
 	var clusters []gcp.GKECluster
 	for _, cluster := range m.clusters {
 		if cluster.ProjectID != projectID {
@@ -148,9 +169,10 @@ func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, locatio
 	return clusters, nil
 }
 
-func newPopulatedGCPMock() *mockGKEAPI {
+func newPopulatedGCPMock(errs map[string]error) *mockGKEAPI {
 	return &mockGKEAPI{
 		clusters: gkeMockClusters,
+		errs:     errs,
 	}
 }
 

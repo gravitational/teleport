@@ -18,9 +18,9 @@
 
 import { Box, Text } from 'design';
 
+import { Cluster } from 'teleterm/services/tshd/types';
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { Cluster } from 'teleterm/services/tshd/types';
 
 import { ClusterItem } from './ClusterItem';
 

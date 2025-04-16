@@ -25,11 +25,14 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -43,7 +46,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	t.Parallel()
@@ -59,6 +68,7 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 				Token: "azure-redis-enterprise-token",
 			}),
 		},
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
 
@@ -106,15 +116,16 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	t.Parallel()
 
 	// setup mock aws sessions.
-	stsMock := &mocks.STSMock{}
+	stsMock := &mocks.STSClient{}
 	clock := clockwork.NewFakeClock()
 	auth, err := NewAuth(AuthConfig{
-		Clock:       clock,
-		AuthClient:  new(authClientMock),
-		AccessPoint: new(accessPointMock),
-		Clients: &cloud.TestCloudClients{
-			STS: stsMock,
-			RedshiftServerless: &mocks.RedshiftServerlessMock{
+		Clock:             clock,
+		AuthClient:        new(authClientMock),
+		AccessPoint:       new(accessPointMock),
+		Clients:           &cloud.TestCloudClients{},
+		AWSConfigProvider: &mocks.AWSConfigProvider{STSClient: stsMock},
+		awsClients: fakeAWSClients{
+			rssClient: &mocks.RedshiftServerlessClient{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
 		},
@@ -137,9 +148,10 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	t.Parallel()
 
 	auth, err := NewAuth(AuthConfig{
-		AuthClient:  new(authClientMock),
-		AccessPoint: new(accessPointMock),
-		Clients:     &cloud.TestCloudClients{},
+		AuthClient:        new(authClientMock),
+		AccessPoint:       new(accessPointMock),
+		Clients:           &cloud.TestCloudClients{},
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
 
@@ -278,8 +290,8 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 					instanceType: types.InstanceMetadataTypeAzure,
 				},
 				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
-					GetResult: generateAzureVM(t, []string{identityResourceID(t, "identity")}),
-				}),
+					GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
+				}, nil /* scaleSetAPI */),
 			},
 			errAssertion: require.NoError,
 			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
@@ -295,8 +307,8 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 					instanceType: types.InstanceMetadataTypeAzure,
 				},
 				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
-					GetResult: generateAzureVM(t, []string{identityResourceID(t, "identity")}),
-				}),
+					GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
+				}, nil /* scaleSetAPI */),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -310,8 +322,8 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 					instanceType: types.InstanceMetadataTypeAzure,
 				},
 				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
-					GetResult: generateAzureVM(t, []string{"identity"}),
-				}),
+					GetResult: mocks.AzureVM([]string{"identity"}),
+				}, nil /* scaleSetAPI */),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -338,7 +350,81 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				},
 				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(&libcloudazure.ARMComputeMock{
 					GetErr: errors.New("failed to get VM"),
-				}),
+				}, nil /* scaleSetAPI */),
+			},
+			errAssertion:        require.Error,
+			resourceIDAssertion: require.Empty,
+		},
+		{
+			desc:         "scale set vm running on Azure and identity is attached",
+			identityName: "identity",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
+					nil, /* api */
+					&libcloudazure.ARMScaleSetMock{
+						GetResult: mocks.AzureScaleSetVM([]string{identityResourceID(t, "identity")}),
+					},
+				),
+			},
+			errAssertion: require.NoError,
+			resourceIDAssertion: func(requireT require.TestingT, value interface{}, _ ...interface{}) {
+				require.Equal(requireT, identityResourceID(t, "identity"), value)
+			},
+		},
+		{
+			desc:         "scale set vm running on Azure without the identity",
+			identityName: "random-identity-not-attached",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
+					nil, /* api */
+					&libcloudazure.ARMScaleSetMock{
+						GetResult: mocks.AzureScaleSetVM([]string{identityResourceID(t, "identity")}),
+					},
+				),
+			},
+			errAssertion:        require.Error,
+			resourceIDAssertion: require.Empty,
+		},
+		{
+			desc:         "scale set vm running on Azure wrong format identity",
+			identityName: "random-identity-not-attached",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
+					nil, /* api */
+					&libcloudazure.ARMScaleSetMock{
+						GetResult: mocks.AzureScaleSetVM([]string{"identity"}),
+					},
+				),
+			},
+			errAssertion:        require.Error,
+			resourceIDAssertion: require.Empty,
+		},
+		{
+			desc:         "scale set vm running but failed to get VM",
+			identityName: "identity",
+			clients: &cloud.TestCloudClients{
+				InstanceMetadata: &imdsMock{
+					id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0",
+					instanceType: types.InstanceMetadataTypeAzure,
+				},
+				AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(
+					nil, /* api */
+					&libcloudazure.ARMScaleSetMock{
+						GetErr: trace.NotFound("vm not found"),
+					},
+				),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -346,9 +432,10 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			auth, err := NewAuth(AuthConfig{
-				AuthClient:  new(authClientMock),
-				AccessPoint: new(accessPointMock),
-				Clients:     tc.clients,
+				AuthClient:        new(authClientMock),
+				AccessPoint:       new(accessPointMock),
+				Clients:           tc.clients,
+				AWSConfigProvider: &mocks.AWSConfigProvider{},
 			})
 			require.NoError(t, err)
 
@@ -377,8 +464,9 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 				id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
-			AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(virtualMachinesMock),
+			AzureVirtualMachines: libcloudazure.NewVirtualMachinesClientByAPI(virtualMachinesMock, nil /* scaleSetAPI */),
 		},
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
 	})
 	require.NoError(t, err)
 
@@ -389,7 +477,7 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 
 	// Change mock to return the VM.
 	virtualMachinesMock.GetErr = nil
-	virtualMachinesMock.GetResult = generateAzureVM(t, []string{identityResourceID(t, "identity")})
+	virtualMachinesMock.GetResult = mocks.AzureVM([]string{identityResourceID(t, "identity")})
 
 	// Advance the clock to force cache expiration.
 	clock.Advance(azureVirtualMachineCacheTTL + time.Second)
@@ -466,7 +554,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	t.Cleanup(cancel)
 	tests := map[string]struct {
 		checkGetAuthFn func(t *testing.T, auth Auth)
-		checkSTS       func(t *testing.T, stsMock *mocks.STSMock)
+		checkSTS       func(t *testing.T, stsMock *mocks.STSClient)
 	}{
 		"Redshift": {
 			checkGetAuthFn: func(t *testing.T, auth Auth) {
@@ -485,7 +573,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "IAM:some-user", dbUser)
 				require.Equal(t, "some-password", dbPassword)
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClient) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshift")
@@ -508,9 +596,10 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "IAM:some-role", dbUser)
 				require.Equal(t, "some-password-for-some-role", dbPassword)
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClient) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftRole")
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/some-role")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshift")
 			},
 		},
@@ -530,7 +619,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "IAM:some-user", dbUser)
 				require.Equal(t, "some-password", dbPassword)
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClient) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftServerlessRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshiftServerless")
@@ -550,7 +639,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.NoError(t, err)
 				require.Contains(t, token, "DBUser=some-user")
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClient) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RDSProxyRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRDSProxy")
@@ -575,10 +664,10 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Equal(t, "some-user", query.Get("User"))
 				require.Equal(t, "host", query.Get("X-Amz-SignedHeaders"))
 				require.Equal(t, "token", query.Get("X-Amz-Security-Token"))
-				require.Equal(t, "arn:aws:iam::123456789012:role/RedisRole/20010203/ca-central-1/elasticache/aws4_request",
+				require.Equal(t, "FAKEACCESSKEYID/20010203/ca-central-1/elasticache/aws4_request",
 					query.Get("X-Amz-Credential"))
 			},
-			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+			checkSTS: func(t *testing.T, stsMock *mocks.STSClient) {
 				t.Helper()
 				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedisRole")
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalElastiCacheRedis")
@@ -586,22 +675,25 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		},
 	}
 
-	stsMock := &mocks.STSMock{}
+	fakeSTS := &mocks.STSClient{}
 	clock := clockwork.NewFakeClockAt(time.Date(2001, time.February, 3, 0, 0, 0, 0, time.UTC))
 	auth, err := NewAuth(AuthConfig{
 		Clock:       clock,
 		AuthClient:  new(authClientMock),
 		AccessPoint: new(accessPointMock),
-		Clients: &cloud.TestCloudClients{
-			STS: stsMock,
-			RDS: &mocks.RDSMock{},
-			Redshift: &mocks.RedshiftMock{
+		Clients:     &cloud.TestCloudClients{},
+		AWSConfigProvider: &mocks.AWSConfigProvider{
+			STSClient: fakeSTS,
+		},
+		awsClients: fakeAWSClients{
+			redshiftClient: &mocks.RedshiftClient{
 				GetClusterCredentialsOutput:        mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
 				GetClusterCredentialsWithIAMOutput: mocks.RedshiftGetClusterCredentialsWithIAMOutput("IAM:some-role", "some-password-for-some-role", clock),
 			},
-			RedshiftServerless: &mocks.RedshiftServerlessMock{
+			rssClient: &mocks.RedshiftServerlessClient{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
+			stsClient: fakeSTS,
 		},
 	})
 	require.NoError(t, err)
@@ -611,7 +703,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tt.checkGetAuthFn(t, auth)
-			tt.checkSTS(t, stsMock)
+			tt.checkSTS(t, fakeSTS)
 		})
 	}
 }
@@ -623,58 +715,51 @@ func TestGetAWSIAMCreds(t *testing.T) {
 
 	for name, tt := range map[string]struct {
 		db                   types.Database
-		stsMock              *mocks.STSMock
+		stsMock              *mocks.STSClient
 		username             string
-		expectedKeyId        string
 		expectedAssumedRoles []string
 		expectedExternalIDs  []string
-		expectErr            require.ErrorAssertionFunc
+		wantErrContains      string
 	}{
 		"username is full role ARN": {
 			db:                   newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock:              &mocks.STSMock{},
+			stsMock:              &mocks.STSClient{},
 			username:             "arn:aws:iam::123456789012:role/role-name",
-			expectedKeyId:        "arn:aws:iam::123456789012:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/role-name"},
 			expectedExternalIDs:  []string{""},
-			expectErr:            require.NoError,
 		},
 		"username is partial role ARN": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSMock{
+			stsMock: &mocks.STSClient{
 				// This is the role returned by the STS GetCallerIdentity.
 				ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
 			},
 			username:             "role/role-name",
-			expectedKeyId:        "arn:aws:iam::222222222222:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::222222222222:role/role-name"},
 			expectedExternalIDs:  []string{""},
-			expectErr:            require.NoError,
 		},
 		"unable to fetch account ID": {
 			db: newMongoAtlasDatabase(t, types.AWS{}),
-			stsMock: &mocks.STSMock{
-				ARN: "",
+			stsMock: &mocks.STSClient{
+				Unauth: true,
 			},
-			username:  "role/role-name",
-			expectErr: require.Error,
+			username:        "role/role-name",
+			wantErrContains: "unauthorized",
 		},
 		"chained IAM role": {
 			db: newMongoAtlasDatabase(t, types.AWS{
 				ExternalID:    "123123",
 				AssumeRoleARN: "arn:aws:iam::222222222222:role/teleport-service-role-external",
 			}),
-			stsMock: &mocks.STSMock{
+			stsMock: &mocks.STSClient{
 				ARN: "arn:aws:iam::111111111111:role/teleport-service-role",
 			},
-			username:      "role/role-name",
-			expectedKeyId: "arn:aws:iam::222222222222:role/role-name",
+			username: "role/role-name",
 			expectedAssumedRoles: []string{
 				"arn:aws:iam::222222222222:role/teleport-service-role-external",
 				"arn:aws:iam::222222222222:role/role-name",
 			},
 			expectedExternalIDs: []string{"123123", ""},
-			expectErr:           require.NoError,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -682,15 +767,23 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				Clock:       clock,
 				AuthClient:  new(authClientMock),
 				AccessPoint: new(accessPointMock),
-				Clients: &cloud.TestCloudClients{
-					STS: tt.stsMock,
+				Clients:     &cloud.TestCloudClients{},
+				AWSConfigProvider: &mocks.AWSConfigProvider{
+					STSClient: tt.stsMock,
+				},
+				awsClients: fakeAWSClients{
+					stsClient: tt.stsMock,
 				},
 			})
 			require.NoError(t, err)
 
 			keyId, _, _, err := auth.GetAWSIAMCreds(ctx, tt.db, tt.username)
-			tt.expectErr(t, err)
-			require.Equal(t, tt.expectedKeyId, keyId)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+			require.Equal(t, "FAKEACCESSKEYID", keyId)
 			require.ElementsMatch(t, tt.expectedAssumedRoles, tt.stsMock.GetAssumedRoleARNs())
 			require.ElementsMatch(t, tt.expectedExternalIDs, tt.stsMock.GetAssumedRoleExternalIDs())
 		})
@@ -918,28 +1011,8 @@ func identityResourceID(t *testing.T, identityName string) string {
 	return fmt.Sprintf("/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", identityName)
 }
 
-// generateAzureVM generates Azure VM resource.
-func generateAzureVM(t *testing.T, identities []string) armcompute.VirtualMachine {
-	t.Helper()
-
-	identitiesMap := make(map[string]*armcompute.UserAssignedIdentitiesValue)
-	for _, identity := range identities {
-		identitiesMap[identity] = &armcompute.UserAssignedIdentitiesValue{}
-	}
-
-	return armcompute.VirtualMachine{
-		ID:   to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm"),
-		Name: to.Ptr("vm"),
-		Identity: &armcompute.VirtualMachineIdentity{
-			PrincipalID:            to.Ptr("00000000-0000-0000-0000-000000000000"),
-			UserAssignedIdentities: identitiesMap,
-		},
-	}
-}
-
 // authClientMock is a mock that implements AuthClient interface.
-type authClientMock struct {
-}
+type authClientMock struct{}
 
 // GenerateDatabaseCert generates a cert using fixtures TLS CA.
 func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -977,8 +1050,7 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 	}, nil
 }
 
-type accessPointMock struct {
-}
+type accessPointMock struct{}
 
 // GetAuthPreference always returns types.DefaultAuthPreference().
 func (m accessPointMock) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
@@ -1001,4 +1073,22 @@ func (m *imdsMock) GetID(_ context.Context) (string, error) {
 
 func (m *imdsMock) GetType() types.InstanceMetadataType {
 	return m.instanceType
+}
+
+type fakeAWSClients struct {
+	redshiftClient redshiftClient
+	rssClient      rssClient
+	stsClient      stsClient
+}
+
+func (f fakeAWSClients) getRedshiftClient(aws.Config, ...func(*redshift.Options)) redshiftClient {
+	return f.redshiftClient
+}
+
+func (f fakeAWSClients) getRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) rssClient {
+	return f.rssClient
+}
+
+func (f fakeAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient {
+	return f.stsClient
 }

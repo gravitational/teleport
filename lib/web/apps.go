@@ -22,7 +22,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"sort"
 
@@ -33,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,7 +68,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		UseSearchAsRoles: true,
 	})
 	if err != nil {
-		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+		h.logger.DebugContext(r.Context(), "Unable to fetch user groups while listing applications, unable to display associated user groups", "error", err)
 	}
 
 	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
@@ -94,7 +93,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			if app.IsAWSConsole() {
 				allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(app)
 				if err != nil {
-					h.log.Debugf("Unable to find allowed AWS Roles for app %s, skipping", app.GetName())
+					h.logger.DebugContext(r.Context(), "Unable to find allowed AWS Roles for app, skipping", "app", app.GetName())
 					continue
 				}
 
@@ -105,7 +104,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			for _, userGroupName := range app.GetUserGroups() {
 				userGroup := userGroupLookup[userGroupName]
 				if userGroup == nil {
-					h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+					h.logger.DebugContext(r.Context(), "Unable to find user group when creating user groups, skipping", "user_group", userGroupName)
 					continue
 				}
 
@@ -169,16 +168,24 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	requiredAppNames := result.App.GetRequiredAppNames()
 
 	if !isRedirectFlow {
+		// TODO (avatus) this would be nice if the string in the RequiredApps spec was the fqdn of the required app
+		// so we could skip the resolution step all together but this would break existing configs.
+
+		// if clusterName is not supplied in the params, the initial app must have been fetched with fqdn hint only.
+		// We can use the clusterName of the initially resolved app
+		if clusterName == "" {
+			clusterName = result.ClusterName
+		}
 		for _, required := range requiredAppNames {
 			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: required})
 			if err != nil {
-				h.log.Errorf("Error getting app details for %s, a required app for %s", required, result.App.GetName())
+				h.logger.ErrorContext(r.Context(), "Error getting app details for associated required app", "required_app", required, "app", result.App.GetName())
 				continue
 			}
-			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.App.GetPublicAddr())
+			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.FQDN)
 		}
 		// append self to end of required apps so that it can be the final entry in the redirect "chain".
-		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, result.App.GetPublicAddr())
+		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, result.FQDN)
 	}
 
 	return resp, nil
@@ -191,7 +198,10 @@ type CreateAppSessionRequest struct {
 	// AWSRole is the AWS role ARN when accessing AWS management console.
 	AWSRole string `json:"arn,omitempty"`
 	// MFAResponse is an optional MFA response used to create an MFA verified app session.
-	MFAResponse string `json:"mfa_response"`
+	MFAResponse client.MFAChallengeResponse `json:"mfaResponse"`
+	// TODO(Joerger): DELETE IN v19.0.0
+	// Backwards compatible version of MFAResponse
+	MFAResponseJSON string `json:"mfa_response"`
 }
 
 // CreateAppSessionResponse is a response to POST /v1/webapi/sessions/app
@@ -218,29 +228,28 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
-	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
+	h.logger.DebugContext(r.Context(), "Creating application web session", "app_public_addr", result.App.GetPublicAddr(), "cluster", result.ClusterName)
 
 	// Ensuring proxy can handle the connection is only done when the request is
 	// coming from the WebUI.
 	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
-		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
+		h.logger.DebugContext(r.Context(), "Ensuring proxy can handle requests requests for application", "app", result.App.GetName())
 		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
 		}
 	}
 
-	var mfaProtoResponse *proto.MFAAuthenticateResponse
-	if req.MFAResponse != "" {
-		var resp mfaResponse
-		if err := json.Unmarshal([]byte(req.MFAResponse), &resp); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-		mfaProtoResponse = &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wantypes.CredentialAssertionResponseToProto(resp.WebauthnAssertionResponse),
-			},
+	// Fallback to backwards compatible mfa response.
+	if mfaResponse == nil && req.MFAResponseJSON != "" {
+		mfaResponse, err = client.ParseMFAChallengeResponse([]byte(req.MFAResponseJSON))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -263,7 +272,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		PublicAddr:  result.App.GetPublicAddr(),
 		ClusterName: result.ClusterName,
 		AWSRoleARN:  req.AWSRole,
-		MFAResponse: mfaProtoResponse,
+		MFAResponse: mfaResponse,
 		AppName:     result.App.GetName(),
 		URI:         result.App.GetURI(),
 		ClientAddr:  r.RemoteAddr,
@@ -315,7 +324,7 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	}
 
 	// Get a reverse tunnel proxy aware of the user's permissions.
-	proxy, err := h.ProxyWithRoles(scx)
+	proxy, err := h.ProxyWithRoles(ctx, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

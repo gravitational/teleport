@@ -74,7 +74,7 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 		// Start an http server (not https) so that the request only succeeds
 		// if the fallback occurs.
 		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-			if r.RequestURI != "/v1/webapi/host/credentials" {
+			if r.RequestURI != "/webapi/host/credentials" {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
@@ -121,7 +121,6 @@ func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	t.Parallel()
-	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)

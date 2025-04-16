@@ -14,7 +14,7 @@ used to access an application enrolled in your Teleport cluster.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - If you have not already connected your application to Teleport, follow
-  the [Application Access Getting Started Guide](../../application-access/getting-started.mdx).
+  the [Protect a Web Application with Teleport](../../application-access/getting-started.mdx).
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the machine that will
   access applications. For more information, see the
@@ -47,6 +47,8 @@ modify these labels to grant access to only the applications that the machine
 will need access to.
 
 Use `tctl create -f ./role.yaml` to create the role.
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`

@@ -675,16 +675,24 @@ You must create a secret containing the CA certs in the same namespace as Telepo
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
-<Notice type="warning" title="Root CA filename">
+<Admonition type="warning" title="Root CA filename">
   The key containing the root CA in the secret must be `ca.pem`.
-</Notice>
+</Admonition>
 
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment. The `enterprise` value should
-have been set to `true`.
+image signature, and updates the teleport deployment.
+
+The updater can fetch the update information using two protocols:
+- the webapi update protocol (in this case the Teleport Proxy Service is the one driving the version rollout)
+- the version server protocol (this is an HTTP server serving static files specifying the version and if the update is critical).
+
+The webapi protocol takes precedence over the version server one if the Teleport Proxy Service supports it.
+The version server protocol failover can be disabled by unsetting `updater.versionServer`.
+The webapi protocol can be disabled by setting `updater.proxyAddr` to `""`.
+For backward compatibility reasons, the webapi protocol is not enabled if a custom `updater.versionServer` is set.
 
 All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 ... default to the agent values. However, they can be overridden from the
@@ -744,9 +752,8 @@ concatenating [`versionServer`](#updaterversionserver) and [`releaseChannel`
 ](#updaterreleasechannel).
 This field supports gotemplate.
 
-You must set this if the updater is enabled, and you are not a Teleport Cloud user.
-
-You must not change the default values if you are a Teleport Cloud user.
+Setting this field makes the updater fetch the version using the version server protocol.
+Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
 
 ### `updater.releaseChannel`
 
@@ -762,8 +769,17 @@ The complete version endpoint is built by concatenating
 You must not change the default value if you are a Teleport Cloud user unless
 instructed by Teleport support.
 
-You can change this value if the updater is enabled, you are not a Teleport
-Cloud user, and manage your own version server.
+This value is used when the updater is fetching the version using the version server protocol.
+It is also used as a failover when fetching the version using the webapi protocol if `updater.group` is unset.
+
+### `updater.group`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`updater.group` is the update group used when fetching the version using the webapi protocol.
+When unset, the group defaults to `update.releaseChannel`.
 
 ### `updater.image`
 
@@ -1127,11 +1143,8 @@ For this reason, it is strongly discouraged to set a custom image when using
 automatic updates. Teleport Cloud uses automatic updates by default.
 </Admonition>
 
-Since version 13, hardened distroless images are used by default.  You can use
-the deprecated debian-based images by setting the value to
-`public.ecr.aws/gravitational/teleport`. Those images will be removed with
-teleport 15.
-
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 When running an enterprise version, you must use
 [`enterpriseImage`](#enterpriseImage) instead.
@@ -1157,11 +1170,8 @@ Teleport-published image.
   using automatic updates. Teleport Cloud uses automatic updates by default.
 </Admonition>
 
-Since version 13, hardened distroless images are used by default.
-You can use the deprecated debian-based images by setting the value to
-`public.ecr.aws/gravitational/teleport-ent`. Those images will be
-removed with teleport 15.
-
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `true`.
 When running an enterprise version, you must use [`image`](#image) instead.
 

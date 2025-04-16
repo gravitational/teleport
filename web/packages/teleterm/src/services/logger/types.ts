@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { KeepLastChunks } from './keepLastChunks';
-
 import type { ChildProcess } from 'node:child_process';
+
+import { KeepLastChunks } from './keepLastChunks';
 
 export interface Logger {
   error(...args: unknown[]): void;

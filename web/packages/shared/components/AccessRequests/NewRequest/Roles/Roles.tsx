@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ButtonBorder, ButtonPrimary } from 'design/Button';
 import Table, { Cell } from 'design/DataTable';
-import { ButtonPrimary, ButtonBorder } from 'design/Button';
 
 export function Roles(props: {
   requestable: string[];

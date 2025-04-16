@@ -19,14 +19,14 @@
 import { z, ZodIssue } from 'zod';
 import zodToJsonSchema from 'zod-to-json-schema';
 
-import { FileStorage } from 'teleterm/services/fileStorage';
 import Logger from 'teleterm/logger';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import { FileStorage } from 'teleterm/services/fileStorage';
 
 import {
-  createAppConfigSchema,
-  AppConfigSchema,
   AppConfig,
+  AppConfigSchema,
+  createAppConfigSchema,
 } from './appConfigSchema';
 
 const logger = new Logger('ConfigService');

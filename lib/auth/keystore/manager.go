@@ -31,13 +31,14 @@ import (
 	"encoding/pem"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -664,7 +665,7 @@ func (m *Manager) hasUsableKeys(ctx context.Context, keySet types.CAKeySet) (*Us
 		}
 		caKeyTypes[desc] = struct{}{}
 	}
-	result.CAKeyTypes = maps.Keys(caKeyTypes)
+	result.CAKeyTypes = slices.Collect(maps.Keys(caKeyTypes))
 	return result, nil
 }
 

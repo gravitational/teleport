@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"strconv"
@@ -31,7 +32,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -482,7 +482,11 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 
 	for _, roleName := range user.GetRoles() {
 		if _, err := client.GetRole(ctx, roleName); err != nil {
-			log.Warnf("Error checking role %q when upserting user %q: %v", roleName, user.GetName(), err)
+			slog.WarnContext(ctx, "Error checking role when upserting user",
+				"role", roleName,
+				"user", user.GetName(),
+				"error", err,
+			)
 		}
 	}
 	if _, err := client.UpsertUser(ctx, user); err != nil {

@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { FileStorage } from 'teleterm/services/fileStorage';
+import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { Document } from 'teleterm/ui/services/workspacesService';
-import { FileStorage } from 'teleterm/services/fileStorage';
-
 import { ConfigService } from '../services/config';
-
 import { Shell } from './shell';
 
 export type RuntimeSettings = {
@@ -117,13 +115,45 @@ export type MainProcessClient = {
   showFileSaveDialog(
     filePath: string
   ): Promise<{ canceled: boolean; filePath: string | undefined }>;
+  /**
+   * saveTextToFile shows the save file dialog that lets the user pick a file location. Once the
+   * location is picked, it saves the text to the location, overwriting an existing file if any.
+   *
+   * If the user closes the dialog, saveTextToFile returns early with canceled set to true. The
+   * caller must inspect this value before assuming that the file was saved.
+   *
+   * If writing to the file fails, saveTextToFile returns a rejected promise.
+   */
+  saveTextToFile(options: {
+    text: string;
+    /**
+     * The name for the file that will be suggested in the save file dialog.
+     */
+    defaultBasename: string;
+  }): Promise<{
+    /**
+     * Whether the dialog was closed by the user or not.
+     */
+    canceled: boolean;
+  }>;
   configService: ConfigService;
   fileStorage: FileStorage;
   removeKubeConfig(options: {
     relativePath: string;
     isDirectory?: boolean;
   }): Promise<void>;
-  forceFocusWindow(): void;
+  /**
+   * Tells the OS to focus the window. If wait is true, polls periodically for window status and
+   * resolves when it's focused or after a short timeout.
+   *
+   * Most of the time wait shouldn't be used, it's there for use cases where it's important for the
+   * app to be focused (e.g., the business logic needs to use the clipboard API). Even in that case,
+   * the logic must handle a scenario where focus wasn't received as focus cannot be guaranteed.
+   * Any app can steal focus at any time.
+   */
+  forceFocusWindow(
+    args?: { wait?: false } | { wait: true; signal?: AbortSignal }
+  ): Promise<void>;
   /**
    * The promise returns true if tsh got successfully symlinked, false if the user closed the
    * osascript prompt. The promise gets rejected if osascript encountered an error.
@@ -159,6 +189,10 @@ export type MainProcessClient = {
   tryRemoveConnectMyComputerAgentBinary(): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
+  /**
+   * Signals to the windows manager that the UI has been fully initialized, that is the user has
+   * interacted with the relevant modals during startup and is free to use the app.
+   */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
   refreshClusterList(): void;
 };
@@ -274,6 +308,8 @@ export enum MainProcessIpc {
   RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
+  SaveTextToFile = 'main-process-save-text-to-file',
+  ForceFocusWindow = 'main-process-force-focus-window',
 }
 
 export enum WindowsManagerIpc {

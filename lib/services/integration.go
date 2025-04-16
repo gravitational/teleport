@@ -52,6 +52,8 @@ type IntegrationsGetter interface {
 type IntegrationsTokenGenerator interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
 }
 
 // MarshalIntegration marshals the Integration resource to JSON.

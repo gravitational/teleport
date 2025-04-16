@@ -16,11 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ArgTypes } from '@storybook/react';
 import { FC, PropsWithChildren } from 'react';
+
 import Dialog from 'design/Dialog';
+import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+
+import { makeAuthSettings } from 'teleterm/services/tshd/testHelpers';
 
 import { dialogCss } from '../spacing';
-
 import { ClusterLoginPresentationProps } from './ClusterLogin';
 
 export const TestContainer: FC<PropsWithChildren> = ({ children }) => (
@@ -29,8 +33,22 @@ export const TestContainer: FC<PropsWithChildren> = ({ children }) => (
   </Dialog>
 );
 
-export function makeProps(): ClusterLoginPresentationProps {
-  return {
+export interface StoryProps {
+  compatibility: 'compatible' | 'client-too-old' | 'client-too-new';
+}
+
+export const compatibilityArgType: ArgTypes<StoryProps> = {
+  compatibility: {
+    control: { type: 'radio' },
+    options: ['compatible', 'client-too-old', 'client-too-new'],
+    description: 'Client compatibility',
+  },
+};
+
+export function makeProps(
+  storyProps: StoryProps
+): ClusterLoginPresentationProps {
+  const props: ClusterLoginPresentationProps = {
     shouldPromptSsoStatus: false,
     title: 'localhost',
     loginAttempt: {
@@ -42,14 +60,7 @@ export function makeProps(): ClusterLoginPresentationProps {
     initAttempt: {
       status: 'success',
       statusText: '',
-      data: {
-        localAuthEnabled: true,
-        authProviders: [],
-        hasMessageOfTheDay: false,
-        allowPasswordless: true,
-        localConnectorName: '',
-        authType: 'local',
-      },
+      data: makeAuthSettings(),
     },
 
     loggedInUserName: null,
@@ -61,5 +72,32 @@ export function makeProps(): ClusterLoginPresentationProps {
     clearLoginAttempt: () => null,
     passwordlessLoginState: null,
     reason: undefined,
+    shouldSkipVersionCheck: false,
+    disableVersionCheck: () => {},
+    platform: 'darwin',
   };
+
+  switch (storyProps.compatibility) {
+    case 'client-too-old':
+      {
+        props.initAttempt.data.clientVersionStatus =
+          ClientVersionStatus.TOO_OLD;
+        props.initAttempt.data.versions = {
+          client: '16.0.0-dev',
+          minClient: '17.0.0',
+          server: '18.2.7',
+        };
+      }
+      break;
+    case 'client-too-new': {
+      props.initAttempt.data.clientVersionStatus = ClientVersionStatus.TOO_NEW;
+      props.initAttempt.data.versions = {
+        client: '18.0.0-dev',
+        minClient: '16.0.0',
+        server: '17.0.0',
+      };
+    }
+  }
+
+  return props;
 }

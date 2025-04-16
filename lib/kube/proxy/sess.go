@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"path"
 	"reflect"
@@ -33,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -55,6 +55,7 @@ import (
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -378,7 +379,7 @@ type session struct {
 	// This is used for audit trails.
 	partiesHistorical map[uuid.UUID]*party
 
-	log *log.Entry
+	log *slog.Logger
 
 	io *srv.TermManager
 
@@ -440,8 +441,8 @@ type session struct {
 // newSession creates a new session in pending mode.
 func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params httprouter.Params, initiator *party, sess *clusterSession) (*session, error) {
 	id := uuid.New()
-	log := forwarder.log.WithField("session", id.String())
-	log.Debug("Creating session")
+	log := forwarder.log.With("session", id.String())
+	log.DebugContext(req.Context(), "Creating session")
 
 	var policySets []*types.SessionTrackerPolicySet
 	roles := ctx.Checker.Roles()
@@ -502,7 +503,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		if _, open := <-s.io.TerminateNotifier(); open {
 			err := s.Close()
 			if err != nil {
-				s.log.Errorf("Failed to close session: %v.", err)
+				s.log.ErrorContext(req.Context(), "Failed to close session", "error", err)
 			}
 		}
 	}()
@@ -518,24 +519,33 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 // It is used to properly handle client disconnections.
 func (s *session) disconnectPartyOnErr(idString string, err error) {
 	if idString == sessionRecorderID {
-		s.log.Error("Failed to write to session recorder, closing session.")
+		s.log.ErrorContext(s.sess.connCtx, "Failed to write to session recorder, closing session")
 		s.Close()
 		return
 	}
 
 	id, uuidParseErr := uuid.Parse(idString)
 	if uuidParseErr != nil {
-		s.log.WithError(uuidParseErr).Errorf("Unable to decode %q into a UUID.", idString)
+		s.log.ErrorContext(s.sess.connCtx, "Unable to decode party id",
+			"party_id", idString,
+			"error", uuidParseErr,
+		)
 		return
 	}
 
 	wasActive, leaveErr := s.leave(id)
 	if leaveErr != nil {
-		s.log.WithError(leaveErr).Errorf("Failed to disconnect party %v from the session.", idString)
+		s.log.ErrorContext(s.sess.connCtx, "Failed to disconnect party from the session",
+			"party_id", idString,
+			"error", leaveErr,
+		)
 	}
 	if wasActive {
 		// log the error only if it was the reason for the user disconnection.
-		s.log.Errorf("Encountered error: %v with party %v. Disconnecting them from the session.", err, idString)
+		s.log.ErrorContext(s.sess.connCtx, "Encountered error with party, disconnecting them from the session",
+			"error", err,
+			"party_id", idString,
+		)
 	}
 }
 
@@ -551,11 +561,14 @@ func (s *session) checkPresence() error {
 		}
 
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
-			s.log.Debugf("Participant %v is not active, kicking.", participant.ID)
+			s.log.DebugContext(s.sess.connCtx, "Participant is not active, kicking", "participant_id", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
 			_, err := s.unlockedLeave(id)
 			if err != nil {
-				s.log.WithError(err).Warnf("Failed to kick participant %v for inactivity.", participant.ID)
+				s.log.WarnContext(s.sess.connCtx, "Failed to kick participant for inactivity",
+					"participant_id", participant.ID,
+					"error", err,
+				)
 			}
 		}
 	}
@@ -569,11 +582,14 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 	defer func() {
 		err := s.Close()
 		if err != nil {
-			s.log.WithError(err).Errorf("Failed to close session: %v", s.id)
+			s.log.ErrorContext(s.req.Context(), "Failed to close session",
+				"session_id", s.id,
+				"error", err,
+			)
 		}
 	}()
 
-	s.log.Debugf("Launching session: %v", s.id)
+	s.log.DebugContext(s.req.Context(), "Launching session", "session_id", s.id)
 
 	q := s.req.URL.Query()
 	namespace := s.params.ByName("podNamespace")
@@ -603,7 +619,7 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		if returnErr != nil {
 			s.setTerminationErr(returnErr)
 			s.reportErrorToSessionRecorder(returnErr)
-			s.log.WithError(returnErr).Warning("Executor failed while streaming.")
+			s.log.WarnContext(s.req.Context(), "Executor failed while streaming", "error", returnErr)
 		}
 		// call onFinished to emit the session.end and exec events.
 		// onFinished is never nil.
@@ -637,16 +653,18 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		KubernetesPodMetadata:     eventPodMeta,
 		InitialCommand:            q["command"],
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
+		Invited:                   s.invitedUsers,
+		Reason:                    s.reason,
 	})
 	if err == nil {
 		if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to record session start event.")
+			s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to record session start event", "error", err)
 		}
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent.GetAuditEvent()); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to emit session start event.")
+			s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit session start event", "error", err)
 		}
 	} else {
-		s.forwarder.log.WithError(err).Warn("Failed to set up session start event - event will not be recorded")
+		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to set up session start event - event will not be recorded", "error", err)
 	}
 
 	s.weakEventsWaiter.Add(1)
@@ -660,21 +678,21 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 			s.BroadcastMessage("Session expired, closing...")
 			err := s.Close()
 			if err != nil {
-				s.log.WithError(err).Error("Failed to close session")
+				s.log.ErrorContext(s.forwarder.ctx, "Failed to close session", "error", err)
 			}
 		case <-s.closeC:
 		}
 	}()
 
 	if err = s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-		s.log.WithError(err).Warn("Failed to set tracker state to running")
+		s.log.WarnContext(s.forwarder.ctx, "Failed to set tracker state to running", "error", err)
 	}
 
 	var executor remotecommand.Executor
 
 	executor, err = s.forwarder.getExecutor(s.sess, s.req)
 	if err != nil {
-		s.log.WithError(err).Warning("Failed creating executor.")
+		s.log.WarnContext(s.forwarder.ctx, "Failed creating executor", "error", err)
 		return trace.Wrap(err)
 	}
 
@@ -759,7 +777,10 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 				}
 				err := p.Client.resize(termSize.size)
 				if err != nil {
-					s.log.WithError(err).Errorf("Failed to resize client: %v", id.String())
+					s.log.ErrorContext(s.forwarder.ctx, "Failed to resize participant",
+						"party_id", id.String(),
+						"error", err,
+					)
 				}
 			}
 
@@ -789,10 +810,10 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 				// Report the updated window size to the event log (this is so the sessions
 				// can be replayed correctly).
 				if err := s.recorder.RecordEvent(s.forwarder.ctx, resizeEvent); err != nil {
-					s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
+					s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit terminal resize event", "error", err)
 				}
 			} else {
-				s.forwarder.log.WithError(err).Warn("Failed to set up terminal resize event - event will not be recorded")
+				s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to set up terminal resize event - event will not be recorded", "error", err)
 			}
 		}
 	} else {
@@ -844,7 +865,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		}
 
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to emit exec event.")
+			s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit exec event", "error", err)
 		}
 
 		sessionDataEvent := &apievents.SessionData{
@@ -864,7 +885,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		}
 
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
+			s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit session data event", "error", err)
 		}
 
 		sessionEndEvent, err := s.recorder.PrepareSessionEvent(&apievents.SessionEnd{
@@ -888,13 +909,13 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 		})
 		if err == nil {
 			if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
-				s.forwarder.log.WithError(err).Warn("Failed to record session end event.")
+				s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to record session end event", "error", err)
 			}
 			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent.GetAuditEvent()); err != nil {
-				s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
+				s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit session end event", "error", err)
 			}
 		} else {
-			s.forwarder.log.WithError(err).Warn("Failed to set up session end event - event will not be recorded")
+			s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to set up session end event - event will not be recorded", "error", err)
 		}
 	}
 
@@ -934,9 +955,9 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 				case <-ticker.C:
 					err := s.checkPresence()
 					if err != nil {
-						s.log.WithError(err).Error("Failed to check presence, closing session as a security measure")
+						s.log.ErrorContext(s.forwarder.ctx, "Failed to check presence, closing session as a security measure", "error", err)
 						if err := s.Close(); err != nil {
-							s.log.WithError(err).Error("Failed to close session")
+							s.log.ErrorContext(s.forwarder.ctx, "Failed to close session", "error", err)
 						}
 						return
 					}
@@ -969,7 +990,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		return trace.AccessDenied("The requested session is not active")
 	}
 
-	s.log.Debugf("Tracking participant: %s", p.ID)
+	s.log.DebugContext(s.forwarder.ctx, "Tracking participant", "participant_id", p.ID)
 	participant := &types.Participant{
 		ID:         p.ID.String(),
 		User:       p.Ctx.User.GetName(),
@@ -989,7 +1010,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 
 	recentWrites := s.io.GetRecentHistory()
 	if _, err := p.Client.stdoutStream().Write(recentWrites); err != nil {
-		s.log.Warnf("Failed to write history to client: %v.", err)
+		s.log.WarnContext(s.forwarder.ctx, "Failed to write history to participant", "error", err)
 	}
 	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
@@ -1009,7 +1030,10 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	// other parties' terminals and no discrepancies are present.
 	if lastQueueSize := s.terminalSizeQueue.getLastSize(); lastQueueSize != nil {
 		if err := p.Client.resize(lastQueueSize); err != nil {
-			s.log.WithError(err).Errorf("Failed to resize client: %v", stringID)
+			s.log.ErrorContext(s.forwarder.ctx, "Failed to resize participant",
+				"participant_id", stringID,
+				"error", err,
+			)
 		}
 	}
 
@@ -1022,7 +1046,10 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		err := srv.MsgParticipantCtrls(p.Client.stdoutStream(), p.Mode)
 		if err != nil {
-			s.log.Errorf("Could not send intro message to participant: %v", err)
+			s.log.ErrorContext(s.forwarder.ctx, "Could not send intro message to participant",
+				"error", err,
+				"participant_id", stringID,
+			)
 		}
 	}
 
@@ -1036,10 +1063,10 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 			case <-c:
 				s.setTerminationErr(sessionTerminatedByModeratorErr)
 				go func() {
-					s.log.Debugf("Received force termination request")
+					s.log.DebugContext(s.forwarder.ctx, "Received force termination request")
 					err := s.Close()
 					if err != nil {
-						s.log.Errorf("Failed to close session: %v.", err)
+						s.log.ErrorContext(s.forwarder.ctx, "Failed to close session", "error", err)
 					}
 				}()
 			case <-s.closeC:
@@ -1064,11 +1091,11 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 				// we must inform all parties that the session is closing.
 				s.setTerminationErrUnlocked(err)
 				s.reportErrorToSessionRecorder(err)
-				s.log.WithError(err).Warning("Executor failed while creating ephemeral pod.")
+				s.log.WarnContext(s.forwarder.ctx, "Executor failed while creating ephemeral pod", "error", err)
 				go func() {
 					err := s.Close()
 					if err != nil {
-						s.log.WithError(err).Error("Failed to close session")
+						s.log.ErrorContext(s.forwarder.ctx, "Failed to close session", "error", err)
 					}
 				}()
 				return trace.Wrap(err)
@@ -1076,7 +1103,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 
 			go func() {
 				if err := s.launch(startedEphemeralCont); err != nil {
-					s.log.WithError(err).Warning("Failed to launch Kubernetes session.")
+					s.log.WarnContext(s.forwarder.ctx, "Failed to launch Kubernetes session", "error", err)
 				}
 			}()
 		} else if len(s.parties) == 1 {
@@ -1098,7 +1125,7 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		// types.SessionState_SessionStatePending marks a session that is waiting for
 		// a moderator to rejoin.
 		if err := s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+			s.log.WarnContext(s.forwarder.ctx, "Failed to update tracker to running state")
 		}
 	}
 	return nil
@@ -1141,7 +1168,7 @@ func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	s.log.Debugf("Creating ephemeral container %s on pod %s", container, podName)
+	s.log.DebugContext(s.forwarder.ctx, "Creating ephemeral container on pod", "container", container, "pod", podName)
 	containerStatus, err := s.patchAndWaitForPodEphemeralContainer(s.forwarder.ctx, &initUser.Ctx, s.req.Header, waitingCont)
 	return containerStatus, trace.Wrap(err)
 }
@@ -1179,7 +1206,7 @@ func (s *session) emitSessionJoinEvent(p *party) {
 	}
 
 	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
-		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit event", "error", err)
 	}
 }
 
@@ -1228,10 +1255,10 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 	}
 
 	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionLeaveEvent); err != nil {
-		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
+		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit event", "error", err)
 	}
 
-	s.log.Debugf("No longer tracking participant: %v", party.ID)
+	s.log.DebugContext(s.forwarder.ctx, "No longer tracking participant", "participant_id", party.ID)
 	err := s.tracker.RemoveParticipant(s.forwarder.ctx, party.ID.String())
 	if err != nil {
 		errs = append(errs, trace.Wrap(err))
@@ -1246,7 +1273,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 			// close session
 			err := s.Close()
 			if err != nil {
-				s.log.WithError(err).Errorf("Failed to close session")
+				s.log.ErrorContext(s.forwarder.ctx, "Failed to close session", "error", err)
 			}
 		}()
 		return true, trace.NewAggregate(errs...)
@@ -1267,7 +1294,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		if options.OnLeaveAction == types.OnSessionLeaveTerminate {
 			go func() {
 				if err := s.Close(); err != nil {
-					s.log.WithError(err).Errorf("Failed to close session")
+					s.log.ErrorContext(s.forwarder.ctx, "Failed to close session", "error", err)
 				}
 			}()
 			return true, nil
@@ -1277,7 +1304,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		s.io.Off()
 		s.BroadcastMessage("Session paused, Waiting for required participants...")
 		if err := s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStatePending); err != nil {
-			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStatePending)
+			s.log.WarnContext(s.forwarder.ctx, "Failed to set tracker state to pending")
 		}
 
 		go func() {
@@ -1335,7 +1362,7 @@ func (s *session) Close() error {
 		// Once tracker is closed parties cannot join the session.
 		// check session.join for logic.
 		if err := s.tracker.Close(s.forwarder.ctx); err != nil {
-			s.log.WithError(err).Debug("Failed to close session tracker")
+			s.log.DebugContext(s.forwarder.ctx, "Failed to close session tracker", "error", err)
 		}
 		s.mu.Lock()
 		terminationErr := s.terminationErr
@@ -1345,7 +1372,7 @@ func (s *session) Close() error {
 		}
 		recorder := s.recorder
 		s.mu.Unlock()
-		s.log.Debugf("Closing session %v.", s.id.String())
+		s.log.DebugContext(s.forwarder.ctx, "Closing session", "session_id", logutils.StringerAttr(s.id))
 		close(s.closeC)
 		// Wait until every party leaves the session and emits the session leave
 		// event before closing the recorder - if available.
@@ -1405,18 +1432,18 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		InitialCommand:    command,
 	}
 
-	s.log.Debug("Creating session tracker")
+	s.log.DebugContext(ctx, "Creating session tracker")
 	sessionTrackerService := s.forwarder.cfg.AuthClient
 
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
 	switch {
 	// there was an error creating the tracker for a moderated session - terminate the session
 	case err != nil && s.accessEvaluator.IsModerated():
-		s.log.WithError(err).Warn("Failed to create session tracker, unable to proceed for moderated session")
+		s.log.WarnContext(ctx, "Failed to create session tracker, unable to proceed for moderated session", "error", err)
 		return trace.Wrap(err)
 	// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
 	case err != nil && !s.accessEvaluator.IsModerated():
-		s.log.Warn("Failed to create session tracker, proceeding with local session tracker for non-moderated session")
+		s.log.WarnContext(ctx, "Failed to create session tracker, proceeding with local session tracker for non-moderated session")
 
 		localTracker, err := srv.NewSessionTracker(ctx, trackerSpec, nil)
 		// this error means there are problems with the trackerSpec, we need to return it
@@ -1435,7 +1462,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 
 	go func() {
 		if err := s.tracker.UpdateExpirationLoop(s.forwarder.ctx, s.forwarder.cfg.Clock); err != nil {
-			s.log.WithError(err).Warn("Failed to update session tracker expiration")
+			s.log.WarnContext(ctx, "Failed to update session tracker expiration", "error", err)
 		}
 	}()
 
@@ -1549,7 +1576,7 @@ func (s *session) retrieveAlreadyStoppedPodLogs(namespace, podName, container st
 func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, username, containerName string) []string {
 	containers, err := s.forwarder.getUserEphemeralContainersForPod(ctx, username, s.ctx.kubeClusterName, s.podNamespace, s.podName)
 	if err != nil {
-		s.log.WithError(err).Warn("Failed to retrieve ephemeral containers")
+		s.log.WarnContext(ctx, "Failed to retrieve ephemeral containers", "error", err)
 		return nil
 	}
 	if len(containers) == 0 {
@@ -1569,7 +1596,7 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 			newClientNegotiator(s.sess.codecFactory),
 		)
 		if err != nil {
-			s.log.WithError(err).Warn("Failed to create encoder and decoder")
+			s.log.WarnContext(ctx, "Failed to create encoder and decoder", "error", err)
 			return nil
 		}
 		pod, _, err := s.forwarder.mergeEphemeralPatchWithCurrentPod(
@@ -1585,7 +1612,7 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 			},
 		)
 		if err != nil {
-			s.log.WithError(err).Warn("Failed to merge ephemeral patch with current pod")
+			s.log.WarnContext(ctx, "Failed to merge ephemeral patch with current pod", "error", err)
 			return nil
 		}
 		for _, ephemeral := range pod.Spec.EphemeralContainers {

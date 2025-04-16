@@ -18,15 +18,15 @@
 
 import React from 'react';
 
-import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { DiscoverEvent } from 'teleport/services/userEvent';
-import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
 import { EnrollEksCluster } from 'teleport/Discover/Kubernetes/EnrollEKSCluster';
+import { KubeLocation, ResourceSpec } from 'teleport/Discover/SelectResource';
+import { AwsAccount, Finished, ResourceKind } from 'teleport/Discover/Shared';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { KubeWrapper } from './KubeWrapper';
+import { HelmChart } from './SelfHosted';
 import { SetupAccess } from './SetupAccess';
-import { HelmChart } from './HelmChart';
 import { TestConnection } from './TestConnection';
 
 export const KubernetesResource: ResourceViewConfig = {

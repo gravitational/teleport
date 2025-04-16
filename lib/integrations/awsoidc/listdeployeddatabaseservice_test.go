@@ -110,11 +110,11 @@ type mockListECSClient struct {
 }
 
 func (m *mockListECSClient) ListServices(ctx context.Context, params *ecs.ListServicesInput, optFns ...func(*ecs.Options)) (*ecs.ListServicesOutput, error) {
-	ret := &ecs.ListServicesOutput{}
-	if aws.ToString(params.Cluster) != m.clusterName {
-		return ret, nil
+	if aws.ToString(params.Cluster) != m.clusterName || len(m.services) == 0 {
+		return nil, trace.NotFound("ECS Cluster not found")
 	}
 
+	ret := &ecs.ListServicesOutput{}
 	requestedPage := 1
 
 	totalEndpoints := len(m.services)
@@ -345,6 +345,25 @@ func TestListDeployedDatabaseServices(t *testing.T) {
 					ContainerCommand:    []string{"start"},
 				}
 				require.Empty(t, cmp.Diff(expectedService, resp.DeployedDatabaseServices[0]))
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "returns empty list when the ECS Cluster does not exist",
+			req: ListDeployedDatabaseServicesRequest{
+				Integration:         "my-integration",
+				TeleportClusterName: "my-cluster",
+				Region:              "us-east-1",
+			},
+			mockClient: func() *mockListECSClient {
+				ret := &mockListECSClient{
+					pageSize: 10,
+				}
+				return ret
+			},
+			respCheck: func(t *testing.T, resp *ListDeployedDatabaseServicesResponse) {
+				require.Empty(t, resp.DeployedDatabaseServices, "expected 0 services")
+				require.Empty(t, resp.NextToken, "expected an empty NextToken")
 			},
 			errCheck: require.NoError,
 		},

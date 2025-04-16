@@ -17,7 +17,6 @@
  */
 
 import { Apple } from '../Icon';
-
 import CardIcon from './index';
 
 export default {

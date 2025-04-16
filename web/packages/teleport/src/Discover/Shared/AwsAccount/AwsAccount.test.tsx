@@ -16,33 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
-import { ContextProvider } from 'teleport';
+import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
+import {
+  RequiredDiscoverProviders,
+  resourceSpecAppAwsCliConsole,
+  resourceSpecServerLinuxUbuntu,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
+import { DiscoverContextState } from 'teleport/Discover/useDiscover';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
-  IntegrationStatusCode,
   integrationService,
+  IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
-import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
-import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
-import {
-  DiscoverEventResource,
-  userEventService,
-} from 'teleport/services/userEvent';
 import ResourceService from 'teleport/services/resources';
-import { app } from 'teleport/Discover/AwsMangementConsole/fixtures';
-import { ResourceSpec } from 'teleport/Discover/SelectResource';
-
-import { ResourceKind } from '../ResourceKind';
+import { userEventService } from 'teleport/services/userEvent';
+import TeleportContext from 'teleport/teleportContext';
 
 import { AwsAccount } from './AwsAccount';
 
@@ -75,13 +67,7 @@ afterEach(() => {
 });
 
 test('non application resource kind', async () => {
-  const { ctx, discoverCtx } = getMockedContexts({
-    kind: ResourceKind.Server,
-    name: '',
-    icon: undefined,
-    keywords: [],
-    event: DiscoverEventResource.Server,
-  });
+  const { ctx, discoverCtx } = getMockedContexts(resourceSpecServerLinuxUbuntu);
 
   renderAwsAccount(ctx, discoverCtx);
   await screen.findByText(/aws Integrations/i);
@@ -94,14 +80,7 @@ test('non application resource kind', async () => {
 });
 
 test('with application resource kind for aws console', async () => {
-  const { ctx, discoverCtx } = getMockedContexts({
-    kind: ResourceKind.Application,
-    appMeta: { awsConsole: true },
-    name: '',
-    icon: undefined,
-    keywords: [],
-    event: DiscoverEventResource.ApplicationHttp,
-  });
+  const { ctx, discoverCtx } = getMockedContexts(resourceSpecAppAwsCliConsole);
 
   renderAwsAccount(ctx, discoverCtx);
   await screen.findByText(/aws Integrations/i);
@@ -114,14 +93,7 @@ test('with application resource kind for aws console', async () => {
 });
 
 test('missing permissions for integrations', async () => {
-  const { ctx, discoverCtx } = getMockedContexts({
-    kind: ResourceKind.Application,
-    appMeta: { awsConsole: true },
-    name: '',
-    icon: undefined,
-    keywords: [],
-    event: DiscoverEventResource.ApplicationHttp,
-  });
+  const { ctx, discoverCtx } = getMockedContexts(resourceSpecAppAwsCliConsole);
 
   ctx.storeUser.state.acl = getAcl({ noAccess: true });
 
@@ -144,14 +116,9 @@ test('missing permissions for integrations', async () => {
 });
 
 test('health check is called after selecting an aws integration', async () => {
-  const { ctx, discoverCtx, spyPing } = getMockedContexts({
-    kind: ResourceKind.Application,
-    appMeta: { awsConsole: true },
-    name: '',
-    icon: undefined,
-    keywords: [],
-    event: DiscoverEventResource.ApplicationHttp,
-  });
+  const { ctx, discoverCtx, spyPing } = getMockedContexts(
+    resourceSpecAppAwsCliConsole
+  );
 
   renderAwsAccount(ctx, discoverCtx);
 
@@ -164,7 +131,7 @@ test('health check is called after selecting an aws integration', async () => {
   expect(spyPing).toHaveBeenCalledTimes(1);
 });
 
-function getMockedContexts(resourceSpec: ResourceSpec) {
+function getMockedContexts(resourceSpec: SelectResourceSpec) {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
     agentMeta: {},
@@ -209,18 +176,13 @@ function renderAwsAccount(
   discoverCtx: DiscoverContextState
 ) {
   return render(
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'application' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={discoverCtx.agentMeta}
+      resourceSpec={discoverCtx.resourceSpec}
+      teleportCtx={ctx}
+      discoverCtx={discoverCtx}
     >
-      <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <AwsAccount />
-          </DiscoverProvider>
-        </FeaturesContextProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <AwsAccount />
+    </RequiredDiscoverProviders>
   );
 }

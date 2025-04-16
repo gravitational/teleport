@@ -460,6 +460,24 @@ func TestAuthenticationSection(t *testing.T) {
 			expectError: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.ErrorContains(t, err, "invalid value: balanced-v0")
 			},
+		}, {
+			desc: "stable unix users",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"stable_unix_user_config": cfgMap{
+						"enabled":   true,
+						"first_uid": 100,
+						"last_uid":  10,
+					},
+				}
+			},
+			expected: &AuthenticationConfig{
+				StableUNIXUserConfig: &StableUNIXUserConfig{
+					Enabled:  true,
+					FirstUID: 100,
+					LastUID:  10,
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -834,6 +852,30 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthenticationConfig_Parse_StableUNIXUserConfig(t *testing.T) {
+	text := editConfig(t, func(cfg cfgMap) {
+		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			"stable_unix_user_config": nil,
+		}
+	})
+	cfg, err := ReadConfig(bytes.NewBuffer(text))
+	require.NoError(t, err)
+	_, err = cfg.Auth.Authentication.Parse()
+	require.NoError(t, err)
+
+	text = editConfig(t, func(cfg cfgMap) {
+		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			"stable_unix_user_config": cfgMap{
+				"enabled": true,
+			},
+		}
+	})
+	cfg, err = ReadConfig(bytes.NewBuffer(text))
+	require.NoError(t, err)
+	_, err = cfg.Auth.Authentication.Parse()
+	require.ErrorContains(t, err, "UID range includes negative or system UIDs")
 }
 
 // TestSSHSection tests the config parser for the SSH config block

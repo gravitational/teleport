@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -534,8 +535,7 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 }
 
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
+// IsValidLabelKey checks if the supplied string is a valid label key.
 func IsValidLabelKey(s string) bool {
 	return common.IsValidLabelKey(s)
 }
@@ -549,7 +549,7 @@ Outer:
 	for _, searchV := range searchVals {
 		// Iterate through field values to look for a match.
 		for _, fieldV := range fieldVals {
-			if containsFold(fieldV, searchV) {
+			if strcase.Contains(fieldV, searchV) {
 				continue Outer
 			}
 		}
@@ -563,23 +563,6 @@ Outer:
 	}
 
 	return true
-}
-
-// containsFold is a case-insensitive alternative to strings.Contains, used to help avoid excess allocations during searches.
-func containsFold(s, substr string) bool {
-	if len(s) < len(substr) {
-		return false
-	}
-
-	n := len(s) - len(substr)
-
-	for i := 0; i <= n; i++ {
-		if strings.EqualFold(s[i:i+len(substr)], substr) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func stringCompare(a string, b string, isDesc bool) bool {

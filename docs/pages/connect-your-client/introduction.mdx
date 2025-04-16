@@ -18,8 +18,9 @@ your Teleport cluster:
 <Tabs>
 <TabItem label="Local user">
 
-Authenticate to Teleport as a local user with `tsh login` by 
-assigning <Var name="user"/> to your Teleport username:
+Authenticate to Teleport as a local user with `tsh login` by assigning <Var
+name="user"/> to your Teleport username and <Var name="teleport.example.com" />
+to the domain name of your Teleport cluster:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
@@ -39,8 +40,8 @@ Tap any security key
 <TabItem label="Single sign-on user">
 
 Authenticate to Teleport as a single sign-on (SSO) user by running `tsh login`
-and assigning the `auth` flag to the name of your authentication connector, if
-implemented by your administrators:
+and assigning <Var name="your-idp-connector" /> to the name of your
+authentication connector, if implemented by your administrators:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
@@ -134,9 +135,9 @@ terminal environment.
 </TabItem>
 <TabItem label="Web UI">
 
-From the <Icon name="server" size="sm" inline/> **Servers** menu, the Teleport
-Web UI will list all servers your user has permission to access. The **CONNECT**
-button will open a new tab with a terminal emulator to provide access to that server.
+From the **Servers** menu, the Teleport Web UI will list all servers your user
+has permission to access. The **CONNECT** button will open a new tab with a
+terminal emulator to provide access to that server.
 
 </TabItem>
 </Tabs>
@@ -185,9 +186,8 @@ open a terminal in a new tab and authenticate to the cluster. You can then run
 </TabItem>
 <TabItem label="Web UI">
 
-In the Teleport Web UI, click the <Icon name="kubernetes" size="sm" inline/>
-**Kubernetes** tab. You will see a list of Kubernetes clusters your Teleport
-user is authorized to connect to.
+In the Teleport Web UI, click the **Kubernetes** tab. You will see a list of
+Kubernetes clusters your Teleport user is authorized to connect to.
 
 ![Available Kubernetes clusters](../../img/use-teleport/kubernetes-clusters.png)
 
@@ -237,7 +237,7 @@ Or you can upload using drag and drop:
 </TabItem>
 </Tabs>
 
-### Database Access
+### Database access
 
 <Tabs>
 <TabItem label="tsh">
@@ -311,8 +311,8 @@ initiate a CLI connection inside Teleport Connect:
 <TabItem label="Web UI">
 
 The Teleport Web UI cannot provide direct connections to databases, but it will
-list those that are accessible to your user under <Icon name="database" size="sm" inline/>
-**Databases** and provide `tsh` commands to connect from your local terminal environment.
+list those that are accessible to your user under **Databases** and provide
+`tsh` commands to connect from your local terminal environment.
 
 </TabItem>
 </Tabs>
@@ -323,7 +323,7 @@ Desktop access is available through the Teleport Web UI.
 
 1. In your browser, navigate to your Teleport cluster (for example,
 `https://example.teleport.sh`).
-1. From the menu on the right, select <Icon name="desktop" inline size="sm"/> **Desktops**.
+1. From the menu on the right, select **Desktops**.
 1. Next to the desktop you want to access, click **CONNECT**. Select
 or type in a username available to your Teleport user.
 1. Teleport will open a new browser tab or window and begin the RDP session.
@@ -344,6 +344,5 @@ either directly or through proxy tunnels.
   Teleport. You use it to connect to servers, databases, and Kubernetes
   clusters. See [Using Teleport Connect](./teleport-connect.mdx).
 
-{/*lint ignore messaging for page title*/}
-- [Database Access GUI Clients](./gui-clients.mdx) details
-how to connect many popular database GUI clients through Teleport.
+- [Access Teleport-protected databases with GUI clients](./gui-clients.mdx):
+  Details how to connect many popular database GUI clients through Teleport.

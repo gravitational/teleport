@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+import styled, { css, useTheme } from 'styled-components';
+
 import {
   Box,
   ButtonPrimary,
@@ -25,8 +28,6 @@ import {
   Indicator,
   Subtitle2,
 } from 'design';
-import React from 'react';
-import styled, { useTheme, css } from 'styled-components';
 
 export interface HeaderProps {
   title: React.ReactNode;

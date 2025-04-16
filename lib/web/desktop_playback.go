@@ -58,7 +58,7 @@ func (h *Handler) desktopPlaybackHandle(
 		Context:   r.Context(),
 	})
 	if err != nil {
-		h.log.Errorf("couldn't create player for session %v: %v", sID, err)
+		h.logger.ErrorContext(r.Context(), "couldn't create player for session", "session_id", sID, "error", err)
 		ws.WriteMessage(websocket.BinaryMessage,
 			[]byte(`{"message": "error", "errorText": "Internal server error"}`))
 		return nil, nil
@@ -71,13 +71,13 @@ func (h *Handler) desktopPlaybackHandle(
 
 	go func() {
 		defer cancel()
-		desktop.ReceivePlaybackActions(h.log, ws, player)
+		desktop.ReceivePlaybackActions(ctx, h.logger, ws, player)
 	}()
 
 	go func() {
 		defer cancel()
 		defer ws.Close()
-		desktop.PlayRecording(ctx, h.log, ws, player)
+		desktop.PlayRecording(ctx, h.logger, ws, player)
 	}()
 
 	<-ctx.Done()

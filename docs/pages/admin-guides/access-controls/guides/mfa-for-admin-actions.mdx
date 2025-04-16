@@ -13,7 +13,7 @@ Examples of administrative actions include, but are not limited to:
 - Inviting new users
 - Updating cluster configuration resources
 - Modifying access management resources
-- Approving access requests
+- Approving Access Requests
 - Generating new join tokens
 - Impersonation
 - Creating new bots for Machine ID
@@ -21,7 +21,7 @@ Examples of administrative actions include, but are not limited to:
 This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
 
-<Notice type="warning">
+<Admonition type="warning">
   When MFA for administrative actions is enabled, user certificates produced
   with `tctl auth sign` will no longer be suitable for automation due to the
   additional MFA checks.
@@ -33,7 +33,7 @@ their on-disk Teleport certificates.
   Certificates produced with `tctl auth sign` directly on an Auth Service
   instance using the super-admin role are not subject to MFA checks to support
   legacy self-hosted setups.
-</Notice>
+</Admonition>
 
 ## Prerequisites
 
@@ -41,7 +41,7 @@ their on-disk Teleport certificates.
 
 - (!docs/pages/includes/tctl.mdx!)
 - [WebAuthn configured](webauthn.mdx) on this cluster
-- Second factor hardware device, such as YubiKey or SoloKey
+- Multi-factor authentication hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
   SSH or desktop sessions from the Teleport Web UI).
@@ -49,12 +49,12 @@ their on-disk Teleport certificates.
 ## Require MFA for administrative actions
 
 MFA for administrative actions is automatically enforced for clusters where
-WebAuthn is the only form of second factor allowed.
+WebAuthn is the only form of multi-factor authentication allowed.
 
-<Notice type="note">
+<Admonition type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
   for a wider range of cluster configurations.
-</Notice>
+</Admonition>
 
 Edit the `cluster_auth_preference` resource:
 
@@ -71,8 +71,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  # To make webauthn the only form of second factor allowed, set this field to 'webauthn'.
-  second_factor: "webauthn"
+  second_factors: ["webauthn"]
   webauthn:
     rp_id: example.com
 ```

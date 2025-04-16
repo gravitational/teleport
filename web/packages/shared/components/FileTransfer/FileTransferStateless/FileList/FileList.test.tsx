@@ -19,7 +19,6 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { TransferredFile } from '../types';
-
 import { FileList } from './FileList';
 
 const files: TransferredFile[] = [

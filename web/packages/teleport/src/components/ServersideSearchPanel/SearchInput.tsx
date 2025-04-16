@@ -20,12 +20,12 @@ import React, { SetStateAction } from 'react';
 import styled from 'styled-components';
 
 import {
+  color,
+  ColorProps,
   height,
   HeightProps,
   space,
   SpaceProps,
-  color,
-  ColorProps,
 } from 'design/system';
 
 // Taken from design.dataTable.InputSearch; will be modified later.

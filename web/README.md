@@ -125,14 +125,6 @@ requests to the given target.
 > Keep in mind that you have to use a local user because social
 > logins (google/github) are not supported by development server.
 
-### WASM
-
-The web UI includes a WASM module built from a Rust codebase located in `packages/teleport/src/ironrdp`.
-It is built with the help of [wasm-pack](https://github.com/rustwasm/wasm-pack).
-
-Running `pnpm build-wasm` builds the WASM binary as well as the appropriate Javascript/Typescript
-bindings and types in `web/packages/teleport/src/ironrdp/pkg`.
-
 ### Unit-Tests
 
 We use [jest](https://jestjs.io/) as our testing framework.
@@ -190,7 +182,7 @@ pnpm dlx browserslist 'last 2 chrome version, last 2 edge version, last 2 firefo
     // Set the default
     "editor.formatOnSave": false,
     // absolute config path
-    "prettier.configPath": ".prettierrc",
+    "prettier.configPath": ".prettierrc.js",
     // enable per-language
     "[html]": {
         "editor.formatOnSave": true,

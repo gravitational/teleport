@@ -82,7 +82,7 @@ func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, err
 func (r *REPL) Run(ctx context.Context) error {
 	pgConn, err := pgconn.ConnectConfig(ctx, r.connConfig)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConnectionProblem(err, "Unable to connect to database: %v", err)
 	}
 	defer func() {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

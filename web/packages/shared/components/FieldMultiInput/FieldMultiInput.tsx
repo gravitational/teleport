@@ -16,20 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode, useRef } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
-import { useRef } from 'react';
-import styled, { useTheme } from 'styled-components';
-
+import { LabelContent } from 'design/LabelInput/LabelInput';
+import { useRule } from 'shared/components/Validation';
 import {
   precomputed,
   Rule,
   ValidationResult,
 } from 'shared/components/Validation/rules';
-import { useRule } from 'shared/components/Validation';
 
 import FieldInput from '../FieldInput';
 
@@ -48,6 +49,10 @@ export type FieldMultiInputProps = {
   label?: string;
   value: string[];
   disabled?: boolean;
+  /** Adds a required field indicator to the label. */
+  required?: boolean;
+  tooltipContent?: ReactNode;
+  tooltipSticky?: boolean;
   onChange?(val: string[]): void;
   rule?: Rule<string[], StringListValidationResult>;
 };
@@ -64,6 +69,9 @@ export function FieldMultiInput({
   label,
   value,
   disabled,
+  required,
+  tooltipContent,
+  tooltipSticky,
   onChange,
   rule = defaultRule,
 }: FieldMultiInputProps) {
@@ -103,7 +111,17 @@ export function FieldMultiInput({
   return (
     <Box>
       <Fieldset>
-        {label && <Legend>{label}</Legend>}
+        {label && (
+          <Legend>
+            <LabelContent
+              required={required}
+              tooltipContent={tooltipContent}
+              tooltipSticky={tooltipSticky}
+            >
+              {label}
+            </LabelContent>
+          </Legend>
+        )}
         {value.map((val, i) => (
           // Note on keys: using index as a key is an anti-pattern in general,
           // but here, we can safely assume that even though the list is

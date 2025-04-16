@@ -18,11 +18,11 @@
 
 import { useState } from 'react';
 
-import { Option } from 'shared/components/Select';
 import {
   getPendingRequestDurationOptions,
   ReviewerOption,
 } from 'shared/components/AccessRequests/NewRequest';
+import { Option } from 'shared/components/Select';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import {

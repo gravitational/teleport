@@ -37,7 +37,6 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/term"
 
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -1288,7 +1287,6 @@ func setupLoggers(logWriter io.Writer) {
 		logWriter,
 		logutils.SlogTextHandlerConfig{EnableColors: true},
 	)))
-	logrus.StandardLogger().SetOutput(logWriter)
 }
 
 func setupMFAPrompt(client *authclient.Client, pingResp proto.PingResponse, promptWriter io.Writer) {

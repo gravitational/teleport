@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import ConsoleCtx from 'teleport/Console/consoleContext';
-
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
-import TeleportContext from 'teleport/teleportContext';
+import ConsoleCtx from 'teleport/Console/consoleContext';
 import * as stores from 'teleport/Console/stores/types';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
+import TeleportContext from 'teleport/teleportContext';
 
 import { DocumentDb } from './DocumentDb';
 

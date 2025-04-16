@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 /*
  * Teleport
@@ -26,6 +25,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -37,7 +37,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -226,7 +225,7 @@ func cleanupUsersAndGroups(users []string, groups []string) {
 		cmd := exec.Command("groupdel", group)
 		err := cmd.Run()
 		if err != nil {
-			log.Debugf("Error deleting group %s: %s", group, err)
+			slog.DebugContext(context.Background(), "Error deleting group", "group", group, "error", err)
 		}
 	}
 	for _, user := range users {
@@ -637,7 +636,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
 	// Create a user that can create a host user.
@@ -661,11 +660,13 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		Roles:         []types.Role{role},
 	}
 
-	require.NoError(t, instance.Create(t, nil, true, nil))
+	require.NoError(t, instance.Create(t, nil, true))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
 	})
+
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
 
 	tests := []struct {
 		name      string
@@ -735,10 +736,10 @@ func TestRootStaticHostUsers(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      utils.NewSlogLoggerForTests(),
 	})
 
-	require.NoError(t, instance.Create(t, nil, false, nil))
+	require.NoError(t, instance.Create(t, nil, false))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())
@@ -749,6 +750,8 @@ func TestRootStaticHostUsers(t *testing.T) {
 	}
 	_, err = instance.StartNode(nodeCfg)
 	require.NoError(t, err)
+
+	instance.WaitForNodeCount(context.Background(), helpers.Site, 2)
 
 	// Create host user resources.
 	groups := []string{"foo", "bar"}

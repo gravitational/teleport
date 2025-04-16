@@ -16,18 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
+import api from 'teleport/services/api';
 
-import { makeDatabase, makeDatabaseService } from './makeDatabase';
-
+import { withGenericUnsupportedError } from '../version/unsupported';
+import {
+  makeDatabase,
+  makeDatabaseServer,
+  makeDatabaseService,
+} from './makeDatabase';
 import type {
   CreateDatabaseRequest,
   Database,
-  UpdateDatabaseRequest,
   DatabaseIamPolicyResponse,
+  DatabaseServerResponse,
   DatabaseServicesResponse,
+  UpdateDatabaseRequest,
 } from './types';
 
 class DatabaseService {
@@ -90,3 +95,28 @@ class DatabaseService {
 }
 
 export default DatabaseService;
+
+export function fetchDatabaseServers({
+  clusterId,
+  params,
+  signal,
+}: {
+  clusterId: string;
+  params: UrlResourcesParams;
+  signal?: AbortSignal;
+}): Promise<DatabaseServerResponse | void> {
+  return (
+    api
+      .get(cfg.getDatabaseServerUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
+
+        return {
+          items: items.map(makeDatabaseServer),
+          startKey: json?.startKey,
+        };
+      })
+      // TODO(kimlisa): DELETE IN v19.0
+      .catch(err => withGenericUnsupportedError(err, 'v18.0.0'))
+  );
+}

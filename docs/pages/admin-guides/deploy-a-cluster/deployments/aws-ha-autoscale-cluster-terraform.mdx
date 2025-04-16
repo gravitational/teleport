@@ -12,48 +12,61 @@ and describe how to manage the resulting Teleport deployment.
 
 ## Prerequisites
 
-Our code requires Terraform 0.13+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
-`terraform` installed and available on your path.
+- Terraform installed on your system. Visit [Install
+  Terraform](https://developer.hashicorp.com/terraform/install) for
+  instructions. We will assume that you have `terraform` available on your path.
 
-```code
-$ which terraform
-/usr/local/bin/terraform
-$ terraform version
-Terraform v1.5.6
-```
+  ```code
+  $ which terraform
+  /usr/local/bin/terraform
+  $ terraform version
+  Terraform v1.5.6
+  ```
 
-You will also require the `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS and macOS Homebrew
-as the `awscli` package.
+- The `aws` command line tool. This is available in Ubuntu/Debian/Fedora/CentOS
+  and macOS Homebrew as the `awscli` package.
 
-Fedora/CentOS: `yum -y install awscli`
+  Fedora/CentOS: `yum -y install awscli`
+  
+  Ubuntu/Debian: `apt-get -y install awscli`
+  
+  macOS (with [Homebrew](https://brew.sh/)): `brew install awscli`
+  
+  When possible, installing via a package is always preferable. If you can't
+  find a package available for your distribution, you can also download the tool
+  from [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
 
-Ubuntu/Debian: `apt-get -y install awscli`
+- We will assume that you have configured your AWS CLI access with credentials
+  available at `~/.aws/credentials`:
 
-macOS (with [Homebrew](https://brew.sh/)): `brew install awscli`
+  ```code
+  $ cat ~/.aws/credentials
+  # [default]
+  # aws_access_key_id = (=aws.aws_access_key=)
+  # aws_secret_access_key = (=aws.aws_secret_access_key=)
+  ```
 
-When possible, installing via a package is always preferable. If you can't find a package available for
-your distribution, you can also download the tool from [https://aws.amazon.com/cli/](https://aws.amazon.com/cli/)
+- You should also have a default region set under `~/.aws/config`:
 
-We will assume that you have configured your AWS cli access with credentials available at `~/.aws/credentials`:
+  ```code
+  $ cat ~/.aws/config
+  # [default]
+  # region = us-west-2
+  ```
 
-```code
-$ cat ~/.aws/credentials
-# [default]
-# aws_access_key_id = (=aws.aws_access_key=)
-# aws_secret_access_key = (=aws.aws_secret_access_key=)
-```
+  As a result, you should be able to run a command like `aws ec2
+  describe-instances` to list running EC2 instances.  If you get an "access
+  denied", "403 Forbidden" or similar message, you will need to grant additional
+  permissions to the AWS IAM user that your `aws_access_key_id` and
+  `aws_secret_access_key` refers to.
 
-You should also have a default region set under `~/.aws/config`:
+- A Route 53 zone. The Terraform module will create DNS records for your
+  Teleport cluster in this zone.
 
-```code
-$ cat ~/.aws/config
-# [default]
-# region = us-west-2
-```
-
-As a result, you should be able to run a command like `aws ec2 describe-instances` to list running EC2 instances.
-If you get an "access denied", "403 Forbidden" or similar message, you will need to grant additional permissions to the
-AWS IAM user that your `aws_access_key_id` and `aws_secret_access_key` refers to.
+- A [key
+  pair](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html)
+  created on AWS. You will use this to access the Amazon EC2 instances you
+  create using the Terraform module demonstrated in this guide.
 
 As a general rule, we assume that any user running Terraform has administrator-level permissions for the following
 AWS services:
@@ -144,7 +157,7 @@ These are regions that support [DynamoDB encryption at rest](https://docs.aws.am
 ### cluster_name
 
 ```code
-$ export TF_VAR_cluster_name="<Var name="teleport-example" />"
+$ export TF_VAR_cluster_name="teleport-example"
 ```
 
 This is the internal Teleport cluster name to use. This should be unique, and not contain spaces, dots (.) or other
@@ -219,7 +232,7 @@ here. The license file isn't used in Teleport Community Edition installs.)
 $ export TF_VAR_route53_zone="example.com"
 ```
 
-Our Terraform setup requires you to have your domain provisioned in AWS Route 53 - it will automatically add
+Our Terraform setup requires you to have your domain provisioned in Amazon Route 53 - it will automatically add
 DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
 
 ```code
@@ -367,7 +380,7 @@ $ export TF_VAR_enable_auth_asg_instance_refresh="false"
 ```
 
 This variable can be used to enable automatic instance refresh on the Teleport
-**auth server** AWS Autoscaling Group (ASG) - the refresh is triggered by
+**Auth Service** AWS Autoscaling Group (ASG) - the refresh is triggered by
 changes to the launch template or configuration.
 Enable the auth ASG instance refresh with caution - upgrading the version of
 Teleport will trigger an instance refresh and **auth servers must be scaled down
@@ -855,7 +868,7 @@ You can also generate an SSH Service join token using `tctl tokens add --type=no
 
 The easiest way to quickly join nodes to your cluster is to use the "Enroll New Resource" wizard in the Teleport web UI.
 
-To manually join Teleport agents to your cluster, you will need [a join token](../../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
+To manually join Teleport Agents to your cluster, you will need [a join token](../../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 You should join your agents using the public facing Proxy Service address - `teleport.example.com:443` for our
 example.

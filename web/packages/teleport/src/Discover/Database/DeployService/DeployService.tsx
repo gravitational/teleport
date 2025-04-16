@@ -19,9 +19,8 @@
 import { useState } from 'react';
 
 import { ServiceDeployMethod } from '../common';
-
-import { ManualDeploy } from './ManualDeploy';
 import { AutoDeploy } from './AutoDeploy';
+import { ManualDeploy } from './ManualDeploy';
 
 export function DeployService() {
   const [deployMethod, setDeployMethod] = useState<ServiceDeployMethod>('auto');

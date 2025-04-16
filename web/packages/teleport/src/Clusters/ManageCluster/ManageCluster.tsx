@@ -17,30 +17,28 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled from 'styled-components';
-import { Link } from 'react-router-dom';
 import { useParams } from 'react-router';
+import { Link } from 'react-router-dom';
+import styled from 'styled-components';
 
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
-
-import { MultiRowBox, Row } from 'design/MultiRowBox';
+import { Alert } from 'design/Alert';
+import Box, { BoxProps } from 'design/Box';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import Text, { H2 } from 'design/Text';
 import { Indicator } from 'design/Indicator';
-import Box, { BoxProps } from 'design/Box';
+import { MultiRowBox, Row } from 'design/MultiRowBox';
 import { ShimmerBox } from 'design/ShimmerBox';
-import { Alert } from 'design/Alert';
-
+import Text, { H2 } from 'design/Text';
 import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { useTeleport } from 'teleport/index';
 import cfg from 'teleport/config';
+import { useTeleport } from 'teleport/index';
 import { useNoMinWidth } from 'teleport/Main';
 import { ClusterInfo } from 'teleport/services/clusters';
 
@@ -204,7 +202,7 @@ export const DataItem = ({ title = '', data = null, isLoading = false }) => (
 const DataItemFlex = styled(Flex)`
   margin-bottom: ${props => props.theme.space[3]}px;
   align-items: center;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     flex-direction: column;
     padding-left: ${props => props.theme.space[2]}px;
     align-items: start;

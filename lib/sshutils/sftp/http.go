@@ -19,7 +19,6 @@
 package sftp
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -59,34 +58,22 @@ func (h *httpFS) Type() string {
 	return "local"
 }
 
-func (h *httpFS) Glob(ctx context.Context, _ string) ([]string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Glob(_ string) ([]string, error) {
 	return []string{h.fileName}, nil
 }
 
-func (h *httpFS) Stat(ctx context.Context, _ string) (fs.FileInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Stat(_ string) (fs.FileInfo, error) {
 	return httpFileInfo{
 		name: path.Base(h.fileName),
 		size: h.fileSize,
 	}, nil
 }
 
-func (h *httpFS) ReadDir(_ context.Context, _ string) ([]fs.FileInfo, error) {
+func (h *httpFS) ReadDir(_ string) ([]fs.FileInfo, error) {
 	return nil, errDirsNotSupported
 }
 
-func (h *httpFS) Open(ctx context.Context, path string) (fs.File, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Open(path string) (File, error) {
 	if h.reader == nil {
 		return nil, trace.BadParameter("missing reader")
 	}
@@ -100,11 +87,7 @@ func (h *httpFS) Open(ctx context.Context, path string) (fs.File, error) {
 	}, nil
 }
 
-func (h *httpFS) Create(ctx context.Context, p string, size int64) (io.WriteCloser, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
+func (h *httpFS) Create(p string, size int64) (File, error) {
 	filename := path.Base(p)
 	contentLength := strconv.FormatInt(size, 10)
 	header := h.writer.Header()
@@ -116,21 +99,78 @@ func (h *httpFS) Create(ctx context.Context, p string, size int64) (io.WriteClos
 	filename = url.QueryEscape(filename)
 	header.Set("Content-Disposition", fmt.Sprintf(`attachment;filename="%s"`, filename))
 
-	return &nopWriteCloser{
-		Writer: h.writer,
+	return &httpFile{
+		writer: &nopWriteCloser{Writer: h.writer},
+		fileInfo: httpFileInfo{
+			name: filename,
+			size: size,
+		},
 	}, nil
 }
 
-func (h *httpFS) Mkdir(_ context.Context, _ string) error {
+func (h *httpFS) OpenFile(p string, flags int) (File, error) {
+	switch flags & 3 {
+	case os.O_RDWR:
+		return nil, trace.BadParameter("read-write files not supported for http")
+	case os.O_RDONLY:
+		return h.Open(p)
+	case os.O_WRONLY:
+		return h.Create(p, 0)
+	default:
+		return nil, trace.BadParameter("invalid flags")
+	}
+}
+
+func (h *httpFS) Mkdir(_ string) error {
 	return errDirsNotSupported
 }
 
-func (h *httpFS) Chmod(_ context.Context, _ string, _ os.FileMode) error {
+func (h *httpFS) Chmod(_ string, _ os.FileMode) error {
 	return nil
 }
 
-func (h *httpFS) Chtimes(_ context.Context, _ string, _, _ time.Time) error {
+func (h *httpFS) Chtimes(_ string, _, _ time.Time) error {
 	return nil
+}
+
+func (h *httpFS) Rename(_, _ string) error {
+	return nil
+}
+
+func (h *httpFS) Lstat(name string) (os.FileInfo, error) {
+	return h.Stat(name)
+}
+
+func (h *httpFS) RemoveAll(_ string) error {
+	return errDirsNotSupported
+}
+
+func (h *httpFS) Link(_, _ string) error {
+	return nil
+}
+
+func (h *httpFS) Symlink(_, _ string) error {
+	return nil
+}
+
+func (h *httpFS) Remove(_ string) error {
+	return nil
+}
+
+func (h *httpFS) Chown(_ string, _, _ int) error {
+	return nil
+}
+
+func (h *httpFS) Truncate(_ string, _ int64) error {
+	return nil
+}
+
+func (h *httpFS) Readlink(_ string) (string, error) {
+	return "", nil
+}
+
+func (h *httpFS) Getwd() (string, error) {
+	return "", nil
 }
 
 type nopWriteCloser struct {
@@ -148,11 +188,34 @@ func (w *nopWriteCloser) Close() error {
 // httpFile implements [fs.File].
 type httpFile struct {
 	reader   io.ReadCloser
+	writer   io.WriteCloser
 	fileInfo httpFileInfo
 }
 
 func (h *httpFile) Read(p []byte) (int, error) {
+	if h.reader == nil {
+		return 0, trace.BadParameter("can't read from a file in write mode")
+	}
 	return h.reader.Read(p)
+}
+
+func (h *httpFile) ReadAt(_ []byte, _ int64) (int, error) {
+	return 0, trace.NotImplemented("can't seek in http files")
+}
+
+func (h *httpFile) ReadFrom(r io.Reader) (int64, error) {
+	return io.Copy(h.writer, r)
+}
+
+func (h *httpFile) Write(p []byte) (int, error) {
+	if h.writer == nil {
+		return 0, trace.BadParameter("can't write to a file in read mode")
+	}
+	return h.writer.Write(p)
+}
+
+func (h *httpFile) WriteAt(_ []byte, _ int64) (int, error) {
+	return 0, trace.NotImplemented("can't seek in http files")
 }
 
 func (h *httpFile) WriteTo(w io.Writer) (int64, error) {
@@ -163,8 +226,19 @@ func (h *httpFile) Stat() (fs.FileInfo, error) {
 	return h.fileInfo, nil
 }
 
+func (h *httpFile) Name() string {
+	return h.fileInfo.name
+}
+
 func (h *httpFile) Close() error {
-	return h.reader.Close()
+	var errors []error
+	if h.reader != nil {
+		errors = append(errors, h.reader.Close())
+	}
+	if h.writer != nil {
+		errors = append(errors, h.writer.Close())
+	}
+	return trace.NewAggregate(errors...)
 }
 
 // httpFileInfo is a simple implementation of [fs.FileMode] that only

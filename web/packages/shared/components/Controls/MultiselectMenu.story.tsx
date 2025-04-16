@@ -18,12 +18,12 @@
 
 import { action } from '@storybook/addon-actions';
 import { useArgs } from '@storybook/preview-api';
+import type { Meta, StoryFn, StoryObj } from '@storybook/react';
+import type { ReactNode } from 'react';
+
 import { Flex } from 'design';
 
 import { MultiselectMenu } from './MultiselectMenu';
-
-import type { ReactNode } from 'react';
-import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 
 type OptionValue = `option-${number}`;
 

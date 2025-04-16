@@ -19,16 +19,14 @@
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 
-import { defineConfig } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
+import { defineConfig, type UserConfig } from 'vite';
 import wasm from 'vite-plugin-wasm';
 
-import { htmlPlugin, transformPlugin } from './html';
 import { generateAppHashFile } from './apphash';
+import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
 import { tsconfigPathsPlugin } from './tsconfigPaths.mjs';
-
-import type { UserConfig } from 'vite';
 
 const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
@@ -59,6 +57,7 @@ export function createViteConfig(
     const config: UserConfig = {
       clearScreen: false,
       server: {
+        allowedHosts: resolveAllowedHosts(target),
         fs: {
           allow: [rootDirectory, '.'],
         },
@@ -107,14 +106,14 @@ export function createViteConfig(
       config.server.proxy = {
         // The format of the regex needs to assume that the slashes are escaped, for example:
         // \/v1\/webapi\/sites\/:site\/connect
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/connect`]: {
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/connect`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
         // /webapi/sites/:site/desktops/:desktopName/connect
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
           {
             target: `wss://${target}`,
             changeOrigin: false,
@@ -122,31 +121,31 @@ export function createViteConfig(
             ws: true,
           },
         // /webapi/sites/:site/kube/exec
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/kube/exec`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
         // /webapi/sites/:site/desktopplayback/:sid
-        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
+        '^\\/v[0-9]+\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
-        '^\\/v1\\/webapi\\/assistant\\/(.*?)': {
+        '^\\/v[0-9]+\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
           changeOrigin: false,
           secure: false,
         },
-        [`^\\/v1\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/assistant`]: {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
           ws: true,
         },
-        '^\\/v1\\/webapi\\/command\\/(.*?)/execute': {
+        '^\\/v[0-9]+\\/webapi\\/command\\/(.*?)/execute': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
@@ -157,7 +156,7 @@ export function createViteConfig(
           changeOrigin: true,
           secure: false,
         },
-        '/v1': {
+        '^\\/v[0-9]+': {
           target: `https://${target}`,
           changeOrigin: true,
           secure: false,
@@ -168,6 +167,7 @@ export function createViteConfig(
           secure: false,
         },
       };
+
       if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
         config.server.https = {
           key: readFileSync(process.env.VITE_HTTPS_KEY),
@@ -194,6 +194,24 @@ export function createViteConfig(
 
     return config;
   });
+}
+
+function resolveAllowedHosts(target: string) {
+  const allowedHosts = new Set<string>();
+
+  if (process.env.VITE_HOST) {
+    const { hostname } = new URL(`https://${process.env.VITE_HOST}`);
+
+    allowedHosts.add(hostname);
+  }
+
+  if (target !== DEFAULT_PROXY_TARGET) {
+    const { hostname } = new URL(`https://${target}`);
+
+    allowedHosts.add(hostname);
+  }
+
+  return Array.from(allowedHosts);
 }
 
 function resolveTargetURL(url: string) {

@@ -26,20 +26,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/lambda"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	transporthttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -49,55 +47,67 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
-type makeRequest func(url string, provider client.ConfigProvider, awsHost string) error
-
-func s3Request(url string, provider client.ConfigProvider, awsHost string) error {
-	return s3RequestWithTransport(url, provider, nil)
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
 }
 
-func s3RequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
-	return s3RequestWithTransport(url, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
+type makeRequest func(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error
+
+func s3Request(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
+	return s3RequestWithTransport(ctx, url, region, provider, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
-func s3RequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
-	s3Client := s3.New(provider, &aws.Config{
-		Endpoint:   &url,
-		MaxRetries: aws.Int(0),
+func s3RequestByAssumedRole(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
+	return s3RequestWithTransport(ctx, url, region, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
+}
+
+func s3RequestWithTransport(ctx context.Context, url string, region string, provider aws.CredentialsProvider, transport http.RoundTripper) error {
+	s3Client := s3.New(s3.Options{
+		Credentials:      provider,
+		BaseEndpoint:     &url,
+		Region:           region,
+		RetryMaxAttempts: 0,
 		HTTPClient: &http.Client{
 			Transport: transport,
 			Timeout:   5 * time.Second,
 		},
 	})
-	_, err := s3Client.ListBuckets(&s3.ListBucketsInput{})
+	_, err := s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
 	return err
 }
 
-func dynamoRequest(url string, provider client.ConfigProvider, awsHost string) error {
-	return dynamoRequestWithTransport(url, provider, nil)
+func dynamoRequest(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
+	return dynamoRequestWithTransport(ctx, url, region, provider, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
-func dynamoRequestByAssumedRole(url string, provider client.ConfigProvider, awsHost string) error {
-	return dynamoRequestWithTransport(url, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
+func dynamoRequestByAssumedRole(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
+	return dynamoRequestWithTransport(ctx, url, region, provider, &requestByAssumedRoleTransport{xForwardedHost: awsHost})
 }
 
-func dynamoRequestWithTransport(url string, provider client.ConfigProvider, transport http.RoundTripper) error {
-	dynamoClient := dynamodb.New(provider, &aws.Config{
-		Endpoint:   &url,
-		MaxRetries: aws.Int(0),
+func dynamoRequestWithTransport(ctx context.Context, url string, region string, provider aws.CredentialsProvider, transport http.RoundTripper) error {
+	dynamoClient := dynamodb.New(dynamodb.Options{
+		Credentials:      provider,
+		BaseEndpoint:     &url,
+		Region:           region,
+		RetryMaxAttempts: 0,
 		HTTPClient: &http.Client{
 			Transport: transport,
 			Timeout:   5 * time.Second,
 		},
 	})
-	_, err := dynamoClient.Scan(&dynamodb.ScanInput{
+	_, err := dynamoClient.Scan(ctx, &dynamodb.ScanInput{
 		TableName: aws.String("test-table"),
 	})
 	return err
@@ -107,29 +117,32 @@ func dynamoRequestWithTransport(url string, provider client.ConfigProvider, tran
 // size. Use a 1MB limit instead of the actual 70MB limit.
 const maxTestHTTPRequestBodySize = 1 << 20
 
-func maxSizeExceededRequest(url string, provider client.ConfigProvider, _ string) error {
+func maxSizeExceededRequest(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
 	// fake an upload that's too large
 	payload := strings.Repeat("x", maxTestHTTPRequestBodySize)
-	return lambdaRequestWithPayload(url, provider, payload)
+	return lambdaRequestWithPayload(ctx, url, region, provider, payload, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
-func lambdaRequest(url string, provider client.ConfigProvider, awsHost string) error {
+func lambdaRequest(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
 	// fake a zip file with 70% of the max limit. Lambda will base64 encode it,
 	// which bloats it up, and our proxy should still handle it.
 	const size = (maxTestHTTPRequestBodySize * 7) / 10
 	payload := strings.Repeat("x", size)
-	return lambdaRequestWithPayload(url, provider, payload)
+	return lambdaRequestWithPayload(ctx, url, region, provider, payload, &requestByHTTPSProxy{xForwardedHost: awsHost})
 }
 
-func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payload string) error {
-	lambdaClient := lambda.New(provider, &aws.Config{
-		Endpoint:   &url,
-		MaxRetries: aws.Int(0),
+func lambdaRequestWithPayload(ctx context.Context, url string, region string, provider aws.CredentialsProvider, payload string, transport http.RoundTripper) error {
+	lambdaClient := lambda.New(lambda.Options{
+		Credentials:      provider,
+		BaseEndpoint:     &url,
+		Region:           region,
+		RetryMaxAttempts: 0,
 		HTTPClient: &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout:   5 * time.Second,
+			Transport: transport,
 		},
 	})
-	_, err := lambdaClient.UpdateFunctionCode(&lambda.UpdateFunctionCodeInput{
+	_, err := lambdaClient.UpdateFunctionCode(ctx, &lambda.UpdateFunctionCodeInput{
 		FunctionName: aws.String("fakeFunc"),
 		ZipFile:      []byte(payload),
 	})
@@ -137,21 +150,35 @@ func lambdaRequestWithPayload(url string, provider client.ConfigProvider, payloa
 }
 
 func assumeRoleRequest(requestDuration time.Duration) makeRequest {
-	return func(url string, provider client.ConfigProvider, _ string) error {
-		stsClient := sts.New(provider, &aws.Config{
-			Endpoint:   &url,
-			MaxRetries: aws.Int(0),
+	return func(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
+		stsClient := stsutils.NewFromConfig(aws.Config{
+			Credentials:      provider,
+			BaseEndpoint:     &url,
+			Region:           region,
+			RetryMaxAttempts: 0,
 			HTTPClient: &http.Client{
-				Timeout: 5 * time.Second,
+				Timeout:   5 * time.Second,
+				Transport: &requestByHTTPSProxy{xForwardedHost: awsHost},
 			},
 		})
-		_, err := stsClient.AssumeRole(&sts.AssumeRoleInput{
-			DurationSeconds: aws.Int64(int64(requestDuration.Seconds())),
+		_, err := stsClient.AssumeRole(ctx, &sts.AssumeRoleInput{
+			DurationSeconds: aws.Int32(int32(requestDuration.Seconds())),
 			RoleSessionName: aws.String("test-session"),
 			RoleArn:         aws.String("arn:aws:iam::123456789012:role/test-role"),
 		})
 		return err
 	}
+}
+
+type requestByHTTPSProxy struct {
+	xForwardedHost string
+}
+
+func (r requestByHTTPSProxy) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Simulate how a request is modified by "tsh".
+	req.Host = r.xForwardedHost
+	req.Header.Add("X-Forwarded-Host", r.xForwardedHost)
+	return http.DefaultTransport.RoundTrip(req)
 }
 
 type requestByAssumedRoleTransport struct {
@@ -169,9 +196,9 @@ func (r requestByAssumedRoleTransport) RoundTrip(req *http.Request) (*http.Respo
 
 func hasStatusCode(wantStatusCode int) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
-		var apiErr awserr.RequestFailure
-		require.ErrorAs(t, err, &apiErr, msgAndArgs...)
-		require.Equal(t, wantStatusCode, apiErr.StatusCode(), msgAndArgs...)
+		var respErr *transporthttp.ResponseError
+		require.ErrorAs(t, err, &respErr, msgAndArgs...)
+		require.Equal(t, wantStatusCode, respErr.Response.StatusCode, msgAndArgs...)
 	}
 }
 
@@ -185,42 +212,69 @@ func TestAWSSignerHandler(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "my-integration"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
+		},
+	)
+	require.NoError(t, err)
 	consoleAppWithIntegration, err := types.NewAppV3(types.Metadata{
 		Name: "awsconsole",
 	}, types.AppSpecV3{
 		URI:         constants.AWSConsoleURL,
 		PublicAddr:  "test.local",
-		Integration: "my-integration",
+		Integration: awsOIDCIntegration.GetName(),
 	})
 	require.NoError(t, err)
 
 	tests := []struct {
-		name                string
-		app                 types.Application
-		awsClientSession    *session.Session
-		awsSessionProvider  awsutils.AWSSessionProvider
-		request             makeRequest
-		advanceClock        time.Duration
-		wantHost            string
-		wantAuthCredService string
-		wantAuthCredRegion  string
-		wantAuthCredKeyID   string
-		wantEventType       events.AuditEvent
-		wantAssumedRole     string
-		skipVerifySignature bool
-		verifySentRequest   func(*testing.T, *http.Request)
-		errAssertionFns     []require.ErrorAssertionFunc
+		name                   string
+		app                    types.Application
+		awsCredentialsProvider aws.CredentialsProvider
+		awsRegion              string
+		awsConfigProvider      awsconfig.Provider
+		request                makeRequest
+		advanceClock           time.Duration
+		wantHost               string
+		wantAuthCredService    string
+		wantAuthCredRegion     string
+		wantAuthCredKeyID      string
+		wantEventType          events.AuditEvent
+		wantAssumedRole        string
+		skipVerifySignature    bool
+		verifySentRequest      func(*testing.T, *http.Request)
+		errAssertionFns        []require.ErrorAssertionFunc
 	}{
 		{
-			name: "s3 access",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-west-2"),
-			})),
-			request:             s3Request,
+			name:                   "s3 access",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-west-2",
+			request:                s3Request,
+			wantHost:               "s3.us-west-2.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "s3",
+			wantAuthCredRegion:     "us-west-2",
+			wantEventType:          &events.AppSessionRequest{},
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name:                   "s3 access with integration",
+			app:                    consoleAppWithIntegration,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-west-2",
+			request:                s3Request,
+			awsConfigProvider: &mocks.AWSConfigProvider{
+				OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
+					Integration: awsOIDCIntegration,
+					Token:       "fake-oidc-token",
+				},
+			},
 			wantHost:            "s3.us-west-2.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
+			wantAuthCredKeyID:   "FAKEACCESSKEYID",
 			wantAuthCredService: "s3",
 			wantAuthCredRegion:  "us-west-2",
 			wantEventType:       &events.AppSessionRequest{},
@@ -229,166 +283,126 @@ func TestAWSSignerHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "s3 access with integration",
-			app:  consoleAppWithIntegration,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-west-2"),
-			})),
-			request: s3Request,
-			awsSessionProvider: func(ctx context.Context, region, integration string) (*session.Session, error) {
-				if integration != "my-integration" {
-					return nil, trace.BadParameter("")
-				}
-				return nil, nil
-			},
-			wantHost:            "s3.us-west-2.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "s3",
-			wantAuthCredRegion:  "us-west-2",
-			wantEventType:       &events.AppSessionRequest{},
+			name:                   "s3 access with different region",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-west-1",
+			request:                s3Request,
+			wantHost:               "s3.us-west-1.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "s3",
+			wantAuthCredRegion:     "us-west-1",
+			wantEventType:          &events.AppSessionRequest{},
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "s3 access with different region",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-west-1"),
-			})),
-			request:             s3Request,
-			wantHost:            "s3.us-west-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "s3",
-			wantAuthCredRegion:  "us-west-1",
-			wantEventType:       &events.AppSessionRequest{},
-			errAssertionFns: []require.ErrorAssertionFunc{
-				require.NoError,
-			},
-		},
-		{
-			name: "s3 access missing credentials",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: credentials.AnonymousCredentials,
-				Region:      aws.String("us-west-1"),
-			})),
-			request: s3Request,
+			name:                   "s3 access missing credentials",
+			app:                    consoleApp,
+			awsCredentialsProvider: aws.AnonymousCredentials{},
+			awsRegion:              "us-west-1",
+			request:                s3Request,
 			errAssertionFns: []require.ErrorAssertionFunc{
 				hasStatusCode(http.StatusBadRequest),
 			},
 		},
 		{
-			name: "s3 access by assumed role",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForAssumedRole,
-				Region:      aws.String("us-west-2"),
-			})),
-			request:             s3RequestByAssumedRole,
-			wantHost:            "s3.us-west-2.amazonaws.com",
-			wantAuthCredKeyID:   assumedRoleKeyID, // not using service's access key ID
-			wantAuthCredService: "s3",
-			wantAuthCredRegion:  "us-west-2",
-			wantEventType:       &events.AppSessionRequest{},
-			wantAssumedRole:     fakeAssumedRoleARN, // verifies assumed role is recorded in audit
-			skipVerifySignature: true,               // not re-signing
+			name:                   "s3 access by assumed role",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForAssumedRole,
+			awsRegion:              "us-west-2",
+			request:                s3RequestByAssumedRole,
+			wantHost:               "s3.us-west-2.amazonaws.com",
+			wantAuthCredKeyID:      assumedRoleKeyID, // not using service's access key ID
+			wantAuthCredService:    "s3",
+			wantAuthCredRegion:     "us-west-2",
+			wantEventType:          &events.AppSessionRequest{},
+			wantAssumedRole:        fakeAssumedRoleARN, // verifies assumed role is recorded in audit
+			skipVerifySignature:    true,               // not re-signing
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "DynamoDB access",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-east-1"),
-			})),
-			request:             dynamoRequest,
-			wantHost:            "dynamodb.us-east-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "dynamodb",
-			wantAuthCredRegion:  "us-east-1",
-			wantEventType:       &events.AppSessionDynamoDBRequest{},
+			name:                   "DynamoDB access",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                dynamoRequest,
+			wantHost:               "dynamodb.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "dynamodb",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionDynamoDBRequest{},
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "DynamoDB access with different region",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-west-1"),
-			})),
-			request:             dynamoRequest,
-			wantHost:            "dynamodb.us-west-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "dynamodb",
-			wantAuthCredRegion:  "us-west-1",
-			wantEventType:       &events.AppSessionDynamoDBRequest{},
+			name:                   "DynamoDB access with different region",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-west-1",
+			request:                dynamoRequest,
+			wantHost:               "dynamodb.us-west-1.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "dynamodb",
+			wantAuthCredRegion:     "us-west-1",
+			wantEventType:          &events.AppSessionDynamoDBRequest{},
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "DynamoDB access missing credentials",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: credentials.AnonymousCredentials,
-				Region:      aws.String("us-west-1"),
-			})),
-			request: dynamoRequest,
+			name:                   "DynamoDB access missing credentials",
+			app:                    consoleApp,
+			awsCredentialsProvider: aws.AnonymousCredentials{},
+			awsRegion:              "us-west-1",
+			request:                dynamoRequest,
 			errAssertionFns: []require.ErrorAssertionFunc{
 				hasStatusCode(http.StatusBadRequest),
 			},
 		},
 		{
-			name: "DynamoDB access by assumed role",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForAssumedRole,
-				Region:      aws.String("us-east-1"),
-			})),
-			request:             dynamoRequestByAssumedRole,
-			wantHost:            "dynamodb.us-east-1.amazonaws.com",
-			wantAuthCredKeyID:   assumedRoleKeyID, // not using service's access key ID
-			wantAuthCredService: "dynamodb",
-			wantAuthCredRegion:  "us-east-1",
-			wantEventType:       &events.AppSessionDynamoDBRequest{},
-			wantAssumedRole:     fakeAssumedRoleARN, // verifies assumed role is recorded in audit
-			skipVerifySignature: true,               // not re-signing
+			name:                   "DynamoDB access by assumed role",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForAssumedRole,
+			awsRegion:              "us-east-1",
+			request:                dynamoRequestByAssumedRole,
+			wantHost:               "dynamodb.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:      assumedRoleKeyID, // not using service's access key ID
+			wantAuthCredService:    "dynamodb",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionDynamoDBRequest{},
+			wantAssumedRole:        fakeAssumedRoleARN, // verifies assumed role is recorded in audit
+			skipVerifySignature:    true,               // not re-signing
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "Lambda access",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-east-1"),
-			})),
-			request:             lambdaRequest,
-			wantHost:            "lambda.us-east-1.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "lambda",
-			wantAuthCredRegion:  "us-east-1",
-			wantEventType:       &events.AppSessionRequest{},
+			name:                   "Lambda access",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                lambdaRequest,
+			wantHost:               "lambda.us-east-1.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "lambda",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionRequest{},
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "Request exceeding max size",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-east-1"),
-			})),
-			request: maxSizeExceededRequest,
+			name:                   "Request exceeding max size",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                maxSizeExceededRequest,
+			wantHost:               "lambda.us-east-1.amazonaws.com",
 			errAssertionFns: []require.ErrorAssertionFunc{
 				// TODO(gavin): change this to [http.StatusRequestEntityTooLarge]
 				// after updating [trace.ErrorToCode].
@@ -396,57 +410,48 @@ func TestAWSSignerHandler(t *testing.T) {
 			},
 		},
 		{
-			name: "AssumeRole success (shorter identity duration)",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-east-1"),
-			})),
-			request:             assumeRoleRequest(2 * time.Hour),
-			advanceClock:        10 * time.Minute,
-			wantHost:            "sts.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "sts",
-			wantAuthCredRegion:  "us-east-1",
-			wantEventType:       &events.AppSessionRequest{},
-			verifySentRequest:   verifyAssumeRoleDuration(50 * time.Minute), // 1h (suite default for identity) - 10m
+			name:                   "AssumeRole success (shorter identity duration)",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleRequest(2 * time.Hour),
+			advanceClock:           10 * time.Minute,
+			wantHost:               "sts.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "sts",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionRequest{},
+			verifySentRequest:      verifyAssumeRoleDuration(50 * time.Minute), // 1h (suite default for identity) - 10m
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "AssumeRole success (shorter requested duration)",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-east-1"),
-			})),
-			request:             assumeRoleRequest(32 * time.Minute),
-			wantHost:            "sts.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "sts",
-			wantAuthCredRegion:  "us-east-1",
-			wantEventType:       &events.AppSessionRequest{},
-			verifySentRequest:   verifyAssumeRoleDuration(32 * time.Minute), // matches the request
+			name:                   "AssumeRole success (shorter requested duration)",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleRequest(32 * time.Minute),
+			wantHost:               "sts.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "sts",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionRequest{},
+			verifySentRequest:      verifyAssumeRoleDuration(32 * time.Minute), // matches the request
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
 			},
 		},
 		{
-			name: "AssumeRole denied",
-			app:  consoleApp,
-			awsClientSession: session.Must(session.NewSession(&aws.Config{
-				Credentials: staticAWSCredentialsForClient,
-				Region:      aws.String("us-east-1"),
-			})),
-			request:             assumeRoleRequest(2 * time.Hour),
-			advanceClock:        50 * time.Minute, // identity is expiring in 10m which is less than minimum
-			wantHost:            "sts.amazonaws.com",
-			wantAuthCredKeyID:   "AKIDl",
-			wantAuthCredService: "sts",
-			wantAuthCredRegion:  "us-east-1",
-			wantEventType:       &events.AppSessionRequest{},
+			name:                   "AssumeRole denied",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleRequest(2 * time.Hour),
+			wantHost:               "sts.amazonaws.com",
+			advanceClock:           50 * time.Minute, // identity is expiring in 10m which is less than minimum
 			errAssertionFns: []require.ErrorAssertionFunc{
+				// the request is 403 forbidden by Teleport, so the mock AWS handler won't be sent anything.
 				hasStatusCode(http.StatusForbidden),
 			},
 		},
@@ -470,7 +475,9 @@ func TestAWSSignerHandler(t *testing.T) {
 
 				// check that the signature is valid.
 				if !tc.skipVerifySignature {
-					err = awsutils.VerifyAWSSignature(r, staticAWSCredentials)
+					err := awsutils.VerifyAWSSignature(r,
+						credentials.NewStaticCredentialsProvider(tc.wantAuthCredKeyID, "secret", "token"),
+					)
 					if !assert.NoError(t, err) {
 						http.Error(w, err.Error(), trace.ErrorToCode(err))
 						return
@@ -484,15 +491,15 @@ func TestAWSSignerHandler(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}
 
-			sessionProvider := awsutils.SessionProviderUsingAmbientCredentials()
-			if tc.awsSessionProvider != nil {
-				sessionProvider = tc.awsSessionProvider
+			awsCfgProvider := tc.awsConfigProvider
+			if awsCfgProvider == nil {
+				awsCfgProvider = &mocks.AWSConfigProvider{}
 			}
 
-			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock, sessionProvider)
+			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock, awsCfgProvider)
 			fakeClock.Advance(tc.advanceClock)
 
-			err := tc.request(suite.URL, tc.awsClientSession, tc.wantHost)
+			err := tc.request(t.Context(), suite.URL, tc.awsRegion, tc.awsCredentialsProvider, tc.wantHost)
 			for _, assertFn := range tc.errAssertionFns {
 				assertFn(t, err)
 			}
@@ -536,7 +543,7 @@ func TestRewriteRequest(t *testing.T) {
 	ctx := context.Background()
 
 	inputReq := mustNewRequest(t, "GET", "https://example.com", nil)
-	actualOutReq, err := rewriteRequest(ctx, inputReq, &endpoints.ResolvedEndpoint{})
+	actualOutReq, err := rewriteRequest(ctx, inputReq, &common.AWSResolvedEndpoint{})
 	require.NoError(t, err)
 	require.Equal(t, expectedReq, actualOutReq, err)
 
@@ -548,14 +555,14 @@ func TestURLForResolvedEndpoint(t *testing.T) {
 	tests := []struct {
 		name                 string
 		inputReq             *http.Request
-		inputResolvedEnpoint *endpoints.ResolvedEndpoint
+		inputResolvedEnpoint *common.AWSResolvedEndpoint
 		requireError         require.ErrorAssertionFunc
 		expectURL            *url.URL
 	}{
 		{
 			name:     "bad resolved endpoint",
 			inputReq: mustNewRequest(t, "GET", "http://1.2.3.4/hello/world?aa=2", nil),
-			inputResolvedEnpoint: &endpoints.ResolvedEndpoint{
+			inputResolvedEnpoint: &common.AWSResolvedEndpoint{
 				URL: string([]byte{0x05}),
 			},
 			requireError: require.Error,
@@ -563,7 +570,7 @@ func TestURLForResolvedEndpoint(t *testing.T) {
 		{
 			name:     "replaced host and scheme",
 			inputReq: mustNewRequest(t, "GET", "http://1.2.3.4/hello/world?aa=2", nil),
-			inputResolvedEnpoint: &endpoints.ResolvedEndpoint{
+			inputResolvedEnpoint: &common.AWSResolvedEndpoint{
 				URL: "https://local.test.com",
 			},
 			expectURL: &url.URL{
@@ -596,9 +603,8 @@ func mustNewRequest(t *testing.T, method, url string, body io.Reader) *http.Requ
 const assumedRoleKeyID = "assumedRoleKeyID"
 
 var (
-	staticAWSCredentialsForAssumedRole = credentials.NewStaticCredentials(assumedRoleKeyID, "assumedRoleKeySecret", "")
-	staticAWSCredentials               = credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION")
-	staticAWSCredentialsForClient      = credentials.NewStaticCredentials("fakeClientKeyID", "fakeClientSecret", "")
+	staticAWSCredentialsForAssumedRole = credentials.NewStaticCredentialsProvider(assumedRoleKeyID, "assumedRoleKeySecret", "")
+	staticAWSCredentialsForClient      = credentials.NewStaticCredentialsProvider("fakeClientKeyID", "fakeClientSecret", "")
 )
 
 type suite struct {
@@ -608,7 +614,7 @@ type suite struct {
 	recorder *eventstest.ChannelRecorder
 }
 
-func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock, awsSessionProvider awsutils.AWSSessionProvider) *suite {
+func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock, acp awsconfig.Provider) *suite {
 	recorder := eventstest.NewChannelRecorder(1)
 	identity := tlsca.Identity{
 		Username: "user",
@@ -624,13 +630,6 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		awsAPIMock.Close()
 	})
 
-	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		SessionProvider:   awsSessionProvider,
-		CredentialsGetter: awsutils.NewStaticCredentialsGetter(staticAWSCredentials),
-		Clock:             clock,
-	})
-	require.NoError(t, err)
-
 	audit, err := common.NewAudit(common.AuditConfig{
 		Emitter:  libevents.NewDiscardEmitter(),
 		Recorder: libevents.WithNoOpPreparer(recorder),
@@ -638,7 +637,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	require.NoError(t, err)
 	signerHandler, err := NewAWSSignerHandler(context.Background(),
 		SignerHandlerConfig{
-			SigningService: svc,
+			AWSConfigProvider: acp,
 			RoundTripper: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,

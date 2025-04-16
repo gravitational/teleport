@@ -16,34 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+
 import { Text } from 'design';
+import { Alert } from 'design/Alert/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
-import { Alert } from 'design/Alert/Alert';
 
+import cfg from 'teleport/config';
+import { CreatedDiscoveryConfigDialog } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
+  createDiscoveryConfig,
+  DISCOVERY_GROUP_CLOUD,
+} from 'teleport/services/discovery';
+import {
   AwsRdsDatabase,
+  integrationService,
   Regions,
   Vpc,
-  integrationService,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
-import {
-  DISCOVERY_GROUP_CLOUD,
-  createDiscoveryConfig,
-} from 'teleport/services/discovery';
-import useTeleport from 'teleport/useTeleport';
 import {
   DiscoverEvent,
   DiscoverEventStatus,
 } from 'teleport/services/userEvent';
-import { CreatedDiscoveryConfigDialog } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons } from '../../Shared';
-
+import { AwsRdsAuthRequirementAlert } from '../SetupAccess/AwsRdsAuthRequirements';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -82,8 +83,14 @@ export function AutoEnrollment({
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
 
-  const { agentMeta, updateAgentMeta, emitErrorEvent, nextStep, emitEvent } =
-    useDiscover();
+  const {
+    agentMeta,
+    updateAgentMeta,
+    emitErrorEvent,
+    nextStep,
+    emitEvent,
+    resourceSpec,
+  } = useDiscover();
   const {
     attempt: createDiscoveryConfigAttempt,
     setAttempt: setCreateDiscoveryConfigAttempt,
@@ -230,6 +237,10 @@ export function AutoEnrollment({
             items={tableData?.items || []}
             fetchStatus={tableData?.fetchStatus || 'loading'}
             fetchNextPage={fetchNextPage}
+          />
+          <AwsRdsAuthRequirementAlert
+            wantAutoDiscover={true}
+            id={resourceSpec.id}
           />
         </>
       )}

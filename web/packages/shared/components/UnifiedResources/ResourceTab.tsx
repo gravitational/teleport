@@ -17,8 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Box, Text } from 'design';
 
+import { Box, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
 import { PINNING_NOT_SUPPORTED_MESSAGE } from './UnifiedResources';

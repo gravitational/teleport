@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -112,7 +113,7 @@ loop:
 			return frameCount, ctx.Err()
 		case evt, more := <-evts:
 			if !more {
-				log.Warnln("reached end of stream before seeing session end event")
+				logger.WarnContext(ctx, "reached end of stream before seeing session end event")
 				break loop
 			}
 
@@ -137,7 +138,7 @@ loop:
 			case *apievents.DesktopRecording:
 				msg, err := tdp.Decode(evt.Message)
 				if err != nil {
-					log.Warnf("failed to decode desktop recording message: %v", err)
+					logger.WarnContext(ctx, "failed to decode desktop recording message", "error", err)
 					break loop
 				}
 
@@ -153,7 +154,7 @@ loop:
 					// Note: this works because we don't currently support resizing
 					// the window during a session. If this changes, we'd have to
 					// find the maximum window size first.
-					log.Debugf("allocating %dx%d screen", msg.Width, msg.Height)
+					logger.DebugContext(ctx, "allocating screen size", "width", msg.Width, "height", msg.Height)
 					width, height = int32(msg.Width), int32(msg.Height)
 					screen = image.NewNRGBA(image.Rectangle{
 						Min: image.Pt(0, 0),
@@ -196,7 +197,10 @@ loop:
 				delta := evt.DelayMilliseconds - lastEmitted
 				framesToEmit := int64(float64(delta) / frameDelayMillis)
 				if framesToEmit > 0 {
-					log.Debugf("%dms since last frame, emitting %d frames", delta, framesToEmit)
+					logger.DebugContext(ctx, "emitting frames",
+						"last_event_ms", delta,
+						"frames_to_emit", framesToEmit,
+					)
 					buf.Reset()
 					if err := jpeg.Encode(buf, screen, nil); err != nil {
 						return frameCount, trace.Wrap(err)
@@ -231,7 +235,7 @@ loop:
 				}
 
 			default:
-				log.Debugf("got unexpected audit event %T", evt)
+				logger.DebugContext(ctx, "got unexpected audit event", "event", logutils.TypeAttr(evt))
 			}
 		}
 	}

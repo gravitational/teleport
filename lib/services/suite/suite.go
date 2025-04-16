@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
+	"log/slog"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -33,7 +34,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	protobuf "google.golang.org/protobuf/proto"
@@ -70,9 +70,12 @@ func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]b
 // a test certificate authority
 type TestCAConfig struct {
 	Type        types.CertAuthType
-	ClusterName string
 	PrivateKeys [][]byte
 	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
 }
 
 // NewTestCAWithConfig generates a new certificate authority with the specified
@@ -82,6 +85,13 @@ type TestCAConfig struct {
 func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	var keyPEM []byte
 	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
 
 	switch config.Type {
 	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
@@ -112,14 +122,11 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		if err != nil {
 			panic(err)
 		}
-		keyPEM, err = keys.MarshalPrivateKey(signer)
+		key, err = keys.NewPrivateKey(signer)
 		if err != nil {
 			panic(err)
 		}
-		key, err = keys.NewPrivateKey(signer, keyPEM)
-		if err != nil {
-			panic(err)
-		}
+		keyPEM = key.PrivateKeyPEM()
 	}
 
 	ca := &types.CertAuthorityV2{
@@ -127,7 +134,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		SubKind: string(config.Type),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      config.ClusterName,
+			Name:      config.ResourceName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.CertAuthoritySpecV2{
@@ -152,7 +159,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			Signer: key.Signer,
 			Entity: pkix.Name{
 				CommonName:   config.ClusterName,
-				Organization: []string{config.ClusterName},
+				Organization: []string{config.SubjectOrganization},
 			},
 			TTL:   defaults.CATTL,
 			Clock: config.Clock,
@@ -197,12 +204,12 @@ type ServicesTestSuite struct {
 	// managed by the Auth service directly (static tokens).
 	// Used by some tests to differentiate between a server
 	// and client interface.
-	LocalConfigS  services.ClusterConfiguration
+	LocalConfigS  services.ClusterConfigurationInternal
 	EventsS       types.Events
 	UsersS        services.UsersService
 	RestrictionsS services.Restrictions
 	ChangesC      chan interface{}
-	Clock         clockwork.FakeClock
+	Clock         *clockwork.FakeClock
 }
 
 func (s *ServicesTestSuite) Users() services.UsersService {
@@ -602,38 +609,6 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 	}
 }
 
-func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
-	ctx := context.Background()
-
-	out, err := s.PresenceS.GetReverseTunnels(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-	require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
-
-	out, err = s.PresenceS.GetReverseTunnels(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out, []types.ReverseTunnel{tunnel}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
-	require.NoError(t, err)
-
-	out, err = s.PresenceS.GetReverseTunnels(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("", []string{"127.0.0.1:1234"}))
-	require.True(t, trace.IsBadParameter(err))
-
-	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{""}))
-	require.True(t, trace.IsBadParameter(err))
-
-	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{}))
-	require.True(t, trace.IsBadParameter(err))
-}
-
 func (s *ServicesTestSuite) PasswordCRUD(t *testing.T) {
 	ctx := context.Background()
 
@@ -830,32 +805,6 @@ func (s *ServicesTestSuite) RolesCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = s.Access.GetRole(ctx, role.Metadata.Name)
-	require.True(t, trace.IsNotFound(err))
-}
-
-func (s *ServicesTestSuite) NamespacesCRUD(t *testing.T) {
-	out, err := s.PresenceS.GetNamespaces()
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	ns := types.Namespace{
-		Kind:    types.KindNamespace,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      apidefaults.Namespace,
-			Namespace: apidefaults.Namespace,
-		},
-	}
-	err = s.PresenceS.UpsertNamespace(ns)
-	require.NoError(t, err)
-	nsout, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nsout, &ns))
-
-	err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-	require.NoError(t, err)
-
-	_, err = s.PresenceS.GetNamespace(ns.Metadata.Name)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1341,27 +1290,28 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterName tests cluster name.
 func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
+	ctx := context.Background()
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
 	require.NoError(t, err)
-	err = s.ConfigS.SetClusterName(clusterName)
+	err = s.LocalConfigS.SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err := s.ConfigS.GetClusterName()
+	gotName, err := s.ConfigS.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.ConfigS.DeleteClusterName()
+	err = s.LocalConfigS.DeleteClusterName()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetClusterName()
+	_, err = s.ConfigS.GetClusterName(ctx)
 	require.True(t, trace.IsNotFound(err))
 
-	err = s.ConfigS.UpsertClusterName(clusterName)
+	err = s.LocalConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err = s.ConfigS.GetClusterName()
+	gotName, err = s.ConfigS.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
@@ -1715,32 +1665,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 		{
-			name: "Namespace",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "testnamespace",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-		{
 			name: "Static tokens",
 			kind: types.WatchKind{
 				Kind: types.KindStaticTokens,
@@ -1888,9 +1812,12 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-				require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
+				_, err := s.PresenceS.UpsertReverseTunnel(ctx, tunnel)
+				require.NoError(t, err)
 
-				out, err := s.PresenceS.GetReverseTunnels(context.Background())
+				out, _, err := s.PresenceS.ListReverseTunnels(
+					ctx, 0, "",
+				)
 				require.NoError(t, err)
 
 				err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
@@ -1927,38 +1854,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 		AllowPartialSuccess: true,
 	})
 
-	// Namespace with a name
-	testCases = []eventTest{
-		{
-			name: "Namespace with a name",
-			kind: types.WatchKind{
-				Kind: types.KindNamespace,
-				Name: "shmest",
-			},
-			crud: func(context.Context) types.Resource {
-				ns := types.Namespace{
-					Kind:    types.KindNamespace,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Name:      "shmest",
-						Namespace: apidefaults.Namespace,
-					},
-				}
-				err := s.PresenceS.UpsertNamespace(ns)
-				require.NoError(t, err)
-
-				out, err := s.PresenceS.GetNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				err = s.PresenceS.DeleteNamespace(ns.Metadata.Name)
-				require.NoError(t, err)
-
-				return out
-			},
-		},
-	}
-	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
-
 	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
 	s.runUnknownEventsTest(t, types.Watch{Kinds: []types.WatchKind{
 		{Kind: types.KindNamespace},
@@ -1983,19 +1878,19 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindClusterName,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 					ClusterName: "example.com",
 				})
 				require.NoError(t, err)
 
-				err = s.ConfigS.UpsertClusterName(clusterName)
+				err = s.LocalConfigS.UpsertClusterName(clusterName)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetClusterName()
+				out, err := s.ConfigS.GetClusterName(ctx)
 				require.NoError(t, err)
 
-				err = s.ConfigS.DeleteClusterName()
+				err = s.LocalConfigS.DeleteClusterName()
 				require.NoError(t, err)
 				return out
 			},
@@ -2140,7 +2035,7 @@ skiploop:
 	for {
 		select {
 		case event := <-w.Events():
-			log.Debugf("Skipping pre-test event: %v", event)
+			slog.DebugContext(ctx, "Skipping pre-test event", "event", event)
 			continue skiploop
 		default:
 			break skiploop
@@ -2215,11 +2110,11 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpPut {
-				log.Debugf("Skipping event %+v", event)
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue
 			}
 			if resource.GetName() != event.Resource.GetName() || resource.GetKind() != event.Resource.GetKind() || resource.GetSubKind() != event.Resource.GetSubKind() {
-				log.Debugf("Skipping event %v resource %v, expecting %v", event.Type, event.Resource.GetMetadata(), event.Resource.GetMetadata())
+				slog.DebugContext(context.Background(), "Skipping event", "event", event)
 				continue waitLoop
 			}
 			require.Empty(t, cmp.Diff(resource, event.Resource))
@@ -2240,7 +2135,10 @@ waitLoop:
 			t.Fatalf("Watcher exited with error %v", w.Error())
 		case event := <-w.Events():
 			if event.Type != types.OpDelete {
-				log.Debugf("Skipping stale event %v %v", event.Type, event.Resource.GetName())
+				slog.DebugContext(context.Background(), "Skipping stale event",
+					"event_type", event.Type,
+					"resource_name", event.Resource.GetName(),
+				)
 				continue
 			}
 

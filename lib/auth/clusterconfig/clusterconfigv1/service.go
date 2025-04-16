@@ -31,6 +31,7 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
@@ -40,6 +41,7 @@ type Cache interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // ReadOnlyCache abstracts over the required methods of [readonly.Cache].
@@ -179,6 +181,10 @@ func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreferen
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
+	if err := services.ValidateAuthPreference(p); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// check that the given RequireMFAType is supported in this build.
 	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
@@ -231,6 +237,10 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -295,6 +305,10 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 
 	// Support reused MFA for bulk tctl create requests.
 	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -713,6 +727,12 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConf
 		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
 	}
 
+	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
+	newts := newConfig.GetProxyPeeringTunnelStrategy()
+	if oldts != nil && newts != nil && oldts.AgentConnectionCount != newts.AgentConnectionCount {
+		return trace.BadParameter(cloudUpdateFailureMsg, "agent_connection_count")
+	}
+
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
 		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
 	}
@@ -1044,7 +1064,7 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1161,4 +1181,25 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 	}
 
 	return rsp, nil
+}
+
+func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClusterNameRequest) (*types.ClusterNameV2, error) {
+	authzCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authzCtx.CheckAccessToKind(types.KindClusterName, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cn, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cast, ok := cn.(*types.ClusterNameV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected cluster name type %T (expected %T)", cn, cast)
+	}
+	return cast, nil
 }

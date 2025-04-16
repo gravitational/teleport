@@ -40,7 +40,8 @@ jobs:
           node --version
 
       - name: Install JS dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
 
       - name: Build WASM
         run: pnpm build-wasm

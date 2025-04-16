@@ -85,22 +85,18 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
+		AccessRequests: c.status.ActiveRequests,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		RouteToDatabase: proto.RouteToDatabase{
-			ServiceName: routeToDatabase.ServiceName,
-			Protocol:    routeToDatabase.Protocol,
-			Username:    routeToDatabase.Username,
-		},
-		AccessRequests: c.status.ActiveRequests.AccessRequests,
-		RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
-		TTL:            c.clusterClient.KeyTTL,
+		RouteToCluster:  c.clusterClient.SiteName,
+		RouteToDatabase: client.RouteToDatabaseToProto(routeToDatabase),
+		AccessRequests:  c.status.ActiveRequests,
+		RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		TTL:             c.clusterClient.KeyTTL,
 	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

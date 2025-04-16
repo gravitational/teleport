@@ -17,26 +17,34 @@
  */
 
 import { useMemo, useRef } from 'react';
-import Popover from 'design/Popover';
+
 import { Box, StepSlider } from 'design';
+import Popover from 'design/Popover';
 
-import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { VnetSliderStep, useVnetContext } from 'teleterm/ui/Vnet';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+import { useVnetContext, VnetSliderStep } from 'teleterm/ui/Vnet';
 
+import { Step, useConnectionsContext } from './connectionsContext';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsSliderStep } from './ConnectionsSliderStep';
-import { Step, useConnectionsContext } from './connectionsContext';
 
 export function Connections() {
   const { connectionTracker } = useAppContext();
   connectionTracker.useState();
   const iconRef = useRef();
   const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
-  const { status: vnetStatus } = useVnetContext();
+  const { status: vnetStatus, showDiagWarningIndicator } = useVnetContext();
   const isAnyConnectionActive =
     connectionTracker.getConnections().some(c => c.connected) ||
     vnetStatus.value === 'running';
+  const status = useMemo(() => {
+    if (showDiagWarningIndicator) {
+      return 'warning';
+    }
+
+    return isAnyConnectionActive ? 'on' : 'off';
+  }, [showDiagWarningIndicator, isAnyConnectionActive]);
 
   useKeyboardShortcuts(
     useMemo(
@@ -58,11 +66,7 @@ export function Connections() {
 
   return (
     <>
-      <ConnectionsIcon
-        isAnyConnectionActive={isAnyConnectionActive}
-        onClick={toggle}
-        ref={iconRef}
-      />
+      <ConnectionsIcon status={status} onClick={toggle} ref={iconRef} />
       <Popover
         open={isOpen}
         anchorEl={iconRef.current}
@@ -70,10 +74,9 @@ export function Connections() {
         onClose={close}
       >
         {/*
-          324px matches the total width when the outer div inside Popover used to have 12px of
-          padding (so 24px on both sides) and ConnectionsFilterableList had 300px of width.
+          It needs to be wide enough for the diag warning in the VNet panel to not be squished too much.
         */}
-        <Box width="324px" bg="levels.elevated">
+        <Box width="396px" bg="levels.elevated">
           <StepSlider
             tDuration={250}
             currFlow="default"

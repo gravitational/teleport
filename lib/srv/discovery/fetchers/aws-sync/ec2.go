@@ -26,7 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -38,7 +39,7 @@ import (
 
 // pollAWSEC2Instances is a function that returns a function that fetches
 // ec2 instances and instance profiles and returns an error if any.
-func (a *awsFetcher) pollAWSEC2Instances(ctx context.Context, result *Resources, collectErr func(error)) func() error {
+func (a *Fetcher) pollAWSEC2Instances(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
 
@@ -58,7 +59,7 @@ func (a *awsFetcher) pollAWSEC2Instances(ctx context.Context, result *Resources,
 // as a slice of accessgraphv1alpha.AWSInstanceV1.
 // It uses ec2.DescribeInstancesPagesWithContext to iterate over all instances
 // in all regions.
-func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceV1, error) {
+func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceV1, error) {
 	var (
 		hosts    []*accessgraphv1alpha.AWSInstanceV1
 		hostsMu  sync.Mutex
@@ -88,7 +89,7 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 					return h.Region == region && h.AccountId == a.AccountID
 				},
 			)
-			ec2Client, err := a.GetEC2Client(ctx, region, a.getAWSV2Options()...)
+			ec2Client, err := a.GetEC2Client(ctx, region, a.getAWSOptions()...)
 			if err != nil {
 				collectHosts(prevIterationEc2, trace.Wrap(err))
 				return nil
@@ -96,7 +97,7 @@ func (a *awsFetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1
 			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			defer cancel()
 			paginator := ec2.NewDescribeInstancesPaginator(ec2Client, &ec2.DescribeInstancesInput{
-				MaxResults: aws.Int32(int32(pageSize)),
+				MaxResults: aws.Int32(pageSize),
 			})
 			for paginator.HasMorePages() {
 				page, err := paginator.NextPage(ctx)
@@ -149,10 +150,9 @@ func awsInstanceToProtoInstance(instance ec2types.Instance, region string, accou
 
 // fetchInstanceProfiles fetches instance profiles from all regions and returns them
 // as a slice of accessgraphv1alpha.AWSInstanceProfileV1.
-func (a *awsFetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceProfileV1, error) {
-	var existing = a.lastResult.InstanceProfiles
-	var profiles []*accessgraphv1alpha.AWSInstanceProfileV1
-	iamClient, err := a.CloudClients.GetAWSIAMClient(
+func (a *Fetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1alpha.AWSInstanceProfileV1, error) {
+	existing := a.lastResult.InstanceProfiles
+	awsCfg, err := a.AWSConfigProvider.GetConfig(
 		ctx,
 		"", /* region is empty because users and groups are global */
 		a.getAWSOptions()...,
@@ -160,31 +160,34 @@ func (a *awsFetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv
 	if err != nil {
 		return existing, trace.Wrap(err)
 	}
-
-	err = iamClient.ListInstanceProfilesPagesWithContext(
-		ctx,
+	iamClient := a.awsClients.getIAMClient(awsCfg)
+	pager := iam.NewListInstanceProfilesPaginator(
+		iamClient,
 		&iam.ListInstanceProfilesInput{
-			MaxItems: aws.Int64(pageSize),
+			MaxItems: aws.Int32(pageSize),
 		},
-		func(page *iam.ListInstanceProfilesOutput, lastPage bool) bool {
-			for _, profile := range page.InstanceProfiles {
-				profiles = append(
-					profiles,
-					awsInstanceProfileToProtoInstanceProfile(profile, a.AccountID),
-				)
-			}
-			return !lastPage
+		func(opts *iam.ListInstanceProfilesPaginatorOptions) {
+			opts.StopOnDuplicateToken = true
 		},
 	)
-	if err != nil {
-		profiles = append(profiles, existing...)
-	}
 
+	var profiles []*accessgraphv1alpha.AWSInstanceProfileV1
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return append(profiles, existing...), trace.Wrap(err)
+		}
+		for _, profile := range page.InstanceProfiles {
+			profiles = append(profiles,
+				awsInstanceProfileToProtoInstanceProfile(profile, a.AccountID),
+			)
+		}
+	}
 	return profiles, trace.Wrap(err)
 }
 
 // awsInstanceProfileToProtoInstanceProfile converts an iam.InstanceProfile to accessgraphv1alpha.AWSInstanceProfileV1
-func awsInstanceProfileToProtoInstanceProfile(profile *iam.InstanceProfile, accountID string) *accessgraphv1alpha.AWSInstanceProfileV1 {
+func awsInstanceProfileToProtoInstanceProfile(profile iamtypes.InstanceProfile, accountID string) *accessgraphv1alpha.AWSInstanceProfileV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(profile.Tags))
 	for _, tag := range profile.Tags {
 		tags = append(tags, &accessgraphv1alpha.AWSTag{
@@ -204,9 +207,6 @@ func awsInstanceProfileToProtoInstanceProfile(profile *iam.InstanceProfile, acco
 		LastSyncTime:        timestamppb.Now(),
 	}
 	for _, role := range profile.Roles {
-		if role == nil {
-			continue
-		}
 		out.Roles = append(out.Roles, awsRoleToProtoRole(role, accountID))
 	}
 	return out

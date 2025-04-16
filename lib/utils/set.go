@@ -84,6 +84,15 @@ func (s Set[T]) Subtract(other Set[T]) Set[T] {
 	return s
 }
 
+// Intersection updates the set to contain the similarity between the set and `other`
+func (s Set[T]) Intersection(other Set[T]) {
+	for b := range s {
+		if !other.Contains(b) {
+			s.Remove(b)
+		}
+	}
+}
+
 // Elements returns the elements in the set. Order of the elements is undefined.
 //
 // NOTE: Due to the underlying map type, a set can be naturally ranged over like

@@ -18,9 +18,9 @@
 
 import { useState } from 'react';
 
-import { TableProps } from './types';
-import Table from './Table';
 import { ClickableLabelCell, DateCell, LabelCell } from './Cells';
+import Table from './Table';
+import { TableProps } from './types';
 
 export default {
   title: 'Design/DataTable',

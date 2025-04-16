@@ -21,7 +21,9 @@ package host
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -29,7 +31,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // man GROUPADD(8), exit codes section
@@ -55,7 +56,10 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 
 	cmd := exec.Command(groupaddBin, args...)
 	output, err := cmd.CombinedOutput()
-	log.Debugf("%s output: %s", cmd.Path, string(output))
+	slog.DebugContext(context.Background(), "groupadd command completed",
+		"command_path", cmd.Path,
+		"output", string(output),
+	)
 
 	switch code := cmd.ProcessState.ExitCode(); code {
 	case GroupExistExit:
@@ -65,7 +69,7 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 		if strings.Contains(string(output), "not a valid group name") {
 			errMsg = "invalid group name"
 		}
-		return code, trace.BadParameter(errMsg)
+		return code, trace.BadParameter("%s", errMsg)
 	default:
 		return code, trace.Wrap(err)
 	}
@@ -122,7 +126,7 @@ func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err
 
 	if opts.Shell != "" {
 		if shell, err := exec.LookPath(opts.Shell); err != nil {
-			log.Warnf("configured shell %q not found, falling back to host default", opts.Shell)
+			slog.WarnContext(context.Background(), "configured shell not found, falling back to host default", "shell", opts.Shell)
 		} else {
 			args = append(args, "--shell", shell)
 		}
@@ -130,7 +134,10 @@ func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err
 
 	cmd := exec.Command(useraddBin, args...)
 	output, err := cmd.CombinedOutput()
-	log.Debugf("%s output: %s", cmd.Path, string(output))
+	slog.DebugContext(context.Background(), "useradd command completed",
+		"command_path", cmd.Path,
+		"output", string(output),
+	)
 	if cmd.ProcessState.ExitCode() == UserExistExit {
 		return cmd.ProcessState.ExitCode(), trace.AlreadyExists("user already exists")
 	}
@@ -147,7 +154,10 @@ func SetUserGroups(username string, groups []string) (exitCode int, err error) {
 	// usermod -G (replace groups) (username)
 	cmd := exec.Command(usermodBin, "-G", strings.Join(groups, ","), username)
 	output, err := cmd.CombinedOutput()
-	log.Debugf("%s output: %s", cmd.Path, string(output))
+	slog.DebugContext(context.Background(), "usermod completed",
+		"command_path", cmd.Path,
+		"output", string(output),
+	)
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
@@ -170,7 +180,10 @@ func UserDel(username string) (exitCode int, err error) {
 	// userdel --remove (remove home) username
 	cmd := exec.Command(userdelBin, args...)
 	output, err := cmd.CombinedOutput()
-	log.Debugf("%s output: %s", cmd.Path, string(output))
+	slog.DebugContext(context.Background(), "userdel command completed",
+		"command_path", cmd.Path,
+		"output", string(output),
+	)
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 

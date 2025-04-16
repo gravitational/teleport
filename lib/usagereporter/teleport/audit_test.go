@@ -238,6 +238,45 @@ func TestConvertAuditEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "DatabaseSessionStart",
+			event: &apievents.DatabaseSessionStart{
+				UserMetadata: apievents.UserMetadata{User: "alice"},
+				DatabaseMetadata: apievents.DatabaseMetadata{
+					DatabaseService:  "postgres-local",
+					DatabaseProtocol: "postgres",
+					DatabaseName:     "postgres",
+					DatabaseUser:     "alice",
+					DatabaseType:     "self-hosted",
+					DatabaseOrigin:   "config-file",
+				},
+				ClientMetadata: apievents.ClientMetadata{UserAgent: "psql"},
+			},
+			expected: &SessionStartEvent{
+				SessionType: string(types.DatabaseSessionKind),
+				Database: &prehogv1a.SessionStartDatabaseMetadata{
+					DbType:     "self-hosted",
+					DbProtocol: "postgres",
+					DbOrigin:   "config-file",
+					UserAgent:  "psql",
+				},
+				UserName: "alice",
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
+					SessionStartV2: &prehogv1a.SessionStartEvent{
+						SessionType: string(types.DatabaseSessionKind),
+						Database: &prehogv1a.SessionStartDatabaseMetadata{
+							DbType:     "self-hosted",
+							DbProtocol: "postgres",
+							DbOrigin:   "config-file",
+							UserAgent:  "psql",
+						},
+						UserName: anonymizer.AnonymizeString("alice"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {

@@ -16,19 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { assertUnreachable } from 'teleterm/ui/utils';
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
-
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import type * as types from 'teleterm/ui/services/clusters/types';
+import { RootClusterUri } from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
-  const { clustersService } = useAppContext();
+  const { clustersService, tshd, configService, mainProcessClient } =
+    useAppContext();
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<AbortController>(null);
   const loggedInUserName =
@@ -38,7 +39,7 @@ export default function useClusterLogin(props: Props) {
     useState<PasswordlessLoginState>();
 
   const [initAttempt, init] = useAsync(() =>
-    clustersService.getAuthSettings(clusterUri)
+    tshd.getAuthSettings({ clusterUri }).then(({ response }) => response)
   );
 
   const [loginAttempt, login, setAttempt] = useAsync(
@@ -155,6 +156,17 @@ export default function useClusterLogin(props: Props) {
     }
   }, [loginAttempt.status]);
 
+  //TODO(gzdunek): We should have a way to listen to config service changes.
+  //A workaround for is to update the state, which triggers a re-render.
+  const [shouldSkipVersionCheck, setShouldSkipVersionCheck] = useState(
+    () => configService.get('skipVersionCheck').value
+  );
+  function disableVersionCheck() {
+    configService.set('skipVersionCheck', true);
+    setShouldSkipVersionCheck(true);
+  }
+  const { platform } = mainProcessClient.getRuntimeSettings();
+
   return {
     shouldPromptSsoStatus,
     passwordlessLoginState,
@@ -169,6 +181,9 @@ export default function useClusterLogin(props: Props) {
     initAttempt,
     init,
     clearLoginAttempt,
+    shouldSkipVersionCheck,
+    disableVersionCheck,
+    platform,
   };
 }
 

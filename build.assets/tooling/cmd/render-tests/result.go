@@ -21,11 +21,12 @@ package main
 import (
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
-
-	"golang.org/x/exp/maps"
+	"strings"
 )
 
 // separator for console output
@@ -214,9 +215,7 @@ func (rr *runResult) printFlakinessSummary(out io.Writer) {
 // the given packages.
 func (rr *runResult) printFailedTests(out io.Writer) {
 	// Order the packages by name for consistent output ordering.
-	pkgs := maps.Values(rr.packages)
-	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].name < pkgs[j].name })
-
+	pkgs := slices.SortedFunc(maps.Values(rr.packages), func(p1, p2 *packageResult) int { return strings.Compare(p1.name, p2.name) })
 	for _, pkg := range pkgs {
 		if pkg.count.fail == 0 {
 			continue
@@ -236,9 +235,7 @@ func (rr *runResult) printFailedTests(out io.Writer) {
 // happen?) so as to not swamp individual test output.
 func (rr *runResult) printFailedTestOutput(out io.Writer) {
 	// Order the packages by name for consistent output ordering.
-	pkgs := maps.Values(rr.packages)
-	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].name < pkgs[j].name })
-
+	pkgs := slices.SortedFunc(maps.Values(rr.packages), func(p1, p2 *packageResult) int { return strings.Compare(p1.name, p2.name) })
 	for _, pkg := range pkgs {
 		if pkg.count.fail == 0 {
 			continue

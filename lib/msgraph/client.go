@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2024 Gravitational, Inc.
+// Copyright (C) 2025 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -203,7 +203,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
-			lastErr = trace.Errorf(resp.Status)
+			lastErr = trace.Errorf("%s", resp.Status)
 		}
 		if !isRetriable(resp.StatusCode) {
 			break
@@ -334,6 +334,17 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 		return nil, trace.Wrap(err)
 	}
 	return out.Value, nil
+}
+
+// GetServicePrincipal returns the service principal for the given principal ID.
+// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
+func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
+	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
+	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 // GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.

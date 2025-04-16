@@ -153,6 +153,7 @@ func TestEvents(t *testing.T) {
 	// LastStateChange is updated.
 	require.Equal(t, timestamppb.New(fakeClock.Now()), createUserTaskResp.Status.LastStateChange)
 
+	expectedLastStateChange := createUserTaskResp.Status.LastStateChange
 	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
 		InstanceId:      "i-345",
 		DiscoveryConfig: "dc01",
@@ -165,7 +166,7 @@ func TestEvents(t *testing.T) {
 	require.Len(t, testReporter.emittedEvents, 1)
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "OPEN"))
 	// LastStateChange is not updated.
-	require.Equal(t, createUserTaskResp.Status.LastStateChange, upsertUserTaskResp.Status.LastStateChange)
+	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.Status.LastStateChange.AsTime())
 
 	ut1.Spec.State = "RESOLVED"
 	fakeClock.Advance(1 * time.Minute)
@@ -176,6 +177,36 @@ func TestEvents(t *testing.T) {
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "RESOLVED"))
 	// LastStateChange was updated because the state changed.
 	require.Equal(t, timestamppb.New(fakeClock.Now()), updateUserTaskResp.Status.LastStateChange)
+
+	// Updating one of the instances.
+	expectedLastStateChange = updateUserTaskResp.Status.GetLastStateChange()
+	fakeClock.Advance(1 * time.Minute)
+	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+		InstanceId:      "i-345",
+		DiscoveryConfig: "dc01",
+		DiscoveryGroup:  "dg01",
+		SyncTime:        timestamppb.New(fakeClock.Now()),
+	}
+	updateUserTaskResp, err = service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// Does not change the LastStateChange
+	require.Equal(t, expectedLastStateChange.AsTime(), updateUserTaskResp.Status.LastStateChange.AsTime())
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "RESOLVED", "RESOLVED"))
+
+	// Upserting one of the instances.
+	expectedLastStateChange = updateUserTaskResp.Status.GetLastStateChange()
+	fakeClock.Advance(1 * time.Minute)
+	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+		InstanceId:      "i-345",
+		DiscoveryConfig: "dc01",
+		DiscoveryGroup:  "dg01",
+		SyncTime:        timestamppb.New(fakeClock.Now()),
+	}
+	upsertUserTaskResp, err = service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	require.NoError(t, err)
+	// Does not change the LastStateChange
+	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.Status.LastStateChange.AsTime())
+	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "RESOLVED", "RESOLVED"))
 
 	_, err = service.DeleteUserTask(ctx, &usertasksv1.DeleteUserTaskRequest{Name: userTaskName})
 	require.NoError(t, err)

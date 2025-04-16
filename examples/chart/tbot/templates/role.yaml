@@ -1,6 +1,6 @@
 # This role grants the ability to manage secrets within the namespace - this is
 # necessary for the `kubernetes_secret` destination to work correctly.
-{{ if .Values.serviceAccount.create -}}
+{{ if .Values.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

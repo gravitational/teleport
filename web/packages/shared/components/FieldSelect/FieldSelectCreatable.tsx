@@ -17,11 +17,9 @@
  */
 
 import React from 'react';
-
 import { GroupBase, OnChangeValue } from 'react-select';
 
 import { BoxProps } from 'design/Box';
-
 import { useAsync } from 'shared/hooks/useAsync';
 
 import {
@@ -31,10 +29,13 @@ import {
   CreatableProps as SelectCreatableProps,
 } from '../Select';
 import { SelectCreatableAsync } from '../Select/Select';
-
-import { FieldProps, FieldSelectWrapper, splitSelectProps } from './shared';
-
-import { resolveUndefinedOptions } from './shared';
+import { Rule } from '../Validation/rules';
+import {
+  FieldProps,
+  FieldSelectWrapper,
+  resolveUndefinedOptions,
+  splitSelectProps,
+} from './shared';
 
 /**
  * Returns a styled SelectCreatable with label, input validation rule and error handling.
@@ -127,7 +128,7 @@ type CreatableProps<
     autoFocus?: boolean;
     label?: string;
     toolTipContent?: React.ReactNode;
-    rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
+    rule?: Rule<OnChangeValue<Opt, IsMulti>>;
     markAsError?: boolean;
     ariaLabel?: string;
   };

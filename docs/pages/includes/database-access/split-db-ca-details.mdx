@@ -1,4 +1,5 @@
-<Details title="Why do I need my own CA?">
+<details>
+<summary>Why do I need my own CA?</summary>
 Distributed databases like {{ db }} use mTLS for node-to-node communication.
 Teleport requires that you have your own CA to issue certificates for 
 node-to-node mTLS communication.
@@ -17,12 +18,11 @@ needs to have a long-lived certificate issued by another CA that its peer node
 trusts.
 
 The split `db` and `db_client` CA architecture was introduced as a security fix 
-in Teleport versions:
-(= db_client_ca.released_version.v13 =),
-(= db_client_ca.released_version.v14 =), and
+in Teleport versions
+(= db_client_ca.released_version.v14 =) and
 (= db_client_ca.released_version.v15 =).
 
 See 
 [Database CA Migrations](../../admin-guides/management/operations/db-ca-migrations.mdx)
 for more information.
-</Details>
+</details>

@@ -16,20 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IAppContext } from 'teleterm/ui/types';
-import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import { SearchContext } from 'teleterm/ui/Search/SearchContext';
+import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import {
+  connectToApp,
   connectToDatabase,
   connectToKube,
   connectToServer,
-  connectToApp,
+  connectToWindowsDesktop,
   DocumentCluster,
   getDefaultDocumentClusterQueryParams,
 } from 'teleterm/ui/services/workspacesService';
-import { retryWithRelogin, assertUnreachable } from 'teleterm/ui/utils';
-import { routing } from 'teleterm/ui/uri';
 import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
+import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
+import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
+import { VnetAppLauncher } from 'teleterm/ui/Vnet';
 
 export interface SimpleAction {
   type: 'simple-action';
@@ -71,7 +73,7 @@ export type SearchAction = SimpleAction | ParametrizedAction;
 
 export function mapToAction(
   ctx: IAppContext,
-  launchVnet: () => Promise<[void, Error]>,
+  launchVnet: VnetAppLauncher,
   searchContext: SearchContext,
   result: SearchResult
 ): SearchAction {
@@ -215,6 +217,40 @@ export function mapToAction(
               protocol,
               dbUser: dbUser.value,
             },
+            {
+              origin: 'search_bar',
+            }
+          );
+        },
+      };
+    }
+    case 'windows_desktop': {
+      if (result.requiresRequest) {
+        return {
+          type: 'simple-action',
+          searchResult: result,
+          perform: () => addResourceToRequest(ctx, result),
+        };
+      }
+
+      return {
+        type: 'parametrized-action',
+        searchResult: result,
+        parameter: {
+          getSuggestions: async () =>
+            result.resource.logins.map(login => ({
+              value: login,
+              displayText: login,
+            })),
+          placeholder: 'Provide desktop user',
+          allowOnlySuggestions: true,
+          noSuggestionsAvailableMessage: 'No users found.',
+        },
+        perform: login => {
+          const { uri } = result.resource;
+          return connectToWindowsDesktop(
+            ctx,
+            { uri, login: login.value },
             {
               origin: 'search_bar',
             }

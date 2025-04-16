@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { within, screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+
 import { render } from 'design/utils/testing';
 
 import { Roles } from './Roles';

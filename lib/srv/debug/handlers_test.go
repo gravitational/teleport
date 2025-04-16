@@ -95,8 +95,15 @@ func TestCollectProfiles(t *testing.T) {
 
 func makeServer(t *testing.T) (*mockLeveler, *httptest.Server) {
 	leveler := &mockLeveler{}
-	ts := httptest.NewServer(NewServeMux(slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})), leveler))
+	logger := slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{}))
+
+	mux := http.NewServeMux()
+	RegisterProfilingHandlers(mux, logger)
+	RegisterLogLevelHandlers(mux, logger, leveler)
+
+	ts := httptest.NewServer(mux)
 	t.Cleanup(func() { ts.Close() })
+
 	return leveler, ts
 }
 

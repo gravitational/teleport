@@ -1034,11 +1034,17 @@ func TestPluginAWSICSettings(t *testing.T) {
 	validSettings := func() *PluginSpecV1_AwsIc {
 		return &PluginSpecV1_AwsIc{
 			AwsIc: &PluginAWSICSettings{
-				IntegrationName: "some-oidc-integration",
-				Region:          "ap-southeast-2",
-				Arn:             "arn:aws:sso:::instance/ssoins-1234567890",
+				Region: "ap-southeast-2",
+				Arn:    "arn:aws:sso:::instance/ssoins-1234567890",
 				ProvisioningSpec: &AWSICProvisioningSpec{
 					BaseUrl: "https://example.com/scim/v2",
+				},
+				Credentials: &AWSICCredentials{
+					Source: &AWSICCredentials_Oidc{
+						Oidc: &AWSICCredentialSourceOIDC{
+							IntegrationName: "some-oidc-integration",
+						},
+					},
 				},
 			},
 		}
@@ -1048,15 +1054,13 @@ func TestPluginAWSICSettings(t *testing.T) {
 		name           string
 		mutateSettings func(*PluginAWSICSettings)
 		assertErr      require.ErrorAssertionFunc
+		assertValue    func(*testing.T, *PluginAWSICSettings)
 	}{
 		{
 			name:      "valid settings pass",
 			assertErr: require.NoError,
-		}, {
-			name:           "missing oidc integration",
-			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.IntegrationName = "" },
-			assertErr:      requireNamedBadParameterError("integration name"),
-		}, {
+		},
+		{
 			name:           "missing instance region",
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.Region = "" },
 			assertErr:      requireNamedBadParameterError("region"),
@@ -1073,6 +1077,62 @@ func TestPluginAWSICSettings(t *testing.T) {
 			mutateSettings: func(cfg *PluginAWSICSettings) { cfg.ProvisioningSpec.BaseUrl = "" },
 			assertErr:      requireNamedBadParameterError("base URL"),
 		},
+
+		// Legacy credentials validation and migration tests. Remove in Teleport
+		// 19, or when the CredentialsSource enum is retired
+		{
+			name: "(legacy) missing oidc integration (legacy)",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.Credentials = nil
+				cfg.IntegrationName = ""
+			},
+			assertErr: requireNamedBadParameterError("integration name"),
+		},
+		{
+			name: "(legacy) missing oidc integration is allowed with ambient creds",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.IntegrationName = ""
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "(legacy) system credentials source migrated to AWSICCredentialSourceSystem",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.Credentials = nil
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				require.NotNil(t, cfg.Credentials.GetSystem())
+			},
+		},
+		{
+			name: "(legacy) OIDC credentials source migrated to AWSICCredentialSourceOidc",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.Credentials = nil
+				cfg.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+				cfg.IntegrationName = "some-legacy-integration"
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				oidc := cfg.Credentials.GetOidc()
+				require.NotNil(t, oidc)
+				require.Equal(t, "some-legacy-integration", oidc.IntegrationName)
+			},
+		},
+		{
+			name: "(legacy) legacy IntegrationName does not overwrite OIDC Credentials",
+			mutateSettings: func(cfg *PluginAWSICSettings) {
+				cfg.IntegrationName = "some-legacy-integration"
+			},
+			assertErr: require.NoError,
+			assertValue: func(t *testing.T, cfg *PluginAWSICSettings) {
+				oidc := cfg.Credentials.GetOidc()
+				require.NotNil(t, oidc)
+				require.Equal(t, "some-oidc-integration", oidc.IntegrationName)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1087,6 +1147,9 @@ func TestPluginAWSICSettings(t *testing.T) {
 				PluginSpecV1{Settings: settings},
 				nil)
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
+			if tc.assertValue != nil {
+				tc.assertValue(t, plugin.Spec.GetAwsIc())
+			}
 		})
 	}
 }
@@ -1335,4 +1398,79 @@ func TestPluginEmailSettings(t *testing.T) {
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
 		})
 	}
+}
+
+func TestNetIQPluginSettings(t *testing.T) {
+
+	validSettings := func() *PluginSpecV1_NetIq {
+		return &PluginSpecV1_NetIq{
+			NetIq: &PluginNetIQSettings{
+				OauthIssuerEndpoint: "https://example.com",
+				ApiEndpoint:         "https://example.com",
+			},
+		}
+	}
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_NetIq)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:           "valid",
+			mutateSettings: nil,
+			assertErr:      require.NoError,
+		},
+		{
+			name: "missing OauthIssuer",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.OauthIssuerEndpoint = ""
+			},
+			assertErr: requireNamedBadParameterError("oauth_issuer"),
+		},
+		{
+			name: "missing ApiEndpoint",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.ApiEndpoint = ""
+			},
+			assertErr: requireNamedBadParameterError("api_endpoint"),
+		},
+		{
+			name: "incorrect OauthIssuer",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.OauthIssuerEndpoint = "invalidURL%%#"
+			},
+			assertErr: requireNamedBadParameterError("oauth_issuer"),
+		},
+		{
+			name: "missing ApiEndpoint",
+			mutateSettings: func(s *PluginSpecV1_NetIq) {
+				s.NetIq.ApiEndpoint = "invalidURL%%#"
+			},
+			assertErr: requireNamedBadParameterError("api_endpoint"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			plugin := NewPluginV1(
+				Metadata{Name: "uut"},
+				PluginSpecV1{Settings: settings},
+				&PluginCredentialsV1{
+					Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				})
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+
 }

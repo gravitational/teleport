@@ -17,19 +17,20 @@
  */
 
 import React from 'react';
+
 import { Flex, Text } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 
 import {
-  kubeAccessRW,
-  kubeAccessRO,
-  nodeAccessRO,
-  nodeAccessRW,
+  awsAppAccessRO,
+  awsAppAccessRW,
   connDiagRW,
   dbAccessRO,
   dbAccessRW,
-  awsAppAccessRO,
-  awsAppAccessRW,
+  kubeAccessRO,
+  kubeAccessRW,
+  nodeAccessRO,
+  nodeAccessRW,
 } from '../../yamlTemplates';
 
 export function AccessInfo({ accessKind, traitKind, traitDesc }: Props) {

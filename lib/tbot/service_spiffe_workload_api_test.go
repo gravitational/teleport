@@ -34,9 +34,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -52,7 +52,7 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 	tests := []struct {
 		name string
-		att  workloadattest.Attestation
+		att  *workloadidentityv1pb.WorkloadAttrs
 		in   []config.SVIDRequestWithRules
 		want []config.SVIDRequest
 	}{
@@ -81,12 +81,12 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		},
 		{
 			name: "no rules with attestation",
-			att: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			att: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					UID:      1000,
-					GID:      1001,
-					PID:      1002,
+					Uid:      1000,
+					Gid:      1001,
+					Pid:      1002,
 				},
 			},
 			in: []config.SVIDRequestWithRules{
@@ -112,15 +112,15 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		},
 		{
 			name: "no rules with attestation",
-			att: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			att: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					// We don't expect that workloadattest will ever return
 					// Attested: false and include UID/PID/GID but we want to
 					// ensure we handle this by failing regardless.
 					Attested: false,
-					UID:      1000,
-					GID:      1001,
-					PID:      1002,
+					Uid:      1000,
+					Gid:      1001,
+					Pid:      1002,
 				},
 			},
 			in: []config.SVIDRequestWithRules{
@@ -141,12 +141,12 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		},
 		{
 			name: "no matching rules with attestation",
-			att: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			att: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					UID:      1000,
-					GID:      1001,
-					PID:      1002,
+					Uid:      1000,
+					Gid:      1001,
+					Pid:      1002,
 				},
 			},
 			in: []config.SVIDRequestWithRules{
@@ -220,12 +220,12 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests(t *testing.T) {
 		},
 		{
 			name: "some matching rules with uds",
-			att: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			att: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					UID:      1000,
-					GID:      1001,
-					PID:      1002,
+					Uid:      1000,
+					Gid:      1001,
+					Pid:      1002,
 				},
 			},
 			in: []config.SVIDRequestWithRules{
@@ -290,8 +290,8 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 	log := utils.NewSlogLoggerForTests()
 	tests := []struct {
 		field       string
-		matching    workloadattest.Attestation
-		nonMatching workloadattest.Attestation
+		matching    *workloadidentityv1pb.WorkloadAttrs
+		nonMatching *workloadidentityv1pb.WorkloadAttrs
 		rule        config.SVIDRequestRule
 	}{
 		{
@@ -301,16 +301,16 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 					PID: ptr(1000),
 				},
 			},
-			matching: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			matching: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					PID:      1000,
+					Pid:      1000,
 				},
 			},
-			nonMatching: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			nonMatching: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					PID:      200,
+					Pid:      200,
 				},
 			},
 		},
@@ -321,16 +321,16 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 					UID: ptr(1000),
 				},
 			},
-			matching: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			matching: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					UID:      1000,
+					Uid:      1000,
 				},
 			},
-			nonMatching: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			nonMatching: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					UID:      200,
+					Uid:      200,
 				},
 			},
 		},
@@ -341,16 +341,16 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 					GID: ptr(1000),
 				},
 			},
-			matching: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			matching: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					GID:      1000,
+					Gid:      1000,
 				},
 			},
-			nonMatching: workloadattest.Attestation{
-				Unix: workloadattest.UnixAttestation{
+			nonMatching: &workloadidentityv1pb.WorkloadAttrs{
+				Unix: &workloadidentityv1pb.WorkloadAttrsUnix{
 					Attested: true,
-					GID:      200,
+					Gid:      200,
 				},
 			},
 		},
@@ -361,14 +361,14 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 					Namespace: "foo",
 				},
 			},
-			matching: workloadattest.Attestation{
-				Kubernetes: workloadattest.KubernetesAttestation{
+			matching: &workloadidentityv1pb.WorkloadAttrs{
+				Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 					Attested:  true,
 					Namespace: "foo",
 				},
 			},
-			nonMatching: workloadattest.Attestation{
-				Kubernetes: workloadattest.KubernetesAttestation{
+			nonMatching: &workloadidentityv1pb.WorkloadAttrs{
+				Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 					Attested:  true,
 					Namespace: "bar",
 				},
@@ -381,14 +381,14 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 					ServiceAccount: "foo",
 				},
 			},
-			matching: workloadattest.Attestation{
-				Kubernetes: workloadattest.KubernetesAttestation{
+			matching: &workloadidentityv1pb.WorkloadAttrs{
+				Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 					Attested:       true,
 					ServiceAccount: "foo",
 				},
 			},
-			nonMatching: workloadattest.Attestation{
-				Kubernetes: workloadattest.KubernetesAttestation{
+			nonMatching: &workloadidentityv1pb.WorkloadAttrs{
+				Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 					Attested:       true,
 					ServiceAccount: "bar",
 				},
@@ -401,14 +401,14 @@ func TestSPIFFEWorkloadAPIService_filterSVIDRequests_field(t *testing.T) {
 					PodName: "foo",
 				},
 			},
-			matching: workloadattest.Attestation{
-				Kubernetes: workloadattest.KubernetesAttestation{
+			matching: &workloadidentityv1pb.WorkloadAttrs{
+				Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 					Attested: true,
 					PodName:  "foo",
 				},
 			},
-			nonMatching: workloadattest.Attestation{
-				Kubernetes: workloadattest.KubernetesAttestation{
+			nonMatching: &workloadidentityv1pb.WorkloadAttrs{
+				Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
 					Attested: true,
 					PodName:  "bar",
 				},

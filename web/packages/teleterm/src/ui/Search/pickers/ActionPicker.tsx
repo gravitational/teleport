@@ -18,38 +18,41 @@
 
 import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonBorder, Flex, Label as DesignLabel, Text } from 'design';
+
+import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
 import {
   Attempt,
   hasFinished,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
+import { isWebApp } from 'teleterm/services/tshd/app';
+import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
+  DisplayResults,
+  isClusterSearchFilter,
   ResourceMatch,
   ResourceSearchResult,
   SearchFilter,
   SearchResult,
+  SearchResultApp,
   SearchResultCluster,
   SearchResultDatabase,
   SearchResultKube,
-  SearchResultApp,
   SearchResultResourceType,
   SearchResultServer,
-  DisplayResults,
-  isClusterSearchFilter,
+  SearchResultWindowsDesktop,
 } from 'teleterm/ui/Search/searchResult';
-import * as tsh from 'teleterm/services/tshd/types';
-import * as uri from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
+import * as uri from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
-import { isWebApp } from 'teleterm/services/tshd/app';
+import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 import { useVnetContext } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from '../actions';
@@ -58,11 +61,10 @@ import {
   CrossClusterResourceSearchResult,
   resourceTypeToReadableName,
 } from '../useSearch';
-
-import { useActionAttempts } from './useActionAttempts';
-import { getParameterPicker } from './pickers';
-import { ResultList, NonInteractiveItem, IconAndContent } from './ResultList';
 import { PickerContainer } from './PickerContainer';
+import { getParameterPicker } from './pickers';
+import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
+import { useActionAttempts } from './useActionAttempts';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
@@ -506,6 +508,7 @@ export const ComponentMap: Record<
   kube: KubeItem,
   database: DatabaseItem,
   app: AppItem,
+  windows_desktop: WindowsDesktopItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
   'display-results': DisplayResultsItem,
@@ -581,6 +584,7 @@ const resourceIcons: Record<
   node: icons.Server,
   db: icons.Database,
   app: icons.Application,
+  windows_desktop: icons.Desktop,
 };
 
 function ResourceTypeFilterItem(
@@ -814,9 +818,61 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 }
 
+export function WindowsDesktopItem(
+  props: SearchResultItem<SearchResultWindowsDesktop>
+) {
+  const { searchResult } = props;
+  const windowsDesktop = searchResult.resource;
+
+  const $resourceFields = (
+    <ResourceFields>
+      <span
+        css={`
+          flex-shrink: 0;
+        `}
+      >
+        <HighlightField
+          field="addrWithoutDefaultPort"
+          searchResult={searchResult}
+        />
+      </span>
+    </ResourceFields>
+  );
+
+  return (
+    <IconAndContent
+      Icon={icons.Desktop}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body2">
+          {props.searchResult.requiresRequest
+            ? 'Request access to desktop '
+            : 'Connect to desktop '}
+          <strong>
+            <HighlightField field="name" searchResult={searchResult} />
+          </strong>
+        </Text>
+        <Box ml="auto">
+          <Text typography="body4">
+            {props.getOptionalClusterName(windowsDesktop.uri)}
+          </Text>
+        </Box>
+      </Flex>
+      <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+    </IconAndContent>
+  );
+}
+
 function getAppItemCopy(
   $appName: React.JSX.Element,
-  app: tsh.App,
+  app: App,
   requiresRequest: boolean,
   isVnetSupported: boolean
 ) {

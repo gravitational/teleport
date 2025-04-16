@@ -65,7 +65,7 @@ func CreateOIDCProvider(
 			slog.InfoContext(ctx, "Creating OpenID Connect identity provider")
 			_, err = clt.CreateOpenIDConnectProvider(ctx, input)
 			if err != nil {
-				awsErr := awslib.ConvertIAMv2Error(err)
+				awsErr := awslib.ConvertIAMError(err)
 				if trace.IsAlreadyExists(awsErr) {
 					slog.InfoContext(ctx, "OpenID Connect identity provider already exists")
 					return nil

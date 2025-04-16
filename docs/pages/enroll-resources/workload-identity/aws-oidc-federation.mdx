@@ -3,8 +3,6 @@ title: Configuring Workload Identity and AWS OIDC Federation
 description: Configuring AWS to accept Workload Identity JWTs as authentication using OIDC Federation
 ---
 
-(!/docs/pages/includes/workload-id-preview.mdx!)
-
 Teleport Workload Identity issues flexible short-lived identities in JWT format.
 AWS OIDC Federation allows you to use these JWTs to authenticate to AWS
 services.
@@ -59,10 +57,10 @@ This guide covers configuring OIDC federation. For Roles Anywhere, see
   information, see the [deployment
   guides](../machine-id/deployment/deployment.mdx).
 
-<Notice type="warning">
+<Admonition type="warning">
 Issuing JWT SVIDs with Teleport Workload Identity requires at least Teleport
 version 16.4.3.
-</Notice>
+</Admonition>
 
 ### Deciding on a SPIFFE ID structure
 
@@ -317,23 +315,56 @@ resource "aws_iam_role_policy_attachment" "example" {
 Now we need to configure Teleport to allow a JWT to be issued containing the
 SPIFFE ID we have chosen.
 
-Create `role.yaml` with the following content:
+First, you'll create a Workload Identity resource to define the identity and
+its characteristics. Create a new file called `workload-identity.yaml`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: /svc/example-service
+```
+
+Replace:
+
+- `example-workload-identity` with a descriptive name for the Workload Identity.
+- `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
+
+Apply this to your cluster using `tctl`:
+
+```code
+$ tctl create -f workload-identity.yaml
+```
+
+Next, you'll create a role which grants access to this Workload Identity. Create
+`role.yaml` with the following content:
 
 ```yaml
 kind: role
 version: v6
 metadata:
-  name: my-workload-aws
+  name: example-workload-identity-issuer
 spec:
   allow:
-    spiffe:
-      - path: /svc/example-service
+    workload_identity_labels:
+      example: ["getting-started"]
+    rules:
+    - resources:
+      - workload_identity
+      verbs:
+      - list
+      - read
 ```
 
 Replace:
 
-- `my-workload-aws` with a descriptive name for the role.
-- `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
+- `example-workload-identity-issuer` with a descriptive name for the role.
+- The labels selector if you have modified the labels of the Workload Identity.
 
 Apply this role to your Teleport cluster using `tctl`:
 
@@ -341,10 +372,12 @@ Apply this role to your Teleport cluster using `tctl`:
 $ tctl create -f role.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 You now need to assign this role to the bot:
 
 ```code
-$ tctl bots update my-bot --add-roles my-workload-aws
+$ tctl bots update my-bot --add-roles example-workload-identity-issuer
 ```
 
 ## Step 3/4. Issue Workload Identity JWTs
@@ -358,25 +391,24 @@ by adding the following to the `tbot` configuration file:
 
 ```yaml
 outputs:
-  - type: spiffe-svid
+  - type: workload-identity-jwt
     destination:
       type: directory
       path: /opt/workload-identity
-    svid:
-      path: /svc/example-service
-    jwts:
-      - audience: sts.amazonaws.com
-        file_name: aws-jwt
+    selector:
+      name: example-workload-identity
+    audiences: ["sts.amazonaws.com"]
 ```
 
 Replace:
 
 - /opt/workload-identity with the directory where you want the JWT to be
   written.
-- /svc/example-service with the SPIFFE ID you have chosen.
+- example-workload-identity with the name of the Workload Identity you have
+  created.
 
 Restart your `tbot` service to apply the new configuration. You should see a
-file created at `/opt/workload-identity/aws-jwt` containing the JWT.
+file created at `/opt/workload-identity/jwt_svid` containing the JWT.
 
 ## Step 4/4. Configure AWS CLIs and SDKs
 
@@ -401,7 +433,7 @@ Add the following to your `~/.aws/config` file:
 role_arn=arn:aws:iam:123456789012:role/workload-id-demo
 # Replace with the directory and file name you configured `tbot` to write the
 # JWT to.
-web_identity_token_file=/opt/workload-identity/aws-jwt
+web_identity_token_file=/opt/workload-identity/jwt_svid
 ```
 
 </TabItem>
@@ -412,7 +444,7 @@ Configure the following environment variables:
 - `AWS_ROLE_ARN`: The ARN of the role you created earlier, e.g 
   `arn:aws:iam::123456789012:role/workload-id-demo`
 - `AWS_WEB_IDENTITY_TOKEN_FILE`: The path to the JWT file that `tbot` is writing,
-  e.g `/opt/workload-identity/aws-jwt`
+  e.g `/opt/workload-identity/jwt_svid`
 
 </TabItem>
 </Tabs>

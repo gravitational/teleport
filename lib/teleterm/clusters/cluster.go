@@ -153,7 +153,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
-			clusterName, err := authClient.GetClusterName()
+			clusterName, err := authClient.GetClusterName(groupCtx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -309,7 +309,7 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		Name:           c.status.Username,
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
-		ActiveRequests: c.status.ActiveRequests.AccessRequests,
+		ActiveRequests: c.status.ActiveRequests,
 	}
 }
 

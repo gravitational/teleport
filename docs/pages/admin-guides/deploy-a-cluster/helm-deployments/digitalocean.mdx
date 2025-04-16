@@ -21,15 +21,13 @@ cluster to Teleport.
 ## Step 1/4. Create a DigitalOcean Kubernetes cluster
 
 Create a new [DigitalOcean Kubernetes Cluster](https://cloud.digitalocean.com/kubernetes/clusters/)
-<Figure align="left" bordered caption="Create DigitalOcean Kubernetes cluster">
-  ![Create DigitalOcean Kubernetes cluster](../../../../img/helm/digitalocean/create-k8s.png)
-</Figure>
+
+![Create DigitalOcean Kubernetes cluster](../../../../img/helm/digitalocean/create-k8s.png)
 
 <br />
 While the Kubernetes cluster is being provisioned, follow the "Getting Started" guide as shown below:
-<Figure align="left" bordered caption="Set up DigitalOcean Kubernetes client">
-  ![Set up DigitalOcean Kubernetes client](../../../../img/helm/digitalocean/setup-k8s.png)
-</Figure>
+
+![Set up DigitalOcean Kubernetes client](../../../../img/helm/digitalocean/setup-k8s.png)
 
 ## Step 2/4. Install Teleport
 
@@ -116,9 +114,8 @@ teleport-cluster-auth   ClusterIP      10.245.164.28   <none>            3025/TC
 ```
 
 Once you get the value for the external IP (it may take a few minutes for this field to be populated), update your DNS record such that the clusterName's A record points to this IP address. For example `192.168.200.200` is the external IP in the above case.
-<Figure align="left" bordered caption="Configure DNS">
-  ![Configure DNS](../../../../img/helm/digitalocean/fqdn.png)
-</Figure>
+
+![Configure DNS](../../../../img/helm/digitalocean/fqdn.png)
 
 ## Step 3/4. Create and set up Teleport user
 Now we create a Teleport user by executing the `tctl` command with `kubectl`.
@@ -148,9 +145,8 @@ NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can 
 </Tabs>
 
 Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.example.com:443/web/invite/<invite-token>` in the above case).
-<Figure align="left" bordered caption="Set up user">
-  ![Set up user](../../../../img/helm/digitalocean/setup-user.png)
-</Figure>
+
+![Set up user](../../../../img/helm/digitalocean/setup-user.png)
 
 After you complete the registration process by setting up a password and enrolling in multi-factor authentication, you will be logged in to Teleport Web UI. 
 
@@ -179,14 +175,12 @@ $ kubectl --namespace=teleport-cluster exec -i deployment/teleport-cluster-auth 
 
 Now we will assign Teleport user **tadmin** with this role. The example below shows a process using Teleport Web UI:
 First, lets select user edit menu:
-<Figure align="left" bordered caption="Edit user">
-  ![Edit user](../../../../img/helm/digitalocean/edit-user.png)
-</Figure>
+
+![Edit user](../../../../img/helm/digitalocean/edit-user.png)
 
 Second, update the **tadmin** user role to assign the **member** role:
-<Figure align="left" bordered caption="Update role">
-  ![Update role](../../../../img/helm/digitalocean/update-role.png)
-</Figure>
+
+![Update role](../../../../img/helm/digitalocean/update-role.png)
 
 We've updated the user **tadmin** to have the **member** role, which is allowed to access a Kubernetes cluster with privilege `system:master`.
 
@@ -263,9 +257,8 @@ teleport-cluster-6cc679b6f6-7xr5h   1/1     Running   0          14h
 Voila! User **tadmin** was able to list the pods in their DigitalOcean Kubernetes cluster.
 
 Teleport keeps an audit log of access to a Kubernetes cluster. In the screenshot below, the Teleport audit log shows that the user **tadmin** has logged into the cluster.
-<Figure align="left" bordered caption="View audit log">
-  ![View audit log](../../../../img/helm/digitalocean/view-activity.png)
-</Figure>
+
+![View audit log](../../../../img/helm/digitalocean/view-activity.png)
 
 ## Next steps
 
@@ -278,5 +271,5 @@ Teleport:
 
 - Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../../enroll-resources/kubernetes-access/getting-started.mdx)
 - [Set up Machine ID with Kubernetes](../../../enroll-resources/machine-id/access-guides/kubernetes.mdx)
-- [Single-Sign On and Kubernetes Access Control](../../../enroll-resources/kubernetes-access/controls.mdx)
+- [Single-Sign On and RBAC for Kubernetes Clusters](../../../enroll-resources/kubernetes-access/controls.mdx)
 

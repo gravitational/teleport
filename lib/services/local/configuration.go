@@ -48,6 +48,8 @@ type ClusterConfigurationService struct {
 	backend.Backend
 }
 
+var _ services.ClusterConfigurationInternal = (*ClusterConfigurationService)(nil)
+
 // NewClusterConfigurationService returns a new ClusterConfigurationService.
 func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurationService, error) {
 	err := metrics.RegisterPrometheusCollectors(clusterNameNotFound)
@@ -61,8 +63,8 @@ func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurat
 }
 
 // GetClusterName gets the name of the cluster from the backend.
-func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, namePrefix))
+func (s *ClusterConfigurationService) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			clusterNameNotFound.Inc()
@@ -70,8 +72,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalClusterName(item.Value,
-		services.AddOptions(opts, services.WithRevision(item.Revision))...)
+	return services.UnmarshalClusterName(item.Value, services.WithRevision(item.Revision))
 }
 
 // DeleteClusterName deletes types.ClusterName from the backend.
@@ -280,6 +281,15 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// AppendCheckAuthPreferenceActions implements [services.ClusterConfigurationInternal].
+func (s *ClusterConfigurationService) AppendCheckAuthPreferenceActions(actions []backend.ConditionalAction, revision string) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(authPrefix, preferencePrefix, generalPrefix),
+		Condition: backend.Revision(revision),
+		Action:    backend.Nop(),
+	}), nil
 }
 
 // GetClusterAuditConfig gets cluster audit config from the backend.

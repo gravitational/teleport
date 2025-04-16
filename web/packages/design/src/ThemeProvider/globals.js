@@ -17,6 +17,7 @@
  */
 
 import { createGlobalStyle } from 'styled-components';
+
 import './../assets/ubuntu/style.css';
 
 const GlobalStyle = createGlobalStyle`
@@ -33,7 +34,7 @@ const GlobalStyle = createGlobalStyle`
     padding: 0;
   }
 
-  input, textarea {
+  input, textarea, button {
     font-family: ${props => props.theme.font};
   }
 

@@ -18,13 +18,11 @@
 
 import { Flex } from 'design';
 
+import { LoadingSkeleton } from '../shared/LoadingSkeleton';
 import { ResourceViewProps } from '../types';
 import { FETCH_MORE_SIZE } from '../UnifiedResources';
-
-import { LoadingSkeleton } from '../shared/LoadingSkeleton';
-
-import { ResourceListItem } from './ResourceListItem';
 import { LoadingListItem } from './LoadingListItem';
+import { ResourceListItem } from './ResourceListItem';
 
 export function ListView({
   mappedResources,

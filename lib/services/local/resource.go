@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -71,6 +72,7 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	var item *backend.Item
 	var extItems []backend.Item
 	var err error
+
 	switch r := resource.(type) {
 	case types.User:
 		item, err = itemFromUser(r)
@@ -97,6 +99,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromClusterNetworkingConfig(r)
 	case types.AuthPreference:
 		item, err = itemFromAuthPreference(r)
+	case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
+		item, err = itemFromAutoUpdateConfig(r.UnwrapT())
+	case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
+		item, err = itemFromAutoUpdateVersion(r.UnwrapT())
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -339,11 +345,6 @@ func userFromUserItems(name string, items userItems) (*types.UserV2, error) {
 		return nil, trace.Wrap(err)
 	}
 	user.SetLocalAuth(auth)
-
-	if auth != nil {
-		// when reading with secrets, we can populate the data automatically.
-		user.SetWeakestDevice(getWeakestMFADeviceKind(auth.MFA))
-	}
 
 	return user, nil
 }

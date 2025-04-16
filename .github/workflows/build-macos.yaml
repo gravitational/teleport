@@ -19,7 +19,7 @@ jobs:
   build:
     name: Build on Mac OS
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: macos-13-xl-arm64
+    runs-on: macos-13-xlarge
 
     permissions:
       contents: read

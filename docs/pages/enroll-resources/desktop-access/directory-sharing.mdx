@@ -24,8 +24,8 @@ after the session ends.
 
 {/*lint ignore messaging to ignore the page title linked here*/}
 - The Teleport Desktop Service with at least one remote desktop registered in
-  your cluster. If you have not yet configured Desktop Access, read [Getting
-  Started with Desktop Access](./getting-started.mdx) before beginning this
+  your cluster. If you have not yet configured desktop access, read [Getting
+  Started with desktop access](./getting-started.mdx) before beginning this
   guide.
 
 - A browser on your local machine that supports the File System Access API,
@@ -105,12 +105,12 @@ the shared directory.
 You can also copy a file from one subdirectory within the shared directory and
 paste it into another—the local side will reflect the changes.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 Directory Sharing does not support moving files between subdirectories within
 the shared directory on the remote side.
 
-</Notice>
+</Admonition>
 
 ### Editing on the local side
 
@@ -169,6 +169,8 @@ Create the role:
 ```code
 $ tctl create -f role.yaml
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/add-role-to-user.mdx role="no-sharing"!)
 

@@ -19,17 +19,19 @@
 package agent
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
 )
 
 const (
@@ -57,10 +59,12 @@ type UpdateConfig struct {
 type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
+	// Path is the location the Teleport binaries are linked into.
+	Path string `yaml:"path"`
 	// Group specifies the update group identifier for the agent.
 	Group string `yaml:"group,omitempty"`
-	// URLTemplate for the Teleport tgz download URL.
-	URLTemplate string `yaml:"url_template,omitempty"`
+	// BaseURL is CDN base URL used for the Teleport tgz download URL.
+	BaseURL string `yaml:"base_url,omitempty"`
 	// Enabled controls whether auto-updates are enabled.
 	Enabled bool `yaml:"enabled"`
 	// Pinned controls whether the active_version is pinned.
@@ -69,6 +73,10 @@ type UpdateSpec struct {
 
 // UpdateStatus describes the status field in update.yaml.
 type UpdateStatus struct {
+	// IDFile is the path to a temporary file containing the updater ID.
+	IDFile string `yaml:"id_file,omitempty"`
+	// LastUpdate status, if attempted
+	LastUpdate *LastUpdate `yaml:"last_update,omitempty"`
 	// Active is the currently active revision of Teleport.
 	Active Revision `yaml:"active"`
 	// Backup is the last working revision of Teleport.
@@ -79,18 +87,28 @@ type UpdateStatus struct {
 	Skip *Revision `yaml:"skip,omitempty"`
 }
 
+// LastUpdate describes the last attempted updated.
+type LastUpdate struct {
+	// Success or failure of the attempted update
+	Success bool `yaml:"success"`
+	// Time the update occurred
+	Time time.Time `yaml:"time"`
+	// Target revision for the update
+	Target Revision `yaml:"target"`
+}
+
 // Revision is a version and edition of Teleport.
 type Revision struct {
 	// Version is the version of Teleport.
 	Version string `yaml:"version" json:"version"`
 	// Flags describe the edition of Teleport.
-	Flags InstallFlags `yaml:"flags,flow,omitempty" json:"flags,omitempty"`
+	Flags autoupdate.InstallFlags `yaml:"flags,flow,omitempty" json:"flags,omitempty"`
 }
 
 // NewRevision create a Revision.
 // If version is not set, no flags are returned.
 // This ensures that all Revisions without versions are zero-valued.
-func NewRevision(version string, flags InstallFlags) Revision {
+func NewRevision(version string, flags autoupdate.InstallFlags) Revision {
 	if version != "" {
 		return Revision{
 			Version: version,
@@ -113,16 +131,16 @@ func NewRevisionFromDir(dir string) (Revision, error) {
 	}
 	switch flags := parts[1:]; len(flags) {
 	case 2:
-		if flags[1] != FlagFIPS.DirFlag() {
+		if flags[1] != autoupdate.FlagFIPS.DirFlag() {
 			break
 		}
-		out.Flags |= FlagFIPS
+		out.Flags |= autoupdate.FlagFIPS
 		fallthrough
 	case 1:
-		if flags[0] != FlagEnterprise.DirFlag() {
+		if flags[0] != autoupdate.FlagEnterprise.DirFlag() {
 			break
 		}
-		out.Flags |= FlagEnterprise
+		out.Flags |= autoupdate.FlagEnterprise
 		fallthrough
 	case 0:
 		return out, nil
@@ -135,11 +153,11 @@ func (r Revision) Dir() string {
 	// Do not change the order of these statements.
 	// Otherwise, installed versions will no longer match update.yaml.
 	var suffix string
-	if r.Flags&(FlagEnterprise|FlagFIPS) != 0 {
-		suffix += "_" + FlagEnterprise.DirFlag()
+	if r.Flags&(autoupdate.FlagEnterprise|autoupdate.FlagFIPS) != 0 {
+		suffix += "_" + autoupdate.FlagEnterprise.DirFlag()
 	}
-	if r.Flags&FlagFIPS != 0 {
-		suffix += "_" + FlagFIPS.DirFlag()
+	if r.Flags&autoupdate.FlagFIPS != 0 {
+		suffix += "_" + autoupdate.FlagFIPS.DirFlag()
 	}
 	return r.Version + suffix
 }
@@ -183,6 +201,7 @@ func writeConfig(filename string, cfg *UpdateConfig) error {
 	opts := []renameio.Option{
 		renameio.WithPermissions(configFileMode),
 		renameio.WithExistingPermissions(),
+		renameio.WithTempDir(filepath.Dir(filename)),
 	}
 	t, err := renameio.NewPendingFile(filename, opts...)
 	if err != nil {
@@ -200,19 +219,14 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.Proxy != "" {
 		spec.Proxy = override.Proxy
 	}
-	if override.Group != "" {
-		spec.Group = override.Group
+	if override.Path != "" {
+		spec.Path = override.Path
 	}
-	switch override.URLTemplate {
-	case "":
-	case "default":
-		spec.URLTemplate = ""
-	default:
-		spec.URLTemplate = override.URLTemplate
-	}
-	if spec.URLTemplate != "" &&
-		!strings.HasPrefix(strings.ToLower(spec.URLTemplate), "https://") {
-		return trace.Errorf("Teleport download URL must use TLS (https://)")
+	spec.Group = overrideOptional(spec.Group, override.Group)
+	spec.BaseURL = overrideOptional(spec.BaseURL, override.BaseURL)
+	if spec.BaseURL != "" &&
+		!strings.HasPrefix(strings.ToLower(spec.BaseURL), "https://") {
+		return trace.Errorf("Teleport download base URL %s must use TLS (https://)", spec.BaseURL)
 	}
 	if override.Enabled {
 		spec.Enabled = true
@@ -223,11 +237,24 @@ func validateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	return nil
 }
 
+func overrideOptional(orig, override string) string {
+	switch override {
+	case "":
+		return orig
+	case "default":
+		return ""
+	default:
+		return override
+	}
+}
+
 // Status of the agent auto-updates system.
 type Status struct {
 	UpdateSpec   `yaml:",inline"`
 	UpdateStatus `yaml:",inline"`
 	FindResp     `yaml:",inline"`
+	// ID is the updater ID.
+	ID string `yaml:"id,omitempty"`
 }
 
 // FindResp summarizes the auto-update status response from cluster.
@@ -238,90 +265,6 @@ type FindResp struct {
 	InWindow bool `yaml:"in_window"`
 	// Jitter duration before an automated install
 	Jitter time.Duration `yaml:"jitter"`
-}
-
-// InstallFlags sets flags for the Teleport installation
-type InstallFlags int
-
-const (
-	// FlagEnterprise installs enterprise Teleport
-	FlagEnterprise InstallFlags = 1 << iota
-	// FlagFIPS installs FIPS Teleport
-	FlagFIPS
-)
-
-// NewInstallFlagsFromStrings returns InstallFlags given a slice of human-readable strings.
-func NewInstallFlagsFromStrings(s []string) InstallFlags {
-	var out InstallFlags
-	for _, f := range s {
-		for _, flag := range []InstallFlags{
-			FlagEnterprise,
-			FlagFIPS,
-		} {
-			if f == flag.String() {
-				out |= flag
-			}
-		}
-	}
-	return out
-}
-
-// Strings converts InstallFlags to a slice of human-readable strings.
-func (i InstallFlags) Strings() []string {
-	var out []string
-	for _, flag := range []InstallFlags{
-		FlagEnterprise,
-		FlagFIPS,
-	} {
-		if i&flag != 0 {
-			out = append(out, flag.String())
-		}
-	}
-	return out
-}
-
-// String returns the string representation of a single InstallFlag flag, or "Unknown".
-func (i InstallFlags) String() string {
-	switch i {
-	case 0:
-		return ""
-	case FlagEnterprise:
-		return "Enterprise"
-	case FlagFIPS:
-		return "FIPS"
-	}
-	return "Unknown"
-}
-
-// DirFlag returns the directory path representation of a single InstallFlag flag, or "unknown".
-func (i InstallFlags) DirFlag() string {
-	switch i {
-	case 0:
-		return ""
-	case FlagEnterprise:
-		return "ent"
-	case FlagFIPS:
-		return "fips"
-	}
-	return "unknown"
-}
-
-func (i InstallFlags) MarshalYAML() (any, error) {
-	return i.Strings(), nil
-}
-
-func (i InstallFlags) MarshalJSON() ([]byte, error) {
-	return json.Marshal(i.Strings())
-}
-
-func (i *InstallFlags) UnmarshalYAML(n *yaml.Node) error {
-	var s []string
-	if err := n.Decode(&s); err != nil {
-		return trace.Wrap(err)
-	}
-	if i == nil {
-		return trace.BadParameter("nil install flags while parsing YAML")
-	}
-	*i = NewInstallFlagsFromStrings(s)
-	return nil
+	// AGPL installations cannot use the official CDN.
+	AGPL bool `yaml:"agpl,omitempty"`
 }

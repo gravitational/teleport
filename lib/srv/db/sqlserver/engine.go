@@ -30,6 +30,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/kerberos"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -39,9 +40,9 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		Connector: &connector{
-			DBAuth:     ec.Auth,
-			AuthClient: ec.AuthClient,
-			DataDir:    ec.DataDir,
+			DBAuth: ec.Auth,
+
+			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.DataDir),
 		},
 	}
 }

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LabelInput } from './LabelInput';
 import InputComp from './../Input';
+import { LabelContent, LabelInput } from './LabelInput';
 
 export default {
   title: 'Design/LabelInput',
@@ -31,5 +31,11 @@ export const Inputs = () => (
       With Error
     </LabelInput>
     <InputComp hasError={true} />
+    <LabelInput mt={4}>
+      <LabelContent required tooltipContent="Some tooltip content">
+        Label with a required mark and a tooltip
+      </LabelContent>
+    </LabelInput>
+    <InputComp />
   </>
 );

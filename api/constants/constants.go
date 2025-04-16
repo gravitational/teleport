@@ -405,6 +405,10 @@ const (
 	// TraitHostUserGID is the name of the variable used to specify
 	// the GID to create host user account with.
 	TraitHostUserGID = "host_user_gid"
+
+	// TraitGitHubOrgs is the name of the variable to specify the GitHub
+	// organizations for GitHub integration.
+	TraitGitHubOrgs = "github_orgs"
 )
 
 const (
@@ -416,6 +420,26 @@ const (
 	// MaxAssumeStartDuration latest duration into the future an access request's assume
 	// start time can be
 	MaxAssumeStartDuration = time.Hour * 24 * 7
+)
+
+const (
+	// MaxHealthCheckInterval is the minimum interval between resource health
+	// checks.
+	MinHealthCheckInterval = 30 * time.Second
+	// MaxHealthCheckInterval is the maximum interval between resource health
+	// checks. Since timeout must be less than interval, this is effectively the
+	// maximum health check timeout as well.
+	MaxHealthCheckInterval = 600 * time.Second
+	// MinHealthCheckTimeout is the minimum resource health check timeout.
+	// There is no corresponding MaxHealthCheckTimeout, because timeout is
+	// bounded to be no greater than the interval.
+	MinHealthCheckTimeout = time.Second
+	// MaxHealthCheckHealthyThreshold is the maximum health check healthy
+	// threshold.
+	MaxHealthCheckHealthyThreshold = 10
+	// MaxHealthCheckUnhealthyThreshold is the maximum health check unhealthy
+	// threshold.
+	MaxHealthCheckUnhealthyThreshold = MaxHealthCheckHealthyThreshold
 )
 
 // Constants for TLS routing connection upgrade. See RFD for more details:

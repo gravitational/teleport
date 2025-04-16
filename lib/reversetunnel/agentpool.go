@@ -774,7 +774,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	if c.remoteTLSRoutingEnabled {
 		c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, lib.IsInsecureDevMode())
 		slog.DebugContext(ctx, "ALPN upgrade required for remote cluster",
-			"remot_addr", addr.Addr,
+			"remote_addr", addr.Addr,
 			"conn_upgrade_required", c.tlsRoutingConnUpgradeRequired,
 		)
 	}

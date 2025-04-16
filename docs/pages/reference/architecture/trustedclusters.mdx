@@ -18,18 +18,18 @@ Uses for Trusted Clusters include:
 - Device manufacturers remotely maintaining computing appliances deployed on premises.
 - Large cloud software vendors managing multiple data centers.
 
-<Notice type="tip">
+<Admonition type="tip">
 Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
 You don't need to set up a trusted cluster just to connect a couple of servers, Kubernetes clusters or
 databases behind a firewall.
-</Notice>
+</Admonition>
 
 ## Multi-Data-center Clusters
 
 In the example below, there are three independent clusters:
 
 - Cluster `sso.example.com` is a root cluster. This cluster can be used as a single-sign-on entry point
-for your organization. It can have it's own independent resources connected to it, or be used just for audit
+for your organization. It can have its own independent resources connected to it, or be used just for audit
 logs collection and single-sign-on.
 - Clusters `us-east-1a` and `us-east-1b` are two independent clusters in different availability zones.
 

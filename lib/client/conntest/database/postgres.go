@@ -22,12 +22,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -65,7 +65,7 @@ func (p *PostgresPinger) Ping(ctx context.Context, params PingParams) error {
 
 	defer func() {
 		if err := conn.Close(ctx); err != nil {
-			logrus.WithError(err).Info("failed to close connection in PostgresPinger.Ping")
+			slog.InfoContext(context.Background(), "failed to close connection in PostgresPinger.Ping", "error", err)
 		}
 	}()
 

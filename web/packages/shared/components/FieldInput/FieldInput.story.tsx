@@ -17,13 +17,10 @@
  */
 
 import { ButtonPrimary, Text } from 'design';
-
 import { EmailSolid } from 'design/Icon';
 
 import Validation from '../../components/Validation';
-
 import { requiredEmailLike, requiredField } from '../Validation/rules';
-
 import FieldInput from './FieldInput';
 
 export default {
@@ -72,6 +69,7 @@ export const Fields = () => (
         <FieldInput
           label="Required"
           rule={requiredField('So required. Much mandatory.')}
+          required
           onChange={() => {}}
           value=""
         />

@@ -17,15 +17,13 @@
  */
 
 import { action } from '@storybook/addon-actions';
-import { Flex } from 'design';
+import { useArgs } from '@storybook/preview-api';
+import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 
+import { Flex } from 'design';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { useArgs } from '@storybook/preview-api';
-
 import { ViewModeSwitch } from './ViewModeSwitch';
-
-import type { Meta, StoryFn, StoryObj } from '@storybook/react';
 
 export default {
   title: 'Shared/Controls/ViewModeSwitch',

@@ -17,11 +17,10 @@
  */
 
 import { ButtonPrimary } from '../Button';
-
 import DialogConfirmation, {
-  DialogHeader,
   DialogContent,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from './index';
 

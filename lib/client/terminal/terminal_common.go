@@ -23,14 +23,12 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentClient,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentClient)
 
 // ResizeEvent is emitted when a terminal window is resized.
 type ResizeEvent struct{}

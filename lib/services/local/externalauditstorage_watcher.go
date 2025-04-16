@@ -21,11 +21,11 @@ package local
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -38,8 +38,8 @@ import (
 type ClusterExternalAuditStorageWatcherConfig struct {
 	// Backend is the storage backend used to create watchers.
 	Backend backend.Backend
-	// Log is a logger.
-	Log logrus.FieldLogger
+	// Logger is a logger.
+	Logger *slog.Logger
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// OnChange is the action to take when the cluster ExternalAuditStorage
@@ -52,8 +52,8 @@ func (cfg *ClusterExternalAuditStorageWatcherConfig) CheckAndSetDefaults() error
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing parameter Backend")
 	}
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger().WithField(teleport.ComponentKey, "ExternalAuditStorage.watcher")
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "ExternalAuditStorage.watcher")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = cfg.Backend.Clock()
@@ -67,7 +67,7 @@ func (cfg *ClusterExternalAuditStorageWatcherConfig) CheckAndSetDefaults() error
 // ClusterExternalAuditWatcher is a light weight backend watcher for the cluster external audit resource.
 type ClusterExternalAuditWatcher struct {
 	backend   backend.Backend
-	log       logrus.FieldLogger
+	logger    *slog.Logger
 	clock     clockwork.Clock
 	onChange  func()
 	retry     retryutils.Retry
@@ -97,7 +97,7 @@ func NewClusterExternalAuditWatcher(ctx context.Context, cfg ClusterExternalAudi
 
 	w := &ClusterExternalAuditWatcher{
 		backend:  cfg.Backend,
-		log:      cfg.Log,
+		logger:   cfg.Logger,
 		clock:    cfg.Clock,
 		onChange: cfg.OnChange,
 		retry:    retry,
@@ -137,7 +137,10 @@ func (w *ClusterExternalAuditWatcher) runWatchLoop(ctx context.Context) {
 		startedWaiting := w.clock.Now()
 		select {
 		case t := <-w.retry.After():
-			w.log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
+			w.logger.WarnContext(ctx, "Restarting watch on error",
+				"backoff", t.Sub(startedWaiting),
+				"error", err,
+			)
 			w.retry.Inc()
 		case <-ctx.Done():
 			return
@@ -156,7 +159,7 @@ func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
 	for {
 		select {
 		case <-watcher.Events():
-			w.log.Infof("Detected change to cluster ExternalAuditStorage config")
+			w.logger.InfoContext(ctx, "Detected change to cluster ExternalAuditStorage config")
 			w.onChange()
 		case w.running <- struct{}{}:
 		case <-watcher.Done():

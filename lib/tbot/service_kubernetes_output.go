@@ -20,6 +20,7 @@ package tbot
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -77,9 +78,10 @@ func (s *KubernetesOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -121,7 +123,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -147,12 +149,13 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	// and will fail to generate certs if the cluster doesn't exist or is
 	// offline.
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		id,
 		roles,
-		s.botCfg.CertificateTTL,
+		effectiveLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = kubeClusterName
 		},
@@ -160,6 +163,8 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	s.log.InfoContext(
 		ctx,
@@ -391,7 +396,7 @@ func chooseOneKubeCluster(clusters []types.KubeCluster, name string) (types.Kube
 	return chooseOneResource(clusters, name, "kubernetes cluster")
 }
 
-func getKubeCluster(ctx context.Context, clt *authclient.Client, name string) (types.KubeCluster, error) {
+func getKubeCluster(ctx context.Context, clt apiclient.GetResourcesClient, name string) (types.KubeCluster, error) {
 	ctx, span := tracer.Start(ctx, "getKubeCluster")
 	defer span.End()
 

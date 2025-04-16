@@ -52,13 +52,14 @@ description: How to access Amazon DocumentDB with Teleport database access
 (!docs/pages/includes/install-linux.mdx!)
 
 On the node that is running the Database Service, create a configuration file.
-Use your DocumentDB cluster endpoint and port as the URI:
+Use your DocumentDB cluster endpoint and port as the URI, replacing 
+<Var name="my-docdb.cluster-abcdefghijklm.us-east-1.docdb.amazonaws.com:27017"/>:
 
 ```code
 $ sudo teleport db configure create \
    -o file \
    --name="my-docdb" \
-   --proxy=example.teleport.sh:443 \
+   --proxy=<Var name="example.teleport.sh:443" /> \
    --protocol=mongodb \
    --token=/tmp/token \
    --uri="<Var name="my-docdb.cluster-abcdefghijklm.us-east-1.docdb.amazonaws.com:27017"/>"
@@ -157,7 +158,9 @@ and `Allowed` for the value. Then click **Create Role** to complete the process.
 Log in to your DocumentDB cluster with your master username and password from a
 machine that has network access to the DocumentDB cluster. Create a DocumentDB
 user with the IAM role ARN as username and specify `MONGODB-AWS` in the
-mechanisms for authentication:
+mechanisms for authentication. Replace 
+<Var name="arn:aws:iam::(=aws.aws_account_id=):role/teleport-docdb-user"/> with
+the ARN of your DocumentDB user:
 
 ```code
 use $external;

@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { H2, ButtonIcon } from 'design';
-import * as icons from 'design/Icon';
+import { ButtonIcon, H2 } from 'design';
 import { DialogHeader } from 'design/Dialog';
+import * as icons from 'design/Icon';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 

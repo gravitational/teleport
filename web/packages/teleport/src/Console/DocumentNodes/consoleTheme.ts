@@ -17,17 +17,17 @@
  */
 
 import { fonts } from 'design/theme/fonts';
-import { getContrastRatio } from 'design/theme/utils/colorManipulator';
 import {
+  blueGrey,
   lightBlue,
-  red,
-  teal,
   orange,
   pink,
-  blueGrey,
+  red,
+  teal,
   yellow,
 } from 'design/theme/palette';
 import typography, { fontSizes, fontWeights } from 'design/theme/typography';
+import { getContrastRatio } from 'design/theme/utils/colorManipulator';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;

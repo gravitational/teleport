@@ -19,12 +19,9 @@
 import {
   IntegrationKind,
   IntegrationStatusCode,
-} from 'teleport/services/integrations';
-
-import type {
-  Plugin,
-  Integration,
-  ExternalAuditStorage,
+  type ExternalAuditStorage,
+  type Integration,
+  type Plugin,
 } from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [
@@ -187,7 +184,14 @@ export const integrations: Integration[] = [
     name: 'azure',
     kind: IntegrationKind.AzureOidc,
     statusCode: IntegrationStatusCode.Running,
-    spec: { roleArn: '' },
+  },
+  {
+    resourceType: 'integration',
+    name: 'github',
+    kind: IntegrationKind.GitHub,
+    statusCode: IntegrationStatusCode.Running,
+    details: 'some-detail',
+    spec: { organization: 'lsdf' },
   },
 ];
 

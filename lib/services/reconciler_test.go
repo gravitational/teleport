@@ -43,6 +43,7 @@ func TestReconciler(t *testing.T) {
 		onCreateCalls       []testResource
 		onUpdateCalls       []updateCall
 		onDeleteCalls       []testResource
+		configure           func(cfg *ReconcilerConfig[testResource])
 		comparator          func(testResource, testResource) int
 	}{
 		{
@@ -73,12 +74,29 @@ func TestReconciler(t *testing.T) {
 			},
 		},
 		{
-			description: "resources with different origins don't overwrite each other",
+			description: "resources with different origins don't overwrite each other by default",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"*": []string{"*"}},
 			}},
 			registeredResources: []testResource{makeStaticResource("res1", nil)},
 			newResources:        []testResource{makeDynamicResource("res1", nil)},
+		},
+		{
+			description: "resources with different origins overwrite each other when allowed",
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"*": []string{"*"}},
+			}},
+			configure: func(cfg *ReconcilerConfig[testResource]) {
+				cfg.AllowOriginChanges = true
+			},
+			registeredResources: []testResource{makeStaticResource("res1", nil)},
+			newResources:        []testResource{makeDynamicResource("res1", nil)},
+			onUpdateCalls: []updateCall{
+				{
+					old: makeStaticResource("res1", nil),
+					new: makeDynamicResource("res1", nil),
+				},
+			},
 		},
 		{
 			description: "resource that's no longer present should be removed",
@@ -198,7 +216,7 @@ func TestReconciler(t *testing.T) {
 			var onCreateCalls, onDeleteCalls []testResource
 			var onUpdateCalls []updateCall
 
-			reconciler, err := NewReconciler[testResource](ReconcilerConfig[testResource]{
+			cfg := ReconcilerConfig[testResource]{
 				Matcher: func(tr testResource) bool {
 					return MatchResourceLabels(test.selectors, tr.GetMetadata().Labels)
 				},
@@ -225,7 +243,13 @@ func TestReconciler(t *testing.T) {
 					onDeleteCalls = append(onDeleteCalls, tr)
 					return nil
 				},
-			})
+			}
+
+			if test.configure != nil {
+				test.configure(&cfg)
+			}
+
+			reconciler, err := NewReconciler[testResource](cfg)
 			require.NoError(t, err)
 
 			// Reconcile and make sure we got all expected callback calls.

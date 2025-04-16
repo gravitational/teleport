@@ -271,7 +271,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			continue
 		}
 
-		log.DebugContext(ctx, "foud upload with parts", "part_count", len(parts))
+		log.DebugContext(ctx, "found upload with parts", "part_count", len(parts))
 
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); trace.IsNotFound(err) {
 			log.DebugContext(ctx, "Upload not found, moving on to next upload", "error", err)

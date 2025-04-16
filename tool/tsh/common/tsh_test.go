@@ -69,6 +69,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
@@ -113,6 +114,8 @@ const (
 
 var ports utils.PortList
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
 	handleReexec()
 
@@ -130,7 +133,22 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
+
 func handleReexec() {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	var runOpts []CliOption
 
 	// Allows mock headless auth to be implemented when the test binary
@@ -266,7 +284,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -1716,7 +1734,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
-			clusterName, err := tt.auth.GetClusterName()
+			clusterName, err := tt.auth.GetClusterName(ctx)
 			require.NoError(t, err)
 
 			user := alice
@@ -2542,18 +2560,15 @@ func TestSSHCommands(t *testing.T) {
 func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		_, err := authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			log.Debugf("Retrying on access denied: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -2565,7 +2580,7 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 func TestKubeCredentialsLock(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 	const kubeClusterName = "kube-cluster"
 
 	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
@@ -2612,7 +2627,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 		proxyAddr, err := proxyProcess.ProxyWebAddr()
 		require.NoError(t, err)
 
-		teleportClusterName, err := authServer.GetClusterName()
+		teleportClusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
@@ -2626,6 +2641,20 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.NoError(t, err)
 		_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			gotNames := map[string]struct{}{}
+			for ks, err := range authServer.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				if !assert.NoError(t, err) {
+					return
+				}
+
+				gotNames[ks.GetCluster().GetName()] = struct{}{}
+
+			}
+
+			assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+		}, 15*time.Second, 100*time.Millisecond)
 
 		var ssoCalls atomic.Int32
 		mockSSOLogin := mockSSOLogin(authServer, alice)
@@ -3859,7 +3888,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.Addr = *utils.MustParseAddr("127.0.0.1:0")
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3908,7 +3937,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	// Disabling debug service for tests so that it doesn't break if the data
 	// directory path is too long.
 	cfg.DebugService.Enabled = false
@@ -3951,7 +3980,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3996,7 +4025,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
-		clusterName, err := authServer.GetClusterName()
+		clusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
 		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 		require.NoError(t, err)
@@ -4141,6 +4170,7 @@ func TestSerializeVersion(t *testing.T) {
 
 		proxyVersion       string
 		proxyPublicAddress string
+		reExecFromVersion  string
 	}{
 		{
 			name: "no proxy version provided",
@@ -4157,12 +4187,21 @@ func TestSerializeVersion(t *testing.T) {
 				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "proxyPublicAddress": %q}`,
 				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7", "teleport.example.com:443"),
 		},
+		{
+			name:               "re-exec version provided",
+			proxyVersion:       "3.2.1",
+			proxyPublicAddress: "teleport.example.com:443",
+			reExecFromVersion:  "1.2.3",
+			expected: fmt.Sprintf(
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "reExecutedFromVersion": %q, "proxyPublicAddress": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "3.2.1", "1.2.3", "teleport.example.com:443"),
+		},
 	}
 
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
 			testSerialization(t, tC.expected, func(fmt string) (string, error) {
-				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress)
+				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress, tC.reExecFromVersion)
 			})
 		})
 	}
@@ -4649,7 +4688,7 @@ func TestSerializeProfiles(t *testing.T) {
 	activeProfile := &client.ProfileStatus{
 		ProxyURL:       *p,
 		Username:       "test",
-		ActiveRequests: services.RequestIDs{AccessRequests: []string{"1", "2", "3"}},
+		ActiveRequests: []string{"1", "2", "3"},
 		Cluster:        "main",
 		Roles:          []string{"a", "b", "c"},
 		Traits:         wrappers.Traits{"a": []string{"1", "2", "3"}},
@@ -5792,9 +5831,9 @@ func TestLogout(t *testing.T) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
 	require.NoError(t, err)
 	clientKeyRing := &client.KeyRing{
 		KeyRingIndex: client.KeyRingIndex{
@@ -6017,9 +6056,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	createAgent(t)
 
 	accessUser, err := types.NewUser("access")
@@ -6035,6 +6071,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node01"),
 		testserver.WithClusterName(t, "root"),
+		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
 			cfg.Databases.Enabled = true
@@ -6045,9 +6082,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 					URI:      "localhost:5432",
 				},
 			}
-
-			cfg.Apps.Enabled = true
-			cfg.Apps.DebugApp = true
 		}),
 	}
 	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
@@ -6056,6 +6090,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		testserver.WithBootstrap(connector, accessUser),
 		testserver.WithHostname("node02"),
 		testserver.WithClusterName(t, "leaf"),
+		testserver.WithDebugApp(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			// Enable DB
 			cfg.Databases.Enabled = true
@@ -6066,9 +6101,6 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 					URI:      "localhost:5432",
 				},
 			}
-
-			cfg.Apps.Enabled = true
-			cfg.Apps.DebugApp = true
 		}),
 	}
 	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
@@ -6845,8 +6877,14 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).Run()
-			tt.assertError(t, err)
+
+			// Add some resiliency for cases where connections are attempted
+			// prior to the inventory being updated to contain the target node
+			// above.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				out, err := exec.Command(tshBin, "ssh", tt.flag, hostname, tty).CombinedOutput()
+				tt.assertError(t, err, string(out))
+			}, 20*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -7028,8 +7066,7 @@ func TestSCP(t *testing.T) {
 				return filepath.Join(dir, targetFile1)
 			},
 			assertion: func(tt require.TestingT, err error, i ...any) {
-				require.Error(tt, err, i...)
-				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+				require.ErrorIs(tt, err, teleport.ErrNodeIsAmbiguous, i...)
 			},
 		},
 		{
@@ -7088,8 +7125,7 @@ func TestSCP(t *testing.T) {
 				return "dev.example.com:" + filepath.Join(dir, targetFile1)
 			},
 			assertion: func(tt require.TestingT, err error, i ...any) {
-				require.Error(tt, err, i...)
-				require.ErrorContains(tt, err, "multiple matching hosts", i...)
+				require.ErrorIs(tt, err, teleport.ErrNodeIsAmbiguous, i...)
 			},
 		},
 		{
@@ -7150,6 +7186,49 @@ func TestSCP(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expected, got)
 			}
+		})
+	}
+}
+
+func TestSetEnvVariables(t *testing.T) {
+	testCases := []struct {
+		name              string
+		envVars           map[string]string
+		sendEnvVariables  []string
+		expectedExtraEnvs map[string]string
+	}{
+		{
+			name: "Skip unset var",
+			envVars: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+			sendEnvVariables: []string{"TEST_VAR1", "TEST_VAR2", "UNSET_VAR"},
+			expectedExtraEnvs: map[string]string{
+				"TEST_VAR1": "value1",
+				"TEST_VAR2": "value2",
+			},
+		},
+		{
+			name:              "Sending empty var",
+			envVars:           map[string]string{"EMPTY_VAR": ""},
+			sendEnvVariables:  []string{"EMPTY_VAR"},
+			expectedExtraEnvs: map[string]string{"EMPTY_VAR": ""},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envVars {
+				t.Setenv(k, v)
+			}
+
+			c := &client.Config{}
+			options := Options{SendEnvVariables: tc.sendEnvVariables}
+
+			setEnvVariables(c, options)
+
+			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
 		})
 	}
 }

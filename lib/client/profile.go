@@ -19,15 +19,17 @@
 package client
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -53,6 +56,10 @@ type ProfileStore interface {
 	// SaveProfile saves the given profile. If makeCurrent
 	// is true, it makes this profile current.
 	SaveProfile(profile *profile.Profile, setCurrent bool) error
+
+	// DeleteProfile deletes the given profile. If it is the
+	// current profile, it also deletes that record.
+	DeleteProfile(profileName string) error
 }
 
 // MemProfileStore is an in-memory implementation of ProfileStore.
@@ -105,13 +112,25 @@ func (ms *MemProfileStore) SaveProfile(profile *profile.Profile, makecurrent boo
 	return nil
 }
 
+// DeleteProfile deletes the given profile. If it is the
+// current profile, it also deletes that record.
+func (ms *MemProfileStore) DeleteProfile(profileName string) error {
+	if _, ok := ms.profiles[profileName]; !ok {
+		return trace.NotFound("profile for proxy host %q not found", profileName)
+	}
+
+	if ms.currentProfile == profileName {
+		ms.currentProfile = ""
+	}
+
+	delete(ms.profiles, profileName)
+	return nil
+}
+
 // FSProfileStore is an on-disk implementation of the ProfileStore interface.
 //
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSProfileStore struct {
-	// log holds the structured logger.
-	log logrus.FieldLogger
-
 	// Dir is the directory where all keys are stored.
 	Dir string
 }
@@ -120,7 +139,6 @@ type FSProfileStore struct {
 func NewFSProfileStore(dirPath string) *FSProfileStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSProfileStore{
-		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }
@@ -136,11 +154,26 @@ func (fs *FSProfileStore) CurrentProfile() (string, error) {
 
 // ListProfiles returns a list of all profiles.
 func (fs *FSProfileStore) ListProfiles() ([]string, error) {
-	profileNames, err := profile.ListProfileNames(fs.Dir)
+	files, err := os.ReadDir(fs.Dir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return profileNames, nil
+
+	var names []string
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		if file.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		names = append(names, strings.TrimSuffix(file.Name(), ".yaml"))
+	}
+	return names, nil
 }
 
 // GetProfile returns the requested profile.
@@ -161,6 +194,24 @@ func (fs *FSProfileStore) SaveProfile(profile *profile.Profile, makeCurrent bool
 
 	err := profile.SaveToDir(fs.Dir, makeCurrent)
 	return trace.Wrap(err)
+}
+
+// DeleteProfile deletes the given profile. If it is the
+// current profile, it also deletes that record.
+func (fs *FSProfileStore) DeleteProfile(profileName string) error {
+	if _, err := profile.FromDir(fs.Dir, profileName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if current, err := fs.CurrentProfile(); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	} else if current == profileName {
+		if err := os.Remove(keypaths.CurrentProfileFilePath(fs.Dir)); err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	}
+
+	return trace.ConvertSystemError(os.Remove(keypaths.ProfileFilePath(fs.Dir, profileName)))
 }
 
 // ProfileStatus combines metadata from the logged in profile and associated
@@ -220,7 +271,7 @@ type ProfileStatus struct {
 
 	// ActiveRequests tracks the privilege escalation requests applied
 	// during certificate construction.
-	ActiveRequests services.RequestIDs
+	ActiveRequests []string
 
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRolesARNs []string
@@ -282,45 +333,18 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract from the certificate how much longer it will be valid for.
-	validUntil := time.Unix(int64(sshCert.ValidBefore), 0)
-
-	// Extract roles from certificate. Note, if the certificate is in old format,
-	// this will be empty.
-	var roles []string
-	rawRoles, ok := sshCert.Extensions[teleport.CertExtensionTeleportRoles]
-	if ok {
-		roles, err = services.UnmarshalCertRoles(rawRoles)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	sort.Strings(roles)
-
-	// Extract traits from the certificate. Note if the certificate is in the
-	// old format, this will be empty.
-	var traits wrappers.Traits
-	rawTraits, ok := sshCert.Extensions[teleport.CertExtensionTeleportTraits]
-	if ok {
-		err = wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	var activeRequests services.RequestIDs
-	rawRequests, ok := sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	if ok {
-		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	allowedResourcesStr := sshCert.Extensions[teleport.CertExtensionAllowedResources]
-	allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Extract from the certificate how much longer it will be valid for.
+	validUntil := time.Unix(int64(sshIdent.ValidBefore), 0)
+
+	// Extract roles from certificate. Note, if the certificate is in old format,
+	// this will be empty.
+	roles := slices.Clone(sshIdent.Roles)
+	sort.Strings(roles)
 
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
@@ -369,13 +393,12 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	}
 
 	var gitHubIdentity *GitHubIdentity
-	if gitHubUserID := sshCert.Extensions[teleport.CertExtensionGitHubUserID]; gitHubUserID != "" {
+	if sshIdent.GitHubUserID != "" {
 		gitHubIdentity = &GitHubIdentity{
-			UserID:   gitHubUserID,
-			Username: sshCert.Extensions[teleport.CertExtensionGitHubUsername],
+			UserID:   sshIdent.GitHubUserID,
+			Username: sshIdent.GitHubUsername,
 		}
 	}
-
 	return &ProfileStatus{
 		Name: opts.ProfileName,
 		Dir:  opts.ProfileDir,
@@ -390,8 +413,8 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		CriticalOptions:         sshCert.CriticalOptions,
 		Roles:                   roles,
 		Cluster:                 opts.SiteName,
-		Traits:                  traits,
-		ActiveRequests:          activeRequests,
+		Traits:                  sshIdent.Traits,
+		ActiveRequests:          sshIdent.ActiveRequests,
 		KubeEnabled:             opts.KubeProxyAddr != "",
 		KubeUsers:               tlsID.KubernetesUsers,
 		KubeGroups:              tlsID.KubernetesGroups,
@@ -401,7 +424,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		AzureIdentities:         tlsID.AzureIdentities,
 		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
 		IsVirtual:               opts.IsVirtual,
-		AllowedResourceIDs:      allowedResourceIDs,
+		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 		SSOHost:                 opts.SSOHost,
 		GitHubIdentity:          gitHubIdentity,
@@ -434,14 +457,17 @@ func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualP
 	// If we can't resolve any env vars, this will return garbage which we
 	// should at least warn about. As ugly as this is, arguably making every
 	// profile path lookup fallible is even uglier.
-	log.Debugf("Could not resolve path to virtual profile entry of type %s "+
-		"with parameters %+v.", kind, params)
+	log.DebugContext(context.Background(), "Could not resolve path to virtual profile entry",
+		"entry_type", kind,
+		"parameters", params,
+	)
 
 	virtualPathWarnOnce.Do(func() {
-		log.Errorf("A virtual profile is in use due to an identity file " +
+		const msg = "A virtual profile is in use due to an identity file " +
 			"(`-i ...`) but this functionality requires additional files on " +
 			"disk and may fail. Consider using a compatible wrapper " +
-			"application (e.g. Machine ID) for this command.")
+			"application (e.g. Machine ID) for this command."
+		log.ErrorContext(context.Background(), msg)
 	})
 
 	return "", false
@@ -623,9 +649,8 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
-
 	store := NewFSKeyStore(p.Dir)
-	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
+	keyRing, err := store.GetKeyRing(idx, nil /*hwks*/, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -646,7 +671,7 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 	}
 
 	store := NewFSKeyStore(p.Dir)
-	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
+	keyRing, err := store.GetKeyRing(idx, nil /*hwks*/, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

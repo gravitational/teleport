@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -32,7 +33,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -75,7 +76,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	clusterName, err := tlsServer.Auth().GetClusterName()
+	clusterName, err := tlsServer.Auth().GetClusterName(ctx)
 	require.NoError(t, err)
 
 	roles := map[string]types.RoleSpecV6{
@@ -760,7 +761,7 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
-			user.SetRoles(maps.Keys(tc.roles))
+			user.SetRoles(slices.Collect(maps.Keys(tc.roles)))
 			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
@@ -1041,6 +1042,8 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	defer adminClient.Close()
 	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "request-approver",
 			},
@@ -1364,6 +1367,8 @@ func checkCerts(t *testing.T,
 	// Parse SSH cert.
 	sshCert, err := sshutils.ParseCertificate(certs.SSH)
 	require.NoError(t, err)
+	sshIdentity, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
 
 	// Parse TLS cert.
 	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
@@ -1372,14 +1377,11 @@ func checkCerts(t *testing.T,
 	require.NoError(t, err)
 
 	// Make sure both certs have the expected roles.
-	rawSSHCertRoles := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
-	sshCertRoles, err := services.UnmarshalCertRoles(rawSSHCertRoles)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, roles, sshCertRoles)
+	assert.ElementsMatch(t, roles, sshIdentity.Roles)
 	assert.ElementsMatch(t, roles, tlsIdentity.Groups)
 
 	// Make sure both certs have the expected logins/principals.
-	for _, certLogins := range [][]string{sshCert.ValidPrincipals, tlsIdentity.Principals} {
+	for _, certLogins := range [][]string{sshIdentity.Principals, tlsIdentity.Principals} {
 		// filter out invalid logins placed in the cert
 		validCertLogins := []string{}
 		for _, certLogin := range certLogins {
@@ -1391,12 +1393,7 @@ func checkCerts(t *testing.T,
 	}
 
 	// Make sure both certs have the expected access requests, if any.
-	rawSSHCertAccessRequests := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	sshCertAccessRequests := services.RequestIDs{}
-	if len(rawSSHCertAccessRequests) > 0 {
-		require.NoError(t, sshCertAccessRequests.Unmarshal([]byte(rawSSHCertAccessRequests)))
-	}
-	assert.ElementsMatch(t, accessRequests, sshCertAccessRequests.AccessRequests)
+	assert.ElementsMatch(t, accessRequests, sshIdentity.ActiveRequests)
 	assert.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.

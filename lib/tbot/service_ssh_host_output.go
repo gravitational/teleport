@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -63,9 +64,10 @@ func (s *SSHHostOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -102,17 +104,21 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		}
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		effectiveLifetime.TTL,
 		nil,
 	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
+
 	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
@@ -130,7 +136,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	privKey, err := keys.NewSoftwarePrivateKey(key)
+	privKey, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,7 +149,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 		Principals:  s.cfg.Principals,
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
-		Ttl:         durationpb.New(s.botCfg.CertificateTTL),
+		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL),
 	},
 	)
 	if err != nil {

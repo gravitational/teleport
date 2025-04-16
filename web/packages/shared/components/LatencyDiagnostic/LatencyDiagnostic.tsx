@@ -16,15 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
 import React from 'react';
+import styled from 'styled-components';
 
-import * as Icons from 'design/Icon';
 import { Flex, H2, Text } from 'design';
+import * as Icons from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
-
-import { DocumentSsh } from 'teleport/Console/stores';
-
 import { MenuIcon } from 'shared/components/MenuAction';
 
 export const WARN_THRESHOLD = 150;
@@ -35,6 +32,11 @@ export enum LatencyColor {
   Warn = 'dataVisualisation.tertiary.abbey',
   Error = 'dataVisualisation.tertiary.sunflower',
   Unknown = 'text.muted',
+}
+
+export interface Latency {
+  client: number;
+  server: number;
 }
 
 function colorForLatency(l: number): LatencyColor {
@@ -51,7 +53,7 @@ function colorForLatency(l: number): LatencyColor {
 
 // latencyColors determines the color to use for each leg of the connection
 // and the total measurement.
-export function latencyColors(latency: { client: number; server: number }): {
+export function latencyColors(latency: Latency | undefined): {
   client: LatencyColor;
   server: LatencyColor;
   total: LatencyColor;
@@ -92,7 +94,7 @@ export function latencyColors(latency: { client: number; server: number }): {
 export function LatencyDiagnostic({
   latency,
 }: {
-  latency: DocumentSsh['latency'];
+  latency: Latency | undefined;
 }) {
   const colors = latencyColors(latency);
 

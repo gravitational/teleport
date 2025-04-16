@@ -443,7 +443,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 
 	// Device Trust: authorize device extensions.
 	if !a.disableGlobalDeviceMode {
-		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+		if err := dtauthz.VerifyTLSUser(ctx, authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -548,7 +548,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 	if impersonator := ident.Impersonator; impersonator != "" {
 		impersonatorUser, err := a.accessPoint.GetUser(ctx, impersonator, false)
 		if err == nil && impersonatorUser.IsBot() {
-			a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot-impersonated identity", "identtity", ident)
+			a.logger.DebugContext(ctx, "Skipping admin action MFA check for bot-impersonated identity", "identity", ident)
 			return false, nil
 		}
 
@@ -626,21 +626,22 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 }
 
 // ErrIPPinningMissing is returned when user cert should be pinned but isn't.
-var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+var ErrIPPinningMissing = &trace.AccessDeniedError{Message: "pinned IP is required for the user, but is not present on identity"}
 
 // ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
-var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
+var ErrIPPinningMismatch = &trace.AccessDeniedError{Message: "pinned IP doesn't match observed client IP"}
 
 // ErrIPPinningNotAllowed is returned when user's pinned IP doesn't match observed IP.
-var ErrIPPinningNotAllowed = trace.AccessDenied("IP pinning is not allowed for connections behind L4 load balancers with " +
-	"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config.")
+var ErrIPPinningNotAllowed = &trace.AccessDeniedError{Message: "IP pinning is not allowed for connections that have been" +
+	"downgraded or are behind a L4 load balancers with PROXY protocol enabled without explicitly setting 'proxy_protocol: on'" +
+	"in the proxy_service and/or auth_service config."}
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
 func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log *slog.Logger) error {
 	if identity.PinnedIP == "" {
 		if pinSourceIP {
-			return ErrIPPinningMissing
+			return trace.Wrap(ErrIPPinningMissing)
 		}
 		return nil
 	}
@@ -662,17 +663,15 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 				"pinned_ip", identity.PinnedIP,
 			)
 		}
-		return ErrIPPinningMismatch
+		return trace.Wrap(ErrIPPinningMismatch)
 	}
 	// If connection has port 0 it means it was marked by multiplexer's 'detect()' function as affected by unexpected PROXY header.
 	// For security reason we don't allow such connection for IP pinning because we can't rely on client IP being correct.
 	if clientPort == "0" {
 		if log != nil {
-			const msg = "IP pinning is not allowed for connections behind L4 load balancers with " +
-				"PROXY protocol enabled without explicitly setting 'proxy_protocol: on' in the proxy_service and/or auth_service config"
-			log.DebugContext(ctx, msg, "client_ip", clientIP, "pinned_ip", identity.PinnedIP)
+			log.DebugContext(ctx, "client address is not allowed to use IP pinning", "client_ip", clientIP, "pinned_ip", identity.PinnedIP, "error", ErrIPPinningNotAllowed.Message)
 		}
-		return ErrIPPinningMismatch
+		return trace.Wrap(ErrIPPinningNotAllowed)
 	}
 
 	return nil
@@ -693,7 +692,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromRemoteIdentity(u.Identity, ca.CombinedMapping())
+	accessInfo, err := services.AccessInfoFromRemoteTLSIdentity(u.Identity, ca.CombinedMapping())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -761,7 +760,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
-		return nil, ErrIPPinningMissing
+		return nil, trace.Wrap(ErrIPPinningMissing)
 	}
 
 	return &Context{
@@ -928,6 +927,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindSecurityReportState, services.RO()),
 				types.NewRule(types.KindUserTask, services.RO()),
 				types.NewRule(types.KindGitServer, services.RO()),
+				types.NewRule(types.KindAccessGraphSettings, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1019,6 +1019,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindNetworkRestrictions, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindStaticHostUser, services.RO()),
+						types.NewRule(types.KindStableUNIXUser, []string{types.VerbCreate, types.VerbRead}),
 					},
 				},
 			})
@@ -1081,6 +1082,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindDatabaseObjectImportRule, services.RO()),
 						types.NewRule(types.KindDatabaseObject, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
 					},
 				},
 			})
@@ -1288,7 +1290,6 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					},
 				},
 			})
-
 	}
 
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
@@ -1344,7 +1345,7 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalIdentity(u.Identity, accessPoint)
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -55,7 +55,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector create event", "error", err)
 	}
 
 	return upserted, nil
@@ -77,7 +77,7 @@ func (a *Server) UpdateOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector update event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector update event", "error", err)
 	}
 
 	return updated, nil
@@ -99,7 +99,7 @@ func (a *Server) CreateOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector create event", "error", err)
 	}
 
 	return created, nil
@@ -120,7 +120,7 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 			Name: connectorName,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector delete event", "error", err)
 	}
 	return nil
 }

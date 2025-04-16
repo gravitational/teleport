@@ -16,33 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 import {
   DeviceType,
   DeviceUsage,
   MfaAuthenticateChallenge,
   MfaChallengeResponse,
+  SsoChallenge,
 } from 'teleport/services/mfa';
-
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import {
-  parseMfaChallengeJson,
-  parseMfaRegistrationChallengeJson,
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
+  parseMfaChallengeJson,
+  parseMfaRegistrationChallengeJson,
 } from '../mfa/makeMfa';
-
-import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
+import makePasswordToken from './makePasswordToken';
 import {
+  ChangePasswordReq,
+  CreateAuthenticateChallengeRequest,
+  CreateNewHardwareDeviceRequest,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
-  ChangePasswordReq,
-  CreateNewHardwareDeviceRequest,
-  CreateAuthenticateChallengeRequest,
 } from './types';
 
 const auth = {
@@ -219,26 +218,25 @@ const auth = {
     return api.put(cfg.api.changeUserPasswordPath, data);
   },
 
-  headlessSSOGet(transactionId: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
-      .then((json: any) => {
-        json = json || {};
+  headlessSsoGet(transactionId: string) {
+    return api.get(cfg.getHeadlessSsoPath(transactionId)).then((json: any) => {
+      json = json || {};
 
-        return {
-          clientIpAddress: json.client_ip_address,
-        };
-      });
+      return {
+        clientIpAddress: json.client_ip_address,
+      };
+    });
   },
 
-  headlessSSOAccept(transactionId: string) {
+  headlessSsoAccept(transactionId: string) {
     return auth
       .getMfaChallenge({ scope: MfaChallengeScope.HEADLESS_LOGIN })
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
+      .then(challenge => auth.getMfaChallengeResponse(challenge))
       .then(res => {
         const request = {
           action: 'accept',
+          mfaResponse: res,
+          // TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse.
           webauthnAssertionResponse: res.webauthn_response,
         };
 
@@ -255,11 +253,11 @@ const auth = {
   },
 
   // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
-  // is provided and it is found that MFA is not required, returns null instead.
+  // is provided and it is found that MFA is not required, returns undefined instead.
   async getMfaChallenge(
     req: CreateAuthenticateChallengeRequest,
     abortSignal?: AbortSignal
-  ) {
+  ): Promise<MfaAuthenticateChallenge | undefined> {
     return api
       .post(
         cfg.api.mfaAuthnChallengePath,
@@ -275,12 +273,15 @@ const auth = {
   },
 
   // getChallengeResponse gets an MFA challenge response for the provided parameters.
-  // If is_mfa_required_req is provided and it is found that MFA is not required, returns null instead.
+  // If challenge is undefined or has no viable challenge options, returns empty response.
   async getMfaChallengeResponse(
     challenge: MfaAuthenticateChallenge,
     mfaType?: DeviceType,
     totpCode?: string
   ): Promise<MfaChallengeResponse> {
+    // No challenge, return empty response.
+    if (!challenge) return {};
+
     // TODO(Joerger): If mfaType is not provided by a parent component, use some global context
     // to display a component, similar to the one used in useMfa. For now we just default to
     // whichever method we can succeed with first.
@@ -289,11 +290,17 @@ const auth = {
         mfaType = 'totp';
       } else if (challenge.webauthnPublicKey) {
         mfaType = 'webauthn';
+      } else if (challenge.ssoChallenge) {
+        mfaType = 'sso';
       }
     }
 
     if (mfaType === 'webauthn') {
       return auth.getWebAuthnChallengeResponse(challenge.webauthnPublicKey);
+    }
+
+    if (mfaType === 'sso') {
+      return auth.getSsoChallengeResponse(challenge.ssoChallenge);
     }
 
     if (mfaType === 'totp') {
@@ -303,7 +310,7 @@ const auth = {
     }
 
     // No viable challenge, return empty response.
-    return null;
+    return {};
   },
 
   async getWebAuthnChallengeResponse(
@@ -333,61 +340,52 @@ const auth = {
     });
   },
 
-  // TODO(Joerger): Delete once no longer used by /e
-  createPrivilegeTokenWithWebauthn() {
-    return auth
-      .getMfaChallenge({ scope: MfaChallengeScope.MANAGE_DEVICES })
-      .then(auth.getMfaChallengeResponse)
-      .then(mfaResp => auth.createPrivilegeToken(mfaResp));
+  async getSsoChallengeResponse(
+    challenge: SsoChallenge
+  ): Promise<MfaChallengeResponse> {
+    const abortController = new AbortController();
+
+    auth.openSsoChallengeRedirect(challenge, abortController);
+    return await auth.waitForSsoChallengeResponse(
+      challenge,
+      abortController.signal
+    );
   },
 
-  // TODO(Joerger): Delete once no longer used by /e
-  createPrivilegeTokenWithTotp(secondFactorToken: string) {
-    return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
+  openSsoChallengeRedirect(
+    { redirectUrl }: SsoChallenge,
+    abortController?: AbortController
+  ) {
+    // try to center the screen
+    const width = 1045;
+    const height = 550;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    // these params will open a tiny window.
+    const params = `width=${width},height=${height},left=${left},top=${top}`;
+    const w = window.open(redirectUrl, '_blank', params);
+
+    // If the redirect URL window is closed prematurely, abort.
+    w.onclose = abortController?.abort;
+  },
+
+  async waitForSsoChallengeResponse(
+    { channelId, requestId }: SsoChallenge,
+    abortSignal: AbortSignal
+  ): Promise<MfaChallengeResponse> {
+    const channel = new BroadcastChannel(channelId);
+    const msg = await waitForMessage(channel, abortSignal);
+    return {
+      sso_response: {
+        requestId,
+        token: msg.data.mfaToken,
+      },
+    };
   },
 
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
-  },
-
-  // TODO(Joerger): Remove once /e is no longer using it.
-  async getWebauthnResponse(
-    scope: MfaChallengeScope,
-    allowReuse?: boolean,
-    isMfaRequiredRequest?: IsMfaRequiredRequest,
-    abortSignal?: AbortSignal
-  ) {
-    // TODO(Joerger): DELETE IN 16.0.0
-    // the create mfa challenge endpoint below supports
-    // MFARequired requests without the extra roundtrip.
-    if (isMfaRequiredRequest) {
-      try {
-        const isMFARequired = await checkMfaRequired(
-          isMfaRequiredRequest,
-          abortSignal
-        );
-        if (!isMFARequired.required) {
-          return;
-        }
-      } catch (err) {
-        if (
-          err?.response?.status === 400 &&
-          err?.message.includes('missing target for MFA check')
-        ) {
-          // checking MFA requirement for admin actions is not supported by old
-          // auth servers, we expect an error instead. In this case, assume MFA is
-          // not required. Callers should fallback to retrying with MFA if needed.
-          return;
-        }
-
-        throw err;
-      }
-    }
-
-    return auth
-      .getMfaChallenge({ scope, allowReuse, isMfaRequiredRequest }, abortSignal)
-      .then(challenge => auth.getMfaChallengeResponse(challenge, 'webauthn'))
-      .then(res => res.webauthn_response);
   },
 
   getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
@@ -407,11 +405,6 @@ const auth = {
       })
       .then(auth.getMfaChallengeResponse);
   },
-
-  // TODO(Joerger): Delete in favor of getMfaChallengeResponseForAdminAction once /e is updated.
-  getWebauthnResponseForAdminAction(allowReuse?: boolean) {
-    return auth.getMfaChallengeResponseForAdminAction(allowReuse);
-  },
 };
 
 function checkMfaRequired(
@@ -430,8 +423,35 @@ function base64EncodeUnicode(str: string) {
   );
 }
 
+function waitForMessage(
+  channel: BroadcastChannel,
+  abortSignal: AbortSignal
+): Promise<MessageEvent> {
+  return new Promise((resolve, reject) => {
+    // Create the event listener
+    function eventHandler(e: MessageEvent) {
+      // Remove the event listener after it triggers
+      channel.removeEventListener('message', eventHandler);
+      // Resolve the promise with the event object
+      resolve(e);
+    }
+
+    // Add the event listener
+    channel.addEventListener('message', eventHandler);
+
+    // Close the event listener early if aborted.
+    abortSignal.onabort = e => {
+      channel.removeEventListener('message', eventHandler);
+      reject(e);
+    };
+  });
+}
+
 export default auth;
 
+// TODO(Joerger): In order to check if mfa is required for a leaf host, the leaf
+// clusterID must be included in the request. Currently, only IsMfaRequiredApp
+// supports this functionality.
 export type IsMfaRequiredRequest =
   | IsMfaRequiredDatabase
   | IsMfaRequiredNode

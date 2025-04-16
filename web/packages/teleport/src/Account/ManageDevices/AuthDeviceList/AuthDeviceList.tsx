@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+import styled from 'styled-components';
+
+import { ButtonWarningBorder } from 'design/Button/Button';
 import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
-import React from 'react';
-
-import styled from 'styled-components';
-import { MultiRowBox, Row } from 'design/MultiRowBox';
 import * as Icon from 'design/Icon';
-import { ButtonWarningBorder } from 'design/Button/Button';
+import { MultiRowBox, Row } from 'design/MultiRowBox';
 
 import { MfaDevice } from 'teleport/services/mfa';
 

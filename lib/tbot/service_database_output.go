@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -60,9 +61,10 @@ func (s *DatabaseOutputService) Run(ctx context.Context) error {
 	defer unsubscribe()
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
+		service:    s.String(),
 		name:       "output-renewal",
 		f:          s.generate,
-		interval:   s.botCfg.RenewalInterval,
+		interval:   cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
 		reloadCh:   reloadCh,
@@ -104,7 +106,7 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		s.botCfg.CertificateTTL,
+		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
 		nil,
 	)
 	if err != nil {
@@ -131,12 +133,13 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	routedIdentity, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		id,
 		roles,
-		s.botCfg.CertificateTTL,
+		effectiveLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		},
@@ -144,6 +147,8 @@ func (s *DatabaseOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	s.log.InfoContext(
 		ctx,

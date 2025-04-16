@@ -17,9 +17,8 @@
  */
 
 import { makeCluster } from '../clusters';
-
 import { makeAcl } from './makeAcl';
-import { UserContext, AccessCapabilities, PasswordState } from './types';
+import { AccessCapabilities, PasswordState, UserContext } from './types';
 
 export default function makeUserContext(json: any): UserContext {
   json = json || {};

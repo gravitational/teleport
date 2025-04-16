@@ -17,12 +17,16 @@
  */
 
 import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
+
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { yamlService } from 'teleport/services/yaml';
 
-import { Roles } from './Roles';
+import { withDefaults } from './RoleEditor/StandardEditor/withDefaults';
+import { RoleDiffState, Roles } from './Roles';
 import { State } from './useRoles';
 
 describe('Roles list', () => {
@@ -63,9 +67,11 @@ describe('Roles list', () => {
     const ctx = createTeleportContext();
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...defaultState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...defaultState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -86,9 +92,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -102,9 +110,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...defaultState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...defaultState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -119,21 +129,23 @@ describe('Roles list', () => {
     expect(menuItems).toHaveLength(2);
   });
 
-  test('hides edit button if no access', async () => {
+  test('hides view/edit button if no access', async () => {
     const ctx = createTeleportContext();
     const testState = {
       ...defaultState,
       rolesAcl: {
         ...defaultState.rolesAcl,
-        edit: false,
+        list: false,
       },
     };
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -146,12 +158,15 @@ describe('Roles list', () => {
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
     expect(menuItems).toHaveLength(1);
-    expect(menuItems.every(item => item.textContent.includes('Edit'))).not.toBe(
-      true
-    );
+    expect(
+      menuItems.every(
+        item =>
+          item.textContent.includes('View') || item.textContent.includes('Edit')
+      )
+    ).not.toBe(true);
   });
 
-  test('hides delete button if no access', async () => {
+  test('hides delete button if user does not have permission to delete', async () => {
     const ctx = createTeleportContext();
     const testState = {
       ...defaultState,
@@ -163,9 +178,11 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -183,12 +200,14 @@ describe('Roles list', () => {
     ).not.toBe(true);
   });
 
-  test('hides Options button if no permissions to edit or delete', async () => {
+  test('displays Options button if user has permission to list/read roles', async () => {
     const ctx = createTeleportContext();
     const testState = {
       ...defaultState,
       rolesAcl: {
-        ...defaultState.rolesAcl,
+        list: true,
+        read: true,
+        create: false,
         remove: false,
         edit: false,
       },
@@ -196,9 +215,42 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Roles {...testState} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('cool-role')).toBeInTheDocument();
+    });
+    const optionsButton = screen.getByRole('button', { name: /options/i });
+    fireEvent.click(optionsButton);
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(1);
+    expect(menuItems[0]).toHaveTextContent('View');
+  });
+
+  test('hides Options button if no permissions to view or delete', async () => {
+    const ctx = createTeleportContext();
+    const testState = {
+      ...defaultState,
+      rolesAcl: {
+        ...defaultState.rolesAcl,
+        remove: false,
+        list: false,
+      },
+    };
+
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Roles {...testState} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -209,3 +261,72 @@ describe('Roles list', () => {
     expect(menuItems).toHaveLength(0);
   });
 });
+
+test('renders the role diff component', async () => {
+  const ctx = createTeleportContext();
+  const defaultState = (): State => ({
+    create: jest.fn(),
+    fetch: jest.fn().mockResolvedValue({
+      startKey: '',
+      items: [
+        {
+          content: '',
+          id: '1',
+          kind: 'role',
+          name: 'cool-role',
+          description: 'coolest-role',
+        },
+      ],
+    }),
+    remove: jest.fn(),
+    update: jest.fn(),
+    rolesAcl: {
+      read: true,
+      remove: true,
+      create: true,
+      edit: true,
+      list: true,
+    },
+  });
+  jest.spyOn(yamlService, 'parse').mockImplementation(async () => {
+    return withDefaults({});
+  });
+
+  const roleDiffElement = <div>i am rendered</div>;
+
+  render(
+    <MemoryRouter>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles
+            {...defaultState()}
+            roleDiffProps={{
+              roleDiffElement,
+              roleDiffState: RoleDiffState.PolicyEnabled,
+              updateRoleDiff: () => null,
+              roleDiffAttempt: {
+                status: 'error',
+                statusText: 'there is an error here',
+                data: null,
+                error: null,
+              },
+            }}
+          />
+        </ContextProvider>
+      </InfoGuidePanelProvider>
+    </MemoryRouter>
+  );
+  await openEditor();
+  expect(screen.getByText('i am rendered')).toBeInTheDocument();
+  expect(await screen.findByText('there is an error here')).toBeInTheDocument();
+});
+
+async function openEditor() {
+  await waitFor(() => {
+    expect(screen.getByText('cool-role')).toBeInTheDocument();
+  });
+  const optionsButton = screen.getByRole('button', { name: /options/i });
+  fireEvent.click(optionsButton);
+  const menuItems = screen.queryAllByRole('menuitem');
+  fireEvent.click(menuItems[0]);
+}

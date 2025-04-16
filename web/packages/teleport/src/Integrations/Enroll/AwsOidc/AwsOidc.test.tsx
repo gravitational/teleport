@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MemoryRouter } from 'react-router';
+
 import {
   fireEvent,
   render,
@@ -23,12 +25,10 @@ import {
   userEvent,
   waitFor,
 } from 'design/utils/testing';
-import { MemoryRouter } from 'react-router';
 
-import { userEventService } from 'teleport/services/userEvent';
-
-import { integrationService } from 'teleport/services/integrations';
 import { ApiError } from 'teleport/services/api/parseError';
+import { integrationService } from 'teleport/services/integrations';
+import { userEventService } from 'teleport/services/userEvent';
 
 import { AwsOidc } from './AwsOidc';
 
@@ -125,7 +125,10 @@ test('generate command', async () => {
 
   // Test create is still called with 404 ping error.
   jest.clearAllMocks();
-  let error = new ApiError('', { status: 404 } as Response);
+  let error = new ApiError({
+    message: '',
+    response: { status: 404 } as Response,
+  });
   spyPing = jest
     .spyOn(integrationService, 'pingAwsOidcIntegration')
     .mockRejectedValue(error);
@@ -136,7 +139,7 @@ test('generate command', async () => {
 
   // Test create isn't called with non 404 error
   jest.clearAllMocks();
-  error = new ApiError('', { status: 400 } as Response);
+  error = new ApiError({ message: '', response: { status: 400 } as Response });
   spyPing = jest
     .spyOn(integrationService, 'pingAwsOidcIntegration')
     .mockRejectedValue(error);

@@ -18,8 +18,8 @@
 
 import { Platform } from 'teleterm/mainProcess/types';
 import {
-  KeyboardShortcutAction,
   ConfigService,
+  KeyboardShortcutAction,
 } from 'teleterm/services/config';
 
 import { getKeyName } from './getKeyName';

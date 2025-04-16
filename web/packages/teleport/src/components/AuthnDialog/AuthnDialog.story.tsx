@@ -26,21 +26,27 @@ export default {
 
 export const LoadedWithMultipleOptions = () => {
   const props: Props = {
-    ...defaultProps,
-    mfa: {
-      ...defaultProps.mfa,
-      ssoChallenge: {
-        redirectUrl: 'hi',
-        requestId: '123',
-        channelId: '123',
-        device: {
-          connectorId: '123',
-          connectorType: 'saml',
-          displayName: 'Okta',
-        },
+    mfaState: {
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
       },
-      webauthnPublicKey: {
-        challenge: new ArrayBuffer(1),
+      challenge: {
+        ssoChallenge: {
+          redirectUrl: 'hi',
+          requestId: '123',
+          channelId: '123',
+          device: {
+            connectorId: '123',
+            connectorType: 'saml',
+            displayName: 'Okta',
+          },
+        },
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
       },
     },
   };
@@ -49,29 +55,35 @@ export const LoadedWithMultipleOptions = () => {
 
 export const LoadedWithSingleOption = () => {
   const props: Props = {
-    ...defaultProps,
-    mfa: {
-      ...defaultProps.mfa,
-      webauthnPublicKey: {
-        challenge: new ArrayBuffer(1),
+    mfaState: {
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'processing',
+        statusText: '',
+        data: null,
+      },
+      challenge: {
+        webauthnPublicKey: {
+          challenge: new ArrayBuffer(1),
+        },
       },
     },
   };
   return <AuthnDialog {...props} />;
 };
 
-export const Error = () => {
+export const LoadedWithError = () => {
+  const err = new Error('Something went wrong');
   const props: Props = {
-    ...defaultProps,
-    mfa: {
-      ...defaultProps.mfa,
-      errorText: 'Something went wrong',
+    mfaState: {
+      ...makeDefaultMfaState(),
+      attempt: {
+        status: 'error',
+        statusText: err.message,
+        error: err,
+        data: null,
+      },
     },
   };
   return <AuthnDialog {...props} />;
-};
-
-const defaultProps: Props = {
-  mfa: makeDefaultMfaState(),
-  onCancel: () => null,
 };

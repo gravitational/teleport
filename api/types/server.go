@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -163,9 +164,18 @@ func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
 
 // NewGitHubServer creates a new Git server for GitHub.
 func NewGitHubServer(githubSpec GitHubServerMetadata) (Server, error) {
+	return NewGitHubServerWithName(uuid.NewString(), githubSpec)
+}
+
+// NewGitHubServerWithName creates a new Git server for GitHub with provided
+// name.
+func NewGitHubServerWithName(name string, githubSpec GitHubServerMetadata) (Server, error) {
 	server := &ServerV2{
 		Kind:    KindGitServer,
 		SubKind: SubKindGitHub,
+		Metadata: Metadata{
+			Name: name,
+		},
 		Spec: ServerSpecV2{
 			GitHub: &githubSpec,
 		},
@@ -626,6 +636,9 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 
+	// Set SSH host port for connection and "fake" hostname for routing. These
+	// values are hard-coded and cannot be customized.
+	s.Spec.Addr = "github.com:22"
 	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
 	if s.Metadata.Labels == nil {
 		s.Metadata.Labels = make(map[string]string)
@@ -640,25 +653,46 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 	if s.GetKind() != KindNode {
 		return false
 	}
-
-	var custom func(val string) bool
-	if s.GetUseTunnel() {
-		custom = func(val string) bool {
-			return strings.EqualFold(val, "tunnel")
+Outer:
+	for _, searchV := range values {
+		for key, value := range s.Metadata.Labels {
+			if strcase.Contains(key, searchV) || strcase.Contains(value, searchV) {
+				continue Outer
+			}
 		}
+		for key, cmd := range s.Spec.CmdLabels {
+			if strcase.Contains(key, searchV) || strcase.Contains(cmd.Result, searchV) {
+				continue Outer
+			}
+		}
+
+		if strcase.Contains(s.Metadata.Name, searchV) {
+			continue
+		}
+
+		if strcase.Contains(s.Spec.Hostname, searchV) {
+			continue
+		}
+
+		if strcase.Contains(s.Spec.Addr, searchV) {
+			continue
+		}
+
+		for _, addr := range s.Spec.PublicAddrs {
+			if strcase.Contains(addr, searchV) {
+				continue Outer
+			}
+		}
+
+		if s.GetUseTunnel() && strings.EqualFold(searchV, "tunnel") {
+			continue
+		}
+
+		// When no fields matched a value, prematurely end if we can.
+		return false
 	}
 
-	fieldVals := make([]string, 0, (len(s.Metadata.Labels)*2)+(len(s.Spec.CmdLabels)*2)+len(s.Spec.PublicAddrs)+3)
-
-	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
-	for key, value := range labels {
-		fieldVals = append(fieldVals, key, value)
-	}
-
-	fieldVals = append(fieldVals, s.Metadata.Name, s.Spec.Hostname, s.Spec.Addr)
-	fieldVals = append(fieldVals, s.Spec.PublicAddrs...)
-
-	return MatchSearch(fieldVals, values, custom)
+	return true
 }
 
 // DeepCopy creates a clone of this server value

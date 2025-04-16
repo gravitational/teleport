@@ -629,7 +629,7 @@ func (p *policies) createPolicy(ctx context.Context, policy *Policy, docJSON []b
 		Tags:           policyTags,
 	})
 	if err != nil {
-		return "", trace.Wrap(ConvertIAMv2Error(err))
+		return "", trace.Wrap(ConvertIAMError(err))
 	}
 
 	return aws.ToString(resp.Policy.Arn), nil
@@ -641,7 +641,7 @@ func (p *policies) deletePolicyVersion(ctx context.Context, policyARN, policyVer
 		PolicyArn: aws.String(policyARN),
 		VersionId: aws.String(policyVersionID),
 	})
-	return trace.Wrap(ConvertIAMv2Error(err))
+	return trace.Wrap(ConvertIAMError(err))
 }
 
 func (p *policies) createPolicyVersion(ctx context.Context, policyARN string, docJSON []byte) (string, error) {
@@ -651,7 +651,7 @@ func (p *policies) createPolicyVersion(ctx context.Context, policyARN string, do
 		SetAsDefault:   true,
 	})
 	if err != nil {
-		return "", trace.Wrap(ConvertIAMv2Error(err))
+		return "", trace.Wrap(ConvertIAMError(err))
 	}
 	return aws.ToString(createPolicyResp.PolicyVersion.VersionId), nil
 }
@@ -665,7 +665,7 @@ func (p *policies) createPolicyVersion(ctx context.Context, policyARN string, do
 func (p *policies) getPolicyVersions(ctx context.Context, policyARN string, tags map[string]string) ([]iamtypes.PolicyVersion, error) {
 	getPolicyResp, err := p.iamClient.GetPolicy(ctx, &iam.GetPolicyInput{PolicyArn: &policyARN})
 	if err != nil {
-		return nil, trace.Wrap(ConvertIAMv2Error(err))
+		return nil, trace.Wrap(ConvertIAMError(err))
 	}
 
 	for tagName, tagValue := range tags {
@@ -676,7 +676,7 @@ func (p *policies) getPolicyVersions(ctx context.Context, policyARN string, tags
 
 	resp, err := p.iamClient.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyARN})
 	if err != nil {
-		return nil, trace.Wrap(ConvertIAMv2Error(err))
+		return nil, trace.Wrap(ConvertIAMError(err))
 	}
 
 	return resp.Versions, nil
@@ -688,7 +688,7 @@ func (p *policies) attachUserPolicy(ctx context.Context, policyARN string, ident
 		UserName:  aws.String(identity.GetName()),
 	})
 	if err != nil {
-		return trace.Wrap(ConvertIAMv2Error(err))
+		return trace.Wrap(ConvertIAMError(err))
 	}
 	return nil
 }
@@ -699,7 +699,7 @@ func (p *policies) attachRolePolicy(ctx context.Context, policyARN string, ident
 		RoleName:  aws.String(identity.GetName()),
 	})
 	if err != nil {
-		return trace.Wrap(ConvertIAMv2Error(err))
+		return trace.Wrap(ConvertIAMError(err))
 	}
 	return nil
 }

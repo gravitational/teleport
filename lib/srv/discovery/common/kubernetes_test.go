@@ -20,8 +20,8 @@ import (
 	"testing"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -97,16 +97,15 @@ func TestNewKubeClusterFromAWSEKS(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			cluster := &eks.Cluster{
-				Name:   aws.String("cluster1"),
-				Arn:    aws.String("arn:aws:eks:eu-west-1:123456789012:cluster/cluster1"),
-				Status: aws.String(eks.ClusterStatusActive),
-				Tags: map[string]*string{
-					overrideLabel: aws.String("override-1"),
-					"env":         aws.String("prod"),
+			cluster := &ekstypes.Cluster{
+				Name: aws.String("cluster1"),
+				Arn:  aws.String("arn:aws:eks:eu-west-1:123456789012:cluster/cluster1"),
+				Tags: map[string]string{
+					overrideLabel: "override-1",
+					"env":         "prod",
 				},
 			}
-			actual, err := NewKubeClusterFromAWSEKS(aws.StringValue(cluster.Name), aws.StringValue(cluster.Arn), cluster.Tags)
+			actual, err := NewKubeClusterFromAWSEKS(aws.ToString(cluster.Name), aws.ToString(cluster.Arn), cluster.Tags)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
 			require.NoError(t, err)

@@ -29,7 +29,6 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -37,10 +36,16 @@ import (
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
 const slackMaxConns = 100
+
+// textObjectMaxCharLimit is the max length for a slack 'text' object.
+// See https://api.slack.com/reference/block-kit/composition-objects#text for more details.
+const textObjectMaxCharLimit = 3000
+
 const slackHTTPTimeout = 10 * time.Second
 const statusEmitTimeout = 10 * time.Second
 
@@ -68,7 +73,7 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 			ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
 			defer cancel()
 			if err := sink.Emit(ctx, status); err != nil {
-				log.Errorf("Error while emitting plugin status: %v", err)
+				logger.Get(ctx).ErrorContext(ctx, "Error while emitting plugin status", "error", err)
 			}
 		}()
 
@@ -139,7 +144,7 @@ func (b Bot) BroadcastAccessRequestMessage(ctx context.Context, recipients []com
 	// the case with most SSO setups.
 	userRecipient, err := b.FetchRecipient(ctx, reqData.User)
 	if err != nil {
-		log.Warningf("Unable to find user %s in Slack, will not be able to notify.", reqData.User)
+		logger.Get(ctx).WarnContext(ctx, "Unable to find user in Slack, will not be able to notify", "user", reqData.User)
 	}
 
 	// Include the user in the list of recipients if it exists.
@@ -291,6 +296,7 @@ func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList
 	if b.webProxyURL != nil {
 		reqURL := *b.webProxyURL
 		reqURL.Path = lib.BuildURLPath("web", "accesslists", accessList.Metadata.Name)
+		reqURL.Fragment = "review"
 		link = fmt.Sprintf("*Link*: %s", reqURL.String())
 	}
 
@@ -308,7 +314,7 @@ func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: msg}),
+			Text: NewTextObjectItem(MarkdownObject{Text: truncateTextObjectString(msg)}),
 		}),
 	}
 
@@ -347,7 +353,7 @@ func (b Bot) slackAccessListBatchedReminderMsgSection(accessLists []*accesslist.
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: fmt.Sprintf("%d Access Lists are due for reviews, %s\n%s", numOfReviewsRequired, dueDate, link)}),
+			Text: NewTextObjectItem(MarkdownObject{Text: truncateTextObjectString(fmt.Sprintf("%d Access Lists are due for reviews, %s\n%s", numOfReviewsRequired, dueDate, link))}),
 		}),
 	}
 
@@ -364,14 +370,26 @@ func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessReques
 			Text: NewTextObjectItem(MarkdownObject{Text: "You have a new Role Request:"}),
 		}),
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: fields}),
+			Text: NewTextObjectItem(MarkdownObject{
+				Text: truncateTextObjectString(fields),
+			}),
 		}),
 		NewBlockItem(ContextBlock{
 			ElementItems: []ContextElementItem{
-				NewContextElementItem(MarkdownObject{Text: statusText}),
+				NewContextElementItem(MarkdownObject{
+					Text: truncateTextObjectString(statusText),
+				}),
 			},
 		}),
 	}
 
 	return sections
+}
+
+func truncateTextObjectString(s string) string {
+	truncateMsg := " (truncated)"
+	if len(s) <= textObjectMaxCharLimit {
+		return s
+	}
+	return s[:textObjectMaxCharLimit-len(truncateMsg)] + truncateMsg
 }

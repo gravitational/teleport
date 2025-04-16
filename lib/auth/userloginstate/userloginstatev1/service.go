@@ -23,10 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	"github.com/gravitational/teleport/api/types"
 	conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
@@ -36,8 +34,6 @@ import (
 
 // ServiceConfig is the service config for the Access Lists gRPC service.
 type ServiceConfig struct {
-	// Logger is the logger to use.
-	Logger logrus.FieldLogger
 
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
@@ -58,10 +54,6 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("user login states service is missing")
 	}
 
-	if c.Logger == nil {
-		c.Logger = logrus.WithField(teleport.ComponentKey, "user_login_state_crud_service")
-	}
-
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
@@ -72,7 +64,6 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 type Service struct {
 	userloginstatev1.UnimplementedUserLoginStateServiceServer
 
-	log             logrus.FieldLogger
 	authorizer      authz.Authorizer
 	userLoginStates services.UserLoginStates
 	clock           clockwork.Clock
@@ -85,7 +76,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:             cfg.Logger,
 		authorizer:      cfg.Authorizer,
 		userLoginStates: cfg.UserLoginStates,
 		clock:           cfg.Clock,

@@ -18,13 +18,10 @@
 
 import { ComponentType } from 'react';
 
-import { Text } from '..';
-
-import Flex from './../Flex';
-
-import { IconProps } from './Icon';
-
 import * as Icon from '.';
+import { Text } from '..';
+import Flex from './../Flex';
+import { IconProps } from './Icon';
 
 export default {
   title: 'Design/Icon',
@@ -54,6 +51,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.ArrowLeft} text="ArrowLeft" />
     <IconBox IconCmpt={Icon.ArrowLineLeft} text="ArrowLineLeft" />
     <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
+    <IconBox IconCmpt={Icon.ArrowSquareIn} text="ArrowSquareIn" />
     <IconBox IconCmpt={Icon.ArrowSquareOut} text="ArrowSquareOut" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.ArrowsIn} text="ArrowsIn" />
@@ -163,6 +161,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.MagnifyingPlus} text="MagnifyingPlus" />
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
     <IconBox IconCmpt={Icon.Minus} text="Minus" />
+    <IconBox IconCmpt={Icon.MinusCircle} text="MinusCircle" />
     <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
@@ -186,6 +185,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Question} text="Question" />
     <IconBox IconCmpt={Icon.Refresh} text="Refresh" />
     <IconBox IconCmpt={Icon.Restore} text="Restore" />
+    <IconBox IconCmpt={Icon.RocketLaunch} text="RocketLaunch" />
     <IconBox IconCmpt={Icon.Rows} text="Rows" />
     <IconBox IconCmpt={Icon.Ruler} text="Ruler" />
     <IconBox IconCmpt={Icon.Run} text="Run" />

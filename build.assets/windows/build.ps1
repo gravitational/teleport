@@ -164,6 +164,33 @@ function Enable-Node {
     }
 }
 
+function Install-Wintun {
+    <#
+    .SYNOPSIS
+        Downloads wintun.dll into the supplied dir
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $InstallDir
+    )
+    begin {
+        Write-Host "::group::Installing wintun.dll to $InstallDir..."
+        New-Item -Path "$InstallDir" -ItemType Directory -Force | Out-Null
+        $WintunZipfile = "$InstallDir/wintun.zip"
+        Invoke-WebRequest -Uri https://www.wintun.net/builds/wintun-0.14.1.zip -OutFile $WintunZipfile
+        $ExpectedHash = "07C256185D6EE3652E09FA55C0B673E2624B565E02C4B9091C79CA7D2F24EF51"
+        $ZipFileHash = Get-FileHash -Path $WintunZipFile -Algorithm SHA256
+        if ($ZipFileHash.Hash -ne $ExpectedHash) {
+            Write-Host "checksum: $ZipFileHash"
+            throw "Checksum verification for wintun.zip failed! Expected $ExpectedHash but got $($ZipFileHash.Hash)"
+        }
+        Expand-Archive -Force -Path $WintunZipfile -DestinationPath $InstallDir
+        Move-Item -Force -Path "$InstallDir/wintun/bin/amd64/wintun.dll" -Destination "$InstallDir/wintun.dll"
+        Write-Host "::endgroup::"
+    }
+}
+
 function Get-Relcli {
     <#
     .SYNOPSIS
@@ -394,6 +421,39 @@ function Build-Tctl {
     return "$SignedBinaryPath"  # This is needed for bundling the zip archive
 }
 
+function Build-Tbot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory,
+        [Parameter(Mandatory)]
+        [string] $ArtifactDirectory,
+        [Parameter(Mandatory)]
+        [string] $TeleportVersion
+    )
+
+    $BinaryName = "tbot.exe"
+    $BuildDirectory = "$TeleportSourceDirectory\build"
+    $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+
+    $CommandDuration = Measure-Block {
+        Write-Host "::group::Building tbot..."
+        $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
+        go build -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tbot"
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+        Write-Host "::endgroup::"
+
+        Write-Host "::group::Signing tbot..."
+        Invoke-SignBinary -UnsignedBinaryPath "$UnsignedBinaryPath" -SignedBinaryPath "$SignedBinaryPath"
+        Write-Host "::endgroup::"
+    }
+    Write-Host $("Built tbot in {0:g}" -f $CommandDuration)
+
+    return "$SignedBinaryPath"  # This is needed for bundling the zip archive
+}
+
 function Package-Artifacts {
     [CmdletBinding()]
     param(
@@ -406,7 +466,9 @@ function Package-Artifacts {
         [Parameter(Mandatory)]
         [string] $SignedTctlBinaryPath,
         [Parameter(Mandatory)]
-        [string] $SignedTshBinaryPath
+        [string] $SignedTshBinaryPath,
+        [Parameter(Mandatory)]
+        [string] $SignedTBotBinaryPath
     )
 
     $CommandDuration = Measure-Block {
@@ -414,6 +476,7 @@ function Package-Artifacts {
         Write-Host "Packaging zip archive $PackageDirectory..."
         Copy-Item -Path "$SignedTctlBinaryPath" -Destination "$PackageDirectory"
         Copy-Item -Path "$SignedTshBinaryPath" -Destination "$PackageDirectory"
+        Copy-Item -Path "$SignedTbotBinaryPath" -Destination "$PackageDirectory"
         Copy-Item -Path "$TeleportSourceDirectory\CHANGELOG.md" -Destination "$PackageDirectory"
         Copy-Item -Path "$TeleportSourceDirectory\README.md" -Destination "$PackageDirectory"
         Out-File -FilePath "$PackageDirectory\VERSION" -InputObject "v$TeleportVersion"
@@ -439,6 +502,8 @@ function Build-Connect {
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building Teleport Connect..."
+        Install-Wintun -InstallDir "$TeleportSourceDirectory\wintun"
+        $env:CONNECT_WINTUN_DLL_PATH = "$TeleportSourceDirectory\wintun\wintun.dll"
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"
         pnpm install --frozen-lockfile
         pnpm build-term
@@ -496,6 +561,17 @@ function Write-Version-Objects {
         --file-version $TeleportVersion `
         --out "$TeleportSourceDirectory\tool\tctl\resource.syso"
 
+    # generate tbot version info
+    & $GoWinres simply --no-suffix --arch amd64 `
+        --file-description "Teleport Machine and Workload Identity agent" `
+        --original-filename tbot.exe `
+        --copyright "Copyright (C) $Year Gravitational Inc." `
+        --icon "$TeleportSourceDirectory\e\windowsauth\installer\teleport.ico" `
+        --product-name Teleport `
+        --product-version $TeleportVersion `
+        --file-version $TeleportVersion `
+        --out "$TeleportSourceDirectory\tool\tbot\resource.syso"
+
     # generate windowsauth version info (note the --admin flag, as the installer must run as admin)
     & $GoWinres simply --no-suffix --arch amd64 --admin `
         --file-description "Teleport Authentication Package" `
@@ -535,13 +611,20 @@ function Build-Artifacts {
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion"
 
+    # Build TBot
+    $SignedTbotBinaryPath = Build-Tbot `
+        -TeleportSourceDirectory "$TeleportSourceDirectory" `
+        -ArtifactDirectory "$ArtifactDirectory" `
+        -TeleportVersion "$TeleportVersion"
+
     # Create archive
     Package-Artifacts `
         -TeleportSourceDirectory "$TeleportSourceDirectory" `
         -ArtifactDirectory "$ArtifactDirectory" `
         -TeleportVersion "$TeleportVersion" `
         -SignedTshBinaryPath "$SignedTshBinaryPath" `
-        -SignedTctlBinaryPath "$SignedTctlBinaryPath"
+        -SignedTctlBinaryPath "$SignedTctlBinaryPath" `
+        -SignedTBotBinaryPath "$SignedTBotBinaryPath"
 
     # Build Teleport Connect
     Build-Connect `

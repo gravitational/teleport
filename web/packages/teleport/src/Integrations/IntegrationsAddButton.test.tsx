@@ -17,6 +17,7 @@
  */
 
 import { MemoryRouter } from 'react-router';
+
 import { render, screen } from 'design/utils/testing';
 
 import { IntegrationsAddButton } from './IntegrationsAddButton';

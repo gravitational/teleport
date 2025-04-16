@@ -108,14 +108,10 @@ type Presence interface {
 	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 
 	// GetReverseTunnel returns reverse tunnel by name
 	GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error)
-
-	// GetReverseTunnels returns a list of registered servers
-	// Deprecated: use ListReverseTunnels
-	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by its domain name
 	DeleteReverseTunnel(ctx context.Context, domainName string) error
@@ -125,21 +121,6 @@ type Presence interface {
 
 	// ListReverseTunnels returns a page of ReverseTunnels.
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
-
-	// GetNamespaces returns a list of namespaces
-	GetNamespaces() ([]types.Namespace, error)
-
-	// GetNamespace returns namespace by name
-	GetNamespace(name string) (*types.Namespace, error)
-
-	// DeleteAllNamespaces deletes all namespaces
-	DeleteAllNamespaces() error
-
-	// UpsertNamespace upserts namespace
-	UpsertNamespace(types.Namespace) error
-
-	// DeleteNamespace deletes namespace by name
-	DeleteNamespace(name string) error
 
 	// GetServerInfos returns a stream of ServerInfos.
 	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
@@ -211,6 +192,5 @@ type PresenceInternal interface {
 
 	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
 	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
-	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	UpdateNode(ctx context.Context, server types.Server) (types.Server, error)
 }

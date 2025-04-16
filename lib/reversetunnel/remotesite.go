@@ -170,6 +170,11 @@ func (s *remoteSite) NodeWatcher() (*services.GenericWatcher[types.Server, reado
 	return s.nodeWatcher, nil
 }
 
+// GitServerWatcher returns the Git server watcher for the remote cluster.
+func (s *remoteSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+	return nil, trace.NotImplemented("GitServerWatcher not implemented for remoteSite")
+}
+
 func (s *remoteSite) GetClient() (authclient.ClientI, error) {
 	return s.remoteClient, nil
 }
@@ -979,11 +984,10 @@ func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn,
 	if err == nil {
 		// Return the appropriate message if the user is trying to connect to a
 		// cluster or a node.
-		message := fmt.Sprintf("cluster %v is offline", s.GetName())
 		if req.Address != constants.RemoteAuthServer {
-			message = fmt.Sprintf("node %v is offline", req.Address)
+			return nil, trace.ConnectionProblem(nil, "node %v is offline", req.Address)
 		}
-		err = trace.ConnectionProblem(nil, message)
+		return nil, trace.ConnectionProblem(nil, "cluster %v is offline", s.GetName())
 	}
 	return nil, err
 }

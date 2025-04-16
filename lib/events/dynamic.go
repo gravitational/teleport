@@ -107,6 +107,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.X11Forward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
+	case PortForwardLocalEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteConnEvent:
+		e = &events.PortForward{}
 	case AuthAttemptEvent:
 		e = &events.AuthAttempt{}
 	case SCPEvent:
@@ -282,6 +288,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
+	case AccessRequestExpireEvent:
+		e = &events.AccessRequestExpire{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
@@ -388,6 +396,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessGraphSettingsUpdate{}
 	case DatabaseSessionSpannerRPCEvent:
 		e = &events.SpannerRPC{}
+	case GitCommandEvent:
+		e = &events.GitCommand{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
@@ -476,6 +486,39 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WorkloadIdentityUpdate{}
 	case WorkloadIdentityDeleteEvent:
 		e = &events.WorkloadIdentityDelete{}
+
+	case WorkloadIdentityX509RevocationCreateEvent:
+		e = &events.WorkloadIdentityX509RevocationCreate{}
+	case WorkloadIdentityX509RevocationUpdateEvent:
+		e = &events.WorkloadIdentityX509RevocationUpdate{}
+	case WorkloadIdentityX509RevocationDeleteEvent:
+		e = &events.WorkloadIdentityX509RevocationDelete{}
+
+	case StableUNIXUserCreateEvent:
+		e = &events.StableUNIXUserCreate{}
+
+	case AWSICResourceSyncSuccessEvent,
+		AWSICResourceSyncFailureEvent:
+		e = &events.AWSICResourceSync{}
+
+	case HealthCheckConfigCreateEvent:
+		e = &events.HealthCheckConfigCreate{}
+	case HealthCheckConfigUpdateEvent:
+		e = &events.HealthCheckConfigUpdate{}
+	case HealthCheckConfigDeleteEvent:
+		e = &events.HealthCheckConfigDelete{}
+
+	case WorkloadIdentityX509IssuerOverrideCreateEvent:
+		e = &events.WorkloadIdentityX509IssuerOverrideCreate{}
+	case WorkloadIdentityX509IssuerOverrideDeleteEvent:
+		e = &events.WorkloadIdentityX509IssuerOverrideDelete{}
+
+	case SigstorePolicyCreateEvent:
+		e = &events.SigstorePolicyCreate{}
+	case SigstorePolicyUpdateEvent:
+		e = &events.SigstorePolicyUpdate{}
+	case SigstorePolicyDeleteEvent:
+		e = &events.SigstorePolicyDelete{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)

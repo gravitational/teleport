@@ -31,12 +31,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -66,6 +68,24 @@ import (
 type ResourceCollection interface {
 	writeText(w io.Writer, verbose bool) error
 	resources() []types.Resource
+}
+
+// namedResourceCollection is an implementation of [ResourceCollection] that
+// displays resources in a table as a list of names and nothing else.
+type namedResourceCollection []types.Resource
+
+// resources implements [ResourceCollection].
+func (c namedResourceCollection) resources() []types.Resource {
+	return c
+}
+
+// writeText implements [ResourceCollection].
+func (c namedResourceCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, override := range c {
+		t.AddRow([]string{override.GetName()})
+	}
+	return trace.Wrap(t.WriteTo(w))
 }
 
 type roleCollection struct {
@@ -1593,12 +1613,17 @@ type pluginCollection struct {
 	plugins []types.Plugin
 }
 
+// pluginResourceWrapper provides custom JSON unmarshaling for Plugin resource
+// types. The Plugin resource uses structures generated from a protobuf `oneof`
+// directive, which the stdlib JSON unmarshaller can't handle, so we use this
+// custom wrapper to help.
 type pluginResourceWrapper struct {
 	types.PluginV1
 }
 
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
-
+	// If your plugin contains a `oneof` message, implement custom UnmarshalJSON/MarshalJSON
+	// using gogo/jsonpb for the type.
 	const (
 		credOauth2AccessToken             = "oauth2_access_token"
 		credBearerToken                   = "bearer_token"
@@ -1618,11 +1643,15 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsEntraID                   = "entra_id"
 		settingsDatadogIncidentManagement = "datadog_incident_management"
 		settingsEmailAccessPlugin         = "email_access_plugin"
+		settingsAWSIdentityCenter         = "aws_ic"
 	)
 	type unknownPluginType struct {
 		Spec struct {
 			Settings map[string]json.RawMessage `json:"Settings"`
 		} `json:"spec"`
+		Status struct {
+			Details map[string]json.RawMessage `json:"Details"`
+		} `json:"status"`
 		Credentials struct {
 			Credentials map[string]json.RawMessage `json:"Credentials"`
 		} `json:"credentials"`
@@ -1659,7 +1688,6 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 	}
 
 	for k := range unknownPlugin.Spec.Settings {
-
 		switch k {
 		case settingsSlackAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{}
@@ -1689,6 +1717,9 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		case settingsEmailAccessPlugin:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Email{}
+		case settingsAWSIdentityCenter:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
+			p.PluginV1.Status.Details = &types.PluginStatusV1_AwsIc{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
@@ -1792,7 +1823,7 @@ type workloadIdentityCollection struct {
 func (c *workloadIdentityCollection) resources() []types.Resource {
 	r := make([]types.Resource, 0, len(c.items))
 	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
+		r = append(r, types.ProtoResource153ToLegacy(resource))
 	}
 	return r
 }
@@ -1805,6 +1836,42 @@ func (c *workloadIdentityCollection) writeText(w io.Writer, verbose bool) error 
 		rows = append(rows, []string{
 			item.Metadata.Name,
 			item.GetSpec().GetSpiffe().GetId(),
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type workloadIdentityX509RevocationCollection struct {
+	items []*workloadidentityv1pb.WorkloadIdentityX509Revocation
+}
+
+func (c *workloadIdentityX509RevocationCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.ProtoResource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *workloadIdentityX509RevocationCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Serial", "Revoked At", "Expires At", "Reason"}
+
+	var rows [][]string
+	for _, item := range c.items {
+		expiryTime := item.GetMetadata().GetExpires().AsTime()
+		revokeTime := item.GetSpec().GetRevokedAt().AsTime()
+
+		rows = append(rows, []string{
+			item.Metadata.Name,
+			revokeTime.Format(time.RFC3339),
+			expiryTime.Format(time.RFC3339),
+			item.GetSpec().GetReason(),
 		})
 	}
 
@@ -1908,7 +1975,7 @@ type autoUpdateConfigCollection struct {
 }
 
 func (c *autoUpdateConfigCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.config)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.config)}
 }
 
 func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error {
@@ -1926,7 +1993,7 @@ type autoUpdateVersionCollection struct {
 }
 
 func (c *autoUpdateVersionCollection) resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.version)}
+	return []types.Resource{types.ProtoResource153ToLegacy(c.version)}
 }
 
 func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error {
@@ -1934,6 +2001,28 @@ func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error
 	t.AddRow([]string{
 		c.version.GetMetadata().GetName(),
 		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateAgentRolloutCollection struct {
+	rollout *autoupdatev1pb.AutoUpdateAgentRollout
+}
+
+func (c *autoUpdateAgentRolloutCollection) resources() []types.Resource {
+	return []types.Resource{types.ProtoResource153ToLegacy(c.rollout)}
+}
+
+func (c *autoUpdateAgentRolloutCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Start Version", "Target Version", "Mode", "Schedule", "Strategy"})
+	t.AddRow([]string{
+		c.rollout.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetStartVersion()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetTargetVersion()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetAutoupdateMode()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
+		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -1961,6 +2050,47 @@ func (c *accessMonitoringRuleCollection) writeText(w io.Writer, verbose bool) er
 	}
 	headers := []string{"Name", "Labels"}
 	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type healthCheckConfigCollection struct {
+	items []*healthcheckconfigv1.HealthCheckConfig
+}
+
+func (c *healthCheckConfigCollection) resources() []types.Resource {
+	out := make([]types.Resource, 0, len(c.items))
+	for _, item := range c.items {
+		out = append(out, types.ProtoResource153ToLegacy(item))
+	}
+	return out
+}
+
+func (c *healthCheckConfigCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Name", "Interval", "Timeout", "Healthy Threshold", "Unhealthy Threshold", "DB Labels", "DB Expression"}
+	var rows [][]string
+	for _, item := range c.items {
+		meta := item.GetMetadata()
+		spec := item.GetSpec()
+		rows = append(rows, []string{
+			meta.GetName(),
+			common.FormatDefault(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
+			common.FormatDefault(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
+			common.FormatDefault(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
+			common.FormatDefault(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
+			common.FormatMultiValueLabels(label.ToMap(spec.GetMatch().GetDbLabels()), verbose),
+			spec.GetMatch().GetDbLabelsExpression(),
+		})
+	}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "DB Labels")
+	}
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)

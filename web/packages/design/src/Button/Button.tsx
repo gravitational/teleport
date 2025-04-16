@@ -19,26 +19,28 @@
 import React from 'react';
 import styled, { CSSObject } from 'styled-components';
 
-import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
-
 import {
-  space,
-  width,
-  height,
   alignSelf,
-  gap,
-  SpaceProps,
-  WidthProps,
-  HeightProps,
   AlignSelfProps,
+  gap,
   GapProps,
+  height,
+  HeightProps,
+  minWidth,
+  MinWidthProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
+import { shouldForwardProp as defaultValidatorFn } from 'design/ThemeProvider';
 
 export type ButtonProps<E extends React.ElementType> =
   React.ComponentPropsWithoutRef<E> &
     SpaceProps &
     WidthProps &
+    MinWidthProps &
     HeightProps &
     AlignSelfProps &
     GapProps & {
@@ -152,6 +154,7 @@ const themedStyles = <E extends React.ElementType>(
     ...size(props),
     ...space(props),
     ...width(props),
+    ...minWidth(props),
     ...block(props),
     ...height(props),
     ...textTransform(props),

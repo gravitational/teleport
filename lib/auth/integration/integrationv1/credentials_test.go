@@ -29,10 +29,11 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestExportIntegrationCertAuthorities(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ca := newCertAuthority(t, types.HostCA, "test-cluster")
 	ctx, localClient, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "127.0.0.1")
@@ -109,7 +110,7 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 				t.Helper()
 				require.Nil(t, resp)
 				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
+				require.True(t, trace.IsNotImplemented(err))
 			},
 		},
 	}

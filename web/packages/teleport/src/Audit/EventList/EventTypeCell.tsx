@@ -17,10 +17,11 @@
  */
 
 import styled from 'styled-components';
+
 import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 
-import { eventCodes, Event, EventCode } from 'teleport/services/audit';
+import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
 const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
@@ -97,6 +98,11 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.WORKLOAD_IDENTITY_CREATE]: Icons.Info,
   [eventCodes.WORKLOAD_IDENTITY_UPDATE]: Icons.Info,
   [eventCodes.WORKLOAD_IDENTITY_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: Icons.Info,
+  [eventCodes.SIGSTORE_POLICY_CREATE]: Icons.Info,
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: Icons.Info,
+  [eventCodes.SIGSTORE_POLICY_DELETE]: Icons.Info,
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
   [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
@@ -292,6 +298,18 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.UNKNOWN]: Icons.Question,
   [eventCodes.GIT_COMMAND]: Icons.GitHub,
   [eventCodes.GIT_COMMAND_FAILURE]: Icons.GitHub,
+  [eventCodes.STABLE_UNIX_USER_CREATE]: Icons.Info,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: Icons.AmazonAws,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: Icons.Warning,
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

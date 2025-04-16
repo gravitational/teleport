@@ -95,11 +95,12 @@ func Test_canUpdateToday(t *testing.T) {
 
 func Test_inWindow(t *testing.T) {
 	tests := []struct {
-		name    string
-		group   *autoupdate.AutoUpdateAgentRolloutStatusGroup
-		now     time.Time
-		want    bool
-		wantErr require.ErrorAssertionFunc
+		name     string
+		group    *autoupdate.AutoUpdateAgentRolloutStatusGroup
+		now      time.Time
+		duration time.Duration
+		want     bool
+		wantErr  require.ErrorAssertionFunc
 	}{
 		{
 			name: "out of window",
@@ -107,9 +108,10 @@ func Test_inWindow(t *testing.T) {
 				ConfigDays:      everyWeekdayButSunday,
 				ConfigStartHour: matchingStartHour,
 			},
-			now:     testSunday,
-			want:    false,
-			wantErr: require.NoError,
+			now:      testSunday,
+			duration: time.Hour,
+			want:     false,
+			wantErr:  require.NoError,
 		},
 		{
 			name: "inside window, wrong hour",
@@ -117,9 +119,10 @@ func Test_inWindow(t *testing.T) {
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: nonMatchingStartHour,
 			},
-			now:     testSunday,
-			want:    false,
-			wantErr: require.NoError,
+			now:      testSunday,
+			duration: time.Hour,
+			want:     false,
+			wantErr:  require.NoError,
 		},
 		{
 			name: "inside window, correct hour",
@@ -127,9 +130,10 @@ func Test_inWindow(t *testing.T) {
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: matchingStartHour,
 			},
-			now:     testSunday,
-			want:    true,
-			wantErr: require.NoError,
+			now:      testSunday,
+			duration: time.Hour,
+			want:     true,
+			wantErr:  require.NoError,
 		},
 		{
 			name: "invalid weekdays",
@@ -137,26 +141,117 @@ func Test_inWindow(t *testing.T) {
 				ConfigDays:      []string{"HelloThereGeneralKenobi"},
 				ConfigStartHour: matchingStartHour,
 			},
-			now:     testSunday,
-			want:    false,
-			wantErr: require.Error,
+			now:      testSunday,
+			duration: time.Hour,
+			want:     false,
+			wantErr:  require.Error,
+		},
+		{
+			name: "short window",
+			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				ConfigDays:      everyWeekday,
+				ConfigStartHour: matchingStartHour,
+			},
+			now:      testSunday,
+			duration: time.Second,
+			want:     false,
+			wantErr:  require.NoError,
+		},
+		{
+			name: "window start time is included",
+			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				ConfigDays:      everyWeekday,
+				ConfigStartHour: matchingStartHour,
+			},
+			now:      testSunday.Truncate(24 * time.Hour).Add(time.Duration(matchingStartHour) * time.Hour),
+			duration: time.Hour,
+			want:     true,
+			wantErr:  require.NoError,
+		},
+		{
+			name: "window end time is not included",
+			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+				ConfigDays:      everyWeekday,
+				ConfigStartHour: matchingStartHour,
+			},
+			now:      testSunday.Truncate(24 * time.Hour).Add(time.Duration(matchingStartHour+1) * time.Hour),
+			duration: time.Hour,
+			want:     false,
+			wantErr:  require.NoError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := inWindow(tt.group, tt.now)
+			got, err := inWindow(tt.group, tt.now, tt.duration)
 			tt.wantErr(t, err)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
+func Test_rolloutChangedInWindow(t *testing.T) {
+	// Test setup: creating fixtures.
+	group := &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+		Name:            "test-group",
+		ConfigDays:      everyWeekdayButSunday,
+		ConfigStartHour: 12,
+	}
+	tests := []struct {
+		name         string
+		now          time.Time
+		rolloutStart time.Time
+		want         bool
+	}{
+		{
+			name:         "zero rollout start time",
+			now:          testSaturday,
+			rolloutStart: time.Time{},
+			want:         false,
+		},
+		{
+			name: "epoch rollout start time",
+			now:  testSaturday,
+			// tspb counts since epoch, wile go's zero is 0000-00-00 00:00:00 UTC
+			rolloutStart: (&timestamppb.Timestamp{}).AsTime(),
+			want:         false,
+		},
+		{
+			name:         "rollout changed a week ago",
+			now:          testSaturday,
+			rolloutStart: testSaturday.Add(-7 * 24 * time.Hour),
+			want:         false,
+		},
+		{
+			name:         "rollout changed the same day, before the window",
+			now:          testSaturday,
+			rolloutStart: testSaturday.Add(-2 * time.Hour),
+			want:         false,
+		},
+		{
+			name:         "rollout changed the same day, during the window",
+			now:          testSaturday,
+			rolloutStart: testSaturday.Add(-2 * time.Minute),
+			want:         true,
+		},
+		{
+			name:         "rollout just changed but we are not in a window",
+			now:          testSunday,
+			rolloutStart: testSunday.Add(-2 * time.Minute),
+			want:         false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test execution.
+			result, err := rolloutChangedInWindow(group, tt.now, tt.rolloutStart, time.Hour)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, result)
+		})
+	}
+}
+
 func Test_setGroupState(t *testing.T) {
 	groupName := "test-group"
-
-	// TODO(hugoShaka) remove those two variables once the strategies are merged and the constants are defined.
-	updateReasonCanStart := "can_start"
-	updateReasonCannotStart := "cannot_start"
 
 	clock := clockwork.NewFakeClock()
 	// oldUpdateTime is 5 minutes in the past

@@ -399,7 +399,7 @@ type mockClient struct {
 	crl            []byte
 }
 
-func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 
@@ -468,110 +468,6 @@ func (c *mockClient) GetDatabaseServers(context.Context, string, ...services.Mar
 
 func (c *mockClient) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
 	return c.crl, nil
-}
-
-func TestCheckKubeCluster(t *testing.T) {
-	const teleportCluster = "local-teleport"
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: teleportCluster,
-	})
-	require.NoError(t, err)
-	client := &mockClient{
-		clusterName: clusterName,
-	}
-	tests := []struct {
-		desc               string
-		kubeCluster        string
-		leafCluster        string
-		outputFormat       identityfile.Format
-		registeredClusters []*types.KubernetesClusterV3
-		want               string
-		assertErr          require.ErrorAssertionFunc
-	}{
-		{
-			desc:         "non-k8s output format",
-			outputFormat: identityfile.FormatFile,
-			assertErr:    require.NoError,
-		},
-		{
-			desc:               "local cluster, valid kube cluster",
-			kubeCluster:        "foo",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "foo",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, empty kube cluster",
-			kubeCluster:        "",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, empty kube cluster, no registered kube clusters",
-			kubeCluster:        "",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, invalid kube cluster",
-			kubeCluster:        "bar",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			assertErr:          require.Error,
-		},
-		{
-			desc:               "remote cluster, empty kube cluster",
-			kubeCluster:        "",
-			leafCluster:        "remote-teleport",
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "remote cluster, non-empty kube cluster",
-			kubeCluster:        "bar",
-			leafCluster:        "remote-teleport",
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "bar",
-			assertErr:          require.NoError,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServers = []types.KubeServer{}
-			for _, kube := range tt.registeredClusters {
-				client.kubeServers = append(client.kubeServers, &types.KubernetesServerV3{
-					Metadata: types.Metadata{
-						Name: kube.GetName(),
-					},
-					Spec: types.KubernetesServerSpecV3{
-						Hostname: "host",
-						Cluster:  kube,
-					},
-				})
-			}
-			a := &AuthCommand{
-				kubeCluster:  tt.kubeCluster,
-				leafCluster:  tt.leafCluster,
-				outputFormat: tt.outputFormat,
-			}
-			err := a.checkKubeCluster(context.Background(), client)
-			tt.assertErr(t, err)
-			if err == nil {
-				require.Equal(t, tt.want, a.kubeCluster)
-			}
-		})
-	}
 }
 
 // TestGenerateDatabaseKeys verifies cert/key pair generation for databases.

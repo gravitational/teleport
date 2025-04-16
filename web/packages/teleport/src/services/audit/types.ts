@@ -238,6 +238,11 @@ export const eventCodes = {
   WORKLOAD_IDENTITY_CREATE: `WID001I`,
   WORKLOAD_IDENTITY_UPDATE: `WID002I`,
   WORKLOAD_IDENTITY_DELETE: `WID003I`,
+  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE: `WID007I`,
+  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE: `WID008I`,
+  SIGSTORE_POLICY_CREATE: `TSSP001I`,
+  SIGSTORE_POLICY_UPDATE: `TSSP002I`,
+  SIGSTORE_POLICY_DELETE: `TSSP003I`,
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -312,6 +317,18 @@ export const eventCodes = {
   CONTACT_DELETE: 'TCTC002I',
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
+  STABLE_UNIX_USER_CREATE: 'TSUU001I',
+  AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
+  AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
+  AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
+  AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
+  AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
+  AUTOUPDATE_VERSION_CREATE: 'AUV001I',
+  AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
+  AUTOUPDATE_VERSION_DELETE: 'AUV003I',
+  HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
+  HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
+  HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
 } as const;
 
 /**
@@ -1343,6 +1360,26 @@ export type RawEvents = {
     typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
     HasName
   >;
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_CREATE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_CREATE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_UPDATE,
+    HasName
+  >;
+  [eventCodes.SIGSTORE_POLICY_DELETE]: RawEvent<
+    typeof eventCodes.SIGSTORE_POLICY_DELETE,
+    HasName
+  >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_CREATE,
     HasName
@@ -1785,6 +1822,69 @@ export type RawEvents = {
       exitError: string;
     }
   >;
+  [eventCodes.STABLE_UNIX_USER_CREATE]: RawEvent<
+    typeof eventCodes.STABLE_UNIX_USER_CREATE,
+    {
+      stable_unix_user: {
+        username: string;
+        uid: number;
+      };
+    }
+  >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS
+  >;
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
+    typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_CONFIG_DELETE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_CREATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_UPDATE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
+    {
+      user: string;
+    }
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
+    HasName
+  >;
 };
 
 /**
@@ -1986,12 +2086,29 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
 >;
 
 /**
+ * RawEventAwsIcResourceSync extends RawEvent with custom fields
+ * present in the AWS Identity Center resource sync event.
+ */
+type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
+  T,
+  {
+    total_accounts: number;
+    total_account_assignments: number;
+    total_user_groups: number;
+    total_permission_sets: number;
+    status: boolean;
+    /* message contains user message for both success and failed status */
+    message: string;
+  }
+>;
+
+/**
  * A map of event formatters that provide short and long description
  */
 export type Formatters = {
   [key in EventCode]: {
     type: string;
-    desc: string;
+    desc: string | ((json: RawEvents[key]) => string);
     format: (json: RawEvents[key]) => string;
   };
 };

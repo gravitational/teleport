@@ -30,7 +30,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -38,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -712,7 +712,7 @@ func TestListReverseTunnels(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
-		err = srv.Auth().Services.UpsertReverseTunnel(ctx, rc)
+		_, err = srv.Auth().Services.UpsertReverseTunnel(ctx, rc)
 		require.NoError(t, err)
 		created = append(created, rc.(*types.ReverseTunnelV2))
 	}
@@ -822,7 +822,7 @@ func TestDeleteReverseTunnel(t *testing.T) {
 
 	rt, err := types.NewReverseTunnel("example.com", []string{"example.com:443"})
 	require.NoError(t, err)
-	rt, err = srv.Auth().UpsertReverseTunnelV2(ctx, rt)
+	rt, err = srv.Auth().UpsertReverseTunnel(ctx, rt)
 	require.NoError(t, err)
 
 	tests := []struct {

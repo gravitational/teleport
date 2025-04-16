@@ -45,7 +45,7 @@ export const BashMultiWithComment = () => {
     <Component
       lines={[
         {
-          text: `sudo curl https://apt.releases.teleport.dev/gpg \\\n-o /usr/share/keyrings/teleport-archive-keyring.asc`,
+          text: `sudo curl https://apt.releases.teleport.dev/gpg \\\n-o /etc/apt/keyrings/teleport-archive-keyring.asc`,
           comment: `Download Teleport's PGP public key`,
         },
         {
@@ -53,7 +53,7 @@ export const BashMultiWithComment = () => {
         },
         {
           text:
-            `echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \\\n` +
+            `echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc] \\\n` +
             `https://apt.releases.teleport.dev/stable/v10" \\\n` +
             `| sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null`,
           comment:

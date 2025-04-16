@@ -17,7 +17,6 @@
  */
 
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-
 import type { Option } from 'shared/components/Select';
 
 export type DurationOption = Option<number>;

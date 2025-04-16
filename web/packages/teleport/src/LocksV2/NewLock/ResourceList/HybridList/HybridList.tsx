@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+
 import { FetchStatus } from 'design/DataTable/types';
 
 import { UrlResourcesParams } from 'teleport/config';
 
-import { TableWrapper, HybridListProps } from '../common';
 import { CommonListProps, LockResourceKind } from '../../common';
+import { HybridListProps, TableWrapper } from '../common';
 
 export type HybridListOpts = {
   getFetchFn(

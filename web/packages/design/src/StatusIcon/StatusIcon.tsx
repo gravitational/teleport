@@ -17,7 +17,6 @@
  */
 
 import React from 'react';
-
 import { useTheme } from 'styled-components';
 
 import * as Icon from 'design/Icon';

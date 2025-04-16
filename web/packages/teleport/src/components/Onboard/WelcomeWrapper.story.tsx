@@ -18,8 +18,8 @@
 
 import { Text } from 'design';
 
-import { WelcomeWrapper } from './WelcomeWrapper';
 import { OnboardCard } from './OnboardCard';
+import { WelcomeWrapper } from './WelcomeWrapper';
 
 export default {
   title: 'teleport/Onboard',

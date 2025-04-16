@@ -17,61 +17,58 @@
  */
 
 import React, {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
   Children,
   PropsWithChildren,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
-
 import styled from 'styled-components';
-import { Box, Flex, ButtonSecondary, Text, ButtonBorder } from 'design';
-import { Icon, Magnifier, PushPin } from 'design/Icon';
+
+import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { Icon, Magnifier, PushPin } from 'design/Icon';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse } from 'teleport/services/agents';
-
+import { HoverTooltip } from 'design/Tooltip';
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { HoverTooltip } from 'design/Tooltip';
-
 import {
+  Attempt as AsyncAttempt,
+  hasFinished,
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  Attempt as AsyncAttempt,
-  hasFinished,
 } from 'shared/hooks/useAsync';
-import {
-  useKeyBasedPagination,
-  useInfiniteScroll,
-} from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import {
+  useInfiniteScroll,
+  useKeyBasedPagination,
+} from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+import { ResourcesResponse } from 'teleport/services/agents';
+
+import { CardsView } from './CardsView/CardsView';
+import { FilterPanel } from './FilterPanel';
+import { ListView } from './ListView/ListView';
+import { ResourceTab } from './ResourceTab';
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
-  SharedUnifiedResource,
+  IncludedResourceMode,
   PinningSupport,
+  SharedUnifiedResource,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
-  IncludedResourceMode,
 } from './types';
-
-import { ResourceTab } from './ResourceTab';
-import { FilterPanel } from './FilterPanel';
-import { CardsView } from './CardsView/CardsView';
-import { ListView } from './ListView/ListView';
-import { mapResourceToViewItem } from './shared/viewItemsFactory';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -476,7 +473,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             bg="levels.sunken"
             details={updatePinnedResourcesAttempt.statusText}
           >
-            Could not update pinned resources:
+            Could not update pinned resources
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
@@ -662,8 +659,8 @@ function getResourcePinningSupport(
 function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
-  if (resource.kind === 'node') {
-    return `${resource.hostname}/${resource.id}/node`.toLowerCase();
+  if (resource.kind === 'node' || resource.kind == 'git_server') {
+    return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }

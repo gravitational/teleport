@@ -17,6 +17,7 @@
  */
 
 import { Fragment, useState } from 'react';
+
 import { Box, Flex } from 'design';
 
 export function Tabs({ tabs }: Props) {

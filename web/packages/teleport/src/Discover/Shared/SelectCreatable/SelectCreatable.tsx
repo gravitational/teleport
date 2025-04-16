@@ -17,8 +17,9 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 import ReactSelectCreatable from 'react-select/creatable';
+import { useTheme } from 'styled-components';
+
 import { Cross } from 'design/Icon';
 
 export const styles = theme => ({

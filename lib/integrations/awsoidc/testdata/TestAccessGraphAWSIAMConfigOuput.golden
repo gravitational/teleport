@@ -32,6 +32,8 @@ PutRolePolicy: {
                     "s3:ListBucket",
                     "s3:GetBucketLocation",
                     "s3:GetBucketTagging",
+                    "s3:GetBucketPolicyStatus",
+                    "s3:GetBucketAcl",
                     "iam:ListUsers",
                     "iam:GetUser",
                     "iam:ListRoles",

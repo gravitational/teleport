@@ -1174,3 +1174,18 @@ func TestGetAdminUser(t *testing.T) {
 		})
 	}
 }
+
+func TestDatabaseOracleRDS(t *testing.T) {
+	database, err := NewDatabaseV3(Metadata{
+		Name: "my-oracle",
+	}, DatabaseSpecV3{
+		Protocol: "oracle",
+		URI:      "my-oracle-db.abcdefghijklmnop.eu-central-1.rds.amazonaws.com:2484",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AWS{
+		Region: "eu-central-1",
+		RDS:    RDS{InstanceID: "my-oracle-db"},
+	}, database.GetAWS())
+	require.Equal(t, DatabaseTypeRDSOracle, database.GetType())
+}

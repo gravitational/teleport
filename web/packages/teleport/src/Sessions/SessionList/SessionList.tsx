@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode } from 'react';
+import styled from 'styled-components';
+
 import Table, { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
-import styled from 'styled-components';
 
 import { Participant, Session, SessionKind } from 'teleport/services/session';
 
@@ -98,10 +100,10 @@ export default function SessionList(props: Props) {
 }
 
 const kinds: {
-  [key in SessionKind]: { icon: (any) => JSX.Element; joinable: boolean };
+  [key in SessionKind]: { icon: (any) => ReactNode; joinable: boolean };
 } = {
   ssh: { icon: Icons.Cli, joinable: true },
-  k8s: { icon: Icons.Kubernetes, joinable: false },
+  k8s: { icon: Icons.Kubernetes, joinable: true },
   desktop: { icon: Icons.Desktop, joinable: false },
   app: { icon: Icons.Application, joinable: false },
   db: { icon: Icons.Database, joinable: false },
@@ -138,6 +140,7 @@ const renderJoinCell = ({
     <Cell align="right" height="26px">
       <SessionJoinBtn
         sid={sid}
+        kind={kind}
         clusterId={clusterId}
         participantModes={participantModes}
         showCTA={showActiveSessionsCTA}

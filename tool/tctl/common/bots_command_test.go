@@ -105,6 +105,8 @@ func TestUpdateBotLogins(t *testing.T) {
 			}
 
 			bot := &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
@@ -123,7 +125,7 @@ func TestUpdateBotLogins(t *testing.T) {
 				setLogins: tt.set,
 			}
 
-			err = cmd.updateBotLogins(bot, fieldMask)
+			err = cmd.updateBotLogins(context.Background(), bot, fieldMask)
 			tt.assert(t, bot, fieldMask, err)
 		})
 	}
@@ -210,6 +212,8 @@ func TestUpdateBotRoles(t *testing.T) {
 			}
 
 			bot := &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
@@ -257,6 +261,8 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	// Create an initial bot
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "test",
 			},

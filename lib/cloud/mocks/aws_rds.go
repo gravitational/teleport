@@ -19,296 +19,194 @@
 package mocks
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdsv2 "github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awstesthelpers"
 )
 
-// RDSMock mocks AWS RDS API.
-type RDSMock struct {
-	rdsiface.RDSAPI
-	DBInstances      []*rds.DBInstance
-	DBClusters       []*rds.DBCluster
-	DBProxies        []*rds.DBProxy
-	DBProxyEndpoints []*rds.DBProxyEndpoint
-	DBEngineVersions []*rds.DBEngineVersion
+type RDSClient struct {
+	Unauth bool
+
+	DBInstances      []rdstypes.DBInstance
+	DBClusters       []rdstypes.DBCluster
+	DBProxies        []rdstypes.DBProxy
+	DBProxyEndpoints []rdstypes.DBProxyEndpoint
+	DBEngineVersions []rdstypes.DBEngineVersion
 }
 
-func (m *RDSMock) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
-	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+func (c *RDSClient) DescribeDBInstances(_ context.Context, input *rdsv2.DescribeDBInstancesInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBInstancesOutput, error) {
+	if c.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
+	if err := checkEngineFilters(input.Filters, c.DBEngineVersions); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	instances, err := applyInstanceFilters(m.DBInstances, input.Filters)
+	instances, err := applyInstanceFilters(c.DBInstances, input.Filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if aws.StringValue(input.DBInstanceIdentifier) == "" {
-		return &rds.DescribeDBInstancesOutput{
+	if aws.ToString(input.DBInstanceIdentifier) == "" {
+		return &rdsv2.DescribeDBInstancesOutput{
 			DBInstances: instances,
 		}, nil
 	}
 	for _, instance := range instances {
-		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
-			return &rds.DescribeDBInstancesOutput{
-				DBInstances: []*rds.DBInstance{instance},
+		if aws.ToString(instance.DBInstanceIdentifier) == aws.ToString(input.DBInstanceIdentifier) {
+			return &rdsv2.DescribeDBInstancesOutput{
+				DBInstances: []rdstypes.DBInstance{instance},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("instance %v not found", aws.StringValue(input.DBInstanceIdentifier))
+	return nil, trace.NotFound("instance %v not found", aws.ToString(input.DBInstanceIdentifier))
 }
 
-func (m *RDSMock) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
-	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
-		return trace.Wrap(err)
+func (c *RDSClient) DescribeDBClusters(_ context.Context, input *rdsv2.DescribeDBClustersInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBClustersOutput, error) {
+	if c.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
 	}
-	instances, err := applyInstanceFilters(m.DBInstances, input.Filters)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fn(&rds.DescribeDBInstancesOutput{
-		DBInstances: instances,
-	}, true)
-	return nil
-}
 
-func (m *RDSMock) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
-	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
+	if err := checkEngineFilters(input.Filters, c.DBEngineVersions); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := applyClusterFilters(m.DBClusters, input.Filters)
+	clusters, err := applyClusterFilters(c.DBClusters, input.Filters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if aws.StringValue(input.DBClusterIdentifier) == "" {
-		return &rds.DescribeDBClustersOutput{
+	if aws.ToString(input.DBClusterIdentifier) == "" {
+		return &rdsv2.DescribeDBClustersOutput{
 			DBClusters: clusters,
 		}, nil
 	}
 	for _, cluster := range clusters {
-		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
-			return &rds.DescribeDBClustersOutput{
-				DBClusters: []*rds.DBCluster{cluster},
+		if aws.ToString(cluster.DBClusterIdentifier) == aws.ToString(input.DBClusterIdentifier) {
+			return &rdsv2.DescribeDBClustersOutput{
+				DBClusters: []rdstypes.DBCluster{cluster},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
+	return nil, trace.NotFound("cluster %v not found", aws.ToString(input.DBClusterIdentifier))
 }
 
-func (m *RDSMock) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
-	if err := checkEngineFilters(input.Filters, m.DBEngineVersions); err != nil {
-		return trace.Wrap(err)
+func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rdsv2.ModifyDBInstanceInput, optFns ...func(*rdsv2.Options)) (*rdsv2.ModifyDBInstanceOutput, error) {
+	if c.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
 	}
-	clusters, err := applyClusterFilters(m.DBClusters, input.Filters)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fn(&rds.DescribeDBClustersOutput{
-		DBClusters: clusters,
-	}, true)
-	return nil
-}
 
-func (m *RDSMock) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.ModifyDBInstanceInput, options ...request.Option) (*rds.ModifyDBInstanceOutput, error) {
-	for i, instance := range m.DBInstances {
-		if aws.StringValue(instance.DBInstanceIdentifier) == aws.StringValue(input.DBInstanceIdentifier) {
-			if aws.BoolValue(input.EnableIAMDatabaseAuthentication) {
-				m.DBInstances[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
+	for i, instance := range c.DBInstances {
+		if aws.ToString(instance.DBInstanceIdentifier) == aws.ToString(input.DBInstanceIdentifier) {
+			if aws.ToBool(input.EnableIAMDatabaseAuthentication) {
+				c.DBInstances[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
-			return &rds.ModifyDBInstanceOutput{
-				DBInstance: m.DBInstances[i],
+			return &rdsv2.ModifyDBInstanceOutput{
+				DBInstance: &c.DBInstances[i],
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("instance %v not found", aws.StringValue(input.DBInstanceIdentifier))
+	return nil, trace.NotFound("instance %v not found", aws.ToString(input.DBInstanceIdentifier))
 }
 
-func (m *RDSMock) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
-	for i, cluster := range m.DBClusters {
-		if aws.StringValue(cluster.DBClusterIdentifier) == aws.StringValue(input.DBClusterIdentifier) {
-			if aws.BoolValue(input.EnableIAMDatabaseAuthentication) {
-				m.DBClusters[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
+func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rdsv2.ModifyDBClusterInput, optFns ...func(*rdsv2.Options)) (*rdsv2.ModifyDBClusterOutput, error) {
+	if c.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
+	for i, cluster := range c.DBClusters {
+		if aws.ToString(cluster.DBClusterIdentifier) == aws.ToString(input.DBClusterIdentifier) {
+			if aws.ToBool(input.EnableIAMDatabaseAuthentication) {
+				c.DBClusters[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
-			return &rds.ModifyDBClusterOutput{
-				DBCluster: m.DBClusters[i],
+			return &rdsv2.ModifyDBClusterOutput{
+				DBCluster: &c.DBClusters[i],
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.DBClusterIdentifier))
+	return nil, trace.NotFound("cluster %v not found", aws.ToString(input.DBClusterIdentifier))
 }
 
-func (m *RDSMock) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
-	if aws.StringValue(input.DBProxyName) == "" {
-		return &rds.DescribeDBProxiesOutput{
-			DBProxies: m.DBProxies,
+func (c *RDSClient) DescribeDBProxies(_ context.Context, input *rdsv2.DescribeDBProxiesInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBProxiesOutput, error) {
+	if c.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
+	if aws.ToString(input.DBProxyName) == "" {
+		return &rdsv2.DescribeDBProxiesOutput{
+			DBProxies: c.DBProxies,
 		}, nil
 	}
-	for _, dbProxy := range m.DBProxies {
-		if aws.StringValue(dbProxy.DBProxyName) == aws.StringValue(input.DBProxyName) {
-			return &rds.DescribeDBProxiesOutput{
-				DBProxies: []*rds.DBProxy{dbProxy},
+	for _, dbProxy := range c.DBProxies {
+		if aws.ToString(dbProxy.DBProxyName) == aws.ToString(input.DBProxyName) {
+			return &rdsv2.DescribeDBProxiesOutput{
+				DBProxies: []rdstypes.DBProxy{dbProxy},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("proxy %v not found", aws.StringValue(input.DBProxyName))
+	return nil, trace.NotFound("proxy %v not found", aws.ToString(input.DBProxyName))
 }
 
-func (m *RDSMock) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
-	inputProxyName := aws.StringValue(input.DBProxyName)
-	inputProxyEndpointName := aws.StringValue(input.DBProxyEndpointName)
+func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rdsv2.DescribeDBProxyEndpointsInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBProxyEndpointsOutput, error) {
+	if c.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+
+	inputProxyName := aws.ToString(input.DBProxyName)
+	inputProxyEndpointName := aws.ToString(input.DBProxyEndpointName)
 
 	if inputProxyName == "" && inputProxyEndpointName == "" {
-		return &rds.DescribeDBProxyEndpointsOutput{
-			DBProxyEndpoints: m.DBProxyEndpoints,
+		return &rdsv2.DescribeDBProxyEndpointsOutput{
+			DBProxyEndpoints: c.DBProxyEndpoints,
 		}, nil
 	}
 
-	var endpoints []*rds.DBProxyEndpoint
-	for _, dbProxyEndpoiont := range m.DBProxyEndpoints {
+	var endpoints []rdstypes.DBProxyEndpoint
+	for _, dbProxyEndpoiont := range c.DBProxyEndpoints {
 		if inputProxyEndpointName != "" &&
-			inputProxyEndpointName != aws.StringValue(dbProxyEndpoiont.DBProxyEndpointName) {
+			inputProxyEndpointName != aws.ToString(dbProxyEndpoiont.DBProxyEndpointName) {
 			continue
 		}
 
 		if inputProxyName != "" &&
-			inputProxyName != aws.StringValue(dbProxyEndpoiont.DBProxyName) {
+			inputProxyName != aws.ToString(dbProxyEndpoiont.DBProxyName) {
 			continue
 		}
 
 		endpoints = append(endpoints, dbProxyEndpoiont)
 	}
 	if len(endpoints) == 0 {
-		return nil, trace.NotFound("proxy endpoint %v not found", aws.StringValue(input.DBProxyEndpointName))
+		return nil, trace.NotFound("proxy endpoint %v not found", aws.ToString(input.DBProxyEndpointName))
 	}
-	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
+	return &rdsv2.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
 }
 
-func (m *RDSMock) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
-	fn(&rds.DescribeDBProxiesOutput{
-		DBProxies: m.DBProxies,
-	}, true)
-	return nil
-}
-
-func (m *RDSMock) DescribeDBProxyEndpointsPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, fn func(*rds.DescribeDBProxyEndpointsOutput, bool) bool, options ...request.Option) error {
-	fn(&rds.DescribeDBProxyEndpointsOutput{
-		DBProxyEndpoints: m.DBProxyEndpoints,
-	}, true)
-	return nil
-}
-
-func (m *RDSMock) ListTagsForResourceWithContext(ctx aws.Context, input *rds.ListTagsForResourceInput, options ...request.Option) (*rds.ListTagsForResourceOutput, error) {
+func (c *RDSClient) ListTagsForResource(context.Context, *rds.ListTagsForResourceInput, ...func(*rds.Options)) (*rds.ListTagsForResourceOutput, error) {
 	return &rds.ListTagsForResourceOutput{}, nil
 }
 
-// RDSMockUnauth is a mock RDS client that returns access denied to each call.
-type RDSMockUnauth struct {
-	rdsiface.RDSAPI
-}
-
-func (m *RDSMockUnauth) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.ModifyDBInstanceInput, options ...request.Option) (*rds.ModifyDBInstanceOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
-	return trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
-	return trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-func (m *RDSMockUnauth) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
-	return trace.AccessDenied("unauthorized")
-}
-
-// RDSMockByDBType is a mock RDS client that mocks API calls by DB type
-type RDSMockByDBType struct {
-	rdsiface.RDSAPI
-	DBInstances rdsiface.RDSAPI
-	DBClusters  rdsiface.RDSAPI
-	DBProxies   rdsiface.RDSAPI
-}
-
-func (m *RDSMockByDBType) DescribeDBInstancesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, options ...request.Option) (*rds.DescribeDBInstancesOutput, error) {
-	return m.DBInstances.DescribeDBInstancesWithContext(ctx, input, options...)
-}
-
-func (m *RDSMockByDBType) ModifyDBInstanceWithContext(ctx aws.Context, input *rds.ModifyDBInstanceInput, options ...request.Option) (*rds.ModifyDBInstanceOutput, error) {
-	return m.DBInstances.ModifyDBInstanceWithContext(ctx, input, options...)
-}
-
-func (m *RDSMockByDBType) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, options ...request.Option) error {
-	return m.DBInstances.DescribeDBInstancesPagesWithContext(ctx, input, fn, options...)
-}
-
-func (m *RDSMockByDBType) DescribeDBClustersWithContext(ctx aws.Context, input *rds.DescribeDBClustersInput, options ...request.Option) (*rds.DescribeDBClustersOutput, error) {
-	return m.DBClusters.DescribeDBClustersWithContext(ctx, input, options...)
-}
-
-func (m *RDSMockByDBType) ModifyDBClusterWithContext(ctx aws.Context, input *rds.ModifyDBClusterInput, options ...request.Option) (*rds.ModifyDBClusterOutput, error) {
-	return m.DBClusters.ModifyDBClusterWithContext(ctx, input, options...)
-}
-
-func (m *RDSMockByDBType) DescribeDBClustersPagesWithContext(aws aws.Context, input *rds.DescribeDBClustersInput, fn func(*rds.DescribeDBClustersOutput, bool) bool, options ...request.Option) error {
-	return m.DBClusters.DescribeDBClustersPagesWithContext(aws, input, fn, options...)
-}
-
-func (m *RDSMockByDBType) DescribeDBProxiesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, options ...request.Option) (*rds.DescribeDBProxiesOutput, error) {
-	return m.DBProxies.DescribeDBProxiesWithContext(ctx, input, options...)
-}
-
-func (m *RDSMockByDBType) DescribeDBProxyEndpointsWithContext(ctx aws.Context, input *rds.DescribeDBProxyEndpointsInput, options ...request.Option) (*rds.DescribeDBProxyEndpointsOutput, error) {
-	return m.DBProxies.DescribeDBProxyEndpointsWithContext(ctx, input, options...)
-}
-
-func (m *RDSMockByDBType) DescribeDBProxiesPagesWithContext(ctx aws.Context, input *rds.DescribeDBProxiesInput, fn func(*rds.DescribeDBProxiesOutput, bool) bool, options ...request.Option) error {
-	return m.DBProxies.DescribeDBProxiesPagesWithContext(ctx, input, fn, options...)
-}
-
 // checkEngineFilters checks RDS filters to detect unrecognized engine filters.
-func checkEngineFilters(filters []*rds.Filter, engineVersions []*rds.DBEngineVersion) error {
+func checkEngineFilters(filters []rdstypes.Filter, engineVersions []rdstypes.DBEngineVersion) error {
 	if len(filters) == 0 {
 		return nil
 	}
 	recognizedEngines := make(map[string]struct{})
 	for _, e := range engineVersions {
-		recognizedEngines[aws.StringValue(e.Engine)] = struct{}{}
+		recognizedEngines[aws.ToString(e.Engine)] = struct{}{}
 	}
 	for _, f := range filters {
-		if aws.StringValue(f.Name) != "engine" {
+		if aws.ToString(f.Name) != "engine" {
 			continue
 		}
 		for _, v := range f.Values {
-			if _, ok := recognizedEngines[aws.StringValue(v)]; !ok {
-				return trace.Errorf("unrecognized engine name %q", aws.StringValue(v))
+			if _, ok := recognizedEngines[v]; !ok {
+				return trace.Errorf("unrecognized engine name %q", v)
 			}
 		}
 	}
@@ -316,11 +214,11 @@ func checkEngineFilters(filters []*rds.Filter, engineVersions []*rds.DBEngineVer
 }
 
 // applyInstanceFilters filters RDS DBInstances using the provided RDS filters.
-func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.DBInstance, error) {
+func applyInstanceFilters(in []rdstypes.DBInstance, filters []rdstypes.Filter) ([]rdstypes.DBInstance, error) {
 	if len(filters) == 0 {
 		return in, nil
 	}
-	var out []*rds.DBInstance
+	var out []rdstypes.DBInstance
 	efs := engineFilterSet(filters)
 	clusterIDs := clusterIdentifierFilterSet(filters)
 	for _, instance := range in {
@@ -336,11 +234,11 @@ func applyInstanceFilters(in []*rds.DBInstance, filters []*rds.Filter) ([]*rds.D
 }
 
 // applyClusterFilters filters RDS DBClusters using the provided RDS filters.
-func applyClusterFilters(in []*rds.DBCluster, filters []*rds.Filter) ([]*rds.DBCluster, error) {
+func applyClusterFilters(in []rdstypes.DBCluster, filters []rdstypes.Filter) ([]rdstypes.DBCluster, error) {
 	if len(filters) == 0 {
 		return in, nil
 	}
-	var out []*rds.DBCluster
+	var out []rdstypes.DBCluster
 	efs := engineFilterSet(filters)
 	for _, cluster := range in {
 		if clusterEngineMatches(cluster, efs) {
@@ -351,59 +249,59 @@ func applyClusterFilters(in []*rds.DBCluster, filters []*rds.Filter) ([]*rds.DBC
 }
 
 // engineFilterSet builds a string set of engine names from a list of RDS filters.
-func engineFilterSet(filters []*rds.Filter) map[string]struct{} {
+func engineFilterSet(filters []rdstypes.Filter) map[string]struct{} {
 	return filterValues(filters, "engine")
 }
 
 // clusterIdentifierFilterSet builds a string set of ClusterIDs from a list of RDS filters.
-func clusterIdentifierFilterSet(filters []*rds.Filter) map[string]struct{} {
+func clusterIdentifierFilterSet(filters []rdstypes.Filter) map[string]struct{} {
 	return filterValues(filters, "db-cluster-id")
 }
 
-func filterValues(filters []*rds.Filter, filterKey string) map[string]struct{} {
+func filterValues(filters []rdstypes.Filter, filterKey string) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, f := range filters {
-		if aws.StringValue(f.Name) != filterKey {
+		if aws.ToString(f.Name) != filterKey {
 			continue
 		}
 		for _, v := range f.Values {
-			out[aws.StringValue(v)] = struct{}{}
+			out[v] = struct{}{}
 		}
 	}
 	return out
 }
 
 // instanceEngineMatches returns whether an RDS DBInstance engine matches any engine name in a filter set.
-func instanceEngineMatches(instance *rds.DBInstance, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[aws.StringValue(instance.Engine)]
+func instanceEngineMatches(instance rdstypes.DBInstance, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.ToString(instance.Engine)]
 	return ok
 }
 
 // instanceClusterIDMatches returns whether an RDS DBInstance ClusterID matches any ClusterID in a filter set.
-func instanceClusterIDMatches(instance *rds.DBInstance, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[aws.StringValue(instance.DBClusterIdentifier)]
+func instanceClusterIDMatches(instance rdstypes.DBInstance, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.ToString(instance.DBClusterIdentifier)]
 	return ok
 }
 
 // clusterEngineMatches returns whether an RDS DBCluster engine matches any engine name in a filter set.
-func clusterEngineMatches(cluster *rds.DBCluster, filterSet map[string]struct{}) bool {
-	_, ok := filterSet[aws.StringValue(cluster.Engine)]
+func clusterEngineMatches(cluster rdstypes.DBCluster, filterSet map[string]struct{}) bool {
+	_, ok := filterSet[aws.ToString(cluster.Engine)]
 	return ok
 }
 
-// RDSInstance returns a sample rds.DBInstance.
-func RDSInstance(name, region string, labels map[string]string, opts ...func(*rds.DBInstance)) *rds.DBInstance {
-	instance := &rds.DBInstance{
+// RDSInstance returns a sample rdstypes.DBInstance.
+func RDSInstance(name, region string, labels map[string]string, opts ...func(*rdstypes.DBInstance)) *rdstypes.DBInstance {
+	instance := &rdstypes.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
 		DBInstanceIdentifier: aws.String(name),
 		DbiResourceId:        aws.String(uuid.New().String()),
 		Engine:               aws.String("postgres"),
 		DBInstanceStatus:     aws.String("available"),
-		Endpoint: &rds.Endpoint{
+		Endpoint: &rdstypes.Endpoint{
 			Address: aws.String(fmt.Sprintf("%v.aabbccdd.%v.rds.amazonaws.com", name, region)),
-			Port:    aws.Int64(5432),
+			Port:    aws.Int32(5432),
 		},
-		TagList: libcloudaws.LabelsToTags[rds.Tag](labels),
+		TagList: awstesthelpers.LabelsToRDSTags(labels),
 	}
 	for _, opt := range opts {
 		opt(instance)
@@ -411,9 +309,9 @@ func RDSInstance(name, region string, labels map[string]string, opts ...func(*rd
 	return instance
 }
 
-// RDSCluster returns a sample rds.DBCluster.
-func RDSCluster(name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) *rds.DBCluster {
-	cluster := &rds.DBCluster{
+// RDSCluster returns a sample rdstypes.DBCluster.
+func RDSCluster(name, region string, labels map[string]string, opts ...func(*rdstypes.DBCluster)) *rdstypes.DBCluster {
+	cluster := &rdstypes.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New().String()),
@@ -422,9 +320,9 @@ func RDSCluster(name, region string, labels map[string]string, opts ...func(*rds
 		Status:              aws.String("available"),
 		Endpoint:            aws.String(fmt.Sprintf("%v.cluster-aabbccdd.%v.rds.amazonaws.com", name, region)),
 		ReaderEndpoint:      aws.String(fmt.Sprintf("%v.cluster-ro-aabbccdd.%v.rds.amazonaws.com", name, region)),
-		Port:                aws.Int64(3306),
-		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
-		DBClusterMembers: []*rds.DBClusterMember{{
+		Port:                aws.Int32(3306),
+		TagList:             awstesthelpers.LabelsToRDSTags(labels),
+		DBClusterMembers: []rdstypes.DBClusterMember{{
 			IsClusterWriter: aws.Bool(true), // One writer by default.
 		}},
 	}
@@ -434,49 +332,49 @@ func RDSCluster(name, region string, labels map[string]string, opts ...func(*rds
 	return cluster
 }
 
-func WithRDSClusterReader(cluster *rds.DBCluster) {
-	cluster.DBClusterMembers = append(cluster.DBClusterMembers, &rds.DBClusterMember{
+func WithRDSClusterReader(cluster *rdstypes.DBCluster) {
+	cluster.DBClusterMembers = append(cluster.DBClusterMembers, rdstypes.DBClusterMember{
 		IsClusterWriter: aws.Bool(false), // Add reader.
 	})
 }
 
-func WithRDSClusterCustomEndpoint(name string) func(*rds.DBCluster) {
-	return func(cluster *rds.DBCluster) {
-		parsed, _ := arn.Parse(aws.StringValue(cluster.DBClusterArn))
-		cluster.CustomEndpoints = append(cluster.CustomEndpoints, aws.String(
+func WithRDSClusterCustomEndpoint(name string) func(*rdstypes.DBCluster) {
+	return func(cluster *rdstypes.DBCluster) {
+		parsed, _ := arn.Parse(aws.ToString(cluster.DBClusterArn))
+		cluster.CustomEndpoints = append(cluster.CustomEndpoints,
 			fmt.Sprintf("%v.cluster-custom-aabbccdd.%v.rds.amazonaws.com", name, parsed.Region),
-		))
+		)
 	}
 }
 
-// RDSProxy returns a sample rds.DBProxy.
-func RDSProxy(name, region, vpcID string) *rds.DBProxy {
-	return &rds.DBProxy{
+// RDSProxy returns a sample rdstypes.DBProxy.
+func RDSProxy(name, region, vpcID string) *rdstypes.DBProxy {
+	return &rdstypes.DBProxy{
 		DBProxyArn:   aws.String(fmt.Sprintf("arn:aws:rds:%s:123456789012:db-proxy:prx-%s", region, name)),
 		DBProxyName:  aws.String(name),
-		EngineFamily: aws.String(rds.EngineFamilyMysql),
+		EngineFamily: aws.String(string(rdstypes.EngineFamilyMysql)),
 		Endpoint:     aws.String(fmt.Sprintf("%s.proxy-aabbccdd.%s.rds.amazonaws.com", name, region)),
 		VpcId:        aws.String(vpcID),
 		RequireTLS:   aws.Bool(true),
-		Status:       aws.String("available"),
+		Status:       "available",
 	}
 }
 
-// RDSProxyCustomEndpoint returns a sample rds.DBProxyEndpoint.
-func RDSProxyCustomEndpoint(rdsProxy *rds.DBProxy, name, region string) *rds.DBProxyEndpoint {
-	return &rds.DBProxyEndpoint{
+// RDSProxyCustomEndpoint returns a sample rdstypes.DBProxyEndpoint.
+func RDSProxyCustomEndpoint(rdsProxy *rdstypes.DBProxy, name, region string) *rdstypes.DBProxyEndpoint {
+	return &rdstypes.DBProxyEndpoint{
 		Endpoint:            aws.String(fmt.Sprintf("%s.endpoint.proxy-aabbccdd.%s.rds.amazonaws.com", name, region)),
 		DBProxyEndpointName: aws.String(name),
 		DBProxyName:         rdsProxy.DBProxyName,
 		DBProxyEndpointArn:  aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db-proxy-endpoint:prx-endpoint-%v", region, name)),
-		TargetRole:          aws.String(rds.DBProxyEndpointTargetRoleReadOnly),
-		Status:              aws.String("available"),
+		TargetRole:          rdstypes.DBProxyEndpointTargetRoleReadOnly,
+		Status:              "available",
 	}
 }
 
-// DocumentDBCluster returns a sample rds.DBCluster for DocumentDB.
-func DocumentDBCluster(name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) *rds.DBCluster {
-	cluster := &rds.DBCluster{
+// DocumentDBCluster returns a sample rdstypes.DBCluster for DocumentDB.
+func DocumentDBCluster(name, region string, labels map[string]string, opts ...func(*rdstypes.DBCluster)) *rdstypes.DBCluster {
+	cluster := &rdstypes.DBCluster{
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New().String()),
@@ -485,9 +383,9 @@ func DocumentDBCluster(name, region string, labels map[string]string, opts ...fu
 		Status:              aws.String("available"),
 		Endpoint:            aws.String(fmt.Sprintf("%v.cluster-aabbccdd.%v.docdb.amazonaws.com", name, region)),
 		ReaderEndpoint:      aws.String(fmt.Sprintf("%v.cluster-ro-aabbccdd.%v.docdb.amazonaws.com", name, region)),
-		Port:                aws.Int64(27017),
-		TagList:             libcloudaws.LabelsToTags[rds.Tag](labels),
-		DBClusterMembers: []*rds.DBClusterMember{{
+		Port:                aws.Int32(27017),
+		TagList:             awstesthelpers.LabelsToRDSTags(labels),
+		DBClusterMembers: []rdstypes.DBClusterMember{{
 			IsClusterWriter: aws.Bool(true), // One writer by default.
 		}},
 	}
@@ -497,6 +395,6 @@ func DocumentDBCluster(name, region string, labels map[string]string, opts ...fu
 	return cluster
 }
 
-func WithDocumentDBClusterReader(cluster *rds.DBCluster) {
+func WithDocumentDBClusterReader(cluster *rdstypes.DBCluster) {
 	WithRDSClusterReader(cluster)
 }
