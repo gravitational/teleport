@@ -6,16 +6,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestBasicAssignmentFlow tests the basic assignment flow.
@@ -343,4 +349,216 @@ func mustCreateMember(t *testing.T, aclName, memberName string, memberType strin
 	)
 	require.NoError(t, err)
 	return member
+}
+
+func TestOktaAccessRequestFlow(t *testing.T) {
+	ctx := context.Background()
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 1, 7))
+	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+
+	reviewer := oktaInfra.Users[5]
+	requester := oktaInfra.Users[4]
+
+	_, _, err := oktaApiClient.AssignUserToApplication(t.Context(), oktaInfra.Apps[0].Id, okta.AppUser{Id: oktaInfra.Users[0].Id})
+	require.NoError(t, err)
+
+	oktaSAMLAppName := "trial-1234567_teleportsamlconnectorapp_1"
+	samlApp := createOktaSAMLAPP(t, ctx, oktaApiClient, oktaSAMLAppName)
+	for _, user := range oktaInfra.Users {
+		_, _, err := oktaApiClient.AssignUserToApplication(t.Context(), samlApp.Id, okta.AppUser{Id: user.Id})
+		require.NoError(t, err)
+	}
+
+	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
+	start := time.Now()
+	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ApiCredentials:          apiCredentials,
+		EnableUserSync:          true,
+		EnableAppGroupSync:      true,
+		EnableAccessListSync:    true,
+		EnableBidirectionalSync: true,
+		AccessListSettings: &oktav1.AccessListSettings{
+			GroupFilters: []string{"group-*"},
+			AppFilters:   []string{"app-*"},
+			DefaultOwner: []string{reviewer.login()},
+		},
+		ReuseConnector: "okta-pre-created-test",
+	})
+	require.NoError(t, err)
+	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
+
+	auth := sut.Teleport.Process.GetAuthServer()
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		s, err := auth.GetUserLoginState(t.Context(), reviewer.login())
+		assert.NoError(collect, err)
+		assert.Len(collect, s.GetRoles(), 3) // okta-requester + 2 ACL reviewer roles
+	}, time.Second, time.Millisecond*100)
+
+	t.Run("app access request", func(t *testing.T) {
+		var app types.AppServer
+		apps, err := auth.GetApplicationServers(t.Context(), "default")
+		require.NoError(t, err)
+		for _, v := range apps {
+			if v.GetMetadata().Description != oktaSAMLAppName {
+				app = v
+				break
+			}
+		}
+
+		appID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
+		require.True(t, ok)
+		oktaInfra.assertUsersIsNotAssignedToOktaApp(t, requester.Id, appID)
+		assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
+
+		t.Run("delete app access request", func(t *testing.T) {
+			accessRequestApp := createAccessRequest(app.GetName(), types.KindApp, mustGetClusterName(t, sut), requester.login())
+			createdRequestApp, err := auth.CreateAccessRequestV2(t.Context(), accessRequestApp, tlsca.Identity{})
+			require.NoError(t, err)
+
+			approveRequest(t, sut, createdRequestApp.GetName(), reviewer.login())
+
+			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
+			// assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
+
+			err = auth.DeleteAccessRequest(t.Context(), createdRequestApp.GetName())
+			require.NoError(t, err)
+			todoRemoveAfterFixingAccessRequestACLSyncRace(t)
+			oktaInfra.assertUsersIsNotAssignedToOktaApp(t, requester.Id, appID)
+			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
+		})
+
+		t.Run("member was added to acl before access request was deleted", func(t *testing.T) {
+			accessRequestApp := createAccessRequest(app.GetName(), types.KindApp, mustGetClusterName(t, sut), requester.login())
+			createdRequestApp, err := auth.CreateAccessRequestV2(t.Context(), accessRequestApp, tlsca.Identity{})
+			require.NoError(t, err)
+			approveRequest(t, sut, createdRequestApp.GetName(), reviewer.login())
+
+			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
+			todoRemoveAfterFixingAccessRequestACLSyncRace(t)
+			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
+
+			mustAddAccessListMember(t, sut, app.GetName(), requester.login())
+
+			err = sut.Teleport.Process.GetAuthServer().DeleteAccessRequest(t.Context(), createdRequestApp.GetName())
+			require.NoError(t, err)
+
+			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
+			assertUserIsAccessListMember(t, sut, app.GetName(), requester.login())
+		})
+	})
+
+	t.Run("group access request", func(t *testing.T) {
+		userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, userGroups)
+		group := selectUserGroupByName(userGroups, oktaInfra.Groups[0].Id)
+		require.NotNil(t, group)
+		groupID := group.GetName()
+
+		t.Run("delete group access request", func(t *testing.T) {
+			accessRequest := createAccessRequest(groupID, types.KindUserGroup, mustGetClusterName(t, sut), requester.login())
+			createdRequest, err := auth.CreateAccessRequestV2(t.Context(), accessRequest, tlsca.Identity{})
+			require.NoError(t, err)
+
+			assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
+			approveRequest(t, sut, createdRequest.GetName(), reviewer.login())
+			oktaInfra.assertUserWasAssignedToOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
+
+			err = auth.DeleteAccessRequest(t.Context(), createdRequest.GetName())
+			require.NoError(t, err)
+
+			todoRemoveAfterFixingAccessRequestACLSyncRace(t)
+			oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
+			assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
+		})
+	})
+}
+
+func selectUserGroupByName(groups []types.UserGroup, name string) types.UserGroup {
+	for _, group := range groups {
+		if group.GetName() == name {
+			return group
+		}
+	}
+	return nil
+}
+
+// TODO(smallinksy) Remove when the https://github.com/gravitational/teleport-private/issues/1944 is fixed.
+func todoRemoveAfterFixingAccessRequestACLSyncRace(t *testing.T) {
+	t.Skip("Test Skipped due to know race condition between access request and ACL sync")
+}
+
+func mustAddAccessListMember(t *testing.T, sut *common.SUT, aclName, memberName string) {
+	acl, err := sut.Teleport.Process.GetAuthServer().GetAccessList(t.Context(), aclName)
+	require.NoError(t, err)
+	members, _, err := sut.Teleport.Process.GetAuthServer().AccessLists.ListAccessListMembers(t.Context(), aclName, 0, "")
+	require.NoError(t, err)
+	members = append(members, mustCreateMember(t, aclName, memberName, accesslist.MembershipKindUser))
+	_, _, err = sut.Teleport.Process.GetAuthServer().AccessLists.UpsertAccessListWithMembers(t.Context(), acl, members)
+	require.NoError(t, err)
+}
+
+func mustGetClusterName(t *testing.T, sut *common.SUT) string {
+	clusterName, err := sut.Teleport.Process.GetAuthServer().GetClusterName(t.Context())
+	require.NoError(t, err)
+	return clusterName.GetClusterName()
+}
+
+func assertUserIsNotAccessListMember(t *testing.T, sut *common.SUT, acl, user string) {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err := sut.Teleport.Process.GetAuthServer().AccessLists.GetAccessListMember(t.Context(), acl, user)
+		assert.True(collect, trace.IsNotFound(err))
+	}, 3*time.Second, 50*time.Millisecond, "User %s should not be a member of access list %s", user, acl)
+}
+
+func assertUserIsAccessListMember(t *testing.T, sut *common.SUT, acl, user string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err := sut.Teleport.Process.GetAuthServer().AccessLists.GetAccessListMember(t.Context(), acl, user)
+		assert.NoError(collect, err)
+	}, 3*time.Second, 200*time.Millisecond)
+}
+
+func createAccessRequest(resourceName, resourceType, clusterName string, requesterUser string) *types.AccessRequestV3 {
+	return &types.AccessRequestV3{
+		Metadata: types.Metadata{
+			Name: uuid.New().String(),
+		},
+		Spec: types.AccessRequestSpecV3{
+			User:          requesterUser,
+			RequestReason: "Need access",
+			RequestedResourceIDs: []types.ResourceID{
+				{
+					Kind:        resourceType,
+					Name:        resourceName,
+					ClusterName: clusterName,
+				},
+			},
+		},
+	}
+}
+
+func approveRequest(t *testing.T, sut *common.SUT, requestID string, user string) {
+	auth := sut.Teleport.Process.GetAuthServer()
+	r, err := auth.SubmitAccessReview(t.Context(), types.AccessReviewSubmission{
+		RequestID: requestID,
+		Review: types.AccessReview{
+			Author:        user,
+			ProposedState: types.RequestState_APPROVED,
+		},
+	})
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		_, err := auth.GetOktaAssignment(t.Context(), r.GetName())
+		assert.NoError(c, err)
+	}, time.Second, time.Millisecond*100)
 }

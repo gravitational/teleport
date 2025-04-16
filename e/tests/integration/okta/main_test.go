@@ -51,4 +51,5 @@ func alignOktaSyncTimes() {
 	libokta.SyncRetryAfterLeadershipFailure = time.Second
 	libokta.AccessListSyncFirstDuration = time.Second
 	libokta.DefaultAccessListSyncInterval = time.Second
+	libokta.AccessRequestCheckInventoryInterval = time.Second
 }

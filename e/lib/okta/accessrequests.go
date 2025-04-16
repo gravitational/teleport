@@ -20,12 +20,16 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+var (
+	// AccessRequestCheckInventoryInterval is the time to wait between inventory checks for the
+	// Okta service to be connected to start reconciling access requests.
+	AccessRequestCheckInventoryInterval = time.Minute
+)
+
 const (
 	accessRequestFormat = "access-request/%s"
 
 	maxAccessRequestRetryWait = time.Minute
-
-	checkInventoryWait = time.Minute
 
 	// maxOktaServiceConnectionFailures is the number of connection failures to allow before
 	// considering the Okta service disconnected.
@@ -192,7 +196,7 @@ func (a *AccessRequestReconciler) Start(ctx context.Context) error {
 }
 
 func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context) {
-	ticker := a.clock.NewTicker(checkInventoryWait)
+	ticker := a.clock.NewTicker(AccessRequestCheckInventoryInterval)
 	var (
 		cancel           context.CancelFunc
 		resourcesCleaned chan struct{}
@@ -396,13 +400,11 @@ func (a *AccessRequestReconciler) onCreate(ctx context.Context, newAccessRequest
 			}
 			return trace.Wrap(err)
 		}
-
 		// If the assignment already exists, register it locally and move on.
 		_, err = a.oktaClient.CreateOktaAssignment(ctx, assignment)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
-
 		a.accessRequests.Insert(newAccessRequest)
 	}
 

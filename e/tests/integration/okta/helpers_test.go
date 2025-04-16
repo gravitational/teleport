@@ -288,6 +288,7 @@ func withStep(t time.Duration) waitOption {
 }
 
 func waitForOktaSync(t *testing.T, sut *common.SUT, opts ...waitOption) {
+	t.Helper()
 	mustWaitForEvent(t, sut, events.OktaUserSyncEvent, opts...)
 	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, opts...)
 }

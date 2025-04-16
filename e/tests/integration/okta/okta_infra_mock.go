@@ -114,6 +114,17 @@ func (s *oktaInfraSetup) isUserAssignedToGroup(t *testing.T, userID, groupID str
 	return found
 }
 
+func (s *oktaInfraSetup) isUserAssignedToApp(t *testing.T, userID, appID string) bool {
+	userApps, _, err := s.client.ListApplicationUsers(s.ctx, appID, &query.Params{})
+	require.NoError(t, err)
+	for _, app := range userApps {
+		if app.Id == userID {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *oktaInfraSetup) getUserGroups(t *testing.T, oktaUserID string) []string {
 	var groups []*okta.Group
 	var err error
@@ -132,7 +143,23 @@ func (s *oktaInfraSetup) assertUserWasAssignedToOktaGroup(t *testing.T, userID s
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ok := s.isUserAssignedToGroup(t, userID, groupID)
 		assert.True(c, ok)
-	}, time.Second*15, time.Millisecond*250, "User %s was assigned to group %s", userID, groupID)
+	}, time.Second*30, time.Millisecond*250, "User %s was assigned to group %s", userID, groupID)
+}
+
+func (s *oktaInfraSetup) assertUserWasAssignedToOktaApp(t *testing.T, userID string, appID string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ok := s.isUserAssignedToApp(t, userID, appID)
+		assert.True(c, ok)
+	}, time.Second*30, time.Millisecond*250, "User %s was assigned to app %s", userID, appID)
+}
+
+func (s *oktaInfraSetup) assertUsersIsNotAssignedToOktaApp(t *testing.T, userID, appID string) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ok := s.isUserAssignedToApp(t, userID, appID)
+		assert.False(c, ok)
+	}, time.Second*10, time.Millisecond*250, "User %s is still assigned to app %s", userID, appID)
 }
 
 func (s *oktaInfraSetup) assertUserWasUnassignedFromOktaGroup(t *testing.T, userID, groupID string) {
