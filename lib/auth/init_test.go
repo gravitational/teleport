@@ -2149,11 +2149,11 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			require.NoError(t, err)
 
 			if test.initialProcVersion != "" {
-				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, semver.New(test.initialProcVersion))
+				err = authCfg.VersionStorage.WriteTeleportVersion(ctx, *semver.New(test.initialProcVersion))
 				require.NoError(t, err)
 			}
 			if test.initialVersion != "" {
-				err = service.WriteTeleportVersion(ctx, semver.New(test.initialVersion))
+				err = service.WriteTeleportVersion(ctx, *semver.New(test.initialVersion))
 				require.NoError(t, err)
 			}
 			if test.skipCheck {

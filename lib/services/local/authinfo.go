@@ -20,92 +20,131 @@ package local
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
 	"github.com/gravitational/teleport/api/types"
 	authinfotype "github.com/gravitational/teleport/api/types/authinfo"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 const (
+	// maxWriteRetry is the number of retries for conditional updates of the AuthInfo resource.
+	maxWriteRetry = 5
 	// authInfoPrefix is a backend key for storing the auth server information.
 	authInfoPrefix = "auth_info"
 )
 
 // AuthInfoService is responsible for managing the information about auth server.
 type AuthInfoService struct {
-	backed backend.Backend
+	logger *slog.Logger
+
+	authInfo *generic.ServiceWrapper[*authinfo.AuthInfo]
 }
 
 // NewAuthInfoService returns a new AuthInfoService.
 func NewAuthInfoService(b backend.Backend) (*AuthInfoService, error) {
+	authInfo, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*authinfo.AuthInfo]{
+			Backend:       b,
+			ResourceKind:  types.KindAuthInfo,
+			BackendPrefix: backend.NewKey(authInfoPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*authinfo.AuthInfo],
+			UnmarshalFunc: services.UnmarshalProtoResource[*authinfo.AuthInfo],
+			ValidateFunc:  authinfotype.ValidateAuthInfo,
+			NameKeyFunc: func(string) string {
+				return types.MetaNameAuthInfo
+			},
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &AuthInfoService{
-		backed: b,
+		authInfo: authInfo,
+		logger:   slog.With(teleport.ComponentKey, "AuthInfoService"),
 	}, nil
 }
 
-// GetTeleportVersion reads the last known Teleport version from storage.
-func (s *AuthInfoService) GetTeleportVersion(ctx context.Context) (*semver.Version, error) {
-	item, err := s.backed.Get(ctx, backend.NewKey(authInfoPrefix))
+// GetTeleportVersion reads the last known Teleport version from backend.
+func (s *AuthInfoService) GetTeleportVersion(ctx context.Context) (semver.Version, error) {
+	info, err := s.authInfo.GetResource(ctx, types.MetaNameAuthInfo)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return semver.Version{}, trace.Wrap(err)
 	}
 
-	info, err := services.UnmarshalProtoResource[*authinfo.AuthInfo](item.Value)
+	tVersion, err := version.EnsureSemver(info.GetSpec().TeleportVersion)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authinfotype.ValidateAuthInfo(info); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	version, err := semver.NewVersion(info.GetSpec().TeleportVersion)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return semver.Version{}, trace.Wrap(err)
 	}
 
-	return version, nil
+	return *tVersion, nil
 }
 
-// WriteTeleportVersion writes the last known Teleport version to the storage.
-func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, version *semver.Version) error {
-	if version == nil {
-		return trace.BadParameter("wrong version parameter")
+// WriteTeleportVersion writes the last known Teleport version to the backend.
+func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, version semver.Version) (err error) {
+	var info *authinfo.AuthInfo
+	for i := 0; i < maxWriteRetry; i++ {
+		info, err = s.authInfo.GetResource(ctx, types.MetaNameAuthInfo)
+		if trace.IsNotFound(err) {
+			info, err = authinfotype.NewAuthInfo(&authinfo.AuthInfoSpec{TeleportVersion: version.String()})
+			if err != nil {
+				err = trace.Wrap(err)
+				s.logger.WarnContext(ctx, "Failed to create AuthInfo resource",
+					"error", err)
+				continue
+			}
+			if _, err := s.authInfo.CreateResource(ctx, info); err != nil {
+				s.logger.WarnContext(ctx, "Failed to create AuthInfo resource",
+					"error", err)
+				continue
+			}
+			return nil
+		} else if err != nil {
+			s.logger.WarnContext(ctx, "Failed to receive AuthInfo resource",
+				"error", err)
+			err = trace.Wrap(err)
+			continue
+		}
+		info.GetSpec().TeleportVersion = version.String()
+		if _, err := s.authInfo.ConditionalUpdateResource(ctx, info); err != nil {
+			err = trace.Wrap(err)
+			s.logger.WarnContext(ctx, "Failed to update AuthInfo resource",
+				"version", version, "error", err)
+			continue
+		}
+		return nil
 	}
+	return
+}
 
-	info, err := authinfotype.NewAuthInfo(&authinfo.AuthInfoSpec{
-		TeleportVersion: version.String(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := authinfotype.ValidateAuthInfo(info); err != nil {
-		return trace.Wrap(err)
-	}
-	rev, err := types.GetRevision(info)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalProtoResource[*authinfo.AuthInfo](info)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	expires, err := types.GetExpiry(info)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:      backend.NewKey(authInfoPrefix),
-		Value:    value,
-		Expires:  expires,
-		Revision: rev,
-	}
-	if _, err := s.backed.Put(ctx, item); err != nil {
-		return trace.Wrap(err)
-	}
+// GetAuthInfo gets the AuthInfo singleton resource.
+func (s *AuthInfoService) GetAuthInfo(ctx context.Context) (*authinfo.AuthInfo, error) {
+	info, err := s.authInfo.GetResource(ctx, types.MetaNameAuthInfo)
+	return info, trace.Wrap(err)
+}
 
-	return nil
+// CreateAuthInfo creates the AuthInfo singleton resource.
+func (s *AuthInfoService) CreateAuthInfo(ctx context.Context, info *authinfo.AuthInfo) (*authinfo.AuthInfo, error) {
+	info, err := s.authInfo.CreateResource(ctx, info)
+	return info, trace.Wrap(err)
+}
+
+// UpdateAuthInfo updates the AuthInfo singleton resource.
+func (s *AuthInfoService) UpdateAuthInfo(ctx context.Context, info *authinfo.AuthInfo) (*authinfo.AuthInfo, error) {
+	info, err := s.authInfo.ConditionalUpdateResource(ctx, info)
+	return info, trace.Wrap(err)
+}
+
+// DeleteAuthInfo deletes the AuthInfo singleton resource.
+func (s *AuthInfoService) DeleteAuthInfo(ctx context.Context) error {
+	err := s.authInfo.DeleteResource(ctx, types.MetaNameAuthInfo)
+	return trace.Wrap(err)
 }
