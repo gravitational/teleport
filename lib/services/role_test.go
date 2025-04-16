@@ -3904,6 +3904,79 @@ func TestExtractFrom(t *testing.T) {
 	require.Equal(t, traits, origTraits)
 }
 
+// TestCanCopyFiles verifies the behavior of the RoleSet.CanCopyFiles method method
+// and the underlying Options.SSHFileCopy role field.
+func TestCanCopyFiles(t *testing.T) {
+	tts := []struct {
+		name   string
+		values []*types.BoolOption
+		expect bool
+	}{
+		{
+			name: "nil",
+			values: []*types.BoolOption{
+				nil,
+			},
+			expect: true,
+		},
+		{
+			name: "false",
+			values: []*types.BoolOption{
+				types.NewBoolOption(false),
+			},
+			expect: false,
+		},
+		{
+			name: "true",
+			values: []*types.BoolOption{
+				types.NewBoolOption(true),
+			},
+			expect: true,
+		},
+		{
+			name: "true and false",
+			values: []*types.BoolOption{
+				types.NewBoolOption(true),
+				types.NewBoolOption(false),
+			},
+			expect: false,
+		},
+		{
+			name: "nil and true",
+			values: []*types.BoolOption{
+				nil,
+				types.NewBoolOption(true),
+			},
+			expect: true,
+		},
+		{
+			name: "nil and false",
+			values: []*types.BoolOption{
+				nil,
+				types.NewBoolOption(false),
+			},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			var roles RoleSet
+			for _, v := range tt.values {
+				roles = append(roles, &types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							SSHFileCopy: v,
+						},
+					},
+				})
+			}
+
+			require.Equal(t, tt.expect, roles.CanCopyFiles())
+		})
+	}
+}
+
 // TestBoolOptions makes sure that bool options (like agent forwarding and
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {

@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -36,7 +35,7 @@ type ClusterGetter interface {
 }
 
 // NewTunnelWithRoles returns new authorizing tunnel
-func NewTunnelWithRoles(tunnel Tunnel, localCluster string, accessChecker services.AccessChecker, access ClusterGetter) *TunnelWithRoles {
+func NewTunnelWithRoles(tunnel Tunnel, localCluster string, accessChecker func(types.RemoteCluster) error, access ClusterGetter) *TunnelWithRoles {
 	return &TunnelWithRoles{
 		tunnel:        tunnel,
 		localCluster:  localCluster,
@@ -52,7 +51,7 @@ type TunnelWithRoles struct {
 	localCluster string
 
 	// accessChecker is used to check RBAC permissions.
-	accessChecker services.AccessChecker
+	accessChecker func(types.RemoteCluster) error
 
 	access ClusterGetter
 }
@@ -78,7 +77,7 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 			slog.WarnContext(ctx, "Skipping dangling cluster, no remote cluster resource found", "cluster", cluster.GetName())
 			continue
 		}
-		if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
+		if err := t.accessChecker(rc); err != nil {
 			if !trace.IsAccessDenied(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -103,7 +102,7 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
-	if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
+	if err := t.accessChecker(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 	return cluster, nil
