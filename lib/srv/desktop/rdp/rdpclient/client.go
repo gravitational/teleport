@@ -77,6 +77,7 @@ import (
 	"net"
 	"os"
 	"runtime/cgo"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -415,6 +416,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming starting")
 	defer c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming finished")
 
+	// we will disable ping only if the env var is truthy
+	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_WINDOWS_DESKTOP_PING"))
+
 	var withheldResize *tdp.ClientScreenSpec
 	for {
 		select {
@@ -435,7 +439,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		}
 
 		if m, ok := msg.(tdp.Ping); ok {
-			if os.Getenv("TELEPORT_DISABLE_WINDOWS_DESKTOP_PING") != "true" {
+			if !disableDesktopPing {
 				conn, err := net.Dial("tcp", c.cfg.Addr)
 				if err == nil {
 					conn.Close()
