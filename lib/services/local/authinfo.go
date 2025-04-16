@@ -102,6 +102,7 @@ func (s *AuthInfoService) WriteTeleportVersion(ctx context.Context, version semv
 				continue
 			}
 			if _, err := s.authInfo.CreateResource(ctx, info); err != nil {
+				err = trace.Wrap(err)
 				s.logger.WarnContext(ctx, "Failed to create AuthInfo resource",
 					"error", err)
 				continue
