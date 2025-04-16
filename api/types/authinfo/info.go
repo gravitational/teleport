@@ -17,10 +17,11 @@ limitations under the License.
 package authinfo
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
 // NewAuthInfo creates a new auth info resource.
@@ -42,16 +43,23 @@ func NewAuthInfo(spec *authinfo.AuthInfoSpec) (*authinfo.AuthInfo, error) {
 
 // ValidateAuthInfo checks that required parameters are set
 // for the specified AuthInfo.
-func ValidateAuthInfo(c *authinfo.AuthInfo) error {
-	if c == nil {
+func ValidateAuthInfo(info *authinfo.AuthInfo) error {
+	switch {
+	case info == nil:
 		return trace.BadParameter("AuthInfo is nil")
-	}
-	if c.Metadata == nil {
+	case info.GetMetadata() == nil:
 		return trace.BadParameter("Metadata is nil")
-	}
-	if c.Spec == nil {
+	case info.GetSpec() == nil:
 		return trace.BadParameter("Spec is nil")
+	case info.GetKind() != types.KindAuthInfo:
+		return trace.BadParameter("wrong AuthInfo Kind: %s", info.Kind)
+	case info.GetMetadata().Name != types.MetaNameAuthInfo:
+		return trace.BadParameter("wrong AuthInfo Metadata name: %s", info.GetMetadata().Name)
+	case info.GetSubKind() != "":
+		return trace.BadParameter("wrong AuthInfo SubKind: %s", info.GetSubKind())
+	case info.GetVersion() != types.V1:
+		return trace.BadParameter("wrong AuthInfo Version: %s", info.GetVersion())
+	default:
+		return nil
 	}
-
-	return nil
 }
