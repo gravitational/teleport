@@ -72,6 +72,8 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// PKCEVerifier is used to verified a generated code challenge.
+	PKCEVerifier string
 }
 
 // CheckAndSetDefaults makes sure that the request is valid

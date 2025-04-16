@@ -4895,6 +4895,8 @@ message OIDCConnectorSpecV3 {
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
+  // PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"
+  string PKCEMode = 20 [(gogoproto.jsontag) = "pkce_mode,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -5028,6 +5030,8 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 22 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // pkce_verifier is used to verified a generated code challenge.
+  string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
