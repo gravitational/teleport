@@ -196,7 +196,7 @@ These short-lived tokens then can be used with `gcloud` CLI and Google Cloud API
 The most straightforward way to obtain credentials is via `gcloud` CLI and browser-based sign-in process.
 
 First, create a login configuration file in your workstation.
-```bash
+```code
 gcloud iam workforce-pools create-login-config \
     locations/global/workforcePools/<pool_id>/providers/pool_provider_id \
     --output-file=/Users/alice/.gcp/my-gcp-workforce-login.json
