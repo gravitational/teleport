@@ -284,7 +284,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if roles[defaults.RoleDatabase] {
 		// keep it disable since `teleport configure` don't have all the necessary flags
 		// for this kind of resource
-		dbs.EnabledFlag = "no"
+		dbs.EnabledFlag = "false"
 	}
 
 	// WindowsDesktop config:
@@ -292,7 +292,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	if roles[defaults.RoleWindowsDesktop] {
 		// keep it disable since `teleport configure` don't have all the necessary flags
 		// for this kind of resource
-		d.EnabledFlag = "no"
+		d.EnabledFlag = "false"
 	}
 
 	fc = &FileConfig{
@@ -328,7 +328,7 @@ func setJoinParams(g *Global, flags SampleFlags) error {
 func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
-		s.EnabledFlag = "yes"
+		s.EnabledFlag = "true"
 		s.ListenAddress = conf.SSH.Addr.Addr
 		labels, err := client.ParseLabelSpec(flags.NodeLabels)
 		if err != nil {
@@ -336,7 +336,7 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 		}
 		s.Labels = labels
 	} else {
-		s.EnabledFlag = "no"
+		s.EnabledFlag = "false"
 	}
 
 	return s, nil
@@ -347,7 +347,7 @@ func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bo
 	if enabled {
 		a.ListenAddress = conf.Auth.ListenAddr.Addr
 		a.ClusterName = ClusterName(flags.ClusterName)
-		a.EnabledFlag = "yes"
+		a.EnabledFlag = "true"
 
 		if flags.LicensePath != "" {
 			a.LicenseFile = flags.LicensePath
@@ -358,7 +358,7 @@ func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bo
 			a.ProxyListenerMode = types.ProxyListenerMode_Multiplex
 		}
 	} else {
-		a.EnabledFlag = "no"
+		a.EnabledFlag = "false"
 	}
 
 	return a
@@ -367,10 +367,10 @@ func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bo
 func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Proxy, error) {
 	var p Proxy
 	if enabled {
-		p.EnabledFlag = "yes"
+		p.EnabledFlag = "true"
 		p.ListenAddress = conf.Proxy.SSHAddr.Addr
 		if flags.ACMEEnabled {
-			p.ACME.EnabledFlag = "yes"
+			p.ACME.EnabledFlag = "true"
 			p.ACME.Email = flags.ACMEEmail
 			// ACME uses TLS-ALPN-01 challenge that requires port 443
 			// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
@@ -400,7 +400,7 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 			})
 		}
 	} else {
-		p.EnabledFlag = "no"
+		p.EnabledFlag = "false"
 	}
 
 	return p, nil
@@ -414,7 +414,7 @@ func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bo
 			return Apps{}, trace.BadParameter("please provide both --app-name and --app-uri")
 		}
 
-		apps.EnabledFlag = "yes"
+		apps.EnabledFlag = "true"
 		apps.Apps = []*App{
 			{
 				Name: flags.AppName,
