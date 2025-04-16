@@ -276,13 +276,18 @@
       "permanent": true
     },
     {
+      "source": "/enterprise/sso/",
+      "destination": "/admin-guides/access-controls/sso/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/guides/headless/",
       "destination": "/admin-guides/access-controls/guides/headless/",
       "permanent": true
     },
     {
       "source": "/application-access/okta/hosted-guide/",
-      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     },
     {
@@ -363,6 +368,51 @@
     {
       "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
       "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/admin-guides/access-controls/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-only/",
+      "destination": "/admin-guides/access-controls/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/sync-scim/",
+      "destination": "/admin-guides/access-controls/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/app-and-group-sync/",
+      "destination": "/admin-guides/access-controls/okta/app-and-group-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/guided-sso/",
+      "destination": "/admin-guides/access-controls/okta/guided-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/okta/",
+      "destination": "/admin-guides/access-controls/okta/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-integration/",
+      "destination": "/admin-guides/access-controls/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/user-sync/",
+      "destination": "/admin-guides/access-controls/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/",
+      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     }
   ]
