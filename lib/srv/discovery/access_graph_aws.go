@@ -737,7 +737,8 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time,
 			lastEventTime: regionState.GetLastEventTime().AsTime(),
 		}
 	}
-	if err = s.pollCloudTrail(ctx,
+	// disabled for now because of the performance and cost impact
+	/*if err = s.pollCloudTrail(ctx,
 		accountID,
 		resumeState.GetResumeState().GetStartDate().AsTime(),
 		resumeState.GetResumeState().GetEndDate().AsTime(),
@@ -747,7 +748,7 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time,
 		matcher,
 	); err != nil {
 		return trace.Wrap(err)
-	}
+	}*/
 
 	filePayload := make(chan payloadChannelMessage, 1)
 
