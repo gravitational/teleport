@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"os"
@@ -36,6 +37,7 @@ const (
 	serviceName        = "TeleportVNet"
 	serviceDescription = "This service manages networking and OS configuration for Teleport VNet."
 	serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
+	terminateTimeout   = 30 * time.Second
 )
 
 // runService is called from the normal user process to run the VNet Windows in
@@ -49,6 +51,7 @@ func runService(ctx context.Context, cfg *windowsAdminProcessConfig) error {
 	defer service.Close()
 	log.InfoContext(ctx, "Started Windows service", "service", service.Name)
 	ticker := time.Tick(time.Second)
+loop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -56,14 +59,32 @@ func runService(ctx context.Context, cfg *windowsAdminProcessConfig) error {
 			if _, err := service.Control(svc.Stop); err != nil {
 				return trace.Wrap(err, "sending stop request to Windows service %s", service.Name)
 			}
-			return nil
+			break loop
 		case <-ticker:
 			status, err := service.Query()
 			if err != nil {
-				return trace.Wrap(err, "querying admin service")
+				return trace.Wrap(err, "querying Windows service %s", service.Name)
 			}
 			if status.State != svc.Running && status.State != svc.StartPending {
 				return trace.Errorf("service stopped running prematurely, status: %+v", status)
+			}
+		}
+	}
+	// Wait for the service to actually stop. Add some buffer to
+	// terminateTimeout which the service also uses to terminate itself to
+	// hopefully allow it to exit on its own.
+	deadline := time.After(terminateTimeout + 5*time.Second)
+	for {
+		select {
+		case <-deadline:
+			return trace.Errorf("Windows service %s failed to stop with %v", service.Name, terminateTimeout)
+		case <-ticker:
+			status, err := service.Query()
+			if err != nil {
+				return trace.Wrap(err, "querying Windows service %s", service.Name)
+			}
+			if status.State == svc.Stopped {
+				return nil
 			}
 		}
 	}
@@ -133,6 +154,7 @@ func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeReques
 	errCh := make(chan error)
 	go func() { errCh <- s.run(ctx, args) }()
 
+	var terminateTimedOut <-chan time.Time
 loop:
 	for {
 		select {
@@ -146,9 +168,17 @@ loop:
 				status <- svc.Status{State: state, Accepts: cmdsAccepted}
 			case svc.Stop:
 				slog.InfoContext(ctx, "Received stop command, shutting down service")
+				// Cancel the context passed to s.run to terminate the
+				// networking stack.
 				cancel()
+				terminateTimedOut = cmp.Or(terminateTimedOut, time.After(terminateTimeout))
 				status <- svc.Status{State: svc.StopPending}
 			}
+		case <-terminateTimedOut:
+			slog.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
+				slog.Duration("timeout", terminateTimeout))
+			exitCode = 1
+			break loop
 		case err := <-errCh:
 			slog.ErrorContext(ctx, "Windows VNet service terminated", "error", err)
 			if err != nil {

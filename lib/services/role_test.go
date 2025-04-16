@@ -2571,12 +2571,13 @@ func TestMFAVerificationInterval(t *testing.T) {
 		{
 			name: "Single role with MFA requirement, TTL adjusted to MFA verification interval",
 			roles: []types.RoleV6{
-				{Spec: types.RoleSpecV6{
-					Options: types.RoleOptions{
-						RequireMFAType:          types.RequireMFAType_SESSION,
-						MFAVerificationInterval: 5 * time.Minute,
+				{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RequireMFAType:          types.RequireMFAType_SESSION,
+							MFAVerificationInterval: 5 * time.Minute,
+						},
 					},
-				},
 				},
 			},
 			enforce:     false,
@@ -4884,7 +4885,6 @@ func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *test
 	for _, tc := range tt {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
 		t.Run(tc.name, func(t *testing.T) {
-
 			allowedRoles := accessChecker.GetAllowedSearchAsRolesForKubeResourceKind(tc.requestType)
 			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
 		})
@@ -7048,9 +7048,6 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 		})
 	}
 	userTraits := wrappers.Traits{}
-
-	// Initialization is complete, start the benchmark timer.
-	b.ResetTimer()
 
 	// Build a map of all allowed logins.
 	allowLogins := map[string]bool{}

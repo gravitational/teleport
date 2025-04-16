@@ -20,14 +20,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
+import {
+  CanvasRenderer,
+  CanvasRendererRef,
+} from 'shared/components/CanvasRenderer';
+import { useListener } from 'shared/libs/tdp';
 
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
-import { TdpClientCanvasRef } from 'teleport/components/TdpClientCanvas/TdpClientCanvas';
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
-import { PlayerClient, TdpClientEvent } from 'teleport/lib/tdp';
-import { BitmapFrame } from 'teleport/lib/tdp/client';
-import type { ClientScreenSpec, PngFrame } from 'teleport/lib/tdp/codec';
+import { PlayerClient } from 'teleport/lib/tdp';
 import { getHostName } from 'teleport/services/api';
 
 import ProgressBar from './ProgressBar';
@@ -49,92 +50,32 @@ export const DesktopPlayer = ({
     statusText,
     time,
 
-    clientOnWsClose,
-    clientOnTdpError,
+    clientOnTransportOpen,
+    clientOnTransportClose,
+    clientOnError,
     clientOnTdpInfo,
   } = useDesktopPlayer({
     sid,
     clusterId,
   });
-  const tdpClientCanvasRef = useRef<TdpClientCanvasRef>(null);
+  const canvasRendererRef = useRef<CanvasRendererRef>(null);
 
-  useEffect(() => {
-    if (playerClient && clientOnTdpError) {
-      playerClient.on(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-      playerClient.on(TdpClientEvent.CLIENT_ERROR, clientOnTdpError);
-
-      return () => {
-        playerClient.removeListener(TdpClientEvent.TDP_ERROR, clientOnTdpError);
-        playerClient.removeListener(
-          TdpClientEvent.CLIENT_ERROR,
-          clientOnTdpError
-        );
-      };
-    }
-  }, [playerClient, clientOnTdpError]);
-
-  useEffect(() => {
-    if (playerClient && clientOnTdpInfo) {
-      playerClient.on(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-
-      return () => {
-        playerClient.removeListener(TdpClientEvent.TDP_INFO, clientOnTdpInfo);
-      };
-    }
-  }, [playerClient, clientOnTdpInfo]);
-
-  useEffect(() => {
-    if (playerClient && clientOnWsClose) {
-      playerClient.on(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-
-      return () => {
-        playerClient.removeListener(TdpClientEvent.WS_CLOSE, clientOnWsClose);
-      };
-    }
-  }, [playerClient, clientOnWsClose]);
-
-  useEffect(() => {
-    if (!playerClient) {
-      return;
-    }
-    const renderPngFrame = (frame: PngFrame) =>
-      tdpClientCanvasRef.current?.renderPngFrame(frame);
-    playerClient.addListener(TdpClientEvent.TDP_PNG_FRAME, renderPngFrame);
-
-    return () => {
-      playerClient.removeListener(TdpClientEvent.TDP_PNG_FRAME, renderPngFrame);
-    };
-  }, [playerClient]);
-
-  useEffect(() => {
-    if (!playerClient) {
-      return;
-    }
-    const renderBitmapFrame = (frame: BitmapFrame) =>
-      tdpClientCanvasRef.current?.renderBitmapFrame(frame);
-    playerClient.addListener(TdpClientEvent.TDP_BMP_FRAME, renderBitmapFrame);
-
-    return () => {
-      playerClient.removeListener(
-        TdpClientEvent.TDP_BMP_FRAME,
-        renderBitmapFrame
-      );
-    };
-  }, [playerClient]);
-
-  useEffect(() => {
-    const setResolution = (spec: ClientScreenSpec) => {
-      tdpClientCanvasRef.current?.setResolution(spec);
-    };
-    playerClient.on(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, setResolution);
-
-    return () => {
-      playerClient.removeListener(
-        TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
-        setResolution
-      );
-    };
-  }, [playerClient]);
+  useListener(playerClient?.onError, clientOnError);
+  useListener(playerClient?.onInfo, clientOnTdpInfo);
+  useListener(playerClient?.onTransportOpen, clientOnTransportOpen);
+  useListener(playerClient?.onTransportClose, clientOnTransportClose);
+  useListener(
+    playerClient?.onPngFrame,
+    canvasRendererRef.current?.renderPngFrame
+  );
+  useListener(
+    playerClient?.onBmpFrame,
+    canvasRendererRef.current?.renderBitmapFrame
+  );
+  useListener(
+    playerClient?.onScreenSpec,
+    canvasRendererRef.current?.setResolution
+  );
 
   const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
@@ -147,7 +88,7 @@ export const DesktopPlayer = ({
 
   return (
     <StyledPlayer>
-      {isError && <DesktopPlayerAlert my={4} children={statusText} />}
+      {isError && <DesktopPlayerAlert my={4}>{statusText}</DesktopPlayerAlert>}
       {isLoading && (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -155,7 +96,7 @@ export const DesktopPlayer = ({
       )}
 
       <StyledContainer>
-        <TdpClientCanvas ref={tdpClientCanvasRef} />
+        <CanvasRenderer ref={canvasRendererRef} />
 
         <ProgressBar
           min={0}
@@ -191,13 +132,17 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
   }, [clusterId, sid]);
 
-  const clientOnWsClose = useCallback(() => {
+  const clientOnTransportOpen = useCallback(() => {
+    setPlayerStatus(StatusEnum.PLAYING);
+  }, []);
+
+  const clientOnTransportClose = useCallback(() => {
     if (playerClient) {
       playerClient.cancelTimeUpdate();
     }
   }, [playerClient]);
 
-  const clientOnTdpError = useCallback((error: Error) => {
+  const clientOnError = useCallback((error: Error) => {
     setPlayerStatus(StatusEnum.ERROR);
     setStatusText(error.message || error.toString());
   }, []);
@@ -223,8 +168,9 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     playerStatus,
     statusText,
 
-    clientOnWsClose,
-    clientOnTdpError,
+    clientOnTransportOpen,
+    clientOnTransportClose,
+    clientOnError,
     clientOnTdpInfo,
   };
 };

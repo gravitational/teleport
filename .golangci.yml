@@ -122,7 +122,9 @@ linters-settings:
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
           - pkg: github.com/hashicorp/go-version
-            desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
+            desc: 'use "coreos/go-semver/semver" instead'
+          - pkg: golang.org/x/mod/semver
+            desc: 'use "coreos/go-semver/semver" instead'
           - pkg: github.com/microsoftgraph/msgraph-sdk-go
             desc: 'use "github.com/gravitational/teleport/lib/msgraph" instead'
           - pkg: github.com/cloudflare/cfssl
@@ -414,6 +416,10 @@ linters-settings:
         msg: 'Use stsutils.NewV1'
       - p: '^stscreds\.NewCredentials$'
         msg: 'Use stsutils.NewCredentials'
+      - p: '^protojson\.Unmarshal$'
+        msg: "use protojson.UnmarshalOptions and consider enabling DiscardUnknown"
+      - p: '^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$'
+        msg: "use jsonpb.Unmarshaler and consider enabling AllowUnknownFields"
 
 run:
   go: '1.24'

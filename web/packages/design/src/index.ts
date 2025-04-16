@@ -31,6 +31,7 @@ import ButtonLink from './ButtonLink';
 import { ButtonWithMenu } from './ButtonWithMenu';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
+import { CardTile } from './CardTile';
 import Flex from './Flex';
 import Image from './Image';
 import { Indicator } from './Indicator';
@@ -78,6 +79,7 @@ export {
   Card,
   CardSuccess,
   CardSuccessLogin,
+  CardTile,
   Flex,
   H1,
   H2,
@@ -112,3 +114,4 @@ export {
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';
 export { Stack } from './Flex';
+export { breakpointsPx } from './theme';

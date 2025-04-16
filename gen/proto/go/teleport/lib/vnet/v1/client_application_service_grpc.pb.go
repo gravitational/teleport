@@ -36,6 +36,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	ClientApplicationService_AuthenticateProcess_FullMethodName      = "/teleport.lib.vnet.v1.ClientApplicationService/AuthenticateProcess"
+	ClientApplicationService_ReportNetworkStackInfo_FullMethodName   = "/teleport.lib.vnet.v1.ClientApplicationService/ReportNetworkStackInfo"
 	ClientApplicationService_Ping_FullMethodName                     = "/teleport.lib.vnet.v1.ClientApplicationService/Ping"
 	ClientApplicationService_ResolveAppInfo_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ResolveAppInfo"
 	ClientApplicationService_ReissueAppCert_FullMethodName           = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueAppCert"
@@ -53,9 +54,13 @@ const (
 // the VNet admin process to facilate app queries, certificate issuance,
 // metrics, error reporting, and signatures.
 type ClientApplicationServiceClient interface {
-	// AuthenticateProcess mutually authenticates client applicates to the admin
-	// service.
+	// AuthenticateProcess is used to authenticate the client application (running
+	// this gRPC service) to the Windows service.
 	AuthenticateProcess(ctx context.Context, in *AuthenticateProcessRequest, opts ...grpc.CallOption) (*AuthenticateProcessResponse, error)
+	// ReportNetworkStackInfo should be called exactly once when the admin process
+	// connects to the ClientApplicationService, it's used to report information
+	// about the VNet networking stack to the client application.
+	ReportNetworkStackInfo(ctx context.Context, in *ReportNetworkStackInfoRequest, opts ...grpc.CallOption) (*ReportNetworkStackInfoResponse, error)
 	// Ping is used by the admin process to regularly poll that the client
 	// application is still running.
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
@@ -90,6 +95,16 @@ func (c *clientApplicationServiceClient) AuthenticateProcess(ctx context.Context
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AuthenticateProcessResponse)
 	err := c.cc.Invoke(ctx, ClientApplicationService_AuthenticateProcess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) ReportNetworkStackInfo(ctx context.Context, in *ReportNetworkStackInfoRequest, opts ...grpc.CallOption) (*ReportNetworkStackInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportNetworkStackInfoResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ReportNetworkStackInfo_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -174,9 +189,13 @@ func (c *clientApplicationServiceClient) GetTargetOSConfiguration(ctx context.Co
 // the VNet admin process to facilate app queries, certificate issuance,
 // metrics, error reporting, and signatures.
 type ClientApplicationServiceServer interface {
-	// AuthenticateProcess mutually authenticates client applicates to the admin
-	// service.
+	// AuthenticateProcess is used to authenticate the client application (running
+	// this gRPC service) to the Windows service.
 	AuthenticateProcess(context.Context, *AuthenticateProcessRequest) (*AuthenticateProcessResponse, error)
+	// ReportNetworkStackInfo should be called exactly once when the admin process
+	// connects to the ClientApplicationService, it's used to report information
+	// about the VNet networking stack to the client application.
+	ReportNetworkStackInfo(context.Context, *ReportNetworkStackInfoRequest) (*ReportNetworkStackInfoResponse, error)
 	// Ping is used by the admin process to regularly poll that the client
 	// application is still running.
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
@@ -209,6 +228,9 @@ type UnimplementedClientApplicationServiceServer struct{}
 
 func (UnimplementedClientApplicationServiceServer) AuthenticateProcess(context.Context, *AuthenticateProcessRequest) (*AuthenticateProcessResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateProcess not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) ReportNetworkStackInfo(context.Context, *ReportNetworkStackInfoRequest) (*ReportNetworkStackInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportNetworkStackInfo not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
@@ -267,6 +289,24 @@ func _ClientApplicationService_AuthenticateProcess_Handler(srv interface{}, ctx 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClientApplicationServiceServer).AuthenticateProcess(ctx, req.(*AuthenticateProcessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_ReportNetworkStackInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportNetworkStackInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).ReportNetworkStackInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_ReportNetworkStackInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).ReportNetworkStackInfo(ctx, req.(*ReportNetworkStackInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -407,6 +447,10 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AuthenticateProcess",
 			Handler:    _ClientApplicationService_AuthenticateProcess_Handler,
+		},
+		{
+			MethodName: "ReportNetworkStackInfo",
+			Handler:    _ClientApplicationService_ReportNetworkStackInfo_Handler,
 		},
 		{
 			MethodName: "Ping",

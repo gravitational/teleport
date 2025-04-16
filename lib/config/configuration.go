@@ -994,6 +994,7 @@ func applyPKCS11Config(pkcs11Config *PKCS11, cfg *servicecfg.Config) error {
 
 	cfg.Auth.KeyStore.PKCS11.TokenLabel = pkcs11Config.TokenLabel
 	cfg.Auth.KeyStore.PKCS11.SlotNumber = pkcs11Config.SlotNumber
+	cfg.Auth.KeyStore.PKCS11.MaxSessions = pkcs11Config.MaxSessions
 
 	cfg.Auth.KeyStore.PKCS11.PIN = pkcs11Config.PIN
 	if pkcs11Config.PINPath != "" {
@@ -1082,6 +1083,9 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		cfg.Proxy.PROXYProtocolMode = val
 	}
+
+	allowDowngrade := fc.Proxy.ProxyProtocolAllowDowngrade
+	cfg.Proxy.PROXYAllowDowngrade = allowDowngrade != nil && allowDowngrade.Value
 
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
@@ -1905,15 +1909,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		// Add the application to the list of proxied applications.
 		app := servicecfg.App{
-			Name:               application.Name,
-			Description:        application.Description,
-			URI:                application.URI,
-			PublicAddr:         application.PublicAddr,
-			StaticLabels:       staticLabels,
-			DynamicLabels:      dynamicLabels,
-			InsecureSkipVerify: application.InsecureSkipVerify,
-			Cloud:              application.Cloud,
-			RequiredAppNames:   application.RequiredApps,
+			Name:                  application.Name,
+			Description:           application.Description,
+			URI:                   application.URI,
+			PublicAddr:            application.PublicAddr,
+			StaticLabels:          staticLabels,
+			DynamicLabels:         dynamicLabels,
+			InsecureSkipVerify:    application.InsecureSkipVerify,
+			Cloud:                 application.Cloud,
+			RequiredAppNames:      application.RequiredApps,
+			UseAnyProxyPublicAddr: application.UseAnyProxyPublicAddr,
 		}
 
 		if application.CORS != nil {

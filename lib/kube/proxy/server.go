@@ -230,7 +230,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
-	clustername, err := cfg.AccessPoint.GetClusterName()
+	clustername, err := cfg.AccessPoint.GetClusterName(cfg.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -448,7 +448,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // GetServerInfo returns a services.Server object for heartbeats (aka
 // presence).
-func (t *TLSServer) getServerInfo(name string) (*types.KubernetesServerV3, error) {
+func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	var addr string
@@ -526,7 +526,7 @@ func (t *TLSServer) startHeartbeat(name string) error {
 	heartbeat, err := srv.NewKubernetesServerHeartbeat(srv.HeartbeatV2Config[*types.KubernetesServerV3]{
 		InventoryHandle: t.InventoryHandle,
 		Announcer:       t.TLSServerConfig.AuthClient,
-		GetResource:     func(context.Context) (*types.KubernetesServerV3, error) { return t.getServerInfo(name) },
+		GetResource:     func(context.Context) (*types.KubernetesServerV3, error) { return t.GetServerInfo(name) },
 		OnHeartbeat:     t.TLSServerConfig.OnHeartbeat,
 	})
 	if err != nil {

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -2813,38 +2814,10 @@ func (set RoleSet) CanForwardAgents() bool {
 	return false
 }
 
-// SSHPortForwardMode enumerates the possible SSH port forwarding modes available at a given time.
-type SSHPortForwardMode int
-
-const (
-	// SSHPortForwardModeOn is the default mode, both remote and local port forwarding is allowed
-	SSHPortForwardModeOn SSHPortForwardMode = iota
-	// SSHPortForwardModeOff disallows any port forwarding.
-	SSHPortForwardModeOff
-	// SSHPortForwardModeRemote allows remote port forwarding.
-	SSHPortForwardModeRemote
-	// SSHPortForwardModeLocal allows local port forwarding.
-	SSHPortForwardModeLocal
-)
-
-// String implements the Stringer interface for SSHPortForwardMode
-func (m SSHPortForwardMode) String() string {
-	switch m {
-	case SSHPortForwardModeOff:
-		return "off"
-	case SSHPortForwardModeLocal:
-		return "local"
-	case SSHPortForwardModeRemote:
-		return "remote"
-	default:
-		return "on"
-	}
-}
-
 // SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet. Port forwarding is implicitly allowed, but explicit denies take
 // precedence of explicit allows when using SSHPortForwarding. The legacy PortForwarding field prefers explicit allows for backwards
 // compatibility reasons, but is only evaluated in the absence of an SSHPortForwarding config on the same role.
-func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
+func (set RoleSet) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	var denyRemote, denyLocal, legacyDeny bool
 	legacyCanDeny := true
 
@@ -2855,7 +2828,7 @@ func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 			//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
 			if legacy := role.GetOptions().PortForwarding; legacy != nil {
 				if legacy.Value {
-					return SSHPortForwardModeOn
+					return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
 				}
 				legacyDeny = true
 			}
@@ -2885,21 +2858,21 @@ func (set RoleSet) SSHPortForwardMode() SSHPortForwardMode {
 	// enforcing implicit allow and preferring allow over explicit deny
 	switch {
 	case denyRemote && denyLocal:
-		return SSHPortForwardModeOff
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
 	case legacyDeny && legacyCanDeny:
-		return SSHPortForwardModeOff
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
 	case denyRemote:
-		return SSHPortForwardModeLocal
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL
 	case denyLocal:
-		return SSHPortForwardModeRemote
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE
 	default:
-		return SSHPortForwardModeOn
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
 	}
 }
 
 // CanPortForward returns true if the RoleSet allows both local and remote port forwarding.
 func (set RoleSet) CanPortForward() bool {
-	return set.SSHPortForwardMode() == SSHPortForwardModeOn
+	return set.SSHPortForwardMode() == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
 }
 
 // RecordDesktopSession returns true if the role set has enabled desktop

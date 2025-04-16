@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Flex, H2, Indicator } from 'design';
+import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
 import { FeatureBox } from 'teleport/components/Layout';
@@ -55,7 +55,7 @@ export function AwsOidcDashboard() {
     return null;
   }
 
-  const { awsec2, awseks, awsrds } = statsAttempt.data;
+  const { awsec2, awseks, awsrds, unresolvedUserTasks } = statsAttempt.data;
   const { data: integration } = integrationAttempt;
   return (
     <>
@@ -64,26 +64,30 @@ export function AwsOidcDashboard() {
         {integration && (
           <>
             <AwsOidcTitle integration={integration} />
-            <TaskAlert name={integration.name} />
+            <TaskAlert
+              name={integration.name}
+              pendingTasksCount={unresolvedUserTasks}
+            />
           </>
         )}
-
-        <H2 my={3}>Auto-Enrollment</H2>
         <Flex gap={3}>
           <StatCard
             name={integration.name}
+            item="instances"
             resource={AwsResource.ec2}
             summary={awsec2}
           />
           <StatCard
             name={integration.name}
-            resource={AwsResource.eks}
-            summary={awseks}
+            item="databases"
+            resource={AwsResource.rds}
+            summary={awsrds}
           />
           <StatCard
             name={integration.name}
-            resource={AwsResource.rds}
-            summary={awsrds}
+            item="clusters"
+            resource={AwsResource.eks}
+            summary={awseks}
           />
         </Flex>
       </FeatureBox>

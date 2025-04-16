@@ -114,6 +114,10 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	// Computing service configuration-related values
 	labelsList := []string{}
 	for labelKey, labelValues := range opts.Labels {
+		labelKey = shsprintf.EscapeDefaultContext(labelKey)
+		for i := range labelValues {
+			labelValues[i] = shsprintf.EscapeDefaultContext(labelValues[i])
+		}
 		labels := strings.Join(labelValues, " ")
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
@@ -130,7 +134,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	if opts.AppServiceEnabled {
 		if errs := validation.IsDNS1035Label(opts.AppName); len(errs) > 0 {
-			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", opts.AppName)
+			return "", trace.BadParameter("appName %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", opts.AppName)
 		}
 		if !appURIPattern.MatchString(opts.AppURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", opts.AppURI)
@@ -155,7 +159,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = installNodeBashScript.Execute(&buf, map[string]interface{}{
-		"token":    opts.Token,
+		"token":    shsprintf.EscapeDefaultContext(opts.Token),
 		"hostname": hostname,
 		"port":     portStr,
 		// The install.sh script has some manually generated configs and some
@@ -168,7 +172,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		"packageName":             opts.InstallOptions.TeleportFlavor,
 		"repoChannel":             repoChannel,
 		"installUpdater":          opts.InstallOptions.AutoupdateStyle.String(),
-		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion),
+		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion.String()),
 		"appInstallMode":          strconv.FormatBool(opts.AppServiceEnabled),
 		"appServerResourceLabels": appServerResourceLabels,
 		"appName":                 shsprintf.EscapeDefaultContext(opts.AppName),

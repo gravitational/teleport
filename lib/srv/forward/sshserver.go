@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -986,7 +987,7 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
 		return
-	case teleport.KeepAliveReqType:
+	case teleport.KeepAliveReqType, teleport.TerminalSizeRequest:
 	default:
 		s.logger.DebugContext(ctx, "Rejecting unknown global request", "request_type", req.Type)
 		_ = req.Reply(false, nil)
@@ -1024,7 +1025,7 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 			return err
 		}
 
-		if err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeRemote); err != nil {
+		if err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1102,7 +1103,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 
 	// RBAC checks are only necessary when connecting to an agentless node
 	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
-		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
+		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL)
 		if err != nil {
 			s.stderrWrite(ctx, ch, err.Error())
 			return
@@ -1476,7 +1477,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	}
 
 	// if SFTP was requested, check that
-	if subsystem.subsystemName == teleport.SFTPSubsystem {
+	if subsystem.Name() == teleport.SFTPSubsystem {
 		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
 		if err != nil {
 			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
@@ -1497,7 +1498,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	err = subsystem.Start(ctx, ch)
 	if err != nil {
 		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{
-			Name: subsystem.subsystemName,
+			Name: subsystem.Name(),
 			Err:  trace.Wrap(err),
 		})
 		return trace.Wrap(err)
@@ -1507,7 +1508,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	go func() {
 		err := subsystem.Wait()
 		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{
-			Name: subsystem.subsystemName,
+			Name: subsystem.Name(),
 			Err:  trace.Wrap(err),
 		})
 	}()
@@ -1594,7 +1595,7 @@ func (s *Server) stderrWrite(ctx context.Context, ch ssh.Channel, message string
 	}
 }
 
-func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (*remoteSubsystem, error) {
+func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (RemoteSubsystem, error) {
 	var r sshutils.SubsystemReq
 	err := ssh.Unmarshal(req.Payload, &r)
 	if err != nil {

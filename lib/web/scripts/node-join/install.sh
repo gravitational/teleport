@@ -58,7 +58,7 @@ JOIN_METHOD_FLAG=""
 [ -n "$JOIN_METHOD" ] && JOIN_METHOD_FLAG="--join-method ${JOIN_METHOD}"
 
 # inject labels into the configuration
-LABELS='{{.labels}}'
+LABELS="{{.labels}}"
 LABELS_FLAG=()
 [ -n "$LABELS" ] && LABELS_FLAG=(--labels "${LABELS}")
 
@@ -252,17 +252,17 @@ log_cleanup_message() {
     log_only "- remove any configuration at ${TELEPORT_CONFIG_PATH}"
     log_only "  - rm -f ${TELEPORT_CONFIG_PATH}"
     if check_exists apt; then
-        log_only "- remove teleport package"
-        log_only "  - apt remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - apt remove ${TELEPORT_PACKAGE_NAME}"
     elif check_exists yum; then
-        log_only "- remove teleport package"
-        log_only "  - yum remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - yum remove ${TELEPORT_PACKAGE_NAME}"
     elif check_exists dnf; then
-        log_only "- remove teleport package"
-        log_only "  - dnf remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - dnf remove ${TELEPORT_PACKAGE_NAME}"
     elif check_exists zypper; then
-        log_only "- remove teleport package"
-        log_only "  - zypper remove teleport"
+        log_only "- remove ${TELEPORT_PACKAGE_NAME} package"
+        log_only "  - zypper remove ${TELEPORT_PACKAGE_NAME}"
     else
         log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
         for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
@@ -479,6 +479,10 @@ app_service:
   - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
+EOF
+
+    # Quoting the EOF heredoc indicates to shell to treat this as a literal string and does not try to interpolate or execute anything.
+    cat << "EOF" >> ${TELEPORT_CONFIG_PATH}
     labels:{{range $index, $line := .appServerResourceLabels}}
       {{$line -}}
 {{end}}
@@ -513,6 +517,10 @@ proxy_service:
 db_service:
   enabled: "yes"
   resources:
+EOF
+
+    # Quoting the EOF heredoc indicates to shell to treat this as a literal string and does not try to interpolate or execute anything.
+    cat << "EOF" >> ${TELEPORT_CONFIG_PATH}
     - labels:{{range $index, $line := .db_service_resource_labels}}
         {{$line -}}
 {{end}}

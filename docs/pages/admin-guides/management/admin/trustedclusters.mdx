@@ -439,7 +439,7 @@ the following command:
    ```
 
    You can also configure leaf clusters directly in the Teleport Web UI.
-   For example, you can select **Management**, then click **Trusted Clusters** to create a
+   For example, you can select **Zero Trust Access** in the left pane, then click **Manage Clusters** to create a
    new `trusted_cluster` resource or manage an existing trusted cluster.
 
 1. Sign out of the leaf cluster and sign back in to the root cluster. 
@@ -695,7 +695,7 @@ node_labels:
 ```
 
 For full details on how variable expansion works in Teleport roles, see the
-[Teleport Access Controls
+[Access Controls
 Reference](../../../reference/access-controls/roles.mdx).
 
 ### Update role mappings
@@ -934,5 +934,4 @@ To troubleshoot, you should start by checking the following information for the 
   If you manage Teleport on your own network, the default location for audit log is 
   `/var/lib/teleport/log` on the server where the Teleport Auth Service for the cluster runs.
 
-  If you use Teleport as a managed cloud-based service, you can access the audit log from the
-  Teleport Web UI by selecting **Management**, then clicking **Audit Log** in the Activity section.
+  If you use Teleport as a managed cloud-based service, the audit log is viewable under **Audit** in the left-hand pane via the Web UI for users with permission to the `event` resources.

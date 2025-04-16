@@ -19,9 +19,12 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,6 +33,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +43,45 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestMain(m *testing.M) {
+	initTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	os.Exit(m.Run())
+}
+
+func TestWarnUmask(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		old  int
+		warn bool
+	}{
+		{old: 0o000, warn: false},
+		{old: 0o001, warn: true},
+		{old: 0o011, warn: true},
+		{old: 0o111, warn: true},
+		{old: 0o002, warn: false},
+		{old: 0o020, warn: false},
+		{old: 0o022, warn: false},
+		{old: 0o220, warn: true},
+		{old: 0o200, warn: true},
+		{old: 0o222, warn: true},
+		{old: 0o333, warn: true},
+		{old: 0o444, warn: true},
+		{old: 0o555, warn: true},
+		{old: 0o666, warn: true},
+		{old: 0o777, warn: true},
+	} {
+		t.Run(fmt.Sprintf("old umask %o", tt.old), func(t *testing.T) {
+			ctx := context.Background()
+			out := &bytes.Buffer{}
+			warnUmask(ctx, slog.New(slog.NewTextHandler(out,
+				&slog.HandlerOptions{ReplaceAttr: msgOnly},
+			)), tt.old)
+			assert.Equal(t, tt.warn, strings.Contains(out.String(), "detected"))
+		})
+	}
+}
 
 func TestUpdater_Disable(t *testing.T) {
 	t.Parallel()
@@ -417,6 +460,7 @@ func TestUpdater_Update(t *testing.T) {
 
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
+			requestGroup:      "default",
 			errMatch:          "install error",
 		},
 		{
@@ -433,7 +477,8 @@ func TestUpdater_Update(t *testing.T) {
 					Active: NewRevision("16.3.0", 0),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "version already installed outside of window",
@@ -449,6 +494,7 @@ func TestUpdater_Update(t *testing.T) {
 					Active: NewRevision("16.3.0", 0),
 				},
 			},
+			requestGroup: "default",
 		},
 		{
 			name: "version detects as linked",
@@ -467,6 +513,7 @@ func TestUpdater_Update(t *testing.T) {
 			linkedRevisions: []Revision{NewRevision("16.3.0", 0)},
 			inWindow:        true,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -493,6 +540,7 @@ func TestUpdater_Update(t *testing.T) {
 			},
 			inWindow: true,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -521,6 +569,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow:        true,
 			linkedRevisions: []Revision{NewRevision("backup-version", 0)},
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -545,7 +594,8 @@ func TestUpdater_Update(t *testing.T) {
 					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "config does not exist",
@@ -568,6 +618,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			flags:    autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
@@ -601,6 +652,7 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			setupErr: errors.New("setup error"),
 
+			requestGroup:      "default",
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  "https://example.com",
 			linkedRevision:    NewRevision("16.3.0", 0),
@@ -630,10 +682,11 @@ func TestUpdater_Update(t *testing.T) {
 			inWindow: true,
 			agpl:     true,
 
-			reloadCalls: 0,
-			revertCalls: 0,
-			setupCalls:  0,
-			errMatch:    "AGPL",
+			requestGroup: "default",
+			reloadCalls:  0,
+			revertCalls:  0,
+			setupCalls:   0,
+			errMatch:     "AGPL",
 		},
 		{
 			name: "skip version",
@@ -651,7 +704,8 @@ func TestUpdater_Update(t *testing.T) {
 					Skip:   toPtr(NewRevision("16.3.0", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 		{
 			name: "pinned version",
@@ -669,7 +723,8 @@ func TestUpdater_Update(t *testing.T) {
 					Backup: toPtr(NewRevision("backup-version", 0)),
 				},
 			},
-			inWindow: true,
+			inWindow:     true,
+			requestGroup: "default",
 		},
 	}
 
@@ -701,6 +756,7 @@ func TestUpdater_Update(t *testing.T) {
 			ns := &Namespace{
 				installDir:     dir,
 				defaultPathDir: "ignored",
+				updaterIDFile:  "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -1013,14 +1069,15 @@ func TestUpdater_Remove(t *testing.T) {
 	const version = "active-version"
 
 	tests := []struct {
-		name           string
-		cfg            *UpdateConfig // nil -> file not present
-		linkSystemErr  error
-		isEnabledErr   error
-		syncErr        error
-		reloadErr      error
-		processEnabled bool
-		force          bool
+		name          string
+		cfg           *UpdateConfig // nil -> file not present
+		linkSystemErr error
+		isActiveErr   error
+		syncErr       error
+		reloadErr     error
+		processActive bool
+		force         bool
+		serviceName   string
 
 		unlinkedVersion string
 		teardownCalls   int
@@ -1056,7 +1113,7 @@ func TestUpdater_Remove(t *testing.T) {
 			force:           true,
 		},
 		{
-			name: "no system links, process enabled, force",
+			name: "no system links, process active, force",
 			cfg: &UpdateConfig{
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
@@ -1069,7 +1126,7 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			processEnabled:  true,
+			processActive:   true,
 			force:           true,
 			errMatch:        "refusing to remove",
 		},
@@ -1121,7 +1178,54 @@ func TestUpdater_Remove(t *testing.T) {
 			},
 			linkSystemErr:   ErrNoBinaries,
 			linkSystemCalls: 1,
-			isEnabledErr:    ErrNotSupported,
+			isActiveErr:     ErrNotSupported,
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			unlinkedVersion: version,
+			teardownCalls:   1,
+			force:           true,
+		},
+		{
+			name: "no system links, process disabled, custom path, no force",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			errMatch: "unable to remove",
+		},
+		{
+			name: "no system links, process disabled, custom path, no force, custom service",
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
+					Path: "custom",
+				},
+				Status: UpdateStatus{
+					Active: NewRevision(version, 0),
+				},
+			},
+			serviceName:     "custom",
 			unlinkedVersion: version,
 			teardownCalls:   1,
 			force:           true,
@@ -1231,6 +1335,10 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
+			updater.TeleportServiceName = serviceName
+			if tt.serviceName != "" {
+				updater.TeleportServiceName = tt.serviceName
+			}
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
@@ -1270,11 +1378,8 @@ func TestUpdater_Remove(t *testing.T) {
 					reloadCalls++
 					return tt.reloadErr
 				},
-				FuncIsEnabled: func(_ context.Context) (bool, error) {
-					return tt.processEnabled, tt.isEnabledErr
-				},
 				FuncIsActive: func(_ context.Context) (bool, error) {
-					return false, nil
+					return tt.processActive, tt.isActiveErr
 				},
 			}
 			updater.TeardownNamespace = func(_ context.Context) error {
@@ -1393,6 +1498,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1410,6 +1516,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1435,6 +1542,7 @@ func TestUpdater_Install(t *testing.T) {
 
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
+			requestGroup:      "default",
 			errMatch:          "install error",
 		},
 		{
@@ -1443,8 +1551,9 @@ func TestUpdater_Install(t *testing.T) {
 				Version: updateConfigVersion,
 				Kind:    updateConfigKind,
 			},
-			agpl:     true,
-			errMatch: "AGPL",
+			agpl:         true,
+			requestGroup: "default",
+			errMatch:     "AGPL",
 		},
 		{
 			name: "version already installed",
@@ -1459,6 +1568,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         false,
 		},
@@ -1477,6 +1587,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
 			removedRevision:   NewRevision("backup-version", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1494,6 +1605,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 		},
 		{
@@ -1502,6 +1614,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1511,6 +1624,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", autoupdate.FlagEnterprise|autoupdate.FlagFIPS),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1526,6 +1640,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			revertCalls:       1,
 			setupCalls:        1,
 			reloadCalls:       1,
@@ -1546,6 +1661,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			revertCalls:       1,
 			setupCalls:        1,
 			errMatch:          "setup error",
@@ -1557,6 +1673,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1568,6 +1685,7 @@ func TestUpdater_Install(t *testing.T) {
 			installedRevision: NewRevision("16.3.0", 0),
 			installedBaseURL:  autoupdate.DefaultBaseURL,
 			linkedRevision:    NewRevision("16.3.0", 0),
+			requestGroup:      "default",
 			setupCalls:        1,
 			restarted:         true,
 		},
@@ -1580,6 +1698,7 @@ func TestUpdater_Install(t *testing.T) {
 				installDir:       dir,
 				defaultPathDir:   defaultPathDir,
 				defaultProxyAddr: "default-proxy",
+				updaterIDFile:    "updater-id-file",
 			}
 			_, err := ns.Init()
 			require.NoError(t, err)
@@ -1622,6 +1741,7 @@ func TestUpdater_Install(t *testing.T) {
 			if tt.userCfg.Proxy == "" {
 				tt.userCfg.Proxy = strings.TrimPrefix(server.URL, "https://")
 			}
+			updater.DefaultProxyAddr = tt.userCfg.Proxy
 
 			var (
 				installedRevision Revision
@@ -1880,6 +2000,103 @@ func TestUpdater_Setup(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errMatch)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestFindDBPID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		existingID  string
+		systemID    string
+		namespaceID string
+		persist     bool
+
+		result   string
+		resFile  string
+		errMatch string
+	}{
+		{
+			name:     "no ids",
+			errMatch: "empty",
+		},
+		{
+			name:        "both ids",
+			systemID:    "test1",
+			namespaceID: "test2",
+			result:      "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+		},
+		{
+			name:     "systemID",
+			systemID: "test1",
+			result:   "6abf58ef-f6cc-55ae-91e2-376af6b0ba90",
+		},
+		{
+			name:        "systemID matching namespaceID",
+			namespaceID: "test1",
+			result:      "35321002-ed1c-51e3-a3b3-cbf0f0bc2d88",
+		},
+		{
+			name:        "namespaceID",
+			namespaceID: "test2",
+			result:      "906a648e-038b-576a-893e-d6b32a9d8aee",
+		},
+		{
+			name:     "namespaceID matching systemID",
+			systemID: "test2",
+			result:   "42929c01-bcc8-5a49-af36-e5f21344d5f5",
+		},
+		{
+			name:        "existing file not replaced",
+			existingID:  "existing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			result:      "existing",
+			resFile:     "existing",
+		},
+		{
+			name:        "existing file not replaced on persist",
+			existingID:  "existing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			persist:     true,
+			result:      "existing",
+			resFile:     "existing",
+		},
+		{
+			name:        "persisted when missing",
+			systemID:    "test1",
+			namespaceID: "test2",
+			persist:     true,
+			result:      "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+			resFile:     "2c652f3c-ae11-5e5a-ba40-73cba91149cd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := filepath.Join(t.TempDir(), "existing")
+			if tt.existingID != "" {
+				err := os.WriteFile(existing, []byte(tt.existingID), os.ModePerm)
+				require.NoError(t, err)
+			}
+			s, err := FindDBPID(existing, []byte(tt.systemID), []byte(tt.namespaceID), tt.persist)
+			if tt.errMatch != "" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.result, s)
+
+			if tt.resFile != "" {
+				b, err := os.ReadFile(existing)
+				require.NoError(t, err)
+				require.Equal(t, tt.resFile, string(b))
+			} else {
+				require.NoFileExists(t, existing)
 			}
 		})
 	}

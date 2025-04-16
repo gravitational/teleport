@@ -41,6 +41,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	apiproto "github.com/gravitational/teleport/api/client/proto"
@@ -55,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -71,7 +73,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
+func newTestTLSServer(t testing.TB, opts ...auth.TestTLSServerOption) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
@@ -79,9 +81,10 @@ func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecord
 	require.NoError(t, err)
 
 	emitter := &eventstest.MockRecorderEmitter{}
-	srv, err := as.NewTestTLSServer(func(config *auth.TestTLSServerConfig) {
+	opts = append(opts, func(config *auth.TestTLSServerConfig) {
 		config.APIConfig.Emitter = emitter
 	})
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -464,6 +467,51 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	extraClaimTemplates, err := structpb.NewStruct(map[string]any{
+		"user_name": "{{user.name}}",
+		"k8s": map[string]any{
+			"names": []any{"{{workload.kubernetes.pod_name}}"},
+		},
+	})
+	require.NoError(t, err)
+
+	extraClaims, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "extra-claims",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+				Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
+					ExtraClaims: extraClaimTemplates,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	modifiedMaxTTL, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "max-ttl-modified",
+		},
+		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				Id: "/foo",
+				X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
+					MaximumTtl: durationpb.New(time.Hour * 30),
+				},
+				Jwt: &workloadidentityv1pb.WorkloadIdentitySPIFFEJWT{
+					MaximumTtl: durationpb.New(time.Minute * 15),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	workloadAttrs := func(f func(attrs *workloadidentityv1pb.WorkloadAttrs)) *workloadidentityv1pb.WorkloadAttrs {
 		attrs := &workloadidentityv1pb.WorkloadAttrs{
 			Kubernetes: &workloadidentityv1pb.WorkloadAttrsKubernetes{
@@ -495,6 +543,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						Audiences: []string{"example.com", "test.example.com"},
 					},
 				},
+				RequestedTtl:  durationpb.New(time.Minute * 14),
 				WorkloadAttrs: workloadAttrs(nil),
 			},
 			requireErr: require.NoError,
@@ -502,7 +551,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				cred := res.Credential
 				require.NotNil(t, res.Credential)
 
-				wantTTL := time.Hour
+				wantTTL := time.Minute * 14
 				wantSPIFFEID := "spiffe://localhost/example/dog/default/bar"
 				require.Empty(t, cmp.Diff(
 					cred,
@@ -571,8 +620,38 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"JTI",
+						"Attributes",
 					),
 				))
+			},
+		},
+		{
+			name:   "jwt svid - extra claims",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: extraClaims.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com"},
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt())
+				require.NoError(t, err)
+
+				var claims struct {
+					UserName string `json:"user_name"`
+					K8s      struct {
+						Names []string `json:"names"`
+					} `json:"k8s"`
+				}
+				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
+				require.NoError(t, err)
+				require.Equal(t, "dog", claims.UserName)
+				require.Equal(t, []string{"test"}, claims.K8s.Names)
 			},
 		},
 		{
@@ -586,6 +665,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					},
 				},
 				WorkloadAttrs: workloadAttrs(nil),
+				RequestedTtl:  durationpb.New(time.Hour * 2),
 			},
 			requireErr: require.NoError,
 			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
@@ -593,7 +673,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.NotNil(t, res.Credential)
 
 				wantSPIFFEID := "spiffe://localhost/example/dog/default/bar"
-				wantTTL := time.Hour
+				wantTTL := time.Hour * 2
 				require.Empty(t, cmp.Diff(
 					cred,
 					&workloadidentityv1pb.Credential{
@@ -686,6 +766,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
+						"Attributes",
 					),
 				))
 			},
@@ -799,8 +880,192 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						events.SPIFFESVIDIssued{},
 						"ConnectionMetadata",
 						"SerialNumber",
+						"Attributes",
 					),
 				))
+			},
+		},
+		{
+			name:   "x509 svid - ttl limited by default max",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: subjectTemplate.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				RequestedTtl:  durationpb.New(time.Hour * 32),
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				cred := res.Credential
+				require.NotNil(t, res.Credential)
+				wantTTL := time.Hour * 24
+				// Check expiry makes sense
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				// Check the X509
+				cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
+				require.NoError(t, err)
+				// Check cert expiry
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
+				// Check cert nbf
+				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
+				// Check cert TTL
+				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
+			},
+		},
+		{
+			name:   "x509 svid - unspecified ttl",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: subjectTemplate.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				cred := res.Credential
+				require.NotNil(t, res.Credential)
+				wantTTL := time.Hour
+				// Check expiry makes sense
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				// Check the X509
+				cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
+				require.NoError(t, err)
+				// Check cert expiry
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
+				// Check cert nbf
+				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
+				// Check cert TTL
+				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
+			},
+		},
+		{
+			name:   "x509 svid - ttl limited by configured limit",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: modifiedMaxTTL.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				RequestedTtl:  durationpb.New(time.Hour * 32),
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				cred := res.Credential
+				require.NotNil(t, res.Credential)
+				wantTTL := time.Hour * 30
+				// Check expiry makes sense
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				// Check the X509
+				cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
+				require.NoError(t, err)
+				// Check cert expiry
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
+				// Check cert nbf
+				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
+				// Check cert TTL
+				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
+			},
+		},
+		{
+			name:   "x509 svid - ok ttl between default and configured limit",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: modifiedMaxTTL.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				RequestedTtl:  durationpb.New(time.Hour * 28),
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				cred := res.Credential
+				require.NotNil(t, res.Credential)
+				wantTTL := time.Hour * 28
+				// Check expiry makes sense
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				// Check the X509
+				cert, err := x509.ParseCertificate(cred.GetX509Svid().GetCert())
+				require.NoError(t, err)
+				// Check cert expiry
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cert.NotAfter, time.Second)
+				// Check cert nbf
+				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
+				// Check cert TTL
+				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
+			},
+		},
+		{
+			name:   "jwt svid ttl exceeds max default",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: full.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com", "test.example.com"},
+					},
+				},
+				RequestedTtl:  durationpb.New(time.Hour * 30),
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				cred := res.Credential
+				require.NotNil(t, res.Credential)
+
+				wantTTL := time.Hour * 24
+				// Check expiry makes sense
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
+				require.NoError(t, err)
+				claims := jwt.Claims{}
+				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
+				require.NoError(t, err)
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), claims.Expiry.Time(), 5*time.Second)
+				require.WithinDuration(t, tp.clock.Now(), claims.IssuedAt.Time(), 5*time.Second)
+			},
+		},
+		{
+			name:   "jwt svid ttl exceeds configured default",
+			client: wilcardAccessClient,
+			req: &workloadidentityv1pb.IssueWorkloadIdentityRequest{
+				Name: modifiedMaxTTL.GetMetadata().GetName(),
+				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams{
+					JwtSvidParams: &workloadidentityv1pb.JWTSVIDParams{
+						Audiences: []string{"example.com", "test.example.com"},
+					},
+				},
+				RequestedTtl:  durationpb.New(time.Hour * 14),
+				WorkloadAttrs: workloadAttrs(nil),
+			},
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				cred := res.Credential
+				require.NotNil(t, res.Credential)
+
+				wantTTL := time.Minute * 15
+				// Check expiry makes sense
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), cred.GetExpiresAt().AsTime(), time.Second)
+				parsed, err := jwt.ParseSigned(cred.GetJwtSvid().GetJwt())
+				require.NoError(t, err)
+				claims := jwt.Claims{}
+				err = parsed.Claims(tp.spiffeJWTSigner.Public(), &claims)
+				require.NoError(t, err)
+				require.WithinDuration(t, tp.clock.Now().Add(wantTTL), claims.Expiry.Time(), 5*time.Second)
+				require.WithinDuration(t, tp.clock.Now(), claims.IssuedAt.Time(), 5*time.Second)
 			},
 		},
 		{
@@ -3000,9 +3265,15 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 
 func TestRevocationService_CRL(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestTLSServer(t)
+	revocationsEventCh := make(chan struct{})
+	fakeClock := clockwork.NewFakeClock()
+	srv, _ := newTestTLSServer(t, func(config *auth.TestTLSServerConfig) {
+		config.APIConfig.MutateRevocationsServiceConfig = func(config *workloadidentityv1.RevocationServiceConfig) {
+			config.RevocationsEventProcessedCh = revocationsEventCh
+			config.Clock = fakeClock
+		}
+	})
 	ctx := context.Background()
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
 
 	authorizedUser, _, err := auth.CreateUserAndRole(
 		srv.Auth(),
@@ -3082,6 +3353,12 @@ func TestRevocationService_CRL(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
+		}
 	}
 	deleteRevocation := func(t *testing.T, name string) {
 		_, err = revocationsClient.DeleteWorkloadIdentityX509Revocation(
@@ -3091,6 +3368,12 @@ func TestRevocationService_CRL(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
+		}
 	}
 
 	// Fetch the initial, empty, CRL

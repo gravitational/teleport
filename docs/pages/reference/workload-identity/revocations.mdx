@@ -1,0 +1,91 @@
+---
+title: Workload Identity Revocations
+description: Information about performing revocations for issued workload identity credentials
+---
+
+The revocations mechanism provides a way to mark an issued X509 workload
+identity credential as revoked - indicating to workloads that this credential
+should no longer be considered valid.
+
+Typically, the short-lived nature of the X509 SVIDs issued by Teleport Workload
+Identity means that revocations are not required. However, in some cases, you
+may still desire to revoke an issued credential prior to its expiry.
+
+When an X509 SVID is revoked, a signed Certificate Revocation List will be
+distributed to workloads via the Workload API or via a `svid-crl.pem` file
+written to a `workload-identity-x509` output.
+
+Workloads and third party services must have explicit support for CRLs to
+support them. Support for this functionality can be limited in some
+environments, so it is recommended to audit the support for CRLs prior to
+leveraging this feature.
+
+## Using `tctl` to revoke an X509 SVID
+
+Before revoking an X509 SVID, you must have the serial number of the X509 SVID
+that you wish to revoke. This can be determined via the Teleport audit log.
+
+When creating a revocation, you will also need to provide a reason for the
+revocation. This is a free-form string that can be used to provide additional
+context for the revocation.
+
+Use `tctl workload-identity revocations add` to create a new revocation:
+
+```code
+$ tctl workload-identity revocations add --type x509 --serial aabbcc11 --reason compromised
+```
+
+## Using `tctl` to list revocations
+
+You can list the currently revoked X509 SVIDs using the `tctl workload-identity
+revocations ls` command:
+
+```code
+$ tctl workload-identity revocations ls
+Type Serial   Revoked At           Expires At                        Reason
+---- -------- -------------------- --------------------------------- -------
+x509 aabbcc11 2025-02-20T11:44:13Z 2025-02-27T11:44:13Z (34m21s)     example
+```
+
+## Using `tctl` to remove a revocation
+
+You can remove an existing revocation using the `tctl workload-identity
+revocations rm` command:
+
+```code
+$ tctl workload-identity revocations rm --type x509 --serial aabbcc11
+```
+
+However, typically it is preferred to issue a new X509 SVID rather than
+remove a revocation. This is because validators may cache revocations and this
+may mean that the removal of the revocation will not be immediately effective.
+
+## Using `tctl` to fetch the signed CRL
+
+If you need to export the signed CRL to import it to a third-party service
+(e.g. AWS Roles Anywhere), then you can use the
+`tctl workload-identity revocations crl` command:
+
+```code
+$ tctl workload-identity revocations crl
+2025-02-27T10:54:02.526Z INFO  Received CRL from server common/workload_identity_command.go:435
+-----BEGIN X509 CRL-----
+MIIChjCCAW4CAQEwDQYJKoZIhvcNAQELBQAwajEaMBgGA1UEChMRbGVhZi50ZWxl
+Lm90dHIuc2gxGjAYBgNVBAMTEWxlYWYudGVsZS5vdHRyLnNoMTAwLgYDVQQFEycz
+MjkxOTYyMDc1Mjg4MDE2Nzg5Nzk4NTgyNDM3NjY0NjM3MTMxNjgYDzAwMDEwMTAx
+MDAwMDAwWjCBqDAWAgUAqrvM7hcNMjUwMjIwMTE0MTM1WjAWAgUAqrvM/xcNMjUw
+MjIwMTE0MzUyWjAWAgUAqrvMERcNMjUwMjIwMTE0NDEzWjAWAgUAqrvMIhcNMjUw
+MjIwMTE0NjAxWjAWAgUAqrvMRBcNMjUwMjIxMTQ1OTA0WjAWAgUAqrvMZhcNMjUw
+MjI1MTEwNzQ3WjAWAgUAqrvM3RcNMjUwMjIwMTEzOTM0WqAyMDAwHwYDVR0jBBgw
+FoAUS90sNZrJbUnpDq144QcC1Ifqvi8wDQYDVR0UBAYCBGfARCwwDQYJKoZIhvcN
+AQELBQADggEBABPjnKBtXLq/gA79zSXJlN4ownSJsedEXhrM/04Cxn+VrzVInnIR
+TttBD/uTrjJnLzvLTdD7z9SrrM3hNsPkR4zoSy9io7u/G08jK3+IBoXzDcf32ca8
+9z6xomSC1mo5q3ijMqDj7xZC1i6RcQbNtzXc5+aD3Hd3MgmFf7K9IvwmCX7kugD7
+6N8zUDMKJPgHttuvl1oYoY2k+jvp3Lu5wjTcLWEuqZOWHImY9ZYx3fmXNjgjnDfx
+tFJEdB/d5SoDzpGXC394eeRmFml77+L0XfZmbmcXE00sRBi0Xr5MAa1PGjw/wS9a
+4QIDGaj2VG6k+CY1GIeBW0qTwuRt4qvW8Nk=
+-----END X509 CRL-----
+```
+
+To directly write this to a file, you can provide the `--out` flag and a path
+to which to write the file.

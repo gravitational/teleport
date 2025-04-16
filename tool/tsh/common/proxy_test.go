@@ -250,17 +250,30 @@ func TestWithRsync(t *testing.T) {
 	_, err := exec.LookPath("rsync")
 	require.NoError(t, err)
 
-	s := newTestSuite(t)
+	accessUser, err := types.NewUser("access")
+	require.NoError(t, err)
+	accessUser.SetRoles([]string{"access"})
 
-	// login and get host info
-	tshHome, _ := mustLoginLegacy(t, s)
+	user, err := user.Current()
+	require.NoError(t, err)
+	accessUser.SetLogins([]string{user.Username})
+
+	connector := mockConnector(t)
+	serverOpts := []testserver.TestServerOptFunc{
+		testserver.WithBootstrap(connector, accessUser),
+		testserver.WithHostname("node01"),
+		testserver.WithClusterName(t, "root"),
+	}
+
+	process := testserver.MakeTestServer(t, serverOpts...)
+	tshHome, _ := mustLogin(t, process, accessUser, connector.GetName())
 
 	testBin, err := os.Executable()
 	require.NoError(t, err)
 
-	host, port, err := net.SplitHostPort(s.root.Config.SSH.Addr.String())
+	host, port, err := net.SplitHostPort(process.Config.SSH.Addr.String())
 	require.NoError(t, err)
-	proxyAddr, err := s.root.ProxyWebAddr()
+	proxyAddr, err := process.ProxyWebAddr()
 	require.NoError(t, err)
 
 	var mockHeadlessAddr string
@@ -298,7 +311,7 @@ func TestWithRsync(t *testing.T) {
 			name: "with headless tsh",
 			setup: func(t *testing.T, dir string) {
 				// setup webauthn for headless auth
-				asrv := s.root.GetAuthServer()
+				asrv := process.GetAuthServer()
 				ctx := context.Background()
 
 				_, err = asrv.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
@@ -323,7 +336,7 @@ func TestWithRsync(t *testing.T) {
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
-					Name: s.user.GetName(),
+					Name: accessUser.GetName(),
 				})
 				require.NoError(t, err)
 				tokenID := token.GetName()
@@ -377,14 +390,14 @@ func TestWithRsync(t *testing.T) {
 					require.NoError(t, err)
 
 					// generate certificates for our user
-					clusterName, err := asrv.GetClusterName()
+					clusterName, err := asrv.GetClusterName(ctx)
 					if !assert.NoError(t, err) {
 						return
 					}
 					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
 						SSHPubKey:      sshPubKey,
 						TLSPubKey:      tlsPubKey,
-						Username:       s.user.GetName(),
+						Username:       accessUser.GetName(),
 						TTL:            time.Hour,
 						Compatibility:  constants.CertificateFormatStandard,
 						RouteToCluster: clusterName.GetClusterName(),
@@ -406,7 +419,7 @@ func TestWithRsync(t *testing.T) {
 
 					// send login response to the client
 					resp := authclient.SSHLoginResponse{
-						Username:    s.user.GetName(),
+						Username:    accessUser.GetName(),
 						Cert:        sshCert,
 						TLSCert:     tlsCert,
 						HostSigners: authclient.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
@@ -427,7 +440,7 @@ func TestWithRsync(t *testing.T) {
 					"rsync",
 					// ensure headless tsh will be used to authenticate
 					"-e",
-					fmt.Sprintf("%s ssh -d --insecure --headless --proxy=%s --user=%s", testBin, proxyAddr, s.user.GetName()),
+					fmt.Sprintf("%s ssh -d --insecure --headless --proxy=%s --user=%s", testBin, proxyAddr, accessUser.GetName()),
 					src,
 					fmt.Sprintf("%s:%s", host, dst),
 				)
@@ -1356,17 +1369,6 @@ func TestPrintProxyAWSTemplate(t *testing.T) {
 			},
 		},
 		{
-			name: "endpoint URL mode",
-			inputCLIConf: &CLIConf{
-				Format:             envVarDefaultFormat(),
-				AWSEndpointURLMode: true,
-			},
-			inputAWSApp: fakeAWSAppInfo{},
-			wantSnippets: []string{
-				"AWS endpoint URL at https://127.0.0.1:12345",
-			},
-		},
-		{
 			name: "athena-odbc",
 			inputCLIConf: &CLIConf{
 				Format: awsProxyFormatAthenaODBC,
@@ -1422,12 +1424,12 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "default format is supported in endpoint URL mode",
+			name: "endpoint URL mode is not supported",
 			input: &CLIConf{
 				Format:             envVarDefaultFormat(),
 				AWSEndpointURLMode: true,
 			},
-			checkError: require.NoError,
+			checkError: require.Error,
 		},
 		{
 			name: "athena-odbc is supported in HTTPS_PROXY mode",
@@ -1437,27 +1439,11 @@ func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
 			checkError: require.NoError,
 		},
 		{
-			name: "athena-odbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaODBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
-		},
-		{
 			name: "athena-jdbc is supported in HTTPS_PROXY mode",
 			input: &CLIConf{
 				Format: awsProxyFormatAthenaJDBC,
 			},
 			checkError: require.NoError,
-		},
-		{
-			name: "athena-jdbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaJDBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
 		},
 	}
 
@@ -1532,7 +1518,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	privateKey, err := keys.NewPrivateKey(key)
 	require.NoError(t, err)
 	// Identity files only support a single key for SSH/TLS
 	keyRing := client.NewKeyRing(privateKey, privateKey)

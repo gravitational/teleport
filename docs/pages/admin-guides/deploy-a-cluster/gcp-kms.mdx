@@ -39,7 +39,7 @@ learn more.
 
 Each Teleport Auth Service instance will need to be configured to use a GCP key
 ring which will hold all keys generated and used by that Auth Service instance.
-If running a High-Availability Teleport cluster with two or more Auth Servers,
+If running a High-Availability Teleport cluster with two or more Auth Service instances,
 every Auth Service instance can be configured to use the same key ring, or if
 desired each can be configured to use a unique key ring in a different region
 (for redundancy or to decrease latency).
@@ -48,7 +48,7 @@ It is recommended to create a dedicated key ring for use by Teleport to logicall
 separate it from any other keys in your cloud account.
 Choose a supported
 [KMS location](https://cloud.google.com/kms/docs/locations)
-for the key ring which is geographically near to your Teleport Auth Servers.
+for the key ring which is geographically near to your Teleport Auth Service instances.
 
 You can create a key ring from the Google Cloud Console or from the `gcloud` CLI
 tool. Follow
@@ -100,8 +100,8 @@ service account.
 
 ```code
 $ gcloud iam service-accounts create teleport-auth-server \
-    --description="Service account for Teleport Auth Server" \
-    --display-name="Teleport Auth Server" \
+    --description="Service account for Teleport Auth Service" \
+    --display-name="Teleport Auth Service" \
     --format=yaml
 ```
 
@@ -142,7 +142,8 @@ See the GCP docs for
 [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
 to learn how to provide them for your preferred environment.
 
-<Details title="Manually checking permissions">
+<details>
+<summary>Manually checking permissions</summary>
 
 To make sure the credentials have been configured correctly, you can run the
 `gcloud` CLI tool from your Teleport Auth Service's environment. Some example
@@ -165,7 +166,7 @@ $ gcloud kms asymmetric-sign --keyring "<Var name="teleport-keyring"/>" --locati
 $ gcloud kms keys versions destroy --keyring "<Var name="teleport-keyring"/>" --location <Var name="location"/> --key "test-key" 1
 ```
 
-</Details>
+</details>
 
 ## Step 4/5. Configure the Auth Service to use KMS keys
 
@@ -180,7 +181,8 @@ in the GCP Console or by running:
 $ gcloud kms keyrings list --location <Var name="location"/>
 ```
 
-<Details title="Choosing a protection level">
+<details>
+<summary>Choosing a protection level</summary>
 
 Supported KMS protection levels are `SOFTWARE` and `HSM`.
 If you choose `SOFTWARE`, GCP KMS will performs all cryptographic operations in
@@ -202,7 +204,7 @@ If your cluster will have many thousands of hosts or active users, the higher
 quota software keys have may help to avoid any potential throttling, especially
 during CA rotations where many new certificates must be signed.
 
-</Details>
+</details>
 
 Include the following `ca_key_params` configuration in the `auth_service` section.
 

@@ -140,6 +140,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |allow|[][object](#specgitlaballow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
 |domain|string|Domain is the domain of your GitLab instance. This will default to `gitlab.com` - but can be set to the domain of your self-hosted GitLab e.g `gitlab.example.com`.|
+|static_jwks|string|StaticJWKS disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitLab CI instances that are not reachable by the Teleport Auth Service.|
 
 ### spec.gitlab.allow items
 

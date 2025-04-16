@@ -16,22 +16,45 @@ limitations under the License.
 
 package common
 
-import "regexp"
+// IsValidLabelKey checks if the supplied string is a valid label key.
+func IsValidLabelKey(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for _, b := range []byte(s) {
+		if !isValidLabelKeyByte(b) {
+			return false
+		}
+	}
+	return true
+}
 
-// LabelPattern is a regexp that describes a valid label key. In this case,
-// valid label keys can consist of alphanumeric characters, forward slashes,
+// isValidLabelKeyByte checks if the byte is a valid character for a label key.
+// Valid label keys can consist of alphanumeric characters, forward slashes,
 // periods, underscores, colons, stars, and dashes. Some valid label examples:
 //
 // label
 // teleport.dev/fine-grained-access
 // teleport.dev/managed:internal_access
 // all-objects*
-const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
+func isValidLabelKeyByte(b byte) bool {
+	switch b {
+	case
+		// Digits
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 
-var validLabelKey = regexp.MustCompile(LabelPattern)
+		// Lowercase letters
+		'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+		'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
-func IsValidLabelKey(s string) bool {
-	return validLabelKey.MatchString(s)
+		// Uppercase letters
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+
+		// Allowed symbols
+		'/', '.', '_', ':', '*', '-':
+		return true
+	default:
+		return false
+	}
 }

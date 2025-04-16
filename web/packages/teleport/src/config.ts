@@ -164,6 +164,7 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
+    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -186,7 +187,7 @@ const cfg = {
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
-    kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
     dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
     dbSession: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
@@ -277,6 +278,10 @@ const cfg = {
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+
+    databaseServer: {
+      list: `/v1/webapi/sites/:clusterId/databaseservers?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -942,6 +947,13 @@ const cfg = {
     });
   },
 
+  getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.databaseServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getYamlParseUrl(kind: YamlSupportedResourceKind) {
     return generatePath(cfg.api.yaml.parse, { kind });
   },
@@ -1456,6 +1468,8 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+  sid?: string;
+  mode?: ParticipantMode;
 }
 
 export interface UrlDbConnectParams {

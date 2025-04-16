@@ -52,9 +52,7 @@ scope for server access, reduce the blast radius if one pipeline is
 compromised, and allow you to remotely audit and lock pipelines if you detect
 malicious behavior.
 
-<Figure align="left" bordered caption="Jenkins Deployments">
   ![Jenkins Deployments](../../../../img/machine-id/jenkins.png)
-</Figure>
 
 ## Step 1/2 Configure and start Machine ID
 
@@ -87,7 +85,7 @@ $ tctl bots add jenkins --roles=api-workers
 ```
 </TabItem>
 <TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
+Connect to the Teleport Auth Service and use `tctl` to examine what roles exist on
 your system.
 
 ```code
@@ -169,8 +167,7 @@ steps {
 ```
 
 You are all set. You have provided Jenkins with short-lived certificates tied
-to a machine identity that can be rotated, audited, and controlled with all the
-familiar Teleport access controls.
+to a machine identity that can be rotated, audited, and controlled with access controls.
 
 ## Next steps
 

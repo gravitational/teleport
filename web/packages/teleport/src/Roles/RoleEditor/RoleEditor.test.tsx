@@ -16,14 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { within } from '@testing-library/react';
+import { fireEvent, within } from '@testing-library/react';
 import { UserEvent } from '@testing-library/user-event';
 
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { Role } from 'teleport/services/resources';
+import { ApiError } from 'teleport/services/api/parseError';
+import ResourceService, {
+  Role,
+  RoleWithYaml,
+} from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { yamlService } from 'teleport/services/yaml';
@@ -35,7 +39,7 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { RoleEditor, RoleEditorProps } from './RoleEditor';
 import * as StandardEditorModule from './StandardEditor/StandardEditor';
-import { defaultRoleVersion } from './StandardEditor/standardmodel';
+import { defaultRoleVersion, newRole } from './StandardEditor/standardmodel';
 import * as StandardModelModule from './StandardEditor/standardmodel';
 import { defaultOptions, withDefaults } from './StandardEditor/withDefaults';
 
@@ -74,6 +78,15 @@ beforeEach(() => {
       return toFauxYaml(withDefaults(req.resource));
     });
   jest.spyOn(userEventService, 'captureUserEvent').mockImplementation(() => {});
+  jest
+    .spyOn(ResourceService.prototype, 'fetchRole')
+    .mockImplementation(async name => {
+      // Pretend that we never have a name collision.
+      throw new ApiError({
+        message: `role ${name} is not found`,
+        response: { status: 404 } as Response,
+      });
+    });
 });
 
 afterEach(() => {
@@ -89,6 +102,9 @@ test('rendering and switching tabs for new role', async () => {
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText('Role Name *')).toHaveValue('new_role_name');
   expect(screen.getByLabelText('Description')).toHaveValue('');
+  await forwardToTab('Resources');
+  await forwardToTab('Admin Rules');
+  await forwardToTab('Options');
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
   await user.click(getYamlEditorTab());
@@ -109,12 +125,12 @@ test('rendering and switching tabs for new role', async () => {
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
   await user.click(getStandardEditorTab());
-  await screen.findByLabelText('Role Name *');
+  await screen.findByLabelText('Max Session TTL');
   expect(
     screen.queryByRole('button', { name: /Reset to Standard Settings/i })
   ).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
-});
+}, 10000);
 
 test('rendering and switching tabs for a non-standard role', async () => {
   const originalRole = withDefaults({
@@ -126,12 +142,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
       deny: { node_labels: { foo: ['bar'] } },
     },
   });
-  const originalYaml = toFauxYaml(originalRole);
-  render(
-    <TestRoleEditor
-      originalRole={{ object: originalRole, yaml: originalYaml }}
-    />
-  );
+  render(<TestRoleEditor originalRole={newRoleWithYaml(originalRole)} />);
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   expect(fromFauxYaml(await getTextEditorContents())).toEqual(originalRole);
   expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDisabled();
@@ -150,7 +161,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
 it('calls onRoleUpdate on each modification in the standard editor', async () => {
   cfg.isPolicyEnabled = true;
   const onRoleUpdate = jest.fn();
-  render(<TestRoleEditor onRoleUpdate={onRoleUpdate} />);
+  render(<TestRoleEditor demoMode onRoleUpdate={onRoleUpdate} />);
   expect(onRoleUpdate).toHaveBeenLastCalledWith(
     withDefaults({ metadata: { name: 'new_role_name' } })
   );
@@ -191,11 +202,7 @@ test('switching tabs ignores standard model validation for a non-standard role',
     spec: {},
     unsupportedField: true, // This will cause disabling the standard editor.
   } as any as Role);
-  render(
-    <TestRoleEditor
-      originalRole={{ object: originalRole, yaml: toFauxYaml(originalRole) }}
-    />
-  );
+  render(<TestRoleEditor originalRole={newRoleWithYaml(originalRole)} />);
   expect(getYamlEditorTab()).toHaveAttribute('aria-selected', 'true');
   await user.click(getStandardEditorTab());
   expect(screen.getByText(/This role is too complex/)).toBeVisible();
@@ -227,16 +234,6 @@ test('no double conversions when clicking already active tabs', async () => {
 });
 
 describe('closing the editor', () => {
-  function originalRole() {
-    const object = withDefaults({
-      kind: 'role',
-      metadata: {
-        name: 'new_role_name',
-      },
-    });
-    return { object, yaml: toFauxYaml(object) };
-  }
-
   function setup(props: Partial<RoleEditorProps> = {}) {
     const onCancel = jest.fn();
     render(<TestRoleEditor onCancel={onCancel} {...props} />);
@@ -288,24 +285,39 @@ describe('closing the editor', () => {
   });
 
   test('standard editor, unmodified existing resource', async () => {
-    const onCancel = setup({ originalRole: originalRole() });
+    const onCancel = setup({ originalRole: newRoleWithYaml(newRole()) });
     await closeImmediately(onCancel);
   });
 
   test('standard editor, modified existing resource', async () => {
-    const onCancel = setup({ originalRole: originalRole() });
+    const onCancel = setup({ originalRole: newRoleWithYaml(newRole()) });
     await user.type(screen.getByLabelText('Description'), 'foo');
     await closeWithConfirmation(onCancel);
   });
 
   test('YAML editor, unmodified existing resource', async () => {
-    const onCancel = setup({ originalRole: originalRole() });
+    const originalRole = newRoleWithYaml(newRole());
+    const onCancel = setup({ originalRole: newRoleWithYaml(newRole()) });
     await user.click(getYamlEditorTab());
+
+    // Quirk ahead: `toFauxYaml` uses JSON.stringify(), which is
+    // indeterministic with regards to the key order. We work around this
+    // problem by manually verifying that the JSON values are equivalent (i.e.
+    // their deserializations are deeply equal) and simply stuffing the
+    // original back into the text editor, in case if the order of keys is
+    // different.
+    const editor = await findTextEditor();
+    expect(JSON.parse(editor.textContent)).toEqual(
+      JSON.parse(originalRole.yaml)
+    );
+    fireEvent.change(await findTextEditor(), {
+      target: { value: originalRole.yaml },
+    });
     await closeImmediately(onCancel);
   });
 
   test('YAML editor, modified existing resource', async () => {
-    const onCancel = setup({ originalRole: originalRole() });
+    const onCancel = setup({ originalRole: newRoleWithYaml(newRole()) });
     await user.click(getYamlEditorTab());
     await user.type(await findTextEditor(), '{{"foo":"bar"}');
     await closeWithConfirmation(onCancel);
@@ -315,7 +327,6 @@ describe('closing the editor', () => {
 test('saving a new role', async () => {
   const onSave = jest.fn();
   render(<TestRoleEditor onSave={onSave} />);
-  expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
   await user.clear(screen.getByLabelText('Role Name *'));
   await user.type(screen.getByLabelText('Role Name *'), 'great-old-one');
@@ -324,6 +335,9 @@ test('saving a new role', async () => {
     screen.getByLabelText('Description'),
     'That is not dead which can eternal lie.'
   );
+  await forwardToTab('Resources');
+  await forwardToTab('Admin Rules');
+  await forwardToTab('Options');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
 
   expect(onSave).toHaveBeenCalledWith({
@@ -350,7 +364,6 @@ describe('saving a new role after editing as YAML', () => {
   test('with Policy disabled', async () => {
     const onSave = jest.fn();
     render(<TestRoleEditor onSave={onSave} />);
-    expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
     await user.click(getYamlEditorTab());
     await user.clear(await findTextEditor());
@@ -374,7 +387,6 @@ describe('saving a new role after editing as YAML', () => {
     const onRoleUpdate = jest.fn();
     const onSave = jest.fn();
     render(<TestRoleEditor onRoleUpdate={onRoleUpdate} onSave={onSave} />);
-    expect(screen.getByRole('button', { name: 'Create Role' })).toBeEnabled();
 
     await user.click(getYamlEditorTab());
     await user.clear(await findTextEditor());
@@ -404,6 +416,9 @@ describe('saving a new role after editing as YAML', () => {
 test('error while saving', async () => {
   const onSave = jest.fn().mockRejectedValue(new Error('oh noes'));
   render(<TestRoleEditor onSave={onSave} />);
+  await forwardToTab('Resources');
+  await forwardToTab('Admin Rules');
+  await forwardToTab('Options');
   await user.click(screen.getByRole('button', { name: 'Create Role' }));
   expect(screen.getByText('oh noes')).toBeVisible();
 });
@@ -536,6 +551,11 @@ const TestRoleEditor = (props: RoleEditorProps) => {
   );
 };
 
+const newRoleWithYaml = (role: Role): RoleWithYaml => ({
+  object: role,
+  yaml: toFauxYaml(role),
+});
+
 const getStandardEditorTab = () =>
   screen.getByRole('tab', { name: 'Switch to standard editor' });
 
@@ -552,3 +572,11 @@ const findTextEditor = async () =>
  * contents, this is unreliable. We really have to use Ace editor API to do it.
  */
 const getTextEditorContents = async () => (await findTextEditor()).textContent;
+
+async function forwardToTab(name: string) {
+  await user.click(screen.getByRole('button', { name: `Next: ${name}` }));
+  expect(screen.getByRole('tab', { name })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  );
+}

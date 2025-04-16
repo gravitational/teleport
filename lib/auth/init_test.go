@@ -21,6 +21,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"path/filepath"
 	"slices"
@@ -40,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -697,21 +699,22 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName()
+	cc, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(context.Background(), conf)
+	authServer, err = Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName()
+	cc, err = authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -719,7 +722,8 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -734,18 +738,10 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName()
+	cn, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
-}
-
-func keysIn[K comparable, V any](m map[K]V) []K {
-	result := make([]K, 0, len(m))
-	for k := range m {
-		result = append(result, k)
-	}
-	return result
 }
 
 type failingTrustInternal struct {
@@ -802,8 +798,14 @@ func TestPresets(t *testing.T) {
 		err := createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
 		// Second call should not fail
 		err = createPresetRoles(ctx, as)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -811,6 +813,10 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
+
+		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
@@ -836,6 +842,26 @@ func TestPresets(t *testing.T) {
 		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+
+	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		// an existing health check config should not be modified by init
+		cfg := services.NewPresetHealthCheckConfig()
+		cfg.Spec.Interval = durationpb.New(42 * time.Second)
+		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
+		// Preset was created. Ensure it didn't overwrite the existing config
+		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
 	})
 
 	// If a default allow condition is not present, ensure it gets added.
@@ -994,7 +1020,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
+				require.NotContains(t, slices.Collect(maps.Keys(createdSystemRoles)), r.GetName())
 				createdSystemRoles[r.GetName()] = r
 			}).
 			Maybe().
@@ -1004,8 +1030,8 @@ func TestPresets(t *testing.T) {
 
 		err := createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
-		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
 		roleManager.AssertExpectations(t)
 
 		//
@@ -1142,7 +1168,7 @@ func TestPresets(t *testing.T) {
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				err := createPresetRoles(ctx, as)
 				require.NoError(t, err)
 
@@ -1861,6 +1887,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+	require.Equal(t, []string{"Mon", "Tue", "Wed", "Thu"}, agentWindow.Weekdays)
 
 	// change the served hour
 	mu.Lock()

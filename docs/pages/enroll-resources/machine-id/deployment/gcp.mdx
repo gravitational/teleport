@@ -67,7 +67,7 @@ spec:
   bot_name: example
   join_method: gcp
   gcp:
-    # allow specifies the rules by which the Auth Server determines if `tbot`
+    # allow specifies the rules by which the Auth Service determines if `tbot`
     # should be allowed to join.
     allow:
     - project_ids:
@@ -113,7 +113,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
