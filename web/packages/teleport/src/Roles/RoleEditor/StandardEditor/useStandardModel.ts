@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { current, original } from 'immer';
+import { current, enableMapSet, original } from 'immer';
 import { Dispatch } from 'react';
 import { useImmerReducer } from 'use-immer';
 
@@ -38,10 +38,14 @@ import {
   RoleEditorModel,
   roleToRoleEditorModel,
   StandardEditorModel,
+  StandardEditorTab,
 } from './standardmodel';
 import { validateRoleEditorModel } from './validation';
 
 const logger = new Logger('useStandardModel');
+
+// Enable support for the Set type in Immer. We use it for `disabledTabs`.
+enableMapSet();
 
 /**
  * Creates a standard model state and returns an array composed of the state
@@ -56,6 +60,7 @@ export const useStandardModel = (
   useImmerReducer(reduce, originalRole, initializeState);
 
 const initializeState = (originalRole?: Role): StandardEditorModel => {
+  const isEditing = !!originalRole;
   const role = originalRole ?? newRole();
   const roleModel = safelyConvertRoleToEditorModel(role);
   return {
@@ -64,6 +69,14 @@ const initializeState = (originalRole?: Role): StandardEditorModel => {
     isDirty: !originalRole, // New role is dirty by default.
     validationResult:
       roleModel && validateRoleEditorModel(roleModel, undefined, undefined),
+    currentTab: StandardEditorTab.Overview,
+    disabledTabs: isEditing
+      ? new Set()
+      : new Set([
+          StandardEditorTab.Resources,
+          StandardEditorTab.AdminRules,
+          StandardEditorTab.Options,
+        ]),
   };
 };
 
@@ -82,9 +95,11 @@ const safelyConvertRoleToEditorModel = (
 export type StandardModelDispatcher = Dispatch<StandardModelAction>;
 
 export enum ActionType {
+  SetCurrentTab = 'SetCurrentTab',
   SetModel = 'SetModel',
   ResetToStandard = 'ResetToStandard',
   SetMetadata = 'SetMetadata',
+  SetRoleNameCollision = 'SetRoleNameCollision',
   AddResourceAccess = 'AddResourceAccess',
   SetResourceAccess = 'SetResourceAccess',
   RemoveResourceAccess = 'RemoveResourceAccess',
@@ -99,9 +114,11 @@ export enum ActionType {
 }
 
 type StandardModelAction =
+  | SetCurrentTabAction
   | SetModelAction
   | ResetToStandardAction
   | SetMetadataAction
+  | SetRoleNameCollisionAction
   | AddResourceAccessAction
   | SetResourceAccessAction
   | RemoveResourceAccessAction
@@ -115,6 +132,10 @@ type StandardModelAction =
   | EnableValidationAction;
 
 /** Sets the entire model. */
+type SetCurrentTabAction = {
+  type: ActionType.SetCurrentTab;
+  payload: StandardEditorTab;
+};
 type SetModelAction = { type: ActionType.SetModel; payload: RoleEditorModel };
 type ResetToStandardAction = {
   type: ActionType.ResetToStandard;
@@ -123,6 +144,10 @@ type ResetToStandardAction = {
 type SetMetadataAction = {
   type: ActionType.SetMetadata;
   payload: MetadataModel;
+};
+type SetRoleNameCollisionAction = {
+  type: ActionType.SetRoleNameCollision;
+  payload: boolean;
 };
 type AddResourceAccessAction = {
   type: ActionType.AddResourceAccess;
@@ -175,6 +200,11 @@ const reduce = (
   // This reduce uses Immer, so we modify the model draft directly.
   // TODO(bl-nero): add immutability to the model data types.
   switch (type) {
+    case ActionType.SetCurrentTab:
+      state.currentTab = payload;
+      state.disabledTabs.delete(payload);
+      break;
+
     case ActionType.SetModel:
       state.roleModel = payload;
       break;
@@ -190,6 +220,10 @@ const reduce = (
         state.roleModel.resources,
         payload.version.value
       );
+      break;
+
+    case ActionType.SetRoleNameCollision:
+      state.roleModel.metadata.nameCollision = payload;
       break;
 
     case ActionType.SetOptions:

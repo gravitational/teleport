@@ -149,9 +149,17 @@ describe('validateRoleEditorModel', () => {
     expect(result.isValid).toBe(true);
   });
 
-  test('invalid metadata', () => {
+  test('invalid role name', () => {
     const model = minimalRoleModel();
     model.metadata.name = '';
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(result.metadata.valid).toBe(false);
+    expect(result.isValid).toBe(false);
+  });
+
+  test('conflicting role name', () => {
+    const model = minimalRoleModel();
+    model.metadata.nameCollision = true;
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(result.metadata.valid).toBe(false);
     expect(result.isValid).toBe(false);

@@ -21,6 +21,7 @@ import { Link } from 'react-router-dom';
 
 import { Alert, Box, Button, Indicator } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { useAttemptNext } from 'shared/hooks';
 
 import { BotList } from 'teleport/Bots/List/BotList';
@@ -29,7 +30,6 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { InfoGuideButton } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import {
   deleteBot,

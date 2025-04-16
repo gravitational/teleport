@@ -124,6 +124,8 @@ type Namespace struct {
 	configFile string
 	// pidFile for Teleport (ns: /run/teleport_myns.pid)
 	pidFile string
+	// updaterIDFile contains the updater's temporary ID file
+	updaterIDFile string
 	// updaterServiceFile is the systemd service path for the updater
 	updaterServiceFile string
 	// updaterTimerFile is the systemd timer path for the updater
@@ -163,6 +165,7 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 			serviceFile:         filepath.Join("/", serviceDir, serviceName),
 			configFile:          defaults.ConfigFilePath,
 			pidFile:             filepath.Join(systemdPIDDir, "teleport.pid"),
+			updaterIDFile:       filepath.Join(os.TempDir(), BinaryName+".id"),
 			updaterServiceFile:  filepath.Join(systemdAdminDir, BinaryName+".service"),
 			updaterTimerFile:    filepath.Join(systemdAdminDir, BinaryName+".timer"),
 			dropInFile:          filepath.Join(systemdAdminDir, "teleport.service.d", BinaryName+".conf"),
@@ -181,6 +184,7 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 		serviceFile:         filepath.Join(systemdAdminDir, prefix+".service"),
 		configFile:          filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
 		pidFile:             filepath.Join(systemdPIDDir, prefix+".pid"),
+		updaterIDFile:       filepath.Join(os.TempDir(), BinaryName+"_"+name+".id"),
 		updaterServiceFile:  filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
 		updaterTimerFile:    filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
 		dropInFile:          filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
@@ -196,7 +200,8 @@ func (ns *Namespace) Dir() string {
 	return filepath.Join(ns.installDir, name)
 }
 
-// Init create the initial directory structure and returns the lockfile for a Namespace.
+// Init creates the initial directory structure and returns the lockfile for a Namespace.
+// Init should be called before the namespace is locked.
 func (ns *Namespace) Init() (lockFile string, err error) {
 	if err := os.MkdirAll(filepath.Join(ns.Dir(), versionsDirName), systemDirMode); err != nil {
 		return "", trace.Wrap(err)

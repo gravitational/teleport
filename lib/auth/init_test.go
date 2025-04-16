@@ -41,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -798,8 +799,14 @@ func TestPresets(t *testing.T) {
 		err := createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
 		// Second call should not fail
 		err = createPresetRoles(ctx, as)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -807,6 +814,10 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
+
+		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
@@ -832,6 +843,26 @@ func TestPresets(t *testing.T) {
 		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+
+	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		// an existing health check config should not be modified by init
+		cfg := services.NewPresetHealthCheckConfig()
+		cfg.Spec.Interval = durationpb.New(42 * time.Second)
+		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
+		// Preset was created. Ensure it didn't overwrite the existing config
+		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
 	})
 
 	// If a default allow condition is not present, ensure it gets added.
@@ -1857,6 +1888,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+	require.Equal(t, []string{"Mon", "Tue", "Wed", "Thu"}, agentWindow.Weekdays)
 
 	// change the served hour
 	mu.Lock()
