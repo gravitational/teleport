@@ -290,7 +290,7 @@ func (y *YubiKey) Reset() error {
 }
 
 // generatePrivateKey generates a new private key in the given PIV slot.
-func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm) (*hardwarekey.PrivateKeyRef, error) {
 	touchPolicy := piv.TouchPolicyNever
 	if policy.TouchRequired {
 		touchPolicy = piv.TouchPolicyCached
@@ -301,8 +301,24 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		pinPolicy = piv.PINPolicyOnce
 	}
 
+	var alg piv.Algorithm
+	switch algorithm {
+	// Use ECDSA key by default.
+	case hardwarekey.SignatureAlgorithmEC256, 0:
+		alg = piv.AlgorithmEC256
+	case hardwarekey.SignatureAlgorithmEd25519:
+		// TODO(Joerger): Currently algorithms are only specified in tests, but some users pre-generate
+		// their keys in custom slots with custom algorithms, so we should try to support Ed25519 keys.
+		// Currently the Ed25519 algorithm is only supported by SoloKeys and YubiKeys v5.7.x+
+		return nil, trace.BadParameter("Ed25519 keys are not currently supported")
+	case hardwarekey.SignatureAlgorithmRSA2048:
+		alg = piv.AlgorithmRSA2048
+	default:
+		return nil, trace.BadParameter("unknown algorithm option %v", algorithm)
+	}
+
 	opts := piv.Key{
-		Algorithm:   piv.AlgorithmEC256,
+		Algorithm:   alg,
 		PINPolicy:   pinPolicy,
 		TouchPolicy: touchPolicy,
 	}
