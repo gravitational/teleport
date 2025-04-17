@@ -134,6 +134,9 @@ export const JoinTokens = () => {
 
   useEffect(() => {
     runJoinTokensAttempt();
+
+    // runJoinTokensAttempt is not stable and causes a render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -395,7 +398,7 @@ function TokenDelete({
         <DialogTitle>Delete Join Token?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'error' && <Alert children={attempt.statusText} />}
+        {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
         <Text mb={4}>
           You are about to delete join token
           <Text bold as="span">
