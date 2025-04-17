@@ -964,6 +964,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.IsType(t, &apievents.UserLogin{}, mockEmitter.LastEvent())
 	loginEvt := mockEmitter.LastEvent().(*apievents.UserLogin)
 	require.Equal(t, "2.2.2.2", loginEvt.ConnectionMetadata.RemoteAddr)
+	require.Equal(t, idpInitiatedSAMLTestConn, loginEvt.ConnectorID)
 
 	// check ValidateSAMLResponse takes loginIP from connection for IdP-initiated flow if client IP is empty
 	mockEmitter.Reset()

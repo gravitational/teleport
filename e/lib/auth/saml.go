@@ -463,7 +463,8 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 		},
-		Method: events.LoginMethodSAML,
+		Method:      events.LoginMethodSAML,
+		ConnectorID: connectorID,
 	}
 
 	diagCtx := auth.NewSSODiagContext(types.KindSAML, sas.auth)
@@ -474,7 +475,9 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 	diagCtx.WriteToBackend(ctx)
 
 	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
-	event.ConnectionMetadata = apievents.ConnectionMetadata{RemoteAddr: loginIP}
+	event.ConnectionMetadata = apievents.ConnectionMetadata{
+		RemoteAddr: loginIP,
+	}
 
 	attributeStatements := diagCtx.Info.SAMLAttributeStatements
 	if attributeStatements != nil {
