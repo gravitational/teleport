@@ -146,10 +146,12 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 		}
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to determine updater ID.", "path", p, errorKey, err)
-			log.ErrorContext(ctx, "Updater ID may be inaccurate for tracking.")
+			log.ErrorContext(ctx, "Updater ID cannot be used for tracking this agent.")
 		} else {
 			info.UpdateUUID = v[:]
 		}
+	} else {
+		log.ErrorContext(ctx, "Updater ID is not available to the updater and cannot be used to track this agent.")
 	}
 
 	switch {
