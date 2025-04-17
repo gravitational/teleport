@@ -580,7 +580,7 @@ type CLIConf struct {
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
 
-	// HardwareKeyAgentServer determines whether `tsh daemon`` will run the hardware key agent server.
+	// HardwareKeyAgentServer determines whether `tsh daemon` will run the hardware key agent server.
 	HardwareKeyAgentServer bool
 	// disableHardwareKeyAgentClient determines whether the client will attempt to connect
 	// to the hardware key agent. Some commands, like login, are better with the
@@ -1913,6 +1913,8 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		cf.DesiredRoles = ""
 	}
 
+	// For login operations, we use the hardware key
+	// service directly instead of the agent.
 	cf.disableHardwareKeyAgentClient = true
 
 	if cf.IdentityFileIn != "" {

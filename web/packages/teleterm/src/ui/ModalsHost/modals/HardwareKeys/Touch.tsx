@@ -54,12 +54,12 @@ export function Touch(props: {
           <Image mb={4} width="200px" src={svgHardwareKey} />
           <P2 bold>
             Touch your YubiKey to continue
-            {props.req.command && ' with command:'}
-            <br />
-            {
-              props.req.command &&
-                props.req.command /**TODO(Joerger): style text */
-            }
+            {props.req.command && (
+              <>
+                {' with command:'}
+                <pre>{props.req.command}</pre>
+              </>
+            )}
           </P2>
           <LinearProgress />
         </Flex>
