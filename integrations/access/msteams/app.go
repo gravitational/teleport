@@ -341,6 +341,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		User:          req.GetUser(),
 		Roles:         req.GetRoles(),
 		RequestReason: req.GetRequestReason(),
+		MaxDuration:   req.GetMaxDuration(),
 	}
 
 	log := a.log.With("request_id", id)
