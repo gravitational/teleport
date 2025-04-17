@@ -139,7 +139,7 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 			log.WarnContext(ctx, "Updater ID may be inaccurate for tracking.")
 			machineID = nil
 		}
-		id, err := findBPIDUUID(p, []byte(hostUUID), machineID, true)
+		id, err := findDBPIDUUID(p, []byte(hostUUID), machineID, true)
 		if err != nil {
 			log.ErrorContext(ctx, "Failed to determine updater ID.", "path", p, errorKey, err)
 			log.ErrorContext(ctx, "Updater ID cannot be used for tracking this agent.")
@@ -161,7 +161,7 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 	return info, nil
 }
 
-func findBPIDUUID(path string, systemID, namespaceID []byte, persist bool) (uuid.UUID, error) {
+func findDBPIDUUID(path string, systemID, namespaceID []byte, persist bool) (uuid.UUID, error) {
 	id, err := FindDBPID(path, systemID, namespaceID, persist)
 	if err != nil {
 		return uuid.Nil, trace.Wrap(err)
