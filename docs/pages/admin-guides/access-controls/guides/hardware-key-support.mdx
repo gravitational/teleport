@@ -205,14 +205,18 @@ If your PIV key uses a different management key, you must generate the key yours
 This can be done with the [YubiKey Manager CLI](https://developers.yubico.com/yubikey-manager/).
 This command will prompt you to enter your management key to complete the request:
 
-`ykman piv keys generate -a ECCP256 [slot] --touch-policy=[never|cached|always] --pin-policy=[never|once|always] pub.pem`
+```code
+$ ykman piv keys generate -a ECCP256 [slot] --touch-policy=[never|cached|always] --pin-policy=[never|once|always] pub.pem
+```
 
 For some features to work, you must also generate a certificate on the slot to mark
 the slot for use by Teleport. This certificate can be self signed, or in the example
 below, signed by the key in the PIV slot. The important detail is that the certificate
 has "teleport" as the organization name in the subject field.
 
-`ykman piv certificates generate 9e -s O=teleport pub.pem`
+```code
+$ ykman piv certificates generate 9e -s O=teleport pub.pem
+```
 
 This command will prompt you for the management key, as well as PIN or touch depending
 on the policies of the key in the PIV slot.
