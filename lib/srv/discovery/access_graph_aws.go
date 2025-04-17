@@ -1037,14 +1037,7 @@ func convertCloudTrailEventToAccessGraphResources(
 ) (*accessgraphv1alpha.AWSCloudTrailEvent, error) {
 
 	event.Fields["source_region"] = structpb.NewStringValue(region)
-	var resources []*accessgraphv1alpha.AWSCloudTrailEventResource
-	/*for _, resource := range event.Resources {
-
-		resources = append(resources, &accessgraphv1alpha.AWSCloudTrailEventResource{
-			Name: aws.ToString(resource.ResourceName),
-			Type: aws.ToString(resource.ResourceType),
-		})
-	}*/
+	resources := determineCloudtrailResources(event)
 	t, err := time.Parse(time.RFC3339, event.GetFields()["eventTime"].GetStringValue())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1061,6 +1054,50 @@ func convertCloudTrailEventToAccessGraphResources(
 		Username:        getMultiField([]string{"userIdentity", "arn"}, (*structpb.Value).GetStringValue, event),
 		AwsAccountId:    accountID,
 	}, nil
+}
+
+func determineCloudtrailResources(event *structpb.Struct) []*accessgraphv1alpha.AWSCloudTrailEventResource {
+	var resources []*accessgraphv1alpha.AWSCloudTrailEventResource
+	fields := event.GetFields()
+	eventName := fields["eventName"].GetStringValue()
+	switch eventName {
+	case "CompleteMultipartUpload",
+		"CreateMultipartUpload",
+		"DeleteObject",
+		"DeleteObjects",
+		"GetAccelerateConfiguration",
+		"GetBucketAcl",
+		"GetBucketCors",
+		"GetBucketEncryption",
+		"GetBucketLifecycle",
+		"GetBucketLocation",
+		"GetBucketLogging",
+		"GetBucketNotification",
+		"GetBucketObjectLockConfiguration",
+		"GetBucketOwnershipControls",
+		"GetBucketPolicy",
+		"GetBucketPolicyStatus",
+		"GetBucketPublicAccessBlock",
+		"GetBucketReplication",
+		"GetBucketRequestPayment",
+		"GetBucketTagging",
+		"GetBucketVersioning",
+		"GetBucketWebsite",
+		"HeadBucket",
+		"ListMultipartUploads",
+		"ListObjects",
+		"PutObject",
+		"UploadPart":
+		if reqParams, ok := fields["requestParameters"]; ok {
+			if bucketName, ok := reqParams.GetStructValue().Fields["bucketName"]; ok {
+				resources = append(resources, &accessgraphv1alpha.AWSCloudTrailEventResource{
+					Name: bucketName.GetStringValue(),
+					Type: "s3_bucket_name",
+				})
+			}
+		}
+	}
+	return resources
 }
 
 func getMultiField[T any](keys []string, extractor func(*structpb.Value) T, v *structpb.Struct) T {
