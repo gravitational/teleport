@@ -22,14 +22,16 @@ as it provides a safer, simpler, more flexible, compatible, and reliable update 
 compared to Managed Updates v1.
 
 <Admonition type="note" title="Compatibility between Managed Updates v1 and v2">
-Managed Updates v2 is backwards compatible with the
+The Managed Updates v2 `teleport-update` binary is backwards-compatible with the
 `cluster_maintenance_config` resource. The Managed Updates v1 `teleport-upgrade` script
-is forwards compatible with the `autoupdate_config` and `autoupdate_version` resources.
-Teleport Agents connected to the same cluster may use either resource.
+is forwards-compatible with the `autoupdate_config` and `autoupdate_version` resources.
+Agents connected to the same cluster will all update to the same version.
 
-If the `autoupdate_*` resources are configured, they take precedence over
+If the `autoupdate_config` resource is configured, it takes precedence over
 `cluster_maintenance_config`. This allows for a safe, non-breaking, incremental
-migration between Managed Updates v1 and v2.
+migration between Managed Updates v1 and v2. If `autoupdate_config` is not present
+and `autoupdate_version` is present, the `autoupdate_config` settings are implicitly
+derived from `cluster_maintenance_config`.
 
 Users of cloud-hosted Teleport Enterprise will be migrated to Managed Updates v2
 in the first half of 2025 and should plan to migrate their agents to `teleport-update`.
@@ -141,7 +143,7 @@ field in the Proxy Service configuration file:
 
 ```yaml
 proxy_service:
-  enabled: "yes"
+  enabled: true
   automatic_upgrades_channels:
     # Override the default version channel reachable at
     # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version

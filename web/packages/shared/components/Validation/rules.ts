@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IAM_ROLE_NAME_REGEX } from 'teleport/services/integrations/aws';
+/**
+ * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
 
 /**
  * The result of validating a field.
@@ -262,7 +268,7 @@ const requiredPort: Rule = port => () => {
  * @returns a rule function that ANDs all input rules
  */
 const requiredAll =
-  <T>(...rules: Rule<T | string | string[], ValidationResult>[]): Rule<T> =>
+  <T>(...rules: Rule<T, ValidationResult>[]): Rule<T> =>
   (value: T) =>
   () => {
     let messages = [];

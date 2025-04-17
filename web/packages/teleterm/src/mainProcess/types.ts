@@ -142,7 +142,18 @@ export type MainProcessClient = {
     relativePath: string;
     isDirectory?: boolean;
   }): Promise<void>;
-  forceFocusWindow(): void;
+  /**
+   * Tells the OS to focus the window. If wait is true, polls periodically for window status and
+   * resolves when it's focused or after a short timeout.
+   *
+   * Most of the time wait shouldn't be used, it's there for use cases where it's important for the
+   * app to be focused (e.g., the business logic needs to use the clipboard API). Even in that case,
+   * the logic must handle a scenario where focus wasn't received as focus cannot be guaranteed.
+   * Any app can steal focus at any time.
+   */
+  forceFocusWindow(
+    args?: { wait?: false } | { wait: true; signal?: AbortSignal }
+  ): Promise<void>;
   /**
    * The promise returns true if tsh got successfully symlinked, false if the user closed the
    * osascript prompt. The promise gets rejected if osascript encountered an error.
@@ -298,6 +309,7 @@ export enum MainProcessIpc {
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
   SaveTextToFile = 'main-process-save-text-to-file',
+  ForceFocusWindow = 'main-process-force-focus-window',
 }
 
 export enum WindowsManagerIpc {

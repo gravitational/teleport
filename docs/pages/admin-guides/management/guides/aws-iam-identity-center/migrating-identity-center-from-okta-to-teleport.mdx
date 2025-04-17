@@ -1,6 +1,6 @@
 ---
 title: Migrating AWS IAM Identity Center from Okta to Teleport
-description: A guide for gradually migrating an Identity Center instance from Okta control to Teleport control
+description: Explains how to migrate an Identity Center instance from Okta control to Teleport control.
 tocDepth: 3
 ---
 
@@ -126,9 +126,10 @@ $ tctl plugins install awsic \
     --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
     --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
     --use-system-credentials \
+    --assume-role-arn ${AWS_IAM_ROLE_ARN} \
     --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
     --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
-    --default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
+    --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
     --user-origin okta \
     --account-name ${ACCOUNT_NAME_ALLOW_FILTER} \
     --group-name ${GROUP_NAME_ALLOW_FILTER}
@@ -138,6 +139,7 @@ This will install the Teleport AWS IAM Identity Center integration with a
 Teleport configuration that:
 - Controls the AWS IAM Identity Center instance indicated by `--instance-arn`.
 - Uses the system AWS credentials to authenticate with AWS (from `--use-system-credentials`)
+  and assumes the IAM role indicated by `--assume-role-arn`.
 - Manages account assignments all AWS accounts that match the `${ACCOUNT_NAME_ALLOW_FILTER}`.
 - Provisions all users imported from Okta into AWS IAM Identity Center (from the `--user-origin okta` flag).
 - Only imports all groups matching `${GROUP_NAME_ALLOW_FILTER}` into Teleport as Access
