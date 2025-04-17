@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.4.33 (04/17/25)
+
+* Fix a bug in managed updates v1 causing updaters v2 and AWS integrations to never update if weekdays were set in the `cluster_maintenance_config` resource. [#54116](https://github.com/gravitational/teleport/pull/54116)
+* Fix a bug in Teleport 15 causing `autoupdate_version` and `autoupdate_config` creation to fail when `metadata.id` field is set. [#54047](https://github.com/gravitational/teleport/pull/54047)
+
 ## 15.4.32 (04/14/25)
 
 * Fixed web UI and tsh issues when a SAML metadata URL takes an unusually long time to respond. [#53935](https://github.com/gravitational/teleport/pull/53935)
