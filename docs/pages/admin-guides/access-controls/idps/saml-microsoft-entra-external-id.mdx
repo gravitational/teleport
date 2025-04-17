@@ -3,8 +3,8 @@ title: Access Azure Portal and CLI
 description: Access Azure Portal and CLI by authenticating with Teleport SAML IdP
 ---
 
-This guide explains how to integrate Teleport SAML IdP with [Microsoft Entra External ID](https://learn.microsoft.com/en-us/entra/external-id/)
-so that users can access Azure Portal and CLI by authenticating with Teleport.
+This guide explains how to integrate the Teleport SAML IdP with [Microsoft Entra External ID](https://learn.microsoft.com/en-us/entra/external-id/)
+so that users can access Azure Portal and the Azure CLI by authenticating with Teleport.
 
 ## Prerequisites
 
@@ -88,14 +88,14 @@ For reference, the values that are auto-configured are listed below:
 - Launch URL: `https://portal.azure.com/<entra-id-tenant-id>`. The launch URL is where users are sent to after
 a successful authentication with Teleport.
 
-Provide a display name for this integration (e.g. "azure_portal") and click on button named 
+Provide a display name for this integration (e.g. "azure-portal") and click on button named 
 `Finish` to register service provider. 
 
 ## Step 3/5. Create and invite user
 
-In this step, we will create and invite an external user that authenticates with Teleport SAML IdP.
+In this step, we will create and invite an external user that authenticates with the Teleport SAML IdP.
 <Admonition type="info" title="User account domain name">
-The user that is invited should have a matching domain name associated with Teleport SAML IdP. 
+The user that is invited should have a matching domain name associated with the Teleport SAML IdP. 
 Refer to the Step 1 of this guide.
 </Admonition>
 
@@ -104,8 +104,8 @@ From the **Users** page, click `+ New User` button and select "Invite external u
 
 ![Invite External User](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-invite-user.png)
 
-Fill up details for this user as needed to set up the account. You will notice that the a default value for
-"Invite redirect URL" field that points to `https://myapplications.microsoft.com/` is set for this user. 
+Enter the details for this user as needed to set up the account. You will notice that the a default value for
+the "Invite redirect URL" field that points to `https://myapplications.microsoft.com/` is set for this user. 
 This URL is where Microsoft will redirect the user after their first authentication. You can update this URL 
 if you wish to redirect user to a different URL or keep it as it is.
 
@@ -131,18 +131,18 @@ that maps Azure roles with users and groups.
 The example below demonstrates role assignment for a user group. Say we want to grant 
 user `alice@example.com` an Azure role to manage virtual machines.
 
-First, in Azure portal, select **Groups** menu under Azure services.
+First, in Azure portal, select the **Groups** menu under Azure services.
 Create a user group named `teleport-dev-vm` with user `alice@example.com` as its member.
 
 ![Entra ID create user group](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-create-group.png)
 
-In Azure portal, select **Resource Groups** menu and create a new resource group named `teleport-dev-vm-pool`.
+In Azure portal, select the **Resource Groups** menu and create a new resource group named `teleport-dev-vm-pool`.
 Make a note of the subscription that you selected for this resource group. We will need this subscription in the next step.
 
 ![Entra ID create resource group](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-create-resource-group.png)
 
-Select `teleport-dev-vm-pool` resource group.
-Then under **Access control (IAM)** menu and click `+ Add` button and select "Add role assignment"
+Select the `teleport-dev-vm-pool` resource group.
+Then under the **Access control (IAM)** menu, click the `+ Add` button and select "Add role assignment"
 
 ![Entra ID resource group IAM](../../../../img/access-controls/saml-idp/ms-entra-external-id/entra-resource-group-iam.png)
 
@@ -156,7 +156,7 @@ Your review assignment UI should look like the image below.
 Click the `Review + assign` button to finish the role assignment.
 
 We've now created a role and resource assignment, where users that are member of `teleport-dev-vm` group can access 
-resource under `teleport-dev-vm-pool` resource group with the privilege granted by the "Virtual Machine Contributor" role.
+resource under the `teleport-dev-vm-pool` resource group with the privilege granted by the "Virtual Machine Contributor" role.
 
 ##  Step 5/5. Link Azure subscription to Microsoft Entra External ID
 
@@ -174,8 +174,8 @@ under `teleport-dev-vm-pool` resource group.
 
 ## Azure CLI access
 
-Users can authenticate Azure CLI with Teleport by providing a tenant ID to `az login` command.
-```bash
+Users can authenticate the Azure CLI with Teleport by providing a tenant ID to the `az login` command.
+```code
 az login --tenant <tenant_id>
 ```
 
@@ -184,16 +184,16 @@ Upon successful authentication, Microsoft Entra ID responds with credentials for
 
 ## User access audit logs
 
-User access logs can be found in both Teleport Web UI and in Azure portal.
+User access logs can be found in both the Teleport Web UI and in the Azure Portal.
 
-In Teleport, each user authentication with SAML IdP is logged and the event can be found in the audit log.
+In Teleport, each user authentication with the SAML IdP is logged and the event can be found in the audit log.
 ```json
 {
   "cluster_name": "mytenant.teleport.sh",
   "code": "TSI000I",
   "ei": 0,
   "event": "saml.idp.auth",
-  "service_provider_entity_id": "https://login.microsoftonline.com/<tenant_id>>/",
+  "service_provider_entity_id": "https://login.microsoftonline.com/<tenant_id>/",
   "sid": "",
   "success": true,
   "time": "2025-04-15T14:43:40.057Z",
@@ -227,9 +227,9 @@ Note that the rules of DNS update apply here as well.
 
 ### Issues related to identity provider configuration
 
-Refer to official [Microsoft Entra External ID SAML federation](https://learn.microsoft.com/en-us/entra/external-id/direct-federation) docs for general configuration.
+Refer to official the [Microsoft Entra External ID SAML federation](https://learn.microsoft.com/en-us/entra/external-id/direct-federation) docs for general configuration.
 
 ### Issues related to user invitation and user type conversion
-For issues related to user invitation, or internal to external user type conversion, please refer to [Microsoft Entra B2B collaboration](https://learn.microsoft.com/en-us/entra/external-id/troubleshoot) troubleshooting docs.
+For issues related to user invitation, or internal to external user type conversion, refer to the [Microsoft Entra B2B collaboration](https://learn.microsoft.com/en-us/entra/external-id/troubleshoot) troubleshooting docs.
 
 
