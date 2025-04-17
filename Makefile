@@ -1636,7 +1636,7 @@ go-generate:
 .PHONY: go-generate-up-to-date
 go-generate-up-to-date: must-start-clean/host go-generate
 	@if ! git diff --quiet; then \
-		./build.assets/please-run.sh "go generate lib" "make go-generate-lib"; \
+		./build.assets/please-run.sh "go generate lib" "make go-generate"; \
 		exit 1; \
 	fi
 
