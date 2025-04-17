@@ -19,17 +19,23 @@
 package agent
 
 import (
-	"github.com/gravitational/teleport/api/client/proto"
+	"context"
+	"errors"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 const (
 	installDirEnvVar       = "TELEPORT_UPDATE_INSTALL_DIR"
-	updateConfigPathEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
+	updateConfigFileEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
 )
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
@@ -112,31 +118,47 @@ func hasParentDir(dir, parent string) (bool, error) {
 // that can be reported in the inventory hello message.
 // This function performs io operations, its usage must be cached
 // (the downstream inventory handler does this for us).
-func ReadHelloUpdaterInfo() (*proto.UpdaterV2Info, error) {
+func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string) (*proto.UpdaterV2Info, error) {
 	info := &proto.UpdaterV2Info{}
 
-	configPath := os.Getenv(updateConfigPathEnvVar)
+	configPath := os.Getenv(updateConfigFileEnvVar)
 	if configPath == "" {
-		return nil, trace.NotFound("config file %q not found", configPath)
+		return nil, trace.Errorf("config file not specified")
 	}
 
-	conf, err := readConfig(configPath)
+	cfg, err := readConfig(configPath)
 	if err != nil {
-		return nil, trace.Wrap(err, "reading config file %q", configPath)
+		return nil, trace.Wrap(err, "reading config file %s", configPath)
 	}
 
-	info.UpdateGroup = conf.Spec.Group
-
-	// TODO(hugoShaka or sclevine): After the new UUId logic, add the UUID export here
+	info.UpdateGroup = cfg.Spec.Group
+	if p := cfg.Status.IDFile; p != "" {
+		machineID, err := os.ReadFile(systemdMachineIDFile)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", systemdMachineIDFile, errorKey, err)
+			log.WarnContext(ctx, "Updater ID may be inaccurate for tracking.")
+			machineID = nil
+		}
+		id, err := FindDBPID(p, []byte(hostUUID), machineID, true)
+		var v uuid.UUID
+		if err == nil {
+			v, err = uuid.Parse(id)
+		}
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to determine updater ID.", "path", p, errorKey, err)
+			log.ErrorContext(ctx, "Updater ID may be inaccurate for tracking.")
+		} else {
+			info.UpdateUUID = v[:]
+		}
+	}
 
 	switch {
-	case !conf.Spec.Enabled:
+	case !cfg.Spec.Enabled:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_DISABLED
-	case conf.Spec.Pinned:
+	case cfg.Spec.Pinned:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_PINNED
 	default:
 		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_OK
 	}
-
 	return info, nil
 }
