@@ -359,6 +359,11 @@
       "source": "/server-access/introduction/",
       "destination": "/enroll-resources/server-access/",
       "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
     }
   ]
 }
