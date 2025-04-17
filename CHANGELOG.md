@@ -1,5 +1,12 @@
 # Changelog
 
+## 16.5.3 (04/17/25)
+
+* Fix a bug in managed updates v1 causing updaters v2 and AWS integrations to never update if weekdays were set in the `cluster_maintenance_config` resource. [#54089](https://github.com/gravitational/teleport/pull/54089)
+* Teleport-update: ensure teleport-upgrade is always disabled when teleport-update is used. [#54086](https://github.com/gravitational/teleport/pull/54086)
+* Teleport-update: Improve defaulting for update groups. [#54049](https://github.com/gravitational/teleport/pull/54049)
+* Restrict agent update days to Mon-Thu on Cloud. [#53766](https://github.com/gravitational/teleport/pull/53766)
+
 ## 16.5.2 (04/14/25)
 
 * Workload ID: the Kubernetes, Podman, and Docker attestors now capture the container image digest. [#53940](https://github.com/gravitational/teleport/pull/53940)
