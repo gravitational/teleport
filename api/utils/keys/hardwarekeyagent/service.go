@@ -123,9 +123,9 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		}
 	}
 
-	// Trim leading path from command for user readability.
+	// Trim leading path (/ or \ on windows) from command for user readability.
 	command := os.Args[0]
-	if i := strings.LastIndex(command, "/"); i != -1 {
+	if i := strings.LastIndexAny(command, "/\\"); i != -1 {
 		command = command[i+1:]
 	}
 	commandString := fmt.Sprintf("%v %v", command, strings.Join(os.Args[1:], " "))
