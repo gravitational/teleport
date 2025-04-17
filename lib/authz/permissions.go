@@ -1497,11 +1497,40 @@ func (c *Context) CheckAccessToKind(kind string, verb string, additionalVerbs ..
 	return c.CheckAccessToRule(ruleCtx, kind, verb, additionalVerbs...)
 }
 
+// MaybeAccessToKind will check if the user has access to the given verbs for
+// the given kind, ignoring any where clauses configured. This is useful for
+// avoiding work where the user has no chance of having access to the resource.
+// Prefer using CheckAccessToResource where feasible.
+func (c *Context) MaybeAccessToKind(kind string, verb string, additionalVerbs ...string) error {
+	ruleCtx := &services.Context{
+		User: c.User,
+	}
+
+	var errs []error
+	for _, verb := range append(additionalVerbs, verb) {
+		if err := c.Checker.GuessIfAccessIsPossible(ruleCtx, defaults.Namespace, kind, verb); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
 // CheckAccessToResource will ensure that the user has access to the given verbs for the given resource.
 func (c *Context) CheckAccessToResource(resource types.Resource, verb string, additionalVerbs ...string) error {
 	ruleCtx := &services.Context{
 		User:     c.User,
 		Resource: resource,
+	}
+
+	return c.CheckAccessToRule(ruleCtx, resource.GetKind(), verb, additionalVerbs...)
+}
+
+// CheckAccessToResource153 will ensure that the user has access to the given verbs for the given resource.
+func (c *Context) CheckAccessToResource153(resource types.Resource153, verb string, additionalVerbs ...string) error {
+	ruleCtx := &services.Context{
+		User:        c.User,
+		Resource153: resource,
 	}
 
 	return c.CheckAccessToRule(ruleCtx, resource.GetKind(), verb, additionalVerbs...)

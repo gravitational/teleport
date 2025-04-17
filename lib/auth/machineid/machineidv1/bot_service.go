@@ -168,7 +168,9 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbRead); err != nil {
+	if err := authCtx.MaybeAccessToKind(
+		types.KindBot, types.VerbRead,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -190,6 +192,14 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err, "converting from resources")
 	}
 
+	if err := authCtx.CheckAccessToResource153(
+		bot, types.VerbRead,
+	); err != nil {
+		// Return NotFound rather than Forbidden to avoid leaking existence of
+		// bot.
+		return nil, trace.NotFound("bot %q not found", req.BotName)
+	}
+
 	return bot, nil
 }
 
@@ -202,7 +212,11 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbList); err != nil {
+	// Check generally if this user may have the ability to list bots - ignoring
+	// where conditions.
+	if err := authCtx.MaybeAccessToKind(
+		types.KindBot, types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -243,6 +257,14 @@ func (bs *BotService) ListBots(
 			)
 			continue
 		}
+
+		// Check if user can access this specific Bot.
+		if err := authCtx.CheckAccessToResource153(
+			bot, types.VerbList,
+		); err != nil {
+			continue
+		}
+
 		bots = append(bots, bot)
 	}
 
@@ -257,11 +279,18 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate); err != nil {
+
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbCreate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -368,15 +397,20 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbCreate, types.VerbUpdate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// Support reused MFA for bulk tctl create requests.
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
@@ -420,15 +454,20 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
+	if err := setKindAndVersion(req.Bot); err != nil {
+		return nil, trace.Wrap(err, "setting kind and version")
+	}
+
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToResource153(
+		req.Bot,
+		types.VerbUpdate,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -550,6 +589,18 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 	return bs.backend.DeleteRole(ctx, role.GetName())
 }
 
+// dummyBotWithName returns a dummy bot with the given name. This is used
+// for evaluating RBAC for the Delete RPC
+func dummyBotWithName(name string) *pb.Bot {
+	return &pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+}
+
 // DeleteBot deletes an existing bot. It will throw an error if the bot does
 // not exist.
 func (bs *BotService) DeleteBot(
@@ -565,16 +616,17 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if req.BotName == "" {
 		return nil, trace.BadParameter("bot_name: must be non-empty")
+	}
+
+	if err := authCtx.CheckAccessToResource153(
+		dummyBotWithName(req.BotName), types.VerbDelete,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	err = trace.NewAggregate(
@@ -602,6 +654,27 @@ func (bs *BotService) DeleteBot(
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// setKindAndVersion patches for the fact that when this API was originally
+// introduced, we did not enforce that the Kind/Version fields were set.
+// This is largely not an issue since someone would need to invoke the API
+// directly (as tctl will require that they are set). However, we do need these
+// fields to be set correctly for authz to work properly.
+//
+// TODO(noah): In the future, we should commit to a breaking change to validate
+// that these fields are set correctly.
+func setKindAndVersion(b *pb.Bot) error {
+	if b == nil {
+		return trace.BadParameter("bot: must be non-nil")
+	}
+	if b.Kind == "" {
+		b.Kind = types.KindBot
+	}
+	if b.Version == "" {
+		b.Version = types.V1
+	}
+	return nil
 }
 
 func validateBot(b *pb.Bot) error {
