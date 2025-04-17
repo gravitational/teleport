@@ -1,4 +1,4 @@
-.version: &version "17.4.4"
+.version: &version "17.4.4-dev.steve.dbmultimfa.1"
 
 apiVersion: v2
 name: teleport-plugin-discord
