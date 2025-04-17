@@ -63,6 +63,13 @@ export function Agents() {
       )}
       <Table<AWSOIDCDeployedDatabaseService>
         data={servicesAttempt.data?.services}
+        row={{
+          onClick: (item: AWSOIDCDeployedDatabaseService) =>
+            window.open(item.dashboardUrl, '_blank'),
+          getStyle: () => ({
+            cursor: 'pointer',
+          }),
+        }}
         columns={[
           {
             key: 'name',
