@@ -750,7 +750,7 @@ Slot %s:
 	Algorithm:		%v
 	Subject DN:		%v
 	Issuer DN:		%v
-	Serial:			  %v
+	Serial:			%v
 	Fingerprint:	%v
 	Not before:		%v
 	Not after:		%v
