@@ -541,7 +541,7 @@ func IsAccessListMember(
 
 	for _, member := range members {
 		// Is user an explicit member?
-		if member.Spec.MembershipKind != accesslist.MembershipKindList && member.GetName() == user.GetName() {
+		if member.Spec.MembershipKind != accesslist.MembershipKindList && member.Spec.Name == user.GetName() {
 			if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
 				// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
 				// through all members to make sure there isn't a valid match later on.
@@ -556,7 +556,7 @@ func IsAccessListMember(
 		}
 		// Is user an inherited member through any potential member AccessLists?
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
+			memberAccessList, err := g.GetAccessList(ctx, member.Spec.Name)
 			if err != nil {
 				membershipErr = trace.Wrap(err)
 				continue
