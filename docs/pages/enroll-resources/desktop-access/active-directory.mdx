@@ -597,7 +597,7 @@ To configure Teleport to protect access to Windows desktops:
      auth_token: "path/to/token"
      proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
    windows_desktop_service:
-     enabled: yes
+     enabled: true
      ldap:
        # Port must be included for the addr.
        # LDAPS port is 636 by default (example.com:636)
@@ -610,11 +610,11 @@ To configure Teleport to protect access to Windows desktops:
      discovery:
        base_dn: "*"
    auth_service:
-     enabled: no
+     enabled: false
    proxy_service:
-     enabled: no
+     enabled: false
    ssh_service:
-     enabled: no
+     enabled: false
    ```
 
    For a detailed description of the configuration fields, see
@@ -689,7 +689,7 @@ base distinguished name to search from.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   discovery:
     base_dn: '*'
 ```
@@ -703,7 +703,7 @@ compute a logical AND of all filters specified.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   discovery:
     base_dn: '*'
     filters:
@@ -720,7 +720,7 @@ configuration.
 
 ```yaml
 windows_desktop_service:
-  enabled: yes
+  enabled: true
   discovery:
     base_dn: '*'
     label_attributes:
@@ -778,7 +778,7 @@ domain, you would do the following:
 
   ```yaml
   windows_desktop_service:
-    enabled: yes
+    enabled: true
 
     # configure LDAP settings to point at the child domain
     ldap:
@@ -817,7 +817,7 @@ NLA against `example.com:88`.
 
 ```yaml
 windows_desktop_service:
-    enabled: yes
+    enabled: true
     ldap:
       addr: example.com:636
 ```
@@ -827,7 +827,7 @@ in your Teleport configuration file.
 
 ```yaml
 windows_desktop_service:
-    enabled: yes
+    enabled: true
     kdc_address: kdc.example.com   # defaults to port 88 if unspecified
 ```
 

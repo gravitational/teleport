@@ -42,7 +42,7 @@ example:
 ```yaml
 # This section configures the Discovery Service
 discovery_service:
-  enabled: yes
+  enabled: true
   discovery_group: main-cluster
   kubernetes:
   - types: ["app"]
@@ -59,7 +59,7 @@ Configuration for the Application Service is controlled by the `resources` field
 
 ```yaml
 app_service:
-  enabled: yes
+  enabled: true
   resources:
   - labels:
     "teleport.dev/kubernetes-cluster": "main-cluster"
