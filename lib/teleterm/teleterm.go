@@ -20,6 +20,7 @@ package teleterm
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -32,6 +33,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/utils/keys/piv"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -99,6 +102,21 @@ func Serve(ctx context.Context, cfg Config) error {
 		serverAPIWait <- err
 	}()
 
+	var hardwareKeyAgentServer *libhwk.Server
+	if cfg.HardwareKeyAgent {
+		hardwareKeyService := piv.NewYubiKeyService(daemonService.NewHardwareKeyPrompt())
+		hardwareKeyAgentServer, err = libhwk.NewAgentServer(ctx, hardwareKeyService, libhwk.DefaultAgentDir())
+		if err != nil {
+			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
+		} else {
+			go func() {
+				if err := hardwareKeyAgentServer.Serve(ctx); err != nil {
+					slog.WarnContext(ctx, "hardware key agent server error", "err", err)
+				}
+			}()
+		}
+	}
+
 	// Wait for shutdown signals
 	go func() {
 		shutdownSignals := []os.Signal{os.Interrupt, syscall.SIGTERM}
@@ -114,6 +132,10 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		daemonService.Stop()
 		apiServer.Stop()
+
+		if hardwareKeyAgentServer != nil {
+			hardwareKeyAgentServer.Stop()
+		}
 	}()
 
 	errAPI := <-serverAPIWait
