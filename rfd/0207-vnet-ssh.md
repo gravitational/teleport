@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: @ravicious && (@zmb3 || @rosstimothy)
+* Engineering: @espadolini && @rosstimothy
 * Security: doyensec
 * Product: @klizhentas
 
@@ -97,18 +97,16 @@ the top on the status of VNet SSH.
 The SSH section in the VNet Status page will display:
 
 > VNet SSH lets any SSH client connect to Teleport SSH servers.<br>
-> When you enable VNet SSH, Connect will automatically add configuration options
+> To enable VNet SSH, Connect can automatically add an include directive
 > to `~/.ssh/config`.
 >
-> Enable VNet SSH (button)
+> Configure VNet SSH (button)
 
-Alice clicks the "Enable VNet SSH" button and the VNet Status page refreshes to
+Alice clicks the "Configure VNet SSH" button and the VNet Status page refreshes to
 display:
 
 > VNet SSH lets any SSH client connect to Teleport SSH servers.<br>
 > VNet SSH is enabled, configuration options are present in `~/.ssh/config`.
->
-> Disable VNet SSH (button)
 
 Alice closes the VNet Status page to return to the Resources page.
 She finds her `devbox` server and clicks the menu button and then the
@@ -235,12 +233,13 @@ Host *.teleport.example.com *.leaf.teleport.example.com
     GlobalKnownHostsFile "/Users/nic/Library/Application Support/tsh/vnet_known_hosts"
     UserKnownHostsFile /dev/null
     StrictHostKeyChecking yes
+    IdentitiesOnly yes
 ```
 
 This configures a custom identity and known hosts file for all Teleport SSH hosts.
 It will use wildcards to match Teleport cluster names of all root and leaf clusters
 in all profiles found in `$TELEPORT_HOME`.
-VNet will update file at a regular interval if the set of clusters changes.
+VNet will update the file at a regular interval if the set of clusters changes.
 The default interval VNet will check if the set of clusters has changed will be
 30 seconds, but it may be updated early if Connect can signal VNet that the user
 has logged into or out of a new profile.
@@ -269,9 +268,9 @@ present an SSH host certificate generated on the fly signed by the VNet SSH CA.
 This configuration should be compatible with OpenSSH clients, any clients or
 integrations that call out to the OpenSSH client, and any other clients that
 parse `~/.ssh/config`.
-It is intentionally as simple as possible, only setting an `IdentityFile` and
-`GlobalKnownHostsFile`, to maximize the probability that other SSH client tools
-will be able to handle it.
+It is intentionally as simple as possible, the only required settings are
+`IdentityFile` and `GlobalKnownHostsFile`, to maximize the probability that
+other SSH client tools will be able to handle it.
 It will not support PuTTY or WinSCP, or other clients that do not read
 `~/.ssh/config`.
 We can consider adding native support for PuTTY in a future release by
@@ -301,46 +300,74 @@ When the VNet process receives a TCP connection at an address that has been
 assigned to an FQDN but does not yet know if there is a matching app or SSH host:
 1. The existing TCP app lookup will run first, if the address matches a TCP app
    then the IP will be permanently assigned to that app and regular TCP app
-   forwarding will take over.
-1. VNet will apply any matching proxy templates found in the user's
-   `TELEPORT_HOME` to the FQDN.
-1. VNet will query the matching cluster to see if any SSH servers have a
-   matching SSH server using the `ResolveSSHTarget` rpc.
-1. If a match is found a free IP will be assigned to that SSH server and it
-   will be returned in an authoritative DNS answer.
-1. If no matching server is found a `NXDOMAIN` response will be returned with
-   no cache TTL.
+   forwarding will take over. This matches the current VNet behavior where TCP
+   app matches are permanent.
+1. The dial target for `<hostname>.<cluster>` will be set to `<hostname>:0`.
+1. VNet will apply any proxy templates found in the user's `TELEPORT_HOME` to
+   the FQDN.
+   1. If the proxy template matched and `query` or `search` parameters were
+      set, VNet will search for matching hosts in the cluster. If a single match
+      is found, the SSH dial target will be set to the UUID of the node.
+      Else, an error will be reported to the user.
+   1. If the proxy template set an alternate `host:port`, the dial target will
+      be set to that.
+1. VNet will attempt to dial the target host and get a TCP connection using
+   [client.DialHost](https://github.com/gravitational/teleport/blob/9c520834d8c952c484d9e654149d89a5d4fdaa8b/api/client/proxy/client.go#L430).
+   If this fails the incoming TCP connection will be rejected.
+1. At this point the TCP dial to the host succeeded, we know there is a matching
+   SSH host, VNet will permanently skip expensive app queries at this IP address and
+   attempt SSH connections only, until it restarts.
+1. VNet will now accept the incoming TCP connection and initiate an SSH
+   handshake with the client.
+1. VNet will set `ssh.ServerConfig.PublicKeyCallback` to a function that:
+   1. Validates that the user public key matches `id_vnet.pub` mentioned in [SSH client configuration](#ssh-client-configuration)
+   1. Attempts an SSH connection to the target with and without session MFA. If
+      both fail, an authentication error is returned. This is done in
+      `PublicKeyCallback` so that authentication failures to the target are returned
+      as authentication failures to the client. Optimistically we can  send
+      more informative errors to Connect.
+1. If both SSH handshakes succeed we now have a connection to the client and to
+   the target, VNet will now proxy all SSH requests and channels between the two
+   connections until either side closes the connection or there is a fatal error.
 
 Here is a sequence diagram for an example VNet SSH session with per-session MFA:
 
 ```mermaid
 sequenceDiagram
-    participant User
+    actor User
     participant Client as SSH Client
     participant DNS_Resolver as DNS Resolver
     participant VNet
     participant Teleport as teleport.example.com
-    participant SSH_Server as SSH Server
+    participant Host as host.teleport.example.com
 
     User->>Client: ssh host.teleport.example.com
-    Client->>DNS_Resolver: Ask for A record for host.teleport.example.com
-    DNS_Resolver->>DNS_Resolver: Check own cache
-    DNS_Resolver->>VNet: Ask for A record for host.teleport.example.com
-    VNet->>VNet: Check own cache
-    VNet->>VNet: Check if matches `*.<cluster name>`
-    VNet->>VNet: Apply proxy templates
-    VNet->>Teleport: Ask if SSH server "host" exists
-    Teleport->>VNet: Reply "host" exists
-    VNet->>VNet: Assign IP 100.64.0.3 to host.teleport.example.com
-    VNet->>DNS_Resolver: Return A record with IP 100.64.0.3
-    DNS_Resolver->>Client: Return A record with IP 100.64.0.3
-    Client<<->>VNet: Terminated SSH connection to 100.64.0.3
+    Client->>DNS_Resolver: A host.teleport.example.com?
+    DNS_Resolver->>DNS_Resolver: Check own cache (miss)
+    DNS_Resolver->>VNet: A host.teleport.example.com?
+    VNet->>VNet: Check own cache (miss)
+    VNet->>VNet: Matches a TCP app in the cluster? (no)
+    VNet->>VNet: Matches *.teleport.example.com? (yes)
+    VNet->>VNet: Assign IP 100.64.0.3 to FQDN host.teleport.example.com
+    VNet->>DNS_Resolver: IP is 100.64.0.3
+    DNS_Resolver->>Client: IP is 100.64.0.3
+
+    Client<<->>VNet: Initiate SSH connection to 100.64.0.3
+    VNet->>Host: TCP dial `host:0`
+    VNet->>Client: Initiate SSH handshake
+    Client->>VNet: Attempts public-key auth
+
+    VNet->>VNet: Apply proxy templates for host.teleport.example.com (no match)
     VNet->>Teleport: Request per-session MFA certificate
     Teleport->>VNet: Send MFA challenge
     VNet->>User: Prompt user to tap MFA
     VNet->>Teleport: Send MFA response
     Teleport->>VNet: Send MFA-verified SSH cert
-    VNet<<->>SSH_Server: Terminated SSH connection to "host"
+    Teleport->>VNet: Return session SSH certificate
+
+    VNet<<->>Host: SSH connection with MFA certificate
+    VNet->>Client: Completes SSH handshake
+    Client<<->>Host: Proxied SSH connection
 ```
 
 ### Security
@@ -360,8 +387,8 @@ Outside of the user's machine, VNet connections will appear identical to
 
 ### Proto Specification
 
-TODO: add protos necessary for Windows where VNet communicates with Connect over
-gRPC.
+There will be new protos for the VNet service -> client application (tshd)
+service, details TBD.
 
 ### Backward Compatibility
 
@@ -394,6 +421,7 @@ The test plan will be updated to cover SSH connections via VNet with:
 1. hardware keys
 1. TCP port forwarding
 1. X11 forwarding
+1. Access requests
 
 We should test that SSH connections work and that sessions are properly
 recorded.
