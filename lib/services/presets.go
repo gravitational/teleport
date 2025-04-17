@@ -47,7 +47,7 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 	}
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -113,7 +113,7 @@ func NewPresetEditorRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -231,7 +231,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -323,7 +323,7 @@ func NewPresetAuditorRole() types.Role {
 	// YAML.
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -368,7 +368,7 @@ func NewPresetReviewerRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetReviewerRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -395,7 +395,7 @@ func NewPresetRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -422,7 +422,7 @@ func NewPresetGroupAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetGroupAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -456,7 +456,7 @@ func NewPresetDeviceAdminRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceAdminRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -485,7 +485,7 @@ func NewPresetDeviceEnrollRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetDeviceEnrollRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -515,7 +515,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequireTrustedDeviceRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -563,7 +563,7 @@ func NewPresetRequireTrustedDeviceRole() types.Role {
 func NewPresetWildcardWorkloadIdentityIssuerRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -596,7 +596,7 @@ func NewSystemOktaAccessRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -632,7 +632,7 @@ func NewSystemOktaRequesterRole() types.Role {
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemOktaRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -659,7 +659,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 	}
 	return &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemIdentityCenterAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -686,7 +686,7 @@ func NewSystemIdentityCenterAccessRole() types.Role {
 func NewPresetTerraformProviderRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V8,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetTerraformProviderRoleName,
 			Namespace:   apidefaults.Namespace,

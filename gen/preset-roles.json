@@ -1,7 +1,7 @@
 {
   "access": {
     "kind": "role",
-    "version": "v7",
+    "version": "v8",
     "metadata": {
       "name": "access",
       "description": "Access cluster resources",
@@ -152,7 +152,7 @@
   },
   "auditor": {
     "kind": "role",
-    "version": "v7",
+    "version": "v8",
     "metadata": {
       "name": "auditor",
       "description": "Review cluster events and replay sessions",
@@ -276,7 +276,7 @@
   },
   "editor": {
     "kind": "role",
-    "version": "v7",
+    "version": "v8",
     "metadata": {
       "name": "editor",
       "description": "Edit cluster configuration",

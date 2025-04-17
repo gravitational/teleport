@@ -653,7 +653,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "terraform provider (bugfix of the missing resources)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -702,7 +702,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
