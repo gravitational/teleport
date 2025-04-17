@@ -643,24 +643,21 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 	return accessList
 }
 
-func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clock clockwork.Clock) *accesslist.AccessListMember {
+func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clk clockwork.Clock) *accesslist.AccessListMember {
 	t.Helper()
 
+	metaName := fmt.Sprintf("%s-%s", accessListName, memberName)
 	member, err := accesslist.NewAccessListMember(
-		header.Metadata{
-			Name: memberName,
-		},
+		header.Metadata{Name: metaName},
 		accesslist.AccessListMemberSpec{
 			AccessList:     accessListName,
 			Name:           memberName,
-			Joined:         clock.Now().UTC(),
-			Expires:        clock.Now().UTC().Add(24 * time.Hour),
+			Joined:         clk.Now().UTC(),
+			Expires:        clk.Now().UTC().Add(24 * time.Hour),
 			Reason:         "because",
-			AddedBy:        "maxim.dietz@goteleport.com",
+			AddedBy:        "tester",
 			MembershipKind: memberKind,
-		},
-	)
+		})
 	require.NoError(t, err)
-
 	return member
 }
