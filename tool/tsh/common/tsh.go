@@ -652,7 +652,7 @@ func (c *CLIConf) PromptConfirmation(question string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {
-		return trace.Errorf("Operation cancelled by user request.")
+		return trace.Errorf("Operation canceled by user request.")
 	}
 	return nil
 }
