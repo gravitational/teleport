@@ -32,23 +32,24 @@ A domain can be associated with an IdP in two places:
 - Assign a domain name to the IdP after the IdP is created.
 
 In both the cases, if your Teleport cluster and the user account belong to different domains, 
-you must update the DNS `TXT` record of the domain. Refer to the table below. 
+you must update the DNS `TXT` record of the domain that the user account belongs to. 
+Refer to the table below. 
 
 | Domain | User account | Teleport cluster | Domain association |
 | - | - | - | - |
 | example.com | alice@example.com | https://example.com, https://teleport.example.com | Domain can be associated without DNS update. |
-| example.com | alice@example.com | https://mytenant.teleport.sh| Domain can be associated but DNS update is required. |
+| example.com | alice@example.com | https://example.teleport.sh| Domain can be associated but DNS update is required. |
 
 In the second example where the DNS update is required, you need to update the `TXT` record of the `example.com` so that 
-the `DirectFedAuthUrl` value of the `TXT` record points to SAML IdP SSO URL of Teleport cluster `mytenant.teleport.sh`.  
+the `DirectFedAuthUrl` value of the `TXT` record points to SAML IdP SSO URL of the Teleport cluster `example.teleport.sh`.  
 ```
-example.com.  IN   TXT   DirectFedAuthUrl=https://mytenant.teleport.sh/enterprise/saml-idp/sso
+example.com.  IN   TXT   DirectFedAuthUrl=https://example.teleport.sh/enterprise/saml-idp/sso
 ```
 
 For the self-hosted Teleport cluster, determine if DNS update is required based on the reference table shown above. 
 
 For the Teleport Cloud cluster, you must update the DNS record of your domain. Because your Teleport cluster is 
-always hosted under `mytenant.teleport.sh` domain and your user account will not belong to the `teleport.sh` domain.
+always hosted under `example.teleport.sh` domain and your user account will not belong to the `teleport.sh` domain.
 
 ## Step 2/5. Configure Teleport as an identity provider
 
@@ -189,7 +190,7 @@ User access logs can be found in both the Teleport Web UI and in the Azure Porta
 In Teleport, each user authentication with the SAML IdP is logged and the event can be found in the audit log.
 ```json
 {
-  "cluster_name": "mytenant.teleport.sh",
+  "cluster_name": "example.teleport.sh",
   "code": "TSI000I",
   "ei": 0,
   "event": "saml.idp.auth",
