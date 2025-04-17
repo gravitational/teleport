@@ -70,7 +70,7 @@ export function Agents() {
           },
           {
             key: 'matchingLabels',
-            headerText: 'Tags',
+            headerText: 'Labels',
             render: ({ matchingLabels }) => (
               <LabelCell
                 data={matchingLabels.map(l => `${l.name}:${l.value}`)}
