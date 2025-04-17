@@ -157,7 +157,10 @@ func checkDatabaseExecInputFlags(cf *CLIConf) error {
 			cf.ParallelJobs = maxValue
 		}
 	} else if cf.ParallelJobs < 1 || cf.ParallelJobs > maxParallelJobs {
-		return trace.BadParameter(`--parallel must be between 1 and %v.`, maxParallelJobs)
+		return trace.BadParameter(`--parallel must be between 1 and %v.
+
+You may use TELEPORT_PARALLEL_JOBS to bypass limit. However, setting a very high
+value may overload your Teleport cluster. `, maxParallelJobs)
 	}
 
 	// Selection flags.
