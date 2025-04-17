@@ -332,16 +332,16 @@ export function useUserTraits() {
     setAttempt({ status: 'processing' });
     try {
       await ctx.userService
-        .updateUser(
-          {
+        .updateUser({
+          user: {
             ...user,
             traits: {
               ...user.traits,
               ...newDynamicTraits,
             },
           },
-          ExcludeUserField.AllTraits
-        )
+          excludeUserField: ExcludeUserField.AllTraits,
+        })
         .catch((error: Error) => {
           emitErrorEvent(`error updating user traits: ${error.message}`);
           throw error;

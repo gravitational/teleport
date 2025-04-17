@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 // UserProcessConfig provides the necessary configuration to run VNet.
@@ -56,9 +57,9 @@ func (c *UserProcessConfig) checkAndSetDefaults() error {
 // caller is expected to call Close on the process manager to clean up any
 // resources, terminate all processes, and remove any OS configuration used for
 // actively running VNet.
-func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (*ProcessManager, NetworkStackInfo, error) {
+func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (*ProcessManager, *vnetv1.NetworkStackInfo, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
-		return nil, NetworkStackInfo{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	return runPlatformUserProcess(ctx, cfg)
 }

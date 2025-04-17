@@ -119,7 +119,7 @@ export function VnetSliderStep(props: StoryProps) {
   if (props.autoStart) {
     appContext.statePersistenceService.putState({
       ...appContext.statePersistenceService.getState(),
-      vnet: { autoStart: true },
+      vnet: { autoStart: true, hasEverStarted: true },
     });
     appContext.workspacesService.setState(draft => {
       draft.isInitialized = true;

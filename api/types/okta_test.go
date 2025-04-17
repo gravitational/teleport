@@ -304,3 +304,69 @@ func Test_PluginOktaSyncSettings_SetUserSyncSource(t *testing.T) {
 		require.Equal(t, OktaUserSyncSourceSamlApp, syncSettings.GetUserSyncSource())
 	})
 }
+
+func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
+	t.Run("on nil settings", func(t *testing.T) {
+		syncSettings := (*PluginOktaSyncSettings)(nil)
+
+		require.False(t, syncSettings.GetEnableUserSync())
+		require.False(t, syncSettings.GetEnableAppGroupSync())
+		require.False(t, syncSettings.GetEnableAccessListSync())
+		require.False(t, syncSettings.GetEnableBidirectionalSync())
+	})
+
+	t.Run("on empty settings", func(t *testing.T) {
+		syncSettings := &PluginOktaSyncSettings{}
+
+		require.False(t, syncSettings.GetEnableUserSync())
+		require.False(t, syncSettings.GetEnableAppGroupSync())
+		require.False(t, syncSettings.GetEnableAccessListSync())
+		require.False(t, syncSettings.GetEnableBidirectionalSync())
+	})
+
+	t.Run("on user sync enabled", func(t *testing.T) {
+		syncSettings := &PluginOktaSyncSettings{
+			SyncUsers: true,
+		}
+
+		require.True(t, syncSettings.GetEnableUserSync())
+		require.True(t, syncSettings.GetEnableAppGroupSync()) // true by default
+		require.False(t, syncSettings.GetEnableAccessListSync())
+		require.False(t, syncSettings.GetEnableBidirectionalSync())
+	})
+
+	t.Run("on user sync enabled with disabled app and group sync", func(t *testing.T) {
+		syncSettings := &PluginOktaSyncSettings{
+			SyncUsers:            true,
+			DisableSyncAppGroups: true,
+		}
+
+		require.True(t, syncSettings.GetEnableUserSync())
+		require.False(t, syncSettings.GetEnableAppGroupSync())
+		require.False(t, syncSettings.GetEnableAccessListSync())
+		require.False(t, syncSettings.GetEnableBidirectionalSync())
+	})
+
+	t.Run("on access list sync enabled", func(t *testing.T) {
+		syncSettings := &PluginOktaSyncSettings{
+			SyncAccessLists: true,
+		}
+
+		require.False(t, syncSettings.GetEnableUserSync())
+		require.False(t, syncSettings.GetEnableAppGroupSync())
+		require.True(t, syncSettings.GetEnableAccessListSync())
+		require.True(t, syncSettings.GetEnableBidirectionalSync()) // true by default
+	})
+
+	t.Run("on access list sync enabled with bidirectional sync disabled", func(t *testing.T) {
+		syncSettings := &PluginOktaSyncSettings{
+			SyncAccessLists:          true,
+			DisableBidirectionalSync: true,
+		}
+
+		require.False(t, syncSettings.GetEnableUserSync())
+		require.False(t, syncSettings.GetEnableAppGroupSync())
+		require.True(t, syncSettings.GetEnableAccessListSync())
+		require.False(t, syncSettings.GetEnableBidirectionalSync())
+	})
+}

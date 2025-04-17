@@ -66,7 +66,7 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 
 	toolsVersion, err := getToolsVersion(autoUpdateVersion)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to get rools version", "error", err)
+		h.logger.ErrorContext(ctx, "failed to get tools version", "error", err)
 		toolsVersion = teleport.SemVersion
 	}
 

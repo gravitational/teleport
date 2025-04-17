@@ -68,9 +68,6 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
-
-			sb.StopTimer() // stop timer while running setup
-
 			// configure the backend instance
 			var bk backend.Backend
 			var err error

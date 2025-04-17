@@ -63,7 +63,7 @@ type Service struct {
 	usageReporter      usageReporter
 	processManager     *vnet.ProcessManager
 	clusterConfigCache *vnet.ClusterConfigCache
-	networkStackInfo   vnet.NetworkStackInfo
+	networkStackInfo   *vnetv1.NetworkStackInfo
 }
 
 // New creates an instance of Service.
