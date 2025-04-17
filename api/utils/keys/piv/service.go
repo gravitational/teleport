@@ -122,7 +122,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 	}
 
 	generatePrivateKey := func() (*hardwarekey.Signer, error) {
-		ref, err := y.generatePrivateKey(pivSlot, config.Policy)
+		ref, err := y.generatePrivateKey(pivSlot, config.Policy, config.Algorithm)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
