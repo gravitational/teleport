@@ -46,6 +46,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -1461,6 +1462,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindDynamicWindowsDesktop,
 			create: testCreateDynamicWindowsDesktop,
 		},
+		{
+			kind:   types.KindHealthCheckConfig,
+			create: testCreateHealthCheckConfig,
+		},
 	}
 
 	for _, test := range tests {
@@ -2374,11 +2379,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateConfig
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateConfig
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2419,11 +2424,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateVersion
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateVersion
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2475,11 +2480,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateAgentRollout
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateAgentRollout
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2532,6 +2537,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "okta",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2557,6 +2564,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "slack",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2572,6 +2581,58 @@ func TestPluginResourceWrapper(t *testing.T) {
 						Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
 							AccessToken:  "token",
 							RefreshToken: "refresh_token",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "identity center",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: apicommon.OriginAWSIdentityCenter,
+					Labels: map[string]string{
+						"teleport.dev/hosted-plugin": "true",
+					},
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_AwsIc{
+						AwsIc: &types.PluginAWSICSettings{
+							Credentials: &types.AWSICCredentials{
+								Source: &types.AWSICCredentials_System{
+									System: &types.AWSICCredentialSourceSystem{},
+								},
+							},
+							Region: "ap-south-2",
+							Arn:    "some:arn",
+							ProvisioningSpec: &types.AWSICProvisioningSpec{
+								BaseUrl: "https://scim.example.com/v2",
+							},
+							AccessListDefaultOwners: []string{"root"},
+							UserSyncFilters: []*types.AWSICUserSyncFilter{
+								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
+								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
+							},
+							GroupSyncFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Group #\\d+$`}},
+								{Include: &types.AWSICResourceFilter_Id{Id: "42"}},
+							},
+							AwsAccountsFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_Id{Id: "314159"}},
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Account #\\d+$`}},
+							},
+						},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Code: types.PluginStatusCode_RUNNING,
+					Details: &types.PluginStatusV1_AwsIc{
+						AwsIc: &types.PluginAWSICStatusV1{
+							GroupImportStatus: &types.AWSICGroupImportStatus{
+								StatusCode: types.AWSICGroupImportStatusCode_DONE,
+							},
 						},
 					},
 				},

@@ -57,7 +57,7 @@ Please replace them with values appropriate for your environment.
 ### Compute Engine: VM Instances with Instance Groups
 
 We recommend using `n1-standard-2` instances in production. It's best to separate
-Teleport's Proxy Servers and Auth Servers using instance groups for each.
+Teleport Proxy Service and Auth Service instances using instance groups for each.
 
 ### Compute Engine: Health Checks
 
@@ -70,7 +70,7 @@ see  [Admin Guide: Troubleshooting](../../management/admin/troubleshooting.mdx) 
 ### Storage: Cloud Firestore
 
 The [Firestore](https://cloud.google.com/firestore/) backend uses real-time
-updates to keep individual Auth Servers in sync, and requires Firestore configured
+updates to keep individual Auth Service instances in sync, and requires Firestore configured
 in native mode.
 
 To configure Teleport to store audit events in Firestore, add the following to
@@ -166,8 +166,8 @@ service account.
 
 ```code
 $ gcloud iam service-accounts create teleport-auth-server \
-    --description="Service account for Teleport Auth Server" \
-    --display-name="Teleport Auth Server" \
+    --description="Service account for Teleport Auth Service" \
+    --display-name="Teleport Auth Service" \
     --format=yaml
 ```
 
@@ -226,7 +226,7 @@ automatically include the `systemd` configuration.
 
 ```yaml
 #
-# Sample Teleport configuration teleport.yaml file for Auth Server
+# Sample Teleport configuration teleport.yaml file for Auth Service
 #
 teleport:
   nodename: teleport-auth-server
@@ -261,7 +261,7 @@ automatically include the `systemd` configuration.
 
 ```yaml
 #
-# Sample Teleport configuration teleport.yaml file for Auth Server
+# Sample Teleport configuration teleport.yaml file for Auth Service
 #
 teleport:
   nodename: teleport-auth-server
@@ -292,7 +292,7 @@ ssh_service:
 
 (!docs/pages/includes/enterprise/obtainlicense.mdx!)
 
-Save your license file on the Auth Servers at the path,
+Save your license file on the Auth Service instances at the path,
 `/var/lib/teleport/license.pem`.
 	</TabItem>
 </Tabs>
@@ -332,7 +332,7 @@ Save the following configuration file as `/etc/teleport.yaml` on the Node:
 version: v3
 teleport:
   auth_token: (= presets.tokens.second =)
-  # Teleport agents can be joined to the cluster via the Proxy Service's
+  # Teleport Agents can be joined to the cluster via the Proxy Service's
   # public address. This will establish a reverse tunnel between the Proxy
   # Service and the agent that is used for all traffic.
   proxy_server: teleport.example.com:443

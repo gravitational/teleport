@@ -71,7 +71,7 @@ Create a secret called "license" in the namespace you are using to deploy
 Teleport:
 
 ```code
-$ kubectl -n teleport create secret generic license --from-file=license.pem
+$ kubectl -n <Var name="teleport-namespace" /> create secret generic license --from-file=license.pem
 ```
 
 For the Teleport pod to load your license:
@@ -114,6 +114,30 @@ effect.
 The Teleport Auth Service checks the expiration status of your license every
 hour. This means that, after you replace your license file and restart your Auth
 Service instances, it can take up to an hour to confirm the new license.
+
+If you are running a self-hosted Teleport Enterprise cluster on Kubernetes using
+the `teleport-cluster` Helm chart, complete the following steps to update your
+license:
+
+1. Download a new license file from your Teleport account using the instructions
+   we provide [earlier in this guide](#download-your-license-file). We assume
+   that the license file is called `license.pem`.
+
+1. Assign <Var name="teleport-namespace" /> to the Kubernetes namespace where
+   you manage Teleport-related resources.
+
+1. Replace the Kubernetes secret that stores your existing license. We assume
+   that the secret is called `license`, but there may be a different secret name
+   specified in the `licenseSecretName` field of the chart's values file.
+
+   The following command prints a secret resource manifest to stdout using a dry
+   run of `kubectl create secret` and pipes it to `kubectl replace`. This way,
+   you can update the license without destroying and recreating it, avoiding the
+   risk of an Auth Service instance looking up a nonexistent license file:
+
+   ```code
+   $ kubectl create secret generic license --from-file license.pem --dry-run=client -o yaml | kubectl replace -n <Var name="teleport-namespace" /> -f -   
+   ```
 
 ## When your license expires
 

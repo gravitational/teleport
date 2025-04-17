@@ -64,7 +64,7 @@ AWS IAM role when it is discovering AWS databases.
 # within AWS account `222222222222` by assuming the external AWS IAM role
 # "example-role".
 db_service:
-  enabled: "yes"
+  enabled: true
   aws:
     - types: ["rds"]
       regions: ["us-west-1"]
@@ -90,7 +90,7 @@ an AWS database in an external account and proxy connections to it.
 # in us-west-1 within AWS account `222222222222` by assuming an external AWS
 # IAM role "example-role".
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   - name: "rds-postgres"
     protocol: "postgres"
@@ -158,14 +158,15 @@ AWS IAM identity and the external AWS IAM role:
 - The external AWS IAM role's trust policy must trust the Teleport Database
   Service's AWS IAM identity.
 
-<Details title="Why are both required?">
+<details>
+<summary>Why are both required?</summary>
   Unlike assuming a role within the same AWS account, when an AWS IAM role is
   in a different AWS account than the IAM identity that attempts to assume it,
   the role's trust policy alone is not sufficient to allow assuming the role.
   
   For more details, see:
   [AWS cross-account policy evaluation](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic-cross-account.html#policy-eval-cross-account).
-</Details>
+</details>
 
 ### Database Service IAM policy
 

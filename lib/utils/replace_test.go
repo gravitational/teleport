@@ -1323,7 +1323,7 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 
 func BenchmarkReplaceRegexp(b *testing.B) {
 	b.Run("same expression", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			replaced, err := ReplaceRegexp("*", "foo", "test")
 			require.NoError(b, err)
 			require.NotEmpty(b, replaced)
@@ -1331,20 +1331,24 @@ func BenchmarkReplaceRegexp(b *testing.B) {
 	})
 
 	b.Run("unique expressions", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		i := 0
+		for b.Loop() {
 			r := strconv.Itoa(i)
 			replaced, err := ReplaceRegexp(r, r, r)
 			require.NoError(b, err)
 			require.NotEmpty(b, replaced)
+			i++
 		}
 	})
 
 	b.Run("no matches", func(b *testing.B) {
 		expression := "$abc^"
-		for i := 0; i < b.N; i++ {
+		i := 0
+		for b.Loop() {
 			replaced, err := ReplaceRegexp(expression, strconv.Itoa(i), "test")
 			require.ErrorIs(b, err, ErrReplaceRegexNotFound)
 			require.Empty(b, replaced)
+			i++
 		}
 	})
 }

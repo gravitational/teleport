@@ -133,7 +133,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               </Text>
             </FormItem>
 
-            <Box mb="4">
+            <Box mb="4" width={760}>
               {missingLabels && (
                 <Text mt="1" color="error.main">
                   At least one label is required
@@ -145,8 +145,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   setCreateBotRequest({ ...createBotRequest, labels: labels })
                 }
                 disableBtns={isLoading}
-                inputWidth={350}
-                areLabelsRequired={true}
+                required={true}
                 labelKey={{
                   fieldName: 'Label for Resources the User Can Access',
                   placeholder: 'label key',

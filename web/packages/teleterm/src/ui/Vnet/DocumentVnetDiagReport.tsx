@@ -35,7 +35,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-import { useAsync } from 'shared/hooks/useAsync';
+import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
@@ -68,6 +68,11 @@ export function DocumentVnetDiagReport(props: {
     useCallback(async () => {
       const [report, error] = await runDiagnostics();
       if (error) {
+        // If the manual run is made stale by VNet context executing a periodic run, use the result
+        // of the manual run anyway.
+        if (error instanceof CanceledError && error.stalePromise) {
+          return error.stalePromise as Promise<diag.Report>;
+        }
         throw error;
       }
       return report;
@@ -129,7 +134,7 @@ export function DocumentVnetDiagReport(props: {
       <Stack
         gap={4}
         maxWidth="680px"
-        width="100%"
+        fullWidth
         mx="auto"
         mt={4}
         p={5}
@@ -139,13 +144,8 @@ export function DocumentVnetDiagReport(props: {
         // content was displayed in the Stack.
         alignSelf="flex-start"
       >
-        <Stack gap={2} width="100%" alignItems="stretch">
-          <Flex
-            flexWrap="wrap"
-            width="100%"
-            gap={2}
-            justifyContent="space-between"
-          >
+        <Stack gap={2} fullWidth alignItems="stretch">
+          <Flex flexWrap="wrap" gap={2} justifyContent="space-between">
             <H1>VNet Diagnostic Report</H1>
 
             <Flex gap={2}>
@@ -243,7 +243,7 @@ const CheckAttempt = ({
   const displayDetails = reportOneofDisplayDetails[reportOneof];
 
   return (
-    <Stack gap={2} width="100%">
+    <Stack gap={2} fullWidth>
       {!displayDetails ? (
         <Alert kind="danger">
           Cannot display the result from an unsupported check {reportOneof}
@@ -390,5 +390,5 @@ const Success = styled(SuccessIcon).attrs({
 `;
 
 const Alert = (props: Pick<AlertProps, 'children' | 'details' | 'kind'>) => (
-  <DesignAlert m={0} width="100%" {...props} />
+  <DesignAlert m={0} {...props} />
 );

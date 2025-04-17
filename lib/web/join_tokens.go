@@ -202,11 +202,14 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.BadParameter("renaming tokens is not supported")
 	}
 
-	// set expires time to default node join token TTL
-	expires := time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
-	// IAM and GCP tokens should never expire
-	if req.JoinMethod == types.JoinMethodGCP || req.JoinMethod == types.JoinMethodIAM {
+	var expires time.Time
+	switch req.JoinMethod {
+	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle:
+		// IAM, GCP, and Oracle tokens should never expire.
 		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	default:
+		// Set expires time to default node join token TTL.
+		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
 	name := req.Name

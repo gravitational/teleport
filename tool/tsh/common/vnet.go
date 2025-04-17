@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -66,15 +65,7 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 
 	if c.runDiag {
 		go func() {
-			timeout := 2 * time.Second
-			fmt.Printf("Running diagnostics in %s.\n", timeout)
-			select {
-			case <-cf.Context.Done():
-				return
-			case <-time.After(timeout):
-			}
-			// Sleep is needed to give the admin process time to actually set up the routes.
-			// TODO(ravicious): Figure out how to guarantee that routes are set up without sleeping.
+			fmt.Println("Running diagnostics.")
 			//nolint:staticcheck // SA4023. runVnetDiagnostics on unsupported platforms always returns err.
 			if err := runVnetDiagnostics(cf.Context, nsi); err != nil {
 				logger.ErrorContext(cf.Context, "Ran into a problem while running diagnostics", "error", err)

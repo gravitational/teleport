@@ -267,7 +267,8 @@ func (s *identityService) Run(ctx context.Context) error {
 	)
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
-		name: "bot-identity-renewal",
+		service: s.String(),
+		name:    "bot-identity-renewal",
 		f: func(ctx context.Context) error {
 			return s.renew(ctx, storageDestination)
 		},

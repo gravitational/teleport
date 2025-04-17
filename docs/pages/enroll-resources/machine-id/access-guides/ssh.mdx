@@ -15,7 +15,7 @@ will cover access using the Teleport CLI `tsh` as well as the OpenSSH client.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - If you have not already connected your server to Teleport, follow
-  the [Server Access Getting Started Guide](../../application-access/getting-started.mdx).
+  the [getting started guide](../../server-access/getting-started.mdx).
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the machine that will
   connect to Linux hosts with SSH. For more information, see the
@@ -145,11 +145,11 @@ $ ssh -F /opt/machine-id/ssh_config root@my-host.example.teleport.sh hostname
 my-host
 ```
 
-<Notice type="warning">
+<Admonition type="warning">
   The `ssh_config` for OpenSSH requires that `tsh` is installed. This is
   necessary as `tsh` is used to make the OpenSSH client compatible with
   Teleport's port multiplexing.
-</Notice>
+</Admonition>
 
 ### Connecting using other tools
 

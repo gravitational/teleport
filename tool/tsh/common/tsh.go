@@ -31,6 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -66,8 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -440,6 +441,7 @@ type CLIConf struct {
 	AWSCommandArgs []string
 	// AWSEndpointURLMode is an AWS proxy mode that serves an AWS endpoint URL
 	// proxy instead of an HTTPS proxy.
+	// TODO(gabrielcorado): DELETE IN 19.0.0
 	AWSEndpointURLMode bool
 
 	// AzureIdentity is Azure identity that will be used for Azure CLI access.
@@ -576,6 +578,9 @@ type CLIConf struct {
 
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
+
+	// HardwareKeyAgent determines whether the daemon will run the hardware key agent.
+	HardwareKeyAgent bool
 }
 
 // Stdout returns the stdout writer.
@@ -857,6 +862,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStart.Flag("installation-id", "Unique ID identifying a specific Teleport Connect installation").StringVar(&cf.DaemonInstallationID)
+	daemonStart.Flag("hardware-key-agent", "Serve the hardware key agent as part of the daemon process").BoolVar(&cf.HardwareKeyAgent)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -952,7 +958,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
-	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
+	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
@@ -1268,6 +1274,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
+	pivCmd := newPIVCommands(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1667,6 +1674,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case pivCmd.agent.FullCommand():
+		err = pivCmd.agent.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -3146,7 +3155,7 @@ func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecke
 		return nil, trace.BadParameter("unrecognized database type %T", db)
 	}
 
-	if db.SupportsAutoUsers() && db.GetAdminUser().Name != "" {
+	if db.IsAutoUsersEnabled() {
 		roles, err := accessChecker.CheckDatabaseRoles(db, nil)
 		if err != nil {
 			logger.WarnContext(context.Background(), "Failed to CheckDatabaseRoles for database",
@@ -3198,7 +3207,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	}
 
 	// Add a note for auto-provisioned user.
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
 			logger.WarnContext(context.Background(), "Failed to get DatabaseAutoUserMode for database",
@@ -3812,7 +3821,7 @@ func onSSHLatency(cf *CLIConf) error {
 func runLocalCommand(hostLogin string, command []string) error {
 	if len(command) == 0 {
 		if hostLogin == "" {
-			user, err := apiutils.CurrentUser()
+			user, err := user.Current()
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -4177,7 +4186,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 				return nil, trace.Wrap(err)
 			}
-			logger.InfoContext(ctx, "Could not load key for cluser into the local agent",
+			logger.InfoContext(ctx, "Could not load key for cluster into the local agent",
 				"cluster", cf.SiteName,
 				"error", err,
 			)
@@ -4384,7 +4393,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	if cf.PIVSlot != "" {
-		c.PIVSlot = keys.PIVSlot(cf.PIVSlot)
+		c.PIVSlot = hardwarekey.PIVSlotKeyString(cf.PIVSlot)
 		if err = c.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4400,6 +4409,12 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	profileErr := c.LoadProfile(c.ClientStore, proxy)
 	if profileErr != nil && !trace.IsNotFound(profileErr) {
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
+	}
+
+	if c.PIVPINCacheTTL != 0 {
+		innerPrompt := c.ClientStore.HardwareKeyService.GetPrompt()
+		pinCachingPrompt := hardwarekey.NewPINCachingPrompt(innerPrompt, c.PIVPINCacheTTL)
+		c.ClientStore.HardwareKeyService.SetPrompt(pinCachingPrompt)
 	}
 
 	if cf.Username != "" {
@@ -4497,6 +4512,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		logger.InfoContext(ctx, "X11 forwarding is not properly configured, continuing without it", "error", err)
 	}
 
+	// send variables from user env
+	setEnvVariables(c, options)
+
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.
 	if !options.StrictHostKeyChecking {
@@ -4573,11 +4591,27 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	return c, nil
 }
 
+// setEnvVariables configures extra env variables to send in client config based on the requested options.
+// We match OpenSSH behavior: if the requested env var is not set (os.LookupEnv return false), we won't send it.
+func setEnvVariables(c *client.Config, options Options) {
+	if c.ExtraEnvs == nil {
+		c.ExtraEnvs = map[string]string{}
+	}
+	for _, variable := range options.SendEnvVariables {
+		value, found := os.LookupEnv(variable)
+		if found {
+			c.ExtraEnvs[variable] = value
+		}
+	}
+}
+
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+	hwks := libhwk.NewService(cf.Context, nil /*prompt*/)
+
 	switch {
 	case cf.IdentityFileIn != "":
 		// Import identity file keys to in-memory client store.
-		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName, client.WithHardwareKeyService(hwks))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4586,16 +4620,16 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
 		// Store client keys in memory, where they can be exported to non-standard
 		// FS formats (e.g. identity file) or used for a single client call in memory.
-		return client.NewMemClientStore(), nil
+		return client.NewMemClientStore(client.WithHardwareKeyService(hwks)), nil
 
 	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
 		// Store client keys in memory, but save trusted certs and profile to disk.
-		clientStore := client.NewFSClientStore(cf.HomePath)
+		clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 		clientStore.KeyStore = client.NewMemKeyStore()
 		return clientStore, nil
 
 	default:
-		return client.NewFSClientStore(cf.HomePath), nil
+		return client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks)), nil
 	}
 }
 

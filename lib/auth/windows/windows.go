@@ -19,6 +19,7 @@
 package windows
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -35,16 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-)
-
-const (
-	// CertTTL is the TTL for Teleport-issued Windows Certificates.
-	// Certificates are requested on each connection attempt, so the TTL is
-	// deliberately set to a small value to give enough time to establish a
-	// single desktop session.
-	CertTTL = 5 * time.Minute
 )
 
 type certRequest struct {
@@ -107,6 +99,13 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		csr.ExtraExtensions = append(csr.ExtraExtensions, createUser)
 	}
 
+	if req.AD {
+		csr.ExtraExtensions = append(csr.ExtraExtensions, pkix.Extension{
+			Id:    tlsca.ADStatusOID,
+			Value: []byte("AD"),
+		})
+	}
+
 	if req.ActiveDirectorySID != "" {
 		adUserMapping, err := asn1.Marshal(SubjectAltName[adSid]{
 			otherName[adSid]{
@@ -142,7 +141,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		// CRLs in it. Each service can also handle RDP connections for a different
 		// domain, with the assumption that some other windows_desktop_service
 		// published a CRL there.
-		crlDN := crlDN(req.ClusterName, req.LDAPConfig, req.CAType)
+		crlDN := crlDN(req.ClusterName, cmp.Or(req.PKIDomain, req.Domain), req.CAType)
 
 		// TODO(zmb3) consider making Teleport itself the CDP (via HTTP) instead of LDAP
 		cr.crlEndpoint = fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
@@ -160,7 +159,7 @@ type AuthInterface interface {
 	// GetCertAuthority returns a types.CertAuthority interface
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns a types.ClusterName interface
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // GenerateCredentialsRequest are the request parameters for
@@ -168,8 +167,11 @@ type AuthInterface interface {
 type GenerateCredentialsRequest struct {
 	// Username is the Windows username
 	Username string
-	// Domain is the Windows domain
+	// Domain is the Active Directory domain of the user.
 	Domain string
+	// PKIDomain is the Active Directory domain where CRLs are published.
+	// (Optional, defaults to the same domain as the user.)
+	PKIDomain string
 	// TTL is the ttl for the certificate
 	TTL time.Duration
 	// ClusterName is the local cluster name
@@ -178,8 +180,6 @@ type GenerateCredentialsRequest struct {
 	// specified by Username. If specified (!= ""), it is
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
 	ActiveDirectorySID string
-	// LDAPConfig is the ldap config
-	LDAPConfig LDAPConfig
 	// AuthClient is the windows AuthInterface
 	AuthClient AuthInterface
 	// CAType is the certificate authority type used to generate the certificate.
@@ -194,6 +194,9 @@ type GenerateCredentialsRequest struct {
 	// CRL Distribution Point (CDP). CDPs are required in user certificates
 	// for RDP, but they can be omitted for certs that are used for LDAP binds.
 	OmitCDP bool
+
+	// AD is true if we're connecting to a domain-joined desktop.
+	AD bool
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
@@ -261,8 +264,8 @@ func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRe
 	return certDER, keyDER, genResp.CACerts, nil
 }
 
-// CertKeyPEM returns certificate and private key bytes encoded in PEM format for use with `kinit`
-func CertKeyPEM(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
+// DatabaseCredentials returns certificate and private key bytes encoded in PEM format for use with `kinit`.
+func DatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
 	certDER, keyDER, caCerts, err := generateDatabaseCredentials(ctx, req)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -352,29 +355,30 @@ func SubjectAltNameExtension(user, domain string) (pkix.Extension, error) {
 }
 
 // Types for ASN.1 SAN serialization.
+type (
+	// SubjectAltName is a struct that can be marshaled as ASN.1
+	// into the SAN field in an x.509 certificate.
+	//
+	// See RFC 3280: https://www.ietf.org/rfc/rfc3280.txt
+	//
+	// T is the ASN.1 encodeable struct corresponding to an otherName
+	// item of the GeneralNames sequence.
+	SubjectAltName[T any] struct {
+		OtherName otherName[T] `asn1:"tag:0"`
+	}
 
-// SubjectAltName is a struct that can be marshaled as ASN.1
-// into the SAN field in an x.509 certificate.
-//
-// See RFC 3280: https://www.ietf.org/rfc/rfc3280.txt
-//
-// T is the ASN.1 encodeable struct corresponding to an otherName
-// item of the GeneralNames sequence.
-type SubjectAltName[T any] struct {
-	OtherName otherName[T] `asn1:"tag:0"`
-}
+	otherName[T any] struct {
+		OID   asn1.ObjectIdentifier
+		Value T `asn1:"tag:0"`
+	}
 
-type otherName[T any] struct {
-	OID   asn1.ObjectIdentifier
-	Value T `asn1:"tag:0"`
-}
+	upn struct {
+		Value string `asn1:"utf8"`
+	}
 
-type upn struct {
-	Value string `asn1:"utf8"`
-}
-
-type adSid struct {
-	// Value is the bytes representation of the user's SID string,
-	// e.g. []byte("S-1-5-21-1329593140-2634913955-1900852804-500")
-	Value []byte // Gets encoded as an asn1 octet string
-}
+	adSid struct {
+		// Value is the bytes representation of the user's SID string,
+		// e.g. []byte("S-1-5-21-1329593140-2634913955-1900852804-500")
+		Value []byte // Gets encoded as an asn1 octet string
+	}
+)

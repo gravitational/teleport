@@ -46,7 +46,7 @@ func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns
 	optFns = append([]awsconfig.OptionsFn{
 		awsconfig.WithOIDCIntegrationClient(f.OIDCIntegrationClient),
 		awsconfig.WithSTSClientProvider(
-			newAssumeRoleClientProviderFunc(stsClt),
+			NewAssumeRoleClientProviderFunc(stsClt),
 		),
 	}, optFns...)
 	return awsconfig.GetConfig(ctx, region, optFns...)

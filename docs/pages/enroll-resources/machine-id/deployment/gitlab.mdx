@@ -22,7 +22,7 @@ control.
 - (!docs/pages/includes/tctl.mdx!)
 - A GitLab project to connect to Teleport. This can either be on GitLab's
 cloud-hosted offering (gitlab.com) or on a self-hosted GitLab instance. **When
-using a self-hosted GitLab instance, your Teleport Auth Server must be able to
+using a self-hosted GitLab instance, your Teleport Auth Service must be able to
 connect to your GitLab instance and your GitLab instance must be configured with
 a valid TLS certificate.**
 
@@ -109,7 +109,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Server. Prefer using the address of a Teleport Proxy.
+  Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
 
 Now, the GitLab CI pipeline can be defined. Before the pipeline can use `tbot`,
@@ -137,7 +137,7 @@ deploy-job:
       # Teleport cluster. This is not necessarily the address of your Teleport
       # cluster and will not include a port or scheme (http/https)
       #
-      # This helps the Teleport Auth Server know that the token is intended for
+      # This helps the Teleport Auth Service know that the token is intended for
       # it, and not a different service or Teleport cluster.
       aud: teleport.example.com
   script:

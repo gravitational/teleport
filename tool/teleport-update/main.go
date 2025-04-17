@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -53,6 +54,8 @@ const (
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar forces the version to specified value.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
+	// updateLockTimeout is the duration commands will wait for update to complete before failing.
+	updateLockTimeout = 10 * time.Minute
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -117,6 +120,8 @@ func Run(args []string) int {
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
 	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
+	enableCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
+		BoolVar(&ccfg.AllowProxyConflict)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Hidden().Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
@@ -136,6 +141,8 @@ func Run(args []string) int {
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
 	pinCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
+	pinCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
+		BoolVar(&ccfg.AllowProxyConflict)
 	pinCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
@@ -182,6 +189,17 @@ func Run(args []string) int {
 	}
 
 	switch command {
+	case statusCmd.FullCommand(), versionCmd.FullCommand():
+	default:
+		if os.Geteuid() != 0 {
+			plog.ErrorContext(ctx, "This command must be run as root. Try running with sudo.")
+			return 1
+		}
+		// Set required umask for commands that write files to system directories as root, and warn loudly if it changes.
+		autoupdate.SetRequiredUmask(ctx, plog)
+	}
+
+	switch command {
 	case enableCmd.FullCommand():
 		ccfg.Enabled = true
 		err = cmdInstall(ctx, &ccfg)
@@ -200,12 +218,16 @@ func Run(args []string) int {
 		err = cmdUnlinkPackage(ctx, &ccfg)
 	case setupCmd.FullCommand():
 		err = cmdSetup(ctx, &ccfg)
-	case statusCmd.FullCommand():
-		err = cmdStatus(ctx, &ccfg)
 	case uninstallCmd.FullCommand():
 		err = cmdUninstall(ctx, &ccfg)
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
+	case statusCmd.FullCommand():
+		err = cmdStatus(ctx, &ccfg)
+		if errors.Is(err, autoupdate.ErrNotInstalled) {
+			plog.ErrorContext(ctx, "Teleport is not installed by teleport-update with this suffix.")
+			return 1
+		}
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.Errorf("command %s not configured", command)
@@ -274,7 +296,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -295,7 +317,7 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to setup updater")
 	}
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %n", lockFile)
 	}
@@ -312,20 +334,13 @@ func cmdUnpin(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdInstall installs Teleport and sets configuration.
 func cmdInstall(ctx context.Context, ccfg *cliConfig) error {
-	if ccfg.InstallSuffix != "" {
-		ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		ns.LogWarning(ctx)
-	}
 	updater, lockFile, err := initConfig(ctx, ccfg)
 	if err != nil {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 
 	// Ensure enable can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -347,7 +362,12 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	var unlock func() error
+	if ccfg.UpdateNow {
+		unlock, err = libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
+	} else {
+		unlock, err = libutils.FSWriteLock(lockFile)
+	}
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}
@@ -463,7 +483,7 @@ func cmdUninstall(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Wrap(err, "failed to initialize updater")
 	}
 	// Ensure update can't run concurrently.
-	unlock, err := libutils.FSWriteLock(lockFile)
+	unlock, err := libutils.FSTryWriteLockTimeout(ctx, lockFile, updateLockTimeout)
 	if err != nil {
 		return trace.Wrap(err, "failed to grab concurrent execution lock %s", lockFile)
 	}

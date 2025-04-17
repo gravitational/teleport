@@ -76,7 +76,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	clusterName, err := tlsServer.Auth().GetClusterName()
+	clusterName, err := tlsServer.Auth().GetClusterName(ctx)
 	require.NoError(t, err)
 
 	roles := map[string]types.RoleSpecV6{
@@ -1042,6 +1042,8 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	defer adminClient.Close()
 	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "request-approver",
 			},

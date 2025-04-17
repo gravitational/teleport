@@ -916,9 +916,30 @@ func or[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 }
 
 func eq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
-	return booleanOperator[TEnv, string]{
+	return func(lhs any, rhs any) (Expression[TEnv, bool], error) {
+		// If the LHS operand type isn't known at parse time (e.g. an `ifelse`
+		// function call) try the RHS instead.
+		operand := lhs
+		if _, isAny := operand.(Expression[TEnv, any]); isAny {
+			operand = rhs
+		}
+		switch operand.(type) {
+		case string, Expression[TEnv, string]:
+			return eqExpression[TEnv, string](lhs, rhs)
+		case int, Expression[TEnv, int]:
+			return eqExpression[TEnv, int](lhs, rhs)
+		case Expression[TEnv, any]:
+			return nil, trace.Errorf("operator (==) can only be used when at least one operand type is known at parse time")
+		default:
+			return nil, trace.Errorf("operator (==) not supported for type: %s", typeName(operand))
+		}
+	}
+}
+
+func eqExpression[TEnv any, TArgs comparable](lhs any, rhs any) (Expression[TEnv, bool], error) {
+	return booleanOperator[TEnv, TArgs]{
 		name: "==",
-		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, string]) (bool, error) {
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, TArgs]) (bool, error) {
 			lhs, err := lhsExpr.Evaluate(env)
 			if err != nil {
 				return false, trace.Wrap(err, "evaluating lhs of (==) operator")
@@ -929,13 +950,34 @@ func eq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 			}
 			return lhs == rhs, nil
 		},
-	}.buildExpression
+	}.buildExpression(lhs, rhs)
 }
 
 func neq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
-	return booleanOperator[TEnv, string]{
+	return func(lhs any, rhs any) (Expression[TEnv, bool], error) {
+		// If the LHS operand type isn't known at parse time (e.g. an `ifelse`
+		// function call) try the RHS instead.
+		operand := lhs
+		if _, isAny := operand.(Expression[TEnv, any]); isAny {
+			operand = rhs
+		}
+		switch operand.(type) {
+		case string, Expression[TEnv, string]:
+			return neqExpression[TEnv, string](lhs, rhs)
+		case int, Expression[TEnv, int]:
+			return neqExpression[TEnv, int](lhs, rhs)
+		case Expression[TEnv, any]:
+			return nil, trace.Errorf("operator (!=) can only be used when at least one operand type is known at parse time")
+		default:
+			return nil, trace.Errorf("operator (!=) not supported for type: %s", typeName(operand))
+		}
+	}
+}
+
+func neqExpression[TEnv any, TArgs comparable](lhs any, rhs any) (Expression[TEnv, bool], error) {
+	return booleanOperator[TEnv, TArgs]{
 		name: "!=",
-		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, string]) (bool, error) {
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, TArgs]) (bool, error) {
 			lhs, err := lhsExpr.Evaluate(env)
 			if err != nil {
 				return false, trace.Wrap(err, "evaluating lhs of (!=) operator")
@@ -946,7 +988,7 @@ func neq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 			}
 			return lhs != rhs, nil
 		},
-	}.buildExpression
+	}.buildExpression(lhs, rhs)
 }
 
 type notExpr[TEnv any] struct {
@@ -1112,4 +1154,13 @@ func unexpectedTypeError[TExpected any](v any) error {
 	}
 	resultType := evaluateMethod.Type.Out(0)
 	return trace.BadParameter(prefix+"got expression returning type (%s)", resultType)
+}
+
+func typeName(v any) string {
+	evaluateMethod, ok := reflect.TypeOf(v).MethodByName("Evaluate")
+	if !ok {
+		// This isn't an expr
+		return fmt.Sprintf("%T", v)
+	}
+	return evaluateMethod.Type.Out(0).String()
 }

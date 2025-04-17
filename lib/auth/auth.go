@@ -80,11 +80,13 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -94,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/events"
@@ -324,6 +327,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Plugins == nil {
+		cfg.Plugins = local.NewPluginsService(cfg.Backend)
+	}
 	if cfg.PluginData == nil {
 		cfg.PluginData = local.NewPluginData(cfg.Backend, cfg.DynamicAccessExt)
 	}
@@ -410,9 +416,27 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
 		}
 	}
+	if cfg.WorkloadIdentityX509Overrides == nil {
+		cfg.WorkloadIdentityX509Overrides, err = local.NewWorkloadIdentityX509OverridesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Overrides service")
+		}
+	}
+	if cfg.SigstorePolicies == nil {
+		cfg.SigstorePolicies, err = local.NewSigstorePolicyService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SigstorePolicies service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
+		}
+	}
+	if cfg.HealthCheckConfig == nil {
+		cfg.HealthCheckConfig, err = local.NewHealthCheckConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
 		}
 	}
 
@@ -512,11 +536,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:                  cfg.StaticHostUsers,
 		ProvisioningStates:              cfg.ProvisioningStates,
 		IdentityCenter:                  cfg.IdentityCenter,
+		Plugins:                         cfg.Plugins,
 		PluginStaticCredentials:         cfg.PluginStaticCredentials,
 		GitServers:                      cfg.GitServers,
 		WorkloadIdentities:              cfg.WorkloadIdentity,
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
+		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		SigstorePolicies:                cfg.SigstorePolicies,
+		HealthCheckConfig:               cfg.HealthCheckConfig,
 	}
 
 	as := Server{
@@ -559,6 +587,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			}
 		}),
 	)
+
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -675,6 +704,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
 
+	as.pdp, err = decision.NewService(decision.Config{
+		AccessPoint:  as.Cache,
+		ULSGenerator: as.ulsGenerator,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if _, ok := as.getCache(); !ok {
 		as.logger.WarnContext(closeCtx, "Auth server starting without cache (may have negative performance implications)")
 	}
@@ -735,11 +772,15 @@ type Services struct {
 	services.AutoUpdateService
 	services.ProvisioningStates
 	services.IdentityCenter
+	services.Plugins
 	services.PluginStaticCredentials
 	services.GitServers
 	services.WorkloadIdentities
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
+	services.WorkloadIdentityX509Overrides
+	services.SigstorePolicies
+	services.HealthCheckConfig
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1017,7 +1058,13 @@ type Server struct {
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
 
+	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
+	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
+	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
+
 	inventory *inventory.Controller
+
+	pdp *decision.Service
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
@@ -1341,6 +1388,7 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	agentWindow, _ := cmc.GetAgentUpgradeWindow()
 
 	agentWindow.UTCStartHour = uint32(startHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
@@ -2049,8 +2097,8 @@ func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 }
 
 // GetClusterID returns the cluster ID.
-func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOption) (string, error) {
-	clusterName, err := a.GetClusterName(opts...)
+func (a *Server) GetClusterID(ctx context.Context) (string, error) {
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2062,7 +2110,7 @@ func (a *Server) GetClusterID(ctx context.Context, opts ...services.MarshalOptio
 // - (Teleport Cloud) a key provided by the Teleport Cloud API
 // - a key embedded in the license file
 // - the cluster's UUID
-func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.MarshalOption) (string, error) {
+func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
 	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
 		return string(key), nil
 	}
@@ -2070,14 +2118,14 @@ func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.Marsh
 	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
 		return string(a.license.AnonymizationKey), nil
 	}
-	id, err := a.GetClusterID(ctx, opts...)
+	id, err := a.GetClusterID(ctx)
 	return id, trace.Wrap(err)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
 func (a *Server) GetDomainName() (string, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2087,7 +2135,7 @@ func (a *Server) GetDomainName() (string, error) {
 // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
 // the cluster has multiple TLS certs, they will all be concatenated.
 func (a *Server) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2196,9 +2244,9 @@ type certRequest struct {
 	// TLS certificate.
 	tlsPublicKey []byte
 	// sshPublicKeyAttestationStatement is an attestation statement associated with sshPublicKey.
-	sshPublicKeyAttestationStatement *keys.AttestationStatement
+	sshPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 	// tlsPublicKeyAttestationStatement is an attestation statement associated with tlsPublicKey.
-	tlsPublicKeyAttestationStatement *keys.AttestationStatement
+	tlsPublicKeyAttestationStatement *hardwarekey.AttestationStatement
 
 	// user is a user to generate certificate for
 	user services.UserState
@@ -2385,7 +2433,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 	roleSet := services.NewRoleSet(roles...)
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2441,8 +2489,8 @@ type GenerateUserTestCertsRequest struct {
 	RouteToCluster          string
 	PinnedIP                string
 	MFAVerified             string
-	SSHAttestationStatement *keys.AttestationStatement
-	TLSAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	AppName                 string
 	AppSessionID            string
 }
@@ -2455,7 +2503,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -2524,7 +2572,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		return nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2596,7 +2644,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2749,7 +2797,7 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 	}
 
 	// Prepare the AccessChecker for the WebSession identity.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3464,7 +3512,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 type attestHardwareKeyParams struct {
 	requiredKeyPolicy    keys.PrivateKeyPolicy
 	pubKey               crypto.PublicKey
-	attestationStatement *keys.AttestationStatement
+	attestationStatement *hardwarekey.AttestationStatement
 	sessionTTL           time.Duration
 	readOnlyAuthPref     readonly.AuthPreference
 	userName             string
@@ -4132,7 +4180,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Emit deleted event.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4250,7 +4298,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.BadParameter("MFARegisterResponse is an unknown response type %T", req.deviceResp.Response)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4650,7 +4698,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	generateRequestsCurrent.Inc()
 	defer generateRequestsCurrent.Dec()
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5184,6 +5232,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 	req.SetRequestedResourceIDs(requestedResourceIDs)
 
+	if err := a.checkResourcesRequestable(ctx, requestedResourceIDs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
@@ -5360,6 +5412,24 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 	return resources, nil
 }
 
+func (a *Server) checkResourcesRequestable(ctx context.Context, resourceIDs []types.ResourceID) error {
+	if len(resourceIDs) == 0 {
+		return nil
+	}
+
+	err := okta.CheckResourcesRequestable(ctx, resourceIDs, okta.AccessPoint{
+		Plugins:              a.Plugins,
+		UnifiedResourceCache: a.UnifiedResourceCache,
+	})
+	if errors.Is(err, okta.OktaResourceNotRequestableError) {
+		return trace.Wrap(err)
+	} else if err != nil {
+		return trace.Wrap(err, "checking if Okta-originated resources are requestable")
+	}
+
+	return nil
+}
+
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
 func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
@@ -5493,7 +5563,7 @@ func (a *Server) submitAccessReview(
 		return nil, trace.BadParameter("promoted access list can be only set when promoting access requests")
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6194,6 +6264,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 	now := a.clock.Now()
 
+	// TODO(kiosion): Check possible Okta plugin configuration – if Bidirectional Sync is explicitly disabled,
+	// we shouldn't create notifications for any Okta-synced Access Lists, as they are managed in Okta and
+	// their grants, owners/members, and ownership/membership requirements cannot be edited in Teleport.
+
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList
 	var accessListsPageKey string
@@ -6213,7 +6287,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		for _, al := range response {
 			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
 			// Only keep access lists that fall within our thresholds in memory
-			if daysDiff <= 15 && daysDiff >= -8 {
+			if daysDiff <= 15 {
 				accessLists = append(accessLists, al)
 			}
 		}
@@ -6395,7 +6469,7 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6784,7 +6858,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 // Please note that Ping is publicly accessible (not protected by any RBAC) by design,
 // and thus PingResponse must never contain any sensitive information.
 func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
-	cn, err := a.GetClusterName()
+	cn, err := a.GetClusterName(ctx)
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
@@ -7180,7 +7254,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 			return nil, trace.Wrap(err)
 		}
 
-		clusterName, err := a.GetClusterName()
+		clusterName, err := a.GetClusterName(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7242,7 +7316,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 		}
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7353,7 +7427,7 @@ func (a *Server) ValidateMFAAuthResponse(
 
 	// Read ClusterName for audit.
 	var clusterName string
-	if cn, err := a.GetClusterName(); err != nil {
+	if cn, err := a.GetClusterName(ctx); err != nil {
 		a.logger.WarnContext(ctx, "Failed to read cluster name", "error", err)
 		// err swallowed on purpose.
 	} else {
@@ -7768,6 +7842,26 @@ func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Str
 		servers, err := resources.AsServers()
 		return servers, trace.Wrap(err)
 	})
+}
+
+// SetWorkloadIdentityX509CAOverrideGetter sets the underlying
+// [services.WorkloadIdentityX509CAOverrideGetter] used by the auth server for
+// the implementation of [Server.GetWorkloadIdentityX509CAOverride] (provided by
+// enterprise code). Not safe for concurrent access, so it should only be called
+// during setup.
+func (a *Server) SetWorkloadIdentityX509CAOverrideGetter(getter services.WorkloadIdentityX509CAOverrideGetter) {
+	a.workloadIdentityX509CAOverrideGetter = getter
+}
+
+// GetWorkloadIdentityX509CAOverride implements
+// [services.WorkloadIdentityX509CAOverrideGetter] by optionally delegating to
+// an underlying implementation (provided by enterprise code).
+func (a *Server) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	getter := a.workloadIdentityX509CAOverrideGetter
+	if getter == nil {
+		return ca, nil, nil
+	}
+	return getter.GetWorkloadIdentityX509CAOverride(ctx, name, ca)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

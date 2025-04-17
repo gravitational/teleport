@@ -29,7 +29,7 @@ import {
 } from './standardmodel';
 import {
   KubernetesAccessValidationResult,
-  validateAccessRule,
+  validateAdminRule,
   validateResourceAccess,
   validateRoleEditorModel,
 } from './validation';
@@ -78,11 +78,13 @@ describe('validateRoleEditorModel', () => {
           },
         ],
         roleVersion: defaultRoleVersion,
+        hideValidationErrors: false,
       },
       {
         kind: 'node',
         labels: [{ name: 'foo', value: 'bar' }],
         logins: [{ label: 'root', value: 'root' }],
+        hideValidationErrors: false,
       },
       {
         kind: 'app',
@@ -90,6 +92,7 @@ describe('validateRoleEditorModel', () => {
         awsRoleARNs: ['some-arn'],
         azureIdentities: ['some-azure-id'],
         gcpServiceAccounts: ['some-gcp-acct'],
+        hideValidationErrors: false,
       },
       {
         kind: 'db',
@@ -98,31 +101,65 @@ describe('validateRoleEditorModel', () => {
         names: [],
         users: [],
         dbServiceLabels: [{ name: 'asdf', value: 'qwer' }],
+        hideValidationErrors: false,
       },
       {
         kind: 'windows_desktop',
         labels: [{ name: 'foo', value: 'bar' }],
         logins: [],
+        hideValidationErrors: false,
       },
     ];
     model.rules = [
       {
-        id: 'dummy-id',
+        id: 'dummy-id-1',
         resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
-        verbs: [{ label: '*', value: '*' }],
+        allVerbs: true,
+        verbs: [
+          { verb: 'read', checked: true },
+          { verb: 'list', checked: true },
+          { verb: 'create', checked: true },
+          { verb: 'update', checked: true },
+          { verb: 'delete', checked: true },
+          { verb: '*', checked: true },
+        ],
         where: '',
+        hideValidationErrors: false,
+      },
+      {
+        id: 'dummy-id-2',
+        resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
+        allVerbs: false,
+        verbs: [
+          { verb: 'read', checked: false },
+          { verb: 'list', checked: false },
+          { verb: 'create', checked: true },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: true },
+          { verb: '*', checked: false },
+        ],
+        where: '',
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(result.metadata.valid).toBe(true);
     expect(validity(result.resources)).toEqual([true, true, true, true, true]);
-    expect(validity(result.rules)).toEqual([true]);
+    expect(validity(result.rules)).toEqual([true, true]);
     expect(result.isValid).toBe(true);
   });
 
-  test('invalid metadata', () => {
+  test('invalid role name', () => {
     const model = minimalRoleModel();
     model.metadata.name = '';
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(result.metadata.valid).toBe(false);
+    expect(result.isValid).toBe(false);
+  });
+
+  test('conflicting role name', () => {
+    const model = minimalRoleModel();
+    model.metadata.nameCollision = true;
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(result.metadata.valid).toBe(false);
     expect(result.isValid).toBe(false);
@@ -135,6 +172,7 @@ describe('validateRoleEditorModel', () => {
         kind: 'node',
         labels: [{ name: 'foo', value: '' }],
         logins: [],
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -160,6 +198,7 @@ describe('validateRoleEditorModel', () => {
           },
         ],
         roleVersion: defaultRoleVersion,
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
@@ -201,6 +240,7 @@ describe('validateRoleEditorModel', () => {
               roleVersion,
             },
           ],
+          hideValidationErrors: false,
         },
       ];
       const result = validateRoleEditorModel(model, undefined, undefined);
@@ -212,18 +252,42 @@ describe('validateRoleEditorModel', () => {
     }
   );
 
-  test('invalid access rule', () => {
+  test('invalid Admin Rules', () => {
     const model = minimalRoleModel();
     model.rules = [
       {
-        id: 'dummy-id',
+        id: 'dummy-id-1',
+        // No resources
         resources: [],
-        verbs: [{ label: '*', value: '*' }],
+        allVerbs: false,
+        verbs: [
+          { verb: 'read', checked: false },
+          { verb: 'list', checked: false },
+          { verb: 'create', checked: true },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: true },
+        ],
         where: '',
+        hideValidationErrors: false,
+      },
+      {
+        id: 'dummy-id-2',
+        resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
+        allVerbs: false,
+        // No verbs
+        verbs: [
+          { verb: 'read', checked: false },
+          { verb: 'list', checked: false },
+          { verb: 'create', checked: false },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: false },
+        ],
+        where: '',
+        hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
-    expect(validity(result.rules)).toEqual([false]);
+    expect(validity(result.rules)).toEqual([false, false]);
     expect(result.isValid).toBe(false);
   });
 
@@ -240,23 +304,30 @@ describe('validateRoleEditorModel', () => {
 
 describe('validateResourceAccess', () => {
   it('reuses previously computed results', () => {
-    const resource: ResourceAccess = { kind: 'node', labels: [], logins: [] };
+    const resource: ResourceAccess = {
+      kind: 'node',
+      labels: [],
+      logins: [],
+      hideValidationErrors: false,
+    };
     const result1 = validateResourceAccess(resource, undefined, undefined);
     const result2 = validateResourceAccess(resource, resource, result1);
     expect(result2).toBe(result1);
   });
 });
 
-describe('validateAccessRule', () => {
+describe('validateAdminRule', () => {
   it('reuses previously computed results', () => {
     const rule: RuleModel = {
       id: 'some-id',
       resources: [],
+      allVerbs: false,
       verbs: [],
       where: '',
+      hideValidationErrors: false,
     };
-    const result1 = validateAccessRule(rule, undefined, undefined);
-    const result2 = validateAccessRule(rule, rule, result1);
+    const result1 = validateAdminRule(rule, undefined, undefined);
+    const result2 = validateAdminRule(rule, rule, result1);
     expect(result2).toBe(result1);
   });
 });

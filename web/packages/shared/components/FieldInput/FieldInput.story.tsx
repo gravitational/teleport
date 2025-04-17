@@ -69,6 +69,7 @@ export const Fields = () => (
         <FieldInput
           label="Required"
           rule={requiredField('So required. Much mandatory.')}
+          required
           onChange={() => {}}
           value=""
         />

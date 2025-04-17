@@ -34,10 +34,17 @@ export function Connections() {
   connectionTracker.useState();
   const iconRef = useRef();
   const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
-  const { status: vnetStatus } = useVnetContext();
+  const { status: vnetStatus, showDiagWarningIndicator } = useVnetContext();
   const isAnyConnectionActive =
     connectionTracker.getConnections().some(c => c.connected) ||
     vnetStatus.value === 'running';
+  const status = useMemo(() => {
+    if (showDiagWarningIndicator) {
+      return 'warning';
+    }
+
+    return isAnyConnectionActive ? 'on' : 'off';
+  }, [showDiagWarningIndicator, isAnyConnectionActive]);
 
   useKeyboardShortcuts(
     useMemo(
@@ -59,11 +66,7 @@ export function Connections() {
 
   return (
     <>
-      <ConnectionsIcon
-        isAnyConnectionActive={isAnyConnectionActive}
-        onClick={toggle}
-        ref={iconRef}
-      />
+      <ConnectionsIcon status={status} onClick={toggle} ref={iconRef} />
       <Popover
         open={isOpen}
         anchorEl={iconRef.current}

@@ -25,21 +25,11 @@
 
 #include <string.h>
 
-@interface VNEClientCred : NSObject
-@property BOOL valid;
-@property gid_t egid;
-@property uid_t euid;
-@end
-
-@implementation VNEClientCred
-@end
-
 @interface VNEDaemonService () <NSXPCListenerDelegate, VNEDaemonProtocol>
 
 // started describes whether the XPC listener is listening for new connections.
 @property(readonly) BOOL started;
 @property(readonly) VNEConfig *config;
-@property(readonly) VNEClientCred *clientCred;
 
 @end
 
@@ -106,13 +96,6 @@
     }
 
     _config = config;
-
-    NSXPCConnection *currentConn = [NSXPCConnection currentConnection];
-    _clientCred = [[VNEClientCred alloc] init];
-    [_clientCred setEgid:[currentConn effectiveGroupIdentifier]];
-    [_clientCred setEuid:[currentConn effectiveUserIdentifier]];
-    [_clientCred setValid:YES];
-
     dispatch_semaphore_signal(_gotVnetConfigSema);
     completion(nil);
   }
@@ -153,7 +136,7 @@ void DaemonStart(const char *bundle_path, DaemonStartResult *outResult) {
     outResult->error_description = VNECopyNSString([error description]);
     return;
   }
-  
+
   daemonService = [[VNEDaemonService alloc] initWithBundlePath:@(bundle_path) codeSigningRequirement:requirement];
   [daemonService start];
   outResult->ok = true;
@@ -165,7 +148,7 @@ void DaemonStop(void) {
   }
 }
 
-void WaitForVnetConfig(VnetConfigResult *outResult, ClientCred *outClientCred) {
+void WaitForVnetConfig(VnetConfigResult *outResult) {
   if (!daemonService) {
     outResult->error_description = strdup("daemon was not initialized yet");
     return;
@@ -183,17 +166,8 @@ void WaitForVnetConfig(VnetConfigResult *outResult, ClientCred *outClientCred) {
   }
 
   @synchronized(daemonService) {
-    outResult->socket_path = VNECopyNSString(daemonService.config.socketPath);
-    outResult->ipv6_prefix = VNECopyNSString(daemonService.config.ipv6Prefix);
-    outResult->dns_addr = VNECopyNSString(daemonService.config.dnsAddr);
-    outResult->home_path = VNECopyNSString(daemonService.config.homePath);
-
-    if (daemonService.clientCred && [daemonService.clientCred valid]) {
-      outClientCred->egid = daemonService.clientCred.egid;
-      outClientCred->euid = daemonService.clientCred.euid;
-      outClientCred->valid = true;
-    }
-    
+    outResult->service_credential_path = VNECopyNSString(daemonService.config.serviceCredentialPath);
+    outResult->client_application_service_addr = VNECopyNSString(daemonService.config.clientApplicationServiceAddr);
     outResult->ok = true;
   }
 }

@@ -114,16 +114,19 @@ based join methods can allow instances to join based on their Availability Zone,
 service account, or cloud account ID.
 
 Delegated join methods are:
-- [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
-- [`gcp`](#gcp-service-account-gcp)
-- [`ec2`](#aws-ec2-identity-document-ec2)
-- [`github`](#github-actions-github)
+- [`bitbucket`](#bitbucket-pipelines-bitbucket)
 - [`circleci`](#circleci-circleci)
+- [`ec2`](#aws-ec2-identity-document-ec2)
+- [`gcp`](#gcp-service-account-gcp)
+- [`github`](#github-actions-github)
 - [`gitlab`](#gitlab-gitlab)
+- [`iam`](#aws-iam-role-iam)
 - [`kubernetes`](#kubernetes-kubernetes)
-- [`tpm`](#trusted-platform-module-tpm)
+- [`oracle`](#oracle-cloud-oracle)
+- [`spacelift`](#spacelift-spacelift)
 - [`terraform_cloud`](#terraform-cloud-terraform_cloud)
+- [`tpm`](#trusted-platform-module-tpm)
 
 ### Renewable vs non-renewable
 
@@ -223,7 +226,7 @@ the Teleport cluster.
 
 ```yaml
 auth_service:
-    enabled: yes
+    enabled: true
     # Pre-defined tokens for adding new instances to a cluster. Each token specifies
     # the role a new node will be allowed to assume. The more secure way to
     # add instances is to use `tctl nodes add --ttl` command to generate auto-expiring
@@ -284,13 +287,13 @@ IAM credentials with `ec2:DescribeInstances` permissions are required on your
 Teleport Auth Service. No IAM credentials are required on the Teleport processes
 joining the cluster.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
 Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
 method](#aws-iam-role-iam) or [ephemeral secret tokens](#ephemeral-tokens).
 
-</Notice>
+</Admonition>
 
 (!docs/pages/includes/provision-token/ec2-spec.mdx!)
 
@@ -438,6 +441,18 @@ Support for self-hosted Terraform Enterprise requires Teleport Enterprise.
 
 <Admonition type="note" title="See Also">
 - [Run the Teleport Terraform Provider on Terraform Cloud](../admin-guides/infrastructure-as-code/terraform-provider/terraform-cloud.mdx)
+</Admonition>
+
+### Spacelift: `spacelift`
+
+This join method is used to authenticate using Spacelift. It is typically used
+by the Teleport Terraform provider on Spacelift (including self-hosted
+deployments).
+
+(!docs/pages/includes/provision-token/spacelift-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+    - [Run the Teleport Terraform Provider on Spacelift](../admin-guides/infrastructure-as-code/terraform-provider/spacelift.mdx)
 </Admonition>
 
 ### Bitbucket Pipelines: `bitbucket`

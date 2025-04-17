@@ -45,6 +45,8 @@ message JoinAttrs {
   JoinAttrsGCP gcp = 11;
   // Attributes that are specific to the Kubernetes (`kubernetes`) join method.
   JoinAttrsKubernetes kubernetes = 12;
+  // Attributes that are specific to the Oracle (`oracle`) join method.
+  JoinAttrsOracle oracle = 13;
 }
 
 // The collection of attributes that result from the join process but are not
@@ -309,4 +311,14 @@ message JoinAttrsKubernetes {
   // joining entity is a service account, and, the token has been bound to a
   // pod.
   JoinAttrsKubernetesPod pod = 3;
+}
+
+// Attributes that are specific to the Oracle (`oracle`) join method.
+message JoinAttrsOracle {
+  // The ID of the instance's tenant.
+  string tenancy_id = 1;
+  // The ID of the instance's compartment.
+  string compartment_id = 2;
+  // The ID of the instance.
+  string instance_id = 3;
 }

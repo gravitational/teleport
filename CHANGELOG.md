@@ -19,6 +19,65 @@ Teleport 18 removes support for:
 - `tls-ecdhe-ecdsa-with-aes-128-cbc-sha256`
 - `tls-ecdhe-rsa-with-aes-128-cbc-sha256`
 
+#### Terraform provider role defaults
+
+The Terraform provider previously defaulted unset booleans to `false`, starting
+with v18 it will leave the fields empty and let Teleport pick the same default
+value as if you were applying the manifest with the web UI, `tctl create`, or
+the Kubernetes Operator.
+
+This might change the default options of role where not every option was
+explicitly set. For example:
+
+```
+resource "teleport_role" "one-option-set" {
+  version = "v7"
+  metadata = {
+    name        = "one-option-set"
+  }
+
+  spec = {
+    options = {
+      max_session_ttl = "7m"
+      # other boolean options were wrongly set to false by default
+    }
+  }
+}
+```
+
+This change does not affect you if you were not setting role options,
+or setting every role option in your Terraform code.
+
+After updating the Terraform provider to v18, `terraform plan` will display the
+role option differences, please review it and check that the default changes are
+acceptable. If they are not, you must set the options to `false`.
+
+Here's a plan example for the code above:
+```
+# teleport_role.one-option-set will be updated in-place
+~ resource "teleport_role" "one-option-set" {
+      id       = "one-option-set"
+    ~ spec     = {
+        ~ options = {
+            - cert_format               = "standard" -> null
+            - create_host_user          = false -> null
+            ~ desktop_clipboard         = false -> true
+            ~ desktop_directory_sharing = false -> true
+            - port_forwarding           = false -> null
+            ~ ssh_file_copy             = false -> true
+              # (4 unchanged attributes hidden)
+          }
+      }
+      # (3 unchanged attributes hidden)
+  }
+```
+
+#### AWS endpoint URL mode removed
+
+The AWS endpoint URL mode (`--endpoint-url`) has been removed for
+`tsh proxy aws` and `tsh aws`. Users using this mode should use the default
+HTTPS Proxy mode from now on.
+
 ## 16.0.0 (xx/xx/xx)
 
 ### Breaking changes

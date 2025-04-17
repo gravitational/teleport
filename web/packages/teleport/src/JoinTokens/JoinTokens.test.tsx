@@ -19,6 +19,7 @@ import userEvent from '@testing-library/user-event';
 import selectEvent from 'react-select-event';
 
 import { act, fireEvent, render, screen, tick } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -153,9 +154,11 @@ const Component = () => {
   );
 
   return (
-    <ContextProvider ctx={ctx}>
-      <JoinTokens />
-    </ContextProvider>
+    <InfoGuidePanelProvider>
+      <ContextProvider ctx={ctx}>
+        <JoinTokens />
+      </ContextProvider>
+    </InfoGuidePanelProvider>
   );
 };
 

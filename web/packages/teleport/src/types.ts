@@ -67,12 +67,14 @@ export enum NavTitle {
   EnrollNewIntegration = 'Integration',
   NewAccessList = 'Access List',
   NewBot = 'Bot',
+  NewBotShortcut = 'Enroll New Bot',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
+  WorkloadIdentity = 'Workload Identity',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -145,6 +147,8 @@ export interface TeleportFeature {
   highlightKey?: string;
   /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
   showInDashboard?: boolean;
+  /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
+  isHyperLink?: boolean;
 }
 
 export type StickyCluster = {

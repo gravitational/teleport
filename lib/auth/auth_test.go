@@ -735,6 +735,16 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	_, err = s.a.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
+	// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+	require.Eventually(t, func() bool {
+		for ks := range s.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			if ks.GetCluster().GetName() == kubeCluster.GetName() {
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, 100*time.Millisecond)
+
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
@@ -1183,8 +1193,9 @@ func TestLocalControlStream(t *testing.T) {
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
+	ctx := context.Background()
 
-	cn, err := s.a.GetClusterName()
+	cn, err := s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
@@ -1224,7 +1235,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check first auth server and make sure it returns the correct values
 	// (original cluster name, new static tokens)
-	cn, err = s.a.GetClusterName()
+	cn, err = s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err = s.a.GetStaticTokens()
@@ -3035,26 +3046,16 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 
 	// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		found, _, err := p.a.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
-			if rwl.GetKind() != types.KindKubeServer {
-				return false, nil
+		gotNames := map[string]struct{}{}
+		for ks, err := range p.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			if !assert.NoError(t, err) {
+				return
 			}
 
-			ks, ok := rwl.(types.KubeServer)
-			if !ok {
-				return false, nil
-			}
-
-			return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
-		}, &proto.ListUnifiedResourcesRequest{
-			Kinds:  []string{types.KindKubeServer},
-			SortBy: types.SortBy{Field: services.SortByName},
-			Limit:  1,
-		})
-
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
-	}, 10*time.Second, 100*time.Millisecond)
+			gotNames[ks.GetCluster().GetName()] = struct{}{}
+		}
+		assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+	}, 15*time.Second, 100*time.Millisecond)
 
 	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
@@ -4512,13 +4513,20 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 		name      string
 		dueInDays int
 	}{
+		// These should trigger a single "due in less than 14 days" notification.
 		{name: "al-due-13d", dueInDays: 13},
 		{name: "al-due-12d", dueInDays: 12},
+		// This should trigger a "due in less than 7 days" notification.
 		{name: "al-due-5d", dueInDays: 5},
+		// This should trigger a "due in less than 3 days" notification.
 		{name: "al-due-2d", dueInDays: 2},
+		// This should trigger an "overdue by more than 3 days" notification.
 		{name: "al-overdue-4d", dueInDays: -4},
-		{name: "al-overdue-8d", dueInDays: -8},
-		{name: "al-due-60d", dueInDays: 60}, // there should be no notification for this one
+		// This should trigger an "overdue by more than 7 days" notification.
+		{name: "al-overdue-10d", dueInDays: -10},
+		// This should not trigger a notification.
+		{name: "al-due-60d", dueInDays: 60},
+		// This should trigger a "due today" notification.
 		{name: "al-overdue-today", dueInDays: 0},
 	}
 

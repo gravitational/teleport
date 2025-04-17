@@ -21,7 +21,7 @@ External Audit Storage is based on Teleport's
 available on Teleport Enterprise Cloud clusters running Teleport v14.2.1 or
 above.
 
-<Admonition type="notice">
+<Admonition type="note">
 On Teleport Enterprise (Cloud), External Audit
 Storage is not currently supported for users who have Access Monitoring enabled.
 This functionality will be enabled in a future Teleport release.  
@@ -87,7 +87,8 @@ integration (if you don't have one already), configure the IAM policy, create
 the infrastructure in your AWS account, test the connection to your S3 buckets
 and Athena workgroup, and enable the feature.
 
-<Details title="IAM policy for External Audit Storage">
+<details>
+<summary>IAM policy for External Audit Storage</summary>
 
 The IAM policy for External Audit Storage resembles the following, modified to
 support your AWS environment:
@@ -151,7 +152,7 @@ support your AWS environment:
 }
 ```
 
-</Details>
+</details>
 
 ## Migrating to External Audit Storage
 

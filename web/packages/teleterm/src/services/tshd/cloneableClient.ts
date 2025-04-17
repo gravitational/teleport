@@ -97,7 +97,6 @@ export function cloneAbortSignal(signal: AbortSignal): CloneableAbortSignal {
       signal.removeEventListener(type, listener, options),
     eventListeners: (...args) => signal.eventListeners(...args),
     removeAllListeners: (...args) => signal.removeAllListeners(...args),
-    any: (...args) => signal.any(...args),
   };
 
   signal.addEventListener(

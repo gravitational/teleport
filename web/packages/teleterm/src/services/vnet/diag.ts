@@ -22,6 +22,13 @@ import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
 
+export const hasReportFoundIssues = (report: diag.Report): boolean =>
+  report.checks.some(
+    checkAttempt =>
+      checkAttempt.status === diag.CheckAttemptStatus.OK &&
+      checkAttempt.checkReport.status === diag.CheckReportStatus.ISSUES_FOUND
+  );
+
 export const getReportFilename = (report: diag.Report) => {
   const createdAt = displayDateTime(Timestamp.toDate(report.createdAt));
   // Colons are best avoided on macOS and forbidden on Windows.
