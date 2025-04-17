@@ -53,7 +53,7 @@ import {
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
 import { storageService } from 'teleport/services/storageService';
-import { TopBar, TopBarProps } from 'teleport/TopBar';
+import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
@@ -66,7 +66,7 @@ export interface MainProps {
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
-  topBarProps?: TopBarProps;
+  CustomLogo?: () => React.ReactElement;
   inviteCollaboratorsFeedback?: ReactNode;
 }
 
@@ -185,16 +185,10 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar
-        CustomLogo={
-          props.topBarProps?.showPoweredByLogo
-            ? props.topBarProps.CustomLogo
-            : null
-        }
-      />
+      <TopBar CustomLogo={props.CustomLogo} />
       <Wrapper>
         <MainContainer>
-          <Navigation />
+          <Navigation showPoweredByLogo={!!props.CustomLogo} />
           <InfoGuidePanelProvider>
             <ContentWrapper>
               <ContentMinWidth>
