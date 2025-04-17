@@ -236,8 +236,6 @@ export const UpsertJoinTokenDialog = ({
   return (
     <Flex width="500px">
       <Box
-        pr={4}
-        pl={4}
         css={`
           overflow: auto;
           width: 100%;
@@ -253,7 +251,7 @@ export const UpsertJoinTokenDialog = ({
         >
           <Flex alignItems="center" mr={3}>
             <HoverTooltip tipContent="Back to Join Tokens">
-              <ButtonIcon onClick={onClose} mr={2} ml={'-8px'}>
+              <ButtonIcon onClick={onClose} mr={2}>
                 <Cross size="medium" />
               </ButtonIcon>
             </HoverTooltip>

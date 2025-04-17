@@ -164,7 +164,7 @@ export const JoinTokens = () => {
           </InfoGuideButton>
         )}
       </FeatureHeader>
-      <Flex>
+      <Flex gap={24}>
         <Box
           css={`
             flex-grow: 1;
