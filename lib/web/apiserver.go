@@ -136,6 +136,10 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
+	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
+	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
+	// cluster configuration changes.
+	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -512,13 +516,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         findEndpointCacheTTL,
+		TTL:         cmcCacheTTL,
 		Clock:       h.clock,
 		Context:     cfg.Context,
 		ReloadOnErr: false,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating /find cache")
+		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
 	}
 	h.clusterMaintenanceConfigCache = cmcCache
 
