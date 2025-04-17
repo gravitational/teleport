@@ -31,6 +31,7 @@ import (
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/client"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
