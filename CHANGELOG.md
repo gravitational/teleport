@@ -2,6 +2,7 @@
 
 ## 17.4.5 (04/17/25)
 
+* The Teleport Terraform Provider now supports setting the Managed Updates v2 resources `autoupdate_config` and `autoupdate_version`. [#54109](https://github.com/gravitational/teleport/pull/54109)
 * Fix a bug in managed updates v1 causing updaters v2 and AWS integrations to never update if weekdays were set in the `cluster_maintenance_config` resource. [#54088](https://github.com/gravitational/teleport/pull/54088)
 * Teleport-update: ensure teleport-upgrade is always disabled when teleport-update is used. [#54087](https://github.com/gravitational/teleport/pull/54087)
 * Added an option for users to select database roles when connecting to PostgreSQL databases using WebUI. [#54068](https://github.com/gravitational/teleport/pull/54068)
