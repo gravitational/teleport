@@ -30,6 +30,10 @@ type PluginStaticCredentials interface {
 	// the username and password will be mpty.
 	GetBasicAuth() (username string, password string)
 
+	// GetOAuthClientID will return the attached client ID. If it is not present, the client ID
+	// will be empty.
+	GetOAuthClientID() (clientID string)
+
 	// GetOAuthClientSecret will return the attached client ID and client secret. IF they are not
 	// present, the client ID and client secret will be empty.
 	GetOAuthClientSecret() (clientID string, clientSecret string)
@@ -132,6 +136,17 @@ func (p *PluginStaticCredentialsV1) GetBasicAuth() (username string, password st
 	}
 
 	return credentials.BasicAuth.Username, credentials.BasicAuth.Password
+}
+
+// GetOAuthClientID will return the attached client ID. If it is not present, the client ID will be
+// empty.
+func (p *PluginStaticCredentialsV1) GetOAuthClientID() (clientID string) {
+	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_OAuthClientSecret)
+	if !ok {
+		return ""
+	}
+
+	return credentials.OAuthClientSecret.ClientId
 }
 
 // GetOAuthClientSecret will return the attached client ID and client secret. IF they are not
