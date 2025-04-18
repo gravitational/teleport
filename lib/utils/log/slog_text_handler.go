@@ -253,9 +253,6 @@ func formatLevel(value slog.Level, enableColors bool) string {
 	case slog.LevelError:
 		level = "ERROR"
 		color = red
-	case slog.LevelError + 1:
-		level = "FATAL"
-		color = red
 	default:
 		color = blue
 		level = value.String()
