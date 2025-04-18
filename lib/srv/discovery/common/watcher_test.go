@@ -159,6 +159,10 @@ type mockFetcher struct {
 	noAuth       bool
 }
 
+func (m *mockFetcher) String() string {
+	return "mock-fetcher"
+}
+
 func (m *mockFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	if m.noAuth {
 		return nil, trace.AccessDenied("access denied")
