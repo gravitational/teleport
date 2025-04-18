@@ -51,7 +51,7 @@ func onDaemonStart(cf *CLIConf) error {
 		AgentsDir:          cf.DaemonAgentsDir,
 		InstallationID:     cf.DaemonInstallationID,
 		AddKeysToAgent:     cf.AddKeysToAgent,
-		HardwareKeyAgent:   cf.HardwareKeyAgent,
+		HardwareKeyAgent:   cf.HardwareKeyAgentServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
