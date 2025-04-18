@@ -46,8 +46,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	authinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/authinfo"
 	"github.com/gravitational/teleport/api/types/label"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -2185,7 +2187,9 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if test.initialVersion != "" {
-				err = service.WriteTeleportVersion(ctx, *semver.New(test.initialVersion))
+				authInfo, err := authinfo.NewAuthInfo(&authinfov1.AuthInfoSpec{TeleportVersion: semver.New(test.initialVersion).String()})
+				require.NoError(t, err)
+				_, err = service.CreateAuthInfo(ctx, authInfo)
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
@@ -2199,9 +2203,9 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			lastKnownVersion, err := service.GetTeleportVersion(ctx)
+			authInfo, err := service.GetAuthInfo(ctx)
 			require.NoError(t, err)
-			require.Equal(t, test.expectedVersion, lastKnownVersion.String())
+			require.Equal(t, test.expectedVersion, authInfo.GetSpec().GetTeleportVersion())
 		})
 	}
 }

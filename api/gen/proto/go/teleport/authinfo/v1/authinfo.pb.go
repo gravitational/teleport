@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/authinfo/v1/authinfo.proto
 
-package authinfo
+package authinfov1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -116,7 +116,7 @@ func (x *AuthInfo) GetSpec() *AuthInfoSpec {
 // AuthInfoSpec encodes the parameters auth server meta-information.
 type AuthInfoSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// teleport_version advertises the version of the auth server, e.g. "17.3.3".
+	// teleport_version advertises the version of the auth server, e.g., "17.3.3" (without the leading "v").
 	TeleportVersion string `protobuf:"bytes,1,opt,name=teleport_version,json=teleportVersion,proto3" json:"teleport_version,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -171,7 +171,7 @@ const file_teleport_authinfo_v1_authinfo_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x126\n" +
 	"\x04spec\x18\x05 \x01(\v2\".teleport.authinfo.v1.AuthInfoSpecR\x04spec\"9\n" +
 	"\fAuthInfoSpec\x12)\n" +
-	"\x10teleport_version\x18\x01 \x01(\tR\x0fteleportVersionBRZPgithub.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1;authinfob\x06proto3"
+	"\x10teleport_version\x18\x01 \x01(\tR\x0fteleportVersionBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1;authinfov1b\x06proto3"
 
 var (
 	file_teleport_authinfo_v1_authinfo_proto_rawDescOnce sync.Once

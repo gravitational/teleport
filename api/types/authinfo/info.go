@@ -25,8 +25,8 @@ import (
 )
 
 // NewAuthInfo creates a new auth info resource.
-func NewAuthInfo(spec *authinfo.AuthInfoSpec) (*authinfo.AuthInfo, error) {
-	info := &authinfo.AuthInfo{
+func NewAuthInfo(spec *authinfov1.AuthInfoSpec) (*authinfov1.AuthInfo, error) {
+	info := &authinfov1.AuthInfo{
 		Kind:    types.KindAuthInfo,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
@@ -43,14 +43,8 @@ func NewAuthInfo(spec *authinfo.AuthInfoSpec) (*authinfo.AuthInfo, error) {
 
 // ValidateAuthInfo checks that required parameters are set
 // for the specified AuthInfo.
-func ValidateAuthInfo(info *authinfo.AuthInfo) error {
+func ValidateAuthInfo(info *authinfov1.AuthInfo) error {
 	switch {
-	case info == nil:
-		return trace.BadParameter("AuthInfo is nil")
-	case info.GetMetadata() == nil:
-		return trace.BadParameter("Metadata is nil")
-	case info.GetSpec() == nil:
-		return trace.BadParameter("Spec is nil")
 	case info.GetKind() != types.KindAuthInfo:
 		return trace.BadParameter("wrong AuthInfo Kind: %s", info.Kind)
 	case info.GetMetadata().Name != types.MetaNameAuthInfo:

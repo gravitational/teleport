@@ -18,7 +18,7 @@ package teleport.authinfo.v1;
 
 import "teleport/header/v1/metadata.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1;authinfo";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1;authinfov1";
 
 // AuthInfo holds meta-information for specific server.
 message AuthInfo {
@@ -32,6 +32,6 @@ message AuthInfo {
 
 // AuthInfoSpec encodes the parameters auth server meta-information.
 message AuthInfoSpec {
-  // teleport_version advertises the version of the auth server, e.g. "17.3.3".
+  // teleport_version advertises the version of the auth server, e.g., "17.3.3" (without the leading "v").
   string teleport_version = 1;
 }
