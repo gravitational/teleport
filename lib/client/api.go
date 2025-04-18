@@ -3954,6 +3954,7 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 				Username:    tc.Username,
 				ClusterName: tc.SiteName,
 			},
+			PINCacheTTL: tc.PIVPINCacheTTL,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -120,6 +120,7 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 		// We just need it to be non-nil so that it goes through the test modules implementation
 		// of Attest
 		AttestationStatement: &AttestationStatement{},
+		PINCacheTTL:          config.PINCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {

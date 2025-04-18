@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -124,6 +125,8 @@ type PrivateKeyRef struct {
 	// AttestationStatement contains the hardware private key's attestation statement, which is
 	// to attest the touch and pin requirements for this hardware private key during login.
 	AttestationStatement *AttestationStatement `json:"attestation_statement"`
+	// PINCacheTTL is how long hardware key prompts should cache the PIN for this key, if at all.
+	PINCacheTTL time.Duration `json:"pin_cache_ttl"`
 }
 
 // encode encodes a [PrivateKeyRef] to JSON.
@@ -239,6 +242,8 @@ type PrivateKeyConfig struct {
 	Algorithm SignatureAlgorithm
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
+	// PINCacheTTL is an option to enable PIN caching for this key with the specified TTL.
+	PINCacheTTL time.Duration
 }
 
 // ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
