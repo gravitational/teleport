@@ -117,74 +117,79 @@ func TestStablePath(t *testing.T) {
 		path         string
 		resultIsFile bool
 		resultIsLink bool
-		wantResult   string
+		result       string
+		err          error
 	}{
 		{
 			name:         "packaged path is file",
 			path:         "/opt/teleport/system/bin/teleport",
 			resultIsFile: true,
-			wantResult:   "/usr/local/bin/teleport",
+			result:       "/usr/local/bin/teleport",
 		},
 		{
 			name:         "packaged path is link",
 			path:         "/opt/teleport/system/bin/teleport",
 			resultIsFile: true,
 			resultIsLink: true,
-			wantResult:   "/usr/local/bin/teleport",
+			result:       "/usr/local/bin/teleport",
 		},
 		{
 			name:         "packaged path is broken link",
 			path:         "/opt/teleport/system/bin/teleport",
 			resultIsLink: true,
-			wantResult:   "/opt/teleport/system/bin/teleport",
+			result:       "/opt/teleport/system/bin/teleport",
+			err:          ErrUnstablePath,
 		},
 		{
-			name:       "packaged path is missing",
-			path:       "/opt/teleport/system/bin/teleport",
-			wantResult: "/opt/teleport/system/bin/teleport",
-		},
-		{
-			name:         "managed path is file",
-			path:         "versions/version/bin/teleport",
-			resultIsFile: true,
-			wantResult:   "[ns]/bin/teleport",
+			name:   "packaged path is missing",
+			path:   "/opt/teleport/system/bin/teleport",
+			result: "/opt/teleport/system/bin/teleport",
+			err:    ErrUnstablePath,
 		},
 		{
 			name:         "managed path is file",
 			path:         "versions/version/bin/teleport",
 			resultIsFile: true,
-			wantResult:   "[ns]/bin/teleport",
+			result:       "[ns]/bin/teleport",
+		},
+		{
+			name:         "managed path is file",
+			path:         "versions/version/bin/teleport",
+			resultIsFile: true,
+			result:       "[ns]/bin/teleport",
 		},
 		{
 			name:         "managed path is link",
 			path:         "versions/version/bin/teleport",
 			resultIsFile: true,
 			resultIsLink: true,
-			wantResult:   "[ns]/bin/teleport",
+			result:       "[ns]/bin/teleport",
 		},
 		{
 			name:         "managed path is broken link",
 			path:         "versions/version/bin/teleport",
 			resultIsLink: true,
-			wantResult:   "[ns]/versions/version/bin/teleport",
+			result:       "[ns]/versions/version/bin/teleport",
+			err:          ErrUnstablePath,
 		},
 		{
-			name:       "managed path is missing",
-			path:       "versions/version/bin/teleport",
-			wantResult: "[ns]/versions/version/bin/teleport",
+			name:   "managed path is missing",
+			path:   "versions/version/bin/teleport",
+			result: "[ns]/versions/version/bin/teleport",
+			err:    ErrUnstablePath,
 		},
 		{
-			name:       "managed path is missing config",
-			path:       "/test/versions/version/bin/teleport",
-			wantResult: "/test/versions/version/bin/teleport",
+			name:   "managed path is missing config",
+			path:   "/test/versions/version/bin/teleport",
+			result: "/test/versions/version/bin/teleport",
 		},
 		{
 			name: "empty",
 		},
 		{
-			name:       "other",
-			path:       "/other",
-			wantResult: "/other",
+			name:   "other",
+			path:   "/other",
+			result: "/other",
 		},
 	}
 
@@ -219,11 +224,12 @@ func TestStablePath(t *testing.T) {
 				createEmptyFile(t, filepath.Join(createPath, name))
 			}
 
-			result := stablePathForBinary(tt.path, defaultPath)
-			require.Equal(t, tt.wantResult, strings.NewReplacer(
+			result, err := stablePathForBinary(tt.path, defaultPath)
+			require.Equal(t, tt.result, strings.NewReplacer(
 				defaultPath, "/usr/local/bin",
 				nsDir, "[ns]",
 			).Replace(result))
+			require.Equal(t, tt.err, err)
 		})
 	}
 }
