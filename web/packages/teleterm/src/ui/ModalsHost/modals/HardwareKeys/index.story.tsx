@@ -37,8 +37,9 @@ export function AskPinOptional() {
       onSuccess={() => {}}
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
         pinOptional: true,
+        command: '',
       }}
     />
   );
@@ -50,8 +51,9 @@ export function AskPinRequired() {
       onSuccess={() => {}}
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
         pinOptional: false,
+        command: '',
       }}
     />
   );
@@ -62,7 +64,8 @@ export function Touch() {
     <TouchComponent
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
+        command: '',
       }}
     />
   );
@@ -73,7 +76,9 @@ export function ChangePin() {
     <ChangePinComponent
       onSuccess={() => {}}
       onCancel={() => {}}
-      req={{ rootClusterUri: rootCluster.uri }}
+      req={{
+        proxyHostname: rootCluster.proxyHost,
+      }}
     />
   );
 }
@@ -84,7 +89,7 @@ export function OverwriteSlot() {
       onConfirm={() => {}}
       onCancel={() => {}}
       req={{
-        rootClusterUri: rootCluster.uri,
+        proxyHostname: rootCluster.proxyHost,
         message:
           "Would you like to overwrite this slot's private key and certificate?",
       }}
