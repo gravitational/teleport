@@ -26,13 +26,17 @@ import (
 )
 
 const (
-	// UpgraderKindKuberController is a short name used to identify the kube-controller-based
+	// UpgraderKindKubeController is a short name used to identify the kube-controller-based
 	// external upgrader variant.
 	UpgraderKindKubeController = "kube"
 
 	// UpgraderKindSystemdUnit is a short name used to identify the systemd-unit-based
 	// external upgrader variant.
 	UpgraderKindSystemdUnit = "unit"
+
+	// UpgraderKindTeleportUpdate is a short name used to identify the teleport-update
+	// external upgrader variant.
+	UpgraderKindTeleportUpdate = "binary"
 )
 
 var validWeekdays = [7]time.Weekday{
