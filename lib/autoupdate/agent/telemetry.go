@@ -19,7 +19,6 @@
 package agent
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,10 +126,10 @@ func stablePathForFile(origPath, defaultPath string) string {
 			return linkPath
 		}
 	}
-	// If we are a package-based install, always use /usr/local/bin if it is valid.
-	// This ensures that the path is stable if Managed Updates is enabled/disabled.
+
+	// If we are a Managed Updates install, find the correct path from Managed Updates config.
+	// If that path is missing, use the default (/usr/local/bin)
 	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
-		fmt.Println(p)
 		binPath := defaultPath
 		cfg, err := readConfig(filepath.Join(p, updateConfigName))
 		if err == nil && cfg.Spec.Path != "" {
