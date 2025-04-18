@@ -586,6 +586,10 @@ type CLIConf struct {
 	// to the hardware key agent. Some commands, like login, are better with the
 	// direct PIV service so that prompts are not split between processes.
 	disableHardwareKeyAgentClient bool
+
+	ForkAfterAuthentication bool
+
+	forkSignalFd uint64
 }
 
 // Stdout returns the stdout writer.
@@ -844,6 +848,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete").BoolVar(&cf.ForkAfterAuthentication)
+	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked").Hidden().Uint64Var(&cf.forkSignalFd)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
