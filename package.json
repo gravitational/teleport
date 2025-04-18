@@ -17,6 +17,7 @@
     "test": "jest",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
     "test-update-snapshot": "pnpm run test --updateSnapshot",
+    "test-e2e": "pnpm --dir=./web/e2e test",
     "tdd": "jest --watch",
     "lint": "pnpm eslint && pnpm prettier-check",
     "lint-fix": "pnpm eslint --fix && pnpm prettier-write",
