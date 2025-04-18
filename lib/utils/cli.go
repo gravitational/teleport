@@ -68,6 +68,9 @@ const (
 
 type logOpts struct {
 	format LoggingFormat
+	// osLogSubsystem is the subsystem used for all loggers created by this process
+	// when sending logs to os_log on macOS. If empty, os_log won't be used.
+	osLogSubsystem string
 }
 
 // LoggerOption enables customizing the global logger.
@@ -77,6 +80,14 @@ type LoggerOption func(opts *logOpts)
 func WithLogFormat(format LoggingFormat) LoggerOption {
 	return func(opts *logOpts) {
 		opts.format = format
+	}
+}
+
+func WithOSLog(subsystem string) LoggerOption {
+	return func(opts *logOpts) {
+		opts.osLogSubsystem = subsystem
+		// TODO(ravicious): Logging to os_log is currently supported only with the text format.
+		opts.format = LogFormatText
 	}
 }
 
@@ -91,7 +102,7 @@ func IsTerminal(w io.Writer) bool {
 }
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) {
+func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) error {
 	var o logOpts
 
 	for _, opt := range opts {
@@ -102,14 +113,22 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 	// then discard all log output.
 	if purpose == LoggingForCLI && level > slog.LevelDebug {
 		slog.SetDefault(slog.New(logutils.DiscardHandler{}))
-		return
+		return nil
 	}
 
-	logutils.Initialize(logutils.Config{
-		Severity:     level.String(),
-		Format:       o.format,
-		EnableColors: IsTerminal(os.Stderr),
+	var output string
+	if o.osLogSubsystem != "" {
+		output = logutils.LogOutputOSLog
+	}
+
+	_, _, err := logutils.Initialize(logutils.Config{
+		Severity:       level.String(),
+		Format:         o.format,
+		EnableColors:   IsTerminal(os.Stderr),
+		Output:         output,
+		OSLogSubsystem: o.osLogSubsystem,
 	})
+	return trace.Wrap(err)
 }
 
 var initTestLoggerOnce = sync.Once{}

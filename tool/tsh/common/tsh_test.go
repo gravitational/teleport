@@ -39,6 +39,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -3317,6 +3318,9 @@ func TestEnvFlags(t *testing.T) {
 				SiteName: "root-cluster",
 			},
 		}))
+	})
+
+	t.Run("debug flags", func(t *testing.T) {
 	})
 }
 
@@ -7207,4 +7211,224 @@ func TestSetEnvVariables(t *testing.T) {
 			require.Equal(t, tc.expectedExtraEnvs, c.ExtraEnvs)
 		})
 	}
+}
+
+func TestDebugOpts(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	tests := []struct {
+		name      string
+		envDebug  *bool
+		envOSLog  *bool
+		flagDebug *bool
+		flagOSLog *bool
+		wantDebug require.BoolAssertionFunc
+		wantOSLog require.BoolAssertionFunc
+	}{
+		{
+			name:      "no flags or env vars",
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just debug flag",
+			flagDebug: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just os-log flag",
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "debug and os-log flags",
+			flagDebug: boolPtr(true),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "just debug env var",
+			envDebug:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "just os-log env var",
+			envOSLog:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "debug and os-log flags",
+			envDebug:  boolPtr(true),
+			envOSLog:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "everything on",
+			envDebug:  boolPtr(true),
+			envOSLog:  boolPtr(true),
+			flagDebug: boolPtr(true),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "everything explicitly off",
+			envDebug:  boolPtr(false),
+			envOSLog:  boolPtr(false),
+			flagDebug: boolPtr(false),
+			flagOSLog: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "debug enabled by env, disabled by flag",
+			envDebug:  boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "debug disabled by env, enabled by flag",
+			envDebug:  boolPtr(false),
+			flagDebug: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log enabled by env, disabled by flag",
+			envOSLog:  boolPtr(true),
+			flagOSLog: boolPtr(false),
+			wantDebug: require.False,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log disabled by env, enabled by flag",
+			envOSLog:  boolPtr(false),
+			flagOSLog: boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+
+		// Verify that final values are set after consulting both env and argv, e.g., disabling os-log
+		// by flag doesn't disable debug set by env.
+		{
+			name:      "os-log enabled by env, disabled by flag; debug enabled by env",
+			envOSLog:  boolPtr(true),
+			flagOSLog: boolPtr(false),
+			envDebug:  boolPtr(true),
+			wantDebug: require.True,
+			wantOSLog: require.False,
+		},
+		{
+			name:      "os-log disabled by env, enabled by flag; debug disabled by flag",
+			envOSLog:  boolPtr(false),
+			flagOSLog: boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+
+		// Debug is always enabled together with os-log.
+		{
+			name:      "os-log enabled by flag, debug disabled by env",
+			flagOSLog: boolPtr(true),
+			envDebug:  boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by flag, debug disabled by flag",
+			flagOSLog: boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by env, debug disabled by env",
+			envOSLog:  boolPtr(true),
+			envDebug:  boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+		{
+			name:      "os-log enabled by env, debug disabled by flag",
+			envOSLog:  boolPtr(true),
+			flagDebug: boolPtr(false),
+			wantDebug: require.True,
+			wantOSLog: require.True,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envDebug != nil {
+				t.Setenv(debugEnvVar, strconv.FormatBool(*tt.envDebug))
+			}
+
+			if tt.envOSLog != nil {
+				t.Setenv(osLogEnvVar, strconv.FormatBool(*tt.envOSLog))
+			}
+
+			var flags []string
+
+			if tt.flagDebug != nil {
+				if *tt.flagDebug {
+					flags = append(flags, "--debug")
+				} else {
+					flags = append(flags, "--no-debug")
+				}
+			}
+
+			if tt.flagOSLog != nil {
+				if *tt.flagOSLog {
+					flags = append(flags, "--os-log")
+				} else {
+					flags = append(flags, "--no-os-log")
+				}
+			}
+
+			mustReadDebugOpts, setDebugOptsFromCLIConf := prepareCLIOptionForReadingDebugOpts()
+			err := Run(t.Context(), append([]string{"version"}, flags...),
+				setHomePath(tmpHomePath), setDebugOptsFromCLIConf)
+			require.NoError(t, err)
+
+			opts := mustReadDebugOpts(t)
+			tt.wantDebug(t, opts.debug, "unexpected cf.Debug value")
+			tt.wantOSLog(t, opts.osLog, "unexpected cf.OSLog value")
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func prepareCLIOptionForReadingDebugOpts() (func(t *testing.T) debugOpts, CliOption) {
+	var cf *CLIConf
+
+	setDebugOptsFromCLIConf := func(cliConfFromRun *CLIConf) error {
+		cf = cliConfFromRun
+		return nil
+	}
+
+	mustReadDebugOpts := func(t *testing.T) debugOpts {
+		t.Helper()
+
+		if cf == nil {
+			t.Fatalf("mustReadDebugOpts was called before setDebugOptsFromCLIConf was executed")
+		}
+
+		return debugOpts{
+			debug: cf.Debug,
+			osLog: cf.OSLog,
+		}
+	}
+
+	return mustReadDebugOpts, setDebugOptsFromCLIConf
 }
