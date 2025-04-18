@@ -75,8 +75,6 @@ func (o *osLogWriter) Write(bytes []byte, rawComponent string, level slog.Level)
 		osLogType = oslog.OsLogTypeDefault
 	case slog.LevelError:
 		osLogType = oslog.OsLogTypeError
-	case slog.LevelError + 1:
-		osLogType = oslog.OsLogTypeFault
 	default:
 		osLogType = oslog.OsLogTypeDefault
 	}

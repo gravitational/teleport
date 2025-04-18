@@ -91,7 +91,4 @@ const (
 	// OsLogTypeError is the equivalent of slog.LevelError. Messages of this type are always persisted
 	// in the data store.
 	OsLogTypeError OsLogType = C.OS_LOG_TYPE_ERROR
-	// OsLogTypeFault is the equivalent of FATAL level messages logged by lib/utils/log.SlogTextHandler.
-	// Messages of this type are always persisted in the data store.
-	OsLogTypeFault OsLogType = C.OS_LOG_TYPE_FAULT
 )
