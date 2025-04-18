@@ -47,7 +47,7 @@ func main() {
 	// Getting the Github token from ~/.config/gh/hosts.yml
 	token, err := getGithubToken()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Failed to get GitHub token:", err)
 	}
 
 	clt, err := github.New(ctx, &github.Config{
@@ -56,7 +56,7 @@ func main() {
 		Organization: owner,
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Failed to create GitHub client:", err)
 	}
 
 	for _, targetBranch := range backportBranches {
@@ -64,7 +64,7 @@ func main() {
 		// auto-backport/[pull request number]-to-[target branch name].
 		newBranchName, err := clt.Backport(ctx, targetBranch, prNumber)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Failed to backport #%d into %s: %s", prNumber, targetBranch, err)
 		}
 		fmt.Printf("Backported commits to branch %s.\n", newBranchName)
 
