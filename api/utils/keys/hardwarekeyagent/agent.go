@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/constants"
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -96,6 +97,11 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 			PINRequired:   req.KeyInfo.PinRequired,
 		},
 		PINCacheTTL: req.KeyInfo.PinCacheTtl.AsDuration(),
+	}
+
+	// Double check that the client didn't provide some bogus pin cache TTL.
+	if keyRef.PINCacheTTL > constants.MaxPIVPINCacheTTL {
+		return nil, trace.BadParameter("pin_cache_ttl cannot be larger than one hour")
 	}
 
 	keyInfo := hardwarekey.ContextualKeyInfo{
