@@ -22,7 +22,10 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log/slog"
+	"maps"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -175,4 +178,73 @@ func (m *maxBytesReader) Read(p []byte) (int, error) {
 		return n, ErrLimitReached
 	}
 	return n, err
+}
+
+// Sensitive headers list based on team discussion and Akami's list of
+// not-to-be-logged headers here:
+//    https://techdocs.akamai.com/edge-diagnostics/reference/sensitive-headers
+//
+//  - Authorization
+//  - Proxy-Authorization
+//  - Set-Cookie
+//  - Anything containing "API-Key"
+//  - X-Amz-Security-Token
+
+// sensitiveHeaderKeys is the list HTTP headers deemed to be too sensitive
+// to be written to a log.
+var sensitiveHeaderKeys = []string{
+	"Authorization",
+	"Cookie",
+	"Proxy-Authorization",
+	"Set-Cookie",
+	"X-Amz-Security-Token",
+	"X-Csrf-Token",
+}
+
+// sensitiveHeaderFragments is a list of suspect header fragments. If a header
+// key contains any of these fragments it will be filtered out by
+// SanitizeHeaders()
+var sensitiveHeaderFragments = []string{
+	"api-key",
+}
+
+// SanitizedHeaderValuer is a slog.LogValuer for http.Headers that will lazily
+// filter out sensitive headers when logged
+type SanitizedHeaderValuer http.Header
+
+// Static assertion that SanitizedHeaderValuer implements slog.LogValuer
+var _ slog.LogValuer = SanitizedHeaderValuer(nil)
+
+// LogValue implements slog.LogValuer for SanitizedHeaderValuer. Headers will be
+// formatted into a slog.Value as a string, omitting any "sensitive" headers.
+func (h SanitizedHeaderValuer) LogValue() slog.Value {
+	return slog.AnyValue(SanitizeHeaders(http.Header(h)))
+}
+
+// SanitizeHeaders formats the supplied HTTP headers as a string, omitting any
+// "sensitive" headers that should not appear in a log.
+func SanitizeHeaders(src http.Header) http.Header {
+	// Preserve nil in case its important
+	if src == nil {
+		return nil
+	}
+
+	dst := maps.Clone(src)
+	for _, k := range sensitiveHeaderKeys {
+		dst.Del(k)
+	}
+
+nextkey:
+	for key := range dst {
+		lcKey := strings.ToLower(key)
+
+		for _, frag := range sensitiveHeaderFragments {
+			if strings.Contains(lcKey, frag) {
+				dst.Del(key)
+				continue nextkey
+			}
+		}
+	}
+
+	return dst
 }
