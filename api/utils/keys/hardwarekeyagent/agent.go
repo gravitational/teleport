@@ -102,6 +102,7 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 		Username:    req.KeyInfo.Username,
 		ClusterName: req.KeyInfo.ClusterName,
 		AgentKey:    true,
+		Command:     req.Command,
 	}
 
 	var signerOpts crypto.SignerOpts
