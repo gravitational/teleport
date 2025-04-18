@@ -9209,12 +9209,16 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	})
 	require.NoError(t, err)
 
-	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, clientproto.UpstreamInventoryHello{
-		ServerID: hostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{role},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(ctx context.Context) (clientproto.UpstreamInventoryHello, error) {
+			return clientproto.UpstreamInventoryHello{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{role},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
