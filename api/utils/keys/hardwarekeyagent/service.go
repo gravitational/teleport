@@ -161,13 +161,3 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 func (s *Service) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return s.fallbackService.GetFullKeyRef(serialNumber, slotKey)
 }
-
-// SetPrompt for the fallback service.
-func (s *Service) SetPrompt(prompt hardwarekey.Prompt) {
-	s.fallbackService.SetPrompt(prompt)
-}
-
-// GetPrompt for the fallback service.
-func (s *Service) GetPrompt() hardwarekey.Prompt {
-	return s.fallbackService.GetPrompt()
-}
