@@ -168,8 +168,11 @@ export function DesktopSession({
   useListener(
     client.onTransportClose,
     useCallback(
-      statusText => {
-        setTdpConnectionStatus({ status: 'disconnected', message: statusText });
+      error => {
+        setTdpConnectionStatus({
+          status: 'disconnected',
+          message: error?.message || error?.toString(),
+        });
         initialTdpConnectionSucceeded.current = false;
       },
       [setTdpConnectionStatus]

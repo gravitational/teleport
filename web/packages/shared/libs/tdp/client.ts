@@ -144,7 +144,7 @@ export class TdpClient extends EventEmitter {
         this.transportAbortController.signal
       );
     } catch (error) {
-      this.emit(TdpClientEvent.ERROR, error.message);
+      this.emit(TdpClientEvent.ERROR, error);
       return;
     }
 
@@ -183,9 +183,9 @@ export class TdpClient extends EventEmitter {
 
     // 'Processing' errors are the most important.
     if (processingError) {
-      this.emit(TdpClientEvent.ERROR, processingError.message);
+      this.emit(TdpClientEvent.ERROR, processingError);
     } else if (connectionError) {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError.message);
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
       this.emit(TdpClientEvent.TRANSPORT_CLOSE, 'Session disconnected');
     }
@@ -235,7 +235,7 @@ export class TdpClient extends EventEmitter {
     return () => this.off(TdpClientEvent.TDP_WARNING, listener);
   };
 
-  onTransportClose = (listener: (message: string) => void) => {
+  onTransportClose = (listener: (error?: Error) => void) => {
     this.on(TdpClientEvent.TRANSPORT_CLOSE, listener);
     return () => this.off(TdpClientEvent.TRANSPORT_CLOSE, listener);
   };
