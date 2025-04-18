@@ -309,7 +309,7 @@ func renderSSHConfig(
 	}
 
 	executablePath, err := getExecutablePath()
-	if errors.Is(err, autoupdate.ErrUnstablePath) {
+	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
 		log.WarnContext(ctx, "ssh_config will be created with an unstable path to the tbot executable. Please fix your Managed Updates installation to prevent instability.")
 	} else if err != nil {
 		return trace.Wrap(err)

@@ -105,12 +105,13 @@ func hasParentDir(dir, parent string) (bool, error) {
 	return strings.HasPrefix(absDir, absParent), nil
 }
 
-var ErrUnstablePath = errors.New("binary has unstable path")
+// ErrUnstableExecutable is returned by StableExecutable when no stable path can be found.
+var ErrUnstableExecutable = errors.New("executable has unstable path")
 
-// StablePath returns a stable path to Teleport binaries that may or may not be managed by Agent Managed Updates.
-// Note that StablePath is not guaranteed to return the same binary, as the binary may have been updated
-// since it started running. If a stable path cannot be found, an unstable path is returned with ErrUnstablePath.
-func StablePath() (string, error) {
+// StableExecutable returns a stable path to Teleport binaries that may or may not be managed by Agent Managed Updates.
+// Note that StableExecutable is not guaranteed to return the same binary, as the binary may have been updated
+// since it started running. If a stable path cannot be found, an unstable path is returned with ErrUnstableExecutable.
+func StableExecutable() (string, error) {
 	origPath, err := os.Executable()
 	if err != nil {
 		return origPath, trace.Wrap(err)
@@ -129,7 +130,7 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 		if _, err := os.Stat(linkPath); err == nil {
 			return linkPath, nil
 		}
-		return origPath, ErrUnstablePath
+		return origPath, ErrUnstableExecutable
 	}
 
 	// If we are a Managed Updates install, find the correct path from Managed Updates config.
@@ -143,7 +144,7 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 			}
 		}
 		if _, err := os.Stat(cfgPath); err == nil {
-			return origPath, ErrUnstablePath
+			return origPath, ErrUnstableExecutable
 		}
 	}
 	return origPath, nil

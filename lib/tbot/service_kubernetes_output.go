@@ -266,7 +266,7 @@ func (s *KubernetesOutputService) render(
 		}
 	} else {
 		executablePath, err := s.executablePath()
-		if errors.Is(err, autoupdate.ErrUnstablePath) {
+		if errors.Is(err, autoupdate.ErrUnstableExecutable) {
 			s.log.WarnContext(ctx, "Kubernetes template will be rendered with an unstable path to the tbot executable. Please fix your Managed Updates installation to prevent instability.")
 		} else if err != nil {
 			return trace.Wrap(err)
