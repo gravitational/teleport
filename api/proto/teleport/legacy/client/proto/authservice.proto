@@ -596,6 +596,8 @@ message Features {
   bool AccessMonitoringConfigured = 36;
   reserved 37;
   reserved "CloudAnonymizationKey";
+  // AccessGraphDemoMode enables the ability to opt-in to a demo mode of Access Graph with limited features.
+  bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
