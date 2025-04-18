@@ -4411,12 +4411,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
 
-	if c.PIVPINCacheTTL != 0 {
-		innerPrompt := c.ClientStore.HardwareKeyService.GetPrompt()
-		pinCachingPrompt := hardwarekey.NewPINCachingPrompt(innerPrompt, c.PIVPINCacheTTL)
-		c.ClientStore.HardwareKeyService.SetPrompt(pinCachingPrompt)
-	}
-
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}

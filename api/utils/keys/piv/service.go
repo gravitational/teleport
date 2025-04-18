@@ -43,8 +43,7 @@ var yubiKeyServiceMu sync.Mutex
 
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
 type YubiKeyService struct {
-	prompt   hardwarekey.Prompt
-	promptMu sync.Mutex
+	prompt hardwarekey.Prompt
 
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
@@ -182,9 +181,6 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-
 	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
 }
 
@@ -236,20 +232,6 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 	return ref, nil
 }
 
-// SetPrompt sets the hardware key prompt used by the service.
-func (s *YubiKeyService) SetPrompt(prompt hardwarekey.Prompt) {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-	s.prompt = prompt
-}
-
-// GetPrompt gets the hardware key prompt used by the service.
-func (s *YubiKeyService) GetPrompt() hardwarekey.Prompt {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-	return s.prompt
-}
-
 // Get the given YubiKey with the serial number. If the provided serialNumber is "0",
 // return the first YubiKey found in the smart card list.
 func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
@@ -273,9 +255,6 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
 func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo hardwarekey.ContextualKeyInfo) error {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-
 	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional, keyInfo)
 	if err != nil {
 		return trace.Wrap(err)
@@ -296,9 +275,6 @@ func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo 
 }
 
 func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, keyInfo hardwarekey.ContextualKeyInfo) error {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-
 	promptQuestion := fmt.Sprintf("%v\nWould you like to overwrite this slot's private key and certificate?", msg)
 	if confirmed, confirmErr := s.prompt.ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {
 		return trace.Wrap(confirmErr)
