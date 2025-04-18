@@ -122,7 +122,7 @@ try installing just MinGW through [Chocolatey](https://chocolatey.org/) (`choco 
 Make target calls underneath.
 
 ```
-GOOS=windows CGO_ENABLED=1 go build -tags "  " -o build/tsh.exe  -ldflags '-w -s' -buildvcs=false ./tool/tsh
+GOOS=windows CGO_ENABLED=1 go build -o build/tsh.exe  -ldflags '-w -s' -buildvcs=false ./tool/tsh
 ```
 
 It's important for the executable to end with `.exe`. If that command doesn't work, you can always
