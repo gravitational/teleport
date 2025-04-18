@@ -563,7 +563,7 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 	}
 	for {
 		select {
-		case p := <-d.ch:
+		case pong := <-d.ch:
 			if p.UUID == ping.UUID {
 				return nil
 			}
