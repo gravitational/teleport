@@ -149,7 +149,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ClientIdleConnection", suite.bind(testClientIdleConnection))
 	t.Run("CmdLabels", suite.bind(testCmdLabels))
 	t.Run("ControlMaster", suite.bind(testControlMaster))
-	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
+	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
 	t.Run("DataTransfer", suite.bind(testDataTransfer))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
@@ -181,6 +181,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PAM", suite.bind(testPAM))
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
+	t.Run("RecordingModesSessionTrackers", suite.bind(testRecordingModesSessionTrackers))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
@@ -197,12 +198,12 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
 	t.Run("TrustedClustersSkipNameValidation", suite.bind(testTrustedClustersSkipNameValidation))
-	t.Run("CreateAndUpdateTrustedClusters", suite.bind(testCreateAndUpdateTrustedClusters))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
+	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -1036,6 +1037,81 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
+func testRecordingModesSessionTrackers(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
+
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Proxy.DisableWebService = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	teleport := suite.NewTeleportWithConfig(t, nil, nil, cfg)
+	defer teleport.StopAll()
+
+	// startSession starts an interactive session, users must terminate the
+	// session by typing "exit" in the terminal.
+	startSession := func(username string) (*Terminal, chan error) {
+		term := NewTerminal(250)
+		errCh := make(chan error)
+
+		go func() {
+			cl, err := teleport.NewClient(helpers.ClientConfig{
+				Login:   username,
+				Cluster: helpers.Site,
+				Host:    Host,
+			})
+			if err != nil {
+				errCh <- trace.Wrap(err)
+				return
+			}
+			cl.Stdout = term
+			cl.Stdin = term
+
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+			errCh <- cl.SSH(ctx, nil)
+		}()
+
+		return term, errCh
+	}
+
+	auth := teleport.Process.GetAuthServer()
+	for _, mode := range []string{types.RecordAtNode, types.RecordAtProxy} {
+		t.Run(mode, func(t *testing.T) {
+			rc := types.DefaultSessionRecordingConfig()
+			rc.SetMode(mode)
+
+			_, err := auth.UpsertSessionRecordingConfig(ctx, rc)
+			require.NoError(t, err)
+
+			// Start session.
+			term, errCh := startSession(suite.Me.Username)
+
+			// Validate that the session tracker exists and contains
+			// the correct target address.
+			var sessionID string
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				trackers, err := auth.GetActiveSessionTrackers(ctx)
+				assert.NoError(t, err)
+				if !assert.Len(t, trackers, 1) {
+					return
+				}
+				assert.Equal(t, helpers.HostID, trackers[0].GetAddress())
+				sessionID = trackers[0].GetSessionID()
+			}, 30*time.Second, 100*time.Millisecond)
+
+			// Wait for the session to terminate without error.
+			term.Type("exit\n\r")
+			require.NoError(t, waitForError(errCh, 30*time.Second))
+
+			// Manually clean up the tracker for the session to prevent
+			// it leaking into the next test case.
+			require.NoError(t, auth.RemoveSessionTracker(ctx, sessionID))
+		})
+	}
+}
 func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 	tests := []struct {
 		rootRecordingMode string
