@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -1502,6 +1503,18 @@ spec:
   type: saml_idp
 sub_kind: saml_idp
 version: v2`
+	healthCheckConfigYAML = `kind: health_check_config
+metadata:
+  name: valid
+  revision: c1159783-930e-4a79-bb19-0d0d866d7af6
+spec:
+  enabled: true
+  match:
+    db_labels:
+    - name: "*"
+      values:
+      - "*"
+version: v1`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -1551,6 +1564,28 @@ func TestInit_bootstrap(t *testing.T) {
 				)
 			},
 			assertError: require.NoError,
+		},
+		{
+			name: "OK bootstrap health check config",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCheckConfig(t),
+				)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "NOK bootstrap health check config invalid",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
+						hcc.Spec.HealthyThreshold = 9000
+					}),
+				)
+			},
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
@@ -1818,6 +1853,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			},
 			assertError: require.NoError,
 		},
+		{
+			name: "Apply HealthCheckConfig",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, newHealthCheckConfig(t))
+			},
+			assertError: require.NoError,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1846,6 +1888,15 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+func newHealthCheckConfig(t *testing.T, opts ...func(*healthcheckconfigv1.HealthCheckConfig)) types.Resource {
+	r := resourceFromYAML(t, healthCheckConfigYAML)
+	inner := r.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT()
+	for _, opt := range opts {
+		opt(inner)
+	}
+	return r
 }
 
 // TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start

@@ -145,3 +145,30 @@ func (healthCheckConfigParser) parse(event backend.Event) (types.Resource, error
 		return nil, trace.BadParameter("event %s is not supported", event.Type)
 	}
 }
+
+func itemFromHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) (*backend.Item, error) {
+	if err := services.ValidateHealthCheckConfig(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev, err := types.GetRevision(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalHealthCheckConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expires, err := types.GetExpiry(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := &backend.Item{
+		Key: backend.NewKey(healthCheckConfigPrefix).AppendKey(
+			backend.NewKey(cfg.GetMetadata().GetName()),
+		),
+		Value:    value,
+		Expires:  expires,
+		Revision: rev,
+	}
+	return item, nil
+}

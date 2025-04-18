@@ -33,6 +33,7 @@ import (
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -765,6 +766,40 @@ func init() {
 		}
 		return types.Resource153ToLegacy(v), nil
 	})
+	// add health_check_config to tctl get all
+	RegisterResourceMarshaler(types.KindHealthCheckConfig, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		wrapper, ok := resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig])
+		if !ok {
+			return nil, trace.BadParameter("expected health check config, got %T", resource)
+		}
+		bytes, err := MarshalHealthCheckConfig(wrapper.UnwrapT(), opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	// support health_check_config --bootstrap and --apply-on-startup
+	RegisterResourceUnmarshaler(types.KindHealthCheckConfig, func(data []byte, options ...MarshalOption) (types.Resource, error) {
+		cfg, err := UnmarshalHealthCheckConfig(data, options...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(cfg), nil
+	})
+}
+
+// convertResource is a generic helper func that converts a resource by type
+// assertion directly or, as a fallback, unwrapping [types.Resource153Unwrapper]
+// first and then performing the type assertion.
+func convertResource[T any](resource types.Resource) (T, error) {
+	var zero T
+	switch resource := resource.(type) {
+	case T:
+		return resource, nil
+	case interface{ UnwrapT() T }:
+		return resource.UnwrapT(), nil
+	}
+	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
