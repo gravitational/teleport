@@ -82,31 +82,24 @@ rpc ProxyDesktopSession(stream ProxyDesktopSessionRequest) returns (stream Proxy
 ```protobuf
 // Request message for a proxied desktop session.
 message ProxyDesktopSessionRequest {
-  // Target cluster and desktop. Must be sent as the first message.
-  TargetDesktop dial_target = 1;
-
-   // Payload from Teleport Desktop Protocol. 
-   DesktopSessionMessage message = 2;
+   // A chunk of data from the connection. Can be nonempty even in the first message, but it's also legal for it to be empty.
+   bytes data = 1;
+   // Target cluster and desktop. Must be set in the first message and unset in subsequent messages.
+   TargetDesktop dial_target = 2;
 }
 
 // Response message for a proxied desktop session.
 message ProxyDesktopSessionResponse {
-   // Payload from Teleport Desktop Protocol.
-   DesktopSessionMessage message = 1;
+   // A chunk of data from the connection. Can be empty (for example, to send a message
+   // signaling a successful connection even if there's no data available in the connection).
+   bytes data = 1;
 }
 
 // Identifies the destination desktop within a specific cluster.
 message TargetDesktop {
-  // Name of the desktop to connect to.
-  string desktop_name = 1;
-
-  // Name of the cluster the desktop belongs to.
-  string cluster = 2;
-}
-
-// Encapsulates Teleport Desktop Protocol payload.
-message DesktopSessionMessage {
-   // Raw payload.
-   bytes payload = 1;
+   // Name of the desktop to connect to.
+   string desktop_name = 1;
+   // Name of the cluster the desktop belongs to.
+   string cluster = 2;
 }
 ```
