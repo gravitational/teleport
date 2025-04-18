@@ -58,13 +58,19 @@ export function AskPin(props: {
           >
             <CommonHeader
               onCancel={props.onCancel}
-              rootClusterUri={props.req.rootClusterUri}
+              proxyHostname={props.req.proxyHostname}
             />
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
                 <P2 color="text.slightlyMuted">
-                  Enter your YubiKey PIV PIN.
+                  Enter your YubiKey PIV PIN to continue
+                  {props.req.command && (
+                    <>
+                      {' with command:'}
+                      <pre>{props.req.command}</pre>
+                    </>
+                  )}
                   <br />
                   {props.req.pinOptional &&
                     'To change the default PIN, leave the field blank.'}

@@ -58,18 +58,33 @@ func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
 
 // AskPIN prompts the user for a PIN. If the requirement is [PINOptional],
 // the prompt will offer the default PIN as a default value.
-func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, _ ContextualKeyInfo) (string, error) {
-	message := "Enter your YubiKey PIV PIN"
+func (c *cliPrompt) AskPIN(ctx context.Context, requirement PINPromptRequirement, keyInfo ContextualKeyInfo) (string, error) {
+	msg := "Enter your YubiKey PIV PIN"
+
+	// The user may need to set their PIN for the first time during login,
+	// give them a hint to continue to setting the PIN.
 	if requirement == PINOptional {
-		message = "Enter your YubiKey PIV PIN [blank to use default PIN]"
+		msg += " [blank to use default PIN]"
 	}
-	password, err := prompt.Password(ctx, c.writer, c.reader, message)
+
+	// If this is a hardware key agent request with command context info,
+	// include the command in the prompt.
+	if keyInfo.Command != "" {
+		msg = fmt.Sprintf("%v to continue with command %q", msg, keyInfo.Command)
+	}
+
+	password, err := prompt.Password(ctx, c.writer, c.reader, msg)
 	return password, trace.Wrap(err)
 }
 
 // Touch prompts the user to touch the hardware key.
-func (c *cliPrompt) Touch(_ context.Context, _ ContextualKeyInfo) error {
-	_, err := fmt.Fprintln(c.writer, "Tap your YubiKey")
+func (c *cliPrompt) Touch(_ context.Context, keyInfo ContextualKeyInfo) error {
+	msg := "Tap your YubiKey"
+	if keyInfo.Command != "" {
+		msg = fmt.Sprintf("%v to continue with command %q", msg, keyInfo.Command)
+	}
+
+	_, err := fmt.Fprintln(c.writer, msg)
 	return trace.Wrap(err)
 }
 
