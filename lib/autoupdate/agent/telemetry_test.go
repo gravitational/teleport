@@ -174,6 +174,11 @@ func TestStablePath(t *testing.T) {
 			wantResult: "[ns]/versions/version/bin/teleport",
 		},
 		{
+			name:       "managed path is missing config",
+			path:       "/test/versions/version/bin/teleport",
+			wantResult: "/test/versions/version/bin/teleport",
+		},
+		{
 			name: "empty",
 		},
 		{
@@ -214,7 +219,7 @@ func TestStablePath(t *testing.T) {
 				createEmptyFile(t, filepath.Join(createPath, name))
 			}
 
-			result := stablePathForFile(tt.path, defaultPath)
+			result := stablePathForBinary(tt.path, defaultPath)
 			require.Equal(t, tt.wantResult, strings.NewReplacer(
 				defaultPath, "/usr/local/bin",
 				nsDir, "[ns]",
