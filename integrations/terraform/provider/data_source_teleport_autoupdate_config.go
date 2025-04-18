@@ -20,40 +20,40 @@ package provider
 import (
 	"context"
 
-	apitypes "github.com/gravitational/teleport/api/types"
+	
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1"
 )
 
-// dataSourceTeleportSessionRecordingConfigType is the data source metadata type
-type dataSourceTeleportSessionRecordingConfigType struct{}
+// dataSourceTeleportAutoUpdateConfigType is the data source metadata type
+type dataSourceTeleportAutoUpdateConfigType struct{}
 
-// dataSourceTeleportSessionRecordingConfig is the resource
-type dataSourceTeleportSessionRecordingConfig struct {
+// dataSourceTeleportAutoUpdateConfig is the resource
+type dataSourceTeleportAutoUpdateConfig struct {
 	p Provider
 }
 
 // GetSchema returns the data source schema
-func (r dataSourceTeleportSessionRecordingConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaSessionRecordingConfigV2(ctx)
+func (r dataSourceTeleportAutoUpdateConfigType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return schemav1.GenSchemaAutoUpdateConfig(ctx)
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportSessionRecordingConfigType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportSessionRecordingConfig{
+func (r dataSourceTeleportAutoUpdateConfigType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+	return dataSourceTeleportAutoUpdateConfig{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
-// Read reads teleport SessionRecordingConfig
-func (r dataSourceTeleportSessionRecordingConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
-	sessionRecordingConfigI, err := r.p.Client.GetSessionRecordingConfig(ctx)
+// Read reads teleport AutoUpdateConfig
+func (r dataSourceTeleportAutoUpdateConfig) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+	autoUpdateConfigI, err := r.p.Client.GetAutoUpdateConfig(ctx)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SessionRecordingConfig", trace.Wrap(err), "session_recording_config"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateConfig", trace.Wrap(err), "autoupdate_config"))
 		return
 	}
 
@@ -63,8 +63,8 @@ func (r dataSourceTeleportSessionRecordingConfig) Read(ctx context.Context, req 
 		return
 	}
 
-	sessionRecordingConfig := sessionRecordingConfigI.(*apitypes.SessionRecordingConfigV2)
-	diags := tfschema.CopySessionRecordingConfigV2ToTerraform(ctx, sessionRecordingConfig, &state)
+	autoUpdateConfig := autoUpdateConfigI
+	diags := schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -76,7 +76,7 @@ func (r dataSourceTeleportSessionRecordingConfig) Read(ctx context.Context, req 
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
 	v, ok := state.Attrs["id"]
 	if !ok || v.IsNull() {
-		id := sessionRecordingConfig.GetName()
+		id := autoUpdateConfig.Metadata.Name
 		state.Attrs["id"] = types.String{Value: id}
 	}
 
