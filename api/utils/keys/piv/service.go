@@ -49,6 +49,11 @@ type YubiKeyService struct {
 	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
 	pinCache *hardwarekey.PINCache
 
+	// signMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
+	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
+	// PIN and touch prompts durable to concurrent signatures.
+	signMu sync.Mutex
+
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
 	// transaction (connection) per-yubikey limit.
@@ -185,6 +190,9 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.signMu.Lock()
+	defer s.signMu.Unlock()
 
 	return y.sign(ctx, ref, keyInfo, s.prompt, s.pinCache, rand, digest, opts)
 }
