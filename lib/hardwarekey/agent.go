@@ -101,8 +101,19 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 }
 
 func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
+	lc := net.ListenConfig{
+		Control: func(network, addr string, conn syscall.RawConn) error {
+			var err error
+			err2 := conn.Control(func(descriptor uintptr) {
+				// Disable address reuse to prevent socket replacement.
+				err = syscall.SetsockoptInt(int(descriptor), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 0)
+			})
+			return trace.NewAggregate(err2, err)
+		},
+	}
+
 	socketPath := filepath.Join(keyAgentDir, sockName)
-	l, err := net.Listen("unix", socketPath)
+	l, err := lc.Listen(ctx, "unix", socketPath)
 	if err == nil {
 		return l, nil
 	} else if !errors.Is(err, syscall.EADDRINUSE) {
