@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -35,4 +36,6 @@ type Fetcher interface {
 	FetcherType() string
 	// Cloud returns the cloud the fetcher is operating.
 	Cloud() string
+
+	fmt.Stringer
 }
