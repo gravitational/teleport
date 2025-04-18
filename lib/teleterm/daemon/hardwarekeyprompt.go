@@ -49,8 +49,7 @@ func (s *Service) NewHardwareKeyPrompt() hardwarekey.Prompt {
 }
 
 type hardwareKeyPrompter struct {
-	s        *Service
-	pinCache hardwarekey.PINCache
+	s *Service
 }
 
 // Touch prompts the user to touch the hardware key.
