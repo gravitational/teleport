@@ -112,10 +112,10 @@ func StablePath() (string, error) {
 	if err != nil {
 		return origPath, trace.Wrap(err)
 	}
-	return stablePathForFile(origPath, defaultPathDir), nil
+	return stablePathForBinary(origPath, defaultPathDir), nil
 }
 
-func stablePathForFile(origPath, defaultPath string) string {
+func stablePathForBinary(origPath, defaultPath string) string {
 	_, name := filepath.Split(origPath)
 
 	// If we are a package-based install, always use /usr/local/bin if it is valid.
@@ -128,16 +128,13 @@ func stablePathForFile(origPath, defaultPath string) string {
 	}
 
 	// If we are a Managed Updates install, find the correct path from Managed Updates config.
-	// If that path is missing, use the default (/usr/local/bin)
 	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
-		binPath := defaultPath
 		cfg, err := readConfig(filepath.Join(p, updateConfigName))
 		if err == nil && cfg.Spec.Path != "" {
-			binPath = cfg.Spec.Path
-		}
-		linkPath := filepath.Join(binPath, name)
-		if _, err := os.Stat(linkPath); err == nil {
-			return linkPath
+			linkPath := filepath.Join(cfg.Spec.Path, name)
+			if _, err := os.Stat(linkPath); err == nil {
+				return linkPath
+			}
 		}
 	}
 	return origPath
