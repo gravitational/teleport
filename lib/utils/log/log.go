@@ -31,8 +31,8 @@ import (
 
 // Config configures teleport logging
 type Config struct {
-	// Output defines where logs go. It can be one of the following: "stderr", "stdout" or
-	// a path to a log file. On macOS, "os_log" is supported as additional value.
+	// Output defines where logs go. It can be one of the following: "stderr", "stdout",
+	// "syslog" (on Linux), "os_log" (on macOS) or a path to a log file.
 	Output string
 	// Severity defines how verbose the log will be. Possible values are "error", "info", "warn"
 	Severity string
@@ -43,7 +43,10 @@ type Config struct {
 	// EnableColors dictates if output should be colored.
 	EnableColors bool
 	// Padding to use for various components.
-	Padding        int
+	Padding int
+	// OSLogSubsystem is the subsystem under which logs will be visible in os_log if Output is set to
+	// "os_log". If used from within a packaged app, this should include the identifier of the app in
+	// reverse DNS notation, e.g., "com.goteleport.tshdev", "com.goteleport.tshdev.vnet".
 	OSLogSubsystem string
 }
 
