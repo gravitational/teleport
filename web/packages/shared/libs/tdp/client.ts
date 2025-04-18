@@ -187,7 +187,7 @@ export class TdpClient extends EventEmitter {
     } else if (connectionError) {
       this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, 'Session disconnected');
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE);
     }
 
     this.logger.info('Transport is closed');

@@ -18,19 +18,28 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Indicator } from 'design';
-import { Info } from 'design/Alert';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
+import {
+  Alert,
+  Box,
+  ButtonPrimary,
+  Flex,
+  H2,
+  Indicator,
+  Stack,
+  Text,
+} from 'design';
+import { ActionButton, Warning } from 'design/Alert';
+import { Desktop } from 'design/Icon';
 import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
-import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  makeEmptyAttempt,
+  makeSuccessAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 import {
   ButtonState,
   ScrollAxis,
@@ -328,6 +337,7 @@ export function DesktopSession({
       `}
     >
       <TopBar
+        isConnected={screenState.state === 'canvas-visible'}
         onDisconnect={() => {
           setClipboardSharingState(prevState => ({
             ...prevState,
@@ -354,16 +364,20 @@ export function DesktopSession({
       {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}
       {/* it's not affected by these elements.*/}
       {screenState.state === 'another-session-active' && (
-        <AnotherSessionActiveDialog
+        <AnotherSessionActive
+          desktopName={desktop}
           onContinue={() =>
             setAnotherDesktopActiveAttempt(makeSuccessAttempt(false))
           }
-          onAbort={() => window.close()}
         />
       )}
       {screenState.state === 'custom' && screenState.component}
       {screenState.state === 'disconnected' && (
-        <AlertDialog message={screenState.message} onRetry={onRetry} />
+        <DisconnectedState
+          desktopName={desktop}
+          message={screenState.message}
+          onRetry={onRetry}
+        />
       )}
       {screenState.state === 'processing' && <Processing />}
 
@@ -384,52 +398,77 @@ export function DesktopSession({
   );
 }
 
-export const AlertDialog = (props: {
-  message: { title: string; details?: string };
-  onRetry(): void;
-}) => (
-  <Dialog dialogCss={() => ({ width: '484px' })} open={true}>
-    <DialogHeader style={{ flexDirection: 'column' }}>
-      <DialogTitle>Disconnected</DialogTitle>
-    </DialogHeader>
-    <DialogContent>
-      <Info details={props.message.details}>{props.message.title}</Info>
-      Refresh the page to reconnect.
-    </DialogContent>
-    <DialogFooter>
-      <ButtonSecondary size="large" width="30%" onClick={props.onRetry}>
-        Refresh
-      </ButtonSecondary>
-    </DialogFooter>
-  </Dialog>
-);
-
-const AnotherSessionActiveDialog = (props: {
-  onAbort(): void;
-  onContinue(): void;
-}) => {
+function DisconnectedStateContainer(props: {
+  desktopName: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Dialog
-      dialogCss={() => ({ width: '484px' })}
-      onClose={() => {}}
-      open={true}
+    <Flex
+      flexDirection="column"
+      mx="auto"
+      alignItems="center"
+      maxWidth="700px"
+      css={`
+        top: 10%;
+        position: relative;
+      `}
     >
-      <DialogHeader style={{ flexDirection: 'column' }}>
-        <DialogTitle>Another Session Is Active</DialogTitle>
-      </DialogHeader>
-      <DialogContent>
-        This desktop has an active session, connecting to it may close the other
-        session. Do you wish to continue?
-      </DialogContent>
-      <DialogFooter>
-        <ButtonPrimary mr={3} onClick={props.onAbort}>
-          Abort
-        </ButtonPrimary>
-        <ButtonSecondary onClick={props.onContinue}>Continue</ButtonSecondary>
-      </DialogFooter>
-    </Dialog>
+      <Flex>
+        <Desktop mr={2} />
+        <H2>{props.desktopName}</H2>
+      </Flex>
+      {props.children}
+    </Flex>
   );
-};
+}
+
+export function DisconnectedState(props: {
+  desktopName: string;
+  message?: DisconnectedMessage;
+  onRetry(): void;
+}) {
+  return (
+    <DisconnectedStateContainer desktopName={props.desktopName}>
+      <Text mb={3}>The desktop session is offline.</Text>
+      {props.message && (
+        <Alert kind={props.message.kind} mb={4} details={props.message.details}>
+          {props.message.title}
+        </Alert>
+      )}
+      <ButtonPrimary onClick={props.onRetry}>Reconnect</ButtonPrimary>
+    </DisconnectedStateContainer>
+  );
+}
+
+function AnotherSessionActive(props: {
+  desktopName: string;
+  onContinue(): void;
+}) {
+  return (
+    <DisconnectedStateContainer desktopName={props.desktopName}>
+      <Warning
+        mt={3}
+        details={
+          <Stack>
+            This desktop has an active session, connecting to it may close the
+            other session. <br />
+            Do you wish to continue?
+            <ActionButton
+              fill="border"
+              intent="neutral"
+              action={{
+                content: 'Continue',
+                onClick: props.onContinue,
+              }}
+            />
+          </Stack>
+        }
+      >
+        Another session is active
+      </Warning>
+    </DisconnectedStateContainer>
+  );
+}
 
 const Processing = () => {
   return (
