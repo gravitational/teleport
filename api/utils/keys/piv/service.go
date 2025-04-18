@@ -23,9 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"sync"
-	"time"
 
 	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
@@ -45,9 +43,6 @@ var yubiKeyServiceMu sync.Mutex
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
 type YubiKeyService struct {
 	prompt hardwarekey.Prompt
-
-	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
-	pinCache *hardwarekey.PINCache
 
 	// signMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
 	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
@@ -84,7 +79,6 @@ func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
 	yubiKeyService = &YubiKeyService{
 		prompt:   customPrompt,
 		yubiKeys: map[uint32]*YubiKey{},
-		pinCache: hardwarekey.NewPINCache(),
 	}
 	return yubiKeyService
 }
@@ -122,7 +116,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
 	if config.Policy.PINRequired {
-		if err := s.checkOrSetPIN(ctx, y, config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
+		if err := y.checkOrSetPIN(ctx, s.prompt, config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -194,7 +188,7 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 	s.signMu.Lock()
 	defer s.signMu.Unlock()
 
-	return y.sign(ctx, ref, keyInfo, s.prompt, s.pinCache, rand, digest, opts)
+	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
 }
 
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
@@ -262,30 +256,6 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 
 	s.yubiKeys[y.serialNumber] = y
 	return y, nil
-}
-
-// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
-// If the user provides the default PIN, they will be prompted to set a
-// non-default PIN and PUK before continuing.
-func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) error {
-	pin, err := s.pinCache.PromptOrGetPIN(ctx, s.prompt, hardwarekey.PINOptional, keyInfo, pinCacheTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch pin {
-	case piv.DefaultPIN:
-		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
-		fallthrough
-	case "":
-		pin, err = y.setPINAndPUKFromDefault(ctx, s.prompt, keyInfo)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.pinCache.SetPIN(pin, pinCacheTTL)
-	}
-
-	return trace.Wrap(y.verifyPIN(pin))
 }
 
 func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, keyInfo hardwarekey.ContextualKeyInfo) error {
