@@ -392,7 +392,7 @@ export class TdpClient extends EventEmitter {
     const alert = this.codec.decodeAlert(buffer);
     // TODO(zmb3): info and warning should use the same handler
     if (alert.severity === Severity.Error) {
-      throw new Error(alert.message);
+      throw new TdpError(alert.message);
     } else if (alert.severity === Severity.Warning) {
       this.handleWarning(alert.message, TdpClientEvent.TDP_WARNING);
     } else {
@@ -806,4 +806,12 @@ export function useListener<T extends any[]>(
       unregister();
     };
   }, [emitter, listener]);
+}
+
+/** Represents an alert emitted by the TDP service with "error" severity. */
+export class TdpError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TdpError';
+  }
 }

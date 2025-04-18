@@ -37,6 +37,7 @@ import {
   TdpClient,
   useListener,
 } from 'shared/libs/tdp';
+import { TdpError } from 'shared/libs/tdp/client';
 
 import { KeyboardHandler } from './KeyboardHandler';
 import TopBar from './TopBar';
@@ -130,6 +131,7 @@ export function DesktopSession({
       setClipboardSharingState(defaultClipboardSharingState);
       setTdpConnectionStatus({
         status: 'disconnected',
+        fromTdpError: error instanceof TdpError,
         message: error.message || error.toString(),
       });
       initialTdpConnectionSucceeded.current = false;
@@ -357,7 +359,7 @@ export function DesktopSession({
         />
       )}
       {screenState.state === 'custom' && screenState.component}
-      {screenState.state === 'error' && (
+      {screenState.state === 'disconnected' && (
         <AlertDialog message={screenState.message} onRetry={onRetry} />
       )}
       {screenState.state === 'processing' && <Processing />}
@@ -454,7 +456,7 @@ function getScreenState(
 
   if (aclAttempt.status === 'error') {
     return {
-      state: 'error',
+      state: 'disconnected',
       message: {
         title: 'Could not fetch session details',
         details: aclAttempt.statusText,
@@ -463,7 +465,7 @@ function getScreenState(
   }
   if (anotherDesktopActiveAttempt.status === 'error') {
     return {
-      state: 'error',
+      state: 'disconnected',
       message: {
         title: 'Could not fetch session details',
         details: anotherDesktopActiveAttempt.statusText,
@@ -471,9 +473,23 @@ function getScreenState(
     };
   }
   if (tdpConnectionStatus.status === 'disconnected') {
+    if (tdpConnectionStatus.fromTdpError) {
+      return {
+        state: 'disconnected',
+        message: {
+          // A TDP error can mean a "graceful disconnection",
+          // so for safety we treat all TDP errors as informational.
+          kind: 'info',
+          // TDP errors can be long so display them as details.
+          details: tdpConnectionStatus.message,
+        },
+      };
+    }
     return {
-      state: 'error',
-      message: { title: tdpConnectionStatus.message },
+      state: 'disconnected',
+      message: tdpConnectionStatus.message && {
+        title: tdpConnectionStatus.message,
+      },
     };
   }
 
@@ -506,6 +522,7 @@ type TdpConnectionStatus =
    */
   | {
       status: 'disconnected';
+      fromTdpError?: boolean;
       message: string;
     };
 
@@ -515,6 +532,13 @@ type ScreenState =
   | { state: 'processing' }
   | { state: 'canvas-visible' }
   | {
-      state: 'error';
-      message: { title: string; details?: string };
+      state: 'disconnected';
+      message?: DisconnectedMessage;
     };
+
+interface DisconnectedMessage {
+  /** Kind is danger by default. */
+  kind?: 'info' | 'danger';
+  title?: string;
+  details?: string;
+}
