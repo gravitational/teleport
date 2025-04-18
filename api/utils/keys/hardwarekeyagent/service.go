@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"io"
 	"log/slog"
-	"math"
 
 	"github.com/gravitational/trace"
 
@@ -118,10 +117,6 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 
 		if saltLength < 0 {
 			return nil, rsa.ErrMessageTooLong
-		}
-
-		if saltLength > math.MaxUint32 {
-			return nil, trace.BadParameter("invalid salt length %d", saltLength)
 		}
 	}
 
