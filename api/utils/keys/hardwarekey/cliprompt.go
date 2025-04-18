@@ -37,7 +37,6 @@ var (
 type cliPrompt struct {
 	writer   io.Writer
 	reader   prompt.StdinReader
-	pinCache *PINCache
 }
 
 // NewStdCLIPrompt returns a new CLIPrompt with stderr and stdout.
@@ -45,7 +44,6 @@ func NewStdCLIPrompt() *cliPrompt {
 	return &cliPrompt{
 		writer:   os.Stderr,
 		reader:   prompt.Stdin(),
-		pinCache: NewPINCache(),
 	}
 }
 
@@ -55,7 +53,6 @@ func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
 	return &cliPrompt{
 		writer:   w,
 		reader:   r,
-		pinCache: NewPINCache(),
 	}
 }
 
