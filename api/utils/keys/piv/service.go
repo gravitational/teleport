@@ -20,9 +20,6 @@ package piv
 import (
 	"context"
 	"crypto"
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -141,7 +138,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 		// Unknown cert found, this slot could be in use by a non-teleport client.
 		// Prompt the user before we overwrite the slot.
-		case len(cert.Subject.Organization) == 0 || cert.Subject.Organization[0] != certOrgName:
+		case !isTeleportMetadataCertificate(cert):
 			if err := s.promptOverwriteSlot(ctx, nonTeleportCertificateMessage(pivSlot, cert), config.ContextualKeyInfo); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -309,29 +306,4 @@ func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, ke
 		return trace.Wrap(trace.CompareFailed(msg), "user declined to overwrite slot")
 	}
 	return nil
-}
-
-func nonTeleportCertificateMessage(slot piv.Slot, cert *x509.Certificate) string {
-	// Gather a small list of user-readable x509 certificate fields to display to the user.
-	sum := sha256.Sum256(cert.Raw)
-	fingerPrint := hex.EncodeToString(sum[:])
-	return fmt.Sprintf(`Certificate in YubiKey PIV slot %q is not a Teleport client cert:
-Slot %s:
-	Algorithm:		%v
-	Subject DN:		%v
-	Issuer DN:		%v
-	Serial:			%v
-	Fingerprint:	%v
-	Not before:		%v
-	Not after:		%v
-`,
-		slot, slot,
-		cert.SignatureAlgorithm,
-		cert.Subject,
-		cert.Issuer,
-		cert.SerialNumber,
-		fingerPrint,
-		cert.NotBefore,
-		cert.NotAfter,
-	)
 }
