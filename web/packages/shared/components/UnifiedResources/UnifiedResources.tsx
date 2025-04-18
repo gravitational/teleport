@@ -643,6 +643,19 @@ export function useUnifiedResourcesFetch<T>(props: {
   });
 }
 
+export function useResourceServersFetch<T>(props: {
+  fetchFunc(
+    paginationParams: { limit: number; startKey: string },
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+}) {
+  return useKeyBasedPagination({
+    fetchFunc: props.fetchFunc,
+    initialFetchSize: 20,
+    fetchMoreSize: 10,
+  });
+}
+
 function getResourcePinningSupport(
   pinning: UnifiedResourcesPinning['kind'],
   updatePinnedResourcesAttempt: AsyncAttempt<void>

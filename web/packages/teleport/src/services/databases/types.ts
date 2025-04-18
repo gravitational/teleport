@@ -110,8 +110,3 @@ export type DatabaseServer = {
   hostId: string;
   targetHealth?: ResourceTargetHealth;
 };
-
-export type DatabaseServerResponse = {
-  items: DatabaseServer[];
-  startKey?: string;
-};

@@ -237,3 +237,12 @@ export type ResourceViewProps = {
   }[];
   expandAllLabels: boolean;
 };
+
+export type SharedDatabaseServer = {
+  kind: 'db_server';
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
+};
+
+export type SharedResourceServer = SharedDatabaseServer;
