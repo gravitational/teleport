@@ -18,7 +18,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  CanceledError,
+  makeEmptyAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 
 import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { TermEvent } from 'teleport/lib/term/enums';
@@ -184,22 +189,31 @@ export function useMfa(props?: MfaProps): MfaState {
 
 export function useMfaEmitter(
   emitterSender: EventEmitterMfaSender,
-  mfaProps?: MfaProps
+  mfaProps?: MfaProps,
+  emitterOptions?: { onPromptCancel?(): void }
 ): MfaState {
   const mfa = useMfa(mfaProps);
 
+  const onPromptCancel = emitterOptions?.onPromptCancel;
   useEffect(() => {
     const challengeHandler = async (challengeJson: string) => {
       const challenge = parseMfaChallengeJson(JSON.parse(challengeJson));
-      const resp = await mfa.getChallengeResponse(challenge);
+      let resp: MfaChallengeResponse;
+      try {
+        resp = await mfa.getChallengeResponse(challenge);
+      } catch (err) {
+        if (err instanceof CanceledError) {
+          onPromptCancel?.();
+        }
+      }
       emitterSender.sendChallengeResponse(resp);
     };
 
     emitterSender?.on(TermEvent.MFA_CHALLENGE, challengeHandler);
     return () => {
-      emitterSender?.removeListener(TermEvent.MFA_CHALLENGE, challengeHandler);
+      emitterSender?.off(TermEvent.MFA_CHALLENGE, challengeHandler);
     };
-  }, [mfa, emitterSender]);
+  }, [mfa, emitterSender, onPromptCancel]);
 
   return mfa;
 }

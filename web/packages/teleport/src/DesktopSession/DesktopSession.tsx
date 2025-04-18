@@ -57,7 +57,11 @@ export function DesktopSession() {
         )
       )
   );
-  const mfa = useMfaEmitter(client);
+  const mfa = useMfaEmitter(client, undefined, {
+    // When the user cancels the MFA prompt, shut down the connection.
+    // To get a new challenge, we need to recreate it.
+    onPromptCancel: useCallback(() => client.shutdown(), [client]),
+  });
 
   const [aclAttempt, fetchAcl] = useAsync(
     useCallback(async () => {
