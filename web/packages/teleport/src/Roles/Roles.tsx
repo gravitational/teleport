@@ -123,7 +123,7 @@ export function Roles(props: State) {
         </ButtonPrimary>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
-        <Alert children={serverSidePagination.attempt.statusText} />
+        <Alert>{serverSidePagination.attempt.statusText}</Alert>
       )}
       <Flex>
         <Box width="100%" mr="6" mb="4">
