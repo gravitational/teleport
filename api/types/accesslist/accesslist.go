@@ -251,6 +251,17 @@ type Status struct {
 	OwnerOf []string `json:"owner_of" yaml:"owner_of"`
 	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
 	MemberOf []string `json:"member_of" yaml:"member_of"`
+
+	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
+	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
+}
+
+// CurrentUserAssignments describes the current user's ownership and membership status in the access list.
+type CurrentUserAssignments struct {
+	// OwnershipType represents the current user's ownership type (explicit, inherited, or none) in the access list.
+	OwnershipType accesslistv1.AccessListUserAssignmentType `json:"ownership_type" yaml:"ownership_type"`
+	// MembershipType represents the current user's membership type (explicit, inherited, or none) in the access list.
+	MembershipType accesslistv1.AccessListUserAssignmentType `json:"membership_type" yaml:"membership_type"`
 }
 
 // NewAccessList will create a new access list.
@@ -371,6 +382,11 @@ func (a *AccessList) GetOwnerGrants() Grants {
 // and should be removed when possible.
 func (a *AccessList) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
+}
+
+// GetStatus returns the status of the access list.
+func (a *AccessList) GetStatus() Status {
+	return a.Status
 }
 
 // MatchSearch goes through select field values of a resource
