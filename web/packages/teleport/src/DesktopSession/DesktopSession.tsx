@@ -89,7 +89,11 @@ export function DesktopSession() {
                 title: 'This session requires multi factor authentication',
                 details: mfa.attempt.statusText,
               }}
-              onRetry={retry}
+              onRetry={() => {
+                // Clear the MFA attempt to hide this alert state.
+                mfa.reset();
+                retry();
+              }}
             />
           );
         }

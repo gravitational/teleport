@@ -175,6 +175,10 @@ export function useMfa(props?: MfaProps): MfaState {
     submit,
     attempt,
     cancelAttempt,
+    reset: () => {
+      setMfaChallenge(null);
+      setMfaAttempt(makeEmptyAttempt());
+    },
   };
 }
 
@@ -213,6 +217,8 @@ export type MfaState = {
   submit: (mfaType?: DeviceType, totpCode?: string) => Promise<void>;
   attempt: Attempt<any>;
   cancelAttempt: () => void;
+  /** Clears the challenge and the attempt state. */
+  reset: () => void;
 };
 
 /** Indicates if an MFA dialog should be visible. */
@@ -237,6 +243,7 @@ export function makeDefaultMfaState(): MfaState {
     submit: () => null,
     attempt: makeEmptyAttempt(),
     cancelAttempt: () => null,
+    reset: () => {},
   };
 }
 
