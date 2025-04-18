@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -49,6 +50,7 @@ type AccessRequestData struct {
 	Resources          []string
 	SuggestedReviewers []string
 	LoginsByRole       map[string][]string
+	MaxDuration  time.Duration
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
@@ -63,6 +65,14 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 	}
 	data.ResolutionTag = ResolutionTag(dataMap["resolution"])
 	data.ResolutionReason = dataMap["resolve_reason"]
+	if str := dataMap["max_duration"]; str != "" {
+		data.MaxDuration, err = time.ParseDuration(str)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+
+	}
 
 	if str, ok := dataMap["resources"]; ok {
 		err = json.Unmarshal([]byte(str), &data.Resources)
@@ -131,6 +141,7 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 	result["reviews_count"] = reviewsCountStr
 	result["resolution"] = string(data.ResolutionTag)
 	result["resolve_reason"] = data.ResolutionReason
+	result["max_duration"] = data.MaxDuration.String()
 
 	if len(data.SystemAnnotations) != 0 {
 		annotaions, err := json.Marshal(data.SystemAnnotations)
