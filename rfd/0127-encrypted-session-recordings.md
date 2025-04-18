@@ -1,0 +1,494 @@
+---
+authors: Alan Parra (alan.parra@goteleport.com), Erik Tate (erik.tate@goteleport.com) 
+state: draft
+---
+
+# RFD 127 - Encrypted Session Recordings
+
+## Required Approvers
+* Engineering: @rosstimothy, @zmb3, @espadolini, @nklaassen
+* Security: doyensec
+
+## What
+
+This document proposes an approach to encrypting session recording data before
+writing to disk or any long term storage.
+
+## Why
+
+Recordings temporarily stored to disk can be easily tampered with by users with
+enough access. This could even occur within the session being recorded if the
+host user has root access.
+
+Encrypting session recordings at rest can help prevent exposure of credentials
+or other secrets that might be visible within the recording. 
+
+## Details
+
+This document should fulfill the following requirements:
+- Ability to encrypt session recording data at rest in long term storage and
+during any intermediate disk writes.
+- Ability to replay encrypted sessions using the web UI.
+- Ability to guard decryption using key material from an HSM or other supported
+  keystore.
+- Support for multiple auth servers using different HSM/KMS backends.
+- An encryption algorithm suitable for this workload.
+
+### Encryption Algorithm
+
+This RFD assumes the usage of [age](https://github.com/FiloSottile/age), which
+was chosen for its provenance, simplicity, and focus on strong cryptography
+defaults without requiring customization. The formal spec can be found
+[here](https://age-encryption.org/v1). Officially supported key algorithms are
+limited to X25519 (recommended by the spec), Ed25519, and RSA. Support for
+other algorithms would either have to be requested from the upstream or
+manually implemented as a custom plugin. The algorithms employed by `age` are
+not currently compatible with FIPS, which means configuring encrypted sessions
+while in FIPS mode will result in failed startup.
+
+Below is a high level diagram showing how `age` encryption and decryption work:
+![age diagram](assets/0127-age-high-level.png)
+
+### Config Changes
+
+Encrypted session recording is a feature of the auth service and can be enabled
+through the `session_recording_config` resource.
+```yaml
+# session_recording_config.yml
+kind: session_recording_config
+version: v2
+spec:
+  encryption:
+    enabled: true
+```
+HSM integration is facilitated through the existing configuration
+options for setting up an HSM backed CA keystore through pkcs#11. Example
+configuration found [here](https://goteleport.com/docs/admin-guides/deploy-a-cluster/hsm/#step-25-configure-teleport).
+
+### Protobuf Changes
+```proto
+// api/proto/teleport/legacy/types/types.proto
+
+// EncryptionKeyPair is a keypair used for encrypting and decrypting data.
+message EncryptionKeyPair {
+  // PublicKey is the public encryption key.
+  bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // PrivateKey is the private decryption key.
+  bytes PrivateKey = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
+  // PrivateKeyType is the type of the PrivateKey.
+  PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+}
+
+// WrappedKey wraps a PrivateKey using an asymmetric keypair.
+message WrappedKey {
+  // WrappingPair is the asymmetric keypair used to wrap the private key.
+  // Expected to be RSA.
+  EncryptionKeyPair WrappingPair = 1;
+  // WrappedPair is the asymmetric keypair used with age to encrypt and decrypt
+  // filekeys.
+  EncryptionKeyPair WrappedPair = 2;
+  // Signals that a key should be rotated.
+  bool Rotate = 3 [(gogoproto.jsontag) = "rotate"];
+}
+
+// EncryptionKeySet contains the list of active and rotated WrappedKeys for a
+// given usage.
+message EncryptionKeySet {
+  // ActiveKeys is a list of active, wrapped X25519 private keys. There should
+  // be at most one wrapped key per auth server using the
+  // SessionRecordingConfigV2 resource unless keys are being rotated.
+  repeated WrappedKey ActiveKeys = 1 [
+    (gogoproto.jsontag) = "active_keys"
+  ];
+  // RotatedKeys is a list of wrapped private keys that have been rotated.
+  // These are kept to decrypt historical encrypted session recordings.
+  repeated WrappedKey RotatedKeys = 2 [
+    (gogoproto.jsontag) = "rotated_keys"
+  ];
+}
+// SessionRecordingConfigStatusV2 contains all of the current and rotated keys
+// used for encrypted session recording.
+message SessionRecordingConfigStatusV2 {
+  EncryptionKeySet KeySet = 1 [(gogoproto.jsontag) = "keyset"]
+}
+
+// SessionRecordingConfigSpecV2 is the actual data we care about
+// for SessionRecordingConfig.
+message SessionRecordingConfigSpecV2 {
+  // existing fields omitted
+
+  SessionRecordingEncryptionConfig Encryption = 3 [
+    (gogoproto.jsontag) = "encryption"],
+    (gogoproto.nullable) = true,
+  ]
+}
+
+// SessionRecordingEncryptionConfig configures if and how session recordings
+// should be encrypted.
+message SessionRecordingEncryptionConfig {
+  BoolValue Enabled = 1 [(gogoproto.jsontag) = "encrypted"]
+}
+
+// SessionRecordingConfigV2 contains session recording configuration.
+message SessionRecordingConfigV2 {
+  // existing fields omitted
+
+  // Status contains all of the current and rotated keys used for encrypted
+  // session recording
+  SessionRecordingConfigStatusV2 Status = 6 [
+    (gogoproto.jsontag) = "status",
+    (gogoproto.nullable) = true
+  ]
+}
+```
+
+```proto
+// api/proto/teleport/clusterconfig/v1/clusterconfig_service.proto
+
+// existing messages omitted
+
+message RotateSessionRecordingConfigRequest {}
+message RotateSessionRecordingConfigResponse {}
+
+// ClusterConfigService provides methods to manage cluster configuration resources.
+service ClusterConfigService {
+  // existing RPCs omitted
+
+  // RotateSessionRecordingConfigKeys rotates the keys associated with encrypting and
+  // decrypting session recordings.
+  rpc RotateSessionRecordingConfig(RotateSessionRecordingConfigRequest) returns (RotateSessionRecordingConfigResponse);
+}
+```
+
+```proto
+// api/proto/teleport/legacy/client/proto/authservice.proto
+
+// ClusterConfigService provides methods to manage cluster configuration resources.
+service ClusterConfigService {
+  // existing messages omitted
+
+  // EncryptedSessionRecordingChunk is an individual chunk of an encrypted 
+  // session recording .tar file.
+  message EncryptedSessionRecordingChunk {
+    // SessionID the recording relates to.
+    string SessionID = 1;
+    // ChunkIndex is the ordered index applied to the chunk.
+    int64 ChunkIndex = 2;
+    // Chunk is the encrypted chunk of session recording data being uploaded.
+    bytes Chunk = 3;
+  }
+
+  message UploadEncryptedSessionRecordingResponse {}
+
+  service AuthService {
+    // existing RPCs omitted
+
+    // UploadEncryptedSessionRecording is used to upload encrypted .tar files
+    // containing session recording events into long term storage.
+    rpc UploadEncryptedSessionRecording(stream EncryptedSessionRecordingChunk) returns (UploadEncryptedSessionRecordingResponse);
+    
+  }
+}
+```
+
+### Session Recording Modes
+
+There are four session recording modes that describe where the recordings are
+captured and how they're shipped to long term storage.
+- `proxy-sync`
+- `proxy`
+- `node-sync`
+- `node`
+Where the recordings are collected is largely unimportant to the encryption
+strategy, but whether or not they are handled async or sync has different
+requirements.
+
+In sync modes the session recording data is written immediately to the auth
+service without intermediate disk writes. The auth service then handles
+batching and multipart upload of events to long term storage. In order to
+ensure resilience to partial uploads of parts, each batch will need to be
+encrypted individually on the auth service. This will likely mean wrapping the
+`gzipWriter` [used by slices](https://github.com/gravitational/teleport/blob/master/lib/events/stream.go#L669)
+with an `age` encryption writer.
+
+In async modes the session recording data is written to intermediate `.part`
+files. These files are collected until they're ready for upload and are then
+combined into a single `.tar` file. In order to prevent all session recording
+data from being lost in the event of an agent crashing, each part will be
+encrypted individually much like the encrypted batches in `sync` modes. Because
+the data is already encrypted, exploding the final `.tar` file back into events
+to be uploaded to the auth service is not possible. Instead the auth service
+must accept a binary upload of the `.tar` file which it can then proxy to long
+term storage. This will be done using the `UploadEncryptedSessionRecording`
+streaming RPC. When using S3 compatible long term storage, the auth service
+will need to use the `PutObject` API rather than performing a multipart upload.
+This is to prevent any loss of parts that would make decryption impossible.
+
+### Protocols
+
+We record sessions for multiple protocols, including ssh, k8s, database
+sessions and more. Because this approach encrypts at the point of writing
+without modifying the recording structure, the strategy for encryption is
+expected to be the same across all protocols.
+
+### Key Types
+
+This design relies on a few different types of keys.
+- File keys generated by `age`. These are per-file data keys used during
+  symmetric encryption and decryption of recording data.
+- `Identity` and `Recipient` keys used by `age` to wrap and unwrap file keys.
+  These are software generated, asymmetric `X25519` keypairs.
+- `RSA2048` keypairs owned by HSM/KMS keystores. These are used to wrap and
+  unwrap `Identity` keys. "Wrapping" in the context of this document refers to
+  software OAED encryption using `RSA2048` public keys and `SHA256` hashes.
+  "Unwrapping" refers to OAED decryption through direct integration with an HSM
+  or KMS. Integrating with keystore backends in this way allows for proxy and
+  host nodes to use the easily accessible `Recipient` keys during encryption
+  instead of requiring access to any of the key material managed by the
+  keystores.
+
+The relationships between key types is shown in the diagram below and further
+explained throughout the rest of the document.
+```
+symmetric data
+encryption key                          enveloped key included
+(age generated)                        in ciphertext as a stanza
+ -------         -----------------         ---------------
+|filekey| ----> |X25519 public key| ----> |wrapped filekey|
+ -------         -----------------         ---------------
+               software generated key
+               for wrapping filekeys
+                  (age Recipient)
+
+symmetric data
+decryption key                          enveloped key included
+(age generated)                        in ciphertext as a stanza
+ -------         ------------------         ---------------
+|filekey| <---- |X25519 private key| <---- |wrapped filekey|
+ -------         ------------------         ---------------
+               software generated key
+               for unwrapping filekeys
+                  (age Identity)
+
+software generated key
+for unwrapping filekeys                      Encrypted identity stored in
+(age Identity)                              session_recording_config.status
+ ------------------         --------------         ----------------
+|X25519 private key| ----> |RSA public key| ----> |wrapped identity|
+ ------------------         --------------         ----------------
+                      HSM/KMS generated key for
+                      wrapping age Identities
+
+software generated key
+for unwrapping filekeys                     Encrypted identity retrievable
+(age Identity)                                       with HSM/KMS
+ ------------------         ---------------         ----------------
+|X25519 private key| <---- |RSA private key| <---- |wrapped identity|
+ ------------------         ---------------         ----------------
+                      HSM/KMS generated key for
+                      unwrapping age Identities
+```
+
+### Key Generation
+
+To simplify integration with different HSM/KMS systems, the keypair used for
+data encryption through `age` will be a software generated `X25519` keypair.
+For the rest of this section I will refer to the public key as the `Recipient`
+and the private key as the `Identity` in keeping with `age` terminology.
+
+The auth server generating the keys will then use the configured CA keystore to
+generate an `RSA` keypair used to wrap the `Identity`. Once encrypted, the
+`Recipient`, wrapped `Identity`, and wrapping keypair are added as a new entry
+to the `session_recording_config.status.active_keys` list. 
+
+`RSA` key generation is already supported for signing use-cases across AWS KMS,
+GCP CKM, and PKCS#11. However we will need to add support for calling into
+their native decryption functions in order to unwrap `Identity` keys:
+- AWS KMS supports setting an algorithm of `RSAES_OAEP_SHA_256` when using the
+  `Decrypt` action of the KMS API.
+- GCP CKM supports generating keys of type `RSAES_OAEP_2048_SHA256` which can
+  be used when calling the `AsymmetricDecrypt` API from their go SDK. Worth
+  noting that keys generated for signing can not be used for decryption, so key
+  generation with a GCP backend will need to be modified slightly.
+- This should be supported by most HSMs through the `C_RSA_PKCS_OAEP` and
+  `CKM_SHA256` mechanisms which can be passed to the `C_DecryptInit` function
+  exposed by PKCS#11. 
+
+In order to collaboratively generate and share the `Identity` and `Recipient`
+keys, all auth servers must create a watcher for `Put` events against the
+`SessionRecordingConfigV2` resource. Modifications to this resource will signal
+existing auth servers to investigate whether or not there is work that needs to
+be done. For example, when adding a new auth server to an environment, it will
+find that there is already an `X25519` keypair configured. It will check if any
+active keys are accessible (detailed in the next paragraph) and, in the case
+that there are none, generate a new `RSA` wrapping keypair. The new keypair
+will be added as an entry to the list of active keys but without a wrapped
+`Identity`. Any other auth server with an active key can inspect the new entry,
+unwrap their own copy of the `Identity`, and wrap it again using software OAEP
+encryption with the entry's public `RSA` key. The re-wrapped `Identity` is then
+saved as the wrapped key for the new entry and the newly added auth server will
+be able to decrypt sessions.
+
+When using KMS keystores, auth servers may share access to the same key. In
+that case, they will also share the same wrapped key which can be identified by
+the key ID. For HSMs integrated over PKCS#11, the auth server's host UUID is
+attached to the key ID and will be used to determine access.
+
+In order to avoid unintended automatic deletion, keys provisioned for encrypted
+session recording will be tagged with a different label where applicable. This
+will prevent older auth servers from deleting this new keytype and allow new
+auth servers to identify which keys are no longer in use before deletion.
+
+### Encryption
+
+At a high level, `age` encryption works by generating a per-file symmetric key
+used for data encryption. That key is wrapped using an asymmetric keypair and
+included in the header section of the encrypted file as a stanza. Plugins
+implementing different key algorithms only affect the crypto involved with
+wrapping and unwrapping data encryption keys.
+
+In both proxy and node recording modes, the public `X25519` key used for
+wrapping `age` data keys will come from
+`session_recording_config.status.active_keys`. All unique public keys present
+will be added as recipients.
+
+![encryption](assets/0127-encryption.png)
+
+### Decryption and Replay
+
+Because decryption will happen in the auth service before streaming to the
+client, the UX of replaying encrypted recordings is nearly identical to
+unencrypted recordings. The auth server will find and unwrap its active key in
+the `session_recording_config` using either the key's identifier within the KMS
+or the `host_uuid` attached to HSM derived keys. It will use that key to
+decrypt the data on the fly as it's streamed back to the client. This should be
+compatible with all replay clients, including web. The only change to the
+client UX is that encrypted recording files can not be passed directly to
+`tsh play` because decryption is only possible within the auth service.
+
+If a recording was encrypted with a rotated key, the auth server will also need
+to search the list of rotated keys to find and unwrap the correct key. Public
+keys are included with their rotated private keys in order to facilitate faster
+searching.
+
+It's important to note that encrypted sessions are a series of concatenated
+`age` output files, one for each batch of messages encrypted for a given
+session. Both `sync` and `async` modes try and avoid situations where an
+encrypted batch of messages would be split between parts of a multipart upload,
+but the auth service should also try and recover in situations where this might
+not be the case by splitting on `age` headers. If we mistakenly concatenate
+output that was not continuous or part of the same batch, decryption will fail
+and we would then be forced to return an error.
+
+![decryption](assets/0127-decryption.png)
+
+### Key Rotation
+
+Rotating keys used for session encryption requires rotating both the `X25519`
+keypair used with `age` and the keystore-backed wrapping keys. Because `age`
+allows us to encrypt with multiple recipients, all keys can be rotated in a
+single action.
+
+When an auth server receives a rotation request, it will:
+- Generate a new `X25519` keypair.
+- Generate a new `RSA` wrapping keypair using its configured keystore.
+- Create a new `WrappedKey` using these keypairs.
+- Mark all other active keys for rotation by setting their `Rotate` field to
+  `true`. This is done in place of removing all other keys in order to avoid
+  delays or failures that might come from other auth servers not having
+  immediate access to an active `WrappedKey`.
+- Replace its own active `WrappedKey` with the newly created one, moving the
+  original value to the rotated keys list.
+- Apply all writes described in a single, atomic write to the backend.
+
+
+All other auth servers will check if their keys are marked for rotation when a
+change to the resource is picked up by their watcher. If they find their keys
+need to be rotated, they will essentially repeat the key generation steps:
+- Generate a new `RSA` wrapping keypair using their configured keystore
+- Push a placeholder `WrappedKey` containing the `RSA` keypair and an empty
+  `WrappedPrivateKey` to the active keys list.
+- Wait for an already rotated auth server to wrap the new `X25519` private key
+  with the `RSA` public key included in the placeholder.
+- Confirm the placeholder key is now complete and move the old wrapped key to
+  the rotated keys list.
+
+Once all auth servers have finished rotating their keys, rotation is complete.
+Completion is confirmed when the `Rotate` field of all `WrappedKeys` in the
+active keys list are set to `false`.
+
+Its worth noting that during the waiting period, the keys scheduled for
+rotation are still included as recipients during encryption. Which means
+actively rotating auth servers can still easily decrypt session recordings
+while waiting for a new `WrappedKey` to be generated.
+
+#### `tctl` Changes
+
+Key rotation will be handled through `tctl` using a new subcommand:
+```bash
+tctl recordings encryption rotate
+```
+
+It will issue a request to the `RotateSessionRecordingConfig` RPC to begin
+the rotation. The status of the rotation can be queried with:
+```bash
+tctl recordings encryption rotate --status
+```
+This command issues a request to the existing `GetSessionRecordingConfig` RPC
+in order to return the number of keys that are still marked for rotations.
+Rotation is complete when this count is `0`.
+
+### Security
+
+Protection of key material invovled with encrypting session recordings is
+largely managed by our existing keystore features. The one exception being the
+private keys used by `age` to decrypt files during playback. Whenever possible,
+those keys will be wrapped by the backing keystore such that decryption related
+secrets are never directly accessible.
+
+One of the primary concerns outside of key management is ensuring that session
+recording data is always encrypted before landing on disk or in long term
+storage. In order to help enforce this, all session recording interactions
+should be gated behind a standard interface that can be implemented as either
+plaintext or encrypted. This will help ensure that once the encrypted writer
+has been selected, any interactions with session recordings are encrypted by
+default.
+
+## UX Examples
+
+For the most part, the user experience of encrypted session recordings is
+identical to non-encrypted session recordings. The only notable change is the
+addition of the `tctl recordings encryption rotate` subcommand for rotating keys
+related to encrypted session recording.
+
+### Teleport admin rotating session recording encryption keys
+```bash
+tctl recordings encryption rotate
+```
+
+### Teleport admin querying status of ongoing rotation
+```bash
+tctl recordings encryption rotate --status
+
+"Remaining keys to rotate: 3"
+```
+
+### Teleport admin replaying encrypted session recording using `tsh`
+```bash
+tsh play 49608fad-7fe3-44a7-b3b5-fab0e0bd34d1
+```
+
+### Teleport admin replaying encrypted session recording file using `tsh`
+```bash
+tsh play 49608fad-7fe3-44a7-b3b5-fab0e0bd34d1.tar
+
+"Replaying encrypted recording files is not supported by tsh, try replaying the with the session ID instead"
+```
+
+### Test Plan
+- Sessions are recorded when `auth_service.session_recording_encryption: on`.
+- Encrypted sessions can be played back in both web and `tsh`.
+- Encrypted sessions can be recorded and played back with or without a backing
+- Key rotations for both key types don't break new recordings or remove the
+  ability to decrypt old recordings.
+- Repeat all test plan steps with software, HSM, and KMS key backends.
