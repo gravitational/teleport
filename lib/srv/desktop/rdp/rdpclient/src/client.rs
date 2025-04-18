@@ -1112,7 +1112,7 @@ impl Drop for Client {
 ///
 /// This enum is used by [`ClientHandle`]'s methods to dispatch function calls to the corresponding [`Client`] instance.
 #[derive(Debug)]
-enum ClientFunction {
+pub(crate) enum ClientFunction {
     /// Corresponds to [`Client::write_rdp_pointer`]
     WriteRdpPointer(CGOMousePointerEvent),
     /// Corresponds to [`Client::write_rdp_key`]
@@ -1160,7 +1160,7 @@ pub struct ClientHandle(Sender<ClientFunction>);
 
 impl ClientHandle {
     /// Creates a new `ClientHandle` and corresponding [`FunctionReceiver`] with a buffer of size `buffer`.
-    fn new(buffer: usize) -> (Self, FunctionReceiver) {
+    pub(crate) fn new(buffer: usize) -> (Self, FunctionReceiver) {
         let (sender, receiver) = channel(buffer);
         (Self(sender), FunctionReceiver(receiver))
     }
@@ -1398,8 +1398,13 @@ pub struct FunctionReceiver(Receiver<ClientFunction>);
 
 impl FunctionReceiver {
     /// Receives a [`ClientFunction`] call from the `FunctionReceiver`.
-    async fn recv(&mut self) -> Option<ClientFunction> {
+    pub(crate) async fn recv(&mut self) -> Option<ClientFunction> {
         self.0.recv().await
+    }
+
+    /// Receives a [`ClientFunction`] call from the `FunctionReceiver`.
+    pub(crate) async fn try_recv(&mut self) -> Option<ClientFunction> {
+        self.0.try_recv().ok()
     }
 }
 

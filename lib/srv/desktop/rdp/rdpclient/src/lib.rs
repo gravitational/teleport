@@ -178,7 +178,10 @@ where
     let client_handle = match get_client_handle(cgo_handle) {
         Some(it) => it,
         None => {
-            warn!("call_function_on_handle failed: handle not found");
+            warn!(
+                "call_function_on_handle failed: handle not found {}",
+                cgo_handle
+            );
             return CGOErrCode::ErrCodeFailure;
         }
     };
@@ -754,6 +757,7 @@ extern "C" {
     ) -> CGOErrCode;
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
+    fn cgo_handle_x11_update(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_rdp_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,

@@ -128,7 +128,7 @@ const QOI_OP_RUN_END: u8 = QOI_OP_RUN | 0x3d; // <- note, 0x3d (not 0x3f)
 const QOI_OP_DIFF_END: u8 = QOI_OP_DIFF | 0x3f;
 const QOI_OP_LUMA_END: u8 = QOI_OP_LUMA | 0x3f;
 
-fn decode(data: &[u8]) -> Vec<u8> {
+pub(crate) fn decode(data: &[u8]) -> Vec<u8> {
     let mut v = Vec::with_capacity(1920 * 1080 * 4);
     let mut data = data;
 

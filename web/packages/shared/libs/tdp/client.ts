@@ -21,6 +21,7 @@ import { EventEmitter } from 'events';
 import { useEffect } from 'react';
 
 import init, {
+  decode_x11_frame,
   FastPathProcessor,
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
@@ -300,6 +301,9 @@ export class TdpClient extends EventEmitter {
       case MessageType.RDP_FASTPATH_PDU:
         this.handleRdpFastPathPDU(buffer);
         break;
+      case MessageType.X11_FRAME:
+        this.handleX11Frame(buffer);
+        break;
       case MessageType.CLIENT_SCREEN_SPEC:
         this.handleClientScreenSpec(buffer);
         break;
@@ -430,6 +434,16 @@ export class TdpClient extends EventEmitter {
     // Emit the spec to any listeners. Listeners can then resize
     // the canvas to the size we're actually using in this session.
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
+  }
+
+  handleX11Frame(buffer: ArrayBuffer) {
+    let x11Frame = this.codec.decodeX11Frame(buffer);
+    let frame = decode_x11_frame(x11Frame);
+      this.emit(TdpClientEvent.TDP_BMP_FRAME, {
+        image_data: new ImageData(frame.data, frame.width),
+        left: frame.x,
+        top: frame.y
+      });
   }
 
   handleRdpFastPathPDU(buffer: ArrayBuffer) {

@@ -55,6 +55,7 @@ export enum MessageType {
   SYNC_KEYS = 32,
   SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
   SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
+  X11_FRAME = 35,
   __LAST, // utility value
 }
 
@@ -104,6 +105,8 @@ export type PngFrame = {
  * [the wasm-bindgen guide]: (https://rustwasm.github.io/docs/wasm-bindgen/reference/types/number-slices.html#number-slices-u8-i8-u16-i16-u32-i32-u64-i64-f32-and-f64)
  */
 export type RdpFastPathPdu = Uint8Array;
+
+export type X11Frame = Uint8Array;
 
 // | message type (6) | length uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
@@ -868,6 +871,16 @@ export default class Codec {
     pngFrame.data.src = this.asBase64Url(buffer, offset);
 
     return pngFrame;
+  }
+
+  // | message type (35) | data_length uint32 | data []byte |
+  decodeX11Frame(buffer: ArrayBuffer): X11Frame {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += BYTE_LEN; // eat message type
+    const dataLength = dv.getUint32(offset);
+    offset += UINT_32_LEN; // eat data_length
+    return new Uint8Array(buffer, offset, dataLength);
   }
 
   // | message type (29) | data_length uint32 | data []byte |

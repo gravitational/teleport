@@ -1612,7 +1612,7 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
 
 // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
-// returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+// returns all resources directly accessible to  the user *and* all resources available via 'SearchAsRoles',
 // which is what we want when handling things like ambiguous host errors and resource-based access requests,
 // but may result in confusing behavior if it is used outside of those contexts.
 func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {

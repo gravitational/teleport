@@ -82,6 +82,7 @@ const (
 	TypeSyncKeys                        = MessageType(32)
 	TypeSharedDirectoryTruncateRequest  = MessageType(33)
 	TypeSharedDirectoryTruncateResponse = MessageType(34)
+	TypeX11Frame                        = MessageType(35)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -122,6 +123,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePNG2Frame(in)
 	case TypeRDPFastPathPDU:
 		return decodeRDPFastPathPDU(in)
+	case TypeX11Frame:
+		return decodeX11Frame(in)
 	case TypeRDPResponsePDU:
 		return decodeRDPResponsePDU(in)
 	case TypeRDPConnectionInitialized:
@@ -185,6 +188,34 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
+}
+
+// X11Frame
+// | message type (35) | data_length uint32 | data []byte |
+type X11Frame []byte
+
+func decodeX11Frame(in byteReader) (X11Frame, error) {
+	// Read data length so we can allocate buffer that will fit X11Frame message
+	var dataLength uint32
+	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	data := make([]byte, dataLength)
+
+	// Write the data into the buffer
+	if _, err := io.ReadFull(in, data); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return data, nil
+}
+
+func (f X11Frame) Encode() ([]byte, error) {
+	b := make([]byte, 1+4+len(f))                      // byte + uint32 + len(f)
+	b[0] = byte(TypeX11Frame)                          // message type (29)
+	binary.BigEndian.PutUint32(b[1:5], uint32(len(f))) // data_length uint32
+	copy(b[5:], f)                                     // data []byte
+	return b, nil
 }
 
 // PNGFrame is the PNG frame message

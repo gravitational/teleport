@@ -14,11 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::client::{ClientError, ClientResult};
+use crate::client::{
+    global, ClientError, ClientFunction, ClientHandle, ClientResult, FunctionReceiver,
+};
 use crate::qoim::encode;
 use crate::util::from_c_string;
-use crate::{CGOConnectParams, CGOErrCode, CGOResult, CgoHandle};
-use log::{info, trace};
+use crate::{
+    cgo_handle_rdp_connection_activated, cgo_handle_x11_update, CGOConnectParams, CGOErrCode,
+    CGOPointerButton, CGOPointerWheel, CGOResult, CgoHandle,
+};
+use log::{debug, info, trace};
 use rustix::io::Errno;
 use std::fs::File;
 use std::io::Write;
@@ -42,37 +47,37 @@ use x11rb::{COPY_DEPTH_FROM_PARENT, CURRENT_TIME};
 
 impl From<Errno> for ClientError {
     fn from(value: Errno) -> Self {
-        todo!()
+        ClientError::InternalError(value.to_string())
     }
 }
 
 impl From<ConnectError> for ClientError {
     fn from(value: ConnectError) -> Self {
-        todo!()
+        ClientError::InternalError(value.to_string())
     }
 }
 
 impl From<ConnectionError> for ClientError {
-    fn from(value: ConnectError) -> Self {
-        todo!()
+    fn from(value: ConnectionError) -> Self {
+        ClientError::InternalError(value.to_string())
     }
 }
 
 impl From<Utf8Error> for ClientError {
-    fn from(value: ConnectError) -> Self {
-        todo!()
+    fn from(value: Utf8Error) -> Self {
+        ClientError::InternalError(value.to_string())
     }
 }
 
 impl From<ReplyError> for ClientError {
     fn from(value: ReplyError) -> Self {
-        todo!()
+        ClientError::InternalError(value.to_string())
     }
 }
 
 impl From<ReplyOrIdError> for ClientError {
     fn from(value: ReplyOrIdError) -> Self {
-        todo!()
+        ClientError::InternalError(value.to_string())
     }
 }
 
@@ -84,7 +89,19 @@ pub unsafe extern "C" fn local_client_run(
     trace!("local_client_run");
     // Convert from C to Rust types.
     let username = from_c_string(params.go_username);
-    run(params);
+
+    let (client_handle, mut function_receiver) = ClientHandle::new(100);
+    global::CLIENT_HANDLES.insert(cgo_handle, client_handle);
+    cgo_handle_rdp_connection_activated(
+        cgo_handle,
+        1,
+        1,
+        params.screen_width,
+        params.screen_height,
+    );
+    trace!("handle {} inserted", cgo_handle);
+
+    run(cgo_handle, params, username, &mut function_receiver);
 
     CGOResult {
         err_code: CGOErrCode::ErrCodeSuccess,
@@ -92,7 +109,12 @@ pub unsafe extern "C" fn local_client_run(
     }
 }
 
-unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
+unsafe fn run(
+    cgo_handle: CgoHandle,
+    params: CGOConnectParams,
+    username: String,
+    function_receiver: &mut FunctionReceiver,
+) -> ClientResult<()> {
     info!("Starting Xvfb");
     let (rd, wr) = rustix::pipe::pipe()?;
     let xvfb = Command::new("Xvfb")
@@ -114,7 +136,7 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
     let mut buf = [0u8; 64];
     let n = rustix::io::read(rd, &mut buf)?;
     let display = &format!(":{}", std::str::from_utf8(buf[..n].trim_ascii_end())?);
-    info!("Starting xfce");
+    info!("Starting xfce {}", display);
     #[cfg(target_os = "macos")]
     let xfce = Command::new("env")
         .args([&format!("DISPLAY={}", display), "xterm"])
@@ -127,7 +149,7 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
             "-c",
             &format!("env DISPLAY={} startxfce4", display),
             "-",
-            "newuser",
+            &username,
         ])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -135,8 +157,6 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
     sleep(Duration::from_millis(100));
     info!("Connecting to X11");
     let (x11, _) = x11rb::connect(Some(display))?;
-
-    let x11 = Arc::new(x11);
 
     let root = &x11.setup().roots[0];
     let clipboard = x11.intern_atom(false, b"CLIPBOARD")?.reply()?.atom;
@@ -156,6 +176,7 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
         SelectionEventMask::SET_SELECTION_OWNER,
     )?;
     let f = format!("{}x{}", params.screen_width, params.screen_height);
+    info!("mode name {}", f);
     let mode_name = f.as_bytes();
     let mode = x11
         .randr_create_mode(
@@ -170,6 +191,7 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
             mode_name,
         )?
         .reply()?;
+    info!("mode {:?}", mode);
     let resources = x11.randr_get_screen_resources(root.root)?.reply()?;
     info!("outputs {:?}", resources.outputs);
     x11.randr_add_output_mode(resources.outputs[0], mode.mode)?;
@@ -186,8 +208,7 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
         )?
         .reply()?;
     info!("sscr {:?}", sscr);
-    let damage = DamageWrapper::create(x11.as_ref(), root.root, ReportLevel::DELTA_RECTANGLES)?;
-    let start = Instant::now();
+    let damage = DamageWrapper::create(&x11, root.root, ReportLevel::DELTA_RECTANGLES)?;
     let win = x11.generate_id()?;
     x11.create_window(
         COPY_DEPTH_FROM_PARENT,
@@ -202,7 +223,6 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
         root.root_visual,
         &CreateWindowAux::new().event_mask(EventMask::PROPERTY_CHANGE),
     )?;
-    let mut a = 0;
     let mut screen =
         vec![0u8; (params.screen_width as usize) * (params.screen_height as usize) * 4];
     loop {
@@ -221,22 +241,14 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
             Some(DamageNotify(event)) => {
                 x11.damage_subtract(event.damage, 0u32, 0u32)?;
                 let area = event.area;
-                let (image, _) = Image::get(
-                    x11.as_ref(),
-                    root.root,
-                    area.x,
-                    area.y,
-                    area.width,
-                    area.height,
-                )?;
+                let (image, _) =
+                    Image::get(&x11, root.root, area.x, area.y, area.width, area.height)?;
                 let width = area.width as usize;
                 let height = area.height as usize;
                 let sw = params.screen_width as usize;
                 let x = area.x as usize;
                 let y = area.y as usize;
-                let start = Instant::now();
                 let mut diff = Vec::with_capacity(width * height * 4);
-                let mut diff2 = Vec::with_capacity(width * height * 4);
                 let mut rows = 0;
                 let mut start = None;
                 for (i, data) in image.data().chunks_exact(4 * width).enumerate() {
@@ -244,34 +256,90 @@ unsafe fn run(params: CGOConnectParams) -> ClientResult<()> {
                         &mut screen[((i + y) * sw + x) * 4..((i + y) * sw + x + width) * 4];
                     if row != data {
                         diff.extend_from_slice(data);
-                        diff2.extend(data.iter().zip(row.iter()).map(|(a, b)| a.wrapping_sub(*b)));
                         row.copy_from_slice(data);
-                        rows += 1;
+                        rows += 1u16;
                         if start.is_none() {
-                            start = Some(i);
+                            start = Some(y + i);
                         }
                     } else if let Some(start_row) = start {
-                        let mut file = File::create(format!("/img/f{}.qoi", a))?;
-                        file.write_all(&encode(&diff))?;
-                        let mut file = File::create(format!("/img/f{}.qoidiff", a))?;
-                        file.write_all(&encode(&diff2))?;
-                        a += 1;
+                        let mut encoded = Vec::with_capacity(4 * size_of::<u16>() + diff.len());
+                        encoded.extend_from_slice(&area.x.to_be_bytes());
+                        encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
+                        encoded.extend_from_slice(&area.width.to_be_bytes());
+                        encoded.extend_from_slice(&rows.to_be_bytes());
+                        encode(&mut encoded, &diff);
+                        cgo_handle_x11_update(
+                            cgo_handle,
+                            encoded.as_mut_ptr(),
+                            encoded.len() as u32,
+                        );
                         diff = Vec::with_capacity(width * height * 4);
                         start = None;
                         rows = 0;
                     }
                 }
                 if let Some(start_row) = start {
-                    let mut file = File::create(format!("/img/f{}.qoi", a))?;
-                    file.write_all(&encode(&diff))?;
-                    let mut file = File::create(format!("/img/f{}.qoidiff", a))?;
-                    file.write_all(&encode(&diff2))?;
-                    diff = Vec::with_capacity(width * height * 4);
+                    let mut encoded = Vec::with_capacity(4 * size_of::<u16>() + diff.len());
+                    encoded.extend_from_slice(&area.x.to_be_bytes());
+                    encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
+                    encoded.extend_from_slice(&area.width.to_be_bytes());
+                    encoded.extend_from_slice(&rows.to_be_bytes());
+                    encode(&mut encoded, &diff);
+                    cgo_handle_x11_update(cgo_handle, encoded.as_mut_ptr(), encoded.len() as u32);
                 }
             }
             None => {
+                if let Some(cf) = global::TOKIO_RT.block_on(function_receiver.try_recv()) {
+                    match cf {
+                        ClientFunction::WriteRdpPointer(ev) => {
+                            if ev.wheel != CGOPointerWheel::PointerWheelNone {
+                                let detail = if ev.wheel_delta > 0 { 4 } else { 5 };
+                                x11.xtest_fake_input(4, detail, 0, root.root, 0, 0, 0)?;
+                                x11.xtest_fake_input(5, detail, 0, root.root, 0, 0, 0)?;
+                            } else {
+                                let detail = match ev.button {
+                                    CGOPointerButton::PointerButtonNone => 0,
+                                    CGOPointerButton::PointerButtonLeft => 1,
+                                    CGOPointerButton::PointerButtonMiddle => 2,
+                                    CGOPointerButton::PointerButtonRight => 3,
+                                };
+                                let event_type = match ev.button {
+                                    CGOPointerButton::PointerButtonNone => 6,
+                                    _ if ev.down => 4,
+                                    _ => 5,
+                                };
+                                x11.xtest_fake_input(
+                                    event_type,
+                                    detail,
+                                    0,
+                                    root.root,
+                                    ev.x as i16,
+                                    ev.y as i16,
+                                    0,
+                                )?;
+                            }
+                        }
+                        ClientFunction::WriteRdpKey(ev) => {
+                            let event_type = if ev.down { 2 } else { 3 };
+                            x11.xtest_fake_input(
+                                event_type,
+                                ev.code as u8 + 8,
+                                0,
+                                root.root,
+                                0,
+                                0,
+                                0,
+                            )?;
+                        }
+                        ClientFunction::WriteScreenResize(width, height) => {}
+                        ClientFunction::Stop => return Ok(()),
+                        cf => {
+                            debug!("Client function {:?}", cf);
+                        }
+                    }
+                }
                 sleep(Duration::from_millis(10));
-                Image::get(x11.as_ref(), root.root, 0, 0, 1, 1)?;
+                Image::get(&x11, root.root, 0, 0, 1, 1)?;
             }
             event => {
                 info!("unknown event {:?}", event);

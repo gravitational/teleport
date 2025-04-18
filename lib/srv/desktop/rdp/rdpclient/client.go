@@ -76,6 +76,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime/cgo"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -289,88 +290,95 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	defer c.cfg.Logger.InfoContext(ctx, "Rust RDP loop finished")
 
 	// [username] need only be valid for the duration of
-	// C.client_run. It is copied on the Rust side and
+	// C.client_run. It is copied on the Rust  side and
 	// thus can be freed here.
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
+	var res C.CGOResult
+	if strings.Contains(c.cfg.Addr, "somenodename.cluster.local") {
+		res = C.local_client_run(
+			C.uintptr_t(c.handle),
+			C.CGOConnectParams{
+				go_username:   username,
+				screen_width:  C.uint16_t(c.requestedWidth),
+				screen_height: C.uint16_t(c.requestedHeight),
+			})
+	} else {
 
-	if c.cfg.Addr == "somenodename.cluster.local" {
+		userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
+		// [addr] need only be valid for the duration of
+		// C.client_run. It is copied on the Rust side and
+		// thus can be freed here.
+		addr := C.CString(c.cfg.Addr)
+		defer C.free(unsafe.Pointer(addr))
+
+		// [kdcAddr] need only be valid for the duration of
+		// C.client_run. It is copied on the Rust side and
+		// thus can be freed here.
+		kdcAddr := C.CString(c.cfg.KDCAddr)
+		defer C.free(unsafe.Pointer(kdcAddr))
+
+		// [computerName] need only be valid for the duration of
+		// C.client_run. It is copied on the Rust side and
+		// thus can be freed here.
+		computerName := C.CString(c.cfg.ComputerName)
+		defer C.free(unsafe.Pointer(computerName))
+
+		cert_der, err := utils.UnsafeSliceData(userCertDER)
+		if err != nil {
+			return trace.Wrap(err)
+		} else if cert_der == nil {
+			return trace.BadParameter("user cert was nil")
+		}
+
+		key_der, err := utils.UnsafeSliceData(userKeyDER)
+		if err != nil {
+			return trace.Wrap(err)
+		} else if key_der == nil {
+			return trace.BadParameter("user key was nil")
+		}
+
+		hostID, err := uuid.Parse(c.cfg.HostID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		nextHostID := hostID[:]
+		cHostID := [4]C.uint32_t{}
+		for i := 0; i < len(cHostID); i++ {
+			const uint32Len = 4
+			cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
+			nextHostID = nextHostID[uint32Len:]
+		}
+
+		res = C.client_run(
+			C.uintptr_t(c.handle),
+			C.CGOConnectParams{
+				ad:               C.bool(c.cfg.AD),
+				nla:              C.bool(c.cfg.NLA),
+				go_username:      username,
+				go_addr:          addr,
+				go_computer_name: computerName,
+				go_kdc_addr:      kdcAddr,
+				// cert length and bytes.
+				cert_der_len: C.uint32_t(len(userCertDER)),
+				cert_der:     (*C.uint8_t)(cert_der),
+				// key length and bytes.
+				key_der_len:             C.uint32_t(len(userKeyDER)),
+				key_der:                 (*C.uint8_t)(key_der),
+				screen_width:            C.uint16_t(c.requestedWidth),
+				screen_height:           C.uint16_t(c.requestedHeight),
+				allow_clipboard:         C.bool(c.cfg.AllowClipboard),
+				allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
+				show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+				client_id:               cHostID,
+			},
+		)
 	}
-
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	
-	// [addr] need only be valid for the duration of
-	// C.client_run. It is copied on the Rust side and
-	// thus can be freed here.
-	addr := C.CString(c.cfg.Addr)
-	defer C.free(unsafe.Pointer(addr))
-
-	// [kdcAddr] need only be valid for the duration of
-	// C.client_run. It is copied on the Rust side and
-	// thus can be freed here.
-	kdcAddr := C.CString(c.cfg.KDCAddr)
-	defer C.free(unsafe.Pointer(kdcAddr))
-
-	// [computerName] need only be valid for the duration of
-	// C.client_run. It is copied on the Rust side and
-	// thus can be freed here.
-	computerName := C.CString(c.cfg.ComputerName)
-	defer C.free(unsafe.Pointer(computerName))
-
-	cert_der, err := utils.UnsafeSliceData(userCertDER)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if cert_der == nil {
-		return trace.BadParameter("user cert was nil")
-	}
-
-	key_der, err := utils.UnsafeSliceData(userKeyDER)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if key_der == nil {
-		return trace.BadParameter("user key was nil")
-	}
-
-	hostID, err := uuid.Parse(c.cfg.HostID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	nextHostID := hostID[:]
-	cHostID := [4]C.uint32_t{}
-	for i := 0; i < len(cHostID); i++ {
-		const uint32Len = 4
-		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
-		nextHostID = nextHostID[uint32Len:]
-	}
-
-	res := C.client_run(
-		C.uintptr_t(c.handle),
-		C.CGOConnectParams{
-			ad:               C.bool(c.cfg.AD),
-			nla:              C.bool(c.cfg.NLA),
-			go_username:      username,
-			go_addr:          addr,
-			go_computer_name: computerName,
-			go_kdc_addr:      kdcAddr,
-			// cert length and bytes.
-			cert_der_len: C.uint32_t(len(userCertDER)),
-			cert_der:     (*C.uint8_t)(cert_der),
-			// key length and bytes.
-			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(key_der),
-			screen_width:            C.uint16_t(c.requestedWidth),
-			screen_height:           C.uint16_t(c.requestedHeight),
-			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
-			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
-			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
-			client_id:               cHostID,
-		},
-	)
 
 	var message string
 	if res.message != nil {
@@ -869,6 +877,26 @@ func (c *Client) writeRDPLicense(ctx context.Context, key types.RDPLicenseKey, l
 	return trace.Wrap(err)
 }
 
+//export cgo_handle_x11_update
+func cgo_handle_x11_update(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+	goData := asRustBackedSlice(data, int(length))
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleX11Update(goData)
+}
+
+func (c *Client) handleX11Update(data []byte) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+
+	if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(data)); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling X11Frame", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
 //export cgo_handle_fastpath_pdu
 func cgo_handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
@@ -908,7 +936,7 @@ func cgo_handle_rdp_connection_activated(
 }
 
 func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
-	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID)
+	c.cfg.Logger.DebugContext(context.Background(), "Received RDP  channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
@@ -920,7 +948,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 		ScreenWidth:   uint16(screenWidth),
 		ScreenHeight:  uint16(screenHeight),
 	}); err != nil {
-		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
+		c.cfg.Logger.ErrorContext(context.Background(), "failed  handling connection initialization", "error", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess

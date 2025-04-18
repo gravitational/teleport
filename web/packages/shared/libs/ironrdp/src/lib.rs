@@ -17,6 +17,9 @@
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
 
+mod qoim;
+
+use crate::qoim::decode;
 use ironrdp_core::decode_cursor;
 use ironrdp_core::ReadCursor;
 use ironrdp_core::WriteBuf;
@@ -32,9 +35,41 @@ use ironrdp_session::{
     fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
 };
 use js_sys::Uint8Array;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
+
+#[wasm_bindgen]
+pub struct Frame {
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    data: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl Frame {
+    #[wasm_bindgen(getter)]
+    pub fn data(&self) -> Clamped<Vec<u8>> {
+        Clamped(self.data.clone())
+    }
+}
+
+#[wasm_bindgen]
+pub fn decode_x11_frame(data: &[u8]) -> Result<Frame, JsValue> {
+    let x = u16::from_be_bytes(data[0..2].try_into().unwrap());
+    let y = u16::from_be_bytes(data[2..4].try_into().unwrap());
+    let width = u16::from_be_bytes(data[4..6].try_into().unwrap());
+    let height = u16::from_be_bytes(data[6..8].try_into().unwrap());
+    let decoded = decode(&data[8..]);
+    info!("decoded frame {} {}", y, x);
+    Ok(Frame {
+        x,
+        y,
+        width,
+        data: decoded,
+    })
+}
 
 #[wasm_bindgen]
 pub fn init_wasm_log(log_level: &str) {
