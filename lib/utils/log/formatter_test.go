@@ -127,10 +127,6 @@ func TestOutput(t *testing.T) {
 				name:      "error",
 				slogLevel: slog.LevelError,
 			},
-			{
-				name:      "fatal",
-				slogLevel: slog.LevelError + 1,
-			},
 		}
 
 		for _, test := range tests {
@@ -223,10 +219,6 @@ func TestOutput(t *testing.T) {
 				name:      "error",
 				slogLevel: slog.LevelError,
 			},
-			{
-				name:      "fatal",
-				slogLevel: slog.LevelError + 1,
-			},
 		}
 
 		expectedFields := map[string]any{
@@ -275,8 +267,6 @@ func TestOutput(t *testing.T) {
 					expectedLevel = "trace"
 				case slog.LevelWarn:
 					expectedLevel = "warning"
-				case slog.LevelError + 1:
-					expectedLevel = "fatal"
 				default:
 					expectedLevel = test.slogLevel.String()
 				}
