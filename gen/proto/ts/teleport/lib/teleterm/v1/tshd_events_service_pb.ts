@@ -338,11 +338,11 @@ export interface PromptHardwareKeyPINRequest {
      */
     pinOptional: boolean;
     /**
-     * ProxyHost is the proxy hostname of the client key.
+     * ProxyHostname is the proxy hostname of the client key.
      *
-     * @generated from protobuf field: string proxy_host = 3;
+     * @generated from protobuf field: string proxy_hostname = 3;
      */
-    proxyHost: string;
+    proxyHostname: string;
     /**
      * Command is an optional command string to provide context for the prompt.
      *
@@ -370,11 +370,11 @@ export interface PromptHardwareKeyPINResponse {
  */
 export interface PromptHardwareKeyTouchRequest {
     /**
-     * ProxyHost is the proxy hostname of the client key.
+     * ProxyHostname is the proxy hostname of the client key.
      *
-     * @generated from protobuf field: string proxy_host = 2;
+     * @generated from protobuf field: string proxy_hostname = 2;
      */
-    proxyHost: string;
+    proxyHostname: string;
     /**
      * Command is an optional command string to provide context for the prompt.
      *
@@ -396,11 +396,11 @@ export interface PromptHardwareKeyTouchResponse {
  */
 export interface PromptHardwareKeyPINChangeRequest {
     /**
-     * ProxyHost is the proxy hostname of the client key.
+     * ProxyHostname is the proxy hostname of the client key.
      *
-     * @generated from protobuf field: string proxy_host = 2;
+     * @generated from protobuf field: string proxy_hostname = 2;
      */
-    proxyHost: string;
+    proxyHostname: string;
 }
 /**
  * Response for PromptHardwareKeyPINChange.
@@ -441,11 +441,11 @@ export interface ConfirmHardwareKeySlotOverwriteRequest {
      */
     message: string;
     /**
-     * ProxyHost is the proxy hostname of the client key.
+     * ProxyHostname is the proxy hostname of the client key.
      *
-     * @generated from protobuf field: string proxy_host = 3;
+     * @generated from protobuf field: string proxy_hostname = 3;
      */
-    proxyHost: string;
+    proxyHostname: string;
 }
 /**
  * Response for ConfirmHardwareKeySlotOverwrite.
@@ -1327,14 +1327,14 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest", [
             { no: 2, name: "pin_optional", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 3, name: "proxy_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "command", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyPINRequest>): PromptHardwareKeyPINRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.pinOptional = false;
-        message.proxyHost = "";
+        message.proxyHostname = "";
         message.command = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyPINRequest>(this, message, value);
@@ -1348,8 +1348,8 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
                 case /* bool pin_optional */ 2:
                     message.pinOptional = reader.bool();
                     break;
-                case /* string proxy_host */ 3:
-                    message.proxyHost = reader.string();
+                case /* string proxy_hostname */ 3:
+                    message.proxyHostname = reader.string();
                     break;
                 case /* string command */ 4:
                     message.command = reader.string();
@@ -1369,9 +1369,9 @@ class PromptHardwareKeyPINRequest$Type extends MessageType<PromptHardwareKeyPINR
         /* bool pin_optional = 2; */
         if (message.pinOptional !== false)
             writer.tag(2, WireType.Varint).bool(message.pinOptional);
-        /* string proxy_host = 3; */
-        if (message.proxyHost !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.proxyHost);
+        /* string proxy_hostname = 3; */
+        if (message.proxyHostname !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.proxyHostname);
         /* string command = 4; */
         if (message.command !== "")
             writer.tag(4, WireType.LengthDelimited).string(message.command);
@@ -1436,13 +1436,13 @@ export const PromptHardwareKeyPINResponse = new PromptHardwareKeyPINResponse$Typ
 class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTouchRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest", [
-            { no: 2, name: "proxy_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "command", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyTouchRequest>): PromptHardwareKeyTouchRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.proxyHost = "";
+        message.proxyHostname = "";
         message.command = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyTouchRequest>(this, message, value);
@@ -1453,8 +1453,8 @@ class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTo
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string proxy_host */ 2:
-                    message.proxyHost = reader.string();
+                case /* string proxy_hostname */ 2:
+                    message.proxyHostname = reader.string();
                     break;
                 case /* string command */ 3:
                     message.command = reader.string();
@@ -1471,9 +1471,9 @@ class PromptHardwareKeyTouchRequest$Type extends MessageType<PromptHardwareKeyTo
         return message;
     }
     internalBinaryWrite(message: PromptHardwareKeyTouchRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string proxy_host = 2; */
-        if (message.proxyHost !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.proxyHost);
+        /* string proxy_hostname = 2; */
+        if (message.proxyHostname !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.proxyHostname);
         /* string command = 3; */
         if (message.command !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.command);
@@ -1516,12 +1516,12 @@ export const PromptHardwareKeyTouchResponse = new PromptHardwareKeyTouchResponse
 class PromptHardwareKeyPINChangeRequest$Type extends MessageType<PromptHardwareKeyPINChangeRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest", [
-            { no: 2, name: "proxy_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptHardwareKeyPINChangeRequest>): PromptHardwareKeyPINChangeRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.proxyHost = "";
+        message.proxyHostname = "";
         if (value !== undefined)
             reflectionMergePartial<PromptHardwareKeyPINChangeRequest>(this, message, value);
         return message;
@@ -1531,8 +1531,8 @@ class PromptHardwareKeyPINChangeRequest$Type extends MessageType<PromptHardwareK
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string proxy_host */ 2:
-                    message.proxyHost = reader.string();
+                case /* string proxy_hostname */ 2:
+                    message.proxyHostname = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1546,9 +1546,9 @@ class PromptHardwareKeyPINChangeRequest$Type extends MessageType<PromptHardwareK
         return message;
     }
     internalBinaryWrite(message: PromptHardwareKeyPINChangeRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string proxy_host = 2; */
-        if (message.proxyHost !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.proxyHost);
+        /* string proxy_hostname = 2; */
+        if (message.proxyHostname !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.proxyHostname);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1627,13 +1627,13 @@ class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHar
     constructor() {
         super("teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest", [
             { no: 2, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "proxy_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "proxy_hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ConfirmHardwareKeySlotOverwriteRequest>): ConfirmHardwareKeySlotOverwriteRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.message = "";
-        message.proxyHost = "";
+        message.proxyHostname = "";
         if (value !== undefined)
             reflectionMergePartial<ConfirmHardwareKeySlotOverwriteRequest>(this, message, value);
         return message;
@@ -1646,8 +1646,8 @@ class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHar
                 case /* string message */ 2:
                     message.message = reader.string();
                     break;
-                case /* string proxy_host */ 3:
-                    message.proxyHost = reader.string();
+                case /* string proxy_hostname */ 3:
+                    message.proxyHostname = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1664,9 +1664,9 @@ class ConfirmHardwareKeySlotOverwriteRequest$Type extends MessageType<ConfirmHar
         /* string message = 2; */
         if (message.message !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.message);
-        /* string proxy_host = 3; */
-        if (message.proxyHost !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.proxyHost);
+        /* string proxy_hostname = 3; */
+        if (message.proxyHostname !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.proxyHostname);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

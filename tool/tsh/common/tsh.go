@@ -584,7 +584,7 @@ type CLIConf struct {
 	HardwareKeyAgentServer bool
 	// disableHardwareKeyAgentClient determines whether the client will attempt to connect
 	// to the hardware key agent. Some commands, like login, are better with the
-	// direct PIV service.
+	// direct PIV service so that prompts are not split between processes.
 	disableHardwareKeyAgentClient bool
 }
 

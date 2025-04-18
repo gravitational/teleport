@@ -61,8 +61,8 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.Con
 	}
 
 	_, err := h.s.tshdEventsClient.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
-		ProxyHost: keyInfo.ProxyHost,
-		Command:   keyInfo.Command,
+		ProxyHostname: keyInfo.ProxyHost,
+		Command:       keyInfo.Command,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -78,9 +78,9 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwareke
 	}
 
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
-		ProxyHost:   keyInfo.ProxyHost,
-		PinOptional: requirement == hardwarekey.PINOptional,
-		Command:     keyInfo.Command,
+		ProxyHostname: keyInfo.ProxyHost,
+		PinOptional:   requirement == hardwarekey.PINOptional,
+		Command:       keyInfo.Command,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -93,7 +93,7 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwareke
 // preventing the user from submitting empty/default values.
 func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) (*hardwarekey.PINAndPUK, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
-		ProxyHost: keyInfo.ProxyHost,
+		ProxyHostname: keyInfo.ProxyHost,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,8 +108,8 @@ func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey
 // ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
 func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo hardwarekey.ContextualKeyInfo) (bool, error) {
 	res, err := h.s.tshdEventsClient.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
-		ProxyHost: keyInfo.ProxyHost,
-		Message:   message,
+		ProxyHostname: keyInfo.ProxyHost,
+		Message:       message,
 	})
 	if err != nil {
 		return false, trace.Wrap(err)

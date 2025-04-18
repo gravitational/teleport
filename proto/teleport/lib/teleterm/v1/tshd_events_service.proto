@@ -212,8 +212,8 @@ message PromptHardwareKeyPINRequest {
   reserved "root_cluster_uri";
   // PinOptional specified if a PIN is optional, allowing the user to set it up if left empty.
   bool pin_optional = 2;
-  // ProxyHost is the proxy hostname of the client key.
-  string proxy_host = 3;
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 3;
   // Command is an optional command string to provide context for the prompt.
   string command = 4;
 }
@@ -228,8 +228,8 @@ message PromptHardwareKeyPINResponse {
 message PromptHardwareKeyTouchRequest {
   reserved 1;
   reserved "root_cluster_uri";
-  // ProxyHost is the proxy hostname of the client key.
-  string proxy_host = 2;
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 2;
   // Command is an optional command string to provide context for the prompt.
   string command = 3;
 }
@@ -241,8 +241,8 @@ message PromptHardwareKeyTouchResponse {}
 message PromptHardwareKeyPINChangeRequest {
   reserved 1;
   reserved "root_cluster_uri";
-  // ProxyHost is the proxy hostname of the client key.
-  string proxy_host = 2;
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 2;
 }
 
 // Response for PromptHardwareKeyPINChange.
@@ -262,8 +262,8 @@ message ConfirmHardwareKeySlotOverwriteRequest {
   reserved "root_cluster_uri";
   // Message to display in the prompt.
   string message = 2;
-  // ProxyHost is the proxy hostname of the client key.
-  string proxy_host = 3;
+  // ProxyHostname is the proxy hostname of the client key.
+  string proxy_hostname = 3;
 }
 
 // Response for ConfirmHardwareKeySlotOverwrite.

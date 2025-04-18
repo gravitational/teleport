@@ -40,7 +40,10 @@ export function Touch(props: {
         width: '100%',
       })}
     >
-      <CommonHeader onCancel={props.onCancel} proxyHost={props.req.proxyHost} />
+      <CommonHeader
+        onCancel={props.onCancel}
+        proxyHostname={props.req.proxyHostname}
+      />
 
       <DialogContent mb={4}>
         <Flex

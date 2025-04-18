@@ -20,11 +20,14 @@ import { ButtonIcon, H2 } from 'design';
 import { DialogHeader } from 'design/Dialog';
 import * as icons from 'design/Icon';
 
-export function CommonHeader(props: { onCancel(): void; proxyHost: string }) {
+export function CommonHeader(props: {
+  onCancel(): void;
+  proxyHostname: string;
+}) {
   return (
     <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
       <H2 mb={4}>
-        Verify your identity on <strong>{props.proxyHost}</strong>
+        Verify your identity on <strong>{props.proxyHostname}</strong>
       </H2>
 
       <ButtonIcon

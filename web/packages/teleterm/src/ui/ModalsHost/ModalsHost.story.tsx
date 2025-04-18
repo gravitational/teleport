@@ -34,7 +34,7 @@ export default {
 const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
   kind: 'hardware-key-touch',
   req: {
-    proxyHost: 'foo.example.com',
+    proxyHostname: 'foo.example.com',
     command: '',
   },
   onCancel: () => {},
@@ -43,7 +43,7 @@ const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
 const hardwareKeyPinDialog: DialogHardwareKeyPin = {
   kind: 'hardware-key-pin',
   req: {
-    proxyHost: 'foo.example.com',
+    proxyHostname: 'foo.example.com',
     pinOptional: false,
     command: '',
   },

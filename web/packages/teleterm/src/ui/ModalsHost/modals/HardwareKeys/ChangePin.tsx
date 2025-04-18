@@ -77,7 +77,7 @@ export function ChangePin(props: {
             }}
           >
             <CommonHeader
-              proxyHost={props.req.proxyHost}
+              proxyHostname={props.req.proxyHostname}
               onCancel={props.onCancel}
             />
 
