@@ -124,6 +124,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_REQUEST_REVIEWED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_DELETED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: Icons.Info,
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGIN]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGINFAILURE]: Icons.Info,
   [eventCodes.USER_SSO_LOGIN]: Icons.Info,
