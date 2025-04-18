@@ -55,6 +55,7 @@ export enum MessageType {
   SYNC_KEYS = 32,
   SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
   SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
+  LATENCY_STATS = 35,
   __LAST, // utility value
 }
 
@@ -322,6 +323,12 @@ export enum FileType {
   File = 0,
   Directory = 1,
 }
+
+// | message type (35) | client_latency uint32 | server_latency uint32 |
+export type LatencyStats = {
+  client: number;
+  server: number;
+};
 
 function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   if (!(errCode in SharedDirectoryErrCode)) {
@@ -1114,6 +1121,20 @@ export default class Codec {
       directoryId,
       path,
       endOfFile,
+    };
+  }
+
+  decodeLatencyStats(buffer: ArrayBuffer): LatencyStats {
+    const dv = new DataView(buffer);
+    let bufOffset = BYTE_LEN; // eat message type
+    const browserLatency = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN;
+    const desktopLatency = dv.getUint32(bufOffset);
+    bufOffset += UINT_32_LEN;
+
+    return {
+      client: browserLatency,
+      server: desktopLatency,
     };
   }
 
