@@ -299,8 +299,12 @@ export function DesktopSession({
     client.sendKeyboardInput('Delete', ButtonState.DOWN);
   }
 
-  //TODO(gzdunek): Replace with client.connect(), so that we don't refresh the entire page.
-  const onRetry = () => window.location.reload();
+  /** Cleans attempts to rerun effects. */
+  const onRetry = async () => {
+    setTdpConnectionStatus({ status: '' });
+    setAnotherDesktopActiveAttempt(makeEmptyAttempt());
+  };
+
   const screenState = getScreenState(
     aclAttempt,
     anotherDesktopActiveAttempt,
@@ -341,6 +345,9 @@ export function DesktopSession({
         onRemoveAlert={onRemoveAlert}
       />
 
+      {/* The UI states below (except the loading indicator) take up space.*/}
+      {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}
+      {/* it's not affected by these elements.*/}
       {screenState.state === 'another-session-active' && (
         <AnotherSessionActiveDialog
           onContinue={() =>
