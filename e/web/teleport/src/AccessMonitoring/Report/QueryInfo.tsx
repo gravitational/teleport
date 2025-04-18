@@ -1,4 +1,3 @@
-import Highlight from 'react-highlight';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -6,6 +5,8 @@ import { ChevronRight, Code } from 'design/Icon';
 
 import { PopoverHeader } from 'e-teleport/AccessMonitoring/shared/Popover';
 import cfg from 'e-teleport/config';
+
+import { Highlight } from './Highlight';
 
 interface QueryInfoProps {
   query: string;
