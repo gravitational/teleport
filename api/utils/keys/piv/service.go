@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
@@ -44,6 +45,9 @@ var yubiKeyServiceMu sync.Mutex
 // YubiKeyService is a YubiKey PIV implementation of [hardwarekey.Service].
 type YubiKeyService struct {
 	prompt hardwarekey.Prompt
+
+	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
+	pinCache *hardwarekey.PINCache
 
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
@@ -75,6 +79,7 @@ func NewYubiKeyService(customPrompt hardwarekey.Prompt) *YubiKeyService {
 	yubiKeyService = &YubiKeyService{
 		prompt:   customPrompt,
 		yubiKeys: map[uint32]*YubiKey{},
+		pinCache: hardwarekey.NewPINCache(),
 	}
 	return yubiKeyService
 }
@@ -112,13 +117,13 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	// If PIN is required, check that PIN and PUK are not the defaults.
 	if config.Policy.PINRequired {
-		if err := s.checkOrSetPIN(ctx, y, config.ContextualKeyInfo); err != nil {
+		if err := s.checkOrSetPIN(ctx, y, config.ContextualKeyInfo, config.PINCacheTTL); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	generatePrivateKey := func() (*hardwarekey.Signer, error) {
-		ref, err := y.generatePrivateKey(pivSlot, config.Policy, config.Algorithm)
+		ref, err := y.generatePrivateKey(pivSlot, config.Policy, config.Algorithm, config.PINCacheTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -147,7 +152,7 @@ func (s *YubiKeyService) NewPrivateKey(ctx context.Context, config hardwarekey.P
 
 	// Check for an existing key in the slot that satisfies the required
 	// prompt policy, or generate a new one if needed.
-	keyRef, err := y.getKeyRef(pivSlot)
+	keyRef, err := y.getKeyRef(pivSlot, config.PINCacheTTL)
 	switch {
 	case errors.Is(err, piv.ErrNotFound):
 		return generatePrivateKey()
@@ -181,7 +186,7 @@ func (s *YubiKeyService) Sign(ctx context.Context, ref *hardwarekey.PrivateKeyRe
 		return nil, trace.Wrap(err)
 	}
 
-	return y.sign(ctx, ref, keyInfo, s.prompt, rand, digest, opts)
+	return y.sign(ctx, ref, keyInfo, s.prompt, s.pinCache, rand, digest, opts)
 }
 
 // TODO(Joerger): Re-attesting the key every time we decode a hardware key signer is very resource
@@ -223,7 +228,7 @@ func (s *YubiKeyService) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.
 		return nil, trace.Wrap(err)
 	}
 
-	ref, err := y.getKeyRef(pivSlot)
+	ref, err := y.getKeyRef(pivSlot, 0 /*PIN is not cached for out-of-date client keys*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -254,8 +259,8 @@ func (s *YubiKeyService) getYubiKey(serialNumber uint32) (*YubiKey, error) {
 // checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
 // If the user provides the default PIN, they will be prompted to set a
 // non-default PIN and PUK before continuing.
-func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo hardwarekey.ContextualKeyInfo) error {
-	pin, err := s.prompt.AskPIN(ctx, hardwarekey.PINOptional, keyInfo)
+func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) error {
+	pin, err := s.pinCache.PromptOrGetPIN(ctx, s.prompt, hardwarekey.PINOptional, keyInfo, pinCacheTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -269,6 +274,7 @@ func (s *YubiKeyService) checkOrSetPIN(ctx context.Context, y *YubiKey, keyInfo 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.pinCache.SetPIN(pin, pinCacheTTL)
 	}
 
 	return trace.Wrap(y.verifyPIN(pin))

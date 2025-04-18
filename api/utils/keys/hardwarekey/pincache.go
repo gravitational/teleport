@@ -15,9 +15,11 @@
 package hardwarekey
 
 import (
+	"context"
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -73,6 +75,10 @@ func (p *PINCache) GetPIN(ttl time.Duration) string {
 // is already cached, the existing expiration is only updated if the given
 // TTL would exceed that expiration.
 func (p *PINCache) SetPIN(pin string, ttl time.Duration) {
+	if ttl == 0 {
+		return
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -97,6 +103,21 @@ func (p *PINCache) SetPIN(pin string, ttl time.Duration) {
 	if expiry.After(p.pinExpiry) {
 		p.pinExpiry = expiry
 	}
+}
+
+// PromptOrGetPIN retrieves the cached PIN if set. Otherwise it prompts for the PIN and caches it.
+func (p *PINCache) PromptOrGetPIN(ctx context.Context, prompt Prompt, requirement PINPromptRequirement, keyInfo ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
+	if pin := p.GetPIN(pinCacheTTL); pin != "" {
+		return pin, nil
+	}
+
+	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.SetPIN(pin, pinCacheTTL)
+	return pin, nil
 }
 
 func (p *PINCache) waitAndExpirePIN(expiry time.Time) {
