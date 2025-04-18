@@ -106,7 +106,11 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 	if err == nil {
 		return l, nil
 	} else if !errors.Is(err, syscall.EADDRINUSE) {
-		return nil, trace.Wrap(err)
+		// Double check if the socket file already exists, since Windows
+		// does not return the expected error.
+		if _, err := os.Stat(socketPath); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// A hardware key agent already exists in the given path. Before replacing it,
