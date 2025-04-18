@@ -19,6 +19,7 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +41,7 @@ func IsManagedByUpdater() (bool, error) {
 	if !systemd {
 		return false, nil
 	}
-	teleportPath, err := os.Readlink("/proc/self/exe")
+	teleportPath, err := os.Executable()
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
@@ -72,7 +73,7 @@ func IsManagedAndDefault() (bool, error) {
 	if !systemd {
 		return false, nil
 	}
-	teleportPath, err := os.Readlink("/proc/self/exe")
+	teleportPath, err := os.Executable()
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
@@ -102,4 +103,54 @@ func hasParentDir(dir, parent string) (bool, error) {
 		absParent += sep
 	}
 	return strings.HasPrefix(absDir, absParent), nil
+}
+
+// StablePath returns a stable path Teleport binaries that may or may not be managed by Agent Managed Updates.
+// Note that StablePath is not guaranteed to return the same binary, as the binary may have been updated
+// since it started running.
+func StablePath() (string, error) {
+	origPath, err := os.Executable()
+	if err != nil {
+		return origPath, trace.Wrap(err)
+	}
+	return stablePathForFile(origPath, defaultPathDir), nil
+}
+
+func stablePathForFile(origPath, defaultPath string) string {
+	_, name := filepath.Split(origPath)
+
+	// If we are a package-based install, always use /usr/local/bin if it is valid.
+	// This ensures that the path is stable if Managed Updates is enabled/disabled.
+	if filepath.Join(packageSystemDir, "bin", name) == origPath {
+		linkPath := filepath.Join(defaultPath, name)
+		if _, err := os.Stat(linkPath); err == nil {
+			return linkPath
+		}
+	}
+	// If we are a package-based install, always use /usr/local/bin if it is valid.
+	// This ensures that the path is stable if Managed Updates is enabled/disabled.
+	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
+		fmt.Println(p)
+		binPath := defaultPath
+		cfg, err := readConfig(filepath.Join(p, updateConfigName))
+		if err == nil && cfg.Spec.Path != "" {
+			binPath = cfg.Spec.Path
+		}
+		linkPath := filepath.Join(binPath, name)
+		if _, err := os.Stat(linkPath); err == nil {
+			return linkPath
+		}
+	}
+	return origPath
+}
+
+func findParentMatching(dir, name string, pos int) string {
+	var base string
+	for range pos {
+		dir, base = filepath.Split(filepath.Clean(dir))
+	}
+	if base == name {
+		return dir
+	}
+	return ""
 }

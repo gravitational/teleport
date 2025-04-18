@@ -19,6 +19,9 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -106,4 +109,134 @@ func TestHasParentDir(t *testing.T) {
 			require.Equal(t, tt.wantResult, result)
 		})
 	}
+}
+
+func TestStablePath(t *testing.T) {
+	tests := []struct {
+		name         string
+		path         string
+		resultIsFile bool
+		resultIsLink bool
+		wantResult   string
+	}{
+		{
+			name:         "packaged path is file",
+			path:         "/opt/teleport/system/bin/teleport",
+			resultIsFile: true,
+			wantResult:   "/usr/local/bin/teleport",
+		},
+		{
+			name:         "packaged path is link",
+			path:         "/opt/teleport/system/bin/teleport",
+			resultIsFile: true,
+			resultIsLink: true,
+			wantResult:   "/usr/local/bin/teleport",
+		},
+		{
+			name:         "packaged path is broken link",
+			path:         "/opt/teleport/system/bin/teleport",
+			resultIsLink: true,
+			wantResult:   "/opt/teleport/system/bin/teleport",
+		},
+		{
+			name:       "packaged path is missing",
+			path:       "/opt/teleport/system/bin/teleport",
+			wantResult: "/opt/teleport/system/bin/teleport",
+		},
+		{
+			name:         "managed path is file",
+			path:         "versions/version/bin/teleport",
+			resultIsFile: true,
+			wantResult:   "[ns]/bin/teleport",
+		},
+		{
+			name:         "managed path is file",
+			path:         "versions/version/bin/teleport",
+			resultIsFile: true,
+			wantResult:   "[ns]/bin/teleport",
+		},
+		{
+			name:         "managed path is link",
+			path:         "versions/version/bin/teleport",
+			resultIsFile: true,
+			resultIsLink: true,
+			wantResult:   "[ns]/bin/teleport",
+		},
+		{
+			name:         "managed path is broken link",
+			path:         "versions/version/bin/teleport",
+			resultIsLink: true,
+			wantResult:   "[ns]/versions/version/bin/teleport",
+		},
+		{
+			name:       "managed path is missing",
+			path:       "versions/version/bin/teleport",
+			wantResult: "[ns]/versions/version/bin/teleport",
+		},
+		{
+			name: "empty",
+		},
+		{
+			name:       "other",
+			path:       "/other",
+			wantResult: "/other",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nsDir := t.TempDir()
+			defaultPath := t.TempDir()
+			createPath := defaultPath
+
+			if tt.path != "" && !filepath.IsAbs(tt.path) {
+				tt.path = filepath.Join(nsDir, tt.path)
+				createPath = filepath.Join(nsDir, "bin")
+				cfgPath := filepath.Join(nsDir, updateConfigName)
+				err := writeConfig(cfgPath, &UpdateConfig{
+					Version: updateConfigVersion,
+					Kind:    updateConfigKind,
+					Spec: UpdateSpec{
+						Path: createPath,
+					},
+				})
+				require.NoError(t, err)
+			}
+
+			_, name := filepath.Split(tt.path)
+			if tt.resultIsLink {
+				filePath := filepath.Join(t.TempDir(), name)
+				if tt.resultIsFile {
+					createEmptyFile(t, filePath)
+				}
+				createSymlink(t, filePath, filepath.Join(createPath, name))
+			} else if tt.resultIsFile {
+				createEmptyFile(t, filepath.Join(createPath, name))
+			}
+
+			result := stablePathForFile(tt.path, defaultPath)
+			require.Equal(t, tt.wantResult, strings.NewReplacer(
+				defaultPath, "/usr/local/bin",
+				nsDir, "[ns]",
+			).Replace(result))
+		})
+	}
+}
+
+func createEmptyFile(t *testing.T, path string) {
+	t.Helper()
+	err := os.MkdirAll(filepath.Dir(path), os.ModePerm)
+	require.NoError(t, err)
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	err = f.Close()
+	require.NoError(t, err)
+}
+
+func createSymlink(t *testing.T, oldname, newname string) {
+	t.Helper()
+	err := os.MkdirAll(filepath.Dir(newname), os.ModePerm)
+	require.NoError(t, err)
+	err = os.Symlink(oldname, newname)
+	require.NoError(t, err)
 }
