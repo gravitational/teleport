@@ -82,19 +82,21 @@ type SlogTextHandlerConfig struct {
 	ReplaceAttr func(groups []string, a slog.Attr) slog.Attr
 }
 
-// NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
-func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler {
-	return NewSlogTextHandlerWithWriter(NewIOWriter(w), cfg)
+// SlogOSLogHandlerConfig is a set of options for NewSlogOSLogHandler.
+type SlogOSLogHandlerConfig struct {
+	// Level is the minimum record level that will be logged.
+	Level slog.Leveler
 }
 
-func NewSlogTextHandlerWithWriter(writer slogTextHandlerWriter, cfg SlogTextHandlerConfig) *SlogTextHandler {
+// NewSlogTextHandler creates a SlogTextHandler that writes messages to w.
+func NewSlogTextHandler(w io.Writer, cfg SlogTextHandlerConfig) *SlogTextHandler {
 	if cfg.Padding == 0 {
 		cfg.Padding = defaultComponentPadding
 	}
 
 	handler := SlogTextHandler{
 		cfg:           cfg,
-		out:           writer,
+		out:           newIOWriter(w),
 		withCaller:    len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, CallerField),
 		withTimestamp: len(cfg.ConfiguredFields) == 0 || slices.Contains(cfg.ConfiguredFields, TimestampField),
 	}
@@ -370,7 +372,7 @@ type ioWriter struct {
 	out io.Writer
 }
 
-func NewIOWriter(w io.Writer) *ioWriter {
+func newIOWriter(w io.Writer) *ioWriter {
 	return &ioWriter{out: w}
 }
 

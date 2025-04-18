@@ -124,24 +124,22 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		var writer slogTextHandlerWriter
 		if loggerConfig.Output == LogOutputOSLog {
-			//nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
-			writer, err = NewOSLogWriter(loggerConfig.OSLogSubsystem)
+			//nolint:staticcheck // SA4023. NewSlogOSLogHandler on unsupported platforms always returns err.
+			handler, err := NewSlogOSLogHandler(loggerConfig.OSLogSubsystem, level)
 			//nolint:staticcheck // SA4023.
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
+			logger = slog.New(handler)
 		} else {
-			writer = NewIOWriter(w)
+			logger = slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{
+				Level:            level,
+				EnableColors:     loggerConfig.EnableColors,
+				ConfiguredFields: configuredFields,
+				Padding:          loggerConfig.Padding,
+			}))
 		}
-
-		logger = slog.New(NewSlogTextHandlerWithWriter(writer, SlogTextHandlerConfig{
-			Level:            level,
-			EnableColors:     loggerConfig.EnableColors,
-			ConfiguredFields: configuredFields,
-			Padding:          loggerConfig.Padding,
-		}))
 		slog.SetDefault(logger)
 	case "json":
 		logger = slog.New(NewSlogJSONHandler(w, SlogJSONHandlerConfig{

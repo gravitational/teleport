@@ -20,6 +20,6 @@ package log
 import "github.com/gravitational/trace"
 
 //nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
-func NewOSLogWriter(subsystem string) (slogTextHandlerWriter, error) {
+func NewSlogOSLogHandler(subsystem string, cfg SlogOSLogHandlerConfig) (*SlogTextHandler, error) {
 	return nil, trace.NotImplemented("os_log is supported on macOS")
 }

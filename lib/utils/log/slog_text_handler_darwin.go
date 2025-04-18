@@ -23,6 +23,24 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/oslog"
 )
 
+// NewSlogOSLogHandler creates a SlogTextHandler that writes messages to os_log as subsystem.
+func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, error) {
+	handler := SlogTextHandler{
+		cfg: SlogTextHandlerConfig{
+			Level: level,
+			// os_log doesn't support colors.
+			EnableColors: false,
+			// Pass only CallerField so that the logger does not include the level, component and
+			// timestamp fields in the message. os_log has dedicated handling for this kind of metadata.
+			ConfiguredFields: []string{CallerField},
+		},
+		out:        newOSLogWriter(subsystem),
+		withCaller: true,
+	}
+
+	return &handler, nil
+}
+
 // osLogWriter is an [outputWriter] that writes to os_log, the
 // unified logging system on macOS.
 type osLogWriter struct {
@@ -31,14 +49,14 @@ type osLogWriter struct {
 	loggers   map[string]*oslog.Logger
 }
 
-// NewOSLogWriter creates a new output that writes to os_log. All oslog.Logger instances created by
+// newOSLogWriter creates a new output that writes to os_log. All oslog.Logger instances created by
 // this output are going to use the given subsystem, whereas the category comes from the component
 // passed to the Write method.
-func NewOSLogWriter(subsystem string) (*osLogWriter, error) {
+func newOSLogWriter(subsystem string) *osLogWriter {
 	return &osLogWriter{
 		subsystem: subsystem,
 		loggers:   map[string]*oslog.Logger{},
-	}, nil
+	}
 }
 
 // Write sends the message from buf to os_log and maps level to a specific oslog.OsLogType.
