@@ -20,6 +20,7 @@ package daemon
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -54,8 +55,14 @@ type hardwareKeyPrompter struct {
 
 // Touch prompts the user to touch the hardware key.
 func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) error {
+	// Don't include "tsh daemon" commands.
+	if strings.Contains(keyInfo.Command, "tsh daemon") {
+		keyInfo.Command = ""
+	}
+
 	_, err := h.s.tshdEventsClient.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
-		RootClusterUri: keyInfo.ProxyHost,
+		ProxyHostname: keyInfo.ProxyHost,
+		Command:       keyInfo.Command,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -65,9 +72,15 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.Con
 
 // AskPIN prompts the user for a PIN.
 func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
+	// Don't include "tsh daemon" commands.
+	if strings.Contains(keyInfo.Command, "tsh daemon") {
+		keyInfo.Command = ""
+	}
+
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
-		RootClusterUri: keyInfo.ProxyHost,
-		PinOptional:    requirement == hardwarekey.PINOptional,
+		ProxyHostname: keyInfo.ProxyHost,
+		PinOptional:   requirement == hardwarekey.PINOptional,
+		Command:       keyInfo.Command,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -80,7 +93,7 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwareke
 // preventing the user from submitting empty/default values.
 func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) (*hardwarekey.PINAndPUK, error) {
 	res, err := h.s.tshdEventsClient.PromptHardwareKeyPINChange(ctx, &api.PromptHardwareKeyPINChangeRequest{
-		RootClusterUri: keyInfo.ProxyHost,
+		ProxyHostname: keyInfo.ProxyHost,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,8 +108,8 @@ func (h *hardwareKeyPrompter) ChangePIN(ctx context.Context, keyInfo hardwarekey
 // ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
 func (h *hardwareKeyPrompter) ConfirmSlotOverwrite(ctx context.Context, message string, keyInfo hardwarekey.ContextualKeyInfo) (bool, error) {
 	res, err := h.s.tshdEventsClient.ConfirmHardwareKeySlotOverwrite(ctx, &api.ConfirmHardwareKeySlotOverwriteRequest{
-		RootClusterUri: keyInfo.ProxyHost,
-		Message:        message,
+		ProxyHostname: keyInfo.ProxyHost,
+		Message:       message,
 	})
 	if err != nil {
 		return false, trace.Wrap(err)

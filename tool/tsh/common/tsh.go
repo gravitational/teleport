@@ -68,6 +68,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -579,8 +580,12 @@ type CLIConf struct {
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
 
-	// HardwareKeyAgent determines whether the daemon will run the hardware key agent.
-	HardwareKeyAgent bool
+	// HardwareKeyAgentServer determines whether `tsh daemon` will run the hardware key agent server.
+	HardwareKeyAgentServer bool
+	// disableHardwareKeyAgentClient determines whether the client will attempt to connect
+	// to the hardware key agent. Some commands, like login, are better with the
+	// direct PIV service so that prompts are not split between processes.
+	disableHardwareKeyAgentClient bool
 }
 
 // Stdout returns the stdout writer.
@@ -862,7 +867,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStart.Flag("installation-id", "Unique ID identifying a specific Teleport Connect installation").StringVar(&cf.DaemonInstallationID)
-	daemonStart.Flag("hardware-key-agent", "Serve the hardware key agent as part of the daemon process").BoolVar(&cf.HardwareKeyAgent)
+	daemonStart.Flag("hardware-key-agent", "Serve the hardware key agent as part of the daemon process").BoolVar(&cf.HardwareKeyAgentServer)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -1907,6 +1912,10 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		autoRequest = false
 		cf.DesiredRoles = ""
 	}
+
+	// For login operations, we use the hardware key
+	// service directly instead of the agent.
+	cf.disableHardwareKeyAgentClient = true
 
 	if cf.IdentityFileIn != "" {
 		err := flattenIdentity(cf)
@@ -4606,7 +4615,12 @@ func setEnvVariables(c *client.Config, options Options) {
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	hwks := libhwk.NewService(cf.Context, nil /*prompt*/)
+	var hwks hardwarekey.Service
+	if cf.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(cf.Context, nil /*prompt*/)
+	}
 
 	switch {
 	case cf.IdentityFileIn != "":

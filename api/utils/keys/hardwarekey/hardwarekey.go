@@ -262,6 +262,8 @@ type ContextualKeyInfo struct {
 	// metadata certificate format, to ensure the agent doesn't provide access to
 	// non teleport client PIV keys.
 	AgentKey bool
+	// Command is the running command utilizing this key.
+	Command string
 }
 
 // SignatureAlgorithm is a signature key algorithm option.
