@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"log/slog"
 	"net"
 	"os"
 
@@ -100,6 +101,7 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 		ProxyHost:   req.KeyInfo.ProxyHost,
 		Username:    req.KeyInfo.Username,
 		ClusterName: req.KeyInfo.ClusterName,
+		AgentKey:    true,
 	}
 
 	var signerOpts crypto.SignerOpts
@@ -123,6 +125,7 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 
 	signature, err := s.s.Sign(ctx, keyRef, keyInfo, rand.Reader, req.Digest, signerOpts)
 	if err != nil {
+		slog.DebugContext(ctx, "hardware key agent signature failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
