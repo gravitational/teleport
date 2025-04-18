@@ -138,13 +138,13 @@ func TestStablePath(t *testing.T) {
 			path:         "/opt/teleport/system/bin/teleport",
 			resultIsLink: true,
 			result:       "/opt/teleport/system/bin/teleport",
-			err:          ErrUnstablePath,
+			err:          ErrUnstableExecutable,
 		},
 		{
 			name:   "packaged path is missing",
 			path:   "/opt/teleport/system/bin/teleport",
 			result: "/opt/teleport/system/bin/teleport",
-			err:    ErrUnstablePath,
+			err:    ErrUnstableExecutable,
 		},
 		{
 			name:         "managed path is file",
@@ -170,13 +170,13 @@ func TestStablePath(t *testing.T) {
 			path:         "versions/version/bin/teleport",
 			resultIsLink: true,
 			result:       "[ns]/versions/version/bin/teleport",
-			err:          ErrUnstablePath,
+			err:          ErrUnstableExecutable,
 		},
 		{
 			name:   "managed path is missing",
 			path:   "versions/version/bin/teleport",
 			result: "[ns]/versions/version/bin/teleport",
-			err:    ErrUnstablePath,
+			err:    ErrUnstableExecutable,
 		},
 		{
 			name:   "managed path is missing config",

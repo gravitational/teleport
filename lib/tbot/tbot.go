@@ -409,7 +409,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				proxyPingCache:    proxyPingCache,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
-				executablePath:    agent.StablePath,
+				executablePath:    agent.StableExecutable,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -424,7 +424,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				proxyPingCache:    proxyPingCache,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
-				executablePath:    agent.StablePath,
+				executablePath:    agent.StableExecutable,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -496,7 +496,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				getBotIdentity:    b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
-				executablePath:    agent.StablePath,
+				executablePath:    agent.StableExecutable,
 				alpnUpgradeCache:  alpnUpgradeCache,
 				proxyPingCache:    proxyPingCache,
 			}
