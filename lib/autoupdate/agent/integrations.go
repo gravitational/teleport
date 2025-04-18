@@ -19,6 +19,7 @@
 package agent
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,18 +105,21 @@ func hasParentDir(dir, parent string) (bool, error) {
 	return strings.HasPrefix(absDir, absParent), nil
 }
 
-// StablePath returns a stable path Teleport binaries that may or may not be managed by Agent Managed Updates.
+var ErrUnstablePath = errors.New("binary has unstable path")
+
+// StablePath returns a stable path to Teleport binaries that may or may not be managed by Agent Managed Updates.
 // Note that StablePath is not guaranteed to return the same binary, as the binary may have been updated
-// since it started running.
+// since it started running. If a stable path cannot be found, an unstable path is returned with ErrUnstablePath.
 func StablePath() (string, error) {
 	origPath, err := os.Executable()
 	if err != nil {
 		return origPath, trace.Wrap(err)
 	}
-	return stablePathForBinary(origPath, defaultPathDir), nil
+	p, err := stablePathForBinary(origPath, defaultPathDir)
+	return p, trace.Wrap(err)
 }
 
-func stablePathForBinary(origPath, defaultPath string) string {
+func stablePathForBinary(origPath, defaultPath string) (string, error) {
 	_, name := filepath.Split(origPath)
 
 	// If we are a package-based install, always use /usr/local/bin if it is valid.
@@ -123,21 +127,26 @@ func stablePathForBinary(origPath, defaultPath string) string {
 	if filepath.Join(packageSystemDir, "bin", name) == origPath {
 		linkPath := filepath.Join(defaultPath, name)
 		if _, err := os.Stat(linkPath); err == nil {
-			return linkPath
+			return linkPath, nil
 		}
+		return origPath, ErrUnstablePath
 	}
 
 	// If we are a Managed Updates install, find the correct path from Managed Updates config.
 	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
-		cfg, err := readConfig(filepath.Join(p, updateConfigName))
+		cfgPath := filepath.Join(p, updateConfigName)
+		cfg, err := readConfig(cfgPath)
 		if err == nil && cfg.Spec.Path != "" {
 			linkPath := filepath.Join(cfg.Spec.Path, name)
 			if _, err := os.Stat(linkPath); err == nil {
-				return linkPath
+				return linkPath, nil
 			}
 		}
+		if _, err := os.Stat(cfgPath); err == nil {
+			return origPath, ErrUnstablePath
+		}
 	}
-	return origPath
+	return origPath, nil
 }
 
 func findParentMatching(dir, name string, pos int) string {
