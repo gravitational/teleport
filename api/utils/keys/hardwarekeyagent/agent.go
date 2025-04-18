@@ -95,6 +95,7 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 			TouchRequired: req.KeyInfo.TouchRequired,
 			PINRequired:   req.KeyInfo.PinRequired,
 		},
+		PINCacheTTL: req.KeyInfo.PinCacheTtl.AsDuration(),
 	}
 
 	keyInfo := hardwarekey.ContextualKeyInfo{
