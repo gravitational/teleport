@@ -147,12 +147,10 @@ package-term` it might attempt to compile x64 version of node-pty.
 At the time of writing, we found the following set of individual components for Visual Studio 2022
 to work with Connect build process:
 
-- MSVC v143 - VS 2022 C++ ARM build tools (Latest)
-- MSVC v143 - VS 2022 C++ ARM Spectre-mitigated libs (Latest)
 - MSVC v143 - VS 2022 C++ ARM64/ARM64EC Spectre-mitigated libs (Latest)
 - MSVC v143 - VS 2022 C++ x64/x86 Spectre-mitigated libs (Latest)
-- C++ ATL for latest v143 build tools with Spectre Mitigations (ARM64/ARM64EC)
-- C++ ATL for latest v143 build tools with Spectre Mitigations (x86 & x64)
+
+If you're on an actual Windows machine, you can install just the x64/x86 libs.
 
 #### Packaging
 
