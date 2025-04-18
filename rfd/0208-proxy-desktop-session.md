@@ -97,9 +97,17 @@ message ProxyDesktopSessionResponse {
 
 // Identifies the destination desktop within a specific cluster.
 message TargetDesktop {
+   // Operating system of the target desktop.
+   DesktopOS desktop_os = 1;
    // Name of the desktop to connect to.
-   string desktop_name = 1;
+   string desktop_name = 2;
    // Name of the cluster the desktop belongs to.
-   string cluster = 2;
+   string cluster = 3;
+}
+
+// Supported desktop operating systems.
+enum DesktopOS {
+   DESKTOP_OS_UNSPECIFIED = 0;
+   DESKTOP_OS_WINDOWS = 1;
 }
 ```
