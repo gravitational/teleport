@@ -1275,6 +1275,8 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
+
+	OnAuthenticate func()
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -1982,6 +1984,12 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		),
 	)
 	defer func() { apitracing.EndSpan(span, err) }()
+
+	defer func() {
+		if err == nil && tc.OnAuthenticate != nil {
+			tc.OnAuthenticate()
+		}
+	}()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
