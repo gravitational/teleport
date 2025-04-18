@@ -45,12 +45,11 @@ export function AwsOidcHeader({
     <Flex
       alignItems="center"
       borderBottom={1}
-      borderColor="levels.surface"
+      borderColor="interactive.tonal.neutral.0"
       width={'100%'}
-      pl={5}
+      pl={6}
       py={1}
       gap={1}
-      my={2}
       data-testid="aws-oidc-header"
     >
       <HoverTooltip placement="bottom" tipContent="Back to Integrations">
