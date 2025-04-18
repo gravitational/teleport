@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { DesktopSession, AlertDialog } from './DesktopSession';
+export { DesktopSession, DisconnectedState } from './DesktopSession';

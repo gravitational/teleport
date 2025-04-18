@@ -89,7 +89,16 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
         this.unobserve = () => {};
         this.disconnect = () => {};
       }
+
       global.ResizeObserver = NullResizeObserver;
+    }
+
+    if (!global.navigator.permissions) {
+      global.navigator.permissions = {
+        query: async () => ({
+          onchange: () => {},
+        }),
+      };
     }
   }
 }
