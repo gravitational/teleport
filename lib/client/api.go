@@ -1234,8 +1234,6 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
-
-	OnAuthenticate func()
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -1891,6 +1889,8 @@ type SSHOptions struct {
 	// machine. If provided, it will be used instead of establishing a connection
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
+
+	ForkAfterAuthenticationArgs []string
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1906,6 +1906,12 @@ func WithHostAddress(addr string) func(*SSHOptions) {
 func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
 		opt.LocalCommandExecutor = executor
+	}
+}
+
+func ForkAfterAuthentication(args []string) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.ForkAfterAuthenticationArgs = args
 	}
 }
 
@@ -1951,9 +1957,9 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	}
 
 	if len(nodeAddrs) > 1 {
-		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)
+		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command, options)
 	}
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options.LocalCommandExecutor)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options)
 }
 
 // ConnectToNode attempts to establish a connection to the node resolved to by the provided
@@ -1973,12 +1979,6 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		),
 	)
 	defer func() { apitracing.EndSpan(span, err) }()
-
-	defer func() {
-		if err == nil && tc.OnAuthenticate != nil {
-			tc.OnAuthenticate()
-		}
-	}()
 
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
@@ -2079,6 +2079,16 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	}
 }
 
+func (tc *TeleportClient) RunCommandInBackground(
+	ctx context.Context,
+	command []string,
+	nodeDetails NodeDetails,
+	login string,
+	opts ...RunCommandOption,
+) error {
+	return nil
+}
+
 // MFARequiredUnknownErr indicates that connections to an instance failed
 // due to being unable to determine if mfa is required
 type MFARequiredUnknownErr struct {
@@ -2162,7 +2172,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	return nodeClient, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, commandExecutor func(string, []string) error) error {
+func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, options SSHOptions) error {
 	cluster := clt.ClusterName()
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -2174,6 +2184,18 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		),
 	)
 	defer span.End()
+
+	if len(options.ForkAfterAuthenticationArgs) != 0 {
+		if len(command) == 0 {
+			return trace.BadParameter("ForkAfterAuthentication not supported for interactive commands")
+		}
+		return trace.Wrap(tc.RunCommandInBackground(
+			ctx,
+			command,
+			NodeDetails{Addr: nodeAddr, Cluster: cluster},
+			tc.Config.HostLogin,
+		))
+	}
 
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
@@ -2217,11 +2239,11 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 
 	// After port forwarding, run a local command that uses the connection, and
 	// then disconnect.
-	if commandExecutor != nil {
+	if options.LocalCommandExecutor != nil {
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
 		}
-		return commandExecutor(tc.Config.HostLogin, command)
+		return options.LocalCommandExecutor(tc.Config.HostLogin, command)
 	}
 
 	if len(command) > 0 {
@@ -2231,7 +2253,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
 }
 
-func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
+func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string, options SSHOptions) error {
 	cluster := clt.ClusterName()
 	nodeAddrs := make([]string, 0, len(nodes))
 	for _, node := range nodes {
@@ -2256,7 +2278,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, nil)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, options)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {

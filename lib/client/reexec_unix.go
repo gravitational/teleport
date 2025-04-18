@@ -1,6 +1,6 @@
 //go:build unix
 
-package common
+package client
 
 import (
 	"os"

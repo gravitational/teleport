@@ -848,7 +848,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
-	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete").BoolVar(&cf.ForkAfterAuthentication)
+	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked").Hidden().Uint64Var(&cf.forkSignalFd)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
@@ -3972,6 +3972,10 @@ func onSSH(cf *CLIConf) error {
 		return trace.BadParameter("required argument '[user@]host' not provided")
 	}
 
+	if cf.ForkAfterAuthentication && cf.forkSignalFd != 0 {
+		return trace.BadParameter("process is already forked")
+	}
+
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3991,6 +3995,9 @@ func onSSH(cf *CLIConf) error {
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
+			// if cf.ForkAfterAuthentication {
+			// 	opts = append(opts, client.ForkAfterAuthentication())
+			// }
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
 		}
