@@ -3943,7 +3943,6 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 		ServerHostname: host,
 		ServerHostPort: port,
 		Moderated:      accessEvaluator.IsModerated(),
-		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
 		Namespace:      apidefaults.Namespace,
