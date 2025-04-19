@@ -30,6 +30,22 @@ export default {
   ],
 };
 
+const validRuleWithTraits = {
+  metadata: { name: 'rule-with-traits-condition' },
+  spec: {
+    subjects: ['access_request'],
+    condition: `|-
+      contains_all(set("access"), access_request.spec.roles) &&
+      contains_any(user.traits["level"], set("L1")) &&
+      contains_any(user.traits["team"], set("Dev")) &&
+      contains_any(user.traits["location"], set("Seattle"))`,
+    notification: {
+      name: 'slack-plugin',
+      recipients: ['apple', 'banana', 'carrot'],
+    },
+  },
+};
+
 const validRuleObjectSlack = {
   metadata: { name: 'valid-default-to-standard-editor' },
   spec: {
@@ -187,6 +203,11 @@ const withPlugins = http.get(cfg.api.plugin.list, () =>
 const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
   HttpResponse.json({
     rules: [
+      {
+        object: {
+          ...validRuleWithTraits,
+        },
+      },
       {
         object: {
           ...validRuleObjectSlack,

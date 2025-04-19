@@ -108,9 +108,9 @@ export const EditStandard = ({
   }
 
   function getLastFilter() {
-    if (ruleCondition?.values?.length > 1) {
-      const lastIndex = ruleCondition.values.length - 1;
-      return ruleCondition.values[lastIndex].value;
+    if (ruleCondition?.rolesCondition?.values?.length > 1) {
+      const lastIndex = ruleCondition.rolesCondition.values.length - 1;
+      return ruleCondition.rolesCondition.values[lastIndex].value;
     }
     return '';
   }
@@ -140,8 +140,9 @@ export const EditStandard = ({
   }
 
   let notifyStateComponent: JSX.Element;
-  switch (ruleCondition?.field?.value) {
-    case AccessRequestMatchCondition.Roles: {
+  switch (ruleCondition?.rolesCondition?.field?.value) {
+    case AccessRequestMatchCondition.MatchAnyRoles:
+    case AccessRequestMatchCondition.MatchAllRoles: {
       notifyStateComponent = (
         <SelectCreateRoles
           getLastFilter={getLastFilter}
@@ -150,7 +151,10 @@ export const EditStandard = ({
             handleStandardEditorChange({
               ruleCondition: {
                 ...ruleCondition,
-                values: values || [],
+                rolesCondition: {
+                  ...ruleCondition.rolesCondition,
+                  values: values || [],
+                },
               },
             });
           }}
@@ -196,10 +200,13 @@ export const EditStandard = ({
                     isDisabled={attempt.status === 'processing'}
                     onChange={(o: AccessRequestMatchConditionOption) =>
                       handleStandardEditorChange({
-                        ruleCondition: { field: o, values: undefined },
+                        ruleCondition: {
+                          ...ruleCondition,
+                          rolesCondition: { field: o, values: undefined },
+                        },
                       })
                     }
-                    value={ruleCondition?.field}
+                    value={ruleCondition?.rolesCondition?.field}
                   />
                   {notifyStateComponent}
                 </Box>
@@ -299,7 +306,7 @@ const SelectCreateRoles = ({
       loadOptions={async input => await fetchRoleOptions(input)}
       isDisabled={isDisabled}
       onChange={onChangeRuleConditionValues}
-      value={ruleCondition.values}
+      value={ruleCondition?.rolesCondition?.values}
       defaultOptions={true}
     />
   );

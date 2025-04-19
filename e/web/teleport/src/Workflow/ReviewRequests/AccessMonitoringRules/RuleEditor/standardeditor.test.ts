@@ -61,10 +61,12 @@ test('buildRuleFromStandardEditor: empty rule with configurable fields defined',
     pluginOption: { value: 'slack', label: 'slack' },
     recipients: [{ value: 'llama', label: 'llama' }],
     ruleCondition: {
-      field: accessRequestMatchConditionOptions.find(
-        a => a.value === AccessRequestMatchCondition.AnyRoles
-      ),
-      values: [],
+      rolesCondition: {
+        field: accessRequestMatchConditionOptions.find(
+          a => a.value === AccessRequestMatchCondition.AnyRoles
+        ),
+        values: [],
+      },
     },
     isDirty: false,
   });
@@ -96,7 +98,11 @@ test('buildRuleFromStandardEditor: partial configurable fields defined', () => {
     ruleName: 'some-name',
     pluginOption: { value: 'slack', label: 'slack' },
     recipients: [{ value: 'llama', label: 'llama' }],
-    ruleCondition: null,
+    ruleCondition: {
+      errors: ['Role Match Condition is required'],
+      rolesCondition: null,
+      traitsCondition: null,
+    },
   });
 
   const got = buildRuleFromStandardEditor({
@@ -204,14 +210,30 @@ describe('hasModifiedFields', () => {
       cfg: { ...cfg, recipients: [{ value: 'llama', label: 'llama' }] },
     },
     {
-      name: 'modify condition',
+      name: 'modify role condition',
       cfg: {
         ...cfg,
         ruleCondition: {
-          field: accessRequestMatchConditionOptions.find(
-            a => a.value === AccessRequestMatchCondition.AnyRoles
-          ),
-          values: [],
+          rolesCondition: {
+            field: accessRequestMatchConditionOptions.find(
+              a => a.value === AccessRequestMatchCondition.AnyRoles
+            ),
+            values: [],
+          },
+        },
+      },
+    },
+    {
+      name: 'modify traits condition',
+      cfg: {
+        ...cfg,
+        ruleCondition: {
+          traitsCondition: [
+            {
+              field: { label: 'trait-key', value: 'trait-key' },
+              values: [{ label: 'trait-val', value: 'trait-val' }],
+            },
+          ],
         },
       },
     },

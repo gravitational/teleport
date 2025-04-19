@@ -33,18 +33,19 @@ export function newYamlRuleFromTemplate(
   const { ruleName, ruleCondition, pluginOption, recipients } =
     configurableFields;
 
+  // Prefix each line with indentation.
+  const expression = convertRuleConditionToPredicateExpression(ruleCondition)
+    .split('\n')
+    .map(line => '    ' + line)
+    .join('\n');
+
+  const condition = expression !== '' ? `|-\n${expression}` : `''`;
+
   template = template.replace(
     '{{rule.metadata.name}}',
     ruleName || 'new_rule_name'
   );
-  template = template.replace(
-    '{{rule.condition}}',
-    // The single quote is required to represent condition
-    // as a string. Normally the yaml library we use will insert
-    // single quotes if required, but for new yamls we don't require
-    // the yaml lib since we use a pre-defined template.
-    `'${convertRuleConditionToPredicateExpression(ruleCondition)}'`
-  );
+  template = template.replace('{{rule.condition}}', condition);
   template = template.replace(
     '{{rule.notification.name}}',
     pluginOption?.value || ''

@@ -26,6 +26,7 @@ import {
   buildRuleFromStandardEditor,
   getConfigurableFieldsForStandardEditor,
   newAccessMonitoringRule,
+  requireReset,
   StandardEditor,
 } from './standardeditor';
 import { newYamlRuleFromTemplate, YamlEditor } from './yamleditor';
@@ -62,7 +63,9 @@ export const RuleEditor = ({
 
   // Defaults to yaml editor if the rule condition could not be parsed.
   const [selectedEditorTab, setSelectedEditorTab] = useState<EditorTab>(() =>
-    !standardEditor.ruleCondition ? EditorTab.Yaml : EditorTab.Standard
+    requireReset(standardEditor.ruleCondition)
+      ? EditorTab.Yaml
+      : EditorTab.Standard
   );
 
   /**
@@ -111,7 +114,7 @@ export const RuleEditor = ({
 
     // If the rule condition returns null, it means the
     // condition couldn't be parsed.
-    if (!configurableFields.ruleCondition) {
+    if (requireReset(configurableFields.ruleCondition)) {
       setYamlEditor({ ...yamlEditor, requiresReset: true });
     }
 
@@ -166,7 +169,7 @@ export const RuleEditor = ({
           setYamlEditor({
             content: template,
             isDirty: true,
-            requiresReset: !standardEditor.ruleCondition,
+            requiresReset: requireReset(standardEditor.ruleCondition),
           });
         } else {
           const yamlified = await yamlilfyRule();
@@ -208,8 +211,11 @@ export const RuleEditor = ({
         />
         {selectedEditorTab === EditorTab.Standard && (
           <>
-            {!standardEditor.ruleCondition && (
-              <RequiresResetToStandard reset={resetForStandardEditor} />
+            {requireReset(standardEditor.ruleCondition) && (
+              <RequiresResetToStandard
+                reset={resetForStandardEditor}
+                errors={standardEditor.ruleCondition.errors}
+              />
             )}
             <EditStandard
               selectedRule={selectedRule}

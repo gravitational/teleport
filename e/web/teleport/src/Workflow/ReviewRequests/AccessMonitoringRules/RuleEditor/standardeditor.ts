@@ -54,6 +54,10 @@ export function newAccessMonitoringRule(): AccessMonitoringRule {
   };
 }
 
+export function requireReset(condition: RuleCondition): boolean {
+  return condition?.errors?.length > 0;
+}
+
 /**
  * Returns configurable fields with default values
  * or extracts them from an existing rule.
@@ -162,15 +166,36 @@ export function hasModifiedFields(
 
   const originalRuleCondition = getRuleCondition(originalRule?.spec.condition);
 
-  const modifiedRuleConditionField = () =>
-    originalRuleCondition?.field.value !== updated.ruleCondition?.field.value;
+  const modifiedRolesConditionField = () =>
+    originalRuleCondition?.rolesCondition?.field.value !==
+    updated.ruleCondition?.rolesCondition?.field.value;
+
+  const modifiedTraitsConditionField = () => {
+    if (
+      originalRuleCondition?.traitsCondition?.length !==
+      updated.ruleCondition?.traitsCondition?.length
+    ) {
+      return true;
+    }
+
+    return (
+      originalRuleCondition?.traitsCondition
+        ?.map(v => v.values.join(''))
+        .join('') !==
+      updated.ruleCondition?.traitsCondition
+        ?.map(v => v.values.join(''))
+        .join('')
+    );
+  };
 
   const modifiedRuleName = () =>
     updated.ruleName !== originalRule?.metadata.name;
 
-  const modifiedRuleConditionValues = () =>
-    originalRuleCondition?.values?.map(v => v.value).join('') !==
-    updated.ruleCondition?.values?.map(v => v.value).join('');
+  const modifiedRolesConditionValues = () =>
+    originalRuleCondition?.rolesCondition?.values
+      ?.map(v => v.value)
+      .join('') !==
+    updated.ruleCondition?.rolesCondition?.values?.map(v => v.value).join('');
 
   const modifiedPluginOption = () =>
     updated.pluginOption?.value !== originalRule?.spec.notification.name;
@@ -184,10 +209,11 @@ export function hasModifiedFields(
   };
 
   return (
-    modifiedRuleConditionField() ||
+    modifiedRolesConditionField() ||
     modifiedRuleName() ||
-    modifiedRuleConditionValues() ||
+    modifiedRolesConditionValues() ||
     modifiedPluginOption() ||
-    modifiedRecipients()
+    modifiedRecipients() ||
+    modifiedTraitsConditionField()
   );
 }
