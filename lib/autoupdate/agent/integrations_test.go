@@ -153,12 +153,6 @@ func TestStablePath(t *testing.T) {
 			result:       "[ns]/bin/teleport",
 		},
 		{
-			name:         "managed path is file",
-			path:         "versions/version/bin/teleport",
-			resultIsFile: true,
-			result:       "[ns]/bin/teleport",
-		},
-		{
 			name:         "managed path is link",
 			path:         "versions/version/bin/teleport",
 			resultIsFile: true,
