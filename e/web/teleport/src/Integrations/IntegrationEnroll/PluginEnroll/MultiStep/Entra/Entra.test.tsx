@@ -51,7 +51,7 @@ beforeEach(() => {
     .mockImplementation();
 
   mockedCreatePlugin = jest
-    .spyOn(pluginsService, 'createPlugin')
+    .spyOn(pluginsService, 'createStaticAuthPlugin')
     .mockResolvedValue({
       resourceType: 'plugin',
       name: 'entra-id',
@@ -116,7 +116,7 @@ test('entra onboard with policy disabled', async () => {
   await userEvent.click(screen.getByRole('button', { name: /finish/i }));
   expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
 
-  expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
+  expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(1);
 
   calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
   expect(calledWithFormData.get('tenantId')).toEqual(tenantIdValue);
@@ -162,7 +162,7 @@ test('entra onboard with policy enabled', async () => {
   expect(
     screen.queryByText(/integrated successfully/i)
   ).not.toBeInTheDocument();
-  expect(pluginsService.createPlugin).toHaveBeenCalledTimes(0);
+  expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(0);
 
   // Set file upload
   const fileInput = screen.getByTestId('button-file-upload');
@@ -171,7 +171,7 @@ test('entra onboard with policy enabled', async () => {
   // Submit form successfully
   await userEvent.click(screen.getByRole('button', { name: /finish/i }));
   expect(screen.getByText(/integrated successfully/i)).toBeInTheDocument();
-  expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
+  expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(1);
 
   calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
   expect(calledWithFormData.get('tenantId')).toEqual(tenantIdValue);

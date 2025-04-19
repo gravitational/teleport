@@ -10,6 +10,7 @@ import {
 } from 'teleport/services/integrations';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { CtaEvent } from 'teleport/services/userEvent';
+import { isPathNotFoundError } from 'teleport/services/version/unsupported';
 
 import {
   AwsIcAccounts,
@@ -39,14 +40,37 @@ export const pluginsService = {
     return api.put(cfg.getPluginCleanupUrl(kind), null);
   },
 
-  async createPlugin<T extends string>(
+  /**
+   * Create plugins that do not require OAuth.
+   */
+  async createStaticAuthPlugin<T extends string>(
     formData: FormData
   ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
     const webauthnResponse =
       await auth.getMfaChallengeResponseForAdminAction(true);
-    return api
-      .postFormData(cfg.api.plugin.create, formData, webauthnResponse)
-      .then(makePlugin);
+
+    try {
+      return await api
+        .postFormData(
+          cfg.api.plugin.createStaticAuth,
+          formData,
+          webauthnResponse
+        )
+        .then(makePlugin);
+    } catch (err) {
+      // TODO(kimlisa): DELETE IN v19.0 (csrf)
+      // Retry request with deprecated endpoint.
+      if (isPathNotFoundError(err)) {
+        return api
+          .postFormData(
+            cfg.api.plugin.createDeprecated,
+            formData,
+            webauthnResponse
+          )
+          .then(makePlugin);
+      }
+      throw err;
+    }
   },
 
   validatePlugin(formData: FormData) {

@@ -46,7 +46,7 @@ export function AwsIcConfigureScim() {
 
   const [createPluginAttempt, createPlugin] = useAsync(
     useCallback(async () => {
-      const resp = await pluginsService.createPlugin(formData);
+      const resp = await pluginsService.createStaticAuthPlugin(formData);
       setInstalledPlugin(resp);
     }, [formData, setInstalledPlugin])
   );

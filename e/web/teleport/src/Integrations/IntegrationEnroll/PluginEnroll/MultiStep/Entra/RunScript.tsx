@@ -55,7 +55,7 @@ export function RunScript() {
     }
 
     run(async () => {
-      const resp = await pluginsService.createPlugin(formData);
+      const resp = await pluginsService.createStaticAuthPlugin(formData);
       setInstalledPlugin(resp);
       nextStep();
     });

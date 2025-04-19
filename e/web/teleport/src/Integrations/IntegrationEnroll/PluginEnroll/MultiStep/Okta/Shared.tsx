@@ -170,7 +170,7 @@ export const createOktaPlugin = ({
     formData.set(FormDataField.ReuseConnector, reuseConnector);
   }
 
-  return pluginsService.createPlugin<'okta'>(formData);
+  return pluginsService.createStaticAuthPlugin<'okta'>(formData);
 };
 
 export enum OktaIntegrationLevel {

@@ -109,7 +109,7 @@ describe('okta PluginEnroll.tsx', () => {
       .mockImplementation();
 
     mockedCreatePlugin = jest
-      .spyOn(pluginsService, 'createPlugin')
+      .spyOn(pluginsService, 'createStaticAuthPlugin')
       .mockResolvedValue(stubPlugin);
 
     mockedUpdatePlugin = jest
@@ -161,7 +161,7 @@ describe('okta PluginEnroll.tsx', () => {
     // Shouldn't show the next step if not entitled to Identity.
     expect(screen.queryByText(/next – scim/i)).not.toBeInTheDocument();
 
-    expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
+    expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(1);
     const calledWithFormData = mockedCreatePlugin.mock.calls[0][0];
     expect(calledWithFormData.get(FormDataField.MetadataURL)).toEqual(
       'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata'
@@ -363,7 +363,7 @@ describe('okta PluginEnroll.tsx', () => {
 
   test('okta create error', async () => {
     jest
-      .spyOn(pluginsService, 'createPlugin')
+      .spyOn(pluginsService, 'createStaticAuthPlugin')
       .mockRejectedValue(new Error('some create error'));
 
     const { ctx } = await renderPluginEnroll('okta', { identity: false });
@@ -378,7 +378,7 @@ describe('okta PluginEnroll.tsx', () => {
         'https://some-org-url.okta.com/app/abcdefg/sso/saml/metadata',
     });
 
-    expect(pluginsService.createPlugin).toHaveBeenCalledTimes(1);
+    expect(pluginsService.createStaticAuthPlugin).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/some create error/i)).toBeInTheDocument();
   });
 });

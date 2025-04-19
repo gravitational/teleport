@@ -100,7 +100,7 @@ export function SubmittablePluginForm({
 
         // Send off the conventional fetch request to finish plugin
         // installation.
-        await pluginsService.createPlugin(formData).then(resp => {
+        await pluginsService.createStaticAuthPlugin(formData).then(resp => {
           setStaticPluginResponse(resp);
         });
       } catch (e) {
@@ -188,7 +188,7 @@ export function SubmittablePluginForm({
         since the user needs to be redirected to the OAuth provider after submitting. */}
             {({ validator }) => (
               <form
-                action={cfg.api.plugin.create}
+                action={cfg.api.plugin.createDeprecated}
                 onSubmit={e => onSubmit(validator, e)}
                 method="POST"
               >

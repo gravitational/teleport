@@ -30,7 +30,7 @@ export const Enroll = () => {
   ctx.pluginsService.getAwsIcPermissionSets = () =>
     Promise.resolve(permissionSets);
   ctx.pluginsService.validatePlugin = () => Promise.resolve({ message: 'ok' });
-  ctx.pluginsService.createPlugin = () =>
+  ctx.pluginsService.createStaticAuthPlugin = () =>
     Promise.resolve<Plugin>({
       resourceType: 'plugin',
       name: 'aws-identity-center',
