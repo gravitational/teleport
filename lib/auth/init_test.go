@@ -2143,13 +2143,18 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 		{
 			name:               "major-upgrade-fail-proc",
 			initialProcVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion:    fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
 			expectError:        true,
+		},
+		{
+			name:               "major-upgrade-fail-proc-with-skip-check",
+			initialProcVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectedVersion:    teleport.SemVersion.String(),
+			skipCheck:          true,
 		},
 		{
 			name:            "major-upgrade-with-dev-skip-check",
 			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			expectedVersion: teleport.SemVersion.String(),
 			expectError:     false,
 			skipCheck:       true,
 		},
@@ -2162,13 +2167,18 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 		{
 			name:               "major-downgrade-fail-proc",
 			initialProcVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion:    fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
 			expectError:        true,
+		},
+		{
+			name:               "major-downgrade-fail-proc-with-skip-check",
+			initialProcVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectedVersion:    teleport.SemVersion.String(),
+			skipCheck:          true,
 		},
 		{
 			name:            "major-downgrade-with-dev-skip-check",
 			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			expectedVersion: teleport.SemVersion.String(),
 			expectError:     false,
 			skipCheck:       true,
 		},
@@ -2187,7 +2197,9 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if test.initialVersion != "" {
-				authInfo, err := authinfo.NewAuthInfo(&authinfov1.AuthInfoSpec{TeleportVersion: semver.New(test.initialVersion).String()})
+				authInfo, err := authinfo.NewAuthInfo(&authinfov1.AuthInfoSpec{
+					TeleportVersion: semver.New(test.initialVersion).String(),
+				})
 				require.NoError(t, err)
 				_, err = service.CreateAuthInfo(ctx, authInfo)
 				require.NoError(t, err)
@@ -2203,9 +2215,11 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			authInfo, err := service.GetAuthInfo(ctx)
-			require.NoError(t, err)
-			require.Equal(t, test.expectedVersion, authInfo.GetSpec().GetTeleportVersion())
+			if test.expectedVersion != "" {
+				authInfo, err := service.GetAuthInfo(ctx)
+				require.NoError(t, err)
+				require.Equal(t, test.expectedVersion, authInfo.GetSpec().GetTeleportVersion())
+			}
 		})
 	}
 }

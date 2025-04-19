@@ -46,13 +46,13 @@ func NewAuthInfo(spec *authinfov1.AuthInfoSpec) (*authinfov1.AuthInfo, error) {
 func ValidateAuthInfo(info *authinfov1.AuthInfo) error {
 	switch {
 	case info.GetKind() != types.KindAuthInfo:
-		return trace.BadParameter("wrong AuthInfo Kind: %s", info.Kind)
+		return trace.BadParameter("wrong AuthInfo Kind: %+q", info.Kind)
 	case info.GetMetadata().Name != types.MetaNameAuthInfo:
-		return trace.BadParameter("wrong AuthInfo Metadata name: %s", info.GetMetadata().Name)
+		return trace.BadParameter("wrong AuthInfo Metadata name: %+q", info.GetMetadata().Name)
 	case info.GetSubKind() != "":
-		return trace.BadParameter("wrong AuthInfo SubKind: %s", info.GetSubKind())
+		return trace.BadParameter("wrong AuthInfo SubKind: %+q", info.GetSubKind())
 	case info.GetVersion() != types.V1:
-		return trace.BadParameter("wrong AuthInfo Version: %s", info.GetVersion())
+		return trace.BadParameter("wrong AuthInfo Version: %+q", info.GetVersion())
 	default:
 		return nil
 	}
