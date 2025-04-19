@@ -25,6 +25,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -100,12 +101,16 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 	}, nil
 }
 
+// On windows, listening on an already existing unix socket results in a different,
+// Windows specific [syscall.Bind] error not defined in the [syscall] library.
+const windowsBindErrMessage = "bind: Only one usage of each socket address (protocol/network address/port) is normally permitted"
+
 func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
 	socketPath := filepath.Join(keyAgentDir, sockName)
 	l, err := net.Listen("unix", socketPath)
 	if err == nil {
 		return l, nil
-	} else if !errors.Is(err, syscall.EADDRINUSE) {
+	} else if !errors.Is(err, syscall.EADDRINUSE) && !strings.Contains(err.Error(), windowsBindErrMessage) {
 		return nil, trace.Wrap(err)
 	}
 
