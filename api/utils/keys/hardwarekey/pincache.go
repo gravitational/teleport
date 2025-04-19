@@ -117,7 +117,7 @@ func (p *PINCache) PromptOrGetPIN(ctx context.Context, prompt Prompt, requiremen
 
 func (p *PINCache) waitAndExpirePIN(expiry time.Time) {
 	for {
-		p.Clock.Sleep(p.Clock.Until(expiry))
+		p.Clock.Sleep(expiry.Sub(p.Clock.Now()))
 
 		p.mu.Lock()
 

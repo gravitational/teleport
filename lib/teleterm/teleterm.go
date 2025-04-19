@@ -106,11 +106,11 @@ func Serve(ctx context.Context, cfg Config) error {
 		hardwareKeyService := piv.NewYubiKeyService(daemonService.NewHardwareKeyPrompt())
 		hardwareKeyAgentServer, err = libhwk.NewAgentServer(ctx, hardwareKeyService, libhwk.DefaultAgentDir())
 		if err != nil {
-			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
+			log.Warn(ctx, "failed to create the hardware key agent server", "err", err)
 		} else {
 			go func() {
 				if err := hardwareKeyAgentServer.Serve(ctx); err != nil {
-					slog.WarnContext(ctx, "hardware key agent server error", "err", err)
+					log.Warn(ctx, "hardware key agent server error", "err", err)
 				}
 			}()
 		}

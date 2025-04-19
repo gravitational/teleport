@@ -19,6 +19,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -38,6 +39,8 @@ import (
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
 func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+	ctx := context.Background()
+
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]
