@@ -81,9 +81,9 @@ var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
 	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+	WriteTeleportVersion(ctx context.Context, version semver.Version) error
 }
 
 // InitConfig is auth server init config
@@ -364,6 +364,9 @@ type InitConfig struct {
 
 	// HealthCheckConfig manages health check config resources.
 	HealthCheckConfig services.HealthCheckConfig
+
+	// AuthInfo is a service of auth server information.
+	AuthInfo services.AuthInfoService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -411,7 +414,8 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
+
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService, *teleport.SemVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
