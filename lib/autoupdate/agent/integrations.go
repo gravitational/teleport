@@ -126,6 +126,9 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 	// If we are a package-based install, always use /usr/local/bin if it is valid.
 	// This ensures that the path is stable if Managed Updates is enabled/disabled.
 	if filepath.Join(packageSystemDir, "bin", name) == origPath {
+		// Verify that /usr/local/bin/[name] exists and resolves.
+		// If /opt/system/bin/[name] exists, /usr/local/bin/[name] is always
+		// the best candidate path, regardless of where it points.
 		linkPath := filepath.Join(defaultPath, name)
 		if _, err := os.Stat(linkPath); err == nil {
 			return linkPath, nil
@@ -134,15 +137,20 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 	}
 
 	// If we are a Managed Updates install, find the correct path from Managed Updates config.
+	// This is determined by looking for ../../../update.yaml, if we are in ../../../versions.
+	// update.yaml will always have the target path if Managed Updates are enabled.
 	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
 		cfgPath := filepath.Join(p, updateConfigName)
 		cfg, err := readConfig(cfgPath)
 		if err == nil && cfg.Spec.Path != "" {
+			// If the path exists and resolves, it is always the best candidate path,
+			// regardless of where it points. The running binary may be outdated.
 			linkPath := filepath.Join(cfg.Spec.Path, name)
 			if _, err := os.Stat(linkPath); err == nil {
 				return linkPath, nil
 			}
 		}
+		// If the config exists, but we cannot find a working binary, return the unstable path.
 		if _, err := os.Stat(cfgPath); err == nil {
 			return origPath, ErrUnstableExecutable
 		}
