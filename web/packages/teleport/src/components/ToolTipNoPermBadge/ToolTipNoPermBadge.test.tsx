@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-import { render, screen, userEvent } from 'design/utils/testing';
+import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
 import { BadgeTitle, ToolTipNoPermBadge } from './ToolTipNoPermBadge';
 
@@ -34,10 +34,14 @@ test('hovering renders tooltip msg and unhovering makes it disappear', async () 
   const badge = screen.getByTestId('tooltip');
 
   await userEvent.hover(badge);
-  expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
+  });
 
   await userEvent.unhover(badge);
-  expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
+  });
 });
 
 test('sticky prop prevents tooltip from disappearing until child element is unhovered', async () => {
@@ -52,17 +56,23 @@ test('sticky prop prevents tooltip from disappearing until child element is unho
   const badge = screen.getByTestId('tooltip');
 
   await userEvent.hover(badge);
-  expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
+  });
 
   const badgeChild = screen.getByTestId('tooltip-msg');
 
   // tooltip should be open on unhover
   await userEvent.unhover(badge);
-  expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByTestId('tooltip-msg')).toBeInTheDocument();
+  });
 
   // tooltip dissapears on child unhover
   await userEvent.unhover(badgeChild);
-  expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.queryByTestId('tooltip-msg')).not.toBeInTheDocument();
+  });
 });
 
 test('badgeTitle prop shows different text', async () => {
