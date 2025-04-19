@@ -1,0 +1,265 @@
+policy_module(teleport, 1.0.0)
+
+require {
+	role unconfined_r;
+
+	type bin_t;
+	type config_home_t;
+	type default_t;
+	type default_context_t;
+	type devlog_t;
+	type devpts_t;
+	type fs_t;
+	type groupadd_exec_t;
+	type http_port_t;
+	type init_t;
+	type initrc_var_run_t;
+	type kernel_t;
+	type lastlog_t;
+	type passwd_exec_t;
+	type passwd_file_t;
+	type ptmx_t;
+	type root_t;
+	type security_t;
+	type selinux_config_t;
+	type sssd_var_lib_t;
+	type systemd_logind_t;
+	type systemd_systemctl_exec_t;
+	type sysctl_net_t;
+	type sysfs_t;
+	type tmp_t;
+	type tracefs_t;
+	type unconfined_t;
+	type unreserved_port_t;
+	type user_devpts_t;
+	type useradd_exec_t;
+	type var_run_t;
+	type wtmp_t;
+
+	class capability { audit_control audit_write chown dac_override fowner fsetid net_admin net_bind_service setgid setuid sys_admin sys_resource };
+	class chr_file { append read write };
+	class dbus { send_msg };
+	class file { create getattr ioctl map open read remove_name setattr unlink write };
+	class filesystem getattr;
+	class process { setsched transition };
+	class sock_file { append create getattr open read setattr unlink write };
+	class tcp_socket { accept listen name_bind name_connect };
+}
+
+########################################
+#
+# Declarations
+#
+
+type teleport_t;
+domain_type(teleport_t);
+type teleport_exec_t;
+files_type(teleport_exec_t);
+
+type teleport_pid_t;
+files_type(teleport_pid_t);
+type teleport_etc_t;
+files_type(teleport_etc_t);
+type teleport_conf_t;
+files_config_file(teleport_conf_t);
+type teleport_data_t;
+files_type(teleport_data_t);
+type teleport_upgrade_data_t;
+files_type(teleport_upgrade_data_t);
+
+########################################
+#
+# Local policy
+#
+
+role unconfined_r types teleport_t;
+
+##
+# creation of initial process
+##
+init_daemon_domain(teleport_t, teleport_exec_t)
+# needed if run manually from terminal
+allow teleport_t teleport_exec_t:file { exec_file_perms lock entrypoint map };
+type_transition unconfined_t teleport_exec_t:process teleport_t;
+allow unconfined_t teleport_t:process transition;
+# allow SSH shell process to start a Teleport process (needed to detirmine home dir)
+allow unconfined_t teleport_exec_t:file entrypoint;
+
+##
+# files
+##
+allow teleport_t fs_t:filesystem getattr;
+
+allow init_t teleport_pid_t:file manage_file_perms;
+manage_files_pattern(teleport_t, var_run_t, teleport_pid_t);
+files_pid_filetrans(teleport_t, teleport_pid_t, file);
+
+allow teleport_t teleport_conf_t:file read_file_perms;
+allow teleport_t teleport_data_t:dir manage_dir_perms;
+allow teleport_t teleport_data_t:file manage_file_perms;
+allow teleport_t teleport_data_t:sock_file manage_sock_file_perms;
+allow teleport_t teleport_upgrade_data_t:dir manage_dir_perms;
+allow teleport_t teleport_upgrade_data_t:file manage_file_perms;
+
+allow teleport_t tmp_t:dir manage_dir_perms;
+allow teleport_t tmp_t:sock_file manage_sock_file_perms;
+allow teleport_t tmp_t:file manage_file_perms;
+
+allow teleport_t self:fifo_file rw_fifo_file_perms;
+
+# auditd logging
+allow teleport_t self:netlink_audit_socket { r_netlink_socket_perms nlmsg_relay };
+allow teleport_t self:netlink_route_socket create;
+allow teleport_t self:capability { audit_control audit_write };
+
+# Go runtime
+kernel_read_fs_sysctls(teleport_t);
+allow teleport_t sysfs_t:file read_file_perms;
+allow teleport_t sysfs_t:lnk_file read_lnk_file_perms;
+
+# searching for cloud auth files
+allow teleport_t config_home_t:file read_file_perms;
+# host user management
+allow teleport_t groupadd_exec_t:file exec_file_perms;
+allow teleport_t passwd_exec_t:file exec_file_perms;
+allow teleport_t useradd_exec_t:file exec_file_perms;
+# needed for getent and visudo
+allow teleport_t bin_t:file exec_file_perms;
+allow teleport_t init_t:system status;
+allow teleport_t kernel_t:unix_stream_socket connectto;
+
+##
+# write logs to terminal
+##
+domain_use_interactive_fds(teleport_t);
+allow teleport_t user_devpts_t:chr_file { rw_chr_file_perms relabelfrom };
+
+##
+# systemd
+##
+systemd_exec_systemctl(teleport_t);
+allow teleport_t init_t:unix_stream_socket connectto;
+
+##
+# networking
+##
+kernel_read_net_sysctls(teleport_t);
+sysnet_dns_name_resolve(teleport_t);
+allow teleport_t self:capability net_bind_service;
+allow teleport_t unreserved_port_t:tcp_socket { name_bind name_connect };
+allow teleport_t self:tcp_socket { listen accept };
+allow teleport_t self:unix_stream_socket create_stream_socket_perms;
+allow teleport_t self:unix_dgram_socket { connect create getopt getattr read recvfrom write sendto setattr };
+allow teleport_t kernel_t:unix_dgram_socket { recvfrom sendto };
+
+allow teleport_t http_port_t:tcp_socket name_connect;
+
+##
+# reexec
+##
+type_transition teleport_t teleport_exec_t:process teleport_t;
+allow teleport_t self:process { transition setexec setkeycreate setrlimit setsched };
+
+##
+# handling SSH connections
+##
+term_use_all_ptys(teleport_t);
+term_setattr_all_ptys(teleport_t);
+term_setattr_all_ttys(teleport_t);
+term_relabelto_all_ptys(teleport_t);
+term_use_ptmx(teleport_t);
+
+allow teleport_t devpts_t:chr_file { rw_chr_file_perms setattr };
+allow teleport_t self:capability { chown dac_override fowner fsetid setgid setuid sys_resource };
+
+fs_search_cgroup_dirs(teleport_t);
+fs_rw_cgroup_files(teleport_t);
+
+# host auth
+auth_use_nsswitch(teleport_t);
+allow teleport_t passwd_file_t:file read_file_perms;
+allow teleport_t shadow_t:file read_file_perms;
+auth_domtrans_chk_passwd(teleport_t);
+allow chkpwd_t user_devpts_t:chr_file { read write };
+allow teleport_t chkpwd_t:process { noatsecure rlimitinh siginh };
+allow teleport_t systemd_logind_t:dbus send_msg;
+allow teleport_t self:capability { net_admin };
+
+allow teleport_t selinux_config_t:file read_file_perms;
+allow teleport_t security_t:dir list_dir_perms;
+allow teleport_t security_t:file { getattr open read write map };
+# these are read-only permissions: https://github.com/SELinuxProject/selinux-notebook/blob/main/src/object_classes_permissions.md#security-object-class
+allow teleport_t security_t:security { check_context compute_av compute_relabel };
+
+# login data
+allow teleport_t initrc_var_run_t:file rw_file_perms;
+allow teleport_t wtmp_t:file rw_file_perms;
+allow teleport_t lastlog_t:file read_file_perms;
+
+# enhanced session recording
+allow teleport_t cgroup_t:filesystem { mount unmount };
+allow teleport_t cgroup_t:dir manage_dir_perms;
+allow teleport_t default_t:dir mounton;
+allow teleport_t self:bpf { map_create map_read map_write prog_load prog_run };
+allow teleport_t self:perf_event { cpu kernel open write };
+allow teleport_t tracefs_t:file read_file_perms;
+allow teleport_t root_t:dir { add_name create mounton write };
+allow teleport_t self:capability sys_admin;
+# not avalible on RHEL 8
+optional_policy(`
+	require { 
+        class capability2 { bpf perfmon };
+    };
+	allow teleport_t self:capability2 { bpf perfmon };
+')
+
+# PAM
+allow teleport_t default_context_t:file read_file_perms;
+allow teleport_t devlog_t:lnk_file read_lnk_file_perms;
+allow teleport_t devlog_t:sock_file rw_sock_file_perms;
+
+# motd
+# not avalible on RHEL 8
+optional_policy(`
+	require { 
+        type cockpit_var_run_t;
+        type motd_var_run_t;
+    };
+    allow teleport_t motd_var_run_t:dir list_dir_perms;
+    allow teleport_t motd_var_run_t:file read_file_perms;
+	allow teleport_t cockpit_var_run_t:lnk_file read_lnk_file_perms;
+	allow teleport_t cockpit_var_run_t:file read_file_perms;
+')
+
+files_search_all(teleport_t);
+files_create_home_dir(teleport_t);
+
+auth_exec_login_program(teleport_t);
+auth_signal_chk_passwd(teleport_t);
+
+userdom_read_user_home_content_files(teleport_t);
+userdom_read_user_home_content_symlinks(teleport_t);
+userdom_spec_domtrans_unpriv_users(teleport_t);
+userdom_signal_unpriv_users(teleport_t);
+userdom_dyntransition_unpriv_users(teleport_t);
+userdom_map_tmp_files(teleport_t);
+
+userdom_signal_all_users(teleport_t);
+userdom_spec_domtrans_admin_users(teleport_t);
+userdom_dyntransition_admin_users(teleport_t);
+
+unconfined_shell_domtrans(teleport_t);
+
+kernel_list_all_proc(teleport_t);
+kernel_read_proc_files(teleport_t);
+kernel_read_proc_symlinks(teleport_t);
+
+# X forwarding
+corenet_tcp_bind_xserver_port(teleport_t);
+corenet_tcp_bind_vnc_port(teleport_t);
+corenet_sendrecv_xserver_server_packets(teleport_t);
+
+optional_policy(`
+	xserver_domtrans_xauth(teleport_t);
+    xserver_xdm_signull(teleport_t);
+')
