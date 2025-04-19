@@ -25,6 +25,7 @@ package hardwarekeyagentv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -465,7 +466,10 @@ type KeyInfo struct {
 	Username string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
 	// ClusterName is a Teleport cluster name that the key is associated with.
 	// May be used to add context to PIN/touch prompts.
-	ClusterName   string `protobuf:"bytes,5,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	ClusterName string `protobuf:"bytes,5,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	// PinCacheTtl is the amount of time that the PIN should be cached for
+	// PIN prompts associated with this key. A TTL of 0 means no PIN caching.
+	PinCacheTtl   *durationpb.Duration `protobuf:"bytes,6,opt,name=pin_cache_ttl,json=pinCacheTtl,proto3" json:"pin_cache_ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -535,11 +539,18 @@ func (x *KeyInfo) GetClusterName() string {
 	return ""
 }
 
+func (x *KeyInfo) GetPinCacheTtl() *durationpb.Duration {
+	if x != nil {
+		return x.PinCacheTtl
+	}
+	return nil
+}
+
 var File_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto protoreflect.FileDescriptor
 
 const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc = "" +
 	"\n" +
-	";teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto\x12\x1cteleport.hardwarekeyagent.v1\"\r\n" +
+	";teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto\x12\x1cteleport.hardwarekeyagent.v1\x1a\x1egoogle/protobuf/duration.proto\"\r\n" +
 	"\vPingRequest\" \n" +
 	"\fPingResponse\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\"\x99\x02\n" +
@@ -556,14 +567,15 @@ const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc =
 	"\x06KeyRef\x12#\n" +
 	"\rserial_number\x18\x01 \x01(\rR\fserialNumber\x12C\n" +
 	"\bslot_key\x18\x02 \x01(\x0e2(.teleport.hardwarekeyagent.v1.PIVSlotKeyR\aslotKey\x12$\n" +
-	"\x0epublic_key_der\x18\x03 \x01(\fR\fpublicKeyDer\"\xb1\x01\n" +
+	"\x0epublic_key_der\x18\x03 \x01(\fR\fpublicKeyDer\"\xf0\x01\n" +
 	"\aKeyInfo\x12%\n" +
 	"\x0etouch_required\x18\x01 \x01(\bR\rtouchRequired\x12!\n" +
 	"\fpin_required\x18\x02 \x01(\bR\vpinRequired\x12\x1d\n" +
 	"\n" +
 	"proxy_host\x18\x03 \x01(\tR\tproxyHost\x12\x1a\n" +
 	"\busername\x18\x04 \x01(\tR\busername\x12!\n" +
-	"\fcluster_name\x18\x05 \x01(\tR\vclusterName*~\n" +
+	"\fcluster_name\x18\x05 \x01(\tR\vclusterName\x12=\n" +
+	"\rpin_cache_ttl\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vpinCacheTtl*~\n" +
 	"\n" +
 	"PIVSlotKey\x12\x1c\n" +
 	"\x18PIV_SLOT_KEY_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -595,29 +607,31 @@ func file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZI
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_goTypes = []any{
-	(PIVSlotKey)(0),      // 0: teleport.hardwarekeyagent.v1.PIVSlotKey
-	(Hash)(0),            // 1: teleport.hardwarekeyagent.v1.Hash
-	(*PingRequest)(nil),  // 2: teleport.hardwarekeyagent.v1.PingRequest
-	(*PingResponse)(nil), // 3: teleport.hardwarekeyagent.v1.PingResponse
-	(*SignRequest)(nil),  // 4: teleport.hardwarekeyagent.v1.SignRequest
-	(*Signature)(nil),    // 5: teleport.hardwarekeyagent.v1.Signature
-	(*KeyRef)(nil),       // 6: teleport.hardwarekeyagent.v1.KeyRef
-	(*KeyInfo)(nil),      // 7: teleport.hardwarekeyagent.v1.KeyInfo
+	(PIVSlotKey)(0),             // 0: teleport.hardwarekeyagent.v1.PIVSlotKey
+	(Hash)(0),                   // 1: teleport.hardwarekeyagent.v1.Hash
+	(*PingRequest)(nil),         // 2: teleport.hardwarekeyagent.v1.PingRequest
+	(*PingResponse)(nil),        // 3: teleport.hardwarekeyagent.v1.PingResponse
+	(*SignRequest)(nil),         // 4: teleport.hardwarekeyagent.v1.SignRequest
+	(*Signature)(nil),           // 5: teleport.hardwarekeyagent.v1.Signature
+	(*KeyRef)(nil),              // 6: teleport.hardwarekeyagent.v1.KeyRef
+	(*KeyInfo)(nil),             // 7: teleport.hardwarekeyagent.v1.KeyInfo
+	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
 }
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_depIdxs = []int32{
 	1, // 0: teleport.hardwarekeyagent.v1.SignRequest.hash:type_name -> teleport.hardwarekeyagent.v1.Hash
 	6, // 1: teleport.hardwarekeyagent.v1.SignRequest.key_ref:type_name -> teleport.hardwarekeyagent.v1.KeyRef
 	7, // 2: teleport.hardwarekeyagent.v1.SignRequest.key_info:type_name -> teleport.hardwarekeyagent.v1.KeyInfo
 	0, // 3: teleport.hardwarekeyagent.v1.KeyRef.slot_key:type_name -> teleport.hardwarekeyagent.v1.PIVSlotKey
-	2, // 4: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.hardwarekeyagent.v1.PingRequest
-	4, // 5: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.hardwarekeyagent.v1.SignRequest
-	3, // 6: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.hardwarekeyagent.v1.PingResponse
-	5, // 7: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.hardwarekeyagent.v1.Signature
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	8, // 4: teleport.hardwarekeyagent.v1.KeyInfo.pin_cache_ttl:type_name -> google.protobuf.Duration
+	2, // 5: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:input_type -> teleport.hardwarekeyagent.v1.PingRequest
+	4, // 6: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:input_type -> teleport.hardwarekeyagent.v1.SignRequest
+	3, // 7: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Ping:output_type -> teleport.hardwarekeyagent.v1.PingResponse
+	5, // 8: teleport.hardwarekeyagent.v1.HardwareKeyAgentService.Sign:output_type -> teleport.hardwarekeyagent.v1.Signature
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_init() }

@@ -50,7 +50,3 @@ func (s *unavailableYubiKeyPIVService) GetFullKeyRef(serialNumber uint32, slotKe
 }
 
 func (s *unavailableYubiKeyPIVService) SetPrompt(_ hardwarekey.Prompt) {}
-
-func (s *unavailableYubiKeyPIVService) GetPrompt() hardwarekey.Prompt {
-	return nil
-}

@@ -4017,6 +4017,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 				Username:    tc.Username,
 				ClusterName: tc.SiteName,
 			},
+			PINCacheTTL: tc.PIVPINCacheTTL,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
