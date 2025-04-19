@@ -44,6 +44,7 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -412,7 +413,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				proxyPingCache:    proxyPingCache,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
-				executablePath:    os.Executable,
+				executablePath:    autoupdate.StableExecutable,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -427,7 +428,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				proxyPingCache:    proxyPingCache,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
-				executablePath:    os.Executable,
+				executablePath:    autoupdate.StableExecutable,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
@@ -503,7 +504,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				getBotIdentity:    b.botIdentitySvc.GetIdentity,
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
-				executablePath:    os.Executable,
+				executablePath:    autoupdate.StableExecutable,
 				alpnUpgradeCache:  alpnUpgradeCache,
 				proxyPingCache:    proxyPingCache,
 			}
