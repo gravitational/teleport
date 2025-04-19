@@ -175,6 +175,7 @@ type CreateAuthenticateChallengeRequest struct {
 	ChallengeScope              int                   `json:"challenge_scope"`
 	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
 	UserVerificationRequirement string                `json:"user_verification_requirement"`
+	ProxyAddress                string                `json:"proxy_address"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -263,6 +264,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
 		SSOClientRedirectURL: ssoClientRedirectURL.String(),
+		ProxyAddress:         req.ProxyAddress,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

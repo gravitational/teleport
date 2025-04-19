@@ -602,7 +602,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge, t.proxyPublicAddr),
 		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
@@ -622,7 +622,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc) *mfa.Ceremony {
+func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.CreateAuthenticateChallengeFunc, proxyAddr string) *mfa.Ceremony {
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
 	var channelID string
 
@@ -642,6 +642,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 			u.RawQuery = url.Values{"channel_id": {channelID}}.Encode()
 			return &sso.MFACeremony{
 				ClientCallbackURL: u.String(),
+				ProxyAddress:      proxyAddr,
 			}, nil
 		},
 		PromptConstructor: func(...mfa.PromptOpt) mfa.Prompt {
@@ -834,7 +835,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				baseCeremony := newMFACeremony(t.stream.WSStream, nil)
+				baseCeremony := newMFACeremony(t.stream.WSStream, nil, t.proxyPublicAddr)
 				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), baseCeremony); err != nil {
 					t.logger.WarnContext(ctx, "Unable to stream terminal - failure performing presence checks", "error", err)
 					return
