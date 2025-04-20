@@ -2139,55 +2139,6 @@ func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	return inst, trace.Wrap(err)
 }
 
-// GetRoles is a part of auth.Cache implementation
-func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.roles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetRoles(ctx)
-}
-
-// ListRoles is a paginated role getter.
-func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListRoles")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.roles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListRoles(ctx, req)
-}
-
-// GetRole is a part of auth.Cache implementation
-func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.roles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	role, err := rg.reader.GetRole(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if role, err := c.Config.Access.GetRole(ctx, name); err == nil {
-			return role, nil
-		}
-	}
-	return role, err
-}
-
 // GetNode finds and returns a node by name and namespace.
 func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
