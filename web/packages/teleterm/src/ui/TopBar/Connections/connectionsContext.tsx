@@ -37,7 +37,7 @@ export type ConnectionsContext = {
    * isOpenRef is useful for reading isOpen from within event handlers whose identity shouldn't be
    * based on isOpen.
    */
-  isOpenRef: RefObject<boolean>;
+  isOpenRef: RefObject<boolean | null>;
   open: (step?: Step) => void;
   close: () => void;
   toggle: () => void;

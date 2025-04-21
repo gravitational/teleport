@@ -27,8 +27,8 @@ import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
 
 export function LayoutManager() {
-  const topBarConnectMyComputerRef = useRef<HTMLDivElement>();
-  const topBarAccessRequestRef = useRef<HTMLDivElement>();
+  const topBarConnectMyComputerRef = useRef<HTMLDivElement>(undefined);
+  const topBarAccessRequestRef = useRef<HTMLDivElement>(undefined);
 
   return (
     <Flex flex="1" flexDirection="column" minHeight={0}>

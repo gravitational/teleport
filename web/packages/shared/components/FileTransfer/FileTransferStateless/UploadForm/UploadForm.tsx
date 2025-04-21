@@ -29,8 +29,8 @@ interface UploadFormProps {
 }
 
 export function UploadForm(props: UploadFormProps) {
-  const dropzoneRef = useRef<HTMLButtonElement>();
-  const fileSelectorRef = useRef<HTMLInputElement>();
+  const dropzoneRef = useRef<HTMLButtonElement>(undefined);
+  const fileSelectorRef = useRef<HTMLInputElement>(undefined);
   const [destinationPath, setDestinationPath] = useState('~/');
 
   function onFileSelected(e: React.ChangeEvent<HTMLInputElement>): void {

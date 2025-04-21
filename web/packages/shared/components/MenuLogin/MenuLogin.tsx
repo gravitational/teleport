@@ -51,7 +51,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       style,
     } = props;
     const [filter, setFilter] = useState('');
-    const anchorRef = useRef<HTMLButtonElement>();
+    const anchorRef = useRef<HTMLButtonElement>(undefined);
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
       Promise.resolve().then(() => props.getLoginItems())
@@ -189,7 +189,7 @@ const LoginItemList = ({
     <Flex flexDirection="column" minWidth={width}>
       {inputType === MenuInputType.NONE ? (
         /* css and margin value matched with AWS Launch button <RoleItemList> */
-        <Text
+        (<Text
           px="2"
           mb={2}
           typography="body3"
@@ -197,7 +197,7 @@ const LoginItemList = ({
           backgroundColor="spotBackground.2"
         >
           {placeholder}
-        </Text>
+        </Text>)
       ) : (
         <Input
           p="2"

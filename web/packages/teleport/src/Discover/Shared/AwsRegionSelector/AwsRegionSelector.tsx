@@ -77,7 +77,7 @@ export function AwsRegionSelector({
   );
 }
 
-type RegionOption = Option<Regions, React.ReactElement>;
+type RegionOption = Option<Regions, React.ReactElement<any>>;
 
 const options: RegionOption[] = Object.keys(awsRegionMap).map(region => ({
   value: region as Regions,

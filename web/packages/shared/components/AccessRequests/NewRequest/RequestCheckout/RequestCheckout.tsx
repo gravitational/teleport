@@ -83,7 +83,7 @@ export const RequestCheckoutWithSlider = forwardRef<
      */
     ref
   ) => {
-    const wrapperRef = useRef<HTMLDivElement>();
+    const wrapperRef = useRef<HTMLDivElement>(undefined);
 
     // Listeners are attached to enable overflow on the wrapper div after
     // transitioning ends (entered) or starts (exits). Enables vertical scrolling

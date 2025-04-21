@@ -36,7 +36,7 @@ import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
 
 interface ParameterPickerProps {
   action: ParametrizedAction;
-  input: ReactElement;
+  input: ReactElement<any>;
 }
 
 export function ParameterPicker(props: ParameterPickerProps) {

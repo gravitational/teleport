@@ -26,7 +26,7 @@ import { ShareFeedbackForm } from './ShareFeedbackForm';
 import { useShareFeedback } from './useShareFeedback';
 
 export function ShareFeedback() {
-  const buttonRef = useRef<HTMLButtonElement>();
+  const buttonRef = useRef<HTMLButtonElement>(undefined);
   const {
     submitFeedbackAttempt,
     formValues,

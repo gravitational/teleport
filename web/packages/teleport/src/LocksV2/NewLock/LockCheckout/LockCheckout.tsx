@@ -73,7 +73,7 @@ export const LockCheckout = forwardRef<HTMLDivElement, Props>(
     },
     ref
   ) => {
-    const sliderRef = useRef<HTMLDivElement>();
+    const sliderRef = useRef<HTMLDivElement>(undefined);
 
     const { attempt, setAttempt } = useAttempt('');
 

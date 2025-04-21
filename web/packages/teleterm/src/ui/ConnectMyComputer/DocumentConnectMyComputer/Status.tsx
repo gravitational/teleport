@@ -145,7 +145,7 @@ export function Status(props: { closeDocument?: () => void }) {
     isRemoved ||
     isAgentIncompatibleOrUnknown;
 
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(undefined);
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">

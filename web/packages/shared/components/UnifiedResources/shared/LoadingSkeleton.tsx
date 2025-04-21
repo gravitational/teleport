@@ -23,7 +23,7 @@ const DISPLAY_SKELETON_AFTER_MS = 150;
 export function LoadingSkeleton(props: {
   count: number;
   /* Single skeleton item. */
-  Element: ReactElement;
+  Element: ReactElement<any>;
 }) {
   const [canDisplay, setCanDisplay] = useState(false);
 
@@ -44,7 +44,7 @@ export function LoadingSkeleton(props: {
     <>
       {new Array(props.count).fill(undefined).map((_, i) => (
         // Using index as key here is ok because these elements never change order
-        <Fragment key={i}>{props.Element}</Fragment>
+        (<Fragment key={i}>{props.Element}</Fragment>)
       ))}
     </>
   );

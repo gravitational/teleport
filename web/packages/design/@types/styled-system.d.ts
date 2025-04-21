@@ -1,3 +1,4 @@
+import type * as PropTypes from "prop-types";
 /**
  * Teleport
  * Copyright (C) 2024 Gravitational, Inc.
@@ -23,6 +24,6 @@ declare module 'styled-system' {
 
   export interface styleFn {
     (...args: any[]): any;
-    propTypes: React.WeakValidationMap<{ [string]: any }>;
+    propTypes: PropTypes.WeakValidationMap<{ [string]: any }>;
   }
 }

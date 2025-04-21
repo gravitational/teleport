@@ -36,7 +36,7 @@ import useTeleport from 'teleport/useTeleport';
 export function TopBar({
   CustomLogo,
 }: {
-  CustomLogo?: () => React.ReactElement;
+  CustomLogo?: () => React.ReactElement<any>;
 }) {
   const ctx = useTeleport();
   const history = useHistory();
@@ -92,7 +92,7 @@ export const TopBarContainer = styled(TopNav)`
 const TeleportLogo = ({
   CustomLogo,
 }: {
-  CustomLogo?: () => React.ReactElement;
+  CustomLogo?: () => React.ReactElement<any>;
 }) => {
   const theme = useTheme();
   const src = logos[cfg.edition][theme.type];

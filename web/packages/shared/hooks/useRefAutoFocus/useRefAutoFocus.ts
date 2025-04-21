@@ -26,7 +26,7 @@ export function useRefAutoFocus<T extends { focus(): void }>(options: {
   shouldFocus: boolean;
   refocusDeps?: DependencyList;
 }): MutableRefObject<T> {
-  const ref = useRef<T>();
+  const ref = useRef<T>(undefined);
 
   useEffect(() => {
     if (options.shouldFocus) {

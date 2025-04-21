@@ -66,7 +66,7 @@ import { getParameterPicker } from './pickers';
 import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
 import { useActionAttempts } from './useActionAttempts';
 
-export function ActionPicker(props: { input: ReactElement }) {
+export function ActionPicker(props: { input: ReactElement<any> }) {
   const ctx = useAppContext();
   const { clustersService, modalsService } = ctx;
   ctx.clustersService.useState();

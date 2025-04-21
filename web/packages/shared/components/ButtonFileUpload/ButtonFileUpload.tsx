@@ -56,7 +56,7 @@ export function ButtonFileUpload({
   buttonSize?: ButtonSize;
   buttonIconSize?: IconSize;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>();
+  const fileInputRef = useRef<HTMLInputElement>(undefined);
   const [fileInputError, setFileInputError] =
     useState<boolean>(showValidationError);
   if (showValidationError !== fileInputError) {

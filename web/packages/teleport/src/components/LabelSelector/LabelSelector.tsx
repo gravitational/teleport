@@ -33,9 +33,9 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
   const [validLabel, setValidLabel] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const infoIconRef = useRef<HTMLDivElement>();
-  const addLabelInputRef = useRef<HTMLInputElement>();
-  const addLabelContainerRef = useRef<HTMLDivElement>();
+  const infoIconRef = useRef<HTMLDivElement>(undefined);
+  const addLabelInputRef = useRef<HTMLInputElement>(undefined);
+  const addLabelContainerRef = useRef<HTMLDivElement>(undefined);
 
   useEffect(() => {
     setValidLabel(VALID_LABEL.test(newLabel));

@@ -59,7 +59,7 @@ export type NewCredentialsProps = UseTokenState & {
   setDisplayInviteCollaborators?: (bool: boolean) => void;
   InviteCollaborators?: ({
     onSubmit,
-  }: InviteCollaboratorsCardProps) => ReactElement;
+  }: InviteCollaboratorsCardProps) => ReactElement<any>;
 
   RecoveryCodes?: React.ComponentType<RecoveryCodesProps>;
 };

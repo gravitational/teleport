@@ -153,7 +153,7 @@ type renderProps = {
 };
 
 function renderWithContext(
-  ui: React.ReactElement,
+  ui: React.ReactElement<any>,
   { enterprise = true }: renderProps = {}
 ) {
   ctx.isEnterprise = enterprise;

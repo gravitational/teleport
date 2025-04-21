@@ -35,7 +35,7 @@ export type SimpleListOpts = {
     selectedResourceKind: LockResourceKind,
     resources: any[],
     listProps: SimpleListProps
-  ): React.ReactElement;
+  ): React.ReactElement<any>;
 };
 
 export function SimpleList(props: CommonListProps & { opts: SimpleListOpts }) {

@@ -132,10 +132,10 @@ export interface EmailPasswordResetDialogProps {
 
 type InviteCollaboratorsElement = (
   props: InviteCollaboratorsDialogProps
-) => ReactElement;
+) => ReactElement<any>;
 type EmailPasswordResetElement = (
   props: EmailPasswordResetDialogProps
-) => ReactElement;
+) => ReactElement<any>;
 
 export type UsersContainerProps = {
   InviteCollaborators?: InviteCollaboratorsElement;

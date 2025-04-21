@@ -52,7 +52,7 @@ export const VnetConnectionItem = (props: {
     onRun: props.openVnetPanel,
   });
 
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(undefined);
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -245,7 +245,7 @@ const VnetConnectionItemBase = forwardRef<
               ) : (
                 // If the user is not logged in to any workspace, a new doc cannot be opened.
                 // Instead, show a link to the documentation.
-                <ButtonIcon
+                (<ButtonIcon
                   as="a"
                   title="Open VNet documentation"
                   href="https://goteleport.com/docs/connect-your-client/vnet/"
@@ -256,7 +256,7 @@ const VnetConnectionItemBase = forwardRef<
                   }}
                 >
                   <icons.Question size={18} />
-                </ButtonIcon>
+                </ButtonIcon>)
               )}
 
               {isDiagSupported && (

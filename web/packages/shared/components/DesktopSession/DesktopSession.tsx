@@ -72,7 +72,7 @@ export interface DesktopSessionProps {
    * Useful for per-session MFA, which differs between Web UI and Connect.
    * Provides a callback to retry the connection.
    */
-  customConnectionState?(args: { retry(): void }): React.ReactElement;
+  customConnectionState?(args: { retry(): void }): React.ReactElement<any>;
   hasAnotherSession(): Promise<boolean>;
 }
 
@@ -490,7 +490,7 @@ function getScreenState(
   aclAttempt: Attempt<unknown>,
   anotherDesktopActiveAttempt: Attempt<unknown>,
   tdpConnectionStatus: TdpConnectionStatus,
-  customConnectionState: React.ReactElement | undefined
+  customConnectionState: React.ReactElement<any> | undefined
 ): ScreenState {
   if (customConnectionState) {
     return { state: 'custom', component: customConnectionState };

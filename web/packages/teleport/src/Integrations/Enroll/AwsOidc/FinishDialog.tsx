@@ -67,7 +67,7 @@ function FooterButton({
 }: {
   location: Location<any>;
   integration: IntegrationAwsOidc;
-}): React.ReactElement {
+}): React.ReactElement<any> {
   if (location.state?.discover) {
     return (
       <ButtonPrimary
