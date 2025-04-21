@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -316,7 +317,7 @@ func Run(args []string, stdout io.Writer) error {
 	case sshMultiplexProxyCmd.FullCommand():
 		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
 	case installSystemdCmdStr:
-		return installSystemdCmdFn(ctx, log, cf.ConfigPath, os.Executable, os.Stdout)
+		return installSystemdCmdFn(ctx, log, cf.ConfigPath, autoupdate.StableExecutable, os.Stdout)
 	}
 
 	botConfig, err := config.FromCLIConf(&cf)
