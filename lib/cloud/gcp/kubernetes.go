@@ -254,8 +254,15 @@ func convertLocationToGCP(location string) string {
 // Bearer token for authentication.
 func getTLSConfig(cluster *containerpb.Cluster, tok string) (*rest.Config, error) {
 	var tlsClientConfig rest.TLSClientConfig
-	dnsConfig := cluster.ControlPlaneEndpointsConfig.GetDnsEndpointConfig()
-	if dnsConfig == nil || !dnsConfig.GetAllowExternalTraffic() {
+
+	var endpoint string
+	if dnsConfig := cluster.GetControlPlaneEndpointsConfig().GetDnsEndpointConfig(); dnsConfig.GetAllowExternalTraffic() {
+		endpoint = dnsConfig.GetEndpoint()
+	} else if ipConfig := cluster.GetControlPlaneEndpointsConfig().GetIpEndpointsConfig(); ipConfig.GetEnabled() {
+		// If the cluster has IP access, we need to set the CA certificate for
+		// authentication as cluster.Endpoint always points to the IP address.
+		// Only set the CA certificate if the cluster has IP access enabled
+		// and we will use it.
 		if cluster.MasterAuth == nil {
 			return nil, trace.BadParameter("cluster.MasterAuth was not set and is required")
 		}
@@ -267,10 +274,22 @@ func getTLSConfig(cluster *containerpb.Cluster, tok string) (*rest.Config, error
 		tlsClientConfig = rest.TLSClientConfig{
 			CAData: ca,
 		}
+
+		if ipConfig.GetPublicEndpoint() != "" {
+			endpoint = ipConfig.GetPublicEndpoint()
+		} else {
+			endpoint = ipConfig.GetPrivateEndpoint()
+		}
+
+	} else {
+		return nil, trace.BadParameter("cluster does not have DNS or IP access enabled")
 	}
 
+	if endpoint == "" {
+		return nil, trace.BadParameter("cluster endpoint was not set and is required")
+	}
 	return &rest.Config{
-		Host:            fmt.Sprintf("https://%s", cluster.Endpoint),
+		Host:            fmt.Sprintf("https://%s", endpoint),
 		BearerToken:     tok,
 		TLSClientConfig: tlsClientConfig,
 	}, nil
