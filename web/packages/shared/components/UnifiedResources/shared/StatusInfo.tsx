@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { css } from 'styled-components';
+import styled, { css } from 'styled-components';
 
 import { Box, ButtonBorder, Indicator, Mark, Text } from 'design';
 import { Alert } from 'design/Alert';
@@ -238,7 +238,9 @@ function getAffectedResourceKind(resource: UnifiedResourceDefinition) {
 function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
   const lastServerInList = servers.length - 1;
   return servers.map((server, index) => (
-    <Box
+    <Flex
+      gap={2}
+      flexDirection="column"
       key={`${server.kind}/${server.hostId}`}
       css={`
         background-color: ${p => p.theme.colors.levels.sunken};
@@ -252,15 +254,15 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
       `}
     >
       <Text>
-        <b>Hostname:</b> {server.hostname}
+        <InfoField>Hostname:</InfoField> {server.hostname}
       </Text>
       <Text>
-        <b>UUID:</b> {server.hostId}
+        <InfoField>UUID:</InfoField> {server.hostId}
       </Text>
       <Text>
-        <b>Reason:</b> {server.targetHealth?.reason}
+        <InfoField>Reason:</InfoField> {server.targetHealth?.reason}
       </Text>
-    </Box>
+    </Flex>
   ));
 }
 
@@ -280,3 +282,7 @@ export function getResourceId(resource: UnifiedResourceDefinition) {
 
   return `${kind}/${id}`;
 }
+
+const InfoField = styled.span`
+  font-weight: bold;
+`;
