@@ -101,7 +101,7 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 
 	// Double check that the client didn't provide some bogus pin cache TTL.
 	if keyRef.PINCacheTTL > constants.MaxPIVPINCacheTTL {
-		return nil, trace.BadParameter("pin_cache_ttl cannot be larger than one hour")
+		return nil, trace.BadParameter("pin_cache_ttl cannot be larger than %s", constants.MaxPIVPINCacheTTL)
 	}
 
 	keyInfo := hardwarekey.ContextualKeyInfo{
