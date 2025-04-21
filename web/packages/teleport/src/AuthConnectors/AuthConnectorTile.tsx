@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonSecondary, Flex, H2, P3, Subtitle2 } from 'design';

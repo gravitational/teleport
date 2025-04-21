@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark } from 'design';

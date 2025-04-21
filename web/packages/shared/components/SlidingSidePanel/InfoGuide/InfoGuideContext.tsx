@@ -22,6 +22,7 @@ import {
   useContext,
   useEffect,
   useState,
+  type JSX,
 } from 'react';
 
 import { generalInfoPanelWidth } from './const';

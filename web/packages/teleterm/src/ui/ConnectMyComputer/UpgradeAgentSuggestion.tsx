@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+
 import { Alert, Text } from 'design';
 import Link from 'design/Link';
 import { compareSemVers } from 'shared/utils/semVer';

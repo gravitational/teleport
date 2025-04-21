@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+
 import { Alert, ButtonPrimary, Flex, Text } from 'design';
 import Link from 'design/Link';
 

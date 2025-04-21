@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, type JSX } from 'react';
 import { Transition } from 'react-transition-group';
 import styled, { css } from 'styled-components';
 

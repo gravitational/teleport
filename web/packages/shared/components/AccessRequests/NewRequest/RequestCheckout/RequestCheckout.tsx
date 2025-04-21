@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useEffect, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+} from 'react';
 import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
 
