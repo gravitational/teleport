@@ -485,7 +485,7 @@ func checkGaugeValue(t *testing.T, expected float64, gauge prometheus.Gauge) {
 	assert.NoError(t, err)
 
 	if err != nil {
-		assert.Equal(t, expected, protoMetric.GetGauge().GetValue())
+		assert.InEpsilon(t, expected, protoMetric.GetGauge().GetValue(), float64(0))
 	}
 }
 
