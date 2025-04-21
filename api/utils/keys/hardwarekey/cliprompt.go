@@ -35,15 +35,15 @@ var (
 )
 
 type cliPrompt struct {
-	writer   io.Writer
-	reader   prompt.StdinReader
+	writer io.Writer
+	reader prompt.StdinReader
 }
 
 // NewStdCLIPrompt returns a new CLIPrompt with stderr and stdout.
 func NewStdCLIPrompt() *cliPrompt {
 	return &cliPrompt{
-		writer:   os.Stderr,
-		reader:   prompt.Stdin(),
+		writer: os.Stderr,
+		reader: prompt.Stdin(),
 	}
 }
 
@@ -51,8 +51,8 @@ func NewStdCLIPrompt() *cliPrompt {
 // Used in tests.
 func NewCLIPrompt(w io.Writer, r prompt.StdinReader) *cliPrompt {
 	return &cliPrompt{
-		writer:   w,
-		reader:   r,
+		writer: w,
+		reader: r,
 	}
 }
 

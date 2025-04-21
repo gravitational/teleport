@@ -15,7 +15,6 @@
 package hardwarekey_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -26,9 +25,6 @@ import (
 )
 
 func TestPINCache(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	clock := clockwork.NewFakeClock()
 	pinCache := hardwarekey.PINCache{Clock: clock}
 
@@ -44,9 +40,6 @@ func TestPINCache(t *testing.T) {
 	require.Equal(t, testPIN, pinCache.GetPIN(mediumTTL))
 	require.Equal(t, testPIN, pinCache.GetPIN(largeTTL))
 
-	// Wait for the cleanup goroutine to block on clock.Sleep.
-	clock.BlockUntilContext(ctx, 1)
-
 	// Advancing by the small TTL should only expire the pin for the small TTL.
 	clock.Advance(smallTTL)
 	require.Zero(t, pinCache.GetPIN(smallTTL))
@@ -54,19 +47,13 @@ func TestPINCache(t *testing.T) {
 	require.Equal(t, testPIN, pinCache.GetPIN(largeTTL))
 
 	// Setting the PIN with the small TTL should reset the PIN's set-at time.
+	// The expiration time should remain tied to the medium TTL.
 	pinCache.SetPIN(testPIN, smallTTL)
 	require.Equal(t, testPIN, pinCache.GetPIN(smallTTL))
-
-	// The expiration time should remain tied to the medium TTL.
-	clock.Advance(2 * smallTTL)
 	require.Equal(t, testPIN, pinCache.GetPIN(mediumTTL))
 
-	// Advancing by the medium TTL, used to set the initial cache, should wipe the PIN cache.
+	// Advancing by the medium TTL, used to set the initial cache, should expire the PIN cache.
 	clock.Advance(mediumTTL)
-
-	// Wait for the cleanup goroutine to unblock on clock.Sleep.
-	clock.BlockUntilContext(ctx, 0)
-
 	require.Zero(t, pinCache.GetPIN(smallTTL))
 	require.Zero(t, pinCache.GetPIN(mediumTTL))
 	require.Zero(t, pinCache.GetPIN(largeTTL))

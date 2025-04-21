@@ -54,9 +54,11 @@ func (p *PINCache) GetPIN(ttl time.Duration) string {
 		return ""
 	}
 
-	// Check the pin cache expiration in case it hasn't been wiped by
-	// the waitAndExpirePIN goroutine yet.
+	// Check if the PIN cache is expired. If it is, wipe it.
 	if p.Clock.Now().After(p.pinExpiry) {
+		p.pin = ""
+		p.pinExpiry = time.Time{}
+		p.pinSetAt = time.Time{}
 		return ""
 	}
 
@@ -85,11 +87,6 @@ func (p *PINCache) SetPIN(pin string, ttl time.Duration) {
 	now := p.Clock.Now()
 	expiry := now.Add(ttl)
 
-	// Only start the expiration goroutine if it isn't already running.
-	if p.pinExpiry.IsZero() {
-		go p.waitAndExpirePIN(expiry)
-	}
-
 	// Only set the expiration if it exceeds the current expiration
 	// or the cached PIN is being changed.
 	if expiry.After(p.pinExpiry) || p.pin != pin {
@@ -113,23 +110,4 @@ func (p *PINCache) PromptOrGetPIN(ctx context.Context, prompt Prompt, requiremen
 
 	p.SetPIN(pin, pinCacheTTL)
 	return pin, nil
-}
-
-func (p *PINCache) waitAndExpirePIN(expiry time.Time) {
-	for {
-		p.Clock.Sleep(p.Clock.Until(expiry))
-
-		p.mu.Lock()
-
-		// If the expiration has been updated, keep waiting.
-		if p.pinExpiry.After(expiry) {
-			p.mu.Unlock()
-			continue
-		}
-
-		p.pin = ""
-		p.pinExpiry = time.Time{}
-		p.pinSetAt = time.Time{}
-		p.mu.Unlock()
-	}
 }
