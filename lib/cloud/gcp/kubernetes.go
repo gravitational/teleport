@@ -19,6 +19,7 @@
 package gcp
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -253,12 +254,19 @@ func convertLocationToGCP(location string) string {
 // getTLSConfig creates a rest.Config for the given cluster with the specified
 // Bearer token for authentication.
 func getTLSConfig(cluster *containerpb.Cluster, tok string) (*rest.Config, error) {
-	var tlsClientConfig rest.TLSClientConfig
+	dnsConfig := cluster.GetControlPlaneEndpointsConfig().GetDnsEndpointConfig()
+	ipConfig := cluster.GetControlPlaneEndpointsConfig().GetIpEndpointsConfig()
+	switch {
+	case dnsConfig.GetAllowExternalTraffic():
+		if dnsConfig.GetEndpoint() == "" {
+			return nil, trace.BadParameter("dns endpoint was not set and is required")
+		}
 
-	var endpoint string
-	if dnsConfig := cluster.GetControlPlaneEndpointsConfig().GetDnsEndpointConfig(); dnsConfig.GetAllowExternalTraffic() {
-		endpoint = dnsConfig.GetEndpoint()
-	} else if ipConfig := cluster.GetControlPlaneEndpointsConfig().GetIpEndpointsConfig(); ipConfig.GetEnabled() {
+		return &rest.Config{
+			Host:        "https://" + dnsConfig.GetEndpoint(),
+			BearerToken: tok,
+		}, nil
+	case ipConfig.GetEnabled():
 		// If the cluster has IP access, we need to set the CA certificate for
 		// authentication as cluster.Endpoint always points to the IP address.
 		// Only set the CA certificate if the cluster has IP access enabled
@@ -271,26 +279,19 @@ func getTLSConfig(cluster *containerpb.Cluster, tok string) (*rest.Config, error
 			return nil, trace.Wrap(err)
 		}
 
-		tlsClientConfig = rest.TLSClientConfig{
-			CAData: ca,
+		endpoint := cmp.Or(ipConfig.GetPublicEndpoint(), ipConfig.GetPrivateEndpoint())
+		if endpoint == "" {
+			return nil, trace.BadParameter("cluster endpoint was not set and is required")
 		}
 
-		if ipConfig.GetPublicEndpoint() != "" {
-			endpoint = ipConfig.GetPublicEndpoint()
-		} else {
-			endpoint = ipConfig.GetPrivateEndpoint()
-		}
-
-	} else {
+		return &rest.Config{
+			Host:        "https://" + endpoint,
+			BearerToken: tok,
+			TLSClientConfig: rest.TLSClientConfig{
+				CAData: ca,
+			},
+		}, nil
+	default:
 		return nil, trace.BadParameter("cluster does not have DNS or IP access enabled")
 	}
-
-	if endpoint == "" {
-		return nil, trace.BadParameter("cluster endpoint was not set and is required")
-	}
-	return &rest.Config{
-		Host:            fmt.Sprintf("https://%s", endpoint),
-		BearerToken:     tok,
-		TLSClientConfig: tlsClientConfig,
-	}, nil
 }
