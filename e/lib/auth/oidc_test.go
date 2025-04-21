@@ -1205,13 +1205,17 @@ func TestOIDCAuthRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	const defaultRedirectURL = "https://localhost:3080/v1/webapi/oidc/callback"
 	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
 		IssuerURL:    idp.S.URL,
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
-		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
+		RedirectURLs: []string{
+			defaultRedirectURL,
+			"https://alternate.example.com:3080/v1/webapi/oidc/callback",
+		},
+		Display: "sign in with example.com",
+		Scope:   []string{"foo", "bar"},
 		ClaimsToRoles: []types.ClaimMapping{
 			{
 				Claim: "groups",
@@ -1234,7 +1238,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 			IssuerURL:    idp.S.URL,
 			ClientID:     "example-client-id",
 			ClientSecret: "example-client-secret",
-			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+			RedirectURLs: []string{defaultRedirectURL},
 			Display:      "sign in with example.com",
 			Scope:        []string{"foo", "bar"},
 			ClaimsToRoles: []types.ClaimMapping{
@@ -1252,6 +1256,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 		roles              []string
 		request            types.OIDCAuthRequest
 		expectAccessDenied bool
+		expectRedirectURL  string
 	}{
 		{
 			desc:               "empty role - no access",
@@ -1264,6 +1269,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 			roles:              []string{access1Role.GetName()},
 			request:            reqNormal,
 			expectAccessDenied: false,
+			expectRedirectURL:  defaultRedirectURL,
 		},
 		{
 			desc:               "cannot create sso test request with normal access",
@@ -1288,12 +1294,25 @@ func TestOIDCAuthRequest(t *testing.T) {
 			roles:              []string{access3Role.GetName()},
 			request:            reqNormal,
 			expectAccessDenied: false,
+			expectRedirectURL:  defaultRedirectURL,
 		},
 		{
 			desc:               "can create sso test request with combined access",
 			roles:              []string{access3Role.GetName()},
 			request:            reqTest,
 			expectAccessDenied: false,
+			expectRedirectURL:  defaultRedirectURL,
+		},
+		{
+			desc:  "can create regular request with alternate redirect url",
+			roles: []string{access3Role.GetName()},
+			request: types.OIDCAuthRequest{
+				ConnectorID:  conn.GetName(),
+				Type:         constants.OIDC,
+				ProxyAddress: "https://alternate.example.com:3080",
+			},
+			expectAccessDenied: false,
+			expectRedirectURL:  "https://alternate.example.com:3080/v1/webapi/oidc/callback",
 		},
 	}
 
@@ -1320,6 +1339,10 @@ func TestOIDCAuthRequest(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 				return
+			} else {
+				redirectURL, err := url.ParseRequestURI(request.RedirectURL)
+				require.NoError(t, err)
+				require.Equal(t, tt.expectRedirectURL, redirectURL.Query().Get("redirect_uri"))
 			}
 
 			require.NoError(t, err)
