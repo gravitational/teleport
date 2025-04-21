@@ -111,6 +111,7 @@ var ErrUnstableExecutable = errors.New("executable has unstable path")
 // StableExecutable returns a stable path to Teleport binaries that may or may not be managed by Agent Managed Updates.
 // Note that StableExecutable is not guaranteed to return the same binary, as the binary may have been updated
 // since it started running. If a stable path cannot be found, an unstable path is returned with ErrUnstableExecutable.
+// The unstable path returned along with ErrUnstableExecutable will always be the result of os.Executable.
 func StableExecutable() (string, error) {
 	origPath, err := os.Executable()
 	if err != nil {
