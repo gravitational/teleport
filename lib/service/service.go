@@ -1275,6 +1275,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		getHello,
 		inventory.WithDownstreamClock(process.Clock),
 	)
+	if err != nil {
+		return nil, trace.Wrap(err, "building inventory handle")
+	}
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
