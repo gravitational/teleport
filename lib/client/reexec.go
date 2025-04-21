@@ -7,30 +7,30 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"strconv"
 	"time"
 
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/trace"
 )
 
-func buildForkAuthenticateCommand(ctx context.Context, origArgs []string, cf *CLIConf) (cmd *exec.Cmd, disownSignal *os.File, err error) {
-	if origArgs[0] != "ssh" {
-		return nil, nil, trace.BadParameter("cannot fork authenticate for non-ssh command")
-	}
-	cmd = exec.CommandContext(ctx, cf.executablePath)
+func buildForkAuthenticateCommand(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) (cmd *exec.Cmd, disownSignal *os.File, err error) {
+	return nil, nil, nil
+	// executable, err := os.Executable()
+	// if err != nil {
+	// 	return nil, nil, trace.Wrap(err)
+	// }
+	// cmd = exec.CommandContext(ctx, executable, args...)
 
-	pipeR, pipeW, err := os.Pipe()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	signalFd := addSignalFdToChild(cmd, pipeW)
-	cmd.Args = append([]string{cf.executablePath, "ssh", "--fork-signal-fd", strconv.FormatUint(uint64(signalFd), 16)}, origArgs[1:]...)
-	cmd.Stdin = cf.Stdin()
-	cmd.Stdout = cf.Stdout()
-	cmd.Stderr = cf.Stderr()
+	// pipeR, pipeW, err := os.Pipe()
+	// if err != nil {
+	// 	return nil, nil, trace.Wrap(err)
+	// }
+	// signalFd := addSignalFdToChild(cmd, pipeW)
+	// cmd.Stdin = cf.Stdin()
+	// cmd.Stdout = cf.Stdout()
+	// cmd.Stderr = cf.Stderr()
 
-	return cmd, pipeR, nil
+	// return cmd, pipeR, nil
 }
 
 func RunForkAuthenticateChild(ctx context.Context, cmd *exec.Cmd, disownSignal *os.File) (err error) {
