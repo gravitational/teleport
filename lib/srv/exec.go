@@ -41,6 +41,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -279,8 +280,10 @@ func (e *localExec) transformSecureCopy() error {
 
 	// for scp requests update the command to execute to launch teleport with
 	// scp parameters just like openssh does.
-	teleportBin, err := os.Executable()
-	if err != nil {
+	teleportBin, err := autoupdate.StableExecutable()
+	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+		slog.WarnContext(e.Ctx.CancelContext(), "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 	e.Command = fmt.Sprintf("%s scp --remote-addr=%q --local-addr=%q %v",

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
@@ -1022,8 +1023,10 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	if c.RequestType == sshutils.SubsystemRequest {
 		switch c.Command {
 		case teleport.SFTPSubsystem:
-			executable, err := os.Executable()
-			if err != nil {
+			executable, err := autoupdate.StableExecutable()
+			if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+				slog.WarnContext(context.Background(), "Re-execution for SFTP may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
+			} else if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			cmd.Path = executable
@@ -1207,8 +1210,10 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	go copyCommand(ctx, cmdmsg)
 
 	// Find the Teleport executable and its directory on disk.
-	executable, err := os.Executable()
-	if err != nil {
+	executable, err := autoupdate.StableExecutable()
+	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+		slog.WarnContext(ctx.CancelContext(), "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	executableDir, _ := filepath.Split(executable)
@@ -1342,8 +1347,10 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		return true, nil
 	}
 
-	executable, err := os.Executable()
-	if err != nil {
+	executable, err := autoupdate.StableExecutable()
+	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+		slog.WarnContext(context.Background(), "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
+	} else if err != nil {
 		return false, trace.Wrap(err)
 	}
 
@@ -1380,8 +1387,10 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 
 // Spawns a process with the given credentials, outliving the context.
 func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential) error {
-	executable, err := os.Executable()
-	if err != nil {
+	executable, err := autoupdate.StableExecutable()
+	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+		slog.WarnContext(ctx, "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
