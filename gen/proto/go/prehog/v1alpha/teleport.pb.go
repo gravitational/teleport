@@ -7942,29 +7942,35 @@ func (x *UserTaskStateEvent) GetInstancesCount() int32 {
 	return 0
 }
 
-// AccessRequestEvent emitted for Access Request audit events.
-type AccessRequestEvent struct {
+// AccessRequestCreateEvent is emitted when an Access Request is created.
+//
+// PostHog event: tp.access_request.create
+type AccessRequestCreateEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Teleport user name. Anonymized.
-	UserName      string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	// resources specifies the kind of resources requested.
+	//
+	// PostHog property: tp.access_request.resources.
+	Resources     []string `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AccessRequestEvent) Reset() {
-	*x = AccessRequestEvent{}
+func (x *AccessRequestCreateEvent) Reset() {
+	*x = AccessRequestCreateEvent{}
 	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AccessRequestEvent) String() string {
+func (x *AccessRequestCreateEvent) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AccessRequestEvent) ProtoMessage() {}
+func (*AccessRequestCreateEvent) ProtoMessage() {}
 
-func (x *AccessRequestEvent) ProtoReflect() protoreflect.Message {
+func (x *AccessRequestCreateEvent) ProtoReflect() protoreflect.Message {
 	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -7976,14 +7982,104 @@ func (x *AccessRequestEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessRequestEvent.ProtoReflect.Descriptor instead.
-func (*AccessRequestEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use AccessRequestCreateEvent.ProtoReflect.Descriptor instead.
+func (*AccessRequestCreateEvent) Descriptor() ([]byte, []int) {
 	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{102}
 }
 
-func (x *AccessRequestEvent) GetUserName() string {
+func (x *AccessRequestCreateEvent) GetUserName() string {
 	if x != nil {
 		return x.UserName
+	}
+	return ""
+}
+
+func (x *AccessRequestCreateEvent) GetResources() []string {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+// AccessRequestReviewEvent is emitted when an Access Request is reviewed.
+//
+// PostHog event: tp.access_request.review
+type AccessRequestReviewEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Teleport user name. Anonymized.
+	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	// resources specifies the kind of resources requested.
+	//
+	// PostHog property: tp.access_request.resources.
+	Resources []string `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources,omitempty"`
+	// is_bot_reviewed indicates whether the access request was automatically
+	// reviewed by a bot.
+	//
+	// PostHog property: tp.access_request.is_bot_reviewed.
+	IsBotReviewed bool `protobuf:"varint,3,opt,name=is_bot_reviewed,json=isBotReviewed,proto3" json:"is_bot_reviewed,omitempty"`
+	// proposed_state specifies the proposed state of the access request review.
+	// One of: APPROVED, DENIED
+	//
+	// PostHog property: tp.access_request.proposed_state.
+	ProposedState string `protobuf:"bytes,4,opt,name=proposed_state,json=proposedState,proto3" json:"proposed_state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessRequestReviewEvent) Reset() {
+	*x = AccessRequestReviewEvent{}
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessRequestReviewEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessRequestReviewEvent) ProtoMessage() {}
+
+func (x *AccessRequestReviewEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessRequestReviewEvent.ProtoReflect.Descriptor instead.
+func (*AccessRequestReviewEvent) Descriptor() ([]byte, []int) {
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{103}
+}
+
+func (x *AccessRequestReviewEvent) GetUserName() string {
+	if x != nil {
+		return x.UserName
+	}
+	return ""
+}
+
+func (x *AccessRequestReviewEvent) GetResources() []string {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *AccessRequestReviewEvent) GetIsBotReviewed() bool {
+	if x != nil {
+		return x.IsBotReviewed
+	}
+	return false
+}
+
+func (x *AccessRequestReviewEvent) GetProposedState() string {
+	if x != nil {
+		return x.ProposedState
 	}
 	return ""
 }
@@ -8100,8 +8196,8 @@ type SubmitEventRequest struct {
 	//	*SubmitEventRequest_SessionRecordingAccess
 	//	*SubmitEventRequest_UserTaskState
 	//	*SubmitEventRequest_UiIntegrationEnrollStepEvent
-	//	*SubmitEventRequest_AccessRequestCreateEvent
-	//	*SubmitEventRequest_AccessRequestReviewEvent
+	//	*SubmitEventRequest_AccessRequestCreate
+	//	*SubmitEventRequest_AccessRequestReview
 	Event         isSubmitEventRequest_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -8109,7 +8205,7 @@ type SubmitEventRequest struct {
 
 func (x *SubmitEventRequest) Reset() {
 	*x = SubmitEventRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8121,7 +8217,7 @@ func (x *SubmitEventRequest) String() string {
 func (*SubmitEventRequest) ProtoMessage() {}
 
 func (x *SubmitEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[103]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8134,7 +8230,7 @@ func (x *SubmitEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventRequest.ProtoReflect.Descriptor instead.
 func (*SubmitEventRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{103}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *SubmitEventRequest) GetClusterName() string {
@@ -8993,19 +9089,19 @@ func (x *SubmitEventRequest) GetUiIntegrationEnrollStepEvent() *UIIntegrationEnr
 	return nil
 }
 
-func (x *SubmitEventRequest) GetAccessRequestCreateEvent() *AccessRequestEvent {
+func (x *SubmitEventRequest) GetAccessRequestCreate() *AccessRequestCreateEvent {
 	if x != nil {
-		if x, ok := x.Event.(*SubmitEventRequest_AccessRequestCreateEvent); ok {
-			return x.AccessRequestCreateEvent
+		if x, ok := x.Event.(*SubmitEventRequest_AccessRequestCreate); ok {
+			return x.AccessRequestCreate
 		}
 	}
 	return nil
 }
 
-func (x *SubmitEventRequest) GetAccessRequestReviewEvent() *AccessRequestEvent {
+func (x *SubmitEventRequest) GetAccessRequestReview() *AccessRequestReviewEvent {
 	if x != nil {
-		if x, ok := x.Event.(*SubmitEventRequest_AccessRequestReviewEvent); ok {
-			return x.AccessRequestReviewEvent
+		if x, ok := x.Event.(*SubmitEventRequest_AccessRequestReview); ok {
+			return x.AccessRequestReview
 		}
 	}
 	return nil
@@ -9388,12 +9484,12 @@ type SubmitEventRequest_UiIntegrationEnrollStepEvent struct {
 	UiIntegrationEnrollStepEvent *UIIntegrationEnrollStepEvent `protobuf:"bytes,96,opt,name=ui_integration_enroll_step_event,json=uiIntegrationEnrollStepEvent,proto3,oneof"`
 }
 
-type SubmitEventRequest_AccessRequestCreateEvent struct {
-	AccessRequestCreateEvent *AccessRequestEvent `protobuf:"bytes,97,opt,name=access_request_create_event,json=accessRequestCreateEvent,proto3,oneof"`
+type SubmitEventRequest_AccessRequestCreate struct {
+	AccessRequestCreate *AccessRequestCreateEvent `protobuf:"bytes,99,opt,name=access_request_create,json=accessRequestCreate,proto3,oneof"`
 }
 
-type SubmitEventRequest_AccessRequestReviewEvent struct {
-	AccessRequestReviewEvent *AccessRequestEvent `protobuf:"bytes,98,opt,name=access_request_review_event,json=accessRequestReviewEvent,proto3,oneof"`
+type SubmitEventRequest_AccessRequestReview struct {
+	AccessRequestReview *AccessRequestReviewEvent `protobuf:"bytes,100,opt,name=access_request_review,json=accessRequestReview,proto3,oneof"`
 }
 
 func (*SubmitEventRequest_UserLogin) isSubmitEventRequest_Event() {}
@@ -9582,9 +9678,9 @@ func (*SubmitEventRequest_UserTaskState) isSubmitEventRequest_Event() {}
 
 func (*SubmitEventRequest_UiIntegrationEnrollStepEvent) isSubmitEventRequest_Event() {}
 
-func (*SubmitEventRequest_AccessRequestCreateEvent) isSubmitEventRequest_Event() {}
+func (*SubmitEventRequest_AccessRequestCreate) isSubmitEventRequest_Event() {}
 
-func (*SubmitEventRequest_AccessRequestReviewEvent) isSubmitEventRequest_Event() {}
+func (*SubmitEventRequest_AccessRequestReview) isSubmitEventRequest_Event() {}
 
 type SubmitEventResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -9594,7 +9690,7 @@ type SubmitEventResponse struct {
 
 func (x *SubmitEventResponse) Reset() {
 	*x = SubmitEventResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9606,7 +9702,7 @@ func (x *SubmitEventResponse) String() string {
 func (*SubmitEventResponse) ProtoMessage() {}
 
 func (x *SubmitEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[104]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9619,7 +9715,7 @@ func (x *SubmitEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventResponse.ProtoReflect.Descriptor instead.
 func (*SubmitEventResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{104}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{105}
 }
 
 type SubmitEventsRequest struct {
@@ -9632,7 +9728,7 @@ type SubmitEventsRequest struct {
 
 func (x *SubmitEventsRequest) Reset() {
 	*x = SubmitEventsRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9644,7 +9740,7 @@ func (x *SubmitEventsRequest) String() string {
 func (*SubmitEventsRequest) ProtoMessage() {}
 
 func (x *SubmitEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[105]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9657,7 +9753,7 @@ func (x *SubmitEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventsRequest.ProtoReflect.Descriptor instead.
 func (*SubmitEventsRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{105}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *SubmitEventsRequest) GetEvents() []*SubmitEventRequest {
@@ -9675,7 +9771,7 @@ type SubmitEventsResponse struct {
 
 func (x *SubmitEventsResponse) Reset() {
 	*x = SubmitEventsResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9687,7 +9783,7 @@ func (x *SubmitEventsResponse) String() string {
 func (*SubmitEventsResponse) ProtoMessage() {}
 
 func (x *SubmitEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[106]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9700,7 +9796,7 @@ func (x *SubmitEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitEventsResponse.ProtoReflect.Descriptor instead.
 func (*SubmitEventsResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{106}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{107}
 }
 
 type HelloTeleportRequest struct {
@@ -9711,7 +9807,7 @@ type HelloTeleportRequest struct {
 
 func (x *HelloTeleportRequest) Reset() {
 	*x = HelloTeleportRequest{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9723,7 +9819,7 @@ func (x *HelloTeleportRequest) String() string {
 func (*HelloTeleportRequest) ProtoMessage() {}
 
 func (x *HelloTeleportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[107]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9736,7 +9832,7 @@ func (x *HelloTeleportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloTeleportRequest.ProtoReflect.Descriptor instead.
 func (*HelloTeleportRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{107}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{108}
 }
 
 type HelloTeleportResponse struct {
@@ -9747,7 +9843,7 @@ type HelloTeleportResponse struct {
 
 func (x *HelloTeleportResponse) Reset() {
 	*x = HelloTeleportResponse{}
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9759,7 +9855,7 @@ func (x *HelloTeleportResponse) String() string {
 func (*HelloTeleportResponse) ProtoMessage() {}
 
 func (x *HelloTeleportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[108]
+	mi := &file_prehog_v1alpha_teleport_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9772,7 +9868,7 @@ func (x *HelloTeleportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HelloTeleportResponse.ProtoReflect.Descriptor instead.
 func (*HelloTeleportResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{108}
+	return file_prehog_v1alpha_teleport_proto_rawDescGZIP(), []int{109}
 }
 
 var File_prehog_v1alpha_teleport_proto protoreflect.FileDescriptor
@@ -10239,9 +10335,15 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\n" +
 	"issue_type\x18\x02 \x01(\tR\tissueType\x12\x14\n" +
 	"\x05state\x18\x03 \x01(\tR\x05state\x12'\n" +
-	"\x0finstances_count\x18\x04 \x01(\x05R\x0einstancesCount\"1\n" +
-	"\x12AccessRequestEvent\x12\x1b\n" +
-	"\tuser_name\x18\x01 \x01(\tR\buserName\"\xf1Q\n" +
+	"\x0finstances_count\x18\x04 \x01(\x05R\x0einstancesCount\"U\n" +
+	"\x18AccessRequestCreateEvent\x12\x1b\n" +
+	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x1c\n" +
+	"\tresources\x18\x02 \x03(\tR\tresources\"\xa4\x01\n" +
+	"\x18AccessRequestReviewEvent\x12\x1b\n" +
+	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x1c\n" +
+	"\tresources\x18\x02 \x03(\tR\tresources\x12&\n" +
+	"\x0fis_bot_reviewed\x18\x03 \x01(\bR\risBotReviewed\x12%\n" +
+	"\x0eproposed_state\x18\x04 \x01(\tR\rproposedState\"\xadR\n" +
 	"\x12SubmitEventRequest\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12)\n" +
@@ -10342,10 +10444,10 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"%ui_access_graph_crown_jewel_diff_view\x18\\ \x01(\v24.prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEventH\x00R\x1fuiAccessGraphCrownJewelDiffView\x12g\n" +
 	"\x18session_recording_access\x18] \x01(\v2+.prehog.v1alpha.SessionRecordingAccessEventH\x00R\x16sessionRecordingAccess\x12L\n" +
 	"\x0fuser_task_state\x18^ \x01(\v2\".prehog.v1alpha.UserTaskStateEventH\x00R\ruserTaskState\x12v\n" +
-	" ui_integration_enroll_step_event\x18` \x01(\v2,.prehog.v1alpha.UIIntegrationEnrollStepEventH\x00R\x1cuiIntegrationEnrollStepEvent\x12c\n" +
-	"\x1baccess_request_create_event\x18a \x01(\v2\".prehog.v1alpha.AccessRequestEventH\x00R\x18accessRequestCreateEvent\x12c\n" +
-	"\x1baccess_request_review_event\x18b \x01(\v2\".prehog.v1alpha.AccessRequestEventH\x00R\x18accessRequestReviewEventB\a\n" +
-	"\x05eventJ\x04\b\b\x10\tR\x1cui_onboard_get_started_click\"\x15\n" +
+	" ui_integration_enroll_step_event\x18` \x01(\v2,.prehog.v1alpha.UIIntegrationEnrollStepEventH\x00R\x1cuiIntegrationEnrollStepEvent\x12^\n" +
+	"\x15access_request_create\x18c \x01(\v2(.prehog.v1alpha.AccessRequestCreateEventH\x00R\x13accessRequestCreate\x12^\n" +
+	"\x15access_request_review\x18d \x01(\v2(.prehog.v1alpha.AccessRequestReviewEventH\x00R\x13accessRequestReviewB\a\n" +
+	"\x05eventJ\x04\b\b\x10\tJ\x04\ba\x10bJ\x04\bb\x10cR\x1cui_onboard_get_started_clickR\x1baccess_request_create_eventR\x1baccess_request_review_event\"\x15\n" +
 	"\x13SubmitEventResponse\"Q\n" +
 	"\x13SubmitEventsRequest\x12:\n" +
 	"\x06events\x18\x01 \x03(\v2\".prehog.v1alpha.SubmitEventRequestR\x06events\"\x16\n" +
@@ -10519,7 +10621,7 @@ func file_prehog_v1alpha_teleport_proto_rawDescGZIP() []byte {
 }
 
 var file_prehog_v1alpha_teleport_proto_enumTypes = make([]protoimpl.EnumInfo, 16)
-var file_prehog_v1alpha_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 109)
+var file_prehog_v1alpha_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 110)
 var file_prehog_v1alpha_teleport_proto_goTypes = []any{
 	(UserOrigin)(0),                                // 0: prehog.v1alpha.UserOrigin
 	(ResourceKind)(0),                              // 1: prehog.v1alpha.ResourceKind
@@ -10639,15 +10741,16 @@ var file_prehog_v1alpha_teleport_proto_goTypes = []any{
 	(*DatabaseUserPermissionsUpdateEvent)(nil),                // 115: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent
 	(*SessionRecordingAccessEvent)(nil),                       // 116: prehog.v1alpha.SessionRecordingAccessEvent
 	(*UserTaskStateEvent)(nil),                                // 117: prehog.v1alpha.UserTaskStateEvent
-	(*AccessRequestEvent)(nil),                                // 118: prehog.v1alpha.AccessRequestEvent
-	(*SubmitEventRequest)(nil),                                // 119: prehog.v1alpha.SubmitEventRequest
-	(*SubmitEventResponse)(nil),                               // 120: prehog.v1alpha.SubmitEventResponse
-	(*SubmitEventsRequest)(nil),                               // 121: prehog.v1alpha.SubmitEventsRequest
-	(*SubmitEventsResponse)(nil),                              // 122: prehog.v1alpha.SubmitEventsResponse
-	(*HelloTeleportRequest)(nil),                              // 123: prehog.v1alpha.HelloTeleportRequest
-	(*HelloTeleportResponse)(nil),                             // 124: prehog.v1alpha.HelloTeleportResponse
-	(*durationpb.Duration)(nil),                               // 125: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),                             // 126: google.protobuf.Timestamp
+	(*AccessRequestCreateEvent)(nil),                          // 118: prehog.v1alpha.AccessRequestCreateEvent
+	(*AccessRequestReviewEvent)(nil),                          // 119: prehog.v1alpha.AccessRequestReviewEvent
+	(*SubmitEventRequest)(nil),                                // 120: prehog.v1alpha.SubmitEventRequest
+	(*SubmitEventResponse)(nil),                               // 121: prehog.v1alpha.SubmitEventResponse
+	(*SubmitEventsRequest)(nil),                               // 122: prehog.v1alpha.SubmitEventsRequest
+	(*SubmitEventsResponse)(nil),                              // 123: prehog.v1alpha.SubmitEventsResponse
+	(*HelloTeleportRequest)(nil),                              // 124: prehog.v1alpha.HelloTeleportRequest
+	(*HelloTeleportResponse)(nil),                             // 125: prehog.v1alpha.HelloTeleportResponse
+	(*durationpb.Duration)(nil),                               // 126: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),                             // 127: google.protobuf.Timestamp
 }
 var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	0,   // 0: prehog.v1alpha.UserLoginEvent.user_origin:type_name -> prehog.v1alpha.UserOrigin
@@ -10658,7 +10761,7 @@ var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	2,   // 5: prehog.v1alpha.SessionStartEvent.user_kind:type_name -> prehog.v1alpha.UserKind
 	25,  // 6: prehog.v1alpha.SessionStartEvent.app:type_name -> prehog.v1alpha.SessionStartAppMetadata
 	26,  // 7: prehog.v1alpha.SessionStartEvent.git:type_name -> prehog.v1alpha.SessionStartGitMetadata
-	125, // 8: prehog.v1alpha.UserCertificateIssuedEvent.ttl:type_name -> google.protobuf.Duration
+	126, // 8: prehog.v1alpha.UserCertificateIssuedEvent.ttl:type_name -> google.protobuf.Duration
 	2,   // 9: prehog.v1alpha.SPIFFESVIDIssuedEvent.user_kind:type_name -> prehog.v1alpha.UserKind
 	3,   // 10: prehog.v1alpha.DiscoverResourceMetadata.resource:type_name -> prehog.v1alpha.DiscoverResource
 	4,   // 11: prehog.v1alpha.DiscoverStepStatus.status:type_name -> prehog.v1alpha.DiscoverStatus
@@ -10748,7 +10851,7 @@ var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	12,  // 95: prehog.v1alpha.LicenseLimitEvent.license_limit:type_name -> prehog.v1alpha.LicenseLimit
 	23,  // 96: prehog.v1alpha.DatabaseUserCreatedEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
 	23,  // 97: prehog.v1alpha.DatabaseUserPermissionsUpdateEvent.database:type_name -> prehog.v1alpha.SessionStartDatabaseMetadata
-	126, // 98: prehog.v1alpha.SubmitEventRequest.timestamp:type_name -> google.protobuf.Timestamp
+	127, // 98: prehog.v1alpha.SubmitEventRequest.timestamp:type_name -> google.protobuf.Timestamp
 	16,  // 99: prehog.v1alpha.SubmitEventRequest.user_login:type_name -> prehog.v1alpha.UserLoginEvent
 	18,  // 100: prehog.v1alpha.SubmitEventRequest.sso_create:type_name -> prehog.v1alpha.SSOCreateEvent
 	19,  // 101: prehog.v1alpha.SubmitEventRequest.resource_create:type_name -> prehog.v1alpha.ResourceCreateEvent
@@ -10841,15 +10944,15 @@ var file_prehog_v1alpha_teleport_proto_depIdxs = []int32{
 	116, // 188: prehog.v1alpha.SubmitEventRequest.session_recording_access:type_name -> prehog.v1alpha.SessionRecordingAccessEvent
 	117, // 189: prehog.v1alpha.SubmitEventRequest.user_task_state:type_name -> prehog.v1alpha.UserTaskStateEvent
 	93,  // 190: prehog.v1alpha.SubmitEventRequest.ui_integration_enroll_step_event:type_name -> prehog.v1alpha.UIIntegrationEnrollStepEvent
-	118, // 191: prehog.v1alpha.SubmitEventRequest.access_request_create_event:type_name -> prehog.v1alpha.AccessRequestEvent
-	118, // 192: prehog.v1alpha.SubmitEventRequest.access_request_review_event:type_name -> prehog.v1alpha.AccessRequestEvent
-	119, // 193: prehog.v1alpha.SubmitEventsRequest.events:type_name -> prehog.v1alpha.SubmitEventRequest
-	119, // 194: prehog.v1alpha.TeleportReportingService.SubmitEvent:input_type -> prehog.v1alpha.SubmitEventRequest
-	121, // 195: prehog.v1alpha.TeleportReportingService.SubmitEvents:input_type -> prehog.v1alpha.SubmitEventsRequest
-	123, // 196: prehog.v1alpha.TeleportReportingService.HelloTeleport:input_type -> prehog.v1alpha.HelloTeleportRequest
-	120, // 197: prehog.v1alpha.TeleportReportingService.SubmitEvent:output_type -> prehog.v1alpha.SubmitEventResponse
-	122, // 198: prehog.v1alpha.TeleportReportingService.SubmitEvents:output_type -> prehog.v1alpha.SubmitEventsResponse
-	124, // 199: prehog.v1alpha.TeleportReportingService.HelloTeleport:output_type -> prehog.v1alpha.HelloTeleportResponse
+	118, // 191: prehog.v1alpha.SubmitEventRequest.access_request_create:type_name -> prehog.v1alpha.AccessRequestCreateEvent
+	119, // 192: prehog.v1alpha.SubmitEventRequest.access_request_review:type_name -> prehog.v1alpha.AccessRequestReviewEvent
+	120, // 193: prehog.v1alpha.SubmitEventsRequest.events:type_name -> prehog.v1alpha.SubmitEventRequest
+	120, // 194: prehog.v1alpha.TeleportReportingService.SubmitEvent:input_type -> prehog.v1alpha.SubmitEventRequest
+	122, // 195: prehog.v1alpha.TeleportReportingService.SubmitEvents:input_type -> prehog.v1alpha.SubmitEventsRequest
+	124, // 196: prehog.v1alpha.TeleportReportingService.HelloTeleport:input_type -> prehog.v1alpha.HelloTeleportRequest
+	121, // 197: prehog.v1alpha.TeleportReportingService.SubmitEvent:output_type -> prehog.v1alpha.SubmitEventResponse
+	123, // 198: prehog.v1alpha.TeleportReportingService.SubmitEvents:output_type -> prehog.v1alpha.SubmitEventsResponse
+	125, // 199: prehog.v1alpha.TeleportReportingService.HelloTeleport:output_type -> prehog.v1alpha.HelloTeleportResponse
 	197, // [197:200] is the sub-list for method output_type
 	194, // [194:197] is the sub-list for method input_type
 	194, // [194:194] is the sub-list for extension type_name
@@ -10862,7 +10965,7 @@ func file_prehog_v1alpha_teleport_proto_init() {
 	if File_prehog_v1alpha_teleport_proto != nil {
 		return
 	}
-	file_prehog_v1alpha_teleport_proto_msgTypes[103].OneofWrappers = []any{
+	file_prehog_v1alpha_teleport_proto_msgTypes[104].OneofWrappers = []any{
 		(*SubmitEventRequest_UserLogin)(nil),
 		(*SubmitEventRequest_SsoCreate)(nil),
 		(*SubmitEventRequest_ResourceCreate)(nil),
@@ -10955,8 +11058,8 @@ func file_prehog_v1alpha_teleport_proto_init() {
 		(*SubmitEventRequest_SessionRecordingAccess)(nil),
 		(*SubmitEventRequest_UserTaskState)(nil),
 		(*SubmitEventRequest_UiIntegrationEnrollStepEvent)(nil),
-		(*SubmitEventRequest_AccessRequestCreateEvent)(nil),
-		(*SubmitEventRequest_AccessRequestReviewEvent)(nil),
+		(*SubmitEventRequest_AccessRequestCreate)(nil),
+		(*SubmitEventRequest_AccessRequestReview)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -10964,7 +11067,7 @@ func file_prehog_v1alpha_teleport_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_prehog_v1alpha_teleport_proto_rawDesc), len(file_prehog_v1alpha_teleport_proto_rawDesc)),
 			NumEnums:      16,
-			NumMessages:   109,
+			NumMessages:   110,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

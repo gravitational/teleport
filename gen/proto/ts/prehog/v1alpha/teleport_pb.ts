@@ -2776,17 +2776,68 @@ export interface UserTaskStateEvent {
     instancesCount: number;
 }
 /**
- * AccessRequestEvent emitted for Access Request audit events.
+ * AccessRequestCreateEvent is emitted when an Access Request is created.
  *
- * @generated from protobuf message prehog.v1alpha.AccessRequestEvent
+ * PostHog event: tp.access_request.create
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessRequestCreateEvent
  */
-export interface AccessRequestEvent {
+export interface AccessRequestCreateEvent {
     /**
      * Teleport user name. Anonymized.
      *
      * @generated from protobuf field: string user_name = 1;
      */
     userName: string;
+    /**
+     * resources specifies the kind of resources requested.
+     *
+     * PostHog property: tp.access_request.resources.
+     *
+     * @generated from protobuf field: repeated string resources = 2;
+     */
+    resources: string[];
+}
+/**
+ * AccessRequestReviewEvent is emitted when an Access Request is reviewed.
+ *
+ * PostHog event: tp.access_request.review
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessRequestReviewEvent
+ */
+export interface AccessRequestReviewEvent {
+    /**
+     * Teleport user name. Anonymized.
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * resources specifies the kind of resources requested.
+     *
+     * PostHog property: tp.access_request.resources.
+     *
+     * @generated from protobuf field: repeated string resources = 2;
+     */
+    resources: string[];
+    /**
+     * is_bot_reviewed indicates whether the access request was automatically
+     * reviewed by a bot.
+     *
+     * PostHog property: tp.access_request.is_bot_reviewed.
+     *
+     * @generated from protobuf field: bool is_bot_reviewed = 3;
+     */
+    isBotReviewed: boolean;
+    /**
+     * proposed_state specifies the proposed state of the access request review.
+     * One of: APPROVED, DENIED
+     *
+     * PostHog property: tp.access_request.proposed_state.
+     *
+     * @generated from protobuf field: string proposed_state = 4;
+     */
+    proposedState: string;
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -3383,17 +3434,17 @@ export interface SubmitEventRequest {
          */
         uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent;
     } | {
-        oneofKind: "accessRequestCreateEvent";
+        oneofKind: "accessRequestCreate";
         /**
-         * @generated from protobuf field: prehog.v1alpha.AccessRequestEvent access_request_create_event = 97;
+         * @generated from protobuf field: prehog.v1alpha.AccessRequestCreateEvent access_request_create = 99;
          */
-        accessRequestCreateEvent: AccessRequestEvent;
+        accessRequestCreate: AccessRequestCreateEvent;
     } | {
-        oneofKind: "accessRequestReviewEvent";
+        oneofKind: "accessRequestReview";
         /**
-         * @generated from protobuf field: prehog.v1alpha.AccessRequestEvent access_request_review_event = 98;
+         * @generated from protobuf field: prehog.v1alpha.AccessRequestReviewEvent access_request_review = 100;
          */
-        accessRequestReviewEvent: AccessRequestEvent;
+        accessRequestReview: AccessRequestReviewEvent;
     } | {
         oneofKind: undefined;
     };
@@ -10520,26 +10571,31 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
  */
 export const UserTaskStateEvent = new UserTaskStateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class AccessRequestEvent$Type extends MessageType<AccessRequestEvent> {
+class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent> {
     constructor() {
-        super("prehog.v1alpha.AccessRequestEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        super("prehog.v1alpha.AccessRequestCreateEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resources", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<AccessRequestEvent>): AccessRequestEvent {
+    create(value?: PartialMessage<AccessRequestCreateEvent>): AccessRequestCreateEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
+        message.resources = [];
         if (value !== undefined)
-            reflectionMergePartial<AccessRequestEvent>(this, message, value);
+            reflectionMergePartial<AccessRequestCreateEvent>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestEvent): AccessRequestEvent {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestCreateEvent): AccessRequestCreateEvent {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
                 case /* string user_name */ 1:
                     message.userName = reader.string();
+                    break;
+                case /* repeated string resources */ 2:
+                    message.resources.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -10552,10 +10608,13 @@ class AccessRequestEvent$Type extends MessageType<AccessRequestEvent> {
         }
         return message;
     }
-    internalBinaryWrite(message: AccessRequestEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: AccessRequestCreateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string user_name = 1; */
         if (message.userName !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* repeated string resources = 2; */
+        for (let i = 0; i < message.resources.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.resources[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -10563,9 +10622,80 @@ class AccessRequestEvent$Type extends MessageType<AccessRequestEvent> {
     }
 }
 /**
- * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestEvent
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestCreateEvent
  */
-export const AccessRequestEvent = new AccessRequestEvent$Type();
+export const AccessRequestCreateEvent = new AccessRequestCreateEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessRequestReviewEvent$Type extends MessageType<AccessRequestReviewEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessRequestReviewEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resources", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "is_bot_reviewed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "proposed_state", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessRequestReviewEvent>): AccessRequestReviewEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.resources = [];
+        message.isBotReviewed = false;
+        message.proposedState = "";
+        if (value !== undefined)
+            reflectionMergePartial<AccessRequestReviewEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestReviewEvent): AccessRequestReviewEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* repeated string resources */ 2:
+                    message.resources.push(reader.string());
+                    break;
+                case /* bool is_bot_reviewed */ 3:
+                    message.isBotReviewed = reader.bool();
+                    break;
+                case /* string proposed_state */ 4:
+                    message.proposedState = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessRequestReviewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* repeated string resources = 2; */
+        for (let i = 0; i < message.resources.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.resources[i]);
+        /* bool is_bot_reviewed = 3; */
+        if (message.isBotReviewed !== false)
+            writer.tag(3, WireType.Varint).bool(message.isBotReviewed);
+        /* string proposed_state = 4; */
+        if (message.proposedState !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.proposedState);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestReviewEvent
+ */
+export const AccessRequestReviewEvent = new AccessRequestReviewEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
@@ -10665,8 +10795,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 93, name: "session_recording_access", kind: "message", oneof: "event", T: () => SessionRecordingAccessEvent },
             { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent },
             { no: 96, name: "ui_integration_enroll_step_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollStepEvent },
-            { no: 97, name: "access_request_create_event", kind: "message", oneof: "event", T: () => AccessRequestEvent },
-            { no: 98, name: "access_request_review_event", kind: "message", oneof: "event", T: () => AccessRequestEvent }
+            { no: 99, name: "access_request_create", kind: "message", oneof: "event", T: () => AccessRequestCreateEvent },
+            { no: 100, name: "access_request_review", kind: "message", oneof: "event", T: () => AccessRequestReviewEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -11244,16 +11374,16 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollStepEvent)
                     };
                     break;
-                case /* prehog.v1alpha.AccessRequestEvent access_request_create_event */ 97:
+                case /* prehog.v1alpha.AccessRequestCreateEvent access_request_create */ 99:
                     message.event = {
-                        oneofKind: "accessRequestCreateEvent",
-                        accessRequestCreateEvent: AccessRequestEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestCreateEvent)
+                        oneofKind: "accessRequestCreate",
+                        accessRequestCreate: AccessRequestCreateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestCreate)
                     };
                     break;
-                case /* prehog.v1alpha.AccessRequestEvent access_request_review_event */ 98:
+                case /* prehog.v1alpha.AccessRequestReviewEvent access_request_review */ 100:
                     message.event = {
-                        oneofKind: "accessRequestReviewEvent",
-                        accessRequestReviewEvent: AccessRequestEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestReviewEvent)
+                        oneofKind: "accessRequestReview",
+                        accessRequestReview: AccessRequestReviewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestReview)
                     };
                     break;
                 default:
@@ -11553,12 +11683,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96; */
         if (message.event.oneofKind === "uiIntegrationEnrollStepEvent")
             UIIntegrationEnrollStepEvent.internalBinaryWrite(message.event.uiIntegrationEnrollStepEvent, writer.tag(96, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessRequestEvent access_request_create_event = 97; */
-        if (message.event.oneofKind === "accessRequestCreateEvent")
-            AccessRequestEvent.internalBinaryWrite(message.event.accessRequestCreateEvent, writer.tag(97, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessRequestEvent access_request_review_event = 98; */
-        if (message.event.oneofKind === "accessRequestReviewEvent")
-            AccessRequestEvent.internalBinaryWrite(message.event.accessRequestReviewEvent, writer.tag(98, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessRequestCreateEvent access_request_create = 99; */
+        if (message.event.oneofKind === "accessRequestCreate")
+            AccessRequestCreateEvent.internalBinaryWrite(message.event.accessRequestCreate, writer.tag(99, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessRequestReviewEvent access_request_review = 100; */
+        if (message.event.oneofKind === "accessRequestReview")
+            AccessRequestReviewEvent.internalBinaryWrite(message.event.accessRequestReview, writer.tag(100, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

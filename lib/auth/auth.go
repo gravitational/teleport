@@ -5288,6 +5288,19 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
 
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName:  req.GetUser(),
+		Resources: apiutils.Deduplicate(resources),
+	})
+
 	// Create a notification.
 	var notificationText string
 	// If this is a resource request.
@@ -5623,6 +5636,21 @@ func (a *Server) submitAccessReview(
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
+
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName:      params.Review.Author,
+		Resources:     apiutils.Deduplicate(resources),
+		IsBotReviewed: (params.Review.Author == teleport.SystemAccessApproverUserName),
+		ProposedState: params.Review.ProposedState.String(),
+	})
 
 	return req, nil
 }
