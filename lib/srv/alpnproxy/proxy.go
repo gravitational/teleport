@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -666,7 +667,7 @@ func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config) ConnectionHan
 		if err := p.handleConn(ctx, conn, defaultOverride); err != nil {
 			// Make sure we close the connection on error.
 			if cerr := conn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-				p.log.WarnContext(ctx, "Failed to close client connection.", "error", err)
+				p.log.WarnContext(ctx, "Failed to close client connection.", "error", cerr, "remote_addr", logutils.StringerAttr(conn.RemoteAddr()))
 			}
 			// Still return the error for caller to report/log.
 			return trace.Wrap(err)

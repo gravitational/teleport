@@ -29,7 +29,7 @@ func TestConnHandlerSource(t *testing.T) {
 	ctx := context.Background()
 
 	require.Equal(t, ConnHandlerSourceUnspecified, GetConnHandlerSource(ctx))
-	for _, value := range []ConnHandlerSource{
+	for _, value := range []string{
 		ConnHandlerSourceListener,
 		ConnHandlerSourceWebConnUpgrade,
 		ConnHandlerSourceWebDB,

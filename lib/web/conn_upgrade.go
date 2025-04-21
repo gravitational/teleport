@@ -145,7 +145,7 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request.",
 			"protocol", wsConn.Subprotocol(),
 			"error", err,
-			"client_addr", conn.RemoteAddr().String(),
+			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
 		)
 	}
 	return nil, nil
