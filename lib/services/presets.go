@@ -828,9 +828,10 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 		},
 		teleport.PresetTerraformProviderRoleName: {
-			AppLabels:      wildcardLabels,
-			DatabaseLabels: wildcardLabels,
-			NodeLabels:     wildcardLabels,
+			AppLabels:            wildcardLabels,
+			DatabaseLabels:       wildcardLabels,
+			NodeLabels:           wildcardLabels,
+			WindowsDesktopLabels: wildcardLabels,
 		},
 	}
 
@@ -984,6 +985,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 			types.KindDatabaseService,
 			types.KindNode,
 			types.KindUserGroup,
+			types.KindWindowsDesktop,
 		} {
 			var labels types.Labels
 			switch kind {
@@ -997,6 +999,8 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 				labels = defaultLabels.NodeLabels
 			case types.KindUserGroup:
 				labels = defaultLabels.GroupLabels
+			case types.KindWindowsDesktop:
+				labels = defaultLabels.WindowsDesktopLabels
 			}
 			labelsUpdated, err := updateAllowLabels(role, kind, labels)
 			if err != nil {
