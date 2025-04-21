@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -30,7 +31,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
@@ -396,41 +396,29 @@ func writeSystemTemplate(path, t string, values any) error {
 	if err := os.MkdirAll(dir, systemDirMode); err != nil {
 		return trace.Wrap(err)
 	}
-	opts := []renameio.Option{
-		renameio.WithPermissions(configFileMode),
-		renameio.WithExistingPermissions(),
-		renameio.WithTempDir(dir),
-	}
-	f, err := renameio.NewPendingFile(path, opts...)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer f.Cleanup()
 
-	tmpl, err := template.New(file).Funcs(template.FuncMap{
-		"replace": func(s, old, new string) string {
-			return strings.ReplaceAll(s, old, new)
-		},
-		// escape is a best-effort function for escaping quotes in systemd service templates.
-		// Paths that are escaped with this method should not be advertised to the user as
-		// configurable until a more robust escaping mechanism is shipped.
-		// See: https://www.freedesktop.org/software/systemd/man/latest/systemd.syntax.html
-		"escape": func(s string) string {
-			replacer := strings.NewReplacer(
-				`"`, `\"`,
-				`\`, `\\`,
-			)
-			return replacer.Replace(s)
-		},
-	}).Parse(t)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = tmpl.Execute(f, values)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(f.CloseAtomicallyReplace())
+	return trace.Wrap(writeAtomicWithinDir(path, configFileMode, func(w io.Writer) error {
+		tmpl, err := template.New(file).Funcs(template.FuncMap{
+			"replace": func(s, old, new string) string {
+				return strings.ReplaceAll(s, old, new)
+			},
+			// escape is a best-effort function for escaping quotes in systemd service templates.
+			// Paths that are escaped with this method should not be advertised to the user as
+			// configurable until a more robust escaping mechanism is shipped.
+			// See: https://www.freedesktop.org/software/systemd/man/latest/systemd.syntax.html
+			"escape": func(s string) string {
+				replacer := strings.NewReplacer(
+					`"`, `\"`,
+					`\`, `\\`,
+				)
+				return replacer.Replace(s)
+			},
+		}).Parse(t)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(tmpl.Execute(w, values))
+	}))
 }
 
 // ReplaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
