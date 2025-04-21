@@ -53,6 +53,7 @@ type collections struct {
 	users           *collection[types.User]
 	roles           *collection[types.Role]
 	authServers     *collection[types.Server]
+	proxyServers    *collection[types.Server]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -107,6 +108,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.authServers = collect
 			out.byKind[resourceKind] = out.authServers
+		case types.KindProxy:
+			collect, err := newProxyServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.proxyServers = collect
+			out.byKind[resourceKind] = out.proxyServers
 		}
 	}
 
