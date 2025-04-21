@@ -22,8 +22,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"strings"
@@ -140,7 +144,52 @@ const (
 	signTouchPromptDelay = time.Millisecond * 200
 )
 
+var (
+	ErrMissingTeleportCert = trace.BadParameterError{
+		Message: "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
+			"The PIV slot should be configured automatically by the Teleport client during login. If you are " +
+			"are configuring the PIV slot manually, you must also generate a certificate in the slot with " +
+			"\"teleport\" as the organization name: " +
+			"e.g. \"ykman piv keys generate -a ECCP256 9a pub.pem && ykman piv certificate generate 9a pub.pem -s O=teleport\"",
+	}
+)
+
 func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check that the public key in the slot matches our record.
+	slotCert, err := y.conn.attest(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type cryptoPublicKeyI interface {
+		Equal(x crypto.PublicKey) bool
+	}
+	if slotPub, ok := slotCert.PublicKey.(cryptoPublicKeyI); !ok {
+		return nil, trace.BadParameter("expected crypto.PublicKey but got %T", slotCert.PublicKey)
+	} else if !slotPub.Equal(ref.PublicKey) {
+		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
+	}
+
+	// If this sign request is coming from the hardware key agent, ensure that the requested PIV
+	// slot was configured by a Teleport client, or manually configured by the user / hardware key
+	// administrator. Manual configuration is used in cases where the default PIV management key
+	// is not used, e.g. when the hardware key is managed by a third party provider by an admin.
+	if keyInfo.AgentKey {
+		cert, err := y.getCertificate(pivSlot)
+		switch {
+		case errors.Is(err, piv.ErrNotFound):
+			return nil, trace.Wrap(&ErrMissingTeleportCert, "certificate not found in PIV slot 0x%x", pivSlot.Key)
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case !isTeleportMetadataCertificate(cert):
+			return nil, trace.Wrap(&ErrMissingTeleportCert, nonTeleportCertificateMessage(pivSlot, cert))
+		}
+	}
+
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -211,11 +260,6 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 		// a previous recent call, the signature will succeed as expected of the "once" policy.
 		auth.PINPolicy = piv.PINPolicyNever
 		manualRetryWithPIN = true
-	}
-
-	pivSlot, err := parsePIVSlot(ref.SlotKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	privateKey, err := y.conn.privateKey(pivSlot, ref.PublicKey, auth)
@@ -691,4 +735,33 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
+}
+
+func isTeleportMetadataCertificate(cert *x509.Certificate) bool {
+	return len(cert.Subject.Organization) > 0 && cert.Subject.Organization[0] == certOrgName
+}
+
+func nonTeleportCertificateMessage(slot piv.Slot, cert *x509.Certificate) string {
+	// Gather a small list of user-readable x509 certificate fields to display to the user.
+	sum := sha256.Sum256(cert.Raw)
+	fingerPrint := hex.EncodeToString(sum[:])
+	return fmt.Sprintf(`Certificate in YubiKey PIV slot %q is not a Teleport client cert:
+Slot %s:
+	Algorithm:		%v
+	Subject DN:		%v
+	Issuer DN:		%v
+	Serial:			%v
+	Fingerprint:	%v
+	Not before:		%v
+	Not after:		%v
+`,
+		slot, slot,
+		cert.SignatureAlgorithm,
+		cert.Subject,
+		cert.Issuer,
+		cert.SerialNumber,
+		fingerPrint,
+		cert.NotBefore,
+		cert.NotAfter,
+	)
 }

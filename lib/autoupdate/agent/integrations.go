@@ -19,6 +19,7 @@
 package agent
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +41,7 @@ func IsManagedByUpdater() (bool, error) {
 	if !systemd {
 		return false, nil
 	}
-	teleportPath, err := os.Readlink("/proc/self/exe")
+	teleportPath, err := os.Executable()
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
@@ -72,7 +73,7 @@ func IsManagedAndDefault() (bool, error) {
 	if !systemd {
 		return false, nil
 	}
-	teleportPath, err := os.Readlink("/proc/self/exe")
+	teleportPath, err := os.Executable()
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
@@ -102,4 +103,71 @@ func hasParentDir(dir, parent string) (bool, error) {
 		absParent += sep
 	}
 	return strings.HasPrefix(absDir, absParent), nil
+}
+
+// ErrUnstableExecutable is returned by StableExecutable when no stable path can be found.
+var ErrUnstableExecutable = errors.New("executable has unstable path")
+
+// StableExecutable returns a stable path to Teleport binaries that may or may not be managed by Agent Managed Updates.
+// Note that StableExecutable is not guaranteed to return the same binary, as the binary may have been updated
+// since it started running. If a stable path cannot be found, an unstable path is returned with ErrUnstableExecutable.
+// The unstable path returned along with ErrUnstableExecutable will always be the result of os.Executable.
+func StableExecutable() (string, error) {
+	origPath, err := os.Executable()
+	if err != nil {
+		return origPath, trace.Wrap(err)
+	}
+	p, err := stablePathForBinary(origPath, defaultPathDir)
+	return p, trace.Wrap(err)
+}
+
+func stablePathForBinary(origPath, defaultPath string) (string, error) {
+	_, name := filepath.Split(origPath)
+
+	// If we are a package-based install, always use /usr/local/bin if it is valid.
+	// This ensures that the path is stable if Managed Updates is enabled/disabled.
+	if filepath.Join(packageSystemDir, "bin", name) == origPath {
+		// Verify that /usr/local/bin/[name] exists and resolves.
+		// If /opt/system/bin/[name] exists, /usr/local/bin/[name] is always
+		// the best candidate path, regardless of where it points.
+		linkPath := filepath.Join(defaultPath, name)
+		if _, err := os.Stat(linkPath); err == nil {
+			return linkPath, nil
+		}
+		return origPath, ErrUnstableExecutable
+	}
+
+	// If we are a Managed Updates install, find the correct path from Managed Updates config.
+	// This is determined by looking for ../../../update.yaml, if we are in ../../../versions.
+	// update.yaml will always have the target path if Managed Updates are enabled.
+	if p := findParentMatching(origPath, versionsDirName, 4); p != "" {
+		cfgPath := filepath.Join(p, updateConfigName)
+		cfg, err := readConfig(cfgPath)
+		if err == nil && cfg.Spec.Path != "" {
+			// If the path exists and resolves, it is always the best candidate path,
+			// regardless of where it points. The running binary may be outdated.
+			linkPath := filepath.Join(cfg.Spec.Path, name)
+			if _, err := os.Stat(linkPath); err == nil {
+				return linkPath, nil
+			}
+		}
+		// If the config exists, but we cannot find a working binary, return the unstable path.
+		if _, err := os.Stat(cfgPath); err == nil {
+			return origPath, ErrUnstableExecutable
+		}
+	}
+	return origPath, nil
+}
+
+// findParentMatching returns the directory above name, if name is at rpos.
+// Otherwise, it returns empty string.
+func findParentMatching(dir, name string, rpos int) string {
+	var base string
+	for range rpos {
+		dir, base = filepath.Split(filepath.Clean(dir))
+	}
+	if base == name {
+		return dir
+	}
+	return ""
 }

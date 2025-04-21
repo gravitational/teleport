@@ -203,7 +203,7 @@ func (r resourceTeleportAutoUpdateConfig) Update(ctx context.Context, req tfsdk.
 		return
 	}
 
-	_, err = r.p.Client.UpdateAutoUpdateConfig(ctx, autoUpdateConfig)
+	_, err = r.p.Client.UpsertAutoUpdateConfig(ctx, autoUpdateConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating AutoUpdateConfig", trace.Wrap(err), "autoupdate_config"))
 		return
