@@ -85,24 +85,19 @@ func (p *PINCache) SetPIN(pin string, ttl time.Duration) {
 	now := p.Clock.Now()
 	expiry := now.Add(ttl)
 
-	// PIN isn't already set or is being overwritten.
-	if p.pin == "" || p.pin != pin {
-		p.pin = pin
-		p.pinSetAt = now
-		p.pinExpiry = expiry
-
-		// Start a goroutine to wipe the PIN once it's expired.
+	// Only start the expiration goroutine if it isn't already running.
+	if p.pinExpiry.IsZero() {
 		go p.waitAndExpirePIN(expiry)
-		return
+	}
+
+	// Only set the expiration if it exceeds the current expiration
+	// or the cached PIN is being changed.
+	if expiry.After(p.pinExpiry) || p.pin != pin {
+		p.pinExpiry = expiry
 	}
 
 	p.pin = pin
-	p.pinSetAt = p.Clock.Now()
-
-	// Only set the expiration if it exceeds the current expiration.
-	if expiry.After(p.pinExpiry) {
-		p.pinExpiry = expiry
-	}
+	p.pinSetAt = now
 }
 
 // PromptOrGetPIN retrieves the cached PIN if set. Otherwise it prompts for the PIN and caches it.
