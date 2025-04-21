@@ -253,19 +253,25 @@ func convertLocationToGCP(location string) string {
 // getTLSConfig creates a rest.Config for the given cluster with the specified
 // Bearer token for authentication.
 func getTLSConfig(cluster *containerpb.Cluster, tok string) (*rest.Config, error) {
-	if cluster.MasterAuth == nil {
-		return nil, trace.BadParameter("cluster.MasterAuth was not set and is required")
-	}
-	ca, err := base64.StdEncoding.DecodeString(cluster.MasterAuth.ClusterCaCertificate)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var tlsClientConfig rest.TLSClientConfig
+	dnsConfig := cluster.ControlPlaneEndpointsConfig.GetDnsEndpointConfig()
+	if dnsConfig == nil || !dnsConfig.GetAllowExternalTraffic() {
+		if cluster.MasterAuth == nil {
+			return nil, trace.BadParameter("cluster.MasterAuth was not set and is required")
+		}
+		ca, err := base64.StdEncoding.DecodeString(cluster.MasterAuth.ClusterCaCertificate)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tlsClientConfig = rest.TLSClientConfig{
+			CAData: ca,
+		}
 	}
 
 	return &rest.Config{
-		Host:        fmt.Sprintf("https://%s", cluster.Endpoint),
-		BearerToken: tok,
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData: ca,
-		},
+		Host:            fmt.Sprintf("https://%s", cluster.Endpoint),
+		BearerToken:     tok,
+		TLSClientConfig: tlsClientConfig,
 	}, nil
 }
