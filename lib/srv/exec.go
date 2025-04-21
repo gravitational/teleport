@@ -280,6 +280,7 @@ func (e *localExec) transformSecureCopy() error {
 
 	// for scp requests update the command to execute to launch teleport with
 	// scp parameters just like openssh does.
+	// TODO: execute /proc/self/exec directly instead, to avoid version change.
 	teleportBin, err := autoupdate.StableExecutable()
 	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
 		slog.WarnContext(e.Ctx.CancelContext(), "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")

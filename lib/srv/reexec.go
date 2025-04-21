@@ -1023,6 +1023,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	if c.RequestType == sshutils.SubsystemRequest {
 		switch c.Command {
 		case teleport.SFTPSubsystem:
+			// TODO: execute /proc/self/exec directly instead, to avoid version change.
 			executable, err := autoupdate.StableExecutable()
 			if errors.Is(err, autoupdate.ErrUnstableExecutable) {
 				slog.WarnContext(context.Background(), "Re-execution for SFTP may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
@@ -1210,6 +1211,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	go copyCommand(ctx, cmdmsg)
 
 	// Find the Teleport executable and its directory on disk.
+	// TODO: execute /proc/self/exec directly instead, to avoid version change.
 	executable, err := autoupdate.StableExecutable()
 	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
 		slog.WarnContext(ctx.CancelContext(), "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
@@ -1347,6 +1349,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		return true, nil
 	}
 
+	// TODO: execute /proc/self/exec directly instead, to avoid version change.
 	executable, err := autoupdate.StableExecutable()
 	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
 		slog.WarnContext(context.Background(), "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
@@ -1387,6 +1390,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 
 // Spawns a process with the given credentials, outliving the context.
 func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential) error {
+	// TODO: execute /proc/self/exec directly instead, to avoid version change.
 	executable, err := autoupdate.StableExecutable()
 	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
 		slog.WarnContext(ctx, "Re-execution may fail if binary is updated. Please reinstall Teleport with Managed Updates to fix this.")
