@@ -878,7 +878,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	if c.GetPIVPINCacheTTL() > constants.MaxPIVPINCacheTTL {
-		return trace.BadParameter("piv_pin_cache_ttl cannot be larger than one hour")
+		return trace.BadParameter("piv_pin_cache_ttl cannot be larger than %s", constants.MaxPIVPINCacheTTL)
 	}
 
 	return nil
