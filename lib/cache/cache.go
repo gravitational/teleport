@@ -2195,19 +2195,6 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, svc nodeGetter, namesp
 	return clonedNodes, trace.Wrap(err)
 }
 
-// GetAuthServers returns a list of registered servers
-func (c *Cache) GetAuthServers() ([]types.Server, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.authServers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAuthServers()
-}
-
 // GetProxies is a part of auth.Cache implementation
 func (c *Cache) GetProxies() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")

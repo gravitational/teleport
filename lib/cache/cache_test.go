@@ -1528,31 +1528,6 @@ func TestProxies(t *testing.T) {
 	})
 }
 
-// TestAuthServers tests auth servers cache
-func TestAuthServers(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.Server]{
-		newResource: func(name string) (types.Server, error) {
-			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
-		},
-		create: p.presenceS.UpsertAuthServer,
-		list: func(_ context.Context) ([]types.Server, error) {
-			return p.presenceS.GetAuthServers()
-		},
-		cacheList: func(_ context.Context) ([]types.Server, error) {
-			return p.cache.GetAuthServers()
-		},
-		update: p.presenceS.UpsertAuthServer,
-		deleteAll: func(_ context.Context) error {
-			return p.presenceS.DeleteAllAuthServers()
-		},
-	})
-}
-
 // TestRemoteClusters tests remote clusters caching
 func TestRemoteClusters(t *testing.T) {
 	t.Parallel()

@@ -124,7 +124,6 @@ type legacyCollections struct {
 	appSessions                        collectionReader[appSessionGetter]
 	appServers                         collectionReader[appServerGetter]
 	authPreferences                    collectionReader[authPreferenceGetter]
-	authServers                        collectionReader[authServerGetter]
 	clusterAuditConfigs                collectionReader[clusterAuditConfigGetter]
 	clusterNames                       collectionReader[clusterNameGetter]
 	clusterNetworkingConfigs           collectionReader[clusterNetworkingConfigGetter]
@@ -276,15 +275,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.proxies
-		case types.KindAuthServer:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.authServers = &genericCollection[types.Server, authServerGetter, authServerExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.authServers
 		case types.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -966,39 +956,6 @@ func (proxyExecutor) getReader(cache *Cache, cacheOK bool) services.ProxyGetter 
 }
 
 var _ executor[types.Server, services.ProxyGetter] = proxyExecutor{}
-
-type authServerExecutor struct{}
-
-func (authServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetAuthServers()
-}
-
-func (authServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertAuthServer(ctx, resource)
-}
-
-func (authServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllAuthServers()
-}
-
-func (authServerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteAuthServer(resource.GetName())
-}
-
-func (authServerExecutor) isSingleton() bool { return false }
-
-func (authServerExecutor) getReader(cache *Cache, cacheOK bool) authServerGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type authServerGetter interface {
-	GetAuthServers() ([]types.Server, error)
-}
-
-var _ executor[types.Server, authServerGetter] = authServerExecutor{}
 
 type nodeExecutor struct{}
 
