@@ -9,28 +9,33 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/trace"
 )
 
-func buildForkAuthenticateCommand(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) (cmd *exec.Cmd, disownSignal *os.File, err error) {
-	return nil, nil, nil
-	// executable, err := os.Executable()
-	// if err != nil {
-	// 	return nil, nil, trace.Wrap(err)
-	// }
-	// cmd = exec.CommandContext(ctx, executable, args...)
+type buildForkAuthenticateCommandParams struct {
+	getArgs func(signalFd uintptr) []string
+	stdin   io.Reader
+	stdout  io.Writer
+	stderr  io.Writer
+}
 
-	// pipeR, pipeW, err := os.Pipe()
-	// if err != nil {
-	// 	return nil, nil, trace.Wrap(err)
-	// }
-	// signalFd := addSignalFdToChild(cmd, pipeW)
-	// cmd.Stdin = cf.Stdin()
-	// cmd.Stdout = cf.Stdout()
-	// cmd.Stderr = cf.Stderr()
+func buildForkAuthenticateCommand(ctx context.Context, params buildForkAuthenticateCommandParams) (cmd *exec.Cmd, disownSignal *os.File, err error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	cmd = exec.CommandContext(ctx, executable)
+	pipeR, pipeW, err := os.Pipe()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	signalFd := addSignalFdToChild(cmd, pipeW)
+	cmd.Args = append(cmd.Args, params.getArgs(signalFd)...)
+	cmd.Stdin = params.stdin
+	cmd.Stdout = params.stdout
+	cmd.Stderr = params.stderr
 
-	// return cmd, pipeR, nil
+	return cmd, pipeR, nil
 }
 
 func RunForkAuthenticateChild(ctx context.Context, cmd *exec.Cmd, disownSignal *os.File) (err error) {
@@ -63,10 +68,6 @@ func RunForkAuthenticateChild(ctx context.Context, cmd *exec.Cmd, disownSignal *
 
 	select {
 	case err := <-childFinished:
-		var execErr *exec.ExitError
-		if errors.As(err, &execErr) {
-			return &common.ExitCodeError{Code: execErr.ExitCode()}
-		}
 		return trace.Wrap(err)
 	case err := <-disownReady:
 		return trace.Wrap(err)

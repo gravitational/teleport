@@ -1,59 +1,112 @@
 package client
 
-// func buildTestForkAuthenticateCommand(
-// 	t *testing.T,
-// 	ctx context.Context,
-// 	getScript func(fd uint64) string,
-// 	cf *CLIConf,
-// ) (cmd *exec.Cmd, disownSignal *os.File) {
-// 	// Set command as if we were doing tsh ssh for real.
-// 	cmd, disownSignal, err := buildForkAuthenticateCommand(ctx, []string{"ssh"}, cf)
-// 	require.NoError(t, err)
-// 	// Args should be "<test binary> ssh --fork-signal-fd <fd>. Extract the fd."
-// 	require.Len(t, cmd.Args, 4)
-// 	fd, err := strconv.ParseUint(cmd.Args[3], 16, 64)
-// 	require.NoError(t, err)
-// 	// Replace Path and Args with bash.
-// 	bash, err := exec.LookPath("bash")
-// 	require.NoError(t, err)
-// 	cmd.Path = bash
-// 	cmd.Args = []string{bash, "-c", getScript(fd)}
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"os/exec"
+	"testing"
+	"time"
 
-// 	return cmd, disownSignal
-// }
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-// func TestRunForkAuthenticateChild(t *testing.T) {
-// 	t.Parallel()
+func TestRunForkAuthenticateChild(t *testing.T) {
+	t.Parallel()
 
-// 	t.Run("child disowns successfully", func(t *testing.T) {
-// 		const script = `
-// 		# Make sure stdin/out/err work.
-// 		read
-// 		echo "stdout: $REPLY"
-// 		echo "stderr: $REPLY" >&2
-// 		# Close signal fd.
-// 		exec %d>&-
-// 		# Wait to ensure the fd closure is caught before the process ends.
-// 		sleep 1
-// 		`
-// 		getScript := func(fd uint64) string {
-// 			return fmt.Sprintf(script, fd)
-// 		}
-// 		stdout := &bytes.Buffer{}
-// 		stderr := &bytes.Buffer{}
-// 		cf := &CLIConf{
-// 			overrideStdin:  bytes.NewBufferString("hello\n"),
-// 			OverrideStdout: stdout,
-// 			overrideStderr: stderr,
-// 		}
-// 		cmd, disownSignal := buildTestForkAuthenticateCommand(t, t.Context(), getScript, cf)
-// 		err := RunForkAuthenticateChild(t.Context(), cmd, disownSignal)
-// 		assert.NoError(t, err)
-// 		assert.Equal(t, "stdout: hello\n", stdout.String())
-// 		assert.Equal(t, "stderr: hello\n", stderr.String())
-// 	})
+	t.Run("child disowns successfully", func(t *testing.T) {
+		const script = `
+		# Make sure stdin/out/err work.
+		read
+		echo "stdout: $REPLY"
+		echo "stderr: $REPLY" >&2
+		# Close signal fd.
+		exec %d>&-
+		# Wait to ensure the fd closure is caught before the process ends.
+		sleep 1
+		`
+		getArgs := func(signalFd uintptr) []string {
+			return []string{"-c", fmt.Sprintf(script, signalFd)}
+		}
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		params := buildForkAuthenticateCommandParams{
+			getArgs: getArgs,
+			stdin:   bytes.NewBufferString("hello\n"),
+			stdout:  stdout,
+			stderr:  stderr,
+		}
+		cmd, disownSignal, err := buildForkAuthenticateCommand(t.Context(), params)
+		require.NoError(t, err)
+		bash, err := exec.LookPath("bash")
+		require.NoError(t, err)
+		cmd.Path = bash
+		cmd.Args[0] = bash
 
-// 	t.Run("child exits with error", func(t *testing.T) {})
+		err = RunForkAuthenticateChild(t.Context(), cmd, disownSignal)
+		assert.NoError(t, err)
+		assert.Equal(t, "stdout: hello\n", stdout.String())
+		assert.Equal(t, "stderr: hello\n", stderr.String())
+	})
 
-// 	t.Run("context canceled", func(t *testing.T) {})
-// }
+	t.Run("child exits with error", func(t *testing.T) {
+		const script = `
+		# Make sure stdin/out/err work.
+		read
+		echo "stdout: $REPLY"
+		echo "stderr: $REPLY" >&2
+		# Exit with error.
+		exit 1
+		`
+		getArgs := func(signalFd uintptr) []string {
+			return []string{"-c", script}
+		}
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		params := buildForkAuthenticateCommandParams{
+			getArgs: getArgs,
+			stdin:   bytes.NewBufferString("hello\n"),
+			stdout:  stdout,
+			stderr:  stderr,
+		}
+		cmd, disownSignal, err := buildForkAuthenticateCommand(t.Context(), params)
+		require.NoError(t, err)
+		bash, err := exec.LookPath("bash")
+		require.NoError(t, err)
+		cmd.Path = bash
+		cmd.Args[0] = bash
+
+		err = RunForkAuthenticateChild(t.Context(), cmd, disownSignal)
+		var execErr *exec.ExitError
+		if assert.ErrorAs(t, err, &execErr) {
+			assert.Equal(t, 1, execErr.ExitCode())
+		}
+		assert.Equal(t, "stdout: hello\n", stdout.String())
+		assert.Equal(t, "stderr: hello\n", stderr.String())
+	})
+
+	t.Run("context canceled", func(t *testing.T) {
+		getArgs := func(_ uintptr) []string {
+			return []string{"-c", "sleep 10"}
+		}
+		params := buildForkAuthenticateCommandParams{
+			getArgs: getArgs,
+			stdin:   &bytes.Buffer{},
+			stdout:  io.Discard,
+			stderr:  io.Discard,
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		t.Cleanup(cancel)
+		cmd, disownSignal, err := buildForkAuthenticateCommand(ctx, params)
+		require.NoError(t, err)
+		bash, err := exec.LookPath("bash")
+		require.NoError(t, err)
+		cmd.Path = bash
+		cmd.Args[0] = bash
+
+		err = RunForkAuthenticateChild(ctx, cmd, disownSignal)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+}
