@@ -590,6 +590,8 @@ type CLIConf struct {
 	ForkAfterAuthentication bool
 
 	forkSignalFd uint64
+
+	getSSHForkArgs func(cluster, host string, signalFd uintptr) []string
 }
 
 // Stdout returns the stdout writer.
@@ -635,6 +637,42 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 		return c.lookPathOverride, nil
 	}
 	return exec.LookPath(file)
+}
+
+func (c *CLIConf) formatSSHForkCommand(parseContext *kingpin.ParseContext) error {
+	c.getSSHForkArgs = func(cluster, host string, signalFd uintptr) []string {
+		args := make([]string, 0, len(parseContext.Elements))
+		for _, elem := range parseContext.Elements {
+			switch clause := elem.Clause.(type) {
+			case *kingpin.CmdClause:
+				args = append(args, "ssh", "--fork-signal-fd", strconv.FormatUint(uint64(signalFd), 10), "--cluster", cluster)
+			case *kingpin.FlagClause:
+				switch clause.Model().Name {
+				case "cluster", "fork-after-authentication":
+					continue
+				default:
+					args = append(args, "--"+clause.Model().Name)
+					if elem.Value != nil {
+						args = append(args, *elem.Value)
+					}
+				}
+			case *kingpin.ArgClause:
+				if clause.Model().Name != "[user@]host" && elem.Value != nil {
+					args = append(args, *elem.Value)
+					continue
+				}
+				userHost := strings.Split(*elem.Value, "@")
+				if len(userHost) > 1 {
+					userHost[1] = host
+				} else {
+					userHost[0] = host
+				}
+				args = append(args, strings.Join(userHost, "@"))
+			}
+		}
+		return args
+	}
+	return nil
 }
 
 func Main() {
@@ -822,7 +860,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
-	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false).Action(cf.formatSSHForkCommand)
 	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required").StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
@@ -3995,9 +4033,9 @@ func onSSH(cf *CLIConf) error {
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
-			// if cf.ForkAfterAuthentication {
-			// 	opts = append(opts, client.ForkAfterAuthentication())
-			// }
+			if cf.ForkAfterAuthentication {
+				opts = append(opts, client.ForkAfterAuthentication(cf.getSSHForkArgs))
+			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
 		}

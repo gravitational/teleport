@@ -1890,7 +1890,7 @@ type SSHOptions struct {
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
 
-	ForkAfterAuthenticationArgs []string
+	GetForkArgs func(cluster, host string, signalFd uintptr) []string
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1909,9 +1909,9 @@ func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOp
 	}
 }
 
-func ForkAfterAuthentication(args []string) func(*SSHOptions) {
+func ForkAfterAuthentication(getForkArgs func(cluster, host string, signalFd uintptr) []string) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
-		opt.ForkAfterAuthenticationArgs = args
+		opt.GetForkArgs = getForkArgs
 	}
 }
 
@@ -2079,12 +2079,20 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	}
 }
 
-func (tc *TeleportClient) RunCommandInBackground(
+func (tc *TeleportClient) runBackgroundCommand(
 	ctx context.Context,
-	command []string,
+	getCommand func(cluster, host string, signalFd uintptr) []string,
 	nodeDetails NodeDetails,
 	login string,
 	opts ...RunCommandOption,
+) error {
+	return nil
+}
+
+func (tc *TeleportClient) runBackgroundCommandOnNodes(
+	ctx context.Context,
+	getCommand func(cluster, host string, signalFd uintptr) []string,
+	nodes []TargetNode,
 ) error {
 	return nil
 }
@@ -2185,13 +2193,13 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	)
 	defer span.End()
 
-	if len(options.ForkAfterAuthenticationArgs) != 0 {
+	if options.GetForkArgs != nil {
 		if len(command) == 0 {
 			return trace.BadParameter("ForkAfterAuthentication not supported for interactive commands")
 		}
-		return trace.Wrap(tc.RunCommandInBackground(
+		return trace.Wrap(tc.runBackgroundCommand(
 			ctx,
-			command,
+			options.GetForkArgs,
 			NodeDetails{Addr: nodeAddr, Cluster: cluster},
 			tc.Config.HostLogin,
 		))
@@ -2269,6 +2277,17 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 		),
 	)
 	defer span.End()
+
+	if options.GetForkArgs != nil {
+		if len(command) == 0 {
+			return trace.BadParameter("ForkAfterAuthentication not supported for interactive commands")
+		}
+		return trace.Wrap(tc.runBackgroundCommandOnNodes(
+			ctx,
+			options.GetForkArgs,
+			nodes,
+		))
+	}
 
 	// There was a command provided, run a non-interactive session against each match
 	if len(command) > 0 {
