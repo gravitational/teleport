@@ -21,9 +21,11 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"log/slog"
-	"math"
+	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -119,11 +121,14 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		if saltLength < 0 {
 			return nil, rsa.ErrMessageTooLong
 		}
-
-		if saltLength > math.MaxUint32 {
-			return nil, trace.BadParameter("invalid salt length %d", saltLength)
-		}
 	}
+
+	// Trim leading path (/ or \ on windows) from command for user readability.
+	command := os.Args[0]
+	if i := strings.LastIndexAny(command, "/\\"); i != -1 {
+		command = command[i+1:]
+	}
+	commandString := fmt.Sprintf("%v %v", command, strings.Join(os.Args[1:], " "))
 
 	req := &hardwarekeyagentv1.SignRequest{
 		Digest:     digest,
@@ -141,7 +146,7 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 			Username:      keyInfo.Username,
 			ClusterName:   keyInfo.ClusterName,
 		},
-		// TODO: Add command to sign request for prompt context.
+		Command: commandString,
 	}
 
 	resp, err := s.agentClient.Sign(ctx, req)
