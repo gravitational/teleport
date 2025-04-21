@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -141,7 +142,11 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
-		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request.", "protocol", wsConn.Subprotocol(), "error", err)
+		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request.",
+			"protocol", wsConn.Subprotocol(),
+			"error", err,
+			"client_addr", conn.RemoteAddr().String(),
+		)
 	}
 	return nil, nil
 }
@@ -157,7 +162,10 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 	waitConn := newWaitConn(ctx, conn)
 	defer waitConn.WaitForClose()
 
-	return h.cfg.ALPNHandler(ctx, waitConn)
+	return h.cfg.ALPNHandler(
+		alpncommon.WithConnHandlerSource(ctx, alpncommon.ConnHandlerSourceWebConnUpgrade),
+		waitConn,
+	)
 }
 
 func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error {

@@ -441,6 +441,7 @@ func (h *Handler) dbConnect(
 		"database_name", req.DatabaseName,
 		"database_user", req.DatabaseUser,
 		"database_roles", req.DatabaseRoles,
+		"client_addr", ws.RemoteAddr().String(),
 	)
 	log.DebugContext(ctx, "Received database interactive session request")
 
@@ -644,7 +645,8 @@ func (s *databaseInteractiveSession) Run() error {
 	// handler.
 	go func() {
 		alpnConnWithAddr := utils.NewConnWithAddr(s.alpnConn, s.ws.LocalAddr(), s.ws.RemoteAddr())
-		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); !utils.IsOKNetworkError(err) {
+		ctx := alpncommon.WithConnHandlerSource(s.ctx, alpncommon.ConnHandlerSourceWebDB)
+		if err := s.alpnHandler(ctx, alpnConnWithAddr); !utils.IsOKNetworkError(err) {
 			s.log.ErrorContext(s.ctx, "ALPN handler for database interactive session failed", "error", err)
 		}
 	}()
