@@ -75,7 +75,7 @@ type DownstreamHandle interface {
 	// any clean up of the connection. A Goodbye is merely information so that the
 	// upstream half of the connection may take different actions when the downstream
 	// half of the connection is shutting down for good vs. restarting.
-	SendGoodbye(context.Context) error
+	SendGoodbye(context.Context, bool) error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
@@ -400,7 +400,7 @@ func (h *downstreamHandle) Close() error {
 	return nil
 }
 
-func (h *downstreamHandle) SendGoodbye(ctx context.Context) error {
+func (h *downstreamHandle) SendGoodbye(ctx context.Context, deleteResources bool) error {
 	select {
 	case sender := <-h.Sender():
 		// Only send the goodbye if the other half of the stream
@@ -415,7 +415,7 @@ func (h *downstreamHandle) SendGoodbye(ctx context.Context) error {
 			return nil
 		}
 
-		return trace.Wrap(sender.Send(ctx, proto.UpstreamInventoryGoodbye{DeleteResources: true}))
+		return trace.Wrap(sender.Send(ctx, proto.UpstreamInventoryGoodbye{DeleteResources: deleteResources}))
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	case <-h.CloseContext().Done():

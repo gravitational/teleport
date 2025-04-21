@@ -461,7 +461,8 @@ func TestShutdown(t *testing.T) {
 
 			// Send a Goodbye to simulate process shutdown.
 			if !test.hasForkedChild {
-				require.NoError(t, server.cfg.InventoryHandle.SendGoodbye(ctx))
+				const deleteResources = true
+				require.NoError(t, server.cfg.InventoryHandle.SendGoodbye(ctx, deleteResources))
 			}
 
 			require.NoError(t, server.cfg.InventoryHandle.Close())

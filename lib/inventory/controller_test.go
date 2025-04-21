@@ -1221,7 +1221,8 @@ func TestGoodbye(t *testing.T) {
 			go func() {
 				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				assert.NoError(t, handle.SendGoodbye(ctx))
+				const deleteResources = true
+				assert.NoError(t, handle.SendGoodbye(ctx, deleteResources))
 				// Close the handle to unblock receive below.
 				assert.NoError(t, handle.Close())
 			}()
