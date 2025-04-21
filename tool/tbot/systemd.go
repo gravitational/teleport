@@ -121,7 +121,7 @@ func onInstallSystemdCmd(
 
 	tbotPath, err := getExecutablePath()
 	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
-		log.WarnContext(ctx, "Systemd template will be rendered with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to ensure this service continues to work after an update.")
+		log.WarnContext(ctx, "Systemd template will be rendered with an unstable path to the tbot executable. Please adjust the service to use a stable path instead.")
 	} else if err != nil {
 		return trace.Wrap(err, "determining path to current executable")
 	}
