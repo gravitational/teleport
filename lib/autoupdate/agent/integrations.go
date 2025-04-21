@@ -159,9 +159,11 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 	return origPath, nil
 }
 
-func findParentMatching(dir, name string, pos int) string {
+// findParentMatching returns the directory above name, if name is at rpos.
+// Otherwise, it returns empty string.
+func findParentMatching(dir, name string, rpos int) string {
 	var base string
-	for range pos {
+	for range rpos {
 		dir, base = filepath.Split(filepath.Clean(dir))
 	}
 	if base == name {
