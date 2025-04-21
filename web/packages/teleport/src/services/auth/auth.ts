@@ -267,6 +267,7 @@ const auth = {
           challenge_scope: req.scope,
           challenge_allow_reuse: req.allowReuse,
           user_verification_requirement: req.userVerificationRequirement,
+          proxy_address: cfg.baseUrl,
         },
         abortSignal
       )
