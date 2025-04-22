@@ -18,41 +18,15 @@ on:
   # Only allow manual triggers
   workflow_dispatch:
     inputs:
-      oss-teleport-repo:
-        description: "The name of the OSS teleport repo to checkout"
-        required: false
-        default: "gravitational/teleport"
-        type: string
-
-      oss-teleport-ref:
-        description: "Git SHA, tag or branch of the revision of OSS teleport to build"
-        required: true
-        type: string
-
-      release:
-        description: "Release level to build. Currently supports `oss` and `enterprise`"
-        required: true
-        type: string
-
-      release-target:
-        description: "Release target to run from build.assets/Makefile."
-        required: true
-        type: string
-
       release-version:
         description: |
           Override the build version from what is in the Makefile.
           Use this override to specify a tag for build debugging purposes.
         type: string
 
-      environment:
-        description: |
-          GitHub Actions environment in which to run the build. Can be either
-          `stage/build` or `prod/build`.
-        type: string
-        default: stage/build
-
-  pull_request:
+  push:
+    branches:
+      - vapopov/smoke-test-package
 #  merge_group:
 #    paths:
 #      - '.github/workflows/build-windows.yaml'
@@ -65,9 +39,10 @@ on:
 
 jobs:
 
-  build-release-artifacts:
+  build:
     runs-on: ubuntu-latest
-
+    outputs:
+      version: ${{ steps.set.outputs.version }}
     env:
       # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
       # ARC runners, as these runners set up these vars for us. We still need
@@ -76,15 +51,13 @@ jobs:
       GOCACHE: /tmp/gocache
 
     steps:
-      - name: Determine FIPS
-        id: determine-fips
-        run: |
-          echo 'is-fips=false' >> "$GITHUB_OUTPUT"
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
         with:
           driver: docker
+
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
 
 #      # Log into Docker Hub to increase rate limits
 #      - name: Login to Docker Hub
@@ -117,55 +90,176 @@ jobs:
           cache: false
           go-version-file: 'go.mod'
 
-      # FIPS and Teleport Connect builds need VERSION set in the environment as those
-      # builds do not go through the top-level teleport Makefile, which sets it for
-      # other builds.
       - name: Set Version
         env:
           RELEASE_VERSION: ${{ inputs.release-version }}
         run: |
           VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
           echo "VERSION=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_ENV"
+          echo "version=${RELEASE_VERSION:-$VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build Release
         env:
-          RELEASE_TARGET: ${{ inputs.release-target }}
+          RELEASE_TARGET: release
           RELEASE_DIR: ${{ github.workspace }}/build/artifacts
         run: |
           mkdir -p "$RELEASE_DIR"
-
           make -C build.assets "$RELEASE_TARGET" VERSION="$VERSION"
 
-          # FIPS builds put the build archives in e/build/artifacts. If there are
-          # any files in there, move them to the top-level build/artifacts dir.
-          # TODO(camscale): Remove this when the Makefile puts all artifacts in $RELEASE_DIR
-          if [[ -d e/build/artifacts && -n "$(find e/build/artifacts -maxdepth 0 ! -empty)" ]]; then
-            mv e/build/artifacts/* "$RELEASE_DIR"
-          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            ${{ github.workspace }}/build/
+
+      - name: Upload test-assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-assets
+          path: |
+            assets/package-test/*
+
+  build-packages:
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      version: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
 
       - name: Build Debian package
         env:
           ARCH: amd64
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
-          RELEASE: ${{ inputs.release }}
+          FPM_IMAGE_DEB: zion/fpm:debian
         run: |
           make deb VERSION="$VERSION"
-          # TODO(camscale): Move artifact copying to Makefile(s)
           cp build/*.deb build/artifacts
-
 
       - name: Build RPM package
         env:
-          ARCH: ${{ needs.setup.outputs.arch }}
+          ARCH: amd64
           ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
-          RELEASE: ${{ inputs.release }}
           GNUPG_DIR: /tmp/gnupg
+          FPM_IMAGE_RPM: zion/fpm:centos
         run: |
           make rpm-unsigned VERSION="$VERSION"
-          # TODO(camscale): Move artifact copying to Makefile(s)
           cp build/*.rpm build/artifacts
-          if [ "$RELEASE" = 'enterprise' ]; then
-            cp e/build/*.rpm build/artifacts
-          fi
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            ${{ github.workspace }}/build/*.deb
+            ${{ github.workspace }}/build/*.rpm
+
+  test-deb:
+    name: Run deb tests
+    runs-on: ubuntu-latest
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - { image: "ubuntu:24.04", package-manager: "apt" }
+          - { image: "ubuntu:22.04", package-manager: "apt" }
+          - { image: "ubuntu:20.04", package-manager: "apt" }
+          # ubuntu:18.04 disabled for checkout@v3/node20/glibc compatibility failures
+          #- {image: "ubuntu:18.04", package-manager: "apt"}
+          - { image: "debian:10", package-manager: "apt" }
+          - { image: "debian:11", package-manager: "apt" }
+          - { image: "debian:12", package-manager: "apt" }
+    container:
+      image: ${{ matrix.container.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPO_DOMAIN_NAME: "releases.teleport.dev"
+      PACKAGE_TO_TEST: "deb"
+      RELEASE_CHANNEL: "stable"
+      ARTIFACT_TAG: "${{ needs.build-packages.outputs.version }}"
+      INSTALLER: "${{ matrix.container.package-manager }}"
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Download test-assets
+        uses: actions/download-artifact@v4
+        with:
+          name: test-assets
+
+      - name: Install test dependencies
+        run: |
+          source run.sh
+          install_dependencies
+
+      - name: Run test
+        run: |
+          source run.sh
+          test_upgrade_downgrade
+
+  test-rpm:
+    name: Run rpm tests
+    runs-on: ubuntu-latest
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - { image: "registry.access.redhat.com/ubi8:8.7", package-manager: "yum" }
+          - { image: "registry.access.redhat.com/ubi9:9.1", package-manager: "yum" }
+
+          # The other tags are too specific so latest is used instead
+          # sles12sp5 disabled for checkout@v3/node20/glibc compatibility failures
+          - { image: "registry.suse.com/bci/bci-base:15.5", package-manager: "zypper", is-sles: false }
+    container:
+      image: ${{ matrix.container.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPO_DOMAIN_NAME: "releases.teleport.dev"
+      PACKAGE_TO_TEST: "rpm"
+      RELEASE_CHANNEL: "stable"
+      ARTIFACT_TAG: "${{ needs.build-packages.outputs.version }}"
+      INSTALLER: "${{ matrix.container.package-manager }}"
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+      - name: Download test-assets
+        uses: actions/download-artifact@v4
+        with:
+          name: test-assets
+
+      # sles12 specific setup
+      - name: Initialize sle12 package repo
+        if: ${{ matrix.container.is-sles }}
+        run: |
+          # Required for git checkout
+          zypper addrepo --refresh http://download.opensuse.org/update/leap/15.4/sle/ sle
+          zypper -n -q install tar gzip
+
+      - name: Install test dependencies
+        run: |
+          source run.sh
+          install_dependencies
+
+      - name: Run test
+        run: |
+          source run.sh
+          test_upgrade_downgrade
+
