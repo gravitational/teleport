@@ -252,7 +252,11 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
-require github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.48.3
+require (
+	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.48.3
+	github.com/golang-jwt/jwt v3.2.1+incompatible
+	github.com/google/go-github/v70 v70.0.0
+)
 
 require (
 	cel.dev/expr v0.19.2 // indirect

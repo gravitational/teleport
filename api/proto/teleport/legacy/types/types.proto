@@ -6549,6 +6549,8 @@ message PluginSpecV1 {
     PluginMSTeamsSettings msteams = 18;
     // Settings for the OpenTex NetIQ plugin.
     PluginNetIQSettings net_iq = 19;
+    // Settings for the GitHub plugin.
+    PluginGithubSettings github = 20;
   }
 
   // generation contains a unique ID that should:
@@ -6557,6 +6559,19 @@ message PluginSpecV1 {
   //
   // For older plugins, it's possible for this to be empty.
   string generation = 11;
+}
+
+message PluginGithubSettings {
+  option (gogoproto.equal) = true;
+
+  // APIEndpoint is the address of Github API.
+  string api_endpoint = 1;
+  string client_id = 2;
+  string organization_name = 4;
+  google.protobuf.Timestamp start_date = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 message PluginSlackAccessSettings {
@@ -7436,6 +7451,7 @@ message PluginStaticCredentialsSpecV1 {
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
     PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
     PluginStaticCredentialsSSHCertAuthorities SSHCertAuthorities = 4;
+    bytes private_key = 5;
   }
 }
 

@@ -24,6 +24,7 @@ import "accessgraph/v1alpha/aws.proto";
 import "accessgraph/v1alpha/azure.proto";
 import "accessgraph/v1alpha/entra.proto";
 import "accessgraph/v1alpha/events.proto";
+import "accessgraph/v1alpha/github.proto";
 import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
 import "accessgraph/v1alpha/netiq.proto";
@@ -140,6 +141,11 @@ service AccessGraphService {
 
   // NetIQEventsStream is a stream of commands to the NetIQ importer.
   rpc NetIQEventsStream(stream NetIQEventsStreamRequest) returns (stream NetIQEventsStreamResponse);
+
+  // GitHubStream
+  rpc GitHubAuditLogStream(stream GitHubAuditLogStreamRequest) returns (stream GitHubAuditLogStreamResponse);
+  // GitHubEventsStream
+  rpc GitHubEventsStream(stream GitHubEventsStreamRequest) returns (stream GitHubEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -632,3 +638,34 @@ message AWSCloudTrailEventResource {
   // (https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events-console.html#filtering-cloudtrail-events).
   string type = 2;
 }
+
+// GitHubStreamRequest ..
+message GitHubAuditLogStreamRequest {
+  oneof operation {
+    // config holds the config for GitHub connector.
+    GitHubConfigV1 config = 1;
+    // audit_log holds the events
+    GitHubAuditLogV1 audit_log = 2;
+  }
+}
+
+// GitHubStreamResponse is sent from the server to the client.
+message GitHubAuditLogStreamResponse {
+  oneof state {
+    GitHubConfigV1 github_config = 1; // Effective, negotiated configuration.
+    GitHubAuditLogV1Cursor audit_log_resume_state = 2; // Complete resume state for 'search' mode.
+  }
+}
+
+// EventsStreamV2Request is a request to send commands to the access graph.
+message GitHubEventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    GithubResourceList upsert = 1;
+    GithubResourceList delete = 2;
+    GithubSync sync = 3;
+  }
+}
+
+// GitHubEventsStreamResponse...
+message GitHubEventsStreamResponse {}

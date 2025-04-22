@@ -36,19 +36,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccessGraphService_Query_FullMethodName               = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName             = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_EventsStream_FullMethodName        = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
-	AccessGraphService_EventsStreamV2_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
-	AccessGraphService_AuditLogStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
-	AccessGraphService_AWSCloudTrailStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/AWSCloudTrailStream"
-	AccessGraphService_Register_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/Register"
-	AccessGraphService_ReplaceCAs_FullMethodName          = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
-	AccessGraphService_AWSEventsStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
-	AccessGraphService_GitlabEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
-	AccessGraphService_EntraEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
-	AccessGraphService_AzureEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
-	AccessGraphService_NetIQEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
+	AccessGraphService_Query_FullMethodName                = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_EventsStream_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_EventsStreamV2_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
+	AccessGraphService_AuditLogStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
+	AccessGraphService_AWSCloudTrailStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/AWSCloudTrailStream"
+	AccessGraphService_Register_FullMethodName             = "/accessgraph.v1alpha.AccessGraphService/Register"
+	AccessGraphService_ReplaceCAs_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_AWSEventsStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_GitlabEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
+	AccessGraphService_EntraEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
+	AccessGraphService_AzureEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
+	AccessGraphService_NetIQEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
+	AccessGraphService_GitHubAuditLogStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitHubAuditLogStream"
+	AccessGraphService_GitHubEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GitHubEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -140,6 +142,10 @@ type AccessGraphServiceClient interface {
 	AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error)
 	// NetIQEventsStream is a stream of commands to the NetIQ importer.
 	NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error)
+	// GitHubStream
+	GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error)
+	// GitHubEventsStream
+	GitHubEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse], error)
 }
 
 type accessGraphServiceClient struct {
@@ -307,6 +313,32 @@ func (c *accessGraphServiceClient) NetIQEventsStream(ctx context.Context, opts .
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_NetIQEventsStreamClient = grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse]
 
+func (c *accessGraphServiceClient) GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[9], AccessGraphService_GitHubAuditLogStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubAuditLogStreamClient = grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]
+
+func (c *accessGraphServiceClient) GitHubEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[10], AccessGraphService_GitHubEventsStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GitHubEventsStreamRequest, GitHubEventsStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubEventsStreamClient = grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse]
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility.
@@ -396,6 +428,10 @@ type AccessGraphServiceServer interface {
 	AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error
 	// NetIQEventsStream is a stream of commands to the NetIQ importer.
 	NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error
+	// GitHubStream
+	GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error
+	// GitHubEventsStream
+	GitHubEventsStream(grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -444,6 +480,12 @@ func (UnimplementedAccessGraphServiceServer) AzureEventsStream(grpc.BidiStreamin
 }
 func (UnimplementedAccessGraphServiceServer) NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method NetIQEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method GitHubAuditLogStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) GitHubEventsStream(grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method GitHubEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 func (UnimplementedAccessGraphServiceServer) testEmbeddedByValue()                            {}
@@ -601,6 +643,20 @@ func _AccessGraphService_NetIQEventsStream_Handler(srv interface{}, stream grpc.
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_NetIQEventsStreamServer = grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]
 
+func _AccessGraphService_GitHubAuditLogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).GitHubAuditLogStream(&grpc.GenericServerStream[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubAuditLogStreamServer = grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]
+
+func _AccessGraphService_GitHubEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).GitHubEventsStream(&grpc.GenericServerStream[GitHubEventsStreamRequest, GitHubEventsStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubEventsStreamServer = grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -675,6 +731,18 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "NetIQEventsStream",
 			Handler:       _AccessGraphService_NetIQEventsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "GitHubAuditLogStream",
+			Handler:       _AccessGraphService_GitHubAuditLogStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "GitHubEventsStream",
+			Handler:       _AccessGraphService_GitHubEventsStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

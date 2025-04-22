@@ -214,8 +214,13 @@ RUN yum install -y \
     perl-IPC-Cmd \
     tree \
     # used by our Makefile
+<<<<<<< Updated upstream
     which git \
     zip \
+=======
+    which \
+    zip git \
+>>>>>>> Stashed changes
     zlib-devel && \
     yum clean all && \
     localedef -c -i en_US -f UTF-8 en_US.UTF-8
