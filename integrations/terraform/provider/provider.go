@@ -322,8 +322,6 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		Credentials: creds,
 		DialTimeout: dialTimeoutDuration,
 		DialOpts: []grpc.DialOption{
-			//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-			// See https://github.com/gravitational/teleport/pull/54036
 			grpc.WithReturnConnectionError(),
 			grpc.WithDefaultCallOptions(
 				grpc.WaitForReady(true),

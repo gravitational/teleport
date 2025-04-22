@@ -417,8 +417,6 @@ func TestDeleteDocuments(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
-			//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-			// See https://github.com/gravitational/teleport/pull/54036
 			conn, err := grpc.Dial(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 			require.NoError(t, err)
 

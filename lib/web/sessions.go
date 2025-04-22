@@ -330,9 +330,6 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 	}
 	// Set the ALPN protocols to use when dialing the proxy gRPC mTLS endpoint.
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxyGRPCSecure), http2.NextProtoTLS}
-
-	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-	// See https://github.com/gravitational/teleport/pull/54036
 	conn, err = grpc.DialContext(
 		ctx,
 		addr,

@@ -329,8 +329,6 @@ func newTestGCPKMSService(t *testing.T, opts ...fakeGCPKMSServerOption) (*fakeGC
 func newTestGCPKMSClient(t *testing.T, dialer contextDialer) *kms.KeyManagementClient {
 	ctx := context.Background()
 
-	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-	// See https://github.com/gravitational/teleport/pull/54036
 	conn, err := grpc.Dial("bufconn",
 		grpc.WithContextDialer(dialer),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

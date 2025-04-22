@@ -7977,9 +7977,6 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 		tlsConfig := utils.TLSConfig(nil)
 		tlsConfig.InsecureSkipVerify = true
 		tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure)}
-
-		//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-		// See https://github.com/gravitational/teleport/pull/54036
 		conn, err := grpc.Dial(
 			main.ReverseTunnel,
 			grpc.WithContextDialer(apiclient.GRPCContextDialer(dialer)),
@@ -8742,9 +8739,6 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 
 			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-
-			//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-			// See https://github.com/gravitational/teleport/pull/54036
 			conn, err := grpc.DialContext(
 				ctx,
 				tc.SSHProxyAddr,

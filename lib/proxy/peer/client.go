@@ -649,8 +649,6 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 
 	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
 
-	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-	// See https://github.com/gravitational/teleport/pull/54036
 	conn, err := grpc.Dial(
 		peerAddr,
 		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),

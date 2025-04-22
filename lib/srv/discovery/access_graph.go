@@ -231,8 +231,6 @@ func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config A
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 	)
 
-	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-	// See https://github.com/gravitational/teleport/pull/54036
 	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
 	return conn, trace.Wrap(err)
 }

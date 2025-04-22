@@ -120,8 +120,6 @@ func TestTransportCredentials(t *testing.T) {
 		assert.NoError(t, grpcSrv.Serve(l))
 	}()
 
-	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-	// See https://github.com/gravitational/teleport/pull/54036
 	grpcConn, err := grpc.Dial(
 		"unix:///"+sockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

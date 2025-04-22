@@ -628,9 +628,6 @@ func TestMux(t *testing.T) {
 		creds := credentials.NewClientTLSFromCert(cfg.CertPool, "")
 
 		// Set up a connection to the server.
-
-		//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
-		// See https://github.com/gravitational/teleport/pull/54036
 		conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(creds), grpc.WithBlock())
 		require.NoError(t, err)
 		defer conn.Close()
