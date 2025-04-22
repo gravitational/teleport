@@ -43,13 +43,13 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
@@ -225,7 +225,7 @@ func (s *WorkloadIdentityAPIService) Run(ctx context.Context) error {
 
 func (s *WorkloadIdentityAPIService) authenticateClient(
 	ctx context.Context,
-) (*slog.Logger, *workloadidentityv1pb.WorkloadAttrs, error) {
+) (*slog.Logger, *attrs.WorkloadAttrs, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, nil, trace.BadParameter("peer not found in context")
@@ -269,9 +269,7 @@ func (s *WorkloadIdentityAPIService) authenticateClient(
 		)
 		return log, nil, nil
 	}
-	log = log.With(
-		"workload", workloadAttrsForLog(att),
-	)
+	log = log.With("workload", att)
 
 	return log, att, nil
 }
@@ -430,7 +428,7 @@ func (s *WorkloadIdentityAPIService) fetchX509SVIDs(
 	ctx context.Context,
 	log *slog.Logger,
 	localBundle *spiffebundle.Bundle,
-	attest *workloadidentityv1pb.WorkloadAttrs,
+	attest *attrs.WorkloadAttrs,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "WorkloadIdentityAPIService/fetchX509SVIDs")
 	defer span.End()

@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 )
 
 type attestor[T any] interface {
@@ -100,12 +101,12 @@ func NewAttestor(log *slog.Logger, cfg Config) (*Attestor, error) {
 	return att, nil
 }
 
-func (a *Attestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.WorkloadAttrs, error) {
+func (a *Attestor) Attest(ctx context.Context, pid int) (*attrs.WorkloadAttrs, error) {
 	a.log.DebugContext(ctx, "Starting workload attestation", "pid", pid)
 	defer a.log.DebugContext(ctx, "Finished workload attestation", "pid", pid)
 
 	var err error
-	attrs := &workloadidentityv1pb.WorkloadAttrs{}
+	attrs := attrs.NewWorkloadAttrs()
 	// We always perform the unix attestation first
 	attrs.Unix, err = a.unix.Attest(ctx, pid)
 	if err != nil {
@@ -154,7 +155,7 @@ func (a *Attestor) Attest(ctx context.Context, pid int) (*workloadidentityv1pb.W
 
 // Failed is called when getting a workload identity with the supplied workload
 // attributes failed. It's used to clear any caches before the client tries again.
-func (a *Attestor) Failed(ctx context.Context, attrs *workloadidentityv1pb.WorkloadAttrs) {
+func (a *Attestor) Failed(ctx context.Context, attrs *attrs.WorkloadAttrs) {
 	if a.sigstore == nil {
 		return
 	}
@@ -167,7 +168,7 @@ func (a *Attestor) Failed(ctx context.Context, attrs *workloadidentityv1pb.Workl
 // that only one attestor (i.e. Kubernetes, Podman, or Docker) will be in use
 // which is a relatively safe assumption because they each depend on differently
 // structured cgroup names.
-func (a *Attestor) containerAttributes(attrs *workloadidentityv1pb.WorkloadAttrs) Container {
+func (a *Attestor) containerAttributes(attrs *attrs.WorkloadAttrs) Container {
 	if ctr := attrs.GetKubernetes().GetContainer(); ctr != nil {
 		return ctr
 	}
