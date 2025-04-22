@@ -25,7 +25,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -105,7 +104,7 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 	l, err := net.Listen("unix", socketPath)
 	if err == nil {
 		return l, nil
-	} else if !errors.Is(err, syscall.EADDRINUSE) {
+	} else if !errors.Is(err, errAddrInUse) {
 		return nil, trace.Wrap(err)
 	}
 
