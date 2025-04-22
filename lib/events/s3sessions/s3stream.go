@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -254,6 +255,13 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			return nil, awsutils.ConvertS3Error(err)
 		}
 		for _, upload := range re.Uploads {
+			if upload.Initiator != nil && upload.Initiator.DisplayName != nil && len(h.Config.CompleteInitiators) > 0 &&
+				!slices.Contains(h.Config.CompleteInitiators, *upload.Initiator.DisplayName) {
+				// Only complete uploads that we initiated.
+				// This can be useful when Teleport is not the only thing generating uploads in the bucket
+				// (replication rules, batch jobs, other software, etc.)
+				continue
+			}
 			uploads = append(uploads, events.StreamUpload{
 				ID:        aws.StringValue(upload.UploadId),
 				SessionID: h.fromPath(aws.StringValue(upload.Key)),
