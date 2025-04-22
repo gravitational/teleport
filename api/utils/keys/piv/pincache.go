@@ -46,12 +46,33 @@ func newPINCache() *pinCache { //nolint:unused // used in yubikey.go with piv bu
 	}
 }
 
-// GetPIN retrieves the cached PIN. If the PIN was cached before by an amount of
-// time equal to the provided TTL, the PIN will not be returned.
-func (p *pinCache) GetPIN(ttl time.Duration) string {
+// PromptOrGetPIN retrieves the cached PIN if set. Otherwise it prompts for the PIN and caches it.
+func (p *pinCache) PromptOrGetPIN(ctx context.Context, prompt hardwarekey.Prompt, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
+	// If the provided ttl is 0, it doesn't support caching, so we just prompt.
+	if pinCacheTTL == 0 {
+		return prompt.AskPIN(ctx, requirement, keyInfo)
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if pin := p.getPIN(pinCacheTTL); pin != "" {
+		return pin, nil
+	}
+
+	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	p.setPIN(pin, pinCacheTTL)
+	return pin, nil
+}
+
+// getPIN retrieves the cached PIN. If the PIN was cached before by an amount of
+// time equal to the provided TTL, the PIN will not be returned.
+// Must be called under [p.mu] lock.
+func (p *pinCache) getPIN(ttl time.Duration) string {
 	if p.pin == "" {
 		return ""
 	}
@@ -67,25 +88,18 @@ func (p *pinCache) GetPIN(ttl time.Duration) string {
 	// The PIN is cached, but does not satisfy the provided TTL of the request.
 	// e.g. it has been alive for 8 minutes, but the provided TTL is 5 minutes.
 	// For the purposes of this request, the pin should be considered expired.
-	expiredForRequest := p.pinSetAt.Add(ttl)
-	if !p.clock.Now().Before(expiredForRequest) {
+	if p.clock.Since(p.pinSetAt) >= ttl {
 		return ""
 	}
 
 	return p.pin
 }
 
-// SetPIN sets the given PIN in the cache with the given TTL. If the PIN
+// setPIN sets the given PIN in the cache with the given TTL. If the PIN
 // is already cached, the existing expiration is only updated if the given
 // TTL would exceed that expiration.
-func (p *pinCache) SetPIN(pin string, ttl time.Duration) {
-	if ttl == 0 {
-		return
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
+// Must be called under [p.mu] lock.
+func (p *pinCache) setPIN(pin string, ttl time.Duration) {
 	now := p.clock.Now()
 	expiry := now.Add(ttl)
 
@@ -97,19 +111,4 @@ func (p *pinCache) SetPIN(pin string, ttl time.Duration) {
 
 	p.pin = pin
 	p.pinSetAt = now
-}
-
-// PromptOrGetPIN retrieves the cached PIN if set. Otherwise it prompts for the PIN and caches it.
-func (p *pinCache) PromptOrGetPIN(ctx context.Context, prompt hardwarekey.Prompt, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
-	if pin := p.GetPIN(pinCacheTTL); pin != "" {
-		return pin, nil
-	}
-
-	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	p.SetPIN(pin, pinCacheTTL)
-	return pin, nil
 }

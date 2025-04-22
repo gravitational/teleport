@@ -482,7 +482,7 @@ func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		y.pinCache.SetPIN(pin, pinCacheTTL)
+		y.pinCache.setPIN(pin, pinCacheTTL)
 	}
 
 	return trace.Wrap(y.verifyPIN(pin))
