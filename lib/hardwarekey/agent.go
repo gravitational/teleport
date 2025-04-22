@@ -25,8 +25,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
-	"syscall"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -36,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
+	netutil "github.com/gravitational/teleport/api/utils/net"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -102,15 +101,11 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 }
 
 func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
-	// On windows, listening on an already existing unix socket results in a different,
-	// Windows specific [syscall.Bind] error not defined in the [syscall] library.
-	const windowsBindErrMessage = "bind: Only one usage of each socket address (protocol/network address/port) is normally permitted"
-
 	socketPath := filepath.Join(keyAgentDir, sockName)
 	l, err := net.Listen("unix", socketPath)
 	if err == nil {
 		return l, nil
-	} else if !errors.Is(err, syscall.EADDRINUSE) && !strings.Contains(err.Error(), windowsBindErrMessage) {
+	} else if !errors.Is(err, netutil.ErrAddrInUse) {
 		return nil, trace.Wrap(err)
 	}
 
