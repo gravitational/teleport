@@ -148,7 +148,15 @@ Alice tries to connect to `devbox` with the SSH username `root` by running
 `ssh root@devbox.teleport.example.com`.
 However, her Teleport roles do not allow her to SSH as `root`.
 She gets an error message from `ssh` on the CLI reading
-`ERROR: access denied to root connecting to devbox`.
+
+```
+ERROR: access denied to root connecting to devbox
+root@devbox: Permission denied (publickey).
+```
+
+In this example the first line of the error will be sent as an SSH banner sent
+by VNet which should be displayed by CLI clients, the second line is OpenSSH's
+default error message when authentication fails.
 
 ### Implementation
 
@@ -285,24 +293,39 @@ When the VNet process receives a DNS query this is how it will be resolved:
 
 1. If it has already resolved this name and assigned a VNet IP address, it will
    return the cached IP address.
-1. The existing TCP app lookup will run first, if the address matches a TCP app
-   an IP will be assigned for that app and returned.
+1. An app lookup will run first
+   1. If the FQDN matches a TCP app an IP will be assigned for that app and
+      returned (as it works today).
+   1. If it matches a web app the DNS request will be forwarded to upstream DNS
+      servers (this is also as it implicitly works today, now we'll do it
+      explicitly to skip assigning a VNet IP for web apps).
 1. If the name does not match `*.<cluster name>` or
    `*.<leaf cluster name>.<root cluster name>` for any profile, the request will
    be forwarded to upstream DNS servers.
 1. VNet will assign a free IP address to the FQDN, but at this point it will not
-   know if this IP will later resolve to an SSH host or a TCP app.
+   know if this IP will later resolve to an SSH host or an app or neither.
 1. VNet will return the IP address in an authoritative DNS answer.
 
 #### Connection forwarding
 
 When the VNet process receives a TCP connection at an address that has been
 assigned to an FQDN but does not yet know if there is a matching app or SSH host:
-1. The existing TCP app lookup will run first, if the address matches a TCP app
-   then the IP will be permanently assigned to that app and regular TCP app
-   forwarding will take over. This matches the current VNet behavior where TCP
-   app matches are permanent.
-1. The dial target for `<hostname>.<cluster>` will be set to `<hostname>:0`.
+1. An app lookup will run first in case an app has been added since the DNS
+   query that assigned this IP.
+   1. If the queried FQDN matches a TCP app then the IP will be permanently
+      assigned to that app and regular TCP app forwarding will take over. This
+      matches the current VNet behavior where TCP app matches are permanent.
+   1. If the dialed port matches the proxy web port and the FQDN matches
+      a web app, VNet will proxy the TCP connection to the Teleport proxy (so that
+      we don't break web app access).
+1. If the dialed port is not `22` this will not be treated as an SSH connection
+   attempt. The FQDN is a subdomain of the cluster name, in case there is
+   some non-Teleport service available at that address VNet will dial that
+   address using a custom DNS resolver that will not just query the VNet nameserver.
+   If that TCP dial succeeds, VNet will transparently proxy the TCP connection.
+   If it fails, the incoming TCP connection will be rejected.
+1. The initial dial target for an FQDN matching `<hostname>.<cluster>` will be
+   set to `<hostname>:0`.
 1. VNet will apply any proxy templates found in the user's `TELEPORT_HOME` to
    the FQDN.
    1. If the proxy template matched and `query` or `search` parameters were
@@ -311,6 +334,7 @@ assigned to an FQDN but does not yet know if there is a matching app or SSH host
       Else, an error will be reported to the user.
    1. If the proxy template set an alternate `host:port`, the dial target will
       be set to that.
+   1. Dial targets modified by proxy templates will be cached for 1 minute.
 1. VNet will attempt to dial the target host and get a TCP connection using
    [client.DialHost](https://github.com/gravitational/teleport/blob/9c520834d8c952c484d9e654149d89a5d4fdaa8b/api/client/proxy/client.go#L430).
    If this fails the incoming TCP connection will be rejected.
@@ -322,10 +346,11 @@ assigned to an FQDN but does not yet know if there is a matching app or SSH host
 1. VNet will set `ssh.ServerConfig.PublicKeyCallback` to a function that:
    1. Validates that the user public key matches `id_vnet.pub` mentioned in [SSH client configuration](#ssh-client-configuration)
    1. Attempts an SSH connection to the target with and without session MFA. If
-      both fail, an authentication error is returned. This is done in
-      `PublicKeyCallback` so that authentication failures to the target are returned
-      as authentication failures to the client. Optimistically we can  send
-      more informative errors to Connect.
+      both fail, we send an auth banner message to the client with an error
+      message and return an error to x/crypto/ssh. This is done in `PublicKeyCallback`
+      so that authentication failures to the target are returned as
+      authentication failures to the client rather than completing the SSH
+      handshake from the client successfully and then closing it.
 1. If both SSH handshakes succeed we now have a connection to the client and to
    the target, VNet will now proxy all SSH requests and channels between the two
    connections until either side closes the connection or there is a fatal error.
@@ -346,18 +371,19 @@ sequenceDiagram
     DNS_Resolver->>DNS_Resolver: Check own cache (miss)
     DNS_Resolver->>VNet: A host.teleport.example.com?
     VNet->>VNet: Check own cache (miss)
-    VNet->>VNet: Matches a TCP app in the cluster? (no)
+    VNet->>VNet: Matches an app in the cluster? (no)
     VNet->>VNet: Matches *.teleport.example.com? (yes)
     VNet->>VNet: Assign IP 100.64.0.3 to FQDN host.teleport.example.com
     VNet->>DNS_Resolver: IP is 100.64.0.3
     DNS_Resolver->>Client: IP is 100.64.0.3
 
     Client<<->>VNet: Initiate SSH connection to 100.64.0.3
+    VNet->>VNet: Matches an app in the cluster? (no)
+    VNet->>VNet: Port 22? (yes)
+    VNet->>VNet: Apply proxy templates for host.teleport.example.com (no match)
     VNet->>Host: TCP dial `host:0`
     VNet->>Client: Initiate SSH handshake
     Client->>VNet: Attempts public-key auth
-
-    VNet->>VNet: Apply proxy templates for host.teleport.example.com (no match)
     VNet->>Teleport: Request per-session MFA certificate
     Teleport->>VNet: Send MFA challenge
     VNet->>User: Prompt user to tap MFA
