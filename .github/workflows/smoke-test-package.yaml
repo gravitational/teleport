@@ -1,0 +1,171 @@
+name: Smoke test package rpm/deb
+run-name: Smoke test package rpm/deb
+
+#Inputs
+#  cloud-only: false
+#  environment: prod/build
+#  oss-teleport-ref: v16.5.2
+#  oss-teleport-repo: gravitational/teleport
+#  ent-teleport-ref:
+#  release: enterprise
+#  release-target: release-arm
+#  release-version: 16.5.2
+#  build-connect: false
+#  build-deb: true
+#  build-rpm: true
+
+on:
+  # Only allow manual triggers
+  workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to checkout"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
+      oss-teleport-ref:
+        description: "Git SHA, tag or branch of the revision of OSS teleport to build"
+        required: true
+        type: string
+
+      release:
+        description: "Release level to build. Currently supports `oss` and `enterprise`"
+        required: true
+        type: string
+
+      release-target:
+        description: "Release target to run from build.assets/Makefile."
+        required: true
+        type: string
+
+      release-version:
+        description: |
+          Override the build version from what is in the Makefile.
+          Use this override to specify a tag for build debugging purposes.
+        type: string
+
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `stage/build` or `prod/build`.
+        type: string
+        default: stage/build
+
+  pull_request:
+#  merge_group:
+#    paths:
+#      - '.github/workflows/build-windows.yaml'
+#      - '**.go'
+#      - 'go.mod'
+#      - 'go.sum'
+#      - 'build.assets/Makefile'
+#      - 'build.assets/Dockerfile*'
+#      - 'Makefile'
+
+jobs:
+
+  build-release-artifacts:
+    runs-on: ubuntu-latest
+
+    env:
+      # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
+      # ARC runners, as these runners set up these vars for us. We still need
+      # these though for the GitHub runners (ubuntu).
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+
+    steps:
+      - name: Determine FIPS
+        id: determine-fips
+        run: |
+          echo 'is-fips=false' >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        with:
+          driver: docker
+
+#      # Log into Docker Hub to increase rate limits
+#      - name: Login to Docker Hub
+#        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+#        with:
+#          username: ${{ secrets.DOCKERHUB_USERNAME }}
+#          password: ${{ secrets.DOCKERHUB_TOKEN }}
+#
+#      # Log into ECR to raise rate limits, needed for the public.ecr.aws/gravitational/fpm
+#      # image used for building .deb and .rpm files.
+#      - name: Log into ECR
+#        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+#        with:
+#          registry-type: public
+#        env:
+#          # GetAuthorizationToken command is only supported in us-east-1.
+#          AWS_REGION: us-east-1
+
+      # The step can be removed when we commit to the self-hosted ARC runners,
+      # as it runs with a consistent UID/GID and creates the directories with
+      # the correct ownership. We still need this for the GitHub runners though.
+      - name: Create cache directories with correct owner/group
+        run: |
+          sudo mkdir -p "$GOCACHE" "$GOMODCACHE"
+          sudo chown -Rf "$(id -u):$(id -g)" "$GOCACHE" "$GOMODCACHE"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version-file: 'go.mod'
+
+      # FIPS and Teleport Connect builds need VERSION set in the environment as those
+      # builds do not go through the top-level teleport Makefile, which sets it for
+      # other builds.
+      - name: Set Version
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
+        run: |
+          VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
+          echo "VERSION=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build Release
+        env:
+          RELEASE_TARGET: ${{ inputs.release-target }}
+          RELEASE_DIR: ${{ github.workspace }}/build/artifacts
+        run: |
+          mkdir -p "$RELEASE_DIR"
+
+          make -C build.assets "$RELEASE_TARGET" VERSION="$VERSION"
+
+          # FIPS builds put the build archives in e/build/artifacts. If there are
+          # any files in there, move them to the top-level build/artifacts dir.
+          # TODO(camscale): Remove this when the Makefile puts all artifacts in $RELEASE_DIR
+          if [[ -d e/build/artifacts && -n "$(find e/build/artifacts -maxdepth 0 ! -empty)" ]]; then
+            mv e/build/artifacts/* "$RELEASE_DIR"
+          fi
+
+      - name: Build Debian package
+        env:
+          ARCH: amd64
+          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          RELEASE: ${{ inputs.release }}
+        run: |
+          make deb VERSION="$VERSION"
+          # TODO(camscale): Move artifact copying to Makefile(s)
+          cp build/*.deb build/artifacts
+
+
+      - name: Build RPM package
+        env:
+          ARCH: ${{ needs.setup.outputs.arch }}
+          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          RELEASE: ${{ inputs.release }}
+          GNUPG_DIR: /tmp/gnupg
+        run: |
+          make rpm-unsigned VERSION="$VERSION"
+          # TODO(camscale): Move artifact copying to Makefile(s)
+          cp build/*.rpm build/artifacts
+          if [ "$RELEASE" = 'enterprise' ]; then
+            cp e/build/*.rpm build/artifacts
+          fi
