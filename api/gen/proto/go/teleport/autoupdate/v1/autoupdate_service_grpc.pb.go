@@ -34,31 +34,30 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AutoUpdateService_GetAutoUpdateConfig_FullMethodName             = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateConfig"
-	AutoUpdateService_CreateAutoUpdateConfig_FullMethodName          = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateConfig"
-	AutoUpdateService_UpdateAutoUpdateConfig_FullMethodName          = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateConfig"
-	AutoUpdateService_UpsertAutoUpdateConfig_FullMethodName          = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateConfig"
-	AutoUpdateService_DeleteAutoUpdateConfig_FullMethodName          = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateConfig"
-	AutoUpdateService_GetAutoUpdateVersion_FullMethodName            = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateVersion"
-	AutoUpdateService_CreateAutoUpdateVersion_FullMethodName         = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateVersion"
-	AutoUpdateService_UpdateAutoUpdateVersion_FullMethodName         = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateVersion"
-	AutoUpdateService_UpsertAutoUpdateVersion_FullMethodName         = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateVersion"
-	AutoUpdateService_DeleteAutoUpdateVersion_FullMethodName         = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateVersion"
-	AutoUpdateService_GetAutoUpdateAgentRollout_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateAgentRollout"
-	AutoUpdateService_CreateAutoUpdateAgentRollout_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateAgentRollout"
-	AutoUpdateService_UpdateAutoUpdateAgentRollout_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentRollout"
-	AutoUpdateService_UpsertAutoUpdateAgentRollout_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentRollout"
-	AutoUpdateService_DeleteAutoUpdateAgentRollout_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentRollout"
-	AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/TriggerAutoUpdateAgentGroup"
-	AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/ForceAutoUpdateAgentGroup"
-	AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/RollbackAutoUpdateAgentGroup"
-	AutoUpdateService_ListAutoUpdateAgentReports_FullMethodName      = "/teleport.autoupdate.v1.AutoUpdateService/ListAutoUpdateAgentReports"
-	AutoUpdateService_GetAutoUpdateAgentReport_FullMethodName        = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateAgentReport"
-	AutoUpdateService_CreateAutoUpdateAgentReport_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateAgentReport"
-	AutoUpdateService_UpdateAutoUpdateAgentReport_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentReport"
-	AutoUpdateService_UpsertAutoUpdateAgentReport_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentReport"
-	AutoUpdateService_DeleteAutoUpdateAgentReport_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentReport"
-	AutoUpdateService_DeleteAllAutoUpdateAgentReports_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAllAutoUpdateAgentReports"
+	AutoUpdateService_GetAutoUpdateConfig_FullMethodName          = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateConfig"
+	AutoUpdateService_CreateAutoUpdateConfig_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateConfig"
+	AutoUpdateService_UpdateAutoUpdateConfig_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateConfig"
+	AutoUpdateService_UpsertAutoUpdateConfig_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateConfig"
+	AutoUpdateService_DeleteAutoUpdateConfig_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateConfig"
+	AutoUpdateService_GetAutoUpdateVersion_FullMethodName         = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateVersion"
+	AutoUpdateService_CreateAutoUpdateVersion_FullMethodName      = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateVersion"
+	AutoUpdateService_UpdateAutoUpdateVersion_FullMethodName      = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateVersion"
+	AutoUpdateService_UpsertAutoUpdateVersion_FullMethodName      = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateVersion"
+	AutoUpdateService_DeleteAutoUpdateVersion_FullMethodName      = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateVersion"
+	AutoUpdateService_GetAutoUpdateAgentRollout_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateAgentRollout"
+	AutoUpdateService_CreateAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateAgentRollout"
+	AutoUpdateService_UpdateAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentRollout"
+	AutoUpdateService_UpsertAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentRollout"
+	AutoUpdateService_DeleteAutoUpdateAgentRollout_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentRollout"
+	AutoUpdateService_TriggerAutoUpdateAgentGroup_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/TriggerAutoUpdateAgentGroup"
+	AutoUpdateService_ForceAutoUpdateAgentGroup_FullMethodName    = "/teleport.autoupdate.v1.AutoUpdateService/ForceAutoUpdateAgentGroup"
+	AutoUpdateService_RollbackAutoUpdateAgentGroup_FullMethodName = "/teleport.autoupdate.v1.AutoUpdateService/RollbackAutoUpdateAgentGroup"
+	AutoUpdateService_ListAutoUpdateAgentReports_FullMethodName   = "/teleport.autoupdate.v1.AutoUpdateService/ListAutoUpdateAgentReports"
+	AutoUpdateService_GetAutoUpdateAgentReport_FullMethodName     = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateAgentReport"
+	AutoUpdateService_CreateAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/CreateAutoUpdateAgentReport"
+	AutoUpdateService_UpdateAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentReport"
+	AutoUpdateService_UpsertAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentReport"
+	AutoUpdateService_DeleteAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentReport"
 )
 
 // AutoUpdateServiceClient is the client API for AutoUpdateService service.
@@ -117,8 +116,6 @@ type AutoUpdateServiceClient interface {
 	UpsertAutoUpdateAgentReport(ctx context.Context, in *UpsertAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error)
 	// DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
 	DeleteAutoUpdateAgentReport(ctx context.Context, in *DeleteAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllAutoUpdateAgentReports removes all AutoUpdateAgentReports.
-	DeleteAllAutoUpdateAgentReports(ctx context.Context, in *DeleteAllAutoUpdateAgentReportsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type autoUpdateServiceClient struct {
@@ -369,16 +366,6 @@ func (c *autoUpdateServiceClient) DeleteAutoUpdateAgentReport(ctx context.Contex
 	return out, nil
 }
 
-func (c *autoUpdateServiceClient) DeleteAllAutoUpdateAgentReports(ctx context.Context, in *DeleteAllAutoUpdateAgentReportsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AutoUpdateService_DeleteAllAutoUpdateAgentReports_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AutoUpdateServiceServer is the server API for AutoUpdateService service.
 // All implementations must embed UnimplementedAutoUpdateServiceServer
 // for forward compatibility.
@@ -435,8 +422,6 @@ type AutoUpdateServiceServer interface {
 	UpsertAutoUpdateAgentReport(context.Context, *UpsertAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error)
 	// DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
 	DeleteAutoUpdateAgentReport(context.Context, *DeleteAutoUpdateAgentReportRequest) (*emptypb.Empty, error)
-	// DeleteAllAutoUpdateAgentReports removes all AutoUpdateAgentReports.
-	DeleteAllAutoUpdateAgentReports(context.Context, *DeleteAllAutoUpdateAgentReportsRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAutoUpdateServiceServer()
 }
 
@@ -518,9 +503,6 @@ func (UnimplementedAutoUpdateServiceServer) UpsertAutoUpdateAgentReport(context.
 }
 func (UnimplementedAutoUpdateServiceServer) DeleteAutoUpdateAgentReport(context.Context, *DeleteAutoUpdateAgentReportRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateAgentReport not implemented")
-}
-func (UnimplementedAutoUpdateServiceServer) DeleteAllAutoUpdateAgentReports(context.Context, *DeleteAllAutoUpdateAgentReportsRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllAutoUpdateAgentReports not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) mustEmbedUnimplementedAutoUpdateServiceServer() {}
 func (UnimplementedAutoUpdateServiceServer) testEmbeddedByValue()                           {}
@@ -975,24 +957,6 @@ func _AutoUpdateService_DeleteAutoUpdateAgentReport_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoUpdateService_DeleteAllAutoUpdateAgentReports_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAllAutoUpdateAgentReportsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).DeleteAllAutoUpdateAgentReports(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AutoUpdateService_DeleteAllAutoUpdateAgentReports_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).DeleteAllAutoUpdateAgentReports(ctx, req.(*DeleteAllAutoUpdateAgentReportsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AutoUpdateService_ServiceDesc is the grpc.ServiceDesc for AutoUpdateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1095,10 +1059,6 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAutoUpdateAgentReport",
 			Handler:    _AutoUpdateService_DeleteAutoUpdateAgentReport_Handler,
-		},
-		{
-			MethodName: "DeleteAllAutoUpdateAgentReports",
-			Handler:    _AutoUpdateService_DeleteAllAutoUpdateAgentReports_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
