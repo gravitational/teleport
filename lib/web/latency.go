@@ -23,9 +23,10 @@ package web
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 )
 
 // monitorLatency implements the Web UI's latency detector.
