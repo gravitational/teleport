@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -162,10 +161,7 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 	waitConn := newWaitConn(ctx, conn)
 	defer waitConn.WaitForClose()
 
-	return h.cfg.ALPNHandler(
-		alpncommon.WithConnHandlerSource(ctx, alpncommon.ConnHandlerSourceWebConnUpgrade),
-		waitConn,
-	)
+	return h.cfg.ALPNHandler(ctx, waitConn)
 }
 
 func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error {

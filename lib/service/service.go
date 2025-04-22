@@ -5565,7 +5565,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb, alpncommon.ConnHandlerSourceWebDB))
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb, alpncommon.ConnHandlerSourceWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))

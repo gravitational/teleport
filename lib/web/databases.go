@@ -646,8 +646,7 @@ func (s *databaseInteractiveSession) Run() error {
 	// handler.
 	go func() {
 		alpnConnWithAddr := utils.NewConnWithAddr(s.alpnConn, s.ws.LocalAddr(), s.ws.RemoteAddr())
-		ctx := alpncommon.WithConnHandlerSource(s.ctx, alpncommon.ConnHandlerSourceWebDB)
-		if err := s.alpnHandler(ctx, alpnConnWithAddr); !utils.IsOKNetworkError(err) {
+		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); !utils.IsOKNetworkError(err) {
 			s.log.ErrorContext(s.ctx, "ALPN handler for database interactive session failed", "error", err)
 		}
 	}()
