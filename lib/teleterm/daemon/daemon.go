@@ -867,6 +867,8 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 		return trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+	// See https://github.com/gravitational/teleport/pull/54036
 	conn, err := grpc.Dial(serverAddress, withCreds)
 	if err != nil {
 		return trace.Wrap(err)

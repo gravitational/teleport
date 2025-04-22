@@ -58,6 +58,8 @@ func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
 
 	go server.Serve(listener)
 
+	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+	// See https://github.com/gravitational/teleport/pull/54036
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })

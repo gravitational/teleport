@@ -188,6 +188,9 @@ func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error)
 		Credentials: creds,
 		DialOpts: []grpc.DialOption{
 			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
+
+			//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+			// See https://github.com/gravitational/teleport/pull/54036
 			grpc.WithReturnConnectionError(),
 		},
 	})

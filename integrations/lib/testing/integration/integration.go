@@ -409,6 +409,8 @@ func (integration *Integration) NewSignedClient(ctx context.Context, auth Auth, 
 		Addrs:                    []string{auth.AuthAddr().String()},
 		Credentials:              []client.Credentials{client.LoadIdentityFile(identityPath)},
 		DialOpts: []grpc.DialOption{
+			//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+			// See https://github.com/gravitational/teleport/pull/54036
 			grpc.WithReturnConnectionError(),
 		},
 	})

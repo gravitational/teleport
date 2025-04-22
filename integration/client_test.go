@@ -73,6 +73,8 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 		Credentials: []client.Credentials{client.LoadIdentityFile(identityFilePath)},
 		DialOpts: []grpc.DialOption{
 			// ask for underlying errors
+			//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+			// See https://github.com/gravitational/teleport/pull/54036
 			grpc.WithReturnConnectionError(),
 		},
 	})

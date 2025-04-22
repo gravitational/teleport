@@ -142,6 +142,8 @@ func New(opts ...Opt) (*E, error) {
 	// gRPC client.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+	// See https://github.com/gravitational/teleport/pull/54036
 	cc, err := grpc.DialContext(ctx, "unused",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			return lis.DialContext(ctx)

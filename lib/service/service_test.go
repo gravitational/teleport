@@ -1403,6 +1403,9 @@ func TestProxyGRPCServers(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			t.Cleanup(cancel)
+
+			//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+			// See https://github.com/gravitational/teleport/pull/54036
 			_, err := grpc.DialContext(
 				ctx,
 				tt.listenerAddr,
@@ -1410,8 +1413,14 @@ func TestProxyGRPCServers(t *testing.T) {
 				// This setting is required to return the connection error instead of
 				// wrapping it in a "context deadline exceeded" error.
 				// It also enforces the grpc.WithBlock() option.
+
+				//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+				// See https://github.com/gravitational/teleport/pull/54036
 				grpc.WithReturnConnectionError(),
 				grpc.WithDisableRetry(),
+
+				//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+				// See https://github.com/gravitational/teleport/pull/54036
 				grpc.FailOnNonTempDialError(true),
 			)
 			tt.assertErr(t, err)

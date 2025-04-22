@@ -85,6 +85,9 @@ func NewClient(cfg Config) (otlptrace.Client, error) {
 	}
 
 	var httpOptions []otlptracehttp.Option
+
+	//nolint:staticcheck // SA1019 grpc package was upgraded due to a transitive dependency
+	// See https://github.com/gravitational/teleport/pull/54036
 	grpcOptions := []otlptracegrpc.Option{otlptracegrpc.WithDialOption(grpc.WithBlock())}
 
 	if cfg.TLSConfig != nil {
