@@ -49,20 +49,43 @@ func Test_renderAWSCreds(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	dest := &config.DestinationMemory{}
-	require.NoError(t, dest.CheckAndSetDefaults())
-	require.NoError(t, dest.Init(ctx, []string{}))
-
-	err := renderAWSCreds(ctx, creds, dest)
-	require.NoError(t, err)
-
-	got, err := dest.Read(ctx, "aws_credentials")
-	require.NoError(t, err)
-
-	if golden.ShouldSet() {
-		golden.Set(t, got)
+	tests := []struct {
+		name string
+		cfg  *config.WorkloadIdentityAWSRAService
+	}{
+		{
+			name: "normal",
+			cfg:  &config.WorkloadIdentityAWSRAService{},
+		},
+		{
+			name: "with named profile",
+			cfg: &config.WorkloadIdentityAWSRAService{
+				CredentialProfileName: "test-profile",
+			},
+		},
 	}
-	require.Equal(t, golden.Get(t), got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dest := &config.DestinationMemory{}
+			require.NoError(t, dest.CheckAndSetDefaults())
+			require.NoError(t, dest.Init(ctx, []string{}))
+			tt.cfg.Destination = dest
+			svc := &WorkloadIdentityAWSRAService{
+				cfg: tt.cfg,
+			}
+
+			err := svc.renderAWSCreds(ctx, creds)
+			require.NoError(t, err)
+
+			got, err := dest.Read(ctx, "aws_credentials")
+			require.NoError(t, err)
+
+			if golden.ShouldSet() {
+				golden.Set(t, got)
+			}
+			require.Equal(t, golden.Get(t), got)
+		})
+	}
 }
 
 type mockCreateSessionInputBody struct {
