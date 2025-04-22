@@ -52,6 +52,7 @@ type collections struct {
 	certAuthorities *collection[types.CertAuthority]
 	users           *collection[types.User]
 	roles           *collection[types.Role]
+	authServers     *collection[types.Server]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -98,6 +99,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.roles = collect
 			out.byKind[resourceKind] = out.roles
+		case types.KindAuthServer:
+			collect, err := newAuthServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.authServers = collect
+			out.byKind[resourceKind] = out.authServers
 		}
 	}
 

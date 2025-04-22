@@ -164,7 +164,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		cas := make([]types.CertAuthority, 0, c.collections.certAuthorities.store.len())
+		cas := make([]types.CertAuthority, 0, rg.store.len())
 		for ca := range rg.store.resources(certAuthorityStoreIDIndex, string(caType), sortcache.NextKey(string(caType))) {
 			if loadSigningKeys {
 				cas = append(cas, ca.Clone())
