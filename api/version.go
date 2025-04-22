@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "17.4.5"
+const Version = "17.4.5-dev-tross-gke-dns.1"
 
 var SemVersion = semver.New(Version)

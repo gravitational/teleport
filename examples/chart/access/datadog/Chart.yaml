@@ -1,4 +1,4 @@
-.version: &version "17.4.5"
+.version: &version "17.4.5-dev-tross-gke-dns.1"
 
 apiVersion: v2
 name: teleport-plugin-datadog
