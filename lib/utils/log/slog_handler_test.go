@@ -31,6 +31,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
 )
 
 // TestSlogTextHandler validates that the SlogTextHandler fulfills
@@ -220,4 +222,50 @@ func TestSlogJSONHandlerReservedKeysOverrideTypeDoesntPanic(t *testing.T) {
 	// msg was injected but is not a string, so, its value must be kept
 	require.Contains(t, logRecordMap, "msg")
 	require.InEpsilon(t, float64(123), logRecordMap["msg"], float64(0))
+}
+
+func TestSlogTextHandlerComponentPadding(t *testing.T) {
+	tests := []struct {
+		name      string
+		component string
+		padding   int
+		want      string
+	}{
+		{name: "padded component",
+			component: "foo",
+			padding:   11,
+			want:      "[FOO]       bar\n",
+		},
+		{name: "truncated component",
+			component: "foobarbazquux",
+			padding:   11,
+			want:      "[FOOBARBAZ] bar\n",
+		},
+		{name: "no padding",
+			component: "foobarbazquux",
+			padding:   0,
+			want:      "[FOOBARBAZQUUX] bar\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			h := NewSlogTextHandler(&buf, SlogTextHandlerConfig{
+				Level:            slog.LevelDebug,
+				Padding:          tt.padding,
+				ConfiguredFields: []string{ComponentField},
+			})
+			// Override defaults set by NewSlogTextHandler.
+			if tt.padding == 0 {
+				h.cfg.Padding = 0
+			}
+
+			logger := slog.New(h)
+			logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, tt.component)
+
+			require.Equal(t, tt.want, buf.String())
+		})
+	}
 }
