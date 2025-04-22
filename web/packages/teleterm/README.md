@@ -122,8 +122,7 @@ To create arm64 deb and RPM packages you need to provide `USE_SYSTEM_FPM=1` env 
 
 A lot of our tooling assumes that you're running sh-compatible shell with some standard tools like
 `make` available. On Windows, that's available through Git Bash from [Git for Windows](https://gitforwindows.org/).
-It also ships with a lot of GNU tools that are needed to build the project. Alternatively, you can
-try installing just MinGW through [Chocolatey](https://chocolatey.org/) (`choco install mingw`).
+It also ships with a lot of GNU tools that are needed to build the project.
 
 `make build/tsh` doesn't work on Windows anyway. But you can run a simplified version of what that
 Make target calls underneath.
