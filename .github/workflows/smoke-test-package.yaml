@@ -42,7 +42,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.set.outputs.version }}
+      version: ${{ steps.set-version.outputs.version }}
     env:
       # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
       # ARC runners, as these runners set up these vars for us. We still need
@@ -91,12 +91,13 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Set Version
+        id: set-version
         env:
           RELEASE_VERSION: ${{ inputs.release-version }}
         run: |
           VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
           echo "VERSION=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_ENV"
-          echo "version=${RELEASE_VERSION:-$VERSION}" >> $GITHUB_OUTPUT
+          echo "version=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Build Release
         env:
