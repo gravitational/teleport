@@ -202,7 +202,7 @@ func TestBotConfig_YAML(t *testing.T) {
 					JoinMethod: "gitlab",
 					TokenValue: "my-gitlab-token",
 					Gitlab: GitlabOnboardingConfig{
-						EnvVarName: "MY_CUSTOM_ENV_VAR",
+						TokenEnvVarName: "MY_CUSTOM_ENV_VAR",
 					},
 				},
 				FIPS:       true,

@@ -3,7 +3,7 @@ onboarding:
   token: my-gitlab-token
   join_method: gitlab
   gitlab:
-    env_var_name: MY_CUSTOM_ENV_VAR
+    token_env_var_name: MY_CUSTOM_ENV_VAR
 storage:
   type: directory
   path: /bot/storage

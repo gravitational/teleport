@@ -83,10 +83,10 @@ type TerraformOnboardingConfig struct {
 
 // GitlabOnboardingConfig holds configuration relevant to the "gitlab" join method.
 type GitlabOnboardingConfig struct {
-	// EnvVarName is the name of the environment variable that contains the
+	// TokenEnvVarName is the name of the environment variable that contains the
 	// GitLab ID token. This can be useful to override in cases where a single
 	// gitlab job needs to authenticate to multiple Teleport clusters.
-	EnvVarName string `yaml:"env_var_name,omitempty"`
+	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with

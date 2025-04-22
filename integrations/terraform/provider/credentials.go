@@ -522,7 +522,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 				AudienceTag: audienceTag,
 			},
 			Gitlab: tbotconfig.GitlabOnboardingConfig{
-				EnvVarName: gitlabIDTokenEnvVar,
+				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
 		},
 		CredentialLifetime: tbotconfig.CredentialLifetime{
