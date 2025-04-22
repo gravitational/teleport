@@ -2415,6 +2415,13 @@ message HardwareKey {
   // SerialNumberValidation holds settings for hardware key serial number validation.
   // By default, serial number validation is disabled.
   HardwareKeySerialNumberValidation SerialNumberValidation = 2 [(gogoproto.jsontag) = "serial_number_validation,omitempty"];
+
+  // PinCacheTTL is the amount of time in nanoseconds that Teleport clients
+  // will cache the user's PIV PIN when hardware key PIN policy is enabled.
+  int64 PinCacheTTL = 3 [
+    (gogoproto.jsontag) = "pin_cache_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 message HardwareKeySerialNumberValidation {
@@ -7267,6 +7274,10 @@ message PluginOktaStatusDetailsSSO {
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
   // sync.
   string app_name = 3;
+
+  // OktaGroupEveryoneMappedRoles are the role(s) that will be granted to Okta users
+  // through SSO or synchronization.
+  repeated string okta_group_everyone_mapped_roles = 4;
 }
 
 // PluginOktaStatusDetailsAppGroupSync are details related to the

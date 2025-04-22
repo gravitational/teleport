@@ -33,7 +33,7 @@ func (c *Cache) ListHealthCheckConfigs(ctx context.Context, pageSize int, nextTo
 	ctx, span := c.Tracer.Start(ctx, "cache/ListHealthCheckConfigs")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.healthCheckConfig)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.healthCheckConfig)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -47,7 +47,7 @@ func (c *Cache) GetHealthCheckConfig(ctx context.Context, name string) (*healthc
 	ctx, span := c.Tracer.Start(ctx, "cache/GetHealthCheckConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.healthCheckConfig)
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.healthCheckConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

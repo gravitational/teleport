@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/events"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -449,6 +450,9 @@ type Config struct {
 
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
 	PIVSlot hardwarekey.PIVSlotKeyString
+
+	// PIVPINCacheTTL specifies how long to cache the user's PIV PIN.
+	PIVPINCacheTTL time.Duration
 
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
@@ -893,6 +897,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
 	c.PIVSlot = profile.PIVSlot
+	c.PIVPINCacheTTL = profile.PIVPINCacheTTL
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.SSOHost = profile.SSOHost
@@ -948,6 +953,7 @@ func (c *Config) Profile() *profile.Profile {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 		PIVSlot:                       c.PIVSlot,
+		PIVPINCacheTTL:                c.PIVPINCacheTTL,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
 		SSOHost:                       c.SSOHost,
@@ -1285,10 +1291,10 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			// Initialize empty client store to prevent panics.
 			tc.ClientStore = NewMemClientStore()
 		} else {
-			tc.ClientStore = NewFSClientStore(c.KeysDir)
-			if c.CustomHardwareKeyPrompt != nil {
-				tc.ClientStore.SetCustomHardwareKeyPrompt(tc.CustomHardwareKeyPrompt)
-			}
+			// TODO (Joerger): init hardware key service (and client store) earlier where it can
+			// be properly shared.
+			hardwareKeyService := libhwk.NewService(context.TODO(), tc.CustomHardwareKeyPrompt)
+			tc.ClientStore = NewFSClientStore(c.KeysDir, WithHardwareKeyService(hardwareKeyService))
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
 				tc.ClientStore.KeyStore = NewMemKeyStore()
@@ -4003,13 +4009,14 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		// TODO(Joerger): Initialize the hardware key service early in the process and store
-		// it in the client store. This allows the process to properly share PIV connections
-		// and prompt logic (pin caching, etc.).
-		hwks := keys.NewYubiKeyService(tc.CustomHardwareKeyPrompt)
-		priv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, hardwarekey.PrivateKeyConfig{
 			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
 			CustomSlot: tc.PIVSlot,
+			ContextualKeyInfo: hardwarekey.ContextualKeyInfo{
+				ProxyHost:   tc.WebProxyHost(),
+				Username:    tc.Username,
+				ClusterName: tc.SiteName,
+			},
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4730,6 +4737,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 // authentication settings, overriding existing fields in tc.
 func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) error {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
+	tc.PIVPINCacheTTL = authSettings.PIVPINCacheTTL
 
 	// If PIVSlot is not already set, default to the server setting.
 	if tc.PIVSlot == "" {

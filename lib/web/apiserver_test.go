@@ -7390,6 +7390,7 @@ func TestCreateDatabase(t *testing.T) {
 		Allow: types.RoleConditions{
 			DatabaseNames: []string{"name1"},
 			DatabaseUsers: []string{"user1"},
+			DatabaseRoles: []string{"readonly"},
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabase,
 					[]string{types.VerbCreate}),
@@ -7397,6 +7398,9 @@ func TestCreateDatabase(t *testing.T) {
 			DatabaseLabels: types.Labels{
 				types.Wildcard: {types.Wildcard},
 			},
+		},
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
 		},
 	})
 	require.NoError(t, err)
@@ -7557,6 +7561,7 @@ func TestCreateDatabase(t *testing.T) {
 				Hostname:      "someuri",
 				DatabaseUsers: []string{"user1"},
 				DatabaseNames: []string{"name1"},
+				DatabaseRoles: []string{"readonly"},
 				URI:           "someuri:3306",
 			}
 			require.Equal(t, expected, result)

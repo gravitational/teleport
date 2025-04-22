@@ -43,7 +43,8 @@ const clusterConnectDialog: DialogClusterConnect = {
 const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
   kind: 'hardware-key-touch',
   req: {
-    rootClusterUri: '/clusters/foo',
+    proxyHostname: 'foo.example.com',
+    command: '',
   },
   onCancel: () => {},
 };

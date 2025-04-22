@@ -62,7 +62,9 @@ type JoinAttrs struct {
 	// Attributes that are specific to the GCP (`gcp`) join method.
 	Gcp *JoinAttrsGCP `protobuf:"bytes,11,opt,name=gcp,proto3" json:"gcp,omitempty"`
 	// Attributes that are specific to the Kubernetes (`kubernetes`) join method.
-	Kubernetes    *JoinAttrsKubernetes `protobuf:"bytes,12,opt,name=kubernetes,proto3" json:"kubernetes,omitempty"`
+	Kubernetes *JoinAttrsKubernetes `protobuf:"bytes,12,opt,name=kubernetes,proto3" json:"kubernetes,omitempty"`
+	// Attributes that are specific to the Oracle (`oracle`) join method.
+	Oracle        *JoinAttrsOracle `protobuf:"bytes,13,opt,name=oracle,proto3" json:"oracle,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -177,6 +179,13 @@ func (x *JoinAttrs) GetGcp() *JoinAttrsGCP {
 func (x *JoinAttrs) GetKubernetes() *JoinAttrsKubernetes {
 	if x != nil {
 		return x.Kubernetes
+	}
+	return nil
+}
+
+func (x *JoinAttrs) GetOracle() *JoinAttrsOracle {
+	if x != nil {
+		return x.Oracle
 	}
 	return nil
 }
@@ -1451,11 +1460,75 @@ func (x *JoinAttrsKubernetes) GetPod() *JoinAttrsKubernetesPod {
 	return nil
 }
 
+// Attributes that are specific to the Oracle (`oracle`) join method.
+type JoinAttrsOracle struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The ID of the instance's tenant.
+	TenancyId string `protobuf:"bytes,1,opt,name=tenancy_id,json=tenancyId,proto3" json:"tenancy_id,omitempty"`
+	// The ID of the instance's compartment.
+	CompartmentId string `protobuf:"bytes,2,opt,name=compartment_id,json=compartmentId,proto3" json:"compartment_id,omitempty"`
+	// The ID of the instance.
+	InstanceId    string `protobuf:"bytes,3,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinAttrsOracle) Reset() {
+	*x = JoinAttrsOracle{}
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinAttrsOracle) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinAttrsOracle) ProtoMessage() {}
+
+func (x *JoinAttrsOracle) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinAttrsOracle.ProtoReflect.Descriptor instead.
+func (*JoinAttrsOracle) Descriptor() ([]byte, []int) {
+	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *JoinAttrsOracle) GetTenancyId() string {
+	if x != nil {
+		return x.TenancyId
+	}
+	return ""
+}
+
+func (x *JoinAttrsOracle) GetCompartmentId() string {
+	if x != nil {
+		return x.CompartmentId
+	}
+	return ""
+}
+
+func (x *JoinAttrsOracle) GetInstanceId() string {
+	if x != nil {
+		return x.InstanceId
+	}
+	return ""
+}
+
 var File_teleport_workloadidentity_v1_join_attrs_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\"\xfb\x06\n" +
+	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\"\xc2\a\n" +
 	"\tJoinAttrs\x12?\n" +
 	"\x04meta\x18\x01 \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsMetaR\x04meta\x12E\n" +
 	"\x06gitlab\x18\x02 \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsGitLabR\x06gitlab\x12E\n" +
@@ -1471,7 +1544,8 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x03gcp\x18\v \x01(\v2*.teleport.workloadidentity.v1.JoinAttrsGCPR\x03gcp\x12Q\n" +
 	"\n" +
 	"kubernetes\x18\f \x01(\v21.teleport.workloadidentity.v1.JoinAttrsKubernetesR\n" +
-	"kubernetes\"X\n" +
+	"kubernetes\x12E\n" +
+	"\x06oracle\x18\r \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsOracleR\x06oracle\"X\n" +
 	"\rJoinAttrsMeta\x12&\n" +
 	"\x0fjoin_token_name\x18\x01 \x01(\tR\rjoinTokenName\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
@@ -1572,7 +1646,13 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x13JoinAttrsKubernetes\x12\x18\n" +
 	"\asubject\x18\x01 \x01(\tR\asubject\x12h\n" +
 	"\x0fservice_account\x18\x02 \x01(\v2?.teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccountR\x0eserviceAccount\x12F\n" +
-	"\x03pod\x18\x03 \x01(\v24.teleport.workloadidentity.v1.JoinAttrsKubernetesPodR\x03podBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"\x03pod\x18\x03 \x01(\v24.teleport.workloadidentity.v1.JoinAttrsKubernetesPodR\x03pod\"x\n" +
+	"\x0fJoinAttrsOracle\x12\x1d\n" +
+	"\n" +
+	"tenancy_id\x18\x01 \x01(\tR\ttenancyId\x12%\n" +
+	"\x0ecompartment_id\x18\x02 \x01(\tR\rcompartmentId\x12\x1f\n" +
+	"\vinstance_id\x18\x03 \x01(\tR\n" +
+	"instanceIdBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
 var (
 	file_teleport_workloadidentity_v1_join_attrs_proto_rawDescOnce sync.Once
@@ -1586,7 +1666,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP() []byte {
 	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescData
 }
 
-var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrs)(nil),                         // 0: teleport.workloadidentity.v1.JoinAttrs
 	(*JoinAttrsMeta)(nil),                     // 1: teleport.workloadidentity.v1.JoinAttrsMeta
@@ -1604,6 +1684,7 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrsKubernetesPod)(nil),            // 13: teleport.workloadidentity.v1.JoinAttrsKubernetesPod
 	(*JoinAttrsKubernetesServiceAccount)(nil), // 14: teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
 	(*JoinAttrsKubernetes)(nil),               // 15: teleport.workloadidentity.v1.JoinAttrsKubernetes
+	(*JoinAttrsOracle)(nil),                   // 16: teleport.workloadidentity.v1.JoinAttrsOracle
 }
 var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	1,  // 0: teleport.workloadidentity.v1.JoinAttrs.meta:type_name -> teleport.workloadidentity.v1.JoinAttrsMeta
@@ -1618,14 +1699,15 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	10, // 9: teleport.workloadidentity.v1.JoinAttrs.spacelift:type_name -> teleport.workloadidentity.v1.JoinAttrsSpacelift
 	12, // 10: teleport.workloadidentity.v1.JoinAttrs.gcp:type_name -> teleport.workloadidentity.v1.JoinAttrsGCP
 	15, // 11: teleport.workloadidentity.v1.JoinAttrs.kubernetes:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetes
-	11, // 12: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
-	14, // 13: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
-	13, // 14: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	16, // 12: teleport.workloadidentity.v1.JoinAttrs.oracle:type_name -> teleport.workloadidentity.v1.JoinAttrsOracle
+	11, // 13: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
+	14, // 14: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
+	13, // 15: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_join_attrs_proto_init() }
@@ -1639,7 +1721,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

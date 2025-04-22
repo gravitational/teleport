@@ -39,6 +39,10 @@ type clientApplicationService struct {
 
 	localAppProvider *localAppProvider
 
+	// networkStackInfo will receive any network stack info reported via
+	// ReportNetworkStackInfo.
+	networkStackInfo chan *vnetv1.NetworkStackInfo
+
 	// mu protects appSignerCache
 	mu sync.Mutex
 	// appSignerCache caches the crypto.Signer for each certificate issued by
@@ -54,13 +58,9 @@ type clientApplicationService struct {
 func newClientApplicationService(localAppProvider *localAppProvider) *clientApplicationService {
 	return &clientApplicationService{
 		localAppProvider: localAppProvider,
+		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
 	}
-}
-
-// Ping implements [vnetv1.ClientApplicationServiceServer.Ping].
-func (s *clientApplicationService) Ping(ctx context.Context, req *vnetv1.PingRequest) (*vnetv1.PingResponse, error) {
-	return &vnetv1.PingResponse{}, nil
 }
 
 // AuthenticateProcess implements [vnetv1.ClientApplicationServiceServer.AuthenticateProcess].
@@ -79,6 +79,21 @@ func (s *clientApplicationService) AuthenticateProcess(ctx context.Context, req 
 	}, nil
 }
 
+// ReportNetworkStackInfo implements [vnetv1.ClientApplicationServiceServer.ReportNetworkStackInfo].
+func (s *clientApplicationService) ReportNetworkStackInfo(ctx context.Context, req *vnetv1.ReportNetworkStackInfoRequest) (*vnetv1.ReportNetworkStackInfoResponse, error) {
+	select {
+	case s.networkStackInfo <- req.GetNetworkStackInfo():
+	default:
+		return nil, trace.BadParameter("ReportNetworkStackInfo must be called exactly once")
+	}
+	return &vnetv1.ReportNetworkStackInfoResponse{}, nil
+}
+
+// Ping implements [vnetv1.ClientApplicationServiceServer.Ping].
+func (s *clientApplicationService) Ping(ctx context.Context, req *vnetv1.PingRequest) (*vnetv1.PingResponse, error) {
+	return &vnetv1.PingResponse{}, nil
+}
+
 // ResolveAppInfo implements [vnetv1.ClientApplicationServiceServer.ResolveAppInfo].
 func (s *clientApplicationService) ResolveAppInfo(ctx context.Context, req *vnetv1.ResolveAppInfoRequest) (*vnetv1.ResolveAppInfoResponse, error) {
 	appInfo, err := s.localAppProvider.ResolveAppInfo(ctx, req.GetFqdn())
@@ -94,14 +109,19 @@ func (s *clientApplicationService) ResolveAppInfo(ctx context.Context, req *vnet
 // It caches the signer issued for each app so that it can later be used to
 // issue signatures in [clientApplicationService.SignForApp].
 func (s *clientApplicationService) ReissueAppCert(ctx context.Context, req *vnetv1.ReissueAppCertRequest) (*vnetv1.ReissueAppCertResponse, error) {
-	if req.AppInfo == nil {
+	appInfo := req.GetAppInfo()
+	if appInfo == nil {
 		return nil, trace.BadParameter("missing AppInfo")
 	}
-	cert, err := s.localAppProvider.ReissueAppCert(ctx, req.GetAppInfo(), uint16(req.GetTargetPort()))
+	appKey := appInfo.GetAppKey()
+	if err := checkAppKey(appKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := s.localAppProvider.ReissueAppCert(ctx, appInfo, uint16(req.GetTargetPort()))
 	if err != nil {
 		return nil, trace.Wrap(err, "reissuing app certificate")
 	}
-	s.setSignerForApp(req.GetAppInfo().GetAppKey(), uint16(req.GetTargetPort()), cert.PrivateKey.(crypto.Signer))
+	s.setSignerForApp(appKey, uint16(req.GetTargetPort()), cert.PrivateKey.(crypto.Signer))
 	return &vnetv1.ReissueAppCertResponse{
 		Cert: cert.Certificate[0],
 	}, nil
@@ -134,8 +154,11 @@ func (s *clientApplicationService) SignForApp(ctx context.Context, req *vnetv1.S
 			SaltLength: int(*req.PssSaltLength),
 		}
 	}
-	appKey := req.GetAppKey()
 
+	appKey := req.GetAppKey()
+	if err := checkAppKey(appKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	signer, ok := s.getSignerForApp(req.GetAppKey(), uint16(req.GetTargetPort()))
 	if !ok {
 		return nil, trace.BadParameter("no signer for app %v", appKey)
@@ -203,4 +226,19 @@ func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
 func (s *clientApplicationService) GetTargetOSConfiguration(ctx context.Context, _ *vnetv1.GetTargetOSConfigurationRequest) (*vnetv1.GetTargetOSConfigurationResponse, error) {
 	resp, err := s.localAppProvider.getTargetOSConfiguration(ctx)
 	return resp, trace.Wrap(err, "getting target OS configuration")
+}
+
+// checkAppKey checks that at least the app profile and name are set, which are
+// necessary to to disambiguate apps. LeafCluster is expected to be empty if the
+// app is in a root cluster.
+func checkAppKey(key *vnetv1.AppKey) error {
+	switch {
+	case key == nil:
+		return trace.BadParameter("app key must not be nil")
+	case key.GetProfile() == "":
+		return trace.BadParameter("app key profile must be set")
+	case key.GetName() == "":
+		return trace.BadParameter("app key name must be set")
+	}
+	return nil
 }

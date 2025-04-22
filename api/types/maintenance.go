@@ -288,13 +288,14 @@ func (m *ClusterMaintenanceConfigV1) WithinUpgradeWindow(t time.Time) bool {
 		}
 	}
 
-	weekday := t.Weekday().String()
-	for _, upgradeWeekday := range upgradeWindow.Weekdays {
-		if weekday == upgradeWeekday {
-			if int(upgradeWindow.UTCStartHour) == t.Hour() {
-				return true
-			}
-		}
+	upgradeWeekDays, err := ParseWeekdays(upgradeWindow.Weekdays)
+	if err != nil {
+		return false
 	}
-	return false
+
+	if _, ok := upgradeWeekDays[t.Weekday()]; !ok {
+		return false
+	}
+
+	return int(upgradeWindow.UTCStartHour) == t.Hour()
 }

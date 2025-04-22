@@ -39,6 +39,7 @@ export default function TopBar(props: Props) {
     onCtrlAltDel,
     alerts,
     onRemoveAlert,
+    isConnected,
     latency,
   } = props;
   const theme = useTheme();
@@ -61,30 +62,35 @@ export default function TopBar(props: Props) {
         {userHost}
       </Text>
 
-      <Flex px={3}>
-        <Flex alignItems="center" gap={3}>
-          {latency && <LatencyDiagnostic latency={latency} />}
-          <HoverTooltip
-            tipContent={directorySharingToolTip(
-              canShareDirectory,
-              isSharingDirectory
-            )}
-            placement="bottom"
-          >
-            <FolderShared style={primaryOnTrue(isSharingDirectory)} />
-          </HoverTooltip>
-          <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
-            <Clipboard style={primaryOnTrue(isSharingClipboard)} />
-          </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+      {isConnected && (
+        <Flex px={3}>
+          <Flex alignItems="center">
+            {latency && <LatencyDiagnostic latency={latency} />}
+            <HoverTooltip
+              tipContent={directorySharingToolTip(
+                canShareDirectory,
+                isSharingDirectory
+              )}
+              placement="bottom"
+            >
+              <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
+            </HoverTooltip>
+            <HoverTooltip
+              tipContent={clipboardSharingMessage}
+              placement="bottom"
+            >
+              <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
+            </HoverTooltip>
+            <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          </Flex>
+          <ActionMenu
+            onDisconnect={onDisconnect}
+            showShareDirectory={canShareDirectory && !isSharingDirectory}
+            onShareDirectory={onShareDirectory}
+            onCtrlAltDel={onCtrlAltDel}
+          />
         </Flex>
-        <ActionMenu
-          onDisconnect={onDisconnect}
-          showShareDirectory={canShareDirectory && !isSharingDirectory}
-          onShareDirectory={onShareDirectory}
-          onCtrlAltDel={onCtrlAltDel}
-        />
-      </Flex>
+      )}
     </TopNav>
   );
 }
@@ -112,6 +118,7 @@ type Props = {
   onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
   alerts: NotificationItem[];
+  isConnected: boolean;
   onRemoveAlert(id: string): void;
   latency: {
     client: number;

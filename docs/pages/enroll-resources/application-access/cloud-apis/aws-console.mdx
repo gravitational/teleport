@@ -412,13 +412,13 @@ Application Service:
        method: token
      proxy_server: "<Var name="PROXY_ADDR" />"
    auth_service:
-     enabled: off
+     enabled: false
    proxy_service:
-     enabled: off
+     enabled: false
    ssh_service:
-     enabled: off
+     enabled: false
    app_service:
-     enabled: "yes"
+     enabled: true
      apps:
      - name: "awsconsole"
      # The public AWS Console is used after authenticating the user from Teleport
@@ -502,7 +502,7 @@ label to the account ID:
 
 ```yaml
 app_service:
-  enabled: "yes"
+  enabled: true
   apps:
   - name: "awsconsole-test"
     uri: "https://console.aws.amazon.com/ec2/v2/home"

@@ -122,10 +122,6 @@ func TestPROXYEnabledListener_Accept(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			proto := "tcp"
 			listenAddr := "127.0.0.1:0"
-			if tt.allowDowngrade {
-				proto = "tcp6"
-				listenAddr = "[::1]:0"
-			}
 			listener, err := net.Listen(proto, listenAddr)
 			require.NoError(t, err)
 			t.Cleanup(func() { listener.Close() })
