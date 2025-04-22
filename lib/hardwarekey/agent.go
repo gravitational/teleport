@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
-	netutil "github.com/gravitational/teleport/api/utils/net"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -105,7 +104,7 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 	l, err := net.Listen("unix", socketPath)
 	if err == nil {
 		return l, nil
-	} else if !errors.Is(err, netutil.ErrAddrInUse) {
+	} else if !errors.Is(err, errAddrInUse) {
 		return nil, trace.Wrap(err)
 	}
 

@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build windows
 
 // Copyright 2025 Gravitational, Inc.
 //
@@ -14,11 +14,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package net
+package hardwarekey
 
-import "syscall"
+import "golang.org/x/sys/windows"
 
 const (
-	// ErrAddrInUse is [syscall.EADDRINUSE]
-	ErrAddrInUse = syscall.EADDRINUSE
+	// errAddrInUse is [windows.WSAEADDRINUSE]
+	errAddrInUse = windows.WSAEADDRINUSE
 )
