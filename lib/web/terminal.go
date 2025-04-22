@@ -778,36 +778,6 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	}
 }
 
-func monitorSessionLatency(ctx context.Context, clock clockwork.Clock, stream *terminal.WSStream, sshClient *tracessh.Client) error {
-	wsPinger, err := latency.NewWebsocketPinger(clock, stream)
-	if err != nil {
-		return trace.Wrap(err, "creating websocket pinger")
-	}
-
-	sshPinger, err := latency.NewSSHPinger(sshClient)
-	if err != nil {
-		return trace.Wrap(err, "creating ssh pinger")
-	}
-
-	monitor, err := latency.NewMonitor(latency.MonitorConfig{
-		ClientPinger: wsPinger,
-		ServerPinger: sshPinger,
-		Reporter: latency.ReporterFunc(func(ctx context.Context, statistics latency.Statistics) error {
-			return trace.Wrap(stream.WriteLatency(terminal.SSHSessionLatencyStats{
-				WebSocket: statistics.Client,
-				SSH:       statistics.Server,
-			}))
-		}),
-		Clock: clock,
-	})
-	if err != nil {
-		return trace.Wrap(err, "creating latency monitor")
-	}
-
-	monitor.Run(ctx)
-	return nil
-}
-
 // streamTerminal opens an SSH connection to the remote host and streams
 // events back to the web client.
 func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
