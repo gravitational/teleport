@@ -412,7 +412,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	defer clientTLSConn.Close()
 
 	require.NoError(t, clientTLSConn.HandshakeContext(context.Background()))
-	checkGaugeValue(t, 1, proxyConnInFlight.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
+	checkGaugeValue(t, 1, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
 
@@ -430,8 +430,8 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	require.ErrorIs(t, handlerCtx.Err(), context.Canceled)
 
 	// Check reporting.
-	checkGaugeValue(t, 1, proxyConnTotal.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
-	checkGaugeValue(t, 0, proxyConnInFlight.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
+	checkGaugeValue(t, 1, proxyConnectionsTotal.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
+	checkGaugeValue(t, 0, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
 
 	t.Run("on handler error", func(t *testing.T) {
 		serverConn, clientConn := net.Pipe()
@@ -472,8 +472,8 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 		// Make sure passed in conn is closed.
 		require.True(t, trackServerConn.closed.Load())
 		// Check reporting.
-		checkGaugeValue(t, 1, proxyConnTotal.WithLabelValues("unknown", t.Name()))
-		checkGaugeValue(t, 1, proxyConnHandlerError.WithLabelValues("unknown", t.Name()))
+		checkGaugeValue(t, 1, proxyConnectionsTotal.WithLabelValues("unknown", t.Name()))
+		checkGaugeValue(t, 1, proxyConnectionErrorsTotal.WithLabelValues("unknown", t.Name()))
 	})
 }
 

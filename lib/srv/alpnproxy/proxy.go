@@ -303,9 +303,9 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	}
 
 	if err := metrics.RegisterPrometheusCollectors(
-		proxyConnTotal,
-		proxyConnInFlight,
-		proxyConnHandlerError,
+		proxyConnectionsTotal,
+		proxyActiveConnections,
+		proxyConnectionErrorsTotal,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -389,14 +389,19 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	var conn net.Conn
 	defer func() {
 		if err != nil {
-			proxyConnHandlerError.WithLabelValues(
+			proxyConnectionErrorsTotal.WithLabelValues(
 				getRequestedALPNFromHello(hello),
 				common.GetConnHandlerSource(ctx),
 			).Inc()
 		}
 	}()
 
+	// Attempt to read TLS hello. Always increment total counters even on failures.
 	hello, conn, err = p.readHelloMessageWithoutTLSTermination(ctx, clientConn)
+	proxyConnectionsTotal.WithLabelValues(
+		getRequestedALPNFromHello(hello),
+		common.GetConnHandlerSource(ctx),
+	).Inc()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -667,7 +672,7 @@ func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config) ConnectionHan
 		if err := p.handleConn(ctx, conn, defaultOverride); err != nil {
 			// Make sure we close the connection on error.
 			if cerr := conn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-				p.log.WarnContext(ctx, "Failed to close client connection.", "error", cerr, "remote_addr", logutils.StringerAttr(conn.RemoteAddr()))
+				p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr, "remote_addr", logutils.StringerAttr(conn.RemoteAddr()))
 			}
 			// Still return the error for caller to report/log.
 			return trace.Wrap(err)
@@ -729,30 +734,30 @@ func getRequestedALPNFromHello(hello *tls.ClientHelloInfo) string {
 }
 
 var (
-	proxyConnTotal = prometheus.NewGaugeVec(
+	proxyConnectionsTotal = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
-			Subsystem: "alpn",
-			Name:      "proxy_conn_total",
+			Subsystem: "alpn_proxy",
+			Name:      "connections_total",
 			Help:      "Number of total connections handled by TLS routing proxy server.",
 		},
 		[]string{"alpn", "source"},
 	)
-	proxyConnInFlight = prometheus.NewGaugeVec(
+	proxyActiveConnections = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
-			Subsystem: "alpn",
-			Name:      "proxy_conn",
-			Help:      "Number of in-flight connections handled by TLS routing proxy server.",
+			Subsystem: "alpn_proxy",
+			Name:      "active_connections",
+			Help:      "Number of active connections handled by TLS routing proxy server.",
 		},
 		[]string{"alpn", "source"},
 	)
-	proxyConnHandlerError = prometheus.NewGaugeVec(
+	proxyConnectionErrorsTotal = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
-			Subsystem: "alpn",
-			Name:      "proxy_handler_error",
-			Help:      "Number of handler error encountered by TLS routing proxy server.",
+			Subsystem: "alpn_proxy",
+			Name:      "connection_errors_total",
+			Help:      "Number of connection handler errors encountered by TLS routing proxy server.",
 		},
 		[]string{"alpn", "source"},
 	)

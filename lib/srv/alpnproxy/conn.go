@@ -106,13 +106,15 @@ type reportingConn struct {
 	closeOnce func() error
 }
 
+// newReportingConn returns a net.Conn that wraps the input conn, increments the
+// active connections gauge on creation, and decreases the active connections
+// gauge on close.
 func newReportingConn(conn net.Conn, clientALPN string, connSource string) net.Conn {
-	proxyConnTotal.WithLabelValues(clientALPN, connSource).Inc()
-	proxyConnInFlight.WithLabelValues(clientALPN, connSource).Inc()
+	proxyActiveConnections.WithLabelValues(clientALPN, connSource).Inc()
 	return &reportingConn{
 		Conn: conn,
 		closeOnce: sync.OnceValue(func() error {
-			proxyConnInFlight.WithLabelValues(clientALPN, connSource).Dec()
+			proxyActiveConnections.WithLabelValues(clientALPN, connSource).Dec()
 			// Do not wrap.
 			return conn.Close()
 		}),
