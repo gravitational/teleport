@@ -266,15 +266,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.nodes
-		case types.KindProxy:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.proxies = &genericCollection[types.Server, services.ProxyGetter, proxyExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.proxies
 		case types.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -927,35 +918,6 @@ type remoteClusterGetter interface {
 }
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
-
-type proxyExecutor struct{}
-
-func (proxyExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetProxies()
-}
-
-func (proxyExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertProxy(ctx, resource)
-}
-
-func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllProxies()
-}
-
-func (proxyExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteProxy(ctx, resource.GetName())
-}
-
-func (proxyExecutor) isSingleton() bool { return false }
-
-func (proxyExecutor) getReader(cache *Cache, cacheOK bool) services.ProxyGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-var _ executor[types.Server, services.ProxyGetter] = proxyExecutor{}
 
 type nodeExecutor struct{}
 
