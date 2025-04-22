@@ -845,11 +845,24 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 
 	monitorCtx, monitorCancel := context.WithCancel(ctx)
 	defer monitorCancel()
-	go func() {
-		if err := monitorSessionLatency(monitorCtx, t.clock, t.stream.WSStream, nc.Client); err != nil {
-			t.logger.WarnContext(monitorCtx, "failure monitoring session latency", "error", err)
-		}
-	}()
+
+	sshPinger, err := latency.NewSSHPinger(nc.Client)
+	if err != nil {
+		t.logger.WarnContext(monitorCtx, "failure monitoring session latency", "error", err)
+	} else {
+		go monitorLatency(monitorCtx, t.clock, t.stream.WSStream, sshPinger,
+			latency.ReporterFunc(
+				func(ctx context.Context, statistics latency.Statistics) error {
+					return trace.Wrap(
+						t.stream.WSStream.WriteLatency(terminal.SSHSessionLatencyStats{
+							WebSocket: statistics.Client,
+							SSH:       statistics.Server,
+						}),
+					)
+				},
+			),
+		)
+	}
 
 	sessionDataSent := make(chan struct{})
 	// If we are joining a session, send the session data right away, we

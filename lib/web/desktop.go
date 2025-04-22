@@ -564,40 +564,13 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 	for {
 		select {
 		case pong := <-d.ch:
-			if p.UUID == ping.UUID {
+			if pong.UUID == ping.UUID {
 				return nil
 			}
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
 	}
-}
-
-// TODO(zmb3): combine with monitorSessionLatency or rename
-func monitorDesktopLatency(ctx context.Context, ch chan<- tdp.Message, clock clockwork.Clock, ws *websocket.Conn, pinger desktopPinger) error {
-	wsPinger, err := latency.NewWebsocketPinger(clock, ws)
-	if err != nil {
-		return trace.Wrap(err, "creating websocket pinger")
-	}
-
-	monitor, err := latency.NewMonitor(latency.MonitorConfig{
-		Clock:        clock,
-		ClientPinger: wsPinger,
-		ServerPinger: pinger,
-		Reporter: latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
-			ch <- tdp.LatencyStats{
-				ClientLatency: uint32(stats.Client),
-				ServerLatency: uint32(stats.Server),
-			}
-			return nil
-		}),
-	})
-	if err != nil {
-		return trace.Wrap(err, "creating latency monitor")
-	}
-
-	monitor.Run(ctx)
-	return nil
 }
 
 // proxyWebsocketConn does a bidrectional copy between the websocket
@@ -628,7 +601,16 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn, log *slog.Logger, vers
 			ch:  pings,
 		}
 
-		go monitorDesktopLatency(ctx, tdpMessagesToSend, clockwork.NewRealClock(), ws, pinger)
+		go monitorLatency(ctx, clockwork.NewRealClock(), ws, pinger,
+			latency.ReporterFunc(func(ctx context.Context, stats latency.Statistics) error {
+				tdpMessagesToSend <- tdp.LatencyStats{
+					ClientLatency: uint32(stats.Client),
+					ServerLatency: uint32(stats.Server),
+				}
+				return nil
+			}),
+		)
+
 	}
 
 	// run a goroutine to pick TDP messages up from a channel and send
