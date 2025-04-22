@@ -70,7 +70,7 @@ func TestIDTokenSource_GetIDToken(t *testing.T) {
 		require.Equal(t, "", tok)
 	})
 
-	t.Run("overriden env value present", func(t *testing.T) {
+	t.Run("overridden env value present", func(t *testing.T) {
 		cfg := makeConfig(
 			t,
 			"OVERRIDDEN",
