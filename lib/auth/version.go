@@ -83,7 +83,7 @@ func validateAndUpdateTeleportVersion(
 				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
 				lastKnownVersion, currentVersion.String(), lastKnownVersion.Major+1)
 		}
-		if !skip && lastKnownVersion.Major-currentVersion.Major > 1 {
+		if !skip && lastKnownVersion.Major > currentVersion.Major {
 			return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
 				"Teleport doesn't support major version downgrade.\n Please downgrade "+
 				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
