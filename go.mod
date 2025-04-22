@@ -102,8 +102,8 @@ require (
 	github.com/fsouza/fake-gcs-server v1.49.3
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-git/go-git/v5 v5.13.1
 	github.com/go-asn1-ber/asn1-ber v1.5.7
+	github.com/go-git/go-git/v5 v5.13.1
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/go-ldap/ldap/v3 v3.4.8
 	github.com/go-logr/logr v1.4.2
