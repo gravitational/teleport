@@ -211,7 +211,7 @@ export function useMfaEmitter(
 
     emitterSender?.on(TermEvent.MFA_CHALLENGE, challengeHandler);
     return () => {
-      emitterSender?.off(TermEvent.MFA_CHALLENGE, challengeHandler);
+      emitterSender?.removeListener(TermEvent.MFA_CHALLENGE, challengeHandler);
     };
   }, [mfa, emitterSender, onPromptCancel]);
 
