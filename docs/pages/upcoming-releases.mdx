@@ -12,10 +12,11 @@ months.
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                        |
-|---------|-----------------------------|
-| 17.5.0  | Week of May 19th, 2025      |
-| 18.0.0  | Week of May 26th, 2025      |
+| Version | Date                   |
+|---------|-----------------------|
+| 17.5.0  | Week of May 19, 2025  |
+| 18.0.0  | Week of May 26, 2025  |
+| 18.1.0  | Week of June 16, 2025 |
 
 We continue to support the following major versions of Teleport:
 
@@ -42,6 +43,10 @@ Teleport VNet will add native support for SSH, enabling any SSH client to connec
 to Teleport SSH servers with zero configuration. Advanced Teleport features like
 per-session MFA will have first-class support for a seamless user experience.
 
+#### Desktop Access latency detector
+
+TODO(zmb3)
+
 ### 18.0.0
 
 #### Identity Activity Center
@@ -50,11 +55,6 @@ Teleport Identity Security (fka Teleport Policy) will provide an Identity Activi
 Center to allow users to correlate user activity by multiple factors to facilitate
 incident response. The first iteration will support integrations with GitHub, Okta
 and AWS.
-
-#### Encrypted session recordings
-
-Teleport will provide the ability to integrate with Hardware Security Modules
-(HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
 #### Automatic access request reviews
 
@@ -66,6 +66,17 @@ on requested roles out of the box.
 Teleport will provide a more user-friendly way to execute queries on multiple
 databases when per-session MFA is enabled, without requiring MFA tap for each
 connection.
+
+#### RBAC for SAML Applications
+
+TODO(r0mant)
+
+### 18.1.0
+
+#### Encrypted session recordings
+
+Teleport will provide the ability to integrate with Hardware Security Modules
+(HSMs) in order to encrypt session recordings prior to uploading them to storage.
 
 ## Teleport Cloud
 
