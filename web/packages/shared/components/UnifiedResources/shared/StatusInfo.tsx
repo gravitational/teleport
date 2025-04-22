@@ -60,7 +60,7 @@ export function UnhealthyStatusInfo({
   }
 
   const unhealthyOrUnknownServers = servers.filter(
-    s => !s.targetHealth || s.targetHealth?.status !== 'healthy'
+    s => s.targetHealth?.status !== 'healthy'
   );
 
   return (
@@ -140,12 +140,10 @@ export function StatusInfoHeader({
       <Flex gap={3}>
         <ResourceIcon name={icon} width="45px" height="45px" />
         <Box>
-          <SingleLineBox width="300px">
-            <H2>{resource.name}</H2>
-          </SingleLineBox>
+          <H2>{resource.name}</H2>
           {resource.type && (
             <Flex gap={1}>
-              <DatabaseIcon size={18} />
+              <DatabaseIcon size="small" color="text.slightlyMuted" />
               <SingleLineBox width="270px">
                 <Text
                   typography="body3"
@@ -264,23 +262,6 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
       </Text>
     </Flex>
   ));
-}
-
-/**
- * Returns a unique id by appending the resource kind with
- * their name/id (for most resources their id is the "name" field,
- * other resources does not have name field, but an "id" field).
- */
-export function getResourceId(resource: UnifiedResourceDefinition) {
-  const kind = resource.kind;
-  let id;
-  if (kind === 'node' || kind === 'git_server') {
-    id = resource.id;
-  } else {
-    id = resource.name;
-  }
-
-  return `${kind}/${id}`;
 }
 
 const InfoField = styled.span`
