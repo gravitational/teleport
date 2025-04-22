@@ -48,9 +48,12 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
+# teleport-update builds with disabled cgo, buildmode=pie is not required.
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -203,7 +206,8 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINS_default = teleport tctl tsh tbot
+BINS_default = teleport tctl tsh tbot teleport-update
+BINS_darwin = teleport tctl tsh tbot
 BINS_windows = tsh
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
@@ -273,6 +277,8 @@ endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=exe
 BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+# teleport-update builds with disabled cgo, buildmode=pie is not required.
+BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 ifeq ("$(OS)","darwin")
@@ -346,6 +352,10 @@ ifeq ("$(CGO_ENABLED)", "1")
 else
 	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
 endif
+
+.PHONY: $(BUILDDIR)/teleport-update
+$(BUILDDIR)/teleport-update:
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) ./tool/teleport-update
 
 #
 # BPF support (IF ENABLED)
@@ -1446,10 +1456,11 @@ goinstall:
 .PHONY: install
 install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
-	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
-	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
-	cp -f $(BUILDDIR)/tbot      $(BINDIR)/
-	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	cp -f $(BUILDDIR)/tctl             $(BINDIR)/
+	cp -f $(BUILDDIR)/tsh              $(BINDIR)/
+	cp -f $(BUILDDIR)/tbot             $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport         $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport-update  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
 # Docker image build. Always build the binaries themselves within docker (see

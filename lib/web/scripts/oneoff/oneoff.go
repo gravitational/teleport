@@ -20,6 +20,7 @@ import (
 	"bytes"
 	_ "embed"
 	"slices"
+	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
@@ -51,9 +52,19 @@ var (
 
 // OneOffScriptParams contains the required params to create a script that downloads and executes teleport binary.
 type OneOffScriptParams struct {
-	// TeleportArgs is the arguments to pass to the teleport binary.
+	// TeleportCommandPrefix is a prefix command to use when calling teleport command.
+	// Acceptable values are: "sudo"
+	TeleportCommandPrefix string
+	// binSudo contains the location for the sudo binary.
+	// Used for testing.
+	binSudo string
+
+	// Entrypoint is the name of the binary from the teleport package. Defaults to "teleport", but can be set to
+	// other binaries such as "teleport-update" or "tbot".
+	Entrypoint string
+	// EntrypointArgs is the arguments to pass to the Entrypoint binary.
 	// Eg, 'version'
-	TeleportArgs string
+	EntrypointArgs string
 
 	// BinUname is the binary used to get OS name and Architecture of the host.
 	// Defaults to `uname`.
@@ -76,6 +87,9 @@ type OneOffScriptParams struct {
 	// - teleport-ent
 	TeleportFlavor string
 
+	// TeleportFIPS represents if the script should install a FIPS build of Teleport.
+	TeleportFIPS bool
+
 	// SuccessMessage is a message shown to the user after the one off is completed.
 	SuccessMessage string
 }
@@ -84,8 +98,12 @@ var validPackageNames = []string{types.PackageNameOSS, types.PackageNameEnt}
 
 // CheckAndSetDefaults checks if the required params ara present.
 func (p *OneOffScriptParams) CheckAndSetDefaults() error {
-	if p.TeleportArgs == "" {
+	if p.EntrypointArgs == "" {
 		return trace.BadParameter("missing teleport args")
+	}
+
+	if p.Entrypoint == "" {
+		p.Entrypoint = "teleport"
 	}
 
 	if p.BinUname == "" {
@@ -103,6 +121,7 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	if p.TeleportVersion == "" {
 		p.TeleportVersion = "v" + teleport.Version
 	}
+	p.CDNBaseURL = strings.TrimRight(p.CDNBaseURL, "/")
 
 	if p.TeleportFlavor == "" {
 		p.TeleportFlavor = types.PackageNameOSS

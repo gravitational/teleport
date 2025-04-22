@@ -2538,6 +2538,42 @@ func TestAutoUpdateVersion(t *testing.T) {
 	})
 }
 
+// TestAutoUpdateAgentRollout tests that CRUD operations on AutoUpdateAgentRollout resource are
+// replicated from the backend to the cache.
+func TestAutoUpdateAgentRollout(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*autoupdate.AutoUpdateAgentRollout]{
+		newResource: func(name string) (*autoupdate.AutoUpdateAgentRollout, error) {
+			return newAutoUpdateAgentRollout(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateAgentRollout) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateAgentRollout(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentRollout, error) {
+			item, err := p.autoUpdateService.GetAutoUpdateAgentRollout(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateAgentRollout{}, nil
+			}
+			return []*autoupdate.AutoUpdateAgentRollout{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentRollout, error) {
+			item, err := p.cache.GetAutoUpdateAgentRollout(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateAgentRollout{}, nil
+			}
+			return []*autoupdate.AutoUpdateAgentRollout{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateAgentRollout(ctx))
+		},
+	})
+}
+
 // testResources153 is a generic tester for RFD153-style resources.
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs153[T]) {
 	ctx := context.Background()
@@ -3111,6 +3147,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:    newKubeWaitingContainer(t),
 		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
 		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindAutoUpdateAgentRollout:  types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 	}
 
 	for name, cfg := range cases {
@@ -3578,6 +3615,20 @@ func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 		Tools: &autoupdate.AutoUpdateVersionSpecTools{
 			TargetVersion: "1.2.3",
 		},
+	})
+	require.NoError(t, err)
+	return r
+}
+
+func newAutoUpdateAgentRollout(t *testing.T) *autoupdate.AutoUpdateAgentRollout {
+	t.Helper()
+
+	r, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
+		StartVersion:   "1.2.3",
+		TargetVersion:  "2.3.4",
+		Schedule:       update.AgentsScheduleImmediate,
+		AutoupdateMode: update.AgentsUpdateModeEnabled,
+		Strategy:       update.AgentsStrategyTimeBased,
 	})
 	require.NoError(t, err)
 	return r

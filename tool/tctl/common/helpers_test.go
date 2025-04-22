@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -161,7 +163,15 @@ func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	return out
 }
 
+func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
+	decoder := kyaml.NewYAMLToJSONDecoder(r)
+	var resource services.UnknownResource
+	require.NoError(t, decoder.Decode(&resource))
+	return resource.Raw
+}
+
 func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) error {
+	t.Helper()
 	decoder := yaml.NewDecoder(r)
 	for {
 		var entry T

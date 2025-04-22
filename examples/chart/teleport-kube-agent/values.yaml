@@ -162,15 +162,75 @@ tls:
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
 
+# updater -- controls whether the Kube Agent Updater should be deployed alongside
+# the `teleport-kube-agent`. The updater fetches the target version, validates the
+# image signature, and updates the teleport deployment.
+#
+# The updater can fetch the update information using two protocols:
+# - the webapi update protocol (in this case the Teleport Proxy Service is the one driving the version rollout)
+# - the version server protocol (this is an HTTP server serving static files specifying the version and if the update is critical).
+#
+# The webapi protocol takes precedence over the version server one if the Teleport Proxy Service supports it.
+# The version server protocol failover can be disabled by unsetting `updater.versionServer`.
+# The webapi protocol can be disabled by setting `updater.proxyAddr` to `""`.
+# For backward compatibility reasons, the webapi protocol is not enabled if a custom `updater.versionServer` is set.
+#
+# All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+# ... default to the agent values. However, they can be overridden from the
+# `updater` object. For example:
+#
+# ```yaml
+# # the agent pod requests 1cpu and 2 GiB of memory. It also has a memory limit.
+# resources:
+#   requests:
+#     cpu: "1"
+#     memory: "2Gi"
+#   limits:
+#     memory: "2Gi"
+#
+# # the updater pod requests 0.5 cpu and 512MiB of memory. The memory limit has also been unset.
+# updater:
+#   resources:
+#     requests:
+#       cpu: "0.5"
+#       memory: "512Mi"
+#     limits: ~
+# ```
+#
+# Other updater-specific values that can be defined in `updater` are described
+# below.
 updater:
   enabled: false
   # `updater.versionServer` is the URL of the version server the agent fetches
   # the target version from. The complete version endpoint is built by
   # concatenating `versionServer` and `releaseChannel`.
   # This field supports gotemplate.
+  #
+  # Setting this field makes the updater fetch the version using the version server protocol.
+  # Setting this field to a custom value disables the webapi update protocol to ensure backward compatibility.
   versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
-  # Release channel the agent subscribes to.
+
+  # updater.releaseChannel(string) -- is the release channel the updater
+  # subscribes to.
+  #
+  # The complete version endpoint is built by concatenating
+  # [`versionServer`](#updaterversionserver) and [`releaseChannel`](#updaterreleasechannel).
+  # You must not change the default value if you are a Teleport Cloud user unless
+  # instructed by Teleport support.
+  #
+  # This value is used when the updater is fetching the version using the version server protocol.
+  # It is also used as a failover when fetching the version using the webapi protocol if `updater.group` is unset.
   releaseChannel: "stable/cloud"
+
+  # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
+  # When unset, the group defaults to `update.releaseChannel`.
+  group: ""
+
+  # updater.image(string) -- sets the container image used for Teleport updater
+  # pods run when `updater.enabled` is true.
+  #
+  # You can override this to use your own Teleport Kube Agent Updater image rather
+  # than a Teleport-published image.
   image: public.ecr.aws/gravitational/teleport-kube-agent-updater
   serviceAccount:
     # service account name defaults to "<kube agent sa name>-updater"

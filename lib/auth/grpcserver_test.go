@@ -48,6 +48,7 @@ import (
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -55,11 +56,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -4121,12 +4124,21 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	tests := []struct {
 		name               string
 		inputInstallers    map[string]string
+		hasAgentRollout    bool
 		expectedInstallers map[string]string
 	}{
 		{
 			name: "default installers only",
 			expectedInstallers: map[string]string{
-				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installers.LegacyDefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+		{
+			name:            "new default installers",
+			hasAgentRollout: true,
+			expectedInstallers: map[string]string{
+				types.DefaultInstallerScriptName:        installers.NewDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4137,7 +4149,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			},
 			expectedInstallers: map[string]string{
 				"my-custom-installer":                   "echo test",
-				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				types.DefaultInstallerScriptName:        installers.LegacyDefaultInstaller.GetScript(),
 				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
 			},
 		},
@@ -4158,6 +4170,25 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				_, err := grpc.DeleteAllInstallers(ctx, &emptypb.Empty{})
 				require.NoError(t, err)
 			})
+
+			if tc.hasAgentRollout {
+				rollout, err := autoupdate.NewAutoUpdateAgentRollout(
+					&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+						StartVersion:              "1.2.3",
+						TargetVersion:             "1.2.4",
+						Schedule:                  autoupdate.AgentsScheduleImmediate,
+						AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
+						Strategy:                  autoupdate.AgentsStrategyTimeBased,
+						MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
+					})
+				require.NoError(t, err)
+				_, err = grpc.AuthServer.CreateAutoUpdateAgentRollout(ctx, rollout)
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					assert.NoError(t, grpc.AuthServer.DeleteAutoUpdateAgentRollout(ctx))
+				})
+			}
 
 			for name, script := range tc.inputInstallers {
 				installer, err := types.NewInstallerV1(name, script)

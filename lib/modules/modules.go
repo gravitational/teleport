@@ -289,6 +289,8 @@ type Modules interface {
 }
 
 const (
+	// BuildCommunity is the Teleport Community Edition build type (only used in v16).
+	BuildCommunity = "community"
 	// BuildOSS specifies open source build type
 	BuildOSS = "oss"
 	// BuildEnterprise specifies enterprise build type
