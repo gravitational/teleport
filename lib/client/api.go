@@ -1890,7 +1890,10 @@ type SSHOptions struct {
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
 
-	GetForkArgs func(cluster, host string, signalFd uintptr) []string
+	GetForkArgs func([]string) []string
+
+	TargetNode     *NodeDetails
+	OnAuthenticate func() error
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1909,9 +1912,16 @@ func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOp
 	}
 }
 
-func ForkAfterAuthentication(getForkArgs func(cluster, host string, signalFd uintptr) []string) func(*SSHOptions) {
+func ForkAfterAuthentication(f func(extraArgs []string) []string) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
-		opt.GetForkArgs = getForkArgs
+		opt.GetForkArgs = f
+	}
+}
+
+func WithForkHandler(node NodeDetails, onAuthenticate func() error) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.TargetNode = &node
+		opt.OnAuthenticate = onAuthenticate
 	}
 }
 
@@ -2081,20 +2091,82 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 
 func (tc *TeleportClient) runBackgroundCommand(
 	ctx context.Context,
-	getCommand func(cluster, host string, signalFd uintptr) []string,
+	getCommand func(extraArgs []string) []string,
 	nodeDetails NodeDetails,
-	login string,
 	opts ...RunCommandOption,
 ) error {
-	return nil
+	var options RunCommandOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	forkPayload, err := utils.FastMarshal(nodeDetails)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cmd, signalFd, err := buildForkAuthenticateCommand(ctx, buildForkAuthenticateCommandParams{
+		getArgs: func(signalFd uintptr) []string {
+			return getCommand([]string{
+				"--fork-signal-fd", strconv.FormatUint(uint64(signalFd), 10),
+				"--fork-payload", string(forkPayload),
+			})
+		},
+		stdin:  tc.Stdin,
+		stdout: cmp.Or(options.stdout, tc.Stdout),
+		stderr: cmp.Or(options.stderr, tc.Stderr),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(RunForkAuthenticateChild(ctx, cmd, signalFd))
 }
 
 func (tc *TeleportClient) runBackgroundCommandOnNodes(
 	ctx context.Context,
-	getCommand func(cluster, host string, signalFd uintptr) []string,
+	clt *ClusterClient,
+	getCommand func(extraArgs []string) []string,
 	nodes []TargetNode,
 ) error {
-	return nil
+	cluster := clt.ClusterName()
+	// Let's check if the first node requires mfa.
+	// If it's required, run commands sequentially to avoid
+	// race conditions and weird ux during mfa.
+	mfaRequiredCheck, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{
+			Node: &proto.NodeLogin{
+				Node:  nodeName(TargetNode{Addr: nodes[0].Addr}),
+				Login: tc.Config.HostLogin,
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if tc.SSHLogDir != "" {
+		if err := os.MkdirAll(tc.SSHLogDir, 0o700); err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+
+	for _, node := range nodes {
+		g.Go(func() error {
+			return trace.Wrap(tc.runBackgroundCommand(
+				gctx,
+				getCommand,
+				NodeDetails{
+					Addr:     node.Addr,
+					Cluster:  cluster,
+					MFACheck: mfaRequiredCheck,
+					hostname: node.Hostname,
+				},
+			))
+		})
+	}
+
+	return trace.Wrap(g.Wait())
 }
 
 // MFARequiredUnknownErr indicates that connections to an instance failed
@@ -2201,14 +2273,16 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 			ctx,
 			options.GetForkArgs,
 			NodeDetails{Addr: nodeAddr, Cluster: cluster},
-			tc.Config.HostLogin,
 		))
 	}
+	nodeDetails := cmp.Or(options.TargetNode, &NodeDetails{
+		Addr: nodeAddr, Cluster: cluster,
+	})
 
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
-		NodeDetails{Addr: nodeAddr, Cluster: cluster},
+		*nodeDetails,
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2216,6 +2290,12 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
+
+	if options.OnAuthenticate != nil {
+		if err := options.OnAuthenticate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// If forwarding ports were specified, start port forwarding.
 	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
 		return trace.Wrap(err)
@@ -2284,6 +2364,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 		}
 		return trace.Wrap(tc.runBackgroundCommandOnNodes(
 			ctx,
+			clt,
 			options.GetForkArgs,
 			nodes,
 		))

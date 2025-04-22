@@ -591,7 +591,9 @@ type CLIConf struct {
 
 	forkSignalFd uint64
 
-	getSSHForkArgs func(cluster, host string, signalFd uintptr) []string
+	forkPayload string
+
+	originalArgs []string
 }
 
 // Stdout returns the stdout writer.
@@ -637,42 +639,6 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 		return c.lookPathOverride, nil
 	}
 	return exec.LookPath(file)
-}
-
-func (c *CLIConf) formatSSHForkCommand(parseContext *kingpin.ParseContext) error {
-	c.getSSHForkArgs = func(cluster, host string, signalFd uintptr) []string {
-		args := make([]string, 0, len(parseContext.Elements))
-		for _, elem := range parseContext.Elements {
-			switch clause := elem.Clause.(type) {
-			case *kingpin.CmdClause:
-				args = append(args, "ssh", "--fork-signal-fd", strconv.FormatUint(uint64(signalFd), 10), "--cluster", cluster)
-			case *kingpin.FlagClause:
-				switch clause.Model().Name {
-				case "cluster", "fork-after-authentication":
-					continue
-				default:
-					args = append(args, "--"+clause.Model().Name)
-					if elem.Value != nil {
-						args = append(args, *elem.Value)
-					}
-				}
-			case *kingpin.ArgClause:
-				if clause.Model().Name != "[user@]host" && elem.Value != nil {
-					args = append(args, *elem.Value)
-					continue
-				}
-				userHost := strings.Split(*elem.Value, "@")
-				if len(userHost) > 1 {
-					userHost[1] = host
-				} else {
-					userHost[0] = host
-				}
-				args = append(args, strings.Join(userHost, "@"))
-			}
-		}
-		return args
-	}
-	return nil
 }
 
 func Main() {
@@ -786,6 +752,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		TracingProvider:    tracing.NoopProvider(),
 		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
 		DTAutoEnroll:       dtenroll.AutoEnroll,
+		originalArgs:       args,
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -860,7 +827,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
-	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false).Action(cf.formatSSHForkCommand)
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
 	ssh.Arg("[user@]host", "Remote hostname and the login to use, this argument is required").StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
@@ -888,6 +855,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked").Hidden().Uint64Var(&cf.forkSignalFd)
+	ssh.Flag("fork-payload", "Extra JSON data to pass when forked").Hidden().StringVar(&cf.forkPayload)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4033,8 +4001,32 @@ func onSSH(cf *CLIConf) error {
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
-			if cf.ForkAfterAuthentication {
-				opts = append(opts, client.ForkAfterAuthentication(cf.getSSHForkArgs))
+
+			if cf.forkSignalFd != 0 {
+				var node client.NodeDetails
+				if err := utils.FastUnmarshal([]byte(cf.forkPayload), &node); err != nil {
+					return trace.Wrap(err)
+				}
+				opts = append(opts, client.WithForkHandler(node, func() error {
+					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
+					if stdin, ok := tc.Stdin.(io.ReadCloser); ok {
+						stdin.Close()
+					}
+					return trace.Wrap(disownSignal.Close())
+				}))
+			} else if cf.ForkAfterAuthentication {
+				opts = append(opts, client.ForkAfterAuthentication(func(extraArgs []string) []string {
+					args := make([]string, 0, len(cf.originalArgs)+2)
+					for i, arg := range cf.originalArgs {
+						args = append(args, arg)
+						if arg == "ssh" {
+							args = append(args, extraArgs...)
+							args = append(args, cf.originalArgs[i+1:]...)
+							return args
+						}
+					}
+					return args
+				}))
 			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
