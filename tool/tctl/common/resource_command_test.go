@@ -1462,6 +1462,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindDynamicWindowsDesktop,
 			create: testCreateDynamicWindowsDesktop,
 		},
+		{
+			kind:   types.KindHealthCheckConfig,
+			create: testCreateHealthCheckConfig,
+		},
 	}
 
 	for _, test := range tests {
@@ -2375,11 +2379,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateConfig
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateConfig
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2420,11 +2424,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateVersion
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateVersion
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,
@@ -2476,11 +2480,11 @@ version: v1
 	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
 	require.Len(t, rawResources, 1)
 	var resource autoupdate.AutoUpdateAgentRollout
-	require.NoError(t, protojson.Unmarshal(rawResources[0].Raw, &resource))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateAgentRollout
 	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
-	require.NoError(t, protojson.Unmarshal(expectedJSON, &expected))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
 		&expected,

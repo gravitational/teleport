@@ -16,13 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 
 import { Button, ButtonIcon, Flex, rotate360, Text } from 'design';
 import * as icons from 'design/Icon';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { useConnectionsContext } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import {
   Status as ConnectionStatus,
   ConnectionStatusIndicator,
@@ -95,6 +104,7 @@ const VnetConnectionItemBase = forwardRef<
       }
   )
 >((props, ref) => {
+  const { workspacesService } = useAppContext();
   const {
     status,
     start,
@@ -106,6 +116,12 @@ const VnetConnectionItemBase = forwardRef<
     showDiagWarningIndicator,
     isDiagSupported,
   } = useVnetContext();
+  const { close: closeConnectionsPanel } = useConnectionsContext();
+  const rootClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
+  const isUserInWorkspace = !!rootClusterUri;
   const isProcessing =
     startAttempt.status === 'processing' || stopAttempt.status === 'processing';
   const disabledDiagnosticsReason =
@@ -143,6 +159,21 @@ const VnetConnectionItemBase = forwardRef<
     }
 
     props.onClick();
+  };
+
+  const openDocumentVnetInfo = () => {
+    if (!rootClusterUri) {
+      return;
+    }
+
+    const docsService =
+      workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+    docsService.openExistingOrAddNew(
+      d => d.kind === 'doc.vnet_info',
+      () => docsService.createVnetInfoDocument({ rootClusterUri })
+    );
+    closeConnectionsPanel();
   };
 
   return (
@@ -200,18 +231,33 @@ const VnetConnectionItemBase = forwardRef<
         <Flex gap={1} mr="-3px">
           {props.showExtraRightButtons && (
             <>
-              <ButtonIcon
-                as="a"
-                title="Open VNet documentation"
-                href="https://goteleport.com/docs/connect-your-client/vnet/"
-                target="_blank"
-                onClick={e => {
-                  // Don't trigger ListItem's onClick.
-                  e.stopPropagation();
-                }}
-              >
-                <icons.Question size={18} />
-              </ButtonIcon>
+              {isUserInWorkspace ? (
+                <ButtonIcon
+                  title="Open information about VNet"
+                  onClick={e => {
+                    // Don't trigger ListItem's onClick.
+                    e.stopPropagation();
+                    openDocumentVnetInfo();
+                  }}
+                >
+                  <icons.Question size={18} />
+                </ButtonIcon>
+              ) : (
+                // If the user is not logged in to any workspace, a new doc cannot be opened.
+                // Instead, show a link to the documentation.
+                <ButtonIcon
+                  as="a"
+                  title="Open VNet documentation"
+                  href="https://goteleport.com/docs/connect-your-client/vnet/"
+                  target="_blank"
+                  onClick={e => {
+                    // Don't trigger ListItem's onClick.
+                    e.stopPropagation();
+                  }}
+                >
+                  <icons.Question size={18} />
+                </ButtonIcon>
+              )}
 
               {isDiagSupported && (
                 <ButtonIcon
@@ -246,6 +292,7 @@ const VnetConnectionItemBase = forwardRef<
                 size="small"
                 intent="neutral"
                 fill="minimal"
+                title=""
                 onClick={e => {
                   e.stopPropagation();
                 }}
@@ -289,6 +336,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
+                title=""
                 onClick={e => {
                   e.stopPropagation();
                   stop();
@@ -316,6 +364,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
+                title=""
                 onClick={e => {
                   e.stopPropagation();
                   start();

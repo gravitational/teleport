@@ -34,6 +34,7 @@ import {
 } from 'shared/components/FieldSelect';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { precomputed } from 'shared/components/Validation/rules';
+import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
 
@@ -57,6 +58,7 @@ import {
   ServerAccess,
   WindowsDesktopAccess,
 } from './standardmodel';
+import { ActionType } from './useStandardModel';
 import {
   AppAccessValidationResult,
   DatabaseAccessValidationResult,
@@ -88,7 +90,7 @@ export const ResourcesTab = memo(function ResourcesTab({
   );
 
   const addResourceAccess = (kind: ResourceAccessKind) =>
-    dispatch({ type: 'add-resource-access', payload: { kind } });
+    dispatch({ type: ActionType.AddResourceAccess, payload: { kind } });
 
   return (
     <Flex flexDirection="column" gap={3}>
@@ -121,7 +123,7 @@ export const ResourcesTab = memo(function ResourcesTab({
           buttonText={
             <>
               <Plus size="small" mr={2} />
-              Add Resource Access
+              Add Teleport Resource Access
             </>
           }
           buttonProps={{
@@ -163,27 +165,27 @@ export const resourceAccessSections: Record<
   }
 > = {
   kube_cluster: {
-    title: 'Kubernetes',
+    title: 'Kubernetes Access',
     component: KubernetesAccessSection,
   },
   node: {
-    title: 'Servers',
+    title: 'SSH Server Access',
     component: ServerAccessSection,
   },
   app: {
-    title: 'Applications',
+    title: 'Application Access',
     component: AppAccessSection,
   },
   db: {
-    title: 'Databases',
+    title: 'Database Access',
     component: DatabaseAccessSection,
   },
   windows_desktop: {
-    title: 'Windows Desktops',
+    title: 'Windows Desktop Access',
     component: WindowsDesktopAccessSection,
   },
   git_server: {
-    title: 'GitHub Organizations',
+    title: 'GitHub Organization Access',
     component: GitHubOrganizationAccessSection,
   },
 };
@@ -204,28 +206,33 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   const { component: Body, title } = resourceAccessSections[value.kind];
 
   function handleChange(val: T) {
-    dispatch({ type: 'set-resource-access', payload: val });
+    dispatch({ type: ActionType.SetResourceAccess, payload: val });
   }
 
   function handleRemove() {
-    dispatch({ type: 'remove-resource-access', payload: { kind: value.kind } });
+    dispatch({
+      type: ActionType.RemoveResourceAccess,
+      payload: { kind: value.kind },
+    });
   }
 
   return (
-    <SectionBox
-      titleSegments={[title]}
-      removable
-      onRemove={handleRemove}
-      isProcessing={isProcessing}
-      validation={validation}
-    >
-      <Body
-        value={value}
+    <ValidationSuspender suspend={value.hideValidationErrors}>
+      <SectionBox
+        titleSegments={[title]}
+        removable
+        onRemove={handleRemove}
         isProcessing={isProcessing}
         validation={validation}
-        onChange={handleChange}
-      />
-    </SectionBox>
+      >
+        <Body
+          value={value}
+          isProcessing={isProcessing}
+          validation={validation}
+          onChange={handleChange}
+        />
+      </SectionBox>
+    </ValidationSuspender>
   );
 });
 
@@ -351,8 +358,8 @@ export function KubernetesAccessSection({
           >
             <Add disabled={isProcessing} size="small" />
             {value.resources.length > 0
-              ? 'Add Another Resource'
-              : 'Add a Resource'}
+              ? 'Add Another Kubernetes Resource'
+              : 'Add a Kubernetes Resource'}
           </ButtonSecondary>
         </Box>
       </Flex>
@@ -384,10 +391,10 @@ function KubernetesResourceView({
     >
       <Flex>
         <Box flex="1">
-          <H4 mb={3}>Resource</H4>
+          <H4 mb={3}>Kubernetes Resource</H4>
         </Box>
         <ButtonIcon
-          aria-label="Remove resource"
+          aria-label="Remove Kubernetes resource"
           disabled={isProcessing}
           onClick={onRemove}
         >

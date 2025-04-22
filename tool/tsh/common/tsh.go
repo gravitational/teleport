@@ -67,7 +67,8 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -81,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -577,6 +579,13 @@ type CLIConf struct {
 
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
+
+	// HardwareKeyAgentServer determines whether `tsh daemon` will run the hardware key agent server.
+	HardwareKeyAgentServer bool
+	// disableHardwareKeyAgentClient determines whether the client will attempt to connect
+	// to the hardware key agent. Some commands, like login, are better with the
+	// direct PIV service so that prompts are not split between processes.
+	disableHardwareKeyAgentClient bool
 }
 
 // Stdout returns the stdout writer.
@@ -858,6 +867,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStart.Flag("installation-id", "Unique ID identifying a specific Teleport Connect installation").StringVar(&cf.DaemonInstallationID)
+	daemonStart.Flag("hardware-key-agent", "Serve the hardware key agent as part of the daemon process").BoolVar(&cf.HardwareKeyAgentServer)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -1269,6 +1279,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
+	pivCmd := newPIVCommands(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1668,6 +1679,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case pivCmd.agent.FullCommand():
+		err = pivCmd.agent.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1899,6 +1912,10 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		autoRequest = false
 		cf.DesiredRoles = ""
 	}
+
+	// For login operations, we use the hardware key
+	// service directly instead of the agent.
+	cf.disableHardwareKeyAgentClient = true
 
 	if cf.IdentityFileIn != "" {
 		err := flattenIdentity(cf)
@@ -3147,7 +3164,7 @@ func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecke
 		return nil, trace.BadParameter("unrecognized database type %T", db)
 	}
 
-	if db.SupportsAutoUsers() && db.GetAdminUser().Name != "" {
+	if db.IsAutoUsersEnabled() {
 		roles, err := accessChecker.CheckDatabaseRoles(db, nil)
 		if err != nil {
 			logger.WarnContext(context.Background(), "Failed to CheckDatabaseRoles for database",
@@ -3199,7 +3216,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	}
 
 	// Add a note for auto-provisioned user.
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
 			logger.WarnContext(context.Background(), "Failed to get DatabaseAutoUserMode for database",
@@ -4385,7 +4402,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	if cf.PIVSlot != "" {
-		c.PIVSlot = keys.PIVSlot(cf.PIVSlot)
+		c.PIVSlot = hardwarekey.PIVSlotKeyString(cf.PIVSlot)
 		if err = c.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4401,6 +4418,12 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	profileErr := c.LoadProfile(c.ClientStore, proxy)
 	if profileErr != nil && !trace.IsNotFound(profileErr) {
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
+	}
+
+	if c.PIVPINCacheTTL != 0 {
+		innerPrompt := c.ClientStore.HardwareKeyService.GetPrompt()
+		pinCachingPrompt := hardwarekey.NewPINCachingPrompt(innerPrompt, c.PIVPINCacheTTL)
+		c.ClientStore.HardwareKeyService.SetPrompt(pinCachingPrompt)
 	}
 
 	if cf.Username != "" {
@@ -4592,10 +4615,17 @@ func setEnvVariables(c *client.Config, options Options) {
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+	var hwks hardwarekey.Service
+	if cf.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(cf.Context, nil /*prompt*/)
+	}
+
 	switch {
 	case cf.IdentityFileIn != "":
 		// Import identity file keys to in-memory client store.
-		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName, client.WithHardwareKeyService(hwks))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4604,16 +4634,16 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
 		// Store client keys in memory, where they can be exported to non-standard
 		// FS formats (e.g. identity file) or used for a single client call in memory.
-		return client.NewMemClientStore(), nil
+		return client.NewMemClientStore(client.WithHardwareKeyService(hwks)), nil
 
 	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
 		// Store client keys in memory, but save trusted certs and profile to disk.
-		clientStore := client.NewFSClientStore(cf.HomePath)
+		clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 		clientStore.KeyStore = client.NewMemKeyStore()
 		return clientStore, nil
 
 	default:
-		return client.NewFSClientStore(cf.HomePath), nil
+		return client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks)), nil
 	}
 }
 

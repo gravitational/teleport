@@ -594,8 +594,10 @@ message Features {
   // NOTE: this flag is used to signal that Access Monitoring is *enabled* on a cluster.
   // *Access* to the feature is gated on the `AccessMonitoring` entitlement.
   bool AccessMonitoringConfigured = 36;
-  // CloudAnonymizationKey is a hash of the Salesforce ID used to anonymize usage events
-  bytes CloudAnonymizationKey = 37 [(gogoproto.jsontag) = "cloud_anonymization_key,omitempty"];
+  reserved 37;
+  reserved "CloudAnonymizationKey";
+  // AccessGraphDemoMode enables the ability to opt-in to a demo mode of Access Graph with limited features.
+  bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -1907,6 +1909,10 @@ message CreateAuthenticateChallengeRequest {
   // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
   // If unset, the server will only return non-SSO challenges.
   string SSOClientRedirectURL = 7 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
+  // ProxyAddress is the proxy address that the user is using to connect to the Proxy.
+  // When using SSO MFA, this address is required to determine which URL to redirect the
+  // user to when there are multiple options.
+  string ProxyAddress = 8 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
@@ -2275,6 +2281,9 @@ message PresenceMFAChallengeRequest {
   // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
   // If unset, the server will only return non-SSO challenges.
   string SSOClientRedirectURL = 2 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
+  // ProxyAddress is the address of the proxy the client is connected to, used
+  // to select a redirect URL for connectors that have more than one.
+  string ProxyAddress = 3 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 }
 
 // PresenceMFAChallengeSend is a presence challenge request or response.
@@ -2491,6 +2500,38 @@ message UpstreamInventoryHello {
   string ExternalUpgrader = 5;
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 6;
+  // UpdaterV2Info is used by Teleport to send information about how the Teleport updater is doing.
+  UpdaterV2Info UpdaterV2Info = 7;
+}
+
+message UpdaterV2Info {
+  // UpdateGroup is the update group the agent's updater is part of.
+  // The autoupdate_agent_rollout resource controls when different groups update.
+  // Reporting the update group in the Hello allows us to track the update progress per group.
+  // See RFD 184 for more details.
+  string UpdateGroup = 1;
+  // UpdateUUID is the agent's updater UUID.
+  // Each updater has a UUID, this can be used in two cases:
+  // - To update individual agents when doing canary updates
+  // - To track the lowest non-updated agent to avoid a deadlock when doing a progressive rollout
+  bytes UpdateUUID = 2;
+  // UpdaterStatus represents any updater-related status information that the Teleport cluster
+  // should be aware of. For example, the fact the updater got disabled, the version pinned,
+  // or that the updater seems to not be running.
+  UpdaterStatus UpdaterStatus = 3;
+}
+
+enum UpdaterStatus {
+  // UPDATER_STATUS_UNSPECIFIED is the zero value.
+  UPDATER_STATUS_UNSPECIFIED = 0;
+  // UPDATER_STATUS_OK means that everything looks OK from the agent pov.
+  UPDATER_STATUS_OK = 1;
+  // UPDATER_STATUS_DISABLED means that automatic updates seem disabled or paused.
+  UPDATER_STATUS_DISABLED = 2;
+  // UPDATER_STATUS_PINNED means that a specific version is pinned.
+  UPDATER_STATUS_PINNED = 3;
+  // UPDATER_STATUS_UNREADABLE means that the agent failed to read its update status.
+  UPDATER_STATUS_UNREADABLE = 4;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing

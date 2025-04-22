@@ -17,12 +17,14 @@
  */
 import { useHistory } from 'react-router';
 import { Link as InternalLink } from 'react-router-dom';
+import { useTheme } from 'styled-components';
 
-import { ButtonIcon, Flex, Label, MenuItem, Text } from 'design';
+import { ButtonIcon, Flex, Label, Link, MenuItem, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { ArrowLeft } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton } from 'shared/components/MenuAction';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
 import { getStatusAndLabel } from 'teleport/Integrations/helpers';
@@ -34,6 +36,8 @@ import type { EditableIntegrationFields } from 'teleport/Integrations/Operations
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
+import { DashboardGuide, Ec2Guide, EksGuide, RdsGuide } from './guides';
+
 export function AwsOidcTitle({
   integration,
   resource,
@@ -43,6 +47,7 @@ export function AwsOidcTitle({
   resource?: AwsResource;
   tasks?: boolean;
 }) {
+  const theme = useTheme();
   const history = useHistory();
   const integrationOps = useIntegrationOperation();
   const { status, labelKind } = getStatusAndLabel(integration);
@@ -67,23 +72,45 @@ export function AwsOidcTitle({
             <ArrowLeft size="medium" />
           </ButtonIcon>
         </HoverTooltip>
-        <Text bold fontSize={6} mx={2}>
-          {content.content}
-        </Text>
+        <Flex flexDirection="column" mx={2}>
+          <Text bold fontSize={6}>
+            {content.content}
+          </Text>
+          <Flex gap={1}>
+            Role ARN:{' '}
+            <Link
+              target="_blank"
+              href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${integration.name}`}
+            >
+              <Text
+                style={{
+                  fontFamily: theme.fonts.mono,
+                }}
+              >
+                {integration.spec?.roleArn}
+              </Text>
+            </Link>
+          </Flex>
+        </Flex>
         <Label kind={labelKind} aria-label="status" px={3}>
           {status}
         </Label>
       </Flex>
-      {!resource && !tasks && (
-        <MenuButton icon={<Icons.Cog />}>
-          <MenuItem onClick={() => integrationOps.onEdit(integration)}>
-            Edit...
-          </MenuItem>
-          <MenuItem onClick={() => integrationOps.onRemove(integration)}>
-            Delete...
-          </MenuItem>
-        </MenuButton>
-      )}
+      <Flex gap={1} alignItems="center">
+        {!resource && !tasks && (
+          <MenuButton icon={<Icons.Cog size="small" />}>
+            <MenuItem onClick={() => integrationOps.onEdit(integration)}>
+              Edit...
+            </MenuItem>
+            <MenuItem onClick={() => integrationOps.onRemove(integration)}>
+              Delete...
+            </MenuItem>
+          </MenuButton>
+        )}
+        {!tasks && content.guide && (
+          <InfoGuideButton config={{ guide: content.guide }} />
+        )}
+      </Flex>
       <IntegrationOperations
         operation={integrationOps.type}
         integration={integrationOps.item}
@@ -99,12 +126,30 @@ function getContent(
   integration: IntegrationAwsOidc,
   resource?: AwsResource,
   tasks?: boolean
-): { to: string; helper: string; content: string } {
+): {
+  to: string;
+  helper: string;
+  content: string;
+  guide: JSX.Element;
+} {
   if (resource) {
+    const getGuide = (): JSX.Element => {
+      switch (resource) {
+        case AwsResource.eks:
+          return <EksGuide />;
+        case AwsResource.ec2:
+          return <Ec2Guide />;
+        case AwsResource.rds:
+          return <RdsGuide />;
+        default:
+          return <DashboardGuide />;
+      }
+    };
     return {
       to: cfg.getIntegrationStatusRoute(integration.kind, integration.name),
       helper: 'Back to integration',
       content: resource.toUpperCase(),
+      guide: getGuide(),
     };
   }
 
@@ -113,6 +158,7 @@ function getContent(
       to: cfg.getIntegrationStatusRoute(integration.kind, integration.name),
       helper: 'Back to integration',
       content: 'Pending Tasks',
+      guide: undefined,
     };
   }
 
@@ -120,5 +166,6 @@ function getContent(
     to: cfg.routes.integrations,
     helper: 'Back to integrations',
     content: integration.name,
+    guide: <DashboardGuide />,
   };
 }

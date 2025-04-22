@@ -83,6 +83,12 @@ const (
 	// a restrictive service account.
 	windowsDesktopServiceCertTTL = 8 * time.Hour
 
+	// windowsUserCertTTL is the TTL for certificates issued to users connecting
+	// to Windows hosts. These certicates are generated on-demand for each session,
+	// so the TTL is deliberately set to a small value to give enough time to establish
+	// a single session.
+	windowsUserCertTTL = 5 * time.Minute
+
 	// windowsDesktopServiceCertRetryInterval indicates how often to retry
 	// issuing an LDAP certificate if the operation fails.
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
@@ -93,18 +99,18 @@ const (
 	ldapTimeoutRetryInterval = 10 * time.Second
 )
 
-// ComputerAttributes are the attributes we fetch when discovering
+// computerAttributes are the attributes we fetch when discovering
 // Windows hosts via LDAP
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
-var ComputerAttributes = []string{
-	windows.AttrName,
-	windows.AttrCommonName,
-	windows.AttrDistinguishedName,
-	windows.AttrDNSHostName,
-	windows.AttrObjectGUID,
-	windows.AttrOS,
-	windows.AttrOSVersion,
-	windows.AttrPrimaryGroupID,
+var computerAttributes = []string{
+	attrName,
+	attrCommonName,
+	attrDistinguishedName,
+	attrDNSHostName,
+	attrObjectGUID,
+	attrOS,
+	attrOSVersion,
+	attrPrimaryGroupID,
 }
 
 // WindowsService implements the RDP-based Windows desktop access service.
@@ -958,7 +964,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
-		CertTTL:               windows.CertTTL,
+		CertTTL:               windowsUserCertTTL,
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
@@ -1275,8 +1281,8 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	if !desktop.NonAD() {
 		// Find the user's SID
 		filter := windows.CombineLDAPFilters([]string{
-			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountType, windows.AccountTypeUser),
-			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
+			fmt.Sprintf("(%s=%s)", attrSAMAccountType, AccountTypeUser),
+			fmt.Sprintf("(%s=%s)", attrSAMAccountName, username),
 		})
 		s.cfg.Logger.DebugContext(ctx, "querying LDAP for objectSid of Windows user", "username", username, "filter", filter)
 		domainDN := windows.DomainDN(s.cfg.LDAPConfig.Domain)

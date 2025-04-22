@@ -135,6 +135,10 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
+	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
+	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
+	// cluster configuration changes.
+	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -488,13 +492,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         findEndpointCacheTTL,
+		TTL:         cmcCacheTTL,
 		Clock:       h.clock,
 		Context:     cfg.Context,
 		ReloadOnErr: false,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating /find cache")
+		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
 	}
 	h.clusterMaintenanceConfigCache = cmcCache
 
@@ -928,6 +932,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// DatabaseService handlers
 	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
 
+	// Database server handlers
+	h.GET("/webapi/sites/:site/databaseservers", h.WithClusterAuth(h.clusterDatabaseServersList))
+
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
@@ -972,6 +979,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
+	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
@@ -1334,6 +1342,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 		Local:                   &webclient.LocalSettings{},
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1377,6 +1386,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1399,6 +1409,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1417,6 +1428,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
+		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
@@ -1471,14 +1483,14 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 		}
 	case constants.SAML:
 		if authPreference.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
+			samlConnector, err := authClient.GetSAMLConnectorWithValidationOptions(ctx, authPreference.GetConnectorName(), false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
 			as = samlSettings(samlConnector, authPreference)
 		} else {
-			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
+			samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
@@ -1535,7 +1547,7 @@ func (h *Handler) traces(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 	}
 
 	var data tracepb.TracesData
-	if err := protojson.Unmarshal(body, &data); err != nil {
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(body, &data); err != nil {
 		h.logger.ErrorContext(r.Context(), "Failed to unmarshal traces request", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return nil, nil
@@ -1629,7 +1641,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	// cache the generic answer to avoid doing work for each request
-	resp, err := utils.FnCacheGet[*webclient.PingResponse](r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
+	resp, err := utils.FnCacheGet(r.Context(), h.findEndpointCache, cacheKey, func(ctx context.Context) (*webclient.PingResponse, error) {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1714,7 +1726,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// if no oidc connector was found, look for a saml connector
-	samlConnectors, err := authClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := authClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err == nil {
 		for index, value := range samlConnectors {
 			collectorNames = append(collectorNames, value.GetMetadata().Name)
@@ -1768,7 +1780,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	// get all SAML connectors
-	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectors(r.Context(), false)
+	samlConnectors, err := h.cfg.ProxyClient.GetSAMLConnectorsWithValidationOptions(r.Context(), false, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "Cannot retrieve SAML connectors", "error", err)
 	}
@@ -3849,6 +3861,7 @@ func (h *Handler) podConnect(
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,
 		configTLSServerName: tlsServerName,
+		publicProxyAddr:     h.cfg.PublicProxyAddr,
 	}
 
 	ph.ServeHTTP(w, r)
@@ -5272,4 +5285,44 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
+}
+
+// WithAuthCookieAndCSRF ensures that a request is authenticated
+// for plain old non-AJAX requests (does not check the Bearer header).
+// It enforces CSRF checks.
+//
+// TODO(kimlisa): DELETE IN v19.0 (csrf)
+// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
+func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
+	// formFieldName is the default form field to inspect.
+	const formFieldName = "csrf_token"
+
+	// verifyFormField checks if HTTP form value matches the cookie.
+	verifyFormField := func(r *http.Request) error {
+		token := r.FormValue(formFieldName)
+		if len(token) == 0 {
+			return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
+		}
+
+		err := csrf.VerifyToken(token, r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		sctx, err := h.AuthenticateRequest(w, r, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		errForm := verifyFormField(r)
+		if errForm != nil {
+			slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
+			return nil, trace.AccessDenied("access denied")
+		}
+		return fn(w, r, p, sctx)
+	})
 }

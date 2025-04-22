@@ -114,16 +114,19 @@ based join methods can allow instances to join based on their Availability Zone,
 service account, or cloud account ID.
 
 Delegated join methods are:
-- [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
-- [`gcp`](#gcp-service-account-gcp)
-- [`ec2`](#aws-ec2-identity-document-ec2)
-- [`github`](#github-actions-github)
+- [`bitbucket`](#bitbucket-pipelines-bitbucket)
 - [`circleci`](#circleci-circleci)
+- [`ec2`](#aws-ec2-identity-document-ec2)
+- [`gcp`](#gcp-service-account-gcp)
+- [`github`](#github-actions-github)
 - [`gitlab`](#gitlab-gitlab)
+- [`iam`](#aws-iam-role-iam)
 - [`kubernetes`](#kubernetes-kubernetes)
-- [`tpm`](#trusted-platform-module-tpm)
+- [`oracle`](#oracle-cloud-oracle)
+- [`spacelift`](#spacelift-spacelift)
 - [`terraform_cloud`](#terraform-cloud-terraform_cloud)
+- [`tpm`](#trusted-platform-module-tpm)
 
 ### Renewable vs non-renewable
 
@@ -223,7 +226,7 @@ the Teleport cluster.
 
 ```yaml
 auth_service:
-    enabled: yes
+    enabled: true
     # Pre-defined tokens for adding new instances to a cluster. Each token specifies
     # the role a new node will be allowed to assume. The more secure way to
     # add instances is to use `tctl nodes add --ttl` command to generate auto-expiring

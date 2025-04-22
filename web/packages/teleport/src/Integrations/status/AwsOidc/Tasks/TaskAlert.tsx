@@ -55,8 +55,8 @@ export function TaskAlert({
         onClick: () => history.push(cfg.getIntegrationTasksRoute(kind, name)),
       }}
     >
-      {pendingTasksCount} Pending {taskType && `${taskType.toUpperCase()} `}
-      Tasks
+      {pendingTasksCount} pending tasks
+      {taskType && ` are affecting ${taskType.toUpperCase()} rule`}
     </Alert>
   );
 }

@@ -36,8 +36,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestWorkloadIdentityIssue(t *testing.T) {
@@ -139,6 +141,7 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 		cfg.Auth.BootstrapResources[1] = user
 		cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, role)
 	}))
+	setWorkloadIdentityX509CAOverride(ctx, t, s.root)
 
 	_, err = s.root.GetAuthServer().Services.UpsertWorkloadIdentity(
 		ctx,
@@ -180,14 +183,14 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 
 	certPEM, err := os.ReadFile(filepath.Join(temp, "svid.pem"))
 	require.NoError(t, err)
-	certBlock, _ := pem.Decode(certPEM)
-	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	certs, err := tlsca.ParseCertificatePEMs(certPEM)
 	require.NoError(t, err)
-	require.Equal(t, "spiffe://root/test", cert.URIs[0].String())
+	// the override includes a chain with a single certificate
+	require.Len(t, certs, 2)
+	require.Equal(t, "spiffe://root/test", certs[0].URIs[0].String())
 	// Sanity check we generated an ECDSA public key (test suite uses
 	// balanced-v1 algorithm suite).
-	require.IsType(t, &ecdsa.PublicKey{}, cert.PublicKey)
-
+	require.IsType(t, (*ecdsa.PublicKey)(nil), certs[0].PublicKey)
 	keyPEM, err := os.ReadFile(filepath.Join(temp, "svid_key.pem"))
 	require.NoError(t, err)
 	keyBlock, _ := pem.Decode(keyPEM)
@@ -195,11 +198,45 @@ func TestWorkloadIdentityIssueX509(t *testing.T) {
 	require.NoError(t, err)
 	// Sanity check private key matches x509 cert subject.
 	require.Implements(t, (*crypto.Signer)(nil), privateKey)
-	require.Equal(t, cert.PublicKey, privateKey.(crypto.Signer).Public())
+	require.Equal(t, certs[0].PublicKey, privateKey.(crypto.Signer).Public())
 
 	bundlePEM, err := os.ReadFile(filepath.Join(temp, "svid_bundle.pem"))
 	require.NoError(t, err)
 	bundleBlock, _ := pem.Decode(bundlePEM)
 	_, err = x509.ParseCertificate(bundleBlock.Bytes)
 	require.NoError(t, err)
+}
+
+func setWorkloadIdentityX509CAOverride(ctx context.Context, t *testing.T, process *service.TeleportProcess) {
+	const loadKeysFalse = false
+	spiffeCA, err := process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: "root",
+		Type:       types.SPIFFECA,
+	}, loadKeysFalse)
+	require.NoError(t, err)
+
+	spiffeCAX509KeyPairs := spiffeCA.GetTrustedTLSKeyPairs()
+	require.Len(t, spiffeCAX509KeyPairs, 1)
+	spiffeCACert, err := tlsca.ParseCertificatePEM(spiffeCAX509KeyPairs[0].Cert)
+	require.NoError(t, err)
+
+	// this is a bit of a hack: by adding the self-signed CA certificate to the
+	// override chain we distribute a nonempty chain that we can test for, but
+	// all validations will continue working and it's technically not a broken
+	// intermediate chain (just a bit of a useless one)
+
+	// (this is an unsynced write but we know that nothing is issuing
+	// certificates just yet)
+	process.GetAuthServer().SetWorkloadIdentityX509CAOverrideGetter(&staticOverrideGetter{chain: [][]byte{spiffeCACert.Raw}})
+}
+
+type staticOverrideGetter struct {
+	chain [][]byte
+}
+
+var _ services.WorkloadIdentityX509CAOverrideGetter = (*staticOverrideGetter)(nil)
+
+// GetWorkloadIdentityX509CAOverride implements [services.WorkloadIdentityX509CAOverrideGetter].
+func (m *staticOverrideGetter) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	return ca, m.chain, nil
 }

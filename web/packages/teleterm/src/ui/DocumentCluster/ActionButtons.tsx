@@ -28,6 +28,7 @@ import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
 import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
 import {
   MenuInputType,
@@ -43,19 +44,20 @@ import {
   isWebApp,
 } from 'teleterm/services/tshd/app';
 import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   captureAppLaunchInBrowser,
-  connectToAppWithVnet,
   connectToDatabase,
   connectToKube,
   connectToServer,
+  connectToWindowsDesktop,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+import { useVnetAppLauncher, useVnetContext } from 'teleterm/ui/Vnet';
 
 export function ConnectServerActionButton(props: {
   server: Server;
@@ -119,10 +121,14 @@ export function ConnectKubeActionButton(props: {
 export function ConnectAppActionButton(props: { app: App }): React.JSX.Element {
   const appContext = useAppContext();
   const { isSupported: isVnetSupported } = useVnetContext();
-  const launchVnet = useVnetLauncher();
+  const { launchVnet } = useVnetAppLauncher();
 
   function connectWithVnet(targetPort?: number): void {
-    connectToAppWithVnet(appContext, launchVnet, props.app, targetPort);
+    void launchVnet({
+      addrToCopy: appToAddrToCopy(props.app, targetPort),
+      resourceUri: props.app.uri,
+      isMultiPort: !!props.app.tcpPorts.length,
+    });
   }
 
   function setUpGateway(targetPort?: number): void {
@@ -399,5 +405,41 @@ export function AccessRequestButton(props: {
     >
       {props.requestStarted ? '+ Add to request' : '+ Request access'}
     </ButtonBorder>
+  );
+}
+
+export function ConnectWindowsDesktopActionButton(props: {
+  windowsDesktop: WindowsDesktop;
+}): React.JSX.Element {
+  const appContext = useAppContext();
+
+  function connect(login: string): void {
+    const { uri } = props.windowsDesktop;
+    void connectToWindowsDesktop(
+      appContext,
+      { uri, login },
+      { origin: 'resource_table' }
+    );
+  }
+
+  return (
+    <MenuLogin
+      textTransform="none"
+      width="195px"
+      getLoginItems={() =>
+        props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
+      }
+      onSelect={(_, user) => {
+        connect(user);
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'right',
+      }}
+    />
   );
 }

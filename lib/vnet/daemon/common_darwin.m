@@ -82,7 +82,7 @@ bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {
   NSDictionary *codeSignInfo = (NSDictionary *)CFBridgingRelease(cfCodeSignInfo);
   // We don't own kSecCodeInfoIdentifier, so we cannot call CFBridgingRelease on it.
   // __bridge transfers a pointer between Obj-C and CoreFoundation with no transfer of ownership.
-  // Values extracted out of codeSignInfo are cast to toll-free bridged Obj-C types. 
+  // Values extracted out of codeSignInfo are cast to toll-free bridged Obj-C types.
   // https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFDesignConcepts/Articles/tollFreeBridgedTypes.html#//apple_ref/doc/uid/TP40010677-SW2
   // https://stackoverflow.com/questions/18067108/when-should-you-use-bridge-vs-cfbridgingrelease-cfbridgingretain
   NSString *identifier = codeSignInfo[(__bridge NSString *)kSecCodeInfoIdentifier];
@@ -126,18 +126,14 @@ bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {
 }
 
 - (void)encodeWithCoder:(nonnull NSCoder *)coder {
-  [coder encodeObject:self.socketPath forKey:@"socketPath"];
-  [coder encodeObject:self.ipv6Prefix forKey:@"ipv6Prefix"];
-  [coder encodeObject:self.dnsAddr forKey:@"dnsAddr"];
-  [coder encodeObject:self.homePath forKey:@"homePath"];
+  [coder encodeObject:self.serviceCredentialPath forKey:@"serviceCredentialPath"];
+  [coder encodeObject:self.clientApplicationServiceAddr forKey:@"clientApplicationServiceAddr"];
 }
 
 - (nullable instancetype)initWithCoder:(nonnull NSCoder *)coder {
   if (self = [super init]) {
-    [self setSocketPath:[coder decodeObjectOfClass:[NSString class] forKey:@"socketPath"]];
-    [self setIpv6Prefix:[coder decodeObjectOfClass:[NSString class] forKey:@"ipv6Prefix"]];
-    [self setDnsAddr:[coder decodeObjectOfClass:[NSString class] forKey:@"dnsAddr"]];
-    [self setHomePath:[coder decodeObjectOfClass:[NSString class] forKey:@"homePath"]];
+    [self setServiceCredentialPath:[coder decodeObjectOfClass:[NSString class] forKey:@"serviceCredentialPath"]];
+    [self setClientApplicationServiceAddr:[coder decodeObjectOfClass:[NSString class] forKey:@"clientApplicationServiceAddr"]];
   }
   return self;
 }

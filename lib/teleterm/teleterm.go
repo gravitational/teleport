@@ -32,8 +32,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -42,7 +42,6 @@ import (
 
 // Serve starts daemon service
 func Serve(ctx context.Context, cfg Config) error {
-	var hardwareKeyPromptConstructor func(clusterURI uri.ResourceURI) keys.HardwareKeyPrompt
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -59,9 +58,6 @@ func Serve(ctx context.Context, cfg Config) error {
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return hardwareKeyPromptConstructor(rootClusterURI)
-		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -83,7 +79,8 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
 	// construct the prompt before creating Storage.
-	hardwareKeyPromptConstructor = daemonService.NewHardwareKeyPromptConstructor
+	storage.CustomHardwareKeyPrompt = daemonService.NewHardwareKeyPrompt()
+
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr:           cfg.Addr,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
@@ -104,6 +101,21 @@ func Serve(ctx context.Context, cfg Config) error {
 		serverAPIWait <- err
 	}()
 
+	var hardwareKeyAgentServer *libhwk.Server
+	if cfg.HardwareKeyAgent {
+		hardwareKeyService := piv.NewYubiKeyService(daemonService.NewHardwareKeyPrompt())
+		hardwareKeyAgentServer, err = libhwk.NewAgentServer(ctx, hardwareKeyService, libhwk.DefaultAgentDir())
+		if err != nil {
+			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
+		} else {
+			go func() {
+				if err := hardwareKeyAgentServer.Serve(ctx); err != nil {
+					slog.WarnContext(ctx, "hardware key agent server error", "err", err)
+				}
+			}()
+		}
+	}
+
 	// Wait for shutdown signals
 	go func() {
 		shutdownSignals := []os.Signal{os.Interrupt, syscall.SIGTERM}
@@ -119,6 +131,10 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		daemonService.Stop()
 		apiServer.Stop()
+
+		if hardwareKeyAgentServer != nil {
+			hardwareKeyAgentServer.Stop()
+		}
 	}()
 
 	errAPI := <-serverAPIWait
