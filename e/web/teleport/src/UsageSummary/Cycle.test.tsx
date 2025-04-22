@@ -6,10 +6,7 @@ import { render, screen } from 'design/utils/testing';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle';
 import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
-import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
-
-const defaultEntitlements = cfg.entitlements;
 
 function renderWithContext(component: ReactNode) {
   const ctx = createTeleportContextE();
@@ -21,8 +18,6 @@ describe('cycle', () => {
   let props: CycleProps;
 
   beforeEach(() => {
-    cfg.entitlements.Identity.enabled = true;
-    cfg.entitlements.Policy.enabled = true;
     props = {
       summary: makeUsageSummary({
         cycleEnd: 1682989332,
@@ -55,11 +50,9 @@ describe('cycle', () => {
           cycleCount: 3,
         },
       }),
+      hasIdentityGovernance: true,
+      hasIdentitySecurity: true,
     };
-  });
-
-  afterEach(() => {
-    cfg.entitlements = defaultEntitlements;
   });
 
   test('renders cycle overview, handles 0, no calibration period', () => {
@@ -185,8 +178,7 @@ describe('cycle', () => {
   });
 
   test('show IGS CTA if Identity is disabled', () => {
-    cfg.entitlements.Identity.enabled = false;
-    renderWithContext(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} hasIdentityGovernance={false} />);
 
     const ctaButton = screen.getByRole('link', { name: /Upgrade Now/i });
     expect(ctaButton).toBeInTheDocument();
@@ -197,8 +189,7 @@ describe('cycle', () => {
   });
 
   test('show IS CTA if Policy is disabled', () => {
-    cfg.entitlements.Policy.enabled = false;
-    renderWithContext(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} hasIdentitySecurity={false} />);
 
     const ctaButton = screen.getByRole('link', { name: /Upgrade Now/i });
     expect(ctaButton).toBeInTheDocument();
@@ -209,9 +200,8 @@ describe('cycle', () => {
   });
 
   test('hide MWI info text if account has extra MWI', () => {
-    cfg.entitlements.Policy.enabled = false;
     props.summary.mwi.maximum = Math.ceil(props.summary.mau.maximum * 0.5) + 1;
-    renderWithContext(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} hasIdentitySecurity={false} />);
 
     expect(
       screen.queryByText(/MWIs were previously counted as TPRs/)
@@ -219,9 +209,8 @@ describe('cycle', () => {
   });
 
   test("show MWI info text if account doesn't have extra MWI", () => {
-    cfg.entitlements.Policy.enabled = false;
     props.summary.mwi.maximum = Math.ceil(props.summary.mau.maximum * 0.5);
-    renderWithContext(<Cycle {...props} />);
+    renderWithContext(<Cycle {...props} hasIdentitySecurity={false} />);
 
     expect(
       screen.getByText(/MWIs were previously counted as TPRs/)
@@ -230,15 +219,6 @@ describe('cycle', () => {
 });
 
 describe('calibration period', () => {
-  beforeAll(() => {
-    cfg.entitlements.Identity.enabled = true;
-    cfg.entitlements.Policy.enabled = true;
-  });
-
-  afterAll(() => {
-    cfg.entitlements = defaultEntitlements;
-  });
-
   test.each`
     desc                        | start                               | end                                 | updated
     ${'updated on cycle start'} | ${new Date('2024-01-01').getTime()} | ${new Date('2024-01-31').getTime()} | ${new Date('2024-01-01').getTime()}
@@ -254,7 +234,13 @@ describe('calibration period', () => {
       }),
     };
 
-    renderWithContext(<Cycle {...props} />);
+    renderWithContext(
+      <Cycle
+        {...props}
+        hasIdentityGovernance={true}
+        hasIdentitySecurity={true}
+      />
+    );
 
     expect(screen.getAllByText('Calibrating')).toHaveLength(5);
     expect(screen.getByText('Calibration In Progress')).toBeInTheDocument();

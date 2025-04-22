@@ -51,6 +51,8 @@ test('renders cycle if cycle usage is present', () => {
           perMau: 0,
         },
       })}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
     />
   );
 
@@ -58,7 +60,13 @@ test('renders cycle if cycle usage is present', () => {
 });
 
 test('does not render cycle if cycle usage is not present', () => {
-  renderWithContext(<SummaryPage summary={undefined} />);
+  renderWithContext(
+    <SummaryPage
+      summary={undefined}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
+    />
+  );
 
   expect(screen.queryByText(/Current Billing Cycle/i)).not.toBeInTheDocument();
   expect(

@@ -16,6 +16,8 @@ test('shows empty state when there is no usage history', async () => {
       history={[]}
       hasCloudAnonymizationKey={false}
       salesforceIdUpdatedAt={0}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
     />
   );
 
@@ -30,6 +32,8 @@ test('renders all elements', async () => {
       history={usageHistory}
       hasCloudAnonymizationKey={false}
       salesforceIdUpdatedAt={0}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
     />
   );
 
@@ -74,6 +78,8 @@ test('highlights the current cycle', async () => {
       history={[currentCycle, ...usageHistory]}
       hasCloudAnonymizationKey={false}
       salesforceIdUpdatedAt={0}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
     />
   );
 
@@ -96,12 +102,30 @@ test('highlights the current cycle', async () => {
   });
 });
 
+test('hides unavailable features', async () => {
+  render(
+    <UsageHistory
+      history={usageHistory}
+      hasCloudAnonymizationKey={true}
+      salesforceIdUpdatedAt={0}
+      hasIdentityGovernance={false}
+      hasIdentitySecurity={false}
+    />
+  );
+
+  expect(screen.queryByText(usageHistory[1].igmau)).not.toBeInTheDocument();
+  const qtyDashCells = usageHistory.length * 2; // one for each missing feature per row
+  expect(screen.getAllByText('-')).toHaveLength(qtyDashCells);
+});
+
 test('shows calibration periods', async () => {
   render(
     <UsageHistory
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
     />
   );
 
@@ -111,12 +135,32 @@ test('shows calibration periods', async () => {
   expect(screen.getByText(calibrationInfo)).toBeInTheDocument();
 });
 
+test('hides calibration periods when a feature is disabled', async () => {
+  render(
+    <UsageHistory
+      history={usageHistory}
+      hasCloudAnonymizationKey={true}
+      salesforceIdUpdatedAt={usageHistory[1].cycleStart + 1}
+      hasIdentityGovernance={false}
+      hasIdentitySecurity={true}
+    />
+  );
+
+  expect(screen.queryByText(usageHistory[1].mau)).not.toBeInTheDocument();
+  expect(screen.queryByText(usageHistory[1].tpr)).not.toBeInTheDocument();
+  expect(screen.getAllByText('Calibration Period*')).toHaveLength(4);
+  expect(screen.getAllByText('-')).toHaveLength(usageHistory.length); // one for each row
+  expect(screen.getByText(calibrationInfo)).toBeInTheDocument();
+});
+
 test('omits calibration explanation if there is no calibration period on table', async () => {
   render(
     <UsageHistory
       history={usageHistory}
       hasCloudAnonymizationKey={true}
       salesforceIdUpdatedAt={0}
+      hasIdentityGovernance={true}
+      hasIdentitySecurity={true}
     />
   );
 

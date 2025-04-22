@@ -18,6 +18,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import cfg from 'teleport/config';
 import { useNoMinWidth } from 'teleport/Main';
 
 export const SummaryLoader = (): React.ReactElement => {
@@ -34,6 +35,9 @@ export const SummaryLoader = (): React.ReactElement => {
         .then(data => setUsageSummary(data.usageSummary))
     );
   }, [run, ctx.cloudService]);
+
+  const hasIdentityGovernance = cfg.entitlements.Identity.enabled;
+  const hasIdentitySecurity = cfg.entitlements.Policy.enabled;
 
   return (
     <Box>
@@ -55,7 +59,11 @@ export const SummaryLoader = (): React.ReactElement => {
             )}
 
             {attempt.status === 'success' && (
-              <SummaryPage summary={usageSummary} />
+              <SummaryPage
+                summary={usageSummary}
+                hasIdentityGovernance={hasIdentityGovernance}
+                hasIdentitySecurity={hasIdentitySecurity}
+              />
             )}
           </Box>
         </FeatureBox>

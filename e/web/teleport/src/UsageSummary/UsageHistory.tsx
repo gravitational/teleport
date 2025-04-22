@@ -13,12 +13,16 @@ export type UsageHistoryProps = {
   history: UsageHistoryItem[];
   hasCloudAnonymizationKey: boolean;
   salesforceIdUpdatedAt: number;
+  hasIdentityGovernance: boolean;
+  hasIdentitySecurity: boolean;
 };
 
 export const UsageHistory = ({
   history,
   hasCloudAnonymizationKey,
   salesforceIdUpdatedAt,
+  hasIdentityGovernance,
+  hasIdentitySecurity,
 }: UsageHistoryProps) => {
   const tableHasCalibrationPeriod =
     history.length > 0 &&
@@ -124,6 +128,7 @@ export const UsageHistory = ({
                   val={igmau}
                   cycleEnd={cycleEnd}
                   isCalibration={isCalibration}
+                  isDisabled={!hasIdentityGovernance}
                 />
               );
             },
@@ -144,6 +149,7 @@ export const UsageHistory = ({
                   val={tpr}
                   cycleEnd={cycleEnd}
                   isCalibration={isCalibration}
+                  isDisabled={!hasIdentitySecurity}
                 />
               );
             },
@@ -178,14 +184,18 @@ const MetricCell = ({
   val,
   cycleEnd,
   isCalibration,
+  isDisabled,
 }: {
   val: number;
   cycleEnd: number;
   isCalibration: boolean;
+  isDisabled?: boolean;
 }) => {
   return (
     <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
-      {isCalibration ? (
+      {isDisabled ? (
+        '-'
+      ) : isCalibration ? (
         <Text css="font-style: italic">Calibration Period*</Text>
       ) : (
         val

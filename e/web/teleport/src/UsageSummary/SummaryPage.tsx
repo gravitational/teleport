@@ -10,17 +10,29 @@ import { UsageHistory } from './UsageHistory';
 
 export interface SummaryProps {
   summary: UsageSummary;
+  hasIdentityGovernance: boolean;
+  hasIdentitySecurity: boolean;
 }
 
-export const SummaryPage = ({ summary }: SummaryProps) => (
+export const SummaryPage = ({
+  summary,
+  hasIdentityGovernance,
+  hasIdentitySecurity,
+}: SummaryProps) => (
   <>
     {summary ? (
       <Flex gap="5" flexDirection="column">
-        <Cycle summary={summary} />
+        <Cycle
+          summary={summary}
+          hasIdentityGovernance={hasIdentityGovernance}
+          hasIdentitySecurity={hasIdentitySecurity}
+        />
         <UsageHistory
           history={summary.usageHistory}
           hasCloudAnonymizationKey={summary.hasCloudAnonymizationKey}
           salesforceIdUpdatedAt={summary.salesforceIdUpdatedAt}
+          hasIdentityGovernance={hasIdentityGovernance}
+          hasIdentitySecurity={hasIdentitySecurity}
         />
       </Flex>
     ) : (

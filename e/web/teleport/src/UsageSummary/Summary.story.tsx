@@ -12,7 +12,7 @@ export default {
 const ctx = createTeleportContext();
 
 export function SummaryPageViewWithUsage() {
-  const props = makeUsageSummary({
+  const summary = makeUsageSummary({
     cycleStart: 1727762400,
     cycleStartFormatted: 'Oct 01, 2024',
     cycleEnd: 1730354400,
@@ -80,14 +80,18 @@ export function SummaryPageViewWithUsage() {
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <SummaryPage summary={props} />
+        <SummaryPage
+          summary={summary}
+          hasIdentityGovernance={true}
+          hasIdentitySecurity={true}
+        />
       </ContextProvider>
     </MemoryRouter>
   );
 }
 
 export function CalibratingSummaryPageView() {
-  const props = makeUsageSummary({
+  const summary = makeUsageSummary({
     cycleStart: new Date('2024-01-01').getTime(),
     cycleEnd: new Date('2024-01-31').getTime(),
     salesforceIdUpdatedAt: new Date('2024-01-13').getTime(),
@@ -121,7 +125,11 @@ export function CalibratingSummaryPageView() {
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <SummaryPage summary={props} />
+        <SummaryPage
+          summary={summary}
+          hasIdentityGovernance={true}
+          hasIdentitySecurity={true}
+        />
       </ContextProvider>
     </MemoryRouter>
   );
@@ -131,7 +139,90 @@ export function EmptySummaryPageView() {
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <SummaryPage summary={undefined} />
+        <SummaryPage
+          summary={undefined}
+          hasIdentityGovernance={true}
+          hasIdentitySecurity={true}
+        />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+}
+
+export function SummaryPageWithCTAs() {
+  const summary = makeUsageSummary({
+    cycleStart: 1727762400,
+    cycleStartFormatted: 'Oct 01, 2024',
+    cycleEnd: 1730354400,
+    cycleEndFormatted: 'Oct 31, 2024',
+    usageUpdatedAt: 1728926640,
+    usageUpdatedAtFormatted: 'Oct 14, 2024 11:24',
+    mau: {
+      maximum: 1000,
+      cycleCount: 45,
+      free: 0,
+      perMau: 0,
+    },
+    tpr: {
+      maximum: 44004,
+      cycleCount: 43009,
+      free: 0,
+      perMau: 5,
+    },
+    mwi: {
+      maximum: 500,
+      cycleCount: 49,
+      free: 0,
+      perMau: 0.5,
+    },
+    igmau: {
+      maximum: 0,
+      cycleCount: 0,
+      free: 0,
+      perMau: 0,
+    },
+    usageHistory: [
+      {
+        cycleStart: 1727762400,
+        cycleStartFormatted: 'Oct 01, 2024',
+        cycleEnd: 1730354400,
+        cycleEndFormatted: 'Oct 31, 2024',
+        mau: 45,
+        tpr: 43009,
+        mwi: 20,
+        igmau: 0,
+      },
+      {
+        cycleStart: 1725159600,
+        cycleStartFormatted: 'Sep 01, 2024',
+        cycleEnd: 1725073200,
+        cycleEndFormatted: 'Aug 31, 2024',
+        mau: 52,
+        tpr: 43020,
+        mwi: 33,
+        igmau: 0,
+      },
+      {
+        cycleStart: 1722481200,
+        cycleStartFormatted: 'Aug 01, 2024',
+        cycleEnd: 1722394800,
+        cycleEndFormatted: 'Jul 31, 2024',
+        mau: 38,
+        tpr: 42120,
+        mwi: 38,
+        igmau: 0,
+      },
+    ],
+  });
+
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <SummaryPage
+          summary={summary}
+          hasIdentityGovernance={false}
+          hasIdentitySecurity={false}
+        />
       </ContextProvider>
     </MemoryRouter>
   );

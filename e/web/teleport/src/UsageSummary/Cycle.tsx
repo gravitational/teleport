@@ -4,7 +4,6 @@ import { Box, Flex, H2, H3, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
-import cfg from 'teleport/config';
 import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
 import { isCalibrationPeriod } from './SummaryPage';
@@ -20,6 +19,8 @@ const MWI_PER_MAU = 0.5;
 
 export interface CycleProps {
   summary: UsageSummary;
+  hasIdentityGovernance: boolean;
+  hasIdentitySecurity: boolean;
 }
 
 export const Cycle = ({
@@ -37,6 +38,8 @@ export const Cycle = ({
     usageUpdatedAt,
     usageUpdatedAtFormatted,
   },
+  hasIdentityGovernance,
+  hasIdentitySecurity,
 }: CycleProps) => {
   const theme = useTheme();
   const calibrationPeriod = isCalibrationPeriod(
@@ -45,9 +48,6 @@ export const Cycle = ({
     hasCloudAnonymizationKey,
     salesforceIdUpdatedAt
   );
-
-  const hasIdentityGovernance = cfg.entitlements.Identity.enabled;
-  const hasIdentitySecurity = cfg.entitlements.Policy.enabled;
 
   // hasExtraMwi is used to show or hide MWI's blurb, which contains additional info
   // that only customers in the old price model should see.
