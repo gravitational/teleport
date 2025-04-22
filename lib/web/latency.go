@@ -28,7 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
-// monitorLatency implementes the Web UI's latency detector.
+// monitorLatency implements the Web UI's latency detector.
 // It runs as long as the provided context has not expired.
 //
 // The latency of the provided websocket is monitored automatically,
