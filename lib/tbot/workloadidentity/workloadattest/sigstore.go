@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -15,6 +16,11 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore"
 )
+
+// Maximum interval at which we'll attempt to discover signatures for a given
+// image digest. This is used to avoid hammering registries if a workload is
+// failing to get an identity in a crash-loop.
+const sigstoreMaxRefreshInterval = 30 * time.Second
 
 // SigstoreAttestorConfig holds the configuration for the Sigstore workload attestor.
 type SigstoreAttestorConfig struct {
@@ -78,6 +84,10 @@ type SigstoreAttestor struct {
 
 	keychain authn.Keychain
 	cache    *lru.Cache[string, *workloadidentityv1.WorkloadAttrsSigstore]
+
+	maxRefreshInterval time.Duration
+	failuresMu         sync.Mutex
+	failures           map[string]time.Time
 }
 
 // NewSigstoreAttestor creates a new SigstoreAttestor with the given configuration.
@@ -87,23 +97,25 @@ func NewSigstoreAttestor(cfg SigstoreAttestorConfig, log *slog.Logger) (*Sigstor
 		return nil, trace.Wrap(err, "loading credentials")
 	}
 
-	cache, err := lru.New[string, *workloadidentityv1.WorkloadAttrsSigstore](64)
-	if err != nil {
-		return nil, trace.Wrap(err, "building LRU cache")
-	}
-
 	regHosts := make([]string, len(cfg.AdditionalRegistries))
 	for idx, reg := range cfg.AdditionalRegistries {
 		regHosts[idx] = reg.Host
 	}
 
-	return &SigstoreAttestor{
-		cfg:           cfg,
-		log:           log,
-		registryHosts: regHosts,
-		keychain:      keychain,
-		cache:         cache,
-	}, nil
+	att := &SigstoreAttestor{
+		cfg:                cfg,
+		log:                log,
+		registryHosts:      regHosts,
+		keychain:           keychain,
+		maxRefreshInterval: sigstoreMaxRefreshInterval,
+		failures:           make(map[string]time.Time),
+	}
+	att.cache, err = lru.NewWithEvict[string, *workloadidentityv1.WorkloadAttrsSigstore](64, att.onCacheEviction)
+	if err != nil {
+		return nil, trace.Wrap(err, "building LRU cache")
+	}
+	return att, nil
+
 }
 
 // Attest discovers signatures and attestations for the given container.
@@ -114,10 +126,12 @@ func (a *SigstoreAttestor) Attest(ctx context.Context, ctr Container) (*workload
 	)
 	logger.InfoContext(ctx, "Starting Sigstore workload attestation")
 
-	if cached, ok := a.cache.Get(ctr.GetImageDigest()); ok {
+	cached, hit := a.getCached(ctr.GetImageDigest())
+	if hit {
 		logger.DebugContext(ctx, "Sigstore attestor cache hit")
 		return cached, nil
 	}
+
 	logger.DebugContext(ctx, "Sigstore attestor cache miss")
 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -140,19 +154,55 @@ func (a *SigstoreAttestor) Attest(ctx context.Context, ctr Container) (*workload
 		Payloads: payloads,
 	}
 	_ = a.cache.Add(ctr.GetImageDigest(), result)
+
+	a.failuresMu.Lock()
+	delete(a.failures, ctr.GetImageDigest())
+	a.failuresMu.Unlock()
+
 	return result, nil
 }
 
-// EvictFromCache evicts the given container's signatures and attestations from
-// the cache. It's called when getting a workload identity fails, in case the
-// server's `SigstorePolicy`s have changed to require a newly-added signature.
-func (a *SigstoreAttestor) EvictFromCache(ctx context.Context, ctr Container) {
+// MarkFailed tracks that we failed to get a workload identity for the given
+// container. After sigstoreMaxRefreshInterval has elapsed, we will attempt to
+// refresh the signatures and bundles.
+func (a *SigstoreAttestor) MarkFailed(ctx context.Context, ctr Container) {
 	a.log.DebugContext(ctx,
-		"Evicting image from Sigstore attestor cache",
+		"Marking image digest as failed in Sigstore attestor cache",
 		"image", ctr.GetImage(),
 		"image_digest", ctr.GetImageDigest(),
 	)
-	a.cache.Remove(ctr.GetImageDigest())
+	a.failuresMu.Lock()
+	defer a.failuresMu.Unlock()
+
+	if _, ok := a.failures[ctr.GetImageDigest()]; !ok {
+		a.failures[ctr.GetImageDigest()] = time.Now()
+	}
+}
+
+func (a *SigstoreAttestor) getCached(imageDigest string) (*workloadidentityv1.WorkloadAttrsSigstore, bool) {
+	cached, ok := a.cache.Get(imageDigest)
+	if !ok {
+		return nil, false
+	}
+
+	a.failuresMu.Lock()
+	defer a.failuresMu.Unlock()
+
+	failedAt, failed := a.failures[imageDigest]
+	if !failed || time.Since(failedAt) < a.maxRefreshInterval {
+		return cached, true
+	}
+	return nil, false
+}
+
+func (a *SigstoreAttestor) onCacheEviction(imageDigest string, attrs *workloadidentityv1.WorkloadAttrsSigstore) {
+	if a.cache.Contains(imageDigest) {
+		return
+	}
+
+	a.failuresMu.Lock()
+	delete(a.failures, imageDigest)
+	a.failuresMu.Unlock()
 }
 
 // Container is satisfied by the WorkloadAttrsDockerContainer, WorkloadAttrsKubernetesContainer

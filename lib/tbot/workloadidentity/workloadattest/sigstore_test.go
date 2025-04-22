@@ -1,4 +1,4 @@
-package workloadattest_test
+package workloadattest
 
 import (
 	"context"
@@ -13,43 +13,42 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestSigstoreAttestorConfig_CheckAndSetDefaults(t *testing.T) {
 	testCases := map[string]struct {
-		cfg workloadattest.SigstoreAttestorConfig
+		cfg SigstoreAttestorConfig
 		err string
 	}{
 		"credentials_path does not exist": {
-			cfg: workloadattest.SigstoreAttestorConfig{
+			cfg: SigstoreAttestorConfig{
 				Enabled:         true,
 				CredentialsPath: "/does/not/exist",
 			},
 			err: "no such file or directory",
 		},
 		"credentials_path is a directory": {
-			cfg: workloadattest.SigstoreAttestorConfig{
+			cfg: SigstoreAttestorConfig{
 				Enabled:         true,
 				CredentialsPath: t.TempDir(),
 			},
 			err: "cannot be a directory",
 		},
 		"additional_registries.host is empty": {
-			cfg: workloadattest.SigstoreAttestorConfig{
+			cfg: SigstoreAttestorConfig{
 				Enabled: true,
-				AdditionalRegistries: []workloadattest.SigstoreRegistryConfig{
+				AdditionalRegistries: []SigstoreRegistryConfig{
 					{Host: ""},
 				},
 			},
 			err: "additional_registries[0].host cannot be blank",
 		},
 		"additional_registries.host is invalid": {
-			cfg: workloadattest.SigstoreAttestorConfig{
+			cfg: SigstoreAttestorConfig{
 				Enabled: true,
-				AdditionalRegistries: []workloadattest.SigstoreRegistryConfig{
+				AdditionalRegistries: []SigstoreRegistryConfig{
 					{Host: "/////"},
 				},
 			},
@@ -86,8 +85,8 @@ func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	attestor, err := workloadattest.NewSigstoreAttestor(
-		workloadattest.SigstoreAttestorConfig{
+	attestor, err := NewSigstoreAttestor(
+		SigstoreAttestorConfig{
 			Enabled:         true,
 			CredentialsPath: dockerConfigFile,
 		},
@@ -119,8 +118,8 @@ func TestSigstoreAttestor_Attest_Caching(t *testing.T) {
 	registryURL, err := url.Parse(registryServer.URL)
 	require.NoError(t, err)
 
-	attestor, err := workloadattest.NewSigstoreAttestor(
-		workloadattest.SigstoreAttestorConfig{
+	attestor, err := NewSigstoreAttestor(
+		SigstoreAttestorConfig{
 			Enabled: true,
 		},
 		utils.NewSlogLoggerForTests(),
@@ -144,11 +143,19 @@ func TestSigstoreAttestor_Attest_Caching(t *testing.T) {
 	require.Zero(t, requests)
 
 	// Evict it from the cache and check we make more requests.
-	attestor.EvictFromCache(ctx, ctr)
+	attestor.maxRefreshInterval = 0
+	attestor.MarkFailed(ctx, ctr)
 
 	_, err = attestor.Attest(ctx, ctr)
 	require.NoError(t, err)
 	require.NotZero(t, requests)
+
+	// Check the successful refresh removed the failure flag.
+	requests = 0
+
+	_, err = attestor.Attest(ctx, ctr)
+	require.NoError(t, err)
+	require.Zero(t, requests)
 }
 
 type testContainer struct{ image, imageDigest string }
@@ -156,4 +163,4 @@ type testContainer struct{ image, imageDigest string }
 func (c testContainer) GetImage() string       { return c.image }
 func (c testContainer) GetImageDigest() string { return c.imageDigest }
 
-var _ workloadattest.Container = (*testContainer)(nil)
+var _ Container = (*testContainer)(nil)

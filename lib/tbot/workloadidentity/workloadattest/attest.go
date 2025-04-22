@@ -159,7 +159,7 @@ func (a *Attestor) Failed(ctx context.Context, attrs *workloadidentityv1pb.Workl
 		return
 	}
 	if ctr := a.containerAttributes(attrs); ctr != nil {
-		a.sigstore.EvictFromCache(ctx, ctr)
+		a.sigstore.MarkFailed(ctx, ctr)
 	}
 }
 
