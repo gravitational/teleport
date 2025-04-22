@@ -71,7 +71,12 @@ type SlogTextHandlerConfig struct {
 	Level slog.Leveler
 	// EnableColors allows the level to be printed in color.
 	EnableColors bool
-	// Padding to use for various components.
+	// Padding to use for [ComponentField] to ensure that the initial columns in the output line up.
+	// The component is wrapped in square brackets. If the length of the component exceeds Padding+2,
+	// the component is truncated. If the length is less than Padding+2, the component in square
+	// brackets is followed by spaces to pad it to the given Padding.
+	//
+	// If set to zero, no padding is done and components are not truncated.
 	Padding int
 	// ConfiguredFields are fields explicitly set by users to be included in
 	// the output message. If there are any entries configured, they will be honored.
@@ -275,8 +280,12 @@ func formatLevel(value slog.Level, enableColors bool) string {
 }
 
 func formatComponent(value slog.Value, padding int) string {
-	component := fmt.Sprintf("[%v]", value)
-	component = strings.ToUpper(padMax(component, padding))
+	component := strings.ToUpper(fmt.Sprintf("[%v]", value))
+	if padding <= 0 {
+		return component
+	}
+
+	component = padMax(component, padding)
 	if component[len(component)-1] != ' ' {
 		component = component[:len(component)-1] + "]"
 	}
@@ -321,10 +330,12 @@ func (s *SlogTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	for _, a := range attrs {
 		switch a.Key {
 		case teleport.ComponentKey:
-			component := fmt.Sprintf("[%v]", a.Value.String())
-			component = strings.ToUpper(padMax(component, s.cfg.Padding))
-			if component[len(component)-1] != ' ' {
-				component = component[:len(component)-1] + "]"
+			component := strings.ToUpper(fmt.Sprintf("[%v]", a.Value.String()))
+			if s.cfg.Padding > 0 {
+				component = padMax(component, s.cfg.Padding)
+				if component[len(component)-1] != ' ' {
+					component = component[:len(component)-1] + "]"
+				}
 			}
 			s2.component = component
 			s2.rawComponent = a.Value.String()
