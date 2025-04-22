@@ -19,6 +19,7 @@ package debug
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -55,9 +56,14 @@ func NewClient(socketPath string) *Client {
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
 			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					var d net.Dialer
+					return d.DialContext(ctx, "unix", socketPath)
 				},
+				DisableKeepAlives: true,
+			},
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return trace.Errorf("redirect via socket not allowed")
 			},
 		},
 	}
@@ -135,6 +141,36 @@ func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds
 	}
 
 	return result, nil
+}
+
+// Readiness describes the readiness of the Teleport instance.
+type Readiness struct {
+	// Ready is true if the instance is ready.
+	// This field is only set by clients, based on status.
+	Ready bool `json:"-"`
+	// Status provides more detail about the readiness status.
+	Status string `json:"status"`
+	// PID is the process PID
+	PID int `json:"pid"`
+}
+
+// GetReadiness returns true if the Teleport service is ready.
+func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
+	var ready Readiness
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/readyz"}, nil)
+	if err != nil {
+		return ready, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return ready, trace.NotFound("readiness endpoint not found")
+	}
+	ready.Ready = resp.StatusCode == http.StatusOK
+	err = json.NewDecoder(resp.Body).Decode(&ready)
+	if err != nil {
+		return ready, trace.Wrap(err)
+	}
+	return ready, nil
 }
 
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {

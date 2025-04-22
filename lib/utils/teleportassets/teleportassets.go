@@ -28,9 +28,9 @@ import (
 )
 
 const (
-	// teleportReleaseCDN is the Teleport CDN URL for release builds.
+	// TeleportReleaseCDN is the Teleport CDN URL for release builds.
 	// This can be used to download the Teleport binary for release builds.
-	teleportReleaseCDN = "https://cdn.teleport.dev"
+	TeleportReleaseCDN = "https://cdn.teleport.dev"
 	// teleportPreReleaseCDN is the Teleport CDN URL for pre-release builds.
 	// This can be used to download the Teleport binary for pre-release builds.
 	teleportPreReleaseCDN = "https://cdn.cloud.gravitational.io"
@@ -48,7 +48,22 @@ func cdnBaseURL(version semver.Version) string {
 	if version.PreRelease != "" {
 		return teleportPreReleaseCDN
 	}
-	return teleportReleaseCDN
+	return TeleportReleaseCDN
+}
+
+// CDNBaseURLForVersion returns the CDN base URL for a given artifact version.
+// This function ensures that a Teleport production build cannot download from
+// the pre-release CDN while Teleport pre-release builds can download both form
+// the production and pre-release CDN.
+func CDNBaseURLForVersion(artifactVersion *semver.Version) string {
+	return cdnBaseURLForVersion(artifactVersion, teleport.SemVersion)
+}
+
+func cdnBaseURLForVersion(artifactVersion, teleportVersion *semver.Version) string {
+	if teleportVersion.PreRelease != "" && artifactVersion.PreRelease != "" {
+		return teleportPreReleaseCDN
+	}
+	return TeleportReleaseCDN
 }
 
 const (
