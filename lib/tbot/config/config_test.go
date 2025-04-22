@@ -198,6 +198,13 @@ func TestBotConfig_YAML(t *testing.T) {
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
+				Onboarding: OnboardingConfig{
+					JoinMethod: "gitlab",
+					TokenValue: "my-gitlab-token",
+					Gitlab: GitlabOnboardingConfig{
+						TokenEnvVarName: "MY_CUSTOM_ENV_VAR",
+					},
+				},
 				FIPS:       true,
 				Debug:      true,
 				Oneshot:    true,
