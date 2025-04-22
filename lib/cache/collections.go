@@ -51,6 +51,7 @@ type collections struct {
 	staticTokens    *collection[types.StaticTokens]
 	certAuthorities *collection[types.CertAuthority]
 	users           *collection[types.User]
+	roles           *collection[types.Role]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -89,6 +90,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.users = collect
 			out.byKind[resourceKind] = out.users
+		case types.KindRole:
+			collect, err := newRoleCollection(c.Access, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.roles = collect
+			out.byKind[resourceKind] = out.roles
 		}
 	}
 

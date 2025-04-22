@@ -147,7 +147,6 @@ type legacyCollections struct {
 	proxies                            collectionReader[services.ProxyGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
 	reverseTunnels                     collectionReader[reverseTunnelGetter]
-	roles                              collectionReader[roleGetter]
 	samlIdPServiceProviders            collectionReader[samlIdPServiceProviderGetter]
 	samlIdPSessions                    collectionReader[samlIdPSessionGetter]
 	sessionRecordingConfigs            collectionReader[sessionRecordingConfigGetter]
@@ -259,15 +258,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.uiConfigs
-		case types.KindRole:
-			if c.Access == nil {
-				return nil, trace.BadParameter("missing parameter Access")
-			}
-			collections.roles = &genericCollection[types.Role, roleGetter, roleExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.roles
 		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -1253,42 +1243,6 @@ type userGetter interface {
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}
-
-type roleExecutor struct{}
-
-func (roleExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Role, error) {
-	return cache.Access.GetRoles(ctx)
-}
-
-func (roleExecutor) upsert(ctx context.Context, cache *Cache, resource types.Role) error {
-	_, err := cache.accessCache.UpsertRole(ctx, resource)
-	return err
-}
-
-func (roleExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessCache.DeleteAllRoles(ctx)
-}
-
-func (roleExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessCache.DeleteRole(ctx, resource.GetName())
-}
-
-func (roleExecutor) isSingleton() bool { return false }
-
-func (roleExecutor) getReader(cache *Cache, cacheOK bool) roleGetter {
-	if cacheOK {
-		return cache.accessCache
-	}
-	return cache.Config.Access
-}
-
-type roleGetter interface {
-	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetRole(ctx context.Context, name string) (types.Role, error)
-	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
-}
-
-var _ executor[types.Role, roleGetter] = roleExecutor{}
 
 type databaseServerExecutor struct{}
 
