@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -64,8 +64,8 @@ func TestSigstoreAttestorConfig_CheckAndSetDefaults(t *testing.T) {
 }
 
 func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
-	registry := sigstore.RunTestRegistry(t,
-		sigstore.BasicAuth("foo", "bar"),
+	registry := sigstoretest.RunTestRegistry(t,
+		sigstoretest.BasicAuth("foo", "bar"),
 	)
 	dockerConfig, err := json.Marshal(map[string]any{
 		"auths": map[string]any{

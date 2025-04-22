@@ -35,11 +35,12 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestDiscovery_SimpleSigning(t *testing.T) {
-	registry := sigstore.RunTestRegistry(t, sigstore.NoAuth)
+	registry := sigstoretest.RunTestRegistry(t, sigstoretest.NoAuth)
 
 	payloads, err := sigstore.Discover(
 		context.Background(),
@@ -117,7 +118,7 @@ func TestDiscovery_SimpleSigning(t *testing.T) {
 }
 
 func TestDiscovery_Attestations(t *testing.T) {
-	registry := sigstore.RunTestRegistry(t, sigstore.NoAuth)
+	registry := sigstoretest.RunTestRegistry(t, sigstoretest.NoAuth)
 
 	payloads, err := sigstore.Discover(
 		context.Background(),
