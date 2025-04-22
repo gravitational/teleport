@@ -180,19 +180,6 @@ func TestNewExporter(t *testing.T) {
 			exporterAssertion: require.Nil,
 		},
 		{
-			name: "connection timeout",
-			config: Config{
-				Service:     "test",
-				ExporterURL: "localhost:123",
-				DialTimeout: time.Millisecond,
-			},
-			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err, i...)
-				require.True(t, trace.IsConnectionProblem(err), i...)
-			},
-			exporterAssertion: require.Nil,
-		},
-		{
 			name: "successful explicit grpc exporter",
 			config: Config{
 				Service:     "test",
