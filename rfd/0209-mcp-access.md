@@ -19,11 +19,12 @@ Support zero-trust access for MCP servers.
 Introduced in late 2024, Anthropic’s [Model Context Protocol
 (MCP)](https://modelcontextprotocol.io/introduction) is a widely adopted,
 open-source standard that enables language models to seamlessly interact with
-external tools and data, enhancing their contextual capabilities.
+external tools and data, enhancing their contextual capabilities. (And yes, if
+you are wondering, this line is written by AI.)
 
 However, MCP servers today are mostly operated locally without secure transport
-or authorization. OAuth support was recently added to the specification, but as
-of the time of writing, it is still new and not widely adopted.
+or authorization. OAuth authorization was recently added to the specification,
+but as of the time of writing, it is still new and not widely adopted.
 
 With Teleport's support for MCP servers, users can:
 - Host MCP servers on remote machines
