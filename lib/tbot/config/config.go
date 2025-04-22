@@ -81,6 +81,14 @@ type TerraformOnboardingConfig struct {
 	AudienceTag string `yaml:"audience_tag,omitempty"`
 }
 
+// GitlabOnboardingConfig holds configuration relevant to the "gitlab" join method.
+type GitlabOnboardingConfig struct {
+	// TokenEnvVarName is the name of the environment variable that contains the
+	// GitLab ID token. This can be useful to override in cases where a single
+	// gitlab job needs to authenticate to multiple Teleport clusters.
+	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
+}
+
 // OnboardingConfig contains values relevant to how the bot authenticates with
 // the Teleport cluster.
 type OnboardingConfig struct {
@@ -107,6 +115,9 @@ type OnboardingConfig struct {
 
 	// Terraform holds configuration relevant to the `terraform` join method.
 	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
+
+	// Gitlab holds configuration relevant to the `gitlab` join method.
+	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
