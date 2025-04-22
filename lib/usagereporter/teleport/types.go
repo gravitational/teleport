@@ -67,8 +67,8 @@ func (e *AccessRequestCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreate{
 			AccessRequestCreate: &prehogv1a.AccessRequestCreateEvent{
-				UserName:  a.AnonymizeString(e.UserName),
-				Resources: e.Resources,
+				UserName:      a.AnonymizeString(e.UserName),
+				ResourceKinds: e.ResourceKinds,
 			},
 		},
 	}
@@ -82,7 +82,7 @@ func (e *AccessRequestReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 		Event: &prehogv1a.SubmitEventRequest_AccessRequestReview{
 			AccessRequestReview: &prehogv1a.AccessRequestReviewEvent{
 				UserName:      a.AnonymizeString(e.UserName),
-				Resources:     e.Resources,
+				ResourceKinds: e.ResourceKinds,
 				IsBotReviewed: e.IsBotReviewed,
 				ProposedState: e.ProposedState,
 			},

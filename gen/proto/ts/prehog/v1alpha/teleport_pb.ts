@@ -2790,13 +2790,13 @@ export interface AccessRequestCreateEvent {
      */
     userName: string;
     /**
-     * resources specifies the kind of resources requested.
+     * resource_kinds specifies the kind of resources requested.
      *
-     * PostHog property: tp.access_request.resources.
+     * PostHog property: tp.access_request.resource_kinds.
      *
-     * @generated from protobuf field: repeated string resources = 2;
+     * @generated from protobuf field: repeated string resource_kinds = 2;
      */
-    resources: string[];
+    resourceKinds: string[];
 }
 /**
  * AccessRequestReviewEvent is emitted when an Access Request is reviewed.
@@ -2813,13 +2813,13 @@ export interface AccessRequestReviewEvent {
      */
     userName: string;
     /**
-     * resources specifies the kind of resources requested.
+     * resource_kinds specifies the kind of resources requested.
      *
-     * PostHog property: tp.access_request.resources.
+     * PostHog property: tp.access_request.resource_kinds.
      *
-     * @generated from protobuf field: repeated string resources = 2;
+     * @generated from protobuf field: repeated string resource_kinds = 2;
      */
-    resources: string[];
+    resourceKinds: string[];
     /**
      * is_bot_reviewed indicates whether the access request was automatically
      * reviewed by a bot.
@@ -2831,13 +2831,37 @@ export interface AccessRequestReviewEvent {
     isBotReviewed: boolean;
     /**
      * proposed_state specifies the proposed state of the access request review.
-     * One of: APPROVED, DENIED
      *
      * PostHog property: tp.access_request.proposed_state.
      *
-     * @generated from protobuf field: string proposed_state = 4;
+     * @generated from protobuf field: prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state = 4;
      */
-    proposedState: string;
+    proposedState: AccessRequestReviewEvent_ProposedState;
+}
+/**
+ * ProposedState specifies the proposed state of an access request review.
+ *
+ * @generated from protobuf enum prehog.v1alpha.AccessRequestReviewEvent.ProposedState
+ */
+export enum AccessRequestReviewEvent_ProposedState {
+    /**
+     * PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
+     *
+     * @generated from protobuf enum value: PROPOSED_STATE_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * PROPOSED_STATE_APPROVED specifies the approved access request state.
+     *
+     * @generated from protobuf enum value: PROPOSED_STATE_APPROVED = 1;
+     */
+    APPROVED = 1,
+    /**
+     * PROPOSED_STATE_DENIED specifies the denied access request state.
+     *
+     * @generated from protobuf enum value: PROPOSED_STATE_DENIED = 2;
+     */
+    DENIED = 2
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -10575,13 +10599,13 @@ class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent
     constructor() {
         super("prehog.v1alpha.AccessRequestCreateEvent", [
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "resources", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "resource_kinds", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessRequestCreateEvent>): AccessRequestCreateEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
-        message.resources = [];
+        message.resourceKinds = [];
         if (value !== undefined)
             reflectionMergePartial<AccessRequestCreateEvent>(this, message, value);
         return message;
@@ -10594,8 +10618,8 @@ class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent
                 case /* string user_name */ 1:
                     message.userName = reader.string();
                     break;
-                case /* repeated string resources */ 2:
-                    message.resources.push(reader.string());
+                case /* repeated string resource_kinds */ 2:
+                    message.resourceKinds.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -10612,9 +10636,9 @@ class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent
         /* string user_name = 1; */
         if (message.userName !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* repeated string resources = 2; */
-        for (let i = 0; i < message.resources.length; i++)
-            writer.tag(2, WireType.LengthDelimited).string(message.resources[i]);
+        /* repeated string resource_kinds = 2; */
+        for (let i = 0; i < message.resourceKinds.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.resourceKinds[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -10630,17 +10654,17 @@ class AccessRequestReviewEvent$Type extends MessageType<AccessRequestReviewEvent
     constructor() {
         super("prehog.v1alpha.AccessRequestReviewEvent", [
             { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "resources", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "resource_kinds", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "is_bot_reviewed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "proposed_state", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "proposed_state", kind: "enum", T: () => ["prehog.v1alpha.AccessRequestReviewEvent.ProposedState", AccessRequestReviewEvent_ProposedState, "PROPOSED_STATE_"] }
         ]);
     }
     create(value?: PartialMessage<AccessRequestReviewEvent>): AccessRequestReviewEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
-        message.resources = [];
+        message.resourceKinds = [];
         message.isBotReviewed = false;
-        message.proposedState = "";
+        message.proposedState = 0;
         if (value !== undefined)
             reflectionMergePartial<AccessRequestReviewEvent>(this, message, value);
         return message;
@@ -10653,14 +10677,14 @@ class AccessRequestReviewEvent$Type extends MessageType<AccessRequestReviewEvent
                 case /* string user_name */ 1:
                     message.userName = reader.string();
                     break;
-                case /* repeated string resources */ 2:
-                    message.resources.push(reader.string());
+                case /* repeated string resource_kinds */ 2:
+                    message.resourceKinds.push(reader.string());
                     break;
                 case /* bool is_bot_reviewed */ 3:
                     message.isBotReviewed = reader.bool();
                     break;
-                case /* string proposed_state */ 4:
-                    message.proposedState = reader.string();
+                case /* prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state */ 4:
+                    message.proposedState = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -10677,15 +10701,15 @@ class AccessRequestReviewEvent$Type extends MessageType<AccessRequestReviewEvent
         /* string user_name = 1; */
         if (message.userName !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* repeated string resources = 2; */
-        for (let i = 0; i < message.resources.length; i++)
-            writer.tag(2, WireType.LengthDelimited).string(message.resources[i]);
+        /* repeated string resource_kinds = 2; */
+        for (let i = 0; i < message.resourceKinds.length; i++)
+            writer.tag(2, WireType.LengthDelimited).string(message.resourceKinds[i]);
         /* bool is_bot_reviewed = 3; */
         if (message.isBotReviewed !== false)
             writer.tag(3, WireType.Varint).bool(message.isBotReviewed);
-        /* string proposed_state = 4; */
-        if (message.proposedState !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.proposedState);
+        /* prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state = 4; */
+        if (message.proposedState !== 0)
+            writer.tag(4, WireType.Varint).int32(message.proposedState);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

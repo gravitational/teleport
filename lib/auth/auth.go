@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/okta"
@@ -5297,8 +5298,8 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
-		UserName:  req.GetUser(),
-		Resources: apiutils.Deduplicate(resources),
+		UserName:      req.GetUser(),
+		ResourceKinds: apiutils.Deduplicate(resources),
 	})
 
 	// Create a notification.
@@ -5647,12 +5648,23 @@ func (a *Server) submitAccessReview(
 
 	a.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
 		UserName:      params.Review.Author,
-		Resources:     apiutils.Deduplicate(resources),
+		ResourceKinds: apiutils.Deduplicate(resources),
 		IsBotReviewed: (params.Review.Author == teleport.SystemAccessApproverUserName),
-		ProposedState: params.Review.ProposedState.String(),
+		ProposedState: prehogProposedStateFromRequestState(params.Review.ProposedState),
 	})
 
 	return req, nil
+}
+
+func prehogProposedStateFromRequestState(state types.RequestState) prehogv1a.AccessRequestReviewEvent_ProposedState {
+	switch state {
+	case types.RequestState_APPROVED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_APPROVED
+	case types.RequestState_DENIED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_DENIED
+	default:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_UNSPECIFIED
+	}
 }
 
 // generateAccessRequestReviewedNotification returns the notification object for a notification notifying a user of their

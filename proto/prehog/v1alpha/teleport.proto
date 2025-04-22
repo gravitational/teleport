@@ -1593,10 +1593,10 @@ message AccessRequestCreateEvent {
   // Teleport user name. Anonymized.
   string user_name = 1;
 
-  // resources specifies the kind of resources requested.
+  // resource_kinds specifies the kind of resources requested.
   //
-  // PostHog property: tp.access_request.resources.
-  repeated string resources = 2;
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
 }
 
 // AccessRequestReviewEvent is emitted when an Access Request is reviewed.
@@ -1606,10 +1606,10 @@ message AccessRequestReviewEvent {
   // Teleport user name. Anonymized.
   string user_name = 1;
 
-  // resources specifies the kind of resources requested.
+  // resource_kinds specifies the kind of resources requested.
   //
-  // PostHog property: tp.access_request.resources.
-  repeated string resources = 2;
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
 
   // is_bot_reviewed indicates whether the access request was automatically
   // reviewed by a bot.
@@ -1617,11 +1617,20 @@ message AccessRequestReviewEvent {
   // PostHog property: tp.access_request.is_bot_reviewed.
   bool is_bot_reviewed = 3;
 
+  // ProposedState specifies the proposed state of an access request review.
+  enum ProposedState {
+    // PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
+    PROPOSED_STATE_UNSPECIFIED = 0;
+    // PROPOSED_STATE_APPROVED specifies the approved access request state.
+    PROPOSED_STATE_APPROVED = 1;
+    // PROPOSED_STATE_DENIED specifies the denied access request state.
+    PROPOSED_STATE_DENIED = 2;
+  }
+
   // proposed_state specifies the proposed state of the access request review.
-  // One of: APPROVED, DENIED
   //
   // PostHog property: tp.access_request.proposed_state.
-  string proposed_state = 4;
+  ProposedState proposed_state = 4;
 }
 
 message SubmitEventRequest {
