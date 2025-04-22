@@ -1,5 +1,16 @@
 # Changelog
 
+## 17.4.6 (04/22/25)
+
+* Tbot can now be configured to use a non-standard environment variable when sourcing the ID Token for GitLab joining. [#54187](https://github.com/gravitational/teleport/pull/54187)
+* Teleport-update: stabilize binary paths in generated tbot config. [#54178](https://github.com/gravitational/teleport/pull/54178)
+* Fix a bug where the `terraform-provider` preset role to lacked permissions to list Windows Desktops on clusters that got updated from v16 to v17. [#54170](https://github.com/gravitational/teleport/pull/54170)
+* Fixed OIDC SSO MFA with multiple redirect URLs. [#54167](https://github.com/gravitational/teleport/pull/54167)
+* Fix a bug causing the Terraform provider to fail to update `dynamic_windows_desktop` resources. [#54162](https://github.com/gravitational/teleport/pull/54162)
+* Reduce log spam in discovery service error messaging. [#54149](https://github.com/gravitational/teleport/pull/54149)
+* The web UI now shows role descriptions in the roles table. [#54137](https://github.com/gravitational/teleport/pull/54137)
+* Leaf cluster joining attempts that conflict with an existing cluster registered with the root now generate an error instead of failing silently. [#54134](https://github.com/gravitational/teleport/pull/54134)
+
 ## 17.4.5 (04/17/25)
 
 * The Teleport Terraform Provider now supports setting the Managed Updates v2 resources `autoupdate_config` and `autoupdate_version`. [#54109](https://github.com/gravitational/teleport/pull/54109)
