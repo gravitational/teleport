@@ -226,11 +226,11 @@ func (s *WorkloadIdentityAWSRAService) requestSVID(
 }
 
 func loadExistingAWSCredentialFile(
-	ctx context.Context, dest bot.Destination,
+	ctx context.Context, dest bot.Destination, artifactName string,
 ) (*ini.File, error) {
 	// Load the existing credential file if it exists so we can merge with
 	// it.
-	data, err := dest.Read(ctx, "aws_credentials")
+	data, err := dest.Read(ctx, artifactName)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return ini.Empty(), nil
@@ -257,6 +257,8 @@ func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
 	)
 	defer span.End()
 
+	artifactName := cmp.Or(s.cfg.ArtifactName, "aws_credentials")
+
 	// TODO(noah): At a later date, we can add a mode where we read in and
 	// modify an existing profile within the credentials file - without
 	// overwriting other profiles
@@ -264,7 +266,9 @@ func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
 	f := ini.Empty()
 	if !s.cfg.OverwriteCredentialFile {
 		var err error
-		f, err = loadExistingAWSCredentialFile(ctx, s.cfg.Destination)
+		f, err = loadExistingAWSCredentialFile(
+			ctx, s.cfg.Destination, artifactName,
+		)
 		if err != nil {
 			return trace.Wrap(err, "loading existing credentials")
 		}
@@ -284,7 +288,7 @@ func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
 		return trace.Wrap(err, "writing credentials to buffer")
 	}
 
-	err = s.cfg.Destination.Write(ctx, "aws_credentials", b.Bytes())
+	err = s.cfg.Destination.Write(ctx, artifactName, b.Bytes())
 	if err != nil {
 		return trace.Wrap(err, "writing credentials to destination")
 	}

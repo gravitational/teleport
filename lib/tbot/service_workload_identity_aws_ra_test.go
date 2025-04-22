@@ -50,18 +50,28 @@ func Test_renderAWSCreds(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name string
-		cfg  *config.WorkloadIdentityAWSRAService
+		name         string
+		cfg          *config.WorkloadIdentityAWSRAService
+		artifactName string
 	}{
 		{
-			name: "normal",
-			cfg:  &config.WorkloadIdentityAWSRAService{},
+			name:         "normal",
+			cfg:          &config.WorkloadIdentityAWSRAService{},
+			artifactName: "aws_credentials",
+		},
+		{
+			name: "with artifact name override",
+			cfg: &config.WorkloadIdentityAWSRAService{
+				ArtifactName: "foo-xyzzy",
+			},
+			artifactName: "foo-xyzzy",
 		},
 		{
 			name: "with named profile",
 			cfg: &config.WorkloadIdentityAWSRAService{
 				CredentialProfileName: "test-profile",
 			},
+			artifactName: "aws_credentials",
 		},
 	}
 	for _, tt := range tests {
@@ -77,7 +87,7 @@ func Test_renderAWSCreds(t *testing.T) {
 			err := svc.renderAWSCreds(ctx, creds)
 			require.NoError(t, err)
 
-			got, err := dest.Read(ctx, "aws_credentials")
+			got, err := dest.Read(ctx, tt.artifactName)
 			require.NoError(t, err)
 
 			if golden.ShouldSet() {
