@@ -60,7 +60,7 @@ type YubiKey struct {
 	// version is the YubiKey's version.
 	version piv.Version
 	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
-	pinCache *hardwarekey.PINCache
+	pinCache *pinCache
 }
 
 // FindYubiKey finds a YubiKey PIV card by serial number. If the provided
@@ -114,7 +114,7 @@ func findYubiKeyCards() ([]string, error) {
 
 func newYubiKey(card string) (*YubiKey, error) {
 	y := &YubiKey{
-		pinCache: hardwarekey.NewPINCache(),
+		pinCache: newPINCache(),
 		conn: &sharedPIVConnection{
 			card: card,
 		},

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package hardwarekey_test
+package piv
 
 import (
 	"testing"
@@ -20,13 +20,11 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 func TestPINCache(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	pinCache := hardwarekey.PINCache{Clock: clock}
+	pinCache := pinCache{clock: clock}
 
 	testPIN := "123467"
 
