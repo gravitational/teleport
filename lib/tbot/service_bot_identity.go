@@ -484,7 +484,7 @@ func botIdentityFromToken(
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
 	case types.JoinMethodGitLab:
 		params.GitlabParams = join.GitlabParams{
-			EnvVarName: cfg.Onboarding.Gitlab.EnvVarName,
+			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	}
 
