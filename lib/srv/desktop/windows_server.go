@@ -662,7 +662,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 		}
 	}
 	if err := s.startStaticHostHeartbeat(servicecfg.WindowsHost{
-		Name: s.cfg.Heartbeat.HostUUID,
+		Name: strings.ReplaceAll(s.cfg.Hostname, ".", "_"),
 		Address: utils.NetAddr{
 			Addr: s.cfg.Hostname,
 		},
@@ -987,6 +987,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Height:                height,
 		AD:                    !desktop.NonAD(),
 		NLA:                   nla,
+		Local:                 strings.ReplaceAll(s.cfg.Hostname, ".", "_") == desktop.GetName(),
 	})
 	// before we check the error above, we grab the Windows user so that
 	// future audit events include the proper username

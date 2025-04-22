@@ -46,7 +46,7 @@ pub(crate) fn encode(v: &mut Vec<u8>, data: &[u8]) {
 }
 
 #[inline]
-fn push_run(mut out: &mut Vec<u8>, hash_prev: u8, index_allowed: bool, mut run: u32) {
+fn push_run(mut out: &mut Vec<u8>, hash_prev: u8, index_allowed: bool, run: u32) {
     if run == 1 && index_allowed {
         out.push(QOI_OP_INDEX | hash_prev);
     } else if run > 62 {

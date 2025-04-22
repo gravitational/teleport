@@ -70,15 +70,26 @@ package rdpclient
 import "C"
 
 import (
+	"bytes"
+	"codeberg.org/gruf/go-xgb"
+	"codeberg.org/gruf/go-xgb/damage"
+	"codeberg.org/gruf/go-xgb/randr"
+	"codeberg.org/gruf/go-xgb/xfixes"
+	"codeberg.org/gruf/go-xgb/xproto"
+	"codeberg.org/gruf/go-xgb/xtest"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"log/slog"
+	"math"
 	"os"
+	"os/exec"
 	"runtime/cgo"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -188,6 +199,9 @@ func New(cfg Config) (*Client, error) {
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
+	if c.cfg.Local {
+		return c.runLocal(ctx)
+	}
 	// Create a handle to the client to pass to Rust.
 	// The handle is used to call back into this Client from Rust.
 	// Since the handle is created and deleted here, methods which
@@ -221,6 +235,126 @@ func (c *Client) Run(ctx context.Context) error {
 		stopErr := c.stopRustRDP()
 		return trace.NewAggregate(err, stopErr)
 	}
+}
+
+func (c *Client) runLocal(ctx context.Context) error {
+	if err := c.writeConnectionActivated(0, 0, c.requestedWidth, c.requestedHeight); err != nil {
+		return trace.Wrap(err)
+	}
+	r, w, err := os.Pipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	_, err = unix.FcntlInt(w.Fd(), syscall.F_SETFD, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	xvfb := exec.CommandContext(ctx, "Xvfb",
+		"-dpi", "50",
+		"-nolock",
+		"-dpms",
+		"-displayfd", fmt.Sprintf("%d", w.Fd()),
+		"-screen", "0", fmt.Sprintf("%dx%dx24", c.requestedWidth, c.requestedHeight),
+		"-nolisten", "tcp",
+		"-iglx")
+	if err := xvfb.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		xvfb.Process.Kill()
+		xvfb.Process.Wait()
+	}()
+	if err := w.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+	buf := make([]byte, 64)
+	n, err := r.Read(buf)
+	if err != nil {
+		trace.Wrap(err)
+	}
+	display := fmt.Sprintf(":%s", string(buf[:n-1]))
+	c.cfg.Logger.DebugContext(ctx, "Started Xvfb", "display", display)
+	dial, buf, err := xgb.Dial(display)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	setup, err := xproto.Setup(dial, buf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := randr.Register(dial); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := xtest.Register(dial); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := damage.Register(dial); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := xfixes.Register(dial); err != nil {
+		return trace.Wrap(err)
+	}
+
+	xfixesVersion, err := xfixes.QueryVersion(dial, 5, 0)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.cfg.Logger.DebugContext(ctx, "Xfixes version", "major", xfixesVersion.MajorVersion, "minor", xfixesVersion.MinorVersion)
+
+	damageVersion, err := damage.QueryVersion(dial, 1, 1)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.cfg.Logger.DebugContext(ctx, "Damage version", "major", damageVersion.MajorVersion, "minor", damageVersion.MinorVersion)
+	dmg := damage.NewDamageID(dial)
+	root := xproto.Drawable(setup.Roots[0].Root)
+	if err := damage.Create(dial, dmg, root, damage.ReportLevelDeltaRectangles); err != nil {
+		return trace.Wrap(err)
+	}
+	for {
+		parts := xfixes.NewRegionID(dial)
+		if err := xfixes.CreateRegion(dial, parts, nil); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := damage.Subtract(dial, dmg, xfixes.RegionNone, parts); err != nil {
+			return trace.Wrap(err)
+		}
+		res, err := xfixes.FetchRegion(dial, parts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, rect := range res.Rectangles {
+			replay, err := xproto.GetImage(dial, xproto.ImageFormatZPixmap, root, rect.X, rect.Y, rect.Width, rect.Height, math.MaxUint32)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			var buf bytes.Buffer
+			if err := binary.Write(&buf, binary.BigEndian, rect.X); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := binary.Write(&buf, binary.BigEndian, rect.Y); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := binary.Write(&buf, binary.BigEndian, rect.Width); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := binary.Write(&buf, binary.BigEndian, rect.Height); err != nil {
+				return trace.Wrap(err)
+			}
+			encode(replay.Data, &buf)
+			if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
+				return trace.Wrap(err)
+			}
+
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+	return nil
 }
 
 func (c *Client) GetClientUsername() string {
@@ -942,16 +1076,20 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 	// This is especially true when we request dimensions that are not a multiple of 4.
 	c.cfg.Logger.DebugContext(context.Background(), "RDP server provided resolution", "width", screenWidth, "height", screenHeight)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionActivated{
-		IOChannelID:   uint16(ioChannelID),
-		UserChannelID: uint16(userChannelID),
-		ScreenWidth:   uint16(screenWidth),
-		ScreenHeight:  uint16(screenHeight),
-	}); err != nil {
+	if err := c.writeConnectionActivated(uint16(ioChannelID), uint16(userChannelID), uint16(screenWidth), uint16(screenHeight)); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed  handling connection initialization", "error", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
+}
+
+func (c *Client) writeConnectionActivated(ioChannelID uint16, userChannelID uint16, screenWidth uint16, screenHeight uint16) error {
+	return c.cfg.Conn.WriteMessage(tdp.ConnectionActivated{
+		IOChannelID:   ioChannelID,
+		UserChannelID: userChannelID,
+		ScreenWidth:   screenWidth,
+		ScreenHeight:  screenHeight,
+	})
 }
 
 //export cgo_handle_remote_copy
@@ -1238,4 +1376,8 @@ func (c *Client) UpdateClientActivity() {
 	c.clientActivityMu.Lock()
 	c.clientLastActive = time.Now().UTC()
 	c.clientActivityMu.Unlock()
+}
+
+func (c *Client) isLocal() {
+
 }

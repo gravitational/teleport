@@ -95,6 +95,8 @@ type Config struct {
 
 	// AD indicates whether the desktop is part of an Active Directory domain.
 	AD bool
+
+	Local bool
 }
 
 // GenerateUserCertFn generates user certificates for RDP authentication.
