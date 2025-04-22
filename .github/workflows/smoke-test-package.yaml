@@ -86,6 +86,9 @@ jobs:
         with:
           driver: docker
 
+      - name: Checkout Teleport
+        uses: actions/checkout@v4
+
 #      # Log into Docker Hub to increase rate limits
 #      - name: Login to Docker Hub
 #        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
