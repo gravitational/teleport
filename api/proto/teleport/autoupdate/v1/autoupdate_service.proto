@@ -78,6 +78,24 @@ service AutoUpdateService {
 
   // RollbackAutoUpdateAgentGroup changes the state of an agent group to `rolledback`.
   rpc RollbackAutoUpdateAgentGroup(RollbackAutoUpdateAgentGroupRequest) returns (AutoUpdateAgentRollout);
+
+  // ListAutoUpdateAgentReports returns a paginated list of AutoUpdateAgentReport resources.
+  rpc ListAutoUpdateAgentReports(ListAutoUpdateAgentReportsRequest) returns (ListAutoUpdateAgentReportsResponse);
+
+  // GetAutoUpdateAgentReport returns the specified AutoUpdateAgentReport resource.
+  rpc GetAutoUpdateAgentReport(GetAutoUpdateAgentReportRequest) returns (AutoUpdateAgentReport);
+
+  // CreateAutoUpdateAgentReport creates a new AutoUpdateAgentReport resource.
+  rpc CreateAutoUpdateAgentReport(CreateAutoUpdateAgentReportRequest) returns (AutoUpdateAgentReport);
+
+  // UpdateAutoUpdateAgentReport updates an existing AutoUpdateAgentReport resource.
+  rpc UpdateAutoUpdateAgentReport(UpdateAutoUpdateAgentReportRequest) returns (AutoUpdateAgentReport);
+
+  // UpsertAutoUpdateAgentReport creates or updates a AutoUpdateAgentReport resource.
+  rpc UpsertAutoUpdateAgentReport(UpsertAutoUpdateAgentReportRequest) returns (AutoUpdateAgentReport);
+
+  // DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
+  rpc DeleteAutoUpdateAgentReport(DeleteAutoUpdateAgentReportRequest) returns (google.protobuf.Empty);
 }
 
 // Request for GetAutoUpdateConfig.
@@ -169,4 +187,53 @@ message RollbackAutoUpdateAgentGroupRequest {
   // When both groups and all_started_groups are set, both unstarted and specified groups
   // are rolled-back.
   bool all_started_groups = 2;
+}
+
+// ListAutoUpdateAgentReportsRequest is a request for a paginated list of AutoUpdateAgentReports.
+message ListAutoUpdateAgentReportsRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // next_token is the page token.
+  string next_token = 2;
+}
+
+// ListAutoUpdateAgentReportsResponse is the response for ListAutoUpdateAgentReportsRequest.
+message ListAutoUpdateAgentReportsResponse {
+  // AutoUpdateAgentReports is a list of AutoUpdateAgentReports.
+  repeated AutoUpdateAgentReport autoupdate_agent_reports = 1;
+  // NextKey is the key for the next page of AutoUpdateAgentReports.
+  string next_key = 2;
+  // TotalCount is the total number of autoupdate_agent_report in all pages.
+  int32 total_count = 3;
+}
+
+// GetAutoUpdateAgentReportRequest is a request for a specific AutoUpdateAgentReport resource.
+message GetAutoUpdateAgentReportRequest {
+  // Name is the name of the AutoUpdateAgentReport to be requested.
+  string name = 1;
+}
+
+// CreateAutoUpdateAgentReportRequest is the request to create the provided AutoUpdateAgentReport.
+message CreateAutoUpdateAgentReportRequest {
+  // AutoUpdateAgentReport is the AutoUpdateAgentReport to be created.
+  AutoUpdateAgentReport autoupdate_agent_report = 1;
+}
+
+// UpdateAutoUpdateAgentReportRequest is the request to update the provided AutoUpdateAgentReport.
+message UpdateAutoUpdateAgentReportRequest {
+  // AutoUpdateAgentReport is the AutoUpdateAgentReport to be updated.
+  AutoUpdateAgentReport autoupdate_agent_report = 1;
+}
+
+// UpsertAutoUpdateAgentReportRequest is the request to upsert the provided AutoUpdateAgentReport.
+message UpsertAutoUpdateAgentReportRequest {
+  // AutoUpdateAgentReport is the AutoUpdateAgentReport to be upserted.
+  AutoUpdateAgentReport autoupdate_agent_report = 1;
+}
+
+// DeleteAutoUpdateAgentReportRequest is a request for deleting a specific AutoUpdateAgentReport resource.
+message DeleteAutoUpdateAgentReportRequest {
+  // Name is the name of the AutoUpdateAgentReport to be deleted.
+  string name = 1;
 }
