@@ -18,36 +18,15 @@
 
 package common
 
-import (
-	"context"
-)
+// ConnHandlerSource specifies the source of the connection that is passed into
+// the TLS routing connection handler.
+type ConnHandlerSource string
 
 const (
-	// ConnHandlerSourceUnspecified indicates no source has been specified.
-	ConnHandlerSourceUnspecified = "unspecified"
 	// ConnHandlerSourceListener indicates the connection is from the TLS
 	// routing port listener.
-	ConnHandlerSourceListener = "listener"
-	// ConnHandlerSourceWebConnUpgrade indicates the connection is from ALPN
-	// upgrade web api.
-	ConnHandlerSourceWebConnUpgrade = "web_conn_upgrade"
-	// ConnHandlerSourceWebDB indicates the connection is from database access
-	// via Web UI.
-	ConnHandlerSourceWebDB = "web_db"
+	ConnHandlerSourceListener ConnHandlerSource = "listener"
+	// ConnHandlerSourceWeb indicates the connection is from web handler like
+	// connection upgrades or certain Web UI flows like DB session via Web UI.
+	ConnHandlerSourceWeb ConnHandlerSource = "web"
 )
-
-// WithConnHandlerSource adds connection source to the context.
-func WithConnHandlerSource(ctx context.Context, source string) context.Context {
-	return context.WithValue(ctx, handlerSourceKey{}, source)
-}
-
-// GetConnHandlerSource retrieves connection source from the context.
-func GetConnHandlerSource(ctx context.Context) string {
-	value, ok := ctx.Value(handlerSourceKey{}).(string)
-	if !ok {
-		return ConnHandlerSourceUnspecified
-	}
-	return value
-}
-
-type handlerSourceKey struct{}

@@ -344,7 +344,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// For example in ReverseTunnel handles connection asynchronously and closing conn after
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
-			if err := p.handleConn(ctx, clientConn, nil); err != nil {
+			if err := p.handleConn(ctx, clientConn, nil, common.ConnHandlerSourceListener); err != nil {
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
 					p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr)
 				}
@@ -384,23 +384,23 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 //  5. For backward compatibility check RouteToDatabase identity field
 //     was set if yes forward to the generic TLS DB handler.
 //  6. Forward connection to the handler obtained in step 2.
-func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config) (err error) {
+func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config, connSource common.ConnHandlerSource) (err error) {
 	var hello *tls.ClientHelloInfo
 	var conn net.Conn
 	defer func() {
 		if err != nil {
 			proxyConnectionErrorsTotal.WithLabelValues(
 				getRequestedALPNFromHello(hello),
-				common.GetConnHandlerSource(ctx),
+				string(connSource),
 			).Inc()
 		}
 	}()
 
 	// Attempt to read TLS hello. Always increment total counters even on failures.
-	hello, conn, err = p.readHelloMessageWithoutTLSTermination(ctx, clientConn)
+	hello, conn, err = p.readHelloMessageWithoutTLSTermination(ctx, clientConn, connSource)
 	proxyConnectionsTotal.WithLabelValues(
 		getRequestedALPNFromHello(hello),
-		common.GetConnHandlerSource(ctx),
+		string(connSource),
 	).Inc()
 	if err != nil {
 		return trace.Wrap(err)
@@ -531,7 +531,7 @@ func (p *Proxy) getTLSConfig(desc *HandlerDecs, defaultOverride *tls.Config) *tl
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
 // incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
 // net.Conn should be used for further operation.
-func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
+func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn net.Conn, connSource common.ConnHandlerSource) (*tls.ClientHelloInfo, net.Conn, error) {
 	buff := new(bytes.Buffer)
 	var hello *tls.ClientHelloInfo
 	tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
@@ -558,7 +558,7 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn 
 		newReportingConn(
 			newBufferedConn(conn, buff),
 			getRequestedALPNFromHello(hello),
-			common.GetConnHandlerSource(ctx),
+			string(connSource),
 		),
 		nil
 }
@@ -667,9 +667,9 @@ func (p *Proxy) Close() error {
 //
 // Note that some registered handlers are async. The input client connection
 // will be automatically closed upon handler errors.
-func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config) ConnectionHandler {
+func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config, connSource common.ConnHandlerSource) ConnectionHandler {
 	return func(ctx context.Context, conn net.Conn) error {
-		if err := p.handleConn(ctx, conn, defaultOverride); err != nil {
+		if err := p.handleConn(ctx, conn, defaultOverride, connSource); err != nil {
 			// Make sure we close the connection on error.
 			if cerr := conn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
 				p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr, "remote_addr", logutils.StringerAttr(conn.RemoteAddr()))

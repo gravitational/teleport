@@ -376,12 +376,15 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	customCA := mustGenSelfSignedCert(t)
 
 	// Create a ConnectionHandler from the proxy server.
-	alpnConnHandler := svr.MakeConnectionHandler(&tls.Config{
-		NextProtos: []string{string(common.ProtocolHTTP)},
-		Certificates: []tls.Certificate{
-			mustGenCertSignedWithCA(t, customCA),
+	alpnConnHandler := svr.MakeConnectionHandler(
+		&tls.Config{
+			NextProtos: []string{string(common.ProtocolHTTP)},
+			Certificates: []tls.Certificate{
+				mustGenCertSignedWithCA(t, customCA),
+			},
 		},
-	})
+		common.ConnHandlerSource(t.Name()),
+	)
 
 	// Prepare net.Conn to be used for the created alpnConnHandler.
 	serverConn, clientConn := net.Pipe()
@@ -390,7 +393,6 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 
 	// Let alpnConnHandler serve the connection in a separate go routine.
 	handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	handlerCtx = common.WithConnHandlerSource(handlerCtx, t.Name())
 	go func() {
 		defer cancel()
 		alpnConnHandler(handlerCtx, serverConn)
@@ -434,6 +436,16 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	checkGaugeValue(t, 0, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
 
 	t.Run("on handler error", func(t *testing.T) {
+		alpnConnHandler := svr.MakeConnectionHandler(
+			&tls.Config{
+				NextProtos: []string{string(common.ProtocolHTTP)},
+				Certificates: []tls.Certificate{
+					mustGenCertSignedWithCA(t, customCA),
+				},
+			},
+			common.ConnHandlerSource(t.Name()),
+		)
+
 		serverConn, clientConn := net.Pipe()
 
 		clientTLSConn := tls.Client(clientConn, &tls.Config{
@@ -451,7 +463,6 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 		defer trackServerConn.Close()
 
 		handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		handlerCtx = common.WithConnHandlerSource(handlerCtx, t.Name())
 		handlerErr := make(chan error, 1)
 		go func() {
 			defer cancel()
