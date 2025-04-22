@@ -449,7 +449,7 @@ function AnotherSessionActive(props: {
       <Warning
         mt={3}
         details={
-          <Stack>
+          <Stack gap={2}>
             This desktop has an active session, connecting to it may close the
             other session. <br />
             Do you wish to continue?
