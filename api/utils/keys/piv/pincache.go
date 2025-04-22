@@ -60,6 +60,11 @@ func (p *pinCache) PromptOrGetPIN(ctx context.Context, prompt hardwarekey.Prompt
 		return pin, nil
 	}
 
+	// Add a timeout to prevent an unanswered PIN prompt from holding the lock.
+	const pinPromptTimeout = time.Minute
+	ctx, cancel := context.WithTimeout(ctx, pinPromptTimeout)
+	defer cancel()
+
 	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
 	if err != nil {
 		return "", trace.Wrap(err)
