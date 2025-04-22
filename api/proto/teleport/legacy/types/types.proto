@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/legacy/client/proto/updaterv2info/updaterv2info.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -28,6 +29,10 @@ option go_package = "github.com/gravitational/teleport/api/types";
 option (gogoproto.goproto_getters_all) = false;
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
+
+message Unused {
+  proto.UpdaterV2Info unused = 1;
+}
 
 message KeepAlive {
   reserved 3; // LeaseID
