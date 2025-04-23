@@ -142,7 +142,7 @@ test('invisible tabs still apply validation', async () => {
   expect(onSave).not.toHaveBeenCalled();
 
   // Switch back, make it valid.
-  await user.click(getTabByName('Invalid data Overview'));
+  await user.click(getTabByName('Overview Invalid data'));
   await user.type(screen.getByPlaceholderText('label key'), 'foo');
   await user.type(screen.getByPlaceholderText('label value'), 'bar');
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
@@ -178,15 +178,15 @@ test('hidden validation errors should not propagate to tab headings', async () =
 
   // Switch back. The newly invalid tabs should not bear the invalid indicator,
   // as the section has its validation errors hidden.
-  await user.click(getTabByName('Invalid data Overview'));
+  await user.click(getTabByName('Overview Invalid data'));
   expect(getTabByName('Resources')).toBeInTheDocument();
   expect(getTabByName('Admin Rules')).toBeInTheDocument();
 
   // Attempt to save, causing global validation. Now the invalid tabs should be
   // marked as invalid.
   await user.click(screen.getByRole('button', { name: 'Save Changes' }));
-  expect(getTabByName('Invalid data Resources')).toBeInTheDocument();
-  expect(getTabByName('Invalid data Admin Rules')).toBeInTheDocument();
+  expect(getTabByName('Resources Invalid data')).toBeInTheDocument();
+  expect(getTabByName('Admin Rules Invalid data')).toBeInTheDocument();
   expect(onSave).not.toHaveBeenCalled();
 });
 

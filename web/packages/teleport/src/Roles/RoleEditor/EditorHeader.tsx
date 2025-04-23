@@ -16,8 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonIcon, Flex, H2, Indicator } from 'design';
-import { Cross } from 'design/Icon';
+import styled, { useTheme } from 'styled-components';
+
+import {
+  Box,
+  ButtonIcon,
+  ButtonSecondary,
+  ButtonText,
+  Flex,
+  H2,
+  Indicator,
+} from 'design';
+import { ArrowsIn, Cross } from 'design/Icon';
 
 import { Role } from 'teleport/services/resources';
 
@@ -32,6 +42,8 @@ export const EditorHeader = ({
   standardEditorId,
   yamlEditorId,
   onClose,
+  minimized,
+  onMinimizedChange,
 }: {
   role?: Role;
   selectedEditorTab: EditorTab;
@@ -40,8 +52,22 @@ export const EditorHeader = ({
   standardEditorId: string;
   yamlEditorId: string;
   onClose(): void;
+  minimized: boolean;
+  /**
+   * Called when the minimize button is clicked (in maximized state) or when
+   * the header itself is clicked (in minimized state). If `undefined`, the
+   * minimize button won't be rendered.
+   */
+  onMinimizedChange?(minimized: boolean): void;
 }) => {
   const isCreating = !role;
+  const theme = useTheme();
+
+  const heading = (
+    <H2>
+      {isCreating ? 'Create a New Role' : `Edit Role ${role?.metadata.name}`}
+    </H2>
+  );
 
   return (
     <Flex alignItems="center" mb={3} gap={2}>
@@ -49,22 +75,52 @@ export const EditorHeader = ({
         <Cross size="small" />
       </ButtonIcon>
       <Box flex="1">
-        <H2>
-          {isCreating
-            ? 'Create a New Role'
-            : `Edit Role ${role?.metadata.name}`}
-        </H2>
+        {minimized ? (
+          // If minimized, we wrap the heading in a button that maximizes the
+          // editor.
+          <HeadingButton block onClick={() => onMinimizedChange?.(false)}>
+            {heading}
+          </HeadingButton>
+        ) : (
+          heading
+        )}
       </Box>
       <Box flex="0 0 24px" lineHeight={0}>
         {isProcessing && <Indicator size={24} color="text.muted" />}
       </Box>
-      <EditorTabs
-        onTabChange={onEditorTabChange}
-        selectedEditorTab={selectedEditorTab}
-        disabled={isProcessing}
-        standardEditorId={standardEditorId}
-        yamlEditorId={yamlEditorId}
-      />
+      {!minimized && (
+        <>
+          <EditorTabs
+            onTabChange={onEditorTabChange}
+            selectedEditorTab={selectedEditorTab}
+            disabled={isProcessing}
+            standardEditorId={standardEditorId}
+            yamlEditorId={yamlEditorId}
+          />
+          {onMinimizedChange && (
+            <ButtonSecondary
+              size="large"
+              width="40px"
+              px={0}
+              onClick={() => onMinimizedChange(true)}
+            >
+              <ArrowsIn size="medium" color={theme.colors.text.slightlyMuted} />
+            </ButtonSecondary>
+          )}
+        </>
+      )}
     </Flex>
   );
 };
+
+const HeadingButton = styled(ButtonText)`
+  padding: 0;
+  justify-content: start;
+  color: inherit;
+  // Since we align contents to left and want to preserve the existing layout,
+  // we nudge the element a bit to the left and give it a matching left padding
+  // to give some breathing room between the edge and the text (which is
+  // visible in the hover and focus states).
+  margin-left: -${props => props.theme.space[2]}px;
+  padding-left: ${props => props.theme.space[2]}px;
+`;
