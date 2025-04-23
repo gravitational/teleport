@@ -29,7 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
@@ -123,10 +123,7 @@ type Channel struct {
 	versionGetter version.Getter
 	// criticalTrigger gets the criticality of the channel. It is populated by CheckAndSetDefaults.
 	criticalTrigger maintenance.Trigger
-	// teleportMajor stores the current teleport major for comparison.
-	// This field is initialized during CheckAndSetDefaults.
-	teleportMajor int
-	// mutex protects versionGetter, criticalTrigger, and teleportMajor
+	// mutex protects versionGetter and criticalTrigger
 	mutex sync.Mutex
 }
 
@@ -151,12 +148,6 @@ func (c *Channel) CheckAndSetDefaults() error {
 		c.criticalTrigger = maintenance.NewMaintenanceStaticTrigger("remote", c.Critical)
 	default:
 		return trace.BadParameter("either ForwardURL or StaticVersion must be set")
-	}
-
-	var err error
-	c.teleportMajor, err = parseMajorFromVersionString(teleport.Version)
-	if err != nil {
-		return trace.Wrap(err, "failed to process teleport version")
 	}
 
 	return nil
@@ -184,8 +175,8 @@ func (c *Channel) GetVersion(ctx context.Context) (string, error) {
 
 	// The target version is officially incompatible with our version,
 	// we prefer returning our version rather than having a broken client
-	if targetMajor > c.teleportMajor {
-		targetVersion, err = version.EnsureSemver(teleport.Version)
+	if targetMajor > api.VersionMajor {
+		targetVersion, err = version.EnsureSemver(api.Version)
 		if err != nil {
 			return "", trace.Wrap(err, "ensuring current teleport version is semver-compatible")
 		}
@@ -211,7 +202,7 @@ var newDefaultChannel = sync.OnceValues[*Channel, error](
 			}
 		} else {
 			channel = &Channel{
-				StaticVersion: teleport.Version,
+				StaticVersion: api.Version,
 			}
 		}
 		if err := channel.CheckAndSetDefaults(); err != nil {

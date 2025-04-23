@@ -662,7 +662,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 					return
 				}
 			}
-			httplib.RouteNotFoundResponse(r.Context(), w, *teleport.SemVersion)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
@@ -714,7 +714,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.log.WithError(err).Error("Failed to execute index page template.")
 			}
 		} else {
-			httplib.RouteNotFoundResponse(r.Context(), w, *teleport.SemVersion)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 	})
@@ -1640,7 +1640,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
 		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientVersion,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
@@ -1672,7 +1672,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			Proxy:            *proxyConfig,
 			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
 			ServerVersion:    teleport.Version,
-			MinClientVersion: teleport.MinClientVersion,
+			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
@@ -1704,7 +1704,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
+		MinClientVersion: teleport.MinClientSemVer().String(),
 		ClusterName:      h.auth.clusterName,
 	}
 

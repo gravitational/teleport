@@ -36,5 +36,5 @@ var _ semver.Version = struct {
 func TestSemVersion(t *testing.T) {
 	v, err := semver.NewVersion(Version)
 	require.NoError(t, err)
-	require.Equal(t, SemVersion, v)
+	require.Equal(t, SemVer(), v)
 }
