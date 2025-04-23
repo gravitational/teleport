@@ -161,10 +161,18 @@ func TestDiscovery_InfiniteRedirects(t *testing.T) {
 	require.ErrorContains(t, err, "stopped after 10 redirects")
 }
 
+// escapingFileSystem replaces `:` characters in filenames (which aren't
+// supported on Windows) with `~`.
+type escapingFileSystem struct{ inner http.FileSystem }
+
+func (e escapingFileSystem) Open(name string) (http.File, error) {
+	return e.inner.Open(strings.ReplaceAll(name, ":", "~"))
+}
+
 func runRegistry(t *testing.T) string {
 	t.Helper()
 
-	server := http.FileServer(http.Dir("./testdata"))
+	server := http.FileServer(escapingFileSystem{http.Dir("./testdata")})
 
 	registry := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
