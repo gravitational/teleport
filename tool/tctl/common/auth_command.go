@@ -220,6 +220,7 @@ var allowedCertificateTypes = []string{
 	"openssh",
 	"saml-idp",
 	"github",
+	"awsra",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can

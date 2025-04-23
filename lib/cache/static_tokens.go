@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+const staticTokensStoreNameIndex = "name"
+
 func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.StaticTokens], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -32,7 +34,7 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 
 	return &collection[types.StaticTokens]{
 		store: newStore(map[string]func(types.StaticTokens) string{
-			"name": func(u types.StaticTokens) string {
+			staticTokensStoreNameIndex: func(u types.StaticTokens) string {
 				return u.GetName()
 			},
 		}),
@@ -69,7 +71,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		st, err := rg.store.get("name", types.MetaNameStaticTokens)
+		st, err := rg.store.get(staticTokensStoreNameIndex, types.MetaNameStaticTokens)
 		return st.Clone(), trace.Wrap(err)
 	}
 

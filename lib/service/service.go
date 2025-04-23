@@ -2231,7 +2231,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
@@ -2241,7 +2240,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetAccessRequestCache(accessRequestCache)
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
@@ -2251,7 +2249,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUserNotificationCache(userNotificationCache)
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
@@ -2261,7 +2258,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetGlobalNotificationCache(globalNotificationCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
@@ -2278,7 +2274,11 @@ func (process *TeleportProcess) initAuthService() error {
 	// a node can abandon an upload before it is competed.
 	// (In async recording modes, auth only ever sees completed uploads, as the node's upload completer
 	// packages up the parts into a single upload before sending to auth)
-	if uploadHandler != nil {
+	disableCompleter, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_AUTH_UPLOAD_COMPLETER"))
+	switch {
+	case disableCompleter:
+		logger.WarnContext(process.ExitContext(), "auth service's upload completer is disabled, abandoned uploads may accumulate in external storage")
+	case uploadHandler != nil:
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
@@ -2289,7 +2289,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "starting upload completer")
 		}
 	}
 
@@ -3024,13 +3024,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
+
 		// Provide helpful log message if listen_addr or public_addr are not being
 		// used (tunnel is used to connect to cluster).
 		//
 		// If a tunnel is not being used, set the default here (could not be done in
 		// file configuration because at that time it's not known if server is
 		// joining cluster directly or through a tunnel).
-		if conn.UseTunnel() {
+		if !useLocalListener {
 			if !cfg.SSH.Addr.IsEmpty() {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring listen_addr setting.")
 			}
@@ -3038,7 +3040,7 @@ func (process *TeleportProcess) initSSH() error {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring public_addr setting.")
 			}
 		}
-		if !conn.UseTunnel() && cfg.SSH.Addr.IsEmpty() {
+		if useLocalListener && cfg.SSH.Addr.IsEmpty() {
 			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 		}
 
@@ -3157,7 +3159,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
-		if !conn.UseTunnel() {
+		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3205,7 +3207,9 @@ func (process *TeleportProcess) initSSH() error {
 			if err := s.Start(); err != nil {
 				return trace.Wrap(err)
 			}
+		}
 
+		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
@@ -5565,7 +5569,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb, alpncommon.ConnHandlerSourceWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
