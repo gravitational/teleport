@@ -4056,6 +4056,31 @@ func onSSH(cf *CLIConf) error {
 	}
 
 	tc.Stdin = os.Stdin
+
+	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
+		cmd, signalFd, err := client.BuildForkAuthenticateCommand(cf.Context, client.BuildForkAuthenticateCommandParams{
+			GetArgs: func(signalFd uintptr) []string {
+				args := make([]string, 0, len(cf.originalArgs)+2)
+				for i, arg := range cf.originalArgs {
+					args = append(args, arg)
+					if arg == "ssh" {
+						args = append(args, "--fork-signal-fd", strconv.FormatUint(uint64(signalFd), 10))
+						args = append(args, cf.originalArgs[i+1:]...)
+						return args
+					}
+				}
+				return args
+			},
+			Stdin:  tc.Stdin,
+			Stdout: tc.Stdout,
+			Stderr: tc.Stderr,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(client.RunForkAuthenticateChild(cf.Context, cmd, signalFd))
+	}
+
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
@@ -4064,29 +4089,12 @@ func onSSH(cf *CLIConf) error {
 			}
 
 			if cf.forkSignalFd != 0 {
-				var node client.NodeDetails
-				if err := utils.FastUnmarshal([]byte(cf.forkPayload), &node); err != nil {
-					return trace.Wrap(err)
-				}
-				opts = append(opts, client.WithForkHandler(node, func() error {
+				opts = append(opts, client.WithForkHandler(func() error {
 					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
 					if stdin, ok := tc.Stdin.(io.ReadCloser); ok {
 						stdin.Close()
 					}
 					return trace.Wrap(disownSignal.Close())
-				}))
-			} else if cf.ForkAfterAuthentication {
-				opts = append(opts, client.ForkAfterAuthentication(func(extraArgs []string) []string {
-					args := make([]string, 0, len(cf.originalArgs)+2)
-					for i, arg := range cf.originalArgs {
-						args = append(args, arg)
-						if arg == "ssh" {
-							args = append(args, extraArgs...)
-							args = append(args, cf.originalArgs[i+1:]...)
-							return args
-						}
-					}
-					return args
 				}))
 			}
 

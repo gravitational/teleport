@@ -32,13 +32,13 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		}
 		stdout := &bytes.Buffer{}
 		stderr := &bytes.Buffer{}
-		params := buildForkAuthenticateCommandParams{
-			getArgs: getArgs,
-			stdin:   bytes.NewBufferString("hello\n"),
-			stdout:  stdout,
-			stderr:  stderr,
+		params := BuildForkAuthenticateCommandParams{
+			GetArgs: getArgs,
+			Stdin:   bytes.NewBufferString("hello\n"),
+			Stdout:  stdout,
+			Stderr:  stderr,
 		}
-		cmd, disownSignal, err := buildForkAuthenticateCommand(t.Context(), params)
+		cmd, disownSignal, err := BuildForkAuthenticateCommand(t.Context(), params)
 		require.NoError(t, err)
 		bash, err := exec.LookPath("bash")
 		require.NoError(t, err)
@@ -65,13 +65,13 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		}
 		stdout := &bytes.Buffer{}
 		stderr := &bytes.Buffer{}
-		params := buildForkAuthenticateCommandParams{
-			getArgs: getArgs,
-			stdin:   bytes.NewBufferString("hello\n"),
-			stdout:  stdout,
-			stderr:  stderr,
+		params := BuildForkAuthenticateCommandParams{
+			GetArgs: getArgs,
+			Stdin:   bytes.NewBufferString("hello\n"),
+			Stdout:  stdout,
+			Stderr:  stderr,
 		}
-		cmd, disownSignal, err := buildForkAuthenticateCommand(t.Context(), params)
+		cmd, disownSignal, err := BuildForkAuthenticateCommand(t.Context(), params)
 		require.NoError(t, err)
 		bash, err := exec.LookPath("bash")
 		require.NoError(t, err)
@@ -91,15 +91,15 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		getArgs := func(_ uintptr) []string {
 			return []string{"-c", "sleep 10"}
 		}
-		params := buildForkAuthenticateCommandParams{
-			getArgs: getArgs,
-			stdin:   &bytes.Buffer{},
-			stdout:  io.Discard,
-			stderr:  io.Discard,
+		params := BuildForkAuthenticateCommandParams{
+			GetArgs: getArgs,
+			Stdin:   &bytes.Buffer{},
+			Stdout:  io.Discard,
+			Stderr:  io.Discard,
 		}
 		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 		t.Cleanup(cancel)
-		cmd, disownSignal, err := buildForkAuthenticateCommand(ctx, params)
+		cmd, disownSignal, err := BuildForkAuthenticateCommand(ctx, params)
 		require.NoError(t, err)
 		bash, err := exec.LookPath("bash")
 		require.NoError(t, err)

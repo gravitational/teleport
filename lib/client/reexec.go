@@ -12,14 +12,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type buildForkAuthenticateCommandParams struct {
-	getArgs func(signalFd uintptr) []string
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
+type BuildForkAuthenticateCommandParams struct {
+	GetArgs func(signalFd uintptr) []string
+	Stdin   io.Reader
+	Stdout  io.Writer
+	Stderr  io.Writer
 }
 
-func buildForkAuthenticateCommand(ctx context.Context, params buildForkAuthenticateCommandParams) (cmd *exec.Cmd, disownSignal *os.File, err error) {
+func BuildForkAuthenticateCommand(ctx context.Context, params BuildForkAuthenticateCommandParams) (cmd *exec.Cmd, disownSignal *os.File, err error) {
 	executable, err := os.Executable()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -30,10 +30,10 @@ func buildForkAuthenticateCommand(ctx context.Context, params buildForkAuthentic
 		return nil, nil, trace.Wrap(err)
 	}
 	signalFd := addSignalFdToChild(cmd, pipeW)
-	cmd.Args = append(cmd.Args, params.getArgs(signalFd)...)
-	cmd.Stdin = params.stdin
-	cmd.Stdout = params.stdout
-	cmd.Stderr = params.stderr
+	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
+	cmd.Stdin = params.Stdin
+	cmd.Stdout = params.Stdout
+	cmd.Stderr = params.Stderr
 
 	return cmd, pipeR, nil
 }

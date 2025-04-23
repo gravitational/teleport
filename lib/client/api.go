@@ -1903,7 +1903,6 @@ type SSHOptions struct {
 
 	GetForkArgs func([]string) []string
 
-	TargetNode     *NodeDetails
 	OnAuthenticate func() error
 }
 
@@ -1929,9 +1928,8 @@ func ForkAfterAuthentication(f func(extraArgs []string) []string) func(*SSHOptio
 	}
 }
 
-func WithForkHandler(node NodeDetails, onAuthenticate func() error) func(*SSHOptions) {
+func WithForkHandler(onAuthenticate func() error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
-		opt.TargetNode = &node
 		opt.OnAuthenticate = onAuthenticate
 	}
 }
@@ -2100,86 +2098,6 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	}
 }
 
-func (tc *TeleportClient) runBackgroundCommand(
-	ctx context.Context,
-	getCommand func(extraArgs []string) []string,
-	nodeDetails NodeDetails,
-	opts ...RunCommandOption,
-) error {
-	var options RunCommandOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
-	forkPayload, err := utils.FastMarshal(nodeDetails)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cmd, signalFd, err := buildForkAuthenticateCommand(ctx, buildForkAuthenticateCommandParams{
-		getArgs: func(signalFd uintptr) []string {
-			return getCommand([]string{
-				"--fork-signal-fd", strconv.FormatUint(uint64(signalFd), 10),
-				"--fork-payload", string(forkPayload),
-			})
-		},
-		stdin:  tc.Stdin,
-		stdout: cmp.Or(options.stdout, tc.Stdout),
-		stderr: cmp.Or(options.stderr, tc.Stderr),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(RunForkAuthenticateChild(ctx, cmd, signalFd))
-}
-
-func (tc *TeleportClient) runBackgroundCommandOnNodes(
-	ctx context.Context,
-	clt *ClusterClient,
-	getCommand func(extraArgs []string) []string,
-	nodes []TargetNode,
-) error {
-	cluster := clt.ClusterName()
-	// Let's check if the first node requires mfa.
-	// If it's required, run commands sequentially to avoid
-	// race conditions and weird ux during mfa.
-	mfaRequiredCheck, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-		Target: &proto.IsMFARequiredRequest_Node{
-			Node: &proto.NodeLogin{
-				Node:  nodeName(TargetNode{Addr: nodes[0].Addr}),
-				Login: tc.Config.HostLogin,
-			},
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if tc.SSHLogDir != "" {
-		if err := os.MkdirAll(tc.SSHLogDir, 0o700); err != nil {
-			return trace.ConvertSystemError(err)
-		}
-	}
-
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
-
-	for _, node := range nodes {
-		g.Go(func() error {
-			return trace.Wrap(tc.runBackgroundCommand(
-				gctx,
-				getCommand,
-				NodeDetails{
-					Addr:     node.Addr,
-					Cluster:  cluster,
-					MFACheck: mfaRequiredCheck,
-					hostname: node.Hostname,
-				},
-			))
-		})
-	}
-
-	return trace.Wrap(g.Wait())
-}
-
 // MFARequiredUnknownErr indicates that connections to an instance failed
 // due to being unable to determine if mfa is required
 type MFARequiredUnknownErr struct {
@@ -2276,24 +2194,13 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	)
 	defer span.End()
 
-	if options.GetForkArgs != nil {
-		if len(command) == 0 {
-			return trace.BadParameter("ForkAfterAuthentication not supported for interactive commands")
-		}
-		return trace.Wrap(tc.runBackgroundCommand(
-			ctx,
-			options.GetForkArgs,
-			NodeDetails{Addr: nodeAddr, Cluster: cluster},
-		))
-	}
-	nodeDetails := cmp.Or(options.TargetNode, &NodeDetails{
-		Addr: nodeAddr, Cluster: cluster,
-	})
-
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
-		*nodeDetails,
+		NodeDetails{
+			Addr:    nodeAddr,
+			Cluster: cluster,
+		},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2368,18 +2275,6 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 		),
 	)
 	defer span.End()
-
-	if options.GetForkArgs != nil {
-		if len(command) == 0 {
-			return trace.BadParameter("ForkAfterAuthentication not supported for interactive commands")
-		}
-		return trace.Wrap(tc.runBackgroundCommandOnNodes(
-			ctx,
-			clt,
-			options.GetForkArgs,
-			nodes,
-		))
-	}
 
 	// There was a command provided, run a non-interactive session against each match
 	if len(command) > 0 {
