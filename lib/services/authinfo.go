@@ -21,7 +21,7 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
+	authinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
 )
 
 // AuthInfoService stores information about auth server.
