@@ -55,6 +55,8 @@ function test_teleport_basic() {
     run "install_teleport" "${TELEPORT_VERSION}"
 }
 
+# test_upgrade_downgrade tests teleport upgrade and downgrade across a major packaging
+# change in v17.2.9 and v16.4.29 that moves the teleport binaries and creates symlinks.
 function test_upgrade_downgrade() {
     local version_number="${VERSION_CHANNEL//[!0-9]/}"
     # Determine version_release based on version_number
