@@ -2535,6 +2535,9 @@ message UpstreamInventoryPong {
 
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.
 message UpstreamInventoryHello {
+  reserved 7;
+  reserved "UpdaterV2Info";
+
   // Version advertises the teleport version of the instance.
   string Version = 1;
   // ServerID advertises the server ID of the instance.
@@ -2555,38 +2558,8 @@ message UpstreamInventoryHello {
   string ExternalUpgrader = 5;
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 6;
-  // UpdaterV2Info is used by Teleport to send information about how the Teleport updater is doing.
-  UpdaterV2Info UpdaterV2Info = 7;
-}
-
-message UpdaterV2Info {
-  // UpdateGroup is the update group the agent's updater is part of.
-  // The autoupdate_agent_rollout resource controls when different groups update.
-  // Reporting the update group in the Hello allows us to track the update progress per group.
-  // See RFD 184 for more details.
-  string UpdateGroup = 1;
-  // UpdateUUID is the agent's updater UUID.
-  // Each updater has a UUID, this can be used in two cases:
-  // - To update individual agents when doing canary updates
-  // - To track the lowest non-updated agent to avoid a deadlock when doing a progressive rollout
-  bytes UpdateUUID = 2;
-  // UpdaterStatus represents any updater-related status information that the Teleport cluster
-  // should be aware of. For example, the fact the updater got disabled, the version pinned,
-  // or that the updater seems to not be running.
-  UpdaterStatus UpdaterStatus = 3;
-}
-
-enum UpdaterStatus {
-  // UPDATER_STATUS_UNSPECIFIED is the zero value.
-  UPDATER_STATUS_UNSPECIFIED = 0;
-  // UPDATER_STATUS_OK means that everything looks OK from the agent pov.
-  UPDATER_STATUS_OK = 1;
-  // UPDATER_STATUS_DISABLED means that automatic updates seem disabled or paused.
-  UPDATER_STATUS_DISABLED = 2;
-  // UPDATER_STATUS_PINNED means that a specific version is pinned.
-  UPDATER_STATUS_PINNED = 3;
-  // UPDATER_STATUS_UNREADABLE means that the agent failed to read its update status.
-  UPDATER_STATUS_UNREADABLE = 4;
+  // UpdaterInfo is used by Teleport to send information about how the Teleport updater is doing.
+  types.UpdaterV2Info UpdaterInfo = 8;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
