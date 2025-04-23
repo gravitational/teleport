@@ -419,6 +419,13 @@ type NewAppSessionRequest struct {
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
 	ClientAddr string
+
+	// BotName is the name of the bot that is creating this session.
+	// Empty if not a bot.
+	BotName string
+	// BotInstanceID is the ID of the bot instance that is creating this session.
+	// Empty if not a bot.
+	BotInstanceID string
 }
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -572,6 +579,9 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		// Pass along device extensions from the user.
 		deviceExtensions: req.DeviceExtensions,
 		mfaVerified:      req.MFAVerified,
+		// Pass along bot details to ensure audit logs are correct.
+		botName:       req.BotName,
+		botInstanceID: req.BotInstanceID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
