@@ -530,7 +530,7 @@ impl Client {
         user_channel_id: u16,
         desktop_size: DesktopSize,
     ) -> ClientResult<()> {
-        tokio::task::spawn_blocking(move || unsafe {
+        task::spawn_blocking(move || unsafe {
             ClientResult::from(cgo_handle_rdp_connection_activated(
                 cgo_handle,
                 io_channel_id,
