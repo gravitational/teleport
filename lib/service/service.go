@@ -1261,9 +1261,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 			if err != nil {
 				// Failing to detect teleport-update info is not fatal, we continue.
 				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
-				info = &proto.UpdaterV2Info{UpdaterStatus: proto.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
+				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
 			}
-			hello.UpdaterV2Info = info
+			hello.UpdaterInfo = info
 		}
 		return hello, nil
 	}

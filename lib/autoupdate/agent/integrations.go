@@ -30,7 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
@@ -185,8 +185,8 @@ func findParentMatching(dir, name string, rpos int) string {
 // that can be reported in the inventory hello message.
 // This function performs io operations, its usage must be cached
 // (the downstream inventory handler does this for us).
-func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string) (*proto.UpdaterV2Info, error) {
-	info := &proto.UpdaterV2Info{}
+func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string) (*types.UpdaterV2Info, error) {
+	info := &types.UpdaterV2Info{}
 
 	configPath := os.Getenv(updateConfigFileEnvVar)
 	if configPath == "" {
@@ -219,11 +219,11 @@ func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string
 
 	switch {
 	case !cfg.Spec.Enabled:
-		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_DISABLED
+		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_DISABLED
 	case cfg.Spec.Pinned:
-		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_PINNED
+		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_PINNED
 	default:
-		info.UpdaterStatus = proto.UpdaterStatus_UPDATER_STATUS_OK
+		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_OK
 	}
 	return info, nil
 }
