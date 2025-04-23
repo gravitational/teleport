@@ -27,6 +27,7 @@ lint:
     - api/proto/teleport/legacy/client/proto/certs.proto
     - api/proto/teleport/legacy/client/proto/event.proto
     - api/proto/teleport/legacy/client/proto/proxyservice.proto
+    - api/proto/teleport/legacy/client/proto/updaterv2info/updaterv2info.proto
     - api/proto/teleport/legacy/types/events/athena.proto
     - api/proto/teleport/legacy/types/events/events.proto
     - api/proto/teleport/legacy/types/types.proto
@@ -58,6 +59,17 @@ lint:
       - api/proto/teleport/legacy/types/device.proto
       - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/legacy/types/webauthn/webauthn.proto
+    PACKAGE_NO_IMPORT_CYCLE:
+      - api/proto/teleport/accesslist/v1/accesslist_service.proto
+      - api/proto/teleport/clusterconfig/v1/clusterconfig_service.proto
+      - api/proto/teleport/discoveryconfig/v1/discoveryconfig.proto
+      - api/proto/teleport/legacy/client/proto/joinservice.proto
+      - api/proto/teleport/notifications/v1/notifications.proto
+      - api/proto/teleport/usageevents/v1/usageevents.proto
+    PACKAGE_SAME_DIRECTORY:
+      - api/proto/teleport/legacy/client/proto/joinservice.proto
+    PACKAGE_SAME_GO_PACKAGE:
+      - api/proto/teleport/legacy/client/proto/joinservice.proto
     PACKAGE_VERSION_SUFFIX:
       - api/proto/teleport/legacy/client/proto/joinservice.proto
       - api/proto/teleport/legacy/types/device.proto
