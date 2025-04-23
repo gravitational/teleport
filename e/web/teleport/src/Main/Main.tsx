@@ -18,6 +18,7 @@ import { Main } from 'teleport/Main/Main';
 import { storageService } from 'teleport/services/storageService';
 
 import { BblpLogo } from './bblpLogo';
+import { McLogo } from './mcLogo';
 
 export function MainE() {
   const ctx = useTeleport();
@@ -31,6 +32,7 @@ export function MainE() {
 
   const CustomLogos = {
     bblp: BblpLogo,
+    mc: McLogo,
   };
 
   const [inviteNotificationCount, setInviteNotificationCount] =
