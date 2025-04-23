@@ -28,12 +28,12 @@ To support this scenario, a new gRPC-based API called `ProxyWindowsDesktopSessio
 ### Architecture
 
 ```
-               gRPC bidi stream   
-+-----+  (ProxyWindowsDesktopSession)   +----------------+      TCP connection     +-------------------------+
-| tsh | <=============================> |  Proxy Service | <=====================> | Windows Desktop Service |
-+-----+                                 +----------------+                         +-------------------------+
-        <========================================================================>
-                                      TLS connection (end-to-end)
+          gRPC bidirectional stream   
++-----+  (ProxyWindowsDesktopSession)   +---------------+     TCP connection     +-------------------------+
+| tsh | <============================> |  Proxy Service | <====================> | Windows Desktop Service |
++-----+                                 +---------------+                        +-------------------------+
+        <======================================================================>
+                                    TLS connection (end-to-end)
 ```
 
 `ProxyWindowsDesktopSession` won't transmit TDP messages directly.
