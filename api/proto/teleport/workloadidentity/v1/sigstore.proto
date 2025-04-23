@@ -1,0 +1,43 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
+
+// Sigstore bundle and simple signing envelope discovered by `tbot` and sent to
+// the server for verification.
+message SigstoreVerificationPayload {
+  // Sigstore bundle serialized in the protobuf encoding.
+  bytes bundle = 1;
+
+  // When the bundle was constructed by `tbot` from the old-style annotations
+  // the enclosed signature will be over the simple signing envelope, not the
+  // actual image manifest.
+  //
+  // Signature = Sign(SHA-256(SimpleSigningEnvelope(SHA-256(Image Manifest))))
+  //
+  // In that case, `tbot` will include the simple signing envelope, which the
+  // server will hash with SHA-256 and check the signature. The server will also
+  // compare the `critical.docker-manifest-digest` to the image digest produced
+  // by the Podman, Docker, or Kubernetes attestor.
+  //
+  // When simple_signing_envelope is not provided, the server will assert the
+  // bundle contains an in-toto attestation, enclosed with DSSE, where the
+  // subject matches the image digest from the Podman, Docker, or Kubernetes
+  // attestor.
+  optional bytes simple_signing_envelope = 2;
+}
