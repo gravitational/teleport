@@ -3,7 +3,7 @@
 # on master.
 name: Cleanup AWS EC2 AMIs
 on:
-  workflow_call:
+  workflow_dispatch:
   schedule:
     # Scheduled jobs only run from master. If you are reading this on another branch,
     # this event does not fire there.
