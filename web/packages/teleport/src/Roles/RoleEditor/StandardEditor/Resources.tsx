@@ -426,7 +426,7 @@ function KubernetesResourceView({
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
 }) {
-  const { name, namespace, verbs } = value;
+  const { name, namespace, verbs, kind } = value;
   const theme = useTheme();
   return (
     <Box
