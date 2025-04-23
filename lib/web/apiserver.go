@@ -642,7 +642,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 					return
 				}
 			}
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w, *teleport.SemVersion)
 			return
 		}
 
@@ -694,7 +694,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
 			}
 		} else {
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w, *teleport.SemVersion)
 			return
 		}
 	})
