@@ -120,6 +120,7 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 		// We just need it to be non-nil so that it goes through the test modules implementation
 		// of Attest
 		AttestationStatement: &AttestationStatement{},
+		PINCacheTTL:          config.PINCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {
@@ -190,12 +191,6 @@ func (s *MockHardwareKeyService) SetPrompt(prompt Prompt) {
 	s.promptMu.Lock()
 	defer s.promptMu.Unlock()
 	s.prompt = prompt
-}
-
-func (s *MockHardwareKeyService) GetPrompt() Prompt {
-	s.promptMu.Lock()
-	defer s.promptMu.Unlock()
-	return s.prompt
 }
 
 // TODO(Joerger): DELETE IN v19.0.0
