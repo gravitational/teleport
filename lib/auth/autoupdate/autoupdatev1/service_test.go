@@ -477,15 +477,16 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 	_, err = service.CreateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.CreateAutoUpdateAgentRolloutRequest{Rollout: rollout})
 	require.NoError(t, err)
 
+	groups := []string{"prod"}
 	_, err = service.TriggerAutoUpdateAgentGroup(ctx, &autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest{
-		Groups: []string{"prod"},
+		Groups: groups,
 	})
 	require.NoError(t, err)
 
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateAgentRolloutTriggerEvent, mockEmitter.LastEvent().GetType())
 	require.Equal(t, libevents.AutoUpdateAgentRolloutTriggerCode, mockEmitter.LastEvent().GetCode())
-	require.Equal(t, types.MetaNameAutoUpdateAgentRollout, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutTrigger).Name)
+	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutTrigger).Groups)
 	mockEmitter.Reset()
 
 	_, err = service.ForceAutoUpdateAgentGroup(ctx, &autoupdatev1pb.ForceAutoUpdateAgentGroupRequest{
@@ -496,7 +497,7 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateAgentRolloutForceDoneEvent, mockEmitter.LastEvent().GetType())
 	require.Equal(t, libevents.AutoUpdateAgentRolloutForceDoneCode, mockEmitter.LastEvent().GetCode())
-	require.Equal(t, types.MetaNameAutoUpdateAgentRollout, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutForceDone).Name)
+	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutForceDone).Groups)
 	mockEmitter.Reset()
 
 	_, err = service.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{
@@ -507,7 +508,7 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateAgentRolloutRollbackEvent, mockEmitter.LastEvent().GetType())
 	require.Equal(t, libevents.AutoUpdateAgentRolloutRollbackCode, mockEmitter.LastEvent().GetCode())
-	require.Equal(t, types.MetaNameAutoUpdateAgentRollout, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutRollback).Name)
+	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutRollback).Groups)
 	mockEmitter.Reset()
 }
 

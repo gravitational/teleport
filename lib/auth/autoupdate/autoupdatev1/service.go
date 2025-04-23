@@ -679,11 +679,8 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 				Type: events.AutoUpdateAgentRolloutTriggerEvent,
 				Code: events.AutoUpdateAgentRolloutTriggerCode,
 			},
-			UserMetadata: userMetadata,
-			ResourceMetadata: apievents.ResourceMetadata{
-				Name:      types.MetaNameAutoUpdateAgentRollout,
-				UpdatedBy: userMetadata.User,
-			},
+			UserMetadata:       userMetadata,
+			Groups:             req.Groups,
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status: apievents.Status{
 				Success: err == nil,
@@ -744,11 +741,8 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 				Type: events.AutoUpdateAgentRolloutForceDoneEvent,
 				Code: events.AutoUpdateAgentRolloutForceDoneCode,
 			},
-			UserMetadata: userMetadata,
-			ResourceMetadata: apievents.ResourceMetadata{
-				Name:      types.MetaNameAutoUpdateAgentRollout,
-				UpdatedBy: userMetadata.User,
-			},
+			UserMetadata:       userMetadata,
+			Groups:             req.Groups,
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status: apievents.Status{
 				Success: err == nil,
@@ -813,16 +807,13 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 				Type: events.AutoUpdateAgentRolloutRollbackEvent,
 				Code: events.AutoUpdateAgentRolloutRollbackCode,
 			},
-			UserMetadata: userMetadata,
-			ResourceMetadata: apievents.ResourceMetadata{
-				Name:      types.MetaNameAutoUpdateAgentRollout,
-				UpdatedBy: userMetadata.User,
-			},
+			UserMetadata:       userMetadata,
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status: apievents.Status{
 				Success: err == nil,
 				Error:   errMsg,
 			},
+			Groups: req.Groups,
 		})
 	}()
 

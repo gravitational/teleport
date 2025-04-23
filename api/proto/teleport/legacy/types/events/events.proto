@@ -7348,26 +7348,21 @@ message AutoUpdateAgentRolloutTrigger {
     (gogoproto.jsontag) = ""
   ];
 
-  // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
   // User is a common user event metadata
-  UserMetadata User = 3 [
+  UserMetadata User = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
+  ConnectionMetadata Connection = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  repeated string groups = 4;
 
   // Status indicates whether the trigger was successful.
   Status Status = 5 [
@@ -7387,26 +7382,21 @@ message AutoUpdateAgentRolloutForceDone {
     (gogoproto.jsontag) = ""
   ];
 
-  // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
   // User is a common user event metadata
-  UserMetadata User = 3 [
+  UserMetadata User = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
+  ConnectionMetadata Connection = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  repeated string groups = 4;
 
   // Status indicates whether the trigger was successful.
   Status Status = 5 [
@@ -7426,26 +7416,21 @@ message AutoUpdateAgentRolloutRollback {
     (gogoproto.jsontag) = ""
   ];
 
-  // ResourceMetadata is a common resource event metadata
-  ResourceMetadata Resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
   // User is a common user event metadata
-  UserMetadata User = 3 [
+  UserMetadata User = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
   // ConnectionMetadata holds information about the connection
-  ConnectionMetadata Connection = 4 [
+  ConnectionMetadata Connection = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  repeated string groups = 4;
 
   // Status indicates whether the trigger was successful.
   Status Status = 5 [
