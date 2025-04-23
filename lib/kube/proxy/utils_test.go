@@ -229,12 +229,17 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	log := logrus.New()
 	log.SetLevel(logrus.DebugLevel)
 
-	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: testCtx.HostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleKube},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
+				ServerID: testCtx.HostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{types.RoleKube},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{

@@ -21,6 +21,7 @@ package inventory
 import (
 	"context"
 	"errors"
+	"github.com/jonboulle/clockwork"
 	"io"
 	"log/slog"
 	"sync"
@@ -36,6 +37,10 @@ import (
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+)
+
+const (
+	helloGetterCacheTTL = time.Minute
 )
 
 // DownstreamCreateFunc is a function that creates a downstream inventory control stream.
@@ -108,7 +113,7 @@ func withMetadataGetter(getter func(ctx context.Context) (*metadata.Metadata, er
 
 // NewDownstreamHandle creates a new downstream inventory control handle which will create control streams via the
 // supplied create func and manage hello exchange with the supplied upstream hello.
-func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello, opts ...DownstreamHandleOption) DownstreamHandle {
+func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...DownstreamHandleOption) (DownstreamHandle, error) {
 	var options downstreamHandleOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -116,16 +121,41 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 	options.SetDefaults()
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Create a new cache to save the hello result, this cache ensure we don't
+	// perform too many lookups instead of crash-looping stream.
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL: helloGetterCacheTTL,
+		// v18 and above use options.clock, but the clock option has not been backported to v17
+		Clock:       clockwork.NewRealClock(),
+		Context:     ctx,
+		ReloadOnErr: true,
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err, "initializing hello cache")
+	}
+
+	// Replace the getter we had by a cached and time-boxed one.
+	cachedHelloGetter := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+		getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		return utils.FnCacheGet(getCtx, cache, "hello", func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+			return hello(ctx)
+		})
+	}
+
 	handle := &downstreamHandle{
 		senderC:        make(chan DownstreamSender),
 		pingHandlers:   make(map[uint64]DownstreamPingHandler),
 		closeContext:   ctx,
 		cancel:         cancel,
 		metadataGetter: options.metadataGetter,
+		helloGetter:    cachedHelloGetter,
 	}
-	go handle.run(fn, hello)
+	go handle.run(fn)
 	go handle.autoEmitMetadata()
-	return handle
+	return handle, nil
 }
 
 type downstreamHandle struct {
@@ -138,6 +168,7 @@ type downstreamHandle struct {
 	cancel            context.CancelFunc
 	upstreamSSHLabels map[string]string
 	metadataGetter    func(ctx context.Context) (*metadata.Metadata, error)
+	helloGetter       HelloGetter
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -187,10 +218,10 @@ func (h *downstreamHandle) autoEmitMetadata() {
 	}
 }
 
-func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) {
+func (h *downstreamHandle) run(fn DownstreamCreateFunc) {
 	retry := utils.NewDefaultLinear()
 	for {
-		h.tryRun(fn, hello)
+		h.tryRun(fn)
 
 		if h.closing() {
 			return
@@ -206,7 +237,7 @@ func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInve
 	}
 }
 
-func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) {
+func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc) {
 	stream, err := fn(h.CloseContext())
 	if err != nil {
 		if !h.closing() {
@@ -215,7 +246,7 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamI
 		return
 	}
 
-	if err := h.handleStream(stream, hello); err != nil {
+	if err := h.handleStream(stream); err != nil {
 		if !h.closing() {
 			slog.WarnContext(h.CloseContext(), "Inventory control stream failed", "error", err)
 		}
@@ -223,8 +254,20 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamI
 	}
 }
 
-func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream, upstreamHello proto.UpstreamInventoryHello) error {
+// HelloGetter is a function that returns a proto.UpstreamInventoryHello.
+// This is evaluated each time the stream is being established to craft the upstream Hello.
+// Its output is cached for a minute by the downstreamHandle to mitigate load
+// issues when if the stream is crash-looping.
+type HelloGetter func(ctx context.Context) (proto.UpstreamInventoryHello, error)
+
+func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream) error {
 	defer stream.Close()
+
+	upstreamHello, err := h.helloGetter(h.CloseContext())
+	if err != nil {
+		return trace.Wrap(err, "getting upstream hello")
+	}
+
 	// send upstream hello
 	if err := stream.Send(h.closeContext, upstreamHello); err != nil {
 		if errors.Is(err, io.EOF) {
