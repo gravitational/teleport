@@ -1006,9 +1006,11 @@ func TestUpdateLabels(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	downstreamHandle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, upstreamHello)
+	}, func(_ context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, downstreamHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1068,11 +1070,11 @@ func TestAgentMetadata(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	NewDownstreamHandle(
+	inventoryHandle, err := NewDownstreamHandle(
 		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 			return downstream, nil
 		},
-		upstreamHello,
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil },
 		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{
 				OS:                    "llamaOS",
@@ -1086,6 +1088,8 @@ func TestAgentMetadata(t *testing.T) {
 			}, nil
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1155,9 +1159,11 @@ func TestGoodbye(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 				return downstream, nil
-			}, upstreamHello)
+			}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+			require.NoError(t, err)
+			// downstream handler is closed later in the test, no need to defer the cleanup
 
 			// Wait for upstream hello.
 			select {
@@ -1461,9 +1467,11 @@ func TestGetSender(t *testing.T) {
 		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
 	}
 
-	handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, upstreamHello)
+	}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
 
 	// Validate that the sender is not present prior to
 	// the stream becoming healthy.

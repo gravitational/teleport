@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -9322,12 +9323,16 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	})
 	require.NoError(t, err)
 
-	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, authproto.UpstreamInventoryHello{
-		ServerID: hostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{role},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(ctx context.Context) (clientproto.UpstreamInventoryHello, error) {
+			return clientproto.UpstreamInventoryHello{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{role},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
