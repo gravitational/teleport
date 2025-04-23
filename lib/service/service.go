@@ -1272,17 +1272,41 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
 
+	getHello := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+		hello := proto.UpstreamInventoryHello{
+			ServerID:         cfg.HostUUID,
+			Version:          teleport.Version,
+			Services:         process.getInstanceRoles(),
+			Hostname:         cfg.Hostname,
+			ExternalUpgrader: externalUpgrader,
+		}
+
+		if upgraderVersion != nil {
+			// The UpstreamInventoryHello message wants versions with the leading "v".
+			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+		}
+
+		if upgraderKind == types.UpgraderKindTeleportUpdate {
+			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
+			if err != nil {
+				// Failing to detect teleport-update info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
+			}
+			hello.UpdaterInfo = info
+		}
+		return hello, nil
+	}
+
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID:         cfg.HostUUID,
-		Version:          teleport.Version,
-		Services:         process.getInstanceRoles(),
-		Hostname:         cfg.Hostname,
-		ExternalUpgrader: externalUpgrader,
-		// The UpstreamInventoryHello message wants versions with the leading "v".
-		ExternalUpgraderVersion: "v" + upgraderVersion.String(),
-	})
+	process.inventoryHandle, err = inventory.NewDownstreamHandle(
+		process.makeInventoryControlStreamWhenReady,
+		getHello,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "building inventory handle")
+	}
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.", "id", ping.ID)
