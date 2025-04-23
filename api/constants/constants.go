@@ -540,3 +540,6 @@ const (
 	// GitLab CI job.
 	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
 )
+
+// MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
+const MaxPIVPINCacheTTL = time.Hour
