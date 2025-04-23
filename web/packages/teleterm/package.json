@@ -13,7 +13,7 @@
     "start": "electron-vite dev",
     "build": "electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "generate-grpc-shared": "npx -y --target_arch=x64 --package=@protobuf-ts/plugin@2.9.3 -- protoc -I=src/sharedProcess/api/proto --ts_opt long_type_number,eslint_disable,add_pb_suffix,client_grpc1,server_grpc1,ts_nocheck --ts_out=src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
+    "generate-grpc-shared": "buf generate"
   },
   "repository": {
     "type": "git",
