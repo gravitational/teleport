@@ -288,7 +288,7 @@ users will be able to refer to policies in the `WorkloadIdentity` resource's
 ```yaml
 rules:
   allow:
-    - expression: workload.sigstore.policies["github-provenance"].pass
+    - expression: sigstore.policy_satisfied("github-provenance")
 ```
 
 For efficiency, we'll parse the expression ahead of time to determine which
@@ -387,14 +387,14 @@ workload identity fails.
 ### Policy Enforcement
 
 On the server side, when considering whether to issue a SPIFFE SVID we will
-check to see if any of the workload identity's `rules` refers to the
-`workload.sigstore.policies` map variable. If so, we will load each of the named
+check to see if any of the workload identity's `rules` uses the
+`sigstore.policy_satisfied` function. If so, we will load each of the named
 policies and evaluate them against the presented bundles (using sigstore-go's
 `verify` package).
 
 Whether or not the workload identity is issued depends on the rule's expression
 (as users may require multiple policies to pass using `&&` or `||` operators),
-but the value of `workload.sigstore.policies[name].pass` will be `true` for that
+but the return value of `sigstore.policy_satisfied(name)` will be `true` for that
 policy if **any** of the bundles were successfully verified.
 
 ### Audit Logs
