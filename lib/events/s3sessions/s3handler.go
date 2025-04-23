@@ -95,6 +95,11 @@ type Config struct {
 	Insecure bool
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+
+	// CompleteInitiators configures the S3 uploader to only complete
+	// uplpoads initiated by the specified set of initiators. If unspecified,
+	// the upload completer will attempt to complete all uploads in the bucket.
+	CompleteInitiators []string
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -144,6 +149,8 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 			s.UseFIPSEndpoint = types.ClusterAuditConfigSpecV2_FIPS_DISABLED
 		}
 	}
+
+	s.CompleteInitiators = in.Query()[teleport.S3CompleteInitiators]
 
 	s.Region = region
 	s.Bucket = in.Host
