@@ -259,10 +259,6 @@ func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
 
 	artifactName := cmp.Or(s.cfg.ArtifactName, "aws_credentials")
 
-	// TODO(noah): At a later date, we can add a mode where we read in and
-	// modify an existing profile within the credentials file - without
-	// overwriting other profiles
-
 	f := ini.Empty()
 	if !s.cfg.OverwriteCredentialFile {
 		var err error
