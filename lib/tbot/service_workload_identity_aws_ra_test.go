@@ -53,11 +53,30 @@ func Test_renderAWSCreds(t *testing.T) {
 		name         string
 		cfg          *config.WorkloadIdentityAWSRAService
 		artifactName string
+		existingData []byte
 	}{
 		{
 			name:         "normal",
 			cfg:          &config.WorkloadIdentityAWSRAService{},
 			artifactName: "aws_credentials",
+		},
+		{
+			name:         "merge with existing data",
+			cfg:          &config.WorkloadIdentityAWSRAService{},
+			artifactName: "aws_credentials",
+			existingData: []byte(`[foo]
+aws_secret_access_key=existing
+aws_access_key_id=existing
+aws_session_token=existing`),
+		},
+		{
+			name:         "replace with existing data",
+			cfg:          &config.WorkloadIdentityAWSRAService{},
+			artifactName: "aws_credentials",
+			existingData: []byte(`[default]
+aws_secret_access_key=existing
+aws_access_key_id=existing
+aws_session_token=existing`),
 		},
 		{
 			name: "with artifact name override",
@@ -73,12 +92,30 @@ func Test_renderAWSCreds(t *testing.T) {
 			},
 			artifactName: "aws_credentials",
 		},
+		{
+			name: "overwrite existing data",
+			cfg: &config.WorkloadIdentityAWSRAService{
+				CredentialProfileName:   "test-profile",
+				OverwriteCredentialFile: true,
+			},
+			artifactName: "aws_credentials",
+			existingData: []byte(`[foo]
+aws_secret_access_key=existing
+aws_access_key_id=existing
+aws_session_token=existing
+`),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dest := &config.DestinationMemory{}
 			require.NoError(t, dest.CheckAndSetDefaults())
 			require.NoError(t, dest.Init(ctx, []string{}))
+
+			if len(tt.existingData) > 0 {
+				require.NoError(t, dest.Write(ctx, tt.artifactName, tt.existingData))
+			}
+
 			tt.cfg.Destination = dest
 			svc := &WorkloadIdentityAWSRAService{
 				cfg: tt.cfg,
