@@ -112,7 +112,7 @@ jobs:
         with:
           name: build-artifacts
           path: |
-            ${{ github.workspace }}/build/
+            ${{ github.workspace }}/build/artifacts
 
       - name: Upload test-assets
         uses: actions/upload-artifact@v4
@@ -135,11 +135,14 @@ jobs:
         with:
           name: build-artifacts
 
+      - name: List downloaded contents
+        run: ls -R
+
       - name: Build Debian package
         env:
           ARCH: amd64
-          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
-          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          ENT_TARBALL_PATH: ${{ github.workspace }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}
           VERSION: ${{ needs.build.outputs.version }}
           FPM_IMAGE_DEB: zion/fpm:debian
         run: |
@@ -149,8 +152,8 @@ jobs:
       - name: Build RPM package
         env:
           ARCH: amd64
-          ENT_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
-          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          ENT_TARBALL_PATH: ${{ github.workspace }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}
           VERSION: ${{ needs.build.outputs.version }}
           GNUPG_DIR: /tmp/gnupg
           FPM_IMAGE_RPM: zion/fpm:centos
