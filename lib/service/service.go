@@ -4758,6 +4758,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			LocalAccessPoint: accessPoint,
 			SiteGetter:       tsrv,
 			TracerProvider:   process.TracingProvider,
+			Logger:           process.logger.With(teleport.ComponentKey, "router"),
 		})
 		if err != nil {
 			return trace.Wrap(err)
