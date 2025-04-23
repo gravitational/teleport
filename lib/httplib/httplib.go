@@ -34,13 +34,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/utils"
@@ -232,18 +232,18 @@ type ProxyVersion struct {
 
 // RouteNotFoundResponse writes a JSON error reply containing
 // a not found error, a Version object, and a not found HTTP status code.
-func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter, proxyVersion semver.Version) {
+func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter) {
 	SetDefaultSecurityHeaders(w.Header())
 
 	errObj := &trace.TraceErr{
 		Err: trace.NotFound("path not found"),
 		Fields: map[string]any{
 			"proxyVersion": ProxyVersion{
-				Major:      proxyVersion.Major,
-				Minor:      proxyVersion.Minor,
-				Patch:      proxyVersion.Patch,
-				String:     proxyVersion.String(),
-				PreRelease: string(proxyVersion.PreRelease),
+				Major:      api.VersionMajor,
+				Minor:      api.VersionMinor,
+				Patch:      api.VersionPatch,
+				String:     api.Version,
+				PreRelease: api.VersionPreRelease,
 			},
 		},
 	}

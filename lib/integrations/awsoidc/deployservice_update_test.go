@@ -162,7 +162,7 @@ func TestUpdateDeployServices(t *testing.T) {
 	clusterName := "my-cluster"
 	integrationName := "my-integration"
 	ownershipTags := tags.DefaultResourceCreationTags(clusterName, integrationName)
-	semVer := *teleport.SemVersion
+	semVer := teleport.SemVer()
 	semVer.PreRelease = ""
 	teleportVersion := semVer.String()
 	log := utils.NewSlogLoggerForTests().With("test", t.Name())

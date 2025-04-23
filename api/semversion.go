@@ -16,10 +16,13 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-var SemVersion = &semver.Version{
-	Major:      VersionMajor,
-	Minor:      VersionMinor,
-	Patch:      VersionPatch,
-	PreRelease: VersionPreRelease,
-	Metadata:   VersionMetadata,
+// SemVer returns the version of Teleport in use as a [semver.Version].
+func SemVer() *semver.Version {
+	return &semver.Version{
+		Major:      VersionMajor,
+		Minor:      VersionMinor,
+		Patch:      VersionPatch,
+		PreRelease: VersionPreRelease,
+		Metadata:   VersionMetadata,
+	}
 }
