@@ -247,7 +247,8 @@ impl Client {
             connection_result.io_channel_id,
             connection_result.user_channel_id,
             connection_result.desktop_size,
-        )?;
+        )
+        .await?;
 
         // Take the stream back out of the framed object for splitting.
         let rdp_stream = rdp_stream.into_inner_no_leftover();
@@ -401,7 +402,8 @@ impl Client {
                                             io_channel_id,
                                             user_channel_id,
                                             desktop_size,
-                                        )?;
+                                        )
+                                        .await?;
                                         break;
                                     }
                                 }
@@ -522,13 +524,13 @@ impl Client {
         Ok(vec![])
     }
 
-    fn send_connection_activated(
+    async fn send_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
         desktop_size: DesktopSize,
     ) -> ClientResult<()> {
-        unsafe {
+        tokio::task::spawn_blocking(move || unsafe {
             ClientResult::from(cgo_handle_rdp_connection_activated(
                 cgo_handle,
                 io_channel_id,
@@ -536,7 +538,8 @@ impl Client {
                 desktop_size.width,
                 desktop_size.height,
             ))
-        }
+        })
+        .await?
     }
 
     async fn update_clipboard(
