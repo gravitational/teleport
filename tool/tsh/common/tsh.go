@@ -4405,12 +4405,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.Namespace = cf.Namespace
 	}
 
-	if c.PIVPINCacheTTL != 0 {
-		innerPrompt := c.ClientStore.HardwareKeyService.GetPrompt()
-		pinCachingPrompt := hardwarekey.NewPINCachingPrompt(innerPrompt, c.PIVPINCacheTTL)
-		c.ClientStore.HardwareKeyService.SetPrompt(pinCachingPrompt)
-	}
-
 	if cf.Username != "" {
 		c.Username = cf.Username
 	}
