@@ -65,7 +65,7 @@ function install_package() {
 : "${1:?teleport_version was not provided}"
     local teleport_version="$1"
 
-    zypper "${ZYPPER_FLAGS[@]}" install --allow-downgrade --oldpackage "teleport-${teleport_version}-1.$(rpm --eval '%{_arch}').rpm"
+    zypper "${ZYPPER_FLAGS[@]}" --no-gpg-checks install --allow-downgrade --oldpackage "teleport-${teleport_version}-1.$(rpm --eval '%{_arch}').rpm"
     verify_teleport "${teleport_version}"
     echo "successfully installed teleport teleport-${teleport_version}-1.$(rpm --eval '%{_arch}').rpm"
 }

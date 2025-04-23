@@ -1,19 +1,6 @@
 name: Smoke test package rpm/deb
 run-name: Smoke test package rpm/deb
 
-#Inputs
-#  cloud-only: false
-#  environment: prod/build
-#  oss-teleport-ref: v16.5.2
-#  oss-teleport-repo: gravitational/teleport
-#  ent-teleport-ref:
-#  release: enterprise
-#  release-target: release-arm
-#  release-version: 16.5.2
-#  build-connect: false
-#  build-deb: true
-#  build-rpm: true
-
 on:
   # Only allow manual triggers
   workflow_dispatch:
@@ -219,9 +206,8 @@ jobs:
       fail-fast: false
       matrix:
         container:
-          - { image: "registry.access.redhat.com/ubi8:8.7", package-manager: "yum" }
           - { image: "registry.access.redhat.com/ubi9:9.1", package-manager: "yum" }
-          - { image: "registry.suse.com/bci/bci-base:15.5", package-manager: "zypper", is-sles: false }
+          - { image: "registry.suse.com/bci/bci-base:15.7", package-manager: "zypper", is-sles: false }
     container:
       image: ${{ matrix.container.image }}
     defaults:
