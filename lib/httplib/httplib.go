@@ -249,27 +249,20 @@ type ProxyVersion struct {
 
 // RouteNotFoundResponse writes a JSON error reply containing
 // a not found error, a Version object, and a not found HTTP status code.
-func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter, proxyVersion string) {
+func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter, proxyVersion semver.Version) {
 	SetDefaultSecurityHeaders(w.Header())
 
 	errObj := &trace.TraceErr{
 		Err: trace.NotFound("path not found"),
-	}
-
-	ver, err := semver.NewVersion(proxyVersion)
-	if err != nil {
-		log.Debug("Error parsing Teleport proxy semver version", "err", err)
-	} else {
-		verObj := ProxyVersion{
-			Major:      ver.Major,
-			Minor:      ver.Minor,
-			Patch:      ver.Patch,
-			String:     proxyVersion,
-			PreRelease: string(ver.PreRelease),
-		}
-		fields := make(map[string]interface{})
-		fields["proxyVersion"] = verObj
-		errObj.Fields = fields
+		Fields: map[string]any{
+			"proxyVersion": ProxyVersion{
+				Major:      proxyVersion.Major,
+				Minor:      proxyVersion.Minor,
+				Patch:      proxyVersion.Patch,
+				String:     proxyVersion.String(),
+				PreRelease: string(proxyVersion.PreRelease),
+			},
+		},
 	}
 
 	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
