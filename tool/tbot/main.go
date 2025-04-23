@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -263,7 +264,7 @@ func Run(args []string, stdout io.Writer) error {
 		tpm.PrintQuery(query, globalCfg.Debug, os.Stdout)
 		return nil
 	case installSystemdCmdStr:
-		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, os.Executable, os.Stdout)
+		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, autoupdate.StableExecutable, os.Stdout)
 	}
 
 	// Attempt to run each new-style command.
