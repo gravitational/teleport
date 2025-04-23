@@ -42,7 +42,7 @@ func AWSConfigFilePath() (string, error) {
 // SetDefaultProfileCredentialProcess sets the credential_process for the default profile.
 // File is created if it does not exist.
 func SetDefaultProfileCredentialProcess(configFilePath string, credentialProcess string) error {
-	sectionName := "default"
+	const sectionName = "default"
 	return trace.Wrap(addCredentialProcessToSection(configFilePath, sectionName, credentialProcess))
 }
 
