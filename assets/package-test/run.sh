@@ -60,7 +60,7 @@ function test_upgrade_downgrade() {
     # Determine version_release based on version_number
     local version_release=""
     local version_chanel=""
-    if [[ "$version_number" -eq 17 || "$version_number" -eq 18 || "$version_number" -eq 19 ]]; then
+    if [[ "$version_number" -eq 17 || "$version_number" -eq 18 ]]; then
         version_release="17.2.9"
         version_chanel="v17"
     elif [[ "$version_number" -eq 16 ]]; then

@@ -2,7 +2,6 @@ name: Smoke test package rpm/deb
 run-name: Smoke test package rpm/deb
 
 on:
-  # Only allow manual triggers
   workflow_dispatch:
     inputs:
       release-version:
@@ -11,18 +10,20 @@ on:
           Use this override to specify a tag for build debugging purposes.
         type: string
 
+  # TODO(vapopov): delete before merge.
   push:
     branches:
       - vapopov/smoke-test-package
-#  merge_group:
-#    paths:
-#      - '.github/workflows/build-windows.yaml'
-#      - '**.go'
-#      - 'go.mod'
-#      - 'go.sum'
-#      - 'build.assets/Makefile'
-#      - 'build.assets/Dockerfile*'
-#      - 'Makefile'
+
+  merge_group:
+    paths:
+      - 'lib/autoupdate/**.go'
+      - 'tool/teleport-update/**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
 
@@ -145,9 +146,6 @@ jobs:
           make rpm-unsigned VERSION="$VERSION"
           cp build/*.rpm build/artifacts
 
-      - name: List downloaded contents
-        run: ls -R
-
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
@@ -228,17 +226,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: test-assets
-
-      - name: List downloaded packages
-        run: ls -R
-
-      # sles12 specific setup
-      - name: Initialize sle12 package repo
-        if: ${{ matrix.container.is-sles }}
-        run: |
-          # Required for git checkout
-          zypper addrepo --refresh http://download.opensuse.org/update/leap/15.4/sle/ sle
-          zypper -n -q install tar gzip
 
       - name: Install test dependencies
         run: |
