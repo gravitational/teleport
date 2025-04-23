@@ -298,6 +298,8 @@ type Role interface {
 	// GetIdentityCenterAccountAssignments sets the allow or deny Account
 	// Assignments for the role
 	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
+	// Clone creats a copy of the role.
+	Clone() Role
 }
 
 // NewRole constructs new standard V8 role.
@@ -2135,6 +2137,10 @@ func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assi
 		cond = &r.Spec.Allow
 	}
 	cond.AccountAssignments = assignments
+}
+
+func (r *RoleV6) Clone() Role {
+	return utils.CloneProtoMsg(r)
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label
