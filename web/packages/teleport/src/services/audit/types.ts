@@ -49,6 +49,7 @@ export const eventCodes = {
   ACCESS_REQUEST_UPDATED: 'T5001I',
   ACCESS_REQUEST_DELETED: 'T5003I',
   ACCESS_REQUEST_RESOURCE_SEARCH: 'T5004I',
+  ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
   APP_SESSION_END: 'T2011I',
@@ -342,6 +343,9 @@ export type RawEvents = {
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
     typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
     { resource_type: string; search_as_roles: string[] }
+  >;
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: RawEventAccess<
+    typeof eventCodes.ACCESS_REQUEST_EXPIRED
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
