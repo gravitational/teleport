@@ -259,8 +259,11 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		Clock:            fakeClock,
 		Storage:          storage,
 		TshdEventsClient: tshdEventsClient,
-		KubeconfigsDir:   t.TempDir(),
-		AgentsDir:        t.TempDir(),
+		CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
+			return clientcache.NewNoCache(newClient), nil
+		},
+		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
