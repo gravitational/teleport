@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -142,6 +143,7 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		KeyInfo: &hardwarekeyagentv1.KeyInfo{
 			TouchRequired: ref.Policy.TouchRequired,
 			PinRequired:   ref.Policy.PINRequired,
+			PinCacheTtl:   durationpb.New(ref.PINCacheTTL),
 			ProxyHost:     keyInfo.ProxyHost,
 			Username:      keyInfo.Username,
 			ClusterName:   keyInfo.ClusterName,
@@ -160,14 +162,4 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 // TODO(Joerger): DELETE IN v19.0.0
 func (s *Service) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return s.fallbackService.GetFullKeyRef(serialNumber, slotKey)
-}
-
-// SetPrompt for the fallback service.
-func (s *Service) SetPrompt(prompt hardwarekey.Prompt) {
-	s.fallbackService.SetPrompt(prompt)
-}
-
-// GetPrompt for the fallback service.
-func (s *Service) GetPrompt() hardwarekey.Prompt {
-	return s.fallbackService.GetPrompt()
 }
