@@ -69,7 +69,7 @@ type Config struct {
 	// The startup of the app is orchestrated so that the client is loaded before any other method on
 	// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
 	// client is available right from the beginning, without the need for nil checks.
-	TshdEventsClient *tshdEventsClient
+	TshdEventsClient *TshdEventsClient
 
 	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
 	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner

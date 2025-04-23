@@ -74,11 +74,12 @@ func Serve(ctx context.Context, cfg Config) error {
 	clusterIDCache := &clusteridcache.Cache{}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage:        storage,
-		PrehogAddr:     cfg.PrehogAddr,
-		KubeconfigsDir: cfg.KubeconfigsDir,
-		AgentsDir:      cfg.AgentsDir,
-		ClusterIDCache: clusterIDCache,
+		Storage:          storage,
+		PrehogAddr:       cfg.PrehogAddr,
+		KubeconfigsDir:   cfg.KubeconfigsDir,
+		AgentsDir:        cfg.AgentsDir,
+		ClusterIDCache:   clusterIDCache,
+		TshdEventsClient: tshdEventsClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)

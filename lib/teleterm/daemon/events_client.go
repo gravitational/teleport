@@ -29,8 +29,8 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
-// tshdEventsClient holds a lazily loaded [api.TshdEventsServiceClient].
-type tshdEventsClient struct {
+// TshdEventsClient holds a lazily loaded [api.TshdEventsServiceClient].
+type TshdEventsClient struct {
 	client api.TshdEventsServiceClient
 	// connectedChan is closed once the client is connected
 	connectedChan chan struct{}
@@ -43,15 +43,15 @@ type tshdEventsClient struct {
 	credsFn CreateTshdEventsClientCredsFunc
 }
 
-func NewTshdEventsClient(credsFn CreateTshdEventsClientCredsFunc) *tshdEventsClient {
-	return &tshdEventsClient{
+func NewTshdEventsClient(credsFn CreateTshdEventsClientCredsFunc) *TshdEventsClient {
+	return &TshdEventsClient{
 		credsFn:       credsFn,
 		connectedChan: make(chan struct{}),
 	}
 }
 
 // Connect connects to the given server address.
-func (c *tshdEventsClient) Connect(serverAddress string) error {
+func (c *TshdEventsClient) Connect(serverAddress string) error {
 	c.connectMu.Lock()
 	defer c.connectMu.Unlock()
 
@@ -81,7 +81,7 @@ func (c *tshdEventsClient) Connect(serverAddress string) error {
 // GetClient retrieves the lazily loaded client. If the client is not yet loaded,
 // this method will wait until it is loaded, the given context is closed, or it
 // times out.
-func (c *tshdEventsClient) GetClient(ctx context.Context) (api.TshdEventsServiceClient, error) {
+func (c *TshdEventsClient) GetClient(ctx context.Context) (api.TshdEventsServiceClient, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

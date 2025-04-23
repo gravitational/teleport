@@ -45,12 +45,12 @@ import (
 // Because the code in yubikey.go assumes you use a single key, we don't have any mutex here.
 // (unlike other modals triggered by tshd).
 // We don't expect receiving prompts from different hardware keys.
-func (c *tshdEventsClient) NewHardwareKeyPrompt() hardwarekey.Prompt {
+func (c *TshdEventsClient) NewHardwareKeyPrompt() hardwarekey.Prompt {
 	return &hardwareKeyPrompter{c: c}
 }
 
 type hardwareKeyPrompter struct {
-	c *tshdEventsClient
+	c *TshdEventsClient
 }
 
 // Touch prompts the user to touch the hardware key.

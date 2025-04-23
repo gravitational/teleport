@@ -43,7 +43,7 @@ type Config struct {
 	WebauthnLogin client.WebauthnLoginFunc
 	// AddKeysToAgent is passed to [client.Config].
 	AddKeysToAgent string
-	// ClientStore is stores client data.
+	// ClientStore stores client data.
 	ClientStore *client.Store
 }
 
