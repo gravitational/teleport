@@ -169,7 +169,9 @@ test('hidden validation errors should not propagate to tab headings', async () =
   );
   await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
   await user.type(
-    within(getSectionByName('Servers')).getByPlaceholderText('label value'),
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label value'
+    ),
     'some-value'
   );
 
@@ -329,18 +331,24 @@ test('tab-level validation when creating a new role', async () => {
   );
   await user.click(screen.getByRole('menuitem', { name: 'SSH Server Access' }));
   await user.type(
-    within(getSectionByName('Servers')).getByPlaceholderText('label value'),
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label value'
+    ),
     'bar'
   );
   // The form should not be validating until we try to switch to the next tab.
   expect(
-    within(getSectionByName('Servers')).getByPlaceholderText('label key')
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label key'
+    )
   ).toHaveAccessibleDescription('');
   await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
   expect(getTabByName('Admin Rules')).toHaveAttribute('aria-selected', 'false');
   // Fix the field value and retry.
   await user.type(
-    within(getSectionByName('Servers')).getByPlaceholderText('label key'),
+    within(getSectionByName('SSH Server Access')).getByPlaceholderText(
+      'label key'
+    ),
     'foo'
   );
   await user.click(screen.getByRole('button', { name: 'Next: Admin Rules' }));
