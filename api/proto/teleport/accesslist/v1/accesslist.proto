@@ -285,6 +285,25 @@ message ReviewChanges {
   ReviewDayOfMonth review_day_of_month_changed = 5;
 }
 
+// AccessListUserAssignmentType describes the type of membership anr/or ownership
+// a user has in an access list.
+enum AccessListUserAssignmentType {
+  // ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED means the user is not an explicit nor an inherited member or owner
+  ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED = 0;
+  // ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT means the user has explicit membership or ownership
+  ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT = 1;
+  // ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED means the user has inherited membership or ownership
+  ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED = 2;
+}
+
+// CurrentUserAssignments describes the current user's ownership and membership status in the access list.
+message CurrentUserAssignments {
+  // ownership_type represents the current user's ownership type (explicit, inherited, or none) in the access list.
+  AccessListUserAssignmentType ownership_type = 1;
+  // membership_type represents the current user's membership type (explicit, inherited, or none) in the access list.
+  AccessListUserAssignmentType membership_type = 2;
+}
+
 // AccessListStatus contains dynamic fields calculated during retrieval.
 message AccessListStatus {
   // member_count is the number of members in the Access List.
@@ -295,4 +314,6 @@ message AccessListStatus {
   repeated string owner_of = 3;
   // member_of describes Access Lists where this Access List is an explicit member.
   repeated string member_of = 4;
+  // current_user_assignments describes the current user's ownership and membership status in the access list.
+  CurrentUserAssignments current_user_assignments = 5;
 }

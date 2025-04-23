@@ -139,6 +139,8 @@ type AuthPreference interface {
 	// GetHardwareKeySerialNumberValidation returns the cluster's hardware key
 	// serial number validation settings.
 	GetHardwareKeySerialNumberValidation() (*HardwareKeySerialNumberValidation, error)
+	// GetPIVPINCacheTTL returns the configured piv pin cache duration for the cluster.
+	GetPIVPINCacheTTL() time.Duration
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -506,6 +508,14 @@ func (c *AuthPreferenceV2) GetHardwareKeySerialNumberValidation() (*HardwareKeyS
 		return nil, trace.NotFound("Hardware key serial number validation is not configured in this cluster")
 	}
 	return c.Spec.HardwareKey.SerialNumberValidation, nil
+}
+
+// GetPIVPINCacheTTL returns the configured piv pin cache duration for the cluster.
+func (c *AuthPreferenceV2) GetPIVPINCacheTTL() time.Duration {
+	if c.Spec.HardwareKey == nil {
+		return 0
+	}
+	return time.Duration(c.Spec.HardwareKey.PinCacheTTL)
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting

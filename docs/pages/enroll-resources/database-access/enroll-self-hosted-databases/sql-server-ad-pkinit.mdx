@@ -227,14 +227,14 @@ teleport:
   proxy_server: teleport.example.com:443
 
 auth_service:
-  enabled: no
+  enabled: false
 ssh_service:
-  enabled: no
+  enabled: false
 proxy_service:
-  enabled: no
+  enabled: false
 
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
     - name: my-sqlserver
       protocol: sqlserver
