@@ -3,6 +3,8 @@
 name: Nightly Release Run
 on:
   schedule:
+    # This should be coordinated with weekly AMI cleanups so that releases are (usually)
+    # avoided when the AMI cleanup is running.
     - cron: "0 10 * * *"  # At 1000 UTC every day (2am/3am PST/PDT)
     - cron: "30 10 * * *" # At 1030 UTC every day
     - cron: "0 11 * * *"
