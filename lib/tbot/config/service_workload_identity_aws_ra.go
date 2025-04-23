@@ -79,16 +79,16 @@ type WorkloadIdentityAWSRAService struct {
 
 	// CredentialProfileName is the name of the AWS credentials profile to
 	// write to. If unspecified, the profile will be named "default".
-	CredentialProfileName string `yaml:"credential_profile_name"`
+	CredentialProfileName string `yaml:"credential_profile_name,omitempty"`
 
 	// ArtifactName is the name of the artifact to write to. This is the
 	// filename of the file that will be written to the destination. This is
 	// by default "aws_credentials".
-	ArtifactName string `yaml:"artifact_name"`
+	ArtifactName string `yaml:"artifact_name,omitempty"`
 	// OverwriteCredentialFile is a flag that indicates whether the output
 	// should overwrite the existing credentials file rather than merging with
 	// it.
-	OverwriteCredentialFile bool `yaml:"overwrite_credential_file"`
+	OverwriteCredentialFile bool `yaml:"overwrite_credential_file,omitempty"`
 
 	// EndpointOverride is the endpoint to use for the AWS Roles Anywhere service.
 	// This is designed to be leveraged by tests and unset in production
