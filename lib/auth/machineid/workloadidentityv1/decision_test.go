@@ -423,15 +423,14 @@ func Test_decision_sigstore(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		evaluator := newMockSigstorePolicyEvaluator(t)
-		evaluator.On(
-			"Evaluate",
-			mock.Anything,
-			[]string{"foo", "bar"},
-			attrs,
-		).Return(map[string]error{
+
+		for policy, result := range map[string]error{
 			"foo": nil,
 			"bar": nil,
-		}, nil)
+		} {
+			evaluator.On("Evaluate", mock.Anything, []string{policy}, attrs).
+				Return(map[string]error{policy: result}, nil)
+		}
 
 		decision := decide(
 			context.Background(),
@@ -445,15 +444,14 @@ func Test_decision_sigstore(t *testing.T) {
 
 	t.Run("failure", func(t *testing.T) {
 		evaluator := newMockSigstorePolicyEvaluator(t)
-		evaluator.On(
-			"Evaluate",
-			mock.Anything,
-			[]string{"foo", "bar"},
-			attrs,
-		).Return(map[string]error{
+
+		for policy, result := range map[string]error{
 			"foo": nil,
 			"bar": errors.New("missing artifact signature"),
-		}, nil)
+		} {
+			evaluator.On("Evaluate", mock.Anything, []string{policy}, attrs).
+				Return(map[string]error{policy: result}, nil)
+		}
 
 		decision := decide(
 			context.Background(),

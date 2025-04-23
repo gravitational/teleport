@@ -34,14 +34,9 @@ type Environment struct {
 	// Attrs will be exposed as top-level variables in the expression language.
 	Attrs *workloadidentityv1pb.Attrs
 
-	// SigstorePolicyResults contains the errors (or nil for success) from
-	// evaluating Sigstore policies. You can check if a given policy was
-	// satisfied by calling the `sigstore.policy_satisfied` function in your
-	// rule expression.
-	//
-	// You cannot currently refer to Sigstore policies from templates, only
-	// boolean expressions.
-	SigstorePolicyResults map[string]error
+	// SigstorePolicyEvaluator is used when the user calls the `sigstore.policy_satisfied`
+	// function in their expression.
+	SigstorePolicyEvaluator SigstorePolicyEvaluator
 }
 
 // message satisfies messageEnv[T].
