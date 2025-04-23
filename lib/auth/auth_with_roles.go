@@ -3341,6 +3341,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 				DeviceExtensions:  DeviceExtensions(a.context.Identity.GetIdentity().DeviceExtensions),
 				AppName:           req.RouteToApp.Name,
 				AppURI:            req.RouteToApp.URI,
+
+				BotName: getBotName(user),
+				// Always pass through a bot instance ID if available. Legacy bots
+				// joining without an instance ID may have one generated when
+				// `updateBotInstance()` is called below, and this (empty) value will be
+				// overridden.
+				BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
