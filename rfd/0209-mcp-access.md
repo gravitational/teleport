@@ -72,7 +72,7 @@ read-only access to the filesystem:
 kind: role
 version: v7
 metadata:
-  name: admin
+  name: dev
 spec:
   allow:
     app_labels:
@@ -165,6 +165,7 @@ sequenceDiagram
 
 #### Implementation - transport
 
+Per MCP protocol spec,
 [`stdio`](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
 is the primary transport that MCP uses:
 - the client launches the MCP server as a subprocess.
@@ -173,16 +174,17 @@ is the primary transport that MCP uses:
 - stderr for any information or errors that the MCP server wants to log outside
   of communication with the client.
 
-`stdio` will be used between the AI tool and `tsh`'s local proxy, and between
-the app service and the MCP server getting launched on that host.
+For this initial implementation, `stdio` will be used between the AI tool and
+`tsh`'s local proxy, and between the App service and the MCP server getting
+launched on that host.
 
 `tsh` will use a local proxy and starts a TLS routing tunnel with the Proxy,
 using a new ALPN value `teleport-mcp`. Technically, the initial implementation
-can reuse ALPN `teleport-tcp` as they share the same app handler entrypoint.
-However, a new ALPN is introduced in case this entry point changes for MCP
-servers in the future.
+can reuse ALPN `teleport-tcp` as TCP and MCP apps share the same app handler
+entrypoint. However, a new ALPN is introduced in case this entry point changes
+for MCP servers in the future.
 
-The duplex channel of the tunnelled TLS-routing connection to the proxy will
+The duplex channel of the tunnelled TLS-routing connection to the Proxy will
 forward stdin and stdout respectively.
 
 #### Implementation - auth
@@ -194,13 +196,13 @@ MCP server apps.
 A new role option `mcp_tools` is introduced to apply fine-grained control on
 which tools from the MCP server should be allowed. Similar to
 `kubernetes_resources.name`, entries in `mcp_tools` also support glob and regex
-representations to make whitelist/blacklist easier. If `mcp_tools` is not
+representations to make whitelisting/blacklisting easier. If `mcp_tools` is not
 specified for a role, all tools are allowed by default.
 
-The process to access the MCP server from `tsh` is the same as any other app,
-where user has to obtain a user certificate with `route_to_app` for the TLS
-routing handshake, and the backend validates the identity then routes to
-appropriate app service based on this certificate.
+The procedure to access a MCP server from `tsh` is the same as any other app --
+user has to obtain a user certificate with `route_to_app` for the TLS routing
+handshake, and the backend validates the identity then routes to appropriate app
+service based on this certificate.
 
 Role option `mcp_tools` will be enforced per JSON-RPC `tool/call` call, which
 will be detailed in the next section.
@@ -213,15 +215,15 @@ and confirmed to be an MCP app. It is expected [the MCP protocol in JSON-RPC
 format](https://modelcontextprotocol.io/specification/2025-03-26) will be
 transferred within this connection.
 
-Since `stdio` is used, a new `exec.Command` defined by the app definition is
-executed to start an MCP server, for each authorized incoming client connection.
-Then stdin and stdout are proxied between the client connection and the launched
-MCP server. Stderr from the launched MCP server will be logged in TRACE level in
+Since using `stdio`, a `exec.Command` defined by the app definition is executed
+to start an MCP server, for each authorized incoming client connection. Then
+stdin and stdout are proxied between the client connection and the launched MCP
+server. Stderr from the launched MCP server will be logged at TRACE level in
 Teleport logs.
 
 Incoming bytes from client do get the following treatment before they are
 forwarded to the launched MCP server:
-- Parse into JSON-RPC messages. 
+- Parsed into JSON-RPC messages. 
 - If the message is a `tools/call` request, use access checker to confirm
   whether the identity has access to the requested tool.
   - If the `tools/call` is access denied, make a text result detailing this
@@ -234,17 +236,19 @@ The launched MCP server should be stopped once the connection ends.
 #### Implementation - "tsh mcp" commands
 
 A suite of `tsh mcp` commands are added on the client side:
-- `tsh mcp ls`: lists MCP server apps.
+- `tsh mcp ls`: lists MCP server apps, with slightly different columns from `tsh
+  app ls`.
 - `tsh mcp connect`: command to be called by the AI tool to launch an MCP server
-  through Teleport.
+  through Teleport. stdin and stdout of this process are proxied to Teleport
+  backend. Any local tsh logs are sent to stderr.
 - `tsh mcp config`: shows a sample JSON configuration that launches the MCP
   server with `tsh mcp connect` for Claude Desktop. (Most AI tools uses the same
-  JSON format though)
+  JSON format as well.)
 - `tsh mcp db`: command to be called by the AI tool to launch a local MCP server
   that provides a database query tool through Teleport Database access. This
   feature is outside this RFD but shares the same `tsh mcp` root.
 
-#### Compatability with App access
+#### Compatibility with App access
 
 Since the MCP servers run as apps, here’s a list of some existing app
 functionalities and how they align with it:
@@ -253,21 +257,21 @@ functionalities and how they align with it:
   button opens a dialog with `tsh` instructions.
 - VNet: not supported.
 - Per-session MFA: not supported.
-- Access Request: yes.
-- Dynamic registration: yes.
+- Access Request: supported.
+- Dynamic registration: supported.
 - Audit events: will generate `cert.create` event when cert is requested, but no
   `app.session.start` event.
 - `tsh`:
   - `tsh app ls`: will be listed with `MCP` as the type.
-  - `tsh app login`: yes, but `tsh mcp connect` automatically does this too.
-  - `tsh app logout`: yes.
-  - `tsh app config`: no, redirect user to `tsh mcp config`.
-  - `tsh proxy app`: no.
+  - `tsh app login`: supported, but not necessary.
+  - `tsh app logout`: supported, but why.
+  - `tsh app config`: not supported, redirect user to `tsh mcp config`.
+  - `tsh proxy app`: not supported.
 
 #### Usage reporting
 
-`mcp.session.start` events will be reported for prehog session start events,
-with `mcp` as the session type.
+`mcp.session.start` events will be reported for existing prehog session start
+events, with `mcp` as the session type.
 
 ### Security
 
@@ -326,7 +330,7 @@ support.
 MCP server errors are permanent in Claude Desktop. When `tsh` session expires,
 the user has to run `tsh login` then restart Claude Desktop.
 
-<img src="assets/0209-claude-desktop-disconnected.png" alt="Claude Desktop disconnecting" height="188"/>
+<img src="assets/0209-claude-desktop-disconnected.png" alt="Claude Desktop disconnecting" height="100"/>
 
 To properly handle this, a mini JSON-RPC server should be served locally that
 ensures a good connection with Claude Desktop. When `tsh` session expires, the
