@@ -251,17 +251,16 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	})
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Clock:   fakeClock,
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
-			return clientcache.NewNoCache(newClient), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Clock:            fakeClock,
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -882,11 +881,14 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 			InsecureSkipVerify: tc.InsecureSkipVerify,
 		})
 		require.NoError(t, err)
+
+		tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		})
+
 		daemonService, err := daemon.New(daemon.Config{
-			Storage: storage,
-			CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-				return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-			},
+			Storage:          storage,
+			TshdEventsClient: tshdEventsClient,
 			CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
 				return clientcache.NewNoCache(newClient), nil
 			},

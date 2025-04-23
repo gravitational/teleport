@@ -54,8 +54,12 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	clock := clockwork.NewRealClock()
 
+	// Prepare tshdEventsClient with lazy loading.
+	tshdEventsClient := daemon.NewTshdEventsClient(grpcCredentials.tshdEvents)
+
 	// Always use the direct YubiKey PIV service since Connect provides the best UX.
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	hwks := piv.NewYubiKeyService(tshdEventsClient.NewHardwareKeyPrompt())
+
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                cfg.HomeDir,
 		Clock:              clock,
@@ -70,20 +74,15 @@ func Serve(ctx context.Context, cfg Config) error {
 	clusterIDCache := &clusteridcache.Cache{}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage:                         storage,
-		CreateTshdEventsClientCredsFunc: grpcCredentials.tshdEvents,
-		PrehogAddr:                      cfg.PrehogAddr,
-		KubeconfigsDir:                  cfg.KubeconfigsDir,
-		AgentsDir:                       cfg.AgentsDir,
-		ClusterIDCache:                  clusterIDCache,
+		Storage:        storage,
+		PrehogAddr:     cfg.PrehogAddr,
+		KubeconfigsDir: cfg.KubeconfigsDir,
+		AgentsDir:      cfg.AgentsDir,
+		ClusterIDCache: clusterIDCache,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// TODO(gzdunek): Move tshdEventsClient out of daemonService so that we can
-	// construct the prompt before creating Storage.
-	hwks.SetPrompt(daemonService.NewHardwareKeyPrompt())
 
 	apiServer, err := apiserver.New(apiserver.Config{
 		HostAddr:           cfg.Addr,

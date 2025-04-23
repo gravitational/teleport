@@ -357,11 +357,12 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
 
+	tshdEventsClient := NewTshdEventsClient(createTshdEventsClientCredsFunc)
 	daemon, err := New(Config{
-		Storage:                         storage,
-		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
-		KubeconfigsDir:                  t.TempDir(),
-		AgentsDir:                       t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -371,7 +372,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, daemon.tshdEventsClient)
+	require.NotNil(t, daemon.cfg.TshdEventsClient)
 	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
 		"Expected createTshdEventsClientCredsFunc to be called exactly once")
 }
@@ -390,11 +391,12 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 		return nil, trace.Errorf("Error while creating creds")
 	}
 
+	tshdEventsClient := NewTshdEventsClient(createTshdEventsClientCredsFunc)
 	daemon, err := New(Config{
-		Storage:                         storage,
-		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
-		KubeconfigsDir:                  t.TempDir(),
-		AgentsDir:                       t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -489,13 +491,15 @@ func TestRetryWithRelogin(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			tshdEventsClient := NewTshdEventsClient(func() (grpc.DialOption, error) {
+				return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+			})
+
 			daemon, err := New(Config{
-				Storage: storage,
-				CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-					return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-				},
-				KubeconfigsDir: t.TempDir(),
-				AgentsDir:      t.TempDir(),
+				Storage:          storage,
+				TshdEventsClient: tshdEventsClient,
+				KubeconfigsDir:   t.TempDir(),
+				AgentsDir:        t.TempDir(),
 				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
 					return fakeClientCache{}, nil
 				},
@@ -544,13 +548,15 @@ func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	tshdEventsClient := NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemon, err := New(Config{
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
 			return fakeClientCache{}, nil
 		},
@@ -694,13 +700,15 @@ func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Contex
 func TestGetGatewayCLICommand(t *testing.T) {
 	t.Parallel()
 
+	tshdEventsClient := NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemon, err := New(Config{
-		Storage: fakeStorage{},
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          fakeStorage{},
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
 			return fakeClientCache{}, nil
 		},

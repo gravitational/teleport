@@ -434,13 +434,15 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -503,13 +505,15 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -878,14 +882,16 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 	})
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Clock:          fakeClock,
-		Storage:        storage,
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
+		Clock:            fakeClock,
+		Storage:          storage,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
+		TshdEventsClient: tshdEventsClient,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
