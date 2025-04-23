@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package keys
+package keys_test
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -25,13 +26,22 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/pem"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
-func TestMarshalAndParsePrivateKey(t *testing.T) {
+func TestMarshalAndParseKey(t *testing.T) {
+	//nolint:forbidigo // Generating a small RSA key allowed for test.
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
 	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -39,17 +49,149 @@ func TestMarshalAndParsePrivateKey(t *testing.T) {
 	_, edKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
+	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
+		ProxyHost:   "billy.io",
+		Username:    "Billy@billy.io",
+		ClusterName: "billy.io",
+	}
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: contextualKeyInfo,
+	})
+	require.NoError(t, err)
+
 	for keyType, key := range map[string]crypto.Signer{
-		"rsa":     rsaKey,
-		"ecdsa":   ecKey,
-		"ed25519": edKey,
+		"rsa":      rsaKey,
+		"ecdsa":    ecKey,
+		"ed25519":  edKey,
+		"hardware": hwPriv,
 	} {
 		t.Run(keyType, func(t *testing.T) {
-			keyPEM, err := MarshalPrivateKey(key)
+			keyPEM, err := keys.MarshalPrivateKey(key)
 			require.NoError(t, err)
-			gotKey, err := ParsePrivateKey(keyPEM)
+			gotKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s), keys.WithContextualKeyInfo(contextualKeyInfo))
 			require.NoError(t, err)
-			require.Equal(t, key, gotKey.Signer)
+			assert.Empty(t, cmp.Diff(key, gotKey.Signer, cmpopts.IgnoreUnexported(hardwarekey.Signer{})), "parsed private key is not equal to the original")
+
+			pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+			require.NoError(t, err)
+			gotPubKey, err := keys.ParsePublicKey(pubKeyPEM)
+			require.NoError(t, err)
+			require.Equal(t, key.Public(), gotPubKey)
+			assert.Empty(t, cmp.Diff(key.Public(), gotPubKey), "parsed public key is not equal to the original")
+		})
+	}
+}
+
+func TestParseMismatchedPEMHeader(t *testing.T) {
+	rsaKey, err := keys.ParsePrivateKey(rsaKeyPEM)
+	require.NoError(t, err)
+	rsaPKCS1DER := x509.MarshalPKCS1PrivateKey(rsaKey.Signer.(*rsa.PrivateKey))
+	rsaPKCS8DER, err := x509.MarshalPKCS8PrivateKey(rsaKey.Signer)
+	require.NoError(t, err)
+	rsaPublicPKCS1DER := x509.MarshalPKCS1PublicKey(rsaKey.Public().(*rsa.PublicKey))
+	rsaPublicPKIXDER, err := x509.MarshalPKIXPublicKey(rsaKey.Public())
+	require.NoError(t, err)
+
+	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	ecdsaPKCS8DER, err := x509.MarshalPKCS8PrivateKey(ecdsaKey)
+	require.NoError(t, err)
+	ecdsaECDER, err := x509.MarshalECPrivateKey(ecdsaKey)
+	require.NoError(t, err)
+
+	for desc, tc := range map[string]struct {
+		pem       []byte
+		expectKey crypto.Signer
+	}{
+		"PKCS1 DER in PRIVATE KEY PEM": {
+			pem: pem.EncodeToMemory(&pem.Block{
+				Type:  "PRIVATE KEY",
+				Bytes: rsaPKCS1DER,
+			}),
+			expectKey: rsaKey.Signer,
+		},
+		"RSA PKCS8 DER in RSA PRIVATE KEY PEM": {
+			pem: pem.EncodeToMemory(&pem.Block{
+				Type:  "RSA PRIVATE KEY",
+				Bytes: rsaPKCS8DER,
+			}),
+			expectKey: rsaKey.Signer,
+		},
+		"ECDSA PKCS8 DER in EC PRIVATE KEY PEM": {
+			pem: pem.EncodeToMemory(&pem.Block{
+				Type:  "EC PRIVATE KEY",
+				Bytes: ecdsaPKCS8DER,
+			}),
+			expectKey: ecdsaKey,
+		},
+		"EC DER in PRIVATE KEY PEM": {
+			pem: pem.EncodeToMemory(&pem.Block{
+				Type:  "PRIVATE KEY",
+				Bytes: ecdsaECDER,
+			}),
+			expectKey: ecdsaKey,
+		},
+	} {
+		t.Run(desc, func(t *testing.T) {
+			key, err := keys.ParsePrivateKey(tc.pem)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectKey, key.Signer)
+		})
+	}
+
+	for desc, tc := range map[string]struct {
+		pem       []byte
+		expectKey crypto.PublicKey
+	}{
+		"PKCS1 DER in PUBLIC KEY PEM": {
+			pem: pem.EncodeToMemory(&pem.Block{
+				Type:  "PUBLIC KEY",
+				Bytes: rsaPublicPKCS1DER,
+			}),
+			expectKey: rsaKey.Public(),
+		},
+		"PKIX DER in RSA PUBLIC KEY PEM": {
+			pem: pem.EncodeToMemory(&pem.Block{
+				Type:  "RSA PUBLIC KEY",
+				Bytes: rsaPublicPKIXDER,
+			}),
+			expectKey: rsaKey.Public(),
+		},
+	} {
+		t.Run(desc, func(t *testing.T) {
+			pubKey, err := keys.ParsePublicKey(tc.pem)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectKey, pubKey)
+		})
+	}
+}
+
+// TestParseCorruptedKey tests that we actually return an error and don't panic
+// when parsing some trivially corrupted key PEMs. This is mostly to validate
+// that the preferredErr logic in Parse(Private|Public)Key returns an error for
+// each PEM type.
+func TestParseCorruptedKey(t *testing.T) {
+	for _, tc := range []string{
+		"RSA PRIVATE KEY",
+		"PRIVATE KEY",
+		"EC PRIVATE KEY",
+	} {
+		t.Run(tc, func(t *testing.T) {
+			b := pem.EncodeToMemory(&pem.Block{Type: tc, Bytes: []byte("foo")})
+			_, err := keys.ParsePrivateKey(b)
+			require.Error(t, err)
+		})
+	}
+
+	for _, tc := range []string{
+		"RSA PUBLIC KEY",
+		"PUBLIC KEY",
+	} {
+		t.Run(tc, func(t *testing.T) {
+			b := pem.EncodeToMemory(&pem.Block{Type: tc, Bytes: []byte("foo")})
+			_, err := keys.ParsePublicKey(b)
+			require.Error(t, err)
 		})
 	}
 }
@@ -82,12 +224,105 @@ func TestX509KeyPair(t *testing.T) {
 			expectCert, err := tls.X509KeyPair(tc.certPEM, tc.keyPEM)
 			require.NoError(t, err)
 
-			tlsCert, err := X509KeyPair(tc.certPEM, tc.keyPEM)
+			tlsCert, err := keys.X509KeyPair(tc.certPEM, tc.keyPEM)
 			require.NoError(t, err)
 
-			require.Equal(t, expectCert, tlsCert)
+			require.Empty(t, cmp.Diff(expectCert, tlsCert, cmpopts.IgnoreFields(tls.Certificate{}, "Leaf")))
 		})
 	}
+}
+
+func TestX509Certificate(t *testing.T) {
+	// Checking certificate expiry to see if the certificate got parsed and we did not get an empty struct.
+	hasExpiry := func(t require.TestingT, i interface{}, args ...interface{}) {
+		cert, ok := i.(*x509.Certificate)
+		require.True(t, ok)
+		require.NotNil(t, cert)
+		require.Equal(t, rsaCertExpiry, cert.NotAfter)
+	}
+
+	nilCert := func(t require.TestingT, i interface{}, args ...interface{}) {
+		cert, ok := i.(*x509.Certificate)
+		require.True(t, ok)
+		require.Nil(t, cert)
+	}
+
+	for _, tc := range []struct {
+		name           string
+		keyPEM         []byte
+		certPEM        []byte
+		expectedLength int
+		expectedError  require.ErrorAssertionFunc
+		validateResult require.ValueAssertionFunc
+	}{
+		{
+			name:           "rsa cert",
+			certPEM:        rsaCertPEM,
+			expectedLength: 1,
+			expectedError:  require.NoError,
+			validateResult: hasExpiry,
+		}, {
+			name: "rsa certs",
+			certPEM: func() []byte {
+				// encode two certs into certPEM.
+				rsaCertPEMDuplicated := new(bytes.Buffer)
+				der, _ := pem.Decode(rsaCertPEM)
+				pem.Encode(rsaCertPEMDuplicated, der)
+				pem.Encode(rsaCertPEMDuplicated, der)
+				return rsaCertPEMDuplicated.Bytes()
+			}(),
+			expectedLength: 2,
+			expectedError:  require.NoError,
+			validateResult: hasExpiry,
+		},
+		{
+			name:           "no cert",
+			certPEM:        []byte{},
+			expectedLength: 0,
+			expectedError:  require.Error,
+			validateResult: nilCert,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cert, rawCerts, err := keys.X509Certificate(tc.certPEM)
+			require.Len(t, rawCerts, tc.expectedLength)
+
+			tc.expectedError(t, err)
+
+			tc.validateResult(t, cert)
+		})
+	}
+}
+
+// TestHardwareKeyMethods tests hardware key related methods with non-hardware keys.
+//
+// Testing these methods with actual hardware keys requires the piv go tag and should
+// be tested individually in tests like `TestGetYubiKeyPrivateKey_Interactive`.
+func TestHardwareKeyMethods(t *testing.T) {
+	ctx := context.Background()
+
+	// Test hardware key methods with a software key.
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	key, err := keys.NewPrivateKey(priv)
+	require.NoError(t, err)
+
+	require.Nil(t, key.GetAttestationStatement())
+	require.Equal(t, keys.PrivateKeyPolicyNone, key.GetPrivateKeyPolicy())
+	require.False(t, key.IsHardware())
+	require.NoError(t, key.WarmupHardwareKey(ctx))
+
+	// Test hardware key methods with a mocked hardware key.
+	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
+	hwKey, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+		Policy: hardwarekey.PromptPolicyTouch,
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, hwKey.GetAttestationStatement())
+	require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouch, hwKey.GetPrivateKeyPolicy())
+	require.True(t, hwKey.IsHardware())
+	require.NoError(t, hwKey.WarmupHardwareKey(ctx))
 }
 
 var (
@@ -141,4 +376,5 @@ mg0exCUFW40aXpfm0z0dNNwoN+FPSefKMYMQ1LV87I6zGnmVTYH9Nix3REiuliIQ
 7XXnJc7A6tsc6yXdVG6IpGnKXuTvl/r4iIbH+JDv3MDSvZSCE5kzAPFjgB3zMAZ8
 Z0+424ERgom0Zdy75Y8I
 -----END CERTIFICATE-----`)
+	rsaCertExpiry = time.Date(2022, time.September, 21, 19, 1, 1, 0, time.UTC)
 )

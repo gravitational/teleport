@@ -1,0 +1,130 @@
+---
+title: API Getting Started Guide
+description: Get started working with the Teleport API programmatically using Go.
+---
+
+In this getting started guide we will use the Teleport API Go client to connect
+to a Teleport Auth Service.
+
+Here are the steps we'll walkthrough:
+
+- Create an API user using a simple role-based authentication method.
+- Generate credentials for that user.
+- Create and connect a Go client to interact with Teleport's API.
+
+## Prerequisites
+
+- Install [Go](https://golang.org/doc/install) (=teleport.golang=)+ and Go development environment.
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Create a user
+
+(!docs/pages/includes/permission-warning.mdx!)
+
+<Admonition type="tip" title="Tip">
+  Read [API authorization](../../reference/architecture/api-architecture.mdx) to learn more about defining custom roles for your API client.
+</Admonition>
+
+Create a user `api-admin` with the built-in role `editor`:
+
+```code
+$ tctl users add api-admin --roles=editor
+```
+
+## Step 2/3. Generate client credentials
+
+Log in as the newly created user with `tsh`.
+
+```code
+# generate tsh profile
+$ tsh login --user=api-admin --proxy=tele.example.com
+```
+
+The [Profile Credentials loader](https://pkg.go.dev/github.com/gravitational/teleport/api/client#LoadProfile)
+will automatically retrieve Credentials from the current profile in the next step.
+
+## Step 3/3. Create a Go project
+
+Set up a new [Go module](https://golang.org/doc/tutorial/create-module) and import the `client` package:
+
+```code
+$ mkdir client-demo && cd client-demo
+$ go mod init client-demo
+$ go get github.com/gravitational/teleport/api/client
+```
+
+<Admonition type="tip" title="API Version">
+To ensure compatibility, you should use a version of Teleport's API library that matches
+the major version of Teleport running in your cluster.
+
+To find the pseudoversion appropriate for a go.mod file for a specific git tag,
+run the following command from the `teleport` repository:
+
+```code
+$ go list -f '{{.Version}}' -m "github.com/gravitational/teleport/api@$(git rev-parse v12.1.0)"
+v0.0.0-20230307032901-49a6de744a3a
+```
+</Admonition>
+
+Create a file called `main.go`, modifying the `Addrs` strings as needed:
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	"github.com/gravitational/teleport/api/client"
+)
+
+func main() {
+	ctx := context.Background()
+
+	clt, err := client.New(ctx, client.Config{
+		Addrs: []string{
+			// Teleport Cloud customers should use <tenantname>.teleport.sh
+			"tele.example.com:443",
+			"tele.example.com:3025",
+			"tele.example.com:3024",
+			"tele.example.com:3080",
+ 		},
+		Credentials: []client.Credentials{
+			client.LoadProfile("", ""),
+		},
+	})
+
+	if err != nil {
+		log.Fatalf("failed to create client: %v", err)
+	}
+
+	defer clt.Close()
+	resp, err := clt.Ping(ctx)
+	if err != nil {
+		log.Fatalf("failed to ping server: %v", err)
+	}
+
+	log.Printf("Example success!")
+	log.Printf("Example server response: %s", resp)
+	log.Printf("Server version: %s", resp.ServerVersion)
+}
+```
+
+Now you can run the program and connect the client to the Teleport Auth Service to fetch the server version.
+
+```code
+$ go run main.go
+```
+
+## Next steps
+
+- Learn about [pkg.go.dev](https://pkg.go.dev/github.com/gravitational/teleport/api/client)
+- Learn how to use [the client](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Client)
+- Learn how to [work with credentials](https://pkg.go.dev/github.com/gravitational/teleport/api/client#Credentials)
+- Read about Teleport [API architecture](../../reference/architecture/api-architecture.mdx) for an in-depth overview of the API and API clients.
+- Read [API authorization](../../reference/architecture/api-architecture.mdx) to learn more about defining custom roles for your API client.
+- Review the `client` [pkg.go reference documentation](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for more information about working with the Teleport API programmatically.
+- Familiarize yourself with the [admin manual](../management/admin/admin.mdx) to make the best use of the API.

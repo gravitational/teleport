@@ -1,0 +1,33 @@
+Assign <Var name="aws-account-id"/> to your AWS account ID:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "DynamoDBConnectAsIAMRole",
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": [
+                "arn:aws:iam::<Var name="aws-account-id"/>:role/{{ dbUserRole }}"
+            ]
+        },
+        {
+            "Sid": "DynamoDBSessionTagging",
+            "Effect": "Allow",
+            "Action": "sts:TagSession",
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`DynamoDBConnectAsIAMRole` | Assume an IAM role to forward requests to DynamoDB. |
+|`DynamoDBSessionTagging` | Tag assumed role sessions if tags are specified in the Teleport database configuration under `aws.session_tags`. |
+
+The session tagging permissions are only required if you have configured tags
+under the `aws.session_tags` section of your Teleport database configuration.

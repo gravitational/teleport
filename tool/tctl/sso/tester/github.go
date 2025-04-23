@@ -25,13 +25,13 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func githubTest(c *auth.Client, connector types.GithubConnector) (*AuthRequestInfo, error) {
+func githubTest(c *authclient.Client, connector types.GithubConnector) (*AuthRequestInfo, error) {
 	ctx := context.Background()
 	// get connector spec
 	var spec types.GithubConnectorSpecV3
@@ -45,10 +45,14 @@ func githubTest(c *auth.Client, connector types.GithubConnector) (*AuthRequestIn
 	requestInfo := &AuthRequestInfo{}
 
 	makeRequest := func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error) {
+		if err := req.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ghRequest := types.GithubAuthRequest{
 			ConnectorID:       req.ConnectorID + "-" + connector.GetName(),
 			Type:              constants.Github,
-			PublicKey:         req.PublicKey,
+			SshPublicKey:      req.SSHPubKey,
+			TlsPublicKey:      req.TLSPubKey,
 			CertTTL:           defaults.GithubAuthRequestTTL,
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,
@@ -71,11 +75,11 @@ func githubTest(c *auth.Client, connector types.GithubConnector) (*AuthRequestIn
 		return &client.SSOLoginConsoleResponse{RedirectURL: request.RedirectURL}, nil
 	}
 
-	requestInfo.Config = &client.RedirectorConfig{SSOLoginConsoleRequestFn: makeRequest}
+	requestInfo.SSOLoginConsoleRequestFn = makeRequest
 	return requestInfo, nil
 }
 
-func handleGithubConnector(c *auth.Client, connBytes []byte) (*AuthRequestInfo, error) {
+func handleGithubConnector(c *authclient.Client, connBytes []byte) (*AuthRequestInfo, error) {
 	conn, err := services.UnmarshalGithubConnector(connBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to load GitHub connector. Correct the definition and try again.")

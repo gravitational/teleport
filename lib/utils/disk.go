@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 /*
  * Teleport
@@ -44,6 +43,21 @@ func PercentUsed(path string) (float64, error) {
 	}
 	ratio := float64(stat.Blocks-stat.Bfree) / float64(stat.Blocks)
 	return Round(ratio * 100), nil
+}
+
+// FreeDiskWithReserve returns the available disk space (in bytes) on the disk at dir, minus `reservedFreeDisk`.
+func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
+	var stat syscall.Statfs_t
+	err := syscall.Statfs(dir, &stat)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	//nolint:unconvert // The cast is only necessary for linux platform.
+	avail := uint64(stat.Bavail) * uint64(stat.Bsize)
+	if reservedFreeDisk > avail {
+		return 0, trace.Errorf("no free space left")
+	}
+	return avail - reservedFreeDisk, nil
 }
 
 // CanUserWriteTo attempts to check if a user has write access to certain path.

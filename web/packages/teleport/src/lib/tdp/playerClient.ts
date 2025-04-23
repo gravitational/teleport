@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { throttle } from 'shared/utils/highbar';
+import { TdpClient, TdpClientEvent } from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
+import { throttle } from 'shared/utils/highbar';
 
+import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { StatusEnum } from 'teleport/lib/player';
 
-import Client, { TdpClientEvent } from './client';
-import { ClientScreenSpec } from './codec';
+import { adaptWebSocketToTdpTransport } from './webSocketTransportAdapter';
 
 // we update the time every time we receive data, or
 // at this interval (which ensures that the progress
@@ -35,7 +36,7 @@ enum Action {
   SEEK = 'seek',
 }
 
-export class PlayerClient extends Client {
+export class PlayerClient extends TdpClient {
   private textDecoder = new TextDecoder();
   private setPlayerStatus: React.Dispatch<React.SetStateAction<StatusEnum>>;
   private setStatusText: React.Dispatch<React.SetStateAction<string>>;
@@ -53,7 +54,9 @@ export class PlayerClient extends Client {
   private timeout = null;
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
-    super(url);
+    super(signal =>
+      adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal)
+    );
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
     this._setTime = setTime;
@@ -68,12 +71,6 @@ export class PlayerClient extends Client {
       this.lastTimestamp = t;
       this.lastUpdateTime = Date.now();
     }, PROGRESS_UPDATE_INTERVAL_MS);
-  }
-
-  // Override so we can set player status.
-  async connect(spec?: ClientScreenSpec) {
-    await super.connect(spec);
-    this.setPlayerStatus(StatusEnum.PLAYING);
   }
 
   scheduleNextUpdate(current: number) {
@@ -112,6 +109,11 @@ export class PlayerClient extends Client {
     }
 
     this.lastUpdateTime = Date.now();
+    this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
+
+    if (this.paused) {
+      return;
+    }
 
     if (this.isSeekingForward()) {
       const next = Math.max(this.skipTimeUpdatesUntil, this.lastTimestamp);
@@ -119,8 +121,6 @@ export class PlayerClient extends Client {
     } else {
       this.scheduleNextUpdate(this.lastTimestamp);
     }
-
-    this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
   }
 
   // setPlaySpeed sets the playback speed of the recording.

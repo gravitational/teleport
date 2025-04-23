@@ -19,11 +19,11 @@
 package aws
 
 import (
+	"maps"
 	"slices"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"golang.org/x/exp/maps"
 )
 
 // IsKnownRegion returns true if provided region is one of the "well-known"
@@ -39,7 +39,7 @@ func GetKnownRegions() []string {
 		var regions []string
 		partitions := endpoints.DefaultPartitions()
 		for _, partition := range partitions {
-			regions = append(regions, maps.Keys(partition.Regions())...)
+			regions = append(regions, slices.Collect(maps.Keys(partition.Regions()))...)
 		}
 		knownRegions = regions
 	})

@@ -16,10 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
+import { useTheme } from 'styled-components';
 
-import { ResourceIcon, iconNames } from 'design/ResourceIcon';
-import { Flex } from 'design';
+import { Flex, Text } from 'design';
+import { ResourceIcon } from 'design/ResourceIcon';
+
+import { iconNames } from './resourceIconSpecs';
 
 export default {
   title: 'Design/ResourceIcon',
@@ -27,14 +30,41 @@ export default {
 
 export const Icons = () => {
   return (
-    <>
-      {iconNames.map(name => (
-        <Flex gap={3} alignItems="center">
-          <ResourceIcon name={name} width="100px" />{' '}
-          <ResourceIcon name={name} width="25px" />
-          {name}
-        </Flex>
-      ))}
-    </>
+    <Flex flexWrap="wrap">
+      {iconNames.map(icon => {
+        return (
+          <IconBox text={icon} key={icon}>
+            <ResourceIcon name={icon} width="100px" />
+            <ResourceIcon name={icon} width="25px" />
+          </IconBox>
+        );
+      })}
+    </Flex>
+  );
+};
+
+const IconBox: React.FC<PropsWithChildren<{ text: string }>> = ({
+  children,
+  text,
+}) => {
+  const theme = useTheme();
+
+  return (
+    <Flex
+      width="150px"
+      height="150px"
+      alignItems="center"
+      justifyContent="center"
+      bg={theme.colors.spotBackground[0]}
+      flexDirection="column"
+      m={1}
+    >
+      <Flex justifyContent="center" p={2} gap={2}>
+        {children}
+      </Flex>
+      <Text typography="body2" mt={2}>
+        {text}
+      </Text>
+    </Flex>
   );
 };

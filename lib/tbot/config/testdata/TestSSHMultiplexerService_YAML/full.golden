@@ -1,0 +1,10 @@
+type: ssh-multiplexer
+destination:
+  type: directory
+  path: /opt/machine-id
+enable_resumption: true
+proxy_templates_path: /etc/teleport/templates
+proxy_command:
+  - rusty-boi
+credential_ttl: 1m0s
+renewal_interval: 30s

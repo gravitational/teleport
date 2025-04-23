@@ -19,11 +19,12 @@
 package devicetrust
 
 import (
+	"context"
 	"errors"
 	"io"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -48,14 +49,14 @@ func HandleUnimplemented(err error) error {
 	const notSupportedMsg = "device trust not supported by remote cluster"
 
 	if errors.Is(err, io.EOF) {
-		log.Debug("Device Trust: interpreting EOF as an older Teleport cluster")
+		slog.DebugContext(context.Background(), "Device Trust: interpreting EOF as an older Teleport cluster")
 		return trace.NotImplemented(notSupportedMsg)
 	}
 
 	for e := err; e != nil; {
 		switch s, ok := status.FromError(e); {
 		case ok && s.Code() == codes.Unimplemented:
-			log.WithError(err).Debug("Device Trust: interpreting gRPC Unimplemented as OSS or older Enterprise cluster")
+			slog.DebugContext(context.Background(), "Device Trust: interpreting gRPC Unimplemented as OSS or older Enterprise cluster", "error", err)
 			return trace.NotImplemented(notSupportedMsg)
 		case ok:
 			return err // Unexpected status error.

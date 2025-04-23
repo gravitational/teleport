@@ -26,9 +26,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 // RunBackendComplianceSuiteWithAtomicWriteShim runs the old backend compliance suite against the provided backend
@@ -36,7 +36,7 @@ import (
 // AtomicWrite. This is done to ensure that the relationship between the conditional actions of AtomicWrite and the
 // single-write methods is well defined, and to improve overall coverage of AtomicWrite implementations via reuse.
 func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Constructor) {
-	RunBackendComplianceSuite(t, func(options ...ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+	RunBackendComplianceSuite(t, func(options ...ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		bk, clock, err := newBackend(options...)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -44,15 +44,15 @@ func RunBackendComplianceSuiteWithAtomicWriteShim(t *testing.T, newBackend Const
 
 		return AtomicWriteShim{
 			Backend:  bk,
-			sentinel: []byte(uuid.New().String()),
+			sentinel: backend.NewKey(uuid.New().String()),
 		}, clock, nil
 	})
 }
 
-// atomciWriteShim reimplements all single-write backend methods as calls to AtomicWrite.
+// AtomicWriteShim reimplements all single-write backend methods as calls to AtomicWrite.
 type AtomicWriteShim struct {
 	backend.Backend
-	sentinel []byte
+	sentinel backend.Key
 }
 
 // sca builds a sentinel conditional action to be added to calls to AtomicWrite to force them to
@@ -182,7 +182,7 @@ func (a AtomicWriteShim) Update(ctx context.Context, i backend.Item) (*backend.L
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (a AtomicWriteShim) Delete(ctx context.Context, key []byte) error {
+func (a AtomicWriteShim) Delete(ctx context.Context, key backend.Key) error {
 	_, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{
@@ -226,7 +226,7 @@ func (a AtomicWriteShim) ConditionalUpdate(ctx context.Context, i backend.Item) 
 }
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.
-func (a AtomicWriteShim) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+func (a AtomicWriteShim) ConditionalDelete(ctx context.Context, key backend.Key, revision string) error {
 	_, err := a.AtomicWrite(ctx, []backend.ConditionalAction{
 		a.sca(),
 		{

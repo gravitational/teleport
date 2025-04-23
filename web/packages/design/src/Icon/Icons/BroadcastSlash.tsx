@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function BroadcastSlash({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const BroadcastSlash = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-broadcastslash"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -67,5 +68,5 @@ export function BroadcastSlash({ size = 24, color, ...otherProps }: IconProps) {
       <path d="M17.5901 6.99948C17.3138 6.69095 16.8396 6.66488 16.5311 6.94125C16.2226 7.21762 16.1965 7.69178 16.4729 8.00031C17.4577 9.09974 18.0023 10.5239 18.0023 11.9999C18.0023 12.6076 17.91 13.2064 17.7326 13.7775C17.6098 14.1731 17.8309 14.5933 18.2265 14.7162C18.6221 14.839 19.0423 14.6179 19.1652 14.2223C19.3869 13.5084 19.5023 12.7596 19.5023 11.9999C19.5023 10.1545 18.8214 8.37402 17.5901 6.99948Z" />
       <path d="M12.954 8.37229C12.5534 8.26715 12.1433 8.5067 12.0382 8.90735C11.9331 9.308 12.1726 9.71802 12.5733 9.82316C13.3876 10.0369 14.0227 10.6976 14.2001 11.5253C14.2868 11.9303 14.6855 12.1883 15.0905 12.1015C15.4956 12.0147 15.7535 11.6161 15.6668 11.211C15.3704 9.82755 14.3134 8.72904 12.954 8.37229Z" />
     </Icon>
-  );
-}
+  )
+);

@@ -1,0 +1,279 @@
+---
+title: Running Teleport with a Custom Configuration using Helm
+description: Install and configure a Teleport cluster with a custom configuration using Helm
+---
+
+In this guide, we'll explain how to set up a Teleport cluster in Kubernetes
+with custom [`teleport.yaml`](../../../reference/config.mdx) config file elements
+using Teleport Helm charts.
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+This setup can be useful when you already have an existing Teleport cluster and would
+like to start running it in Kubernetes, or when migrating your setup from a legacy
+version of the Helm charts.
+
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../../enroll-resources/kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
+
+## Prerequisites
+
+<Admonition type="warning">
+Those instructions are both for v12+ Teleport and the v12+ `teleport-cluster` chart.
+If you are running an older Teleport version, use the version selector at the top
+of this page to choose the correct version.
+</Admonition>
+
+(!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
+
+## Step 1/3. Add the Teleport Helm chart repository
+
+(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+
+## Step 2/3. Setting up a Teleport cluster with Helm using a custom config
+
+`teleport-cluster` deploys two sets of pods: one for the Proxy Service and one for the Auth Service. You can provide two configurations, one for each pod type.
+
+- Any values set under the `proxy` section of your chart values will be applied to the Proxy Service pods
+  only. You can provide custom YAML under `proxy.teleportConfig` to override elements of the default Teleport
+  Proxy Service configuration with your own.
+- Any values set under the `auth` section of your chart values will be applied to the Auth Service pods only.
+  You can provide custom YAML under `auth.teleportConfig` to override elements of the default Teleport Auth
+  Service configuration with your own.
+
+Any YAML you provide under a `teleportConfig` section will be merged with the chart's default YAML configuration,
+with your overrides taking precedence. This allows you to override only the exact behaviour that you need, while keeping
+the Teleport-recommended chart defaults for everything else.
+
+Also, note that many useful Teleport features can already be configured using chart values rather than custom YAML.
+Setting `publicAddr` is the same as setting `proxy.teleportConfig.proxy_service.public_addr`, for example.
+
+<Admonition type="warning">
+When using `scratch` or `standalone` mode, you **must** use highly-available
+storage (e.g. etcd, DynamoDB, or Firestore) for multiple replicas to be supported.
+
+[Information on supported Teleport storage backends](../../../reference/backends.mdx)
+
+Manually configuring NFS-based storage or `ReadWriteMany` volume claims is **NOT**
+supported for an HA deployment and will result in errors.
+</Admonition>
+
+Write the following `my-values.yaml` file, and adapt the teleport configuration as needed.
+You can find all possible configuration fields in the [Teleport Config Reference](../../../reference/config.mdx).
+
+```yaml
+chartMode: standalone
+clusterName: teleport.example.com
+
+auth:
+  teleportConfig:
+    # put any teleport.yaml auth configuration overrides here
+    teleport:
+      log:
+        output: stderr
+        severity: DEBUG
+
+    auth_service:
+      enabled: true
+      web_idle_timeout: 1h
+      authentication:
+        locking_mode: best_effort
+
+proxy:
+  teleportConfig:
+    # put any teleport.yaml proxy configuration overrides here
+    teleport:
+      log:
+        output: stderr
+        severity: DEBUG
+
+    proxy_service:
+      https_keypairs_reload_interval: 12h
+      # optionally override the public addresses for the cluster
+      # public_addr: custom.example.com:443
+      # tunnel_public_addr: custom.example.com:3024
+
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
+
+# OPTIONAL - when using highly-available storage for both backend AND session recordings
+# you can disable disk persistence and replicate auth pods.
+#
+# persistence:
+#   enabled: false
+# highAvailability:
+#   replicaCount: 2
+```
+
+You can override the externally-facing name of your cluster using the `publicAddr` value in your
+Helm configuration, or by setting `proxy.teleportConfig.proxy_service.public_addr`. In this
+example, however, our `publicAddr` is automatically set to `teleport.example.com:443` based on the
+configured `clusterName`.
+
+Create the namespace containing the Teleport-related resources and configure the
+`PodSecurityAdmission`:
+
+```code
+$ kubectl create namespace teleport
+namespace/teleport created
+$ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport labeled
+```
+
+If you are running a self-hosted Teleport Enterprise cluster, you  will need to
+create a secret that contains your Teleport license information before you can
+install Teleport.
+
+1. (!docs/pages/includes//enterprise/obtainlicense.mdx!)
+1. Create a secret from your license file. Teleport will automatically discover
+this secret as long as your file is named `license.pem`.
+
+  ```code
+  $ kubectl -n teleport create secret generic license --from-file=license.pem
+  ```
+
+<Admonition type="note" title="External proxy port">
+Note that although the `proxy_service` listens on port 3080 inside the pod,
+the default `LoadBalancer` service configured by the chart will always listen
+externally on port 443 (which is redirected internally to port 3080).
+
+Due to this, your `proxy_service.public_addr` should always end in `:443`:
+
+```yaml
+proxy_service:
+  web_listen_addr: 0.0.0.0:3080
+  public_addr: custom.example.com:443
+```
+
+</Admonition>
+
+You can now deploy Teleport in your cluster with the command:
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+```code
+$ helm install teleport teleport/teleport-cluster \
+  --namespace teleport \
+  --values my-values.yaml
+```
+
+</TabItem>
+
+<TabItem scope={["enterprise"]} label="Enterprise">
+
+```code
+$ helm install teleport teleport/teleport-cluster \
+  --namespace teleport \
+  --set enterprise=true \
+  --values my-values.yaml
+```
+
+</TabItem>
+</Tabs>
+
+Once the chart is installed, you can use `kubectl` commands to view the deployment:
+
+```code
+$ kubectl --namespace teleport get all
+
+NAME                                 READY   STATUS    RESTARTS   AGE
+pod/teleport-auth-57989d4cbd-rtrzn   1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-w96d2   1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-z256w   1/1     Running   0          22h
+
+NAME                        TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)                                                                     AGE
+service/teleport            LoadBalancer   10.40.11.180   34.138.177.11   443:30258/TCP,3023:31802/TCP,3026:32182/TCP,3024:30101/TCP,3036:30302/TCP   22h
+service/teleport-auth       ClusterIP      10.40.8.251    <none>          3025/TCP,3026/TCP                                                           22h
+service/teleport-auth-v11   ClusterIP      None           <none>          <none>                                                                      22h
+service/teleport-auth-v12   ClusterIP      None           <none>          <none>                                                                      22h
+
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport-auth    1/1     1            1           22h
+deployment.apps/teleport-proxy   2/2     2            2           22h
+
+NAME                                       DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-auth-57989d4cbd   1         1         1       22h
+replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
+```
+
+## Step 3/3. Create a Teleport user (optional)
+
+If you're not migrating an existing Teleport cluster, you'll need to create a
+user to be able to log into Teleport. This needs to be done on the Teleport
+Auth Service, so we can run the command using `kubectl`:
+
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
+```code
+$ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor
+
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+```
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+```code
+$ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor,reviewer
+
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+```
+</TabItem>
+
+</Tabs>
+
+<Admonition type="note">
+If you didn't set up DNS for your hostname earlier, remember to replace
+`teleport.example.com` with the external IP or hostname of the Kubernetes load
+balancer.
+
+(!docs/pages/includes/kubernetes-access/helm/kubernetes-externaladdress.mdx!)
+
+You should modify your command accordingly and replace `teleport.example.com` with
+either the IP or hostname depending on which you have available. You may need
+to accept insecure warnings in your browser to view the page successfully.
+</Admonition>
+
+<Admonition type="warning">
+Using a Kubernetes-issued load balancer IP or hostname is OK for testing but is
+not viable when running a production Teleport cluster as the Subject Alternative
+Name on any public-facing certificate will be expected to match the cluster's
+configured public address (specified using `public_addr` in your configuration)
+
+You must configure DNS properly using the methods described above for production workloads.
+</Admonition>
+
+Load the user creation link to create a password and set up multi-factor
+authentication for the Teleport user via the web UI.
+
+## Uninstalling the Helm chart
+
+To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
+
+```code
+$ helm --namespace teleport uninstall teleport
+```
+
+<Admonition type="note">
+To change `chartMode`, you must first uninstall the existing chart and then
+install a new version with the appropriate values.
+</Admonition>
+
+## Next steps
+
+Now that you have deployed a Teleport cluster, read the [Manage
+Access](../../access-controls/access-controls.mdx) section to get started enrolling
+users and setting up RBAC.
+
+To see all of the options you can set in the values file for the
+`teleport-cluster` Helm chart, consult our [reference
+guide](../../../reference/helm-reference/teleport-cluster.mdx).
+

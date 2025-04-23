@@ -29,7 +29,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -46,7 +46,7 @@ func TestMain(m *testing.M) {
 }
 
 type pingService struct {
-	*proto.UnimplementedAuthServiceServer
+	proto.UnimplementedAuthServiceServer
 	userAgentFromLastCallValue atomic.Value
 }
 
@@ -192,7 +192,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 }
 
 type listResourcesService struct {
-	*proto.UnimplementedAuthServiceServer
+	proto.UnimplementedAuthServiceServer
 }
 
 func (s *listResourcesService) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
@@ -732,6 +732,10 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
 					Logins:   []string{"llama"},
 				},
+				{
+					Resource: &proto.PaginatedResource_AppServer{AppServer: &types.AppServerV3{}},
+					Logins:   []string{"llama"},
+				},
 			},
 		},
 	}
@@ -753,6 +757,8 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
 		case *types.WindowsDesktopV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+		case *types.AppServerV3:
+			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
 		}
 	}
 }

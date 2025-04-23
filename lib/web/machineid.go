@@ -87,7 +87,7 @@ func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.
 // createBot creates a bot
 func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req *CreateBotRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -97,6 +97,8 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 	_, err = clt.BotServiceClient().CreateBot(r.Context(), &machineidv1.CreateBotRequest{
 		Bot: &machineidv1.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: req.BotName,
 				Labels: map[string]string{
@@ -152,7 +154,7 @@ type CreateBotJoinTokenRequest struct {
 // createBotJoinToken creates a bot join token
 func (h *Handler) createBotJoinToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var req *CreateBotJoinTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -215,7 +217,7 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
 func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	var request updateBotRequest
-	if err := httplib.ReadJSON(r, &request); err != nil {
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -237,6 +239,8 @@ func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter
 	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
 		UpdateMask: mask,
 		Bot: &machineidv1.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: botName,
 			},

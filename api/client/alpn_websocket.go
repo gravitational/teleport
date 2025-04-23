@@ -117,6 +117,7 @@ func (c *websocketALPNClientConn) readLocked(b []byte) (int, error) {
 
 		switch frame.Header.OpCode {
 		case ws.OpClose:
+			// TODO(greedy52) properly exchange close message.
 			return 0, io.EOF
 		case ws.OpPing:
 			pong := ws.NewPongFrame(frame.Payload)
@@ -140,6 +141,9 @@ func (c *websocketALPNClientConn) writeFrame(frame ws.Frame) error {
 	defer c.writeMutex.Unlock()
 	// By RFC standard, all client frames must be masked:
 	// https://datatracker.ietf.org/doc/html/rfc6455#section-5.1
+	// TODO(greedy52) properly mask the frame with ws.MaskFrame once server
+	// side is updated to properly unmask the frame. Currently a zero-mask is
+	// used and the XOR operation does not alter the payload at all.
 	frame.Header.Masked = true
 	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
 }

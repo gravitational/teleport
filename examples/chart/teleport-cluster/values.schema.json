@@ -126,6 +126,19 @@
                     ],
                     "default": "otp"
                 },
+                "secondFactors": {
+                    "$id": "#/properties/authentication/properties/secondFactors",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "otp",
+                            "sso",
+                            "webauthn"
+                        ]
+                    },
+                    "default": []
+                },
                 "webauthn": {
                     "$id": "#/properties/authentication/properties/webauthn",
                     "type": "object",
@@ -285,6 +298,11 @@
             "$id": "#/properties/enterprise",
             "type": "boolean",
             "default": false
+        },
+        "licenseSecretName": {
+            "$id": "#/properties/licenseSecretName",
+            "type": "string",
+            "default": "license"
         },
         "installCRDs": {
             "$id": "#/properties/installCRDs",

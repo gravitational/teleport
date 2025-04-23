@@ -10,3 +10,11 @@ svid:
     ip:
       - 10.0.0.1
       - 10.42.0.1
+include_federated_trust_bundles: true
+jwts:
+  - file_name: foo
+    audience: example.com
+  - file_name: bar
+    audience: 2.example.com
+credential_ttl: 1m0s
+renewal_interval: 30s

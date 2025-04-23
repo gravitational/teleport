@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
-
 import { waitFor } from '@testing-library/react';
+
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { EditBot } from 'teleport/Bots/EditBot';
 import { EditBotProps } from 'teleport/Bots/types';
@@ -48,7 +48,7 @@ test('renders', async () => {
     'readonly'
   );
 
-  expect(screen.getByRole('textbox', { name: 'Bot Roles' })).toBeEnabled();
+  expect(screen.getByRole('combobox', { name: 'Bot Roles' })).toBeEnabled();
   expect(screen.getByText('foo-role')).toBeInTheDocument();
 });
 

@@ -26,7 +26,9 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 func TestStripProtocolAndPort(t *testing.T) {
@@ -339,7 +341,7 @@ func TestMakeClusterHiddenLabels(t *testing.T) {
 	type testCase struct {
 		name           string
 		clusters       []types.KubeCluster
-		expectedLabels [][]Label
+		expectedLabels [][]ui.Label
 		roleSet        services.RoleSet
 	}
 
@@ -352,7 +354,7 @@ func TestMakeClusterHiddenLabels(t *testing.T) {
 					"label2":                 "value2",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "label2",
@@ -379,7 +381,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 		name           string
 		clusterName    string
 		servers        []types.Server
-		expectedLabels [][]Label
+		expectedLabels [][]ui.Label
 	}
 
 	testCases := []testCase{
@@ -392,7 +394,7 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "simple",
@@ -430,9 +432,10 @@ func TestMakeDatabaseHiddenLabels(t *testing.T) {
 		},
 	}
 
-	outputDb := MakeDatabase(inputDb, nil, nil, false)
+	accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", nil)
+	outputDb := MakeDatabase(inputDb, accessChecker, &mockDatabaseInteractiveChecker{}, false)
 
-	require.Equal(t, []Label{
+	require.Equal(t, []ui.Label{
 		{
 			Name:  "label",
 			Value: "value1",
@@ -452,7 +455,7 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 	require.NoError(t, err)
 
 	desktop := MakeDesktop(windowsDesktop, nil, false)
-	labels := []Label{
+	labels := []ui.Label{
 		{
 			Name:  "label3",
 			Value: "value2",
@@ -475,7 +478,7 @@ func TestMakeDesktopServiceHiddenLabel(t *testing.T) {
 	}
 
 	desktopService := MakeDesktopService(windowsDesktopService)
-	labels := []Label{
+	labels := []ui.Label{
 		{
 			Name:  "label3",
 			Value: "value2",
@@ -490,7 +493,7 @@ func TestSortedLabels(t *testing.T) {
 		name           string
 		clusterName    string
 		servers        []types.Server
-		expectedLabels [][]Label
+		expectedLabels [][]ui.Label
 	}
 
 	testCases := []testCase{
@@ -506,7 +509,7 @@ func TestSortedLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "simple",
@@ -538,7 +541,7 @@ func TestSortedLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "anotherone",
@@ -565,7 +568,7 @@ func TestSortedLabels(t *testing.T) {
 					"teleport.internal/app": "app1",
 				}),
 			},
-			expectedLabels: [][]Label{
+			expectedLabels: [][]ui.Label{
 				{
 					{
 						Name:  "simple",
@@ -588,4 +591,178 @@ func TestSortedLabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMakeDatabaseSupportsInteractive(t *testing.T) {
+	db := &types.DatabaseV3{}
+	accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", nil)
+
+	for name, tc := range map[string]struct {
+		supports bool
+	}{
+		"supported":   {supports: true},
+		"unsupported": {supports: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			interactiveChecker := &mockDatabaseInteractiveChecker{supports: tc.supports}
+			single := MakeDatabase(db, accessChecker, interactiveChecker, false)
+			require.Equal(t, tc.supports, single.SupportsInteractive)
+
+			multi := MakeDatabases([]*types.DatabaseV3{db}, accessChecker, interactiveChecker)
+			require.Len(t, multi, 1)
+			require.Equal(t, tc.supports, multi[0].SupportsInteractive)
+		})
+	}
+}
+
+func TestMakeDatabaseConnectOptions(t *testing.T) {
+	interactiveChecker := &mockDatabaseInteractiveChecker{}
+
+	for name, tc := range map[string]struct {
+		roles        services.RoleSet
+		db           *types.DatabaseV3
+		assertResult require.ValueAssertionFunc
+	}{
+		"names wildcard": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseNames:  []string{"*", "mydatabase"},
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*", "mydatabase"}, db.DatabaseNames)
+			},
+		},
+		"users wildcard": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  []string{"*", "myuser"},
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*", "myuser"}, db.DatabaseUsers)
+			},
+		},
+		"roles wildcard": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseRoles:  []string{"*", "myrole"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*", "myrole"}, db.DatabaseRoles)
+			},
+		},
+		"only wildcards": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, false),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseNames:  []string{"*"},
+						DatabaseUsers:  []string{"*"},
+						DatabaseRoles:  []string{"*"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"*"}, db.DatabaseNames)
+				require.ElementsMatch(t, []string{"*"}, db.DatabaseUsers)
+				require.ElementsMatch(t, []string{"*"}, db.DatabaseRoles)
+			},
+		},
+		"auto-user provisioning enabled": {
+			db: makeTestDatabase(t, map[string]string{"env": "dev"}, true),
+			roles: services.NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseRoles:  []string{"myrole"},
+					},
+					Options: types.RoleOptions{
+						CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+					},
+				},
+			}),
+			assertResult: func(t require.TestingT, v interface{}, _ ...interface{}) {
+				db, _ := v.(Database)
+				require.ElementsMatch(t, []string{"myrole"}, db.DatabaseRoles)
+				require.True(t, db.AutoUsersEnabled)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", tc.roles)
+			single := MakeDatabase(tc.db, accessChecker, interactiveChecker, false)
+			tc.assertResult(t, single)
+
+			multi := MakeDatabases([]*types.DatabaseV3{tc.db}, accessChecker, interactiveChecker)
+			require.Len(t, multi, 1)
+			tc.assertResult(t, multi[0])
+		})
+	}
+}
+
+// makeTestDatabase creates a database with labels and admin options.
+func makeTestDatabase(t *testing.T, labels map[string]string, autoProvisioningEnabled bool) *types.DatabaseV3 {
+	t.Helper()
+
+	spec := types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	}
+	if autoProvisioningEnabled {
+		spec.AdminUser = &types.DatabaseAdminUser{
+			Name:            "teleport-admin",
+			DefaultDatabase: "teleport",
+		}
+	}
+
+	db, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name:   "db",
+			Labels: labels,
+		}, spec,
+	)
+	require.NoError(t, err)
+	if autoProvisioningEnabled {
+		require.True(t, db.IsAutoUsersEnabled(), "The database was expected to have auto-users enabled but it isn't. Check if the auto-users enabled definition changed and update this helper to match it.")
+	}
+
+	return db
+}
+
+type mockDatabaseInteractiveChecker struct {
+	supports bool
+}
+
+func (m *mockDatabaseInteractiveChecker) IsSupported(_ string) bool {
+	return m.supports
 }

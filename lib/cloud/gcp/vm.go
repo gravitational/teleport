@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -32,16 +33,21 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
+	resourcemanager "cloud.google.com/go/resourcemanager/apiv3"
+	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // sshUser is the user to log in as on GCP VMs.
@@ -56,25 +62,37 @@ func convertAPIError(err error) error {
 	if errors.As(err, &googleError) {
 		return trace.ReadError(googleError.Code, []byte(googleError.Message))
 	}
+	var apiError *apierror.APIError
+	if errors.As(err, &apiError) {
+		if code := apiError.HTTPCode(); code != -1 {
+			return trace.ReadError(code, []byte(apiError.Reason()))
+		} else if apiError.GRPCStatus() != nil {
+			return trail.FromGRPC(apiError)
+		}
+	}
 	return err
 }
 
-// InstanceClient is a client to interact with GCP VMs.
+// InstancesClient is a client to interact with GCP VMs.
 type InstancesClient interface {
 	// ListInstances lists the GCP VMs that belong to the given project and
 	// zone.
 	// zone supports wildcard "*".
-	ListInstances(ctx context.Context, projectID, zone string) ([]*Instance, error)
+	ListInstances(ctx context.Context, projectID, zone string) ([]*gcpimds.Instance, error)
 	// StreamInstances streams the GCP VMs that belong to the given project and
 	// zone.
 	// zone supports wildcard "*".
-	StreamInstances(ctx context.Context, projectID, zone string) stream.Stream[*Instance]
+	StreamInstances(ctx context.Context, projectID, zone string) stream.Stream[*gcpimds.Instance]
 	// GetInstance gets a GCP VM.
-	GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error)
+	GetInstance(ctx context.Context, req *gcpimds.InstanceRequest) (*gcpimds.Instance, error)
 	// AddSSHKey adds an SSH key to a GCP VM's metadata.
 	AddSSHKey(ctx context.Context, req *SSHKeyRequest) error
 	// RemoveSSHKey removes an SSH key from a GCP VM's metadata.
 	RemoveSSHKey(ctx context.Context, req *SSHKeyRequest) error
+	// GetInstanceTags gets the GCP tags associated with an instance (which are
+	// distinct from its labels). It is separate from GetInstance because fetching
+	// tags requires its own permissions.
+	GetInstanceTags(ctx context.Context, req *gcpimds.InstanceRequest) (map[string]string, error)
 }
 
 // InstancesClientConfig is the client configuration for InstancesClient.
@@ -91,34 +109,6 @@ func (c *InstancesClientConfig) CheckAndSetDefaults(ctx context.Context) (err er
 		}
 	}
 	return nil
-}
-
-// Instance represents a GCP VM.
-type Instance struct {
-	// Name is the instance's name.
-	Name string
-	// Zone is the instance's zone.
-	Zone string
-	// ProjectID is the ID of the project the VM is in.
-	ProjectID string
-	// ServiceAccount is the email address of the VM's service account, if any.
-	ServiceAccount string
-	// Labels is the instance's labels.
-	Labels map[string]string
-
-	internalIPAddress string
-	externalIPAddress string
-	hostKeys          []ssh.PublicKey
-	metadata          *computepb.Metadata
-}
-
-// InstanceRequest formats an instance request based on an instance.
-func (i *Instance) InstanceRequest() InstanceRequest {
-	return InstanceRequest{
-		ProjectID: i.ProjectID,
-		Zone:      i.Zone,
-		Name:      i.Name,
-	}
 }
 
 // NewInstancesClient creates a new InstancesClient.
@@ -154,7 +144,7 @@ func isExternalNAT(s string) bool {
 	return slices.Contains(externalNATKeys, s)
 }
 
-func toInstance(origInstance *computepb.Instance, projectID string) *Instance {
+func toInstance(origInstance *computepb.Instance, projectID string) *gcpimds.Instance {
 	zoneParts := strings.Split(origInstance.GetZone(), "/")
 	zone := zoneParts[len(zoneParts)-1]
 	var internalIP string
@@ -172,14 +162,24 @@ func toInstance(origInstance *computepb.Instance, projectID string) *Instance {
 			}
 		}
 	}
-	inst := &Instance{
+
+	items := make(map[string]string, len(origInstance.GetMetadata().GetItems()))
+	for _, item := range origInstance.GetMetadata().GetItems() {
+		if item.Key == nil {
+			continue
+		}
+		items[item.GetKey()] = item.GetValue()
+	}
+
+	inst := &gcpimds.Instance{
 		Name:              origInstance.GetName(),
 		ProjectID:         projectID,
 		Zone:              zone,
 		Labels:            origInstance.GetLabels(),
-		internalIPAddress: internalIP,
-		externalIPAddress: externalIP,
-		metadata:          origInstance.GetMetadata(),
+		InternalIPAddress: internalIP,
+		ExternalIPAddress: externalIP,
+		Fingerprint:       origInstance.GetMetadata().GetFingerprint(),
+		MetadataItems:     items,
 	}
 	// GCP VMs can have at most one service account.
 	if len(origInstance.ServiceAccounts) > 0 {
@@ -188,8 +188,8 @@ func toInstance(origInstance *computepb.Instance, projectID string) *Instance {
 	return inst
 }
 
-func toInstances(origInstances []*computepb.Instance, projectID string) []*Instance {
-	instances := make([]*Instance, 0, len(origInstances))
+func toInstances(origInstances []*computepb.Instance, projectID string) []*gcpimds.Instance {
+	instances := make([]*gcpimds.Instance, 0, len(origInstances))
 	for _, inst := range origInstances {
 		instances = append(instances, toInstance(inst, projectID))
 	}
@@ -199,26 +199,26 @@ func toInstances(origInstances []*computepb.Instance, projectID string) []*Insta
 // ListInstances lists the GCP VMs that belong to the given project and
 // zone.
 // zone supports wildcard "*".
-func (clt *instancesClient) ListInstances(ctx context.Context, projectID, zone string) ([]*Instance, error) {
+func (clt *instancesClient) ListInstances(ctx context.Context, projectID, zone string) ([]*gcpimds.Instance, error) {
 	instances, err := stream.Collect(clt.StreamInstances(ctx, projectID, zone))
 	return instances, trace.Wrap(err)
 }
 
-func (clt *instancesClient) StreamInstances(ctx context.Context, projectID, zone string) stream.Stream[*Instance] {
+func (clt *instancesClient) StreamInstances(ctx context.Context, projectID, zone string) stream.Stream[*gcpimds.Instance] {
 	if len(projectID) == 0 {
-		return stream.Fail[*Instance](trace.BadParameter("projectID must be set"))
+		return stream.Fail[*gcpimds.Instance](trace.BadParameter("projectID must be set"))
 	}
 	if len(zone) == 0 {
-		return stream.Fail[*Instance](trace.BadParameter("location must be set"))
+		return stream.Fail[*gcpimds.Instance](trace.BadParameter("location must be set"))
 	}
 
-	var getInstances func() ([]*Instance, error)
+	var getInstances func() ([]*gcpimds.Instance, error)
 
 	if zone == types.Wildcard {
 		it := clt.InstanceClient.AggregatedList(ctx, &computepb.AggregatedListInstancesRequest{
 			Project: projectID,
 		})
-		getInstances = func() ([]*Instance, error) {
+		getInstances = func() ([]*gcpimds.Instance, error) {
 			resp, err := it.Next()
 			if resp.Value == nil {
 				return nil, trace.Wrap(err)
@@ -230,16 +230,16 @@ func (clt *instancesClient) StreamInstances(ctx context.Context, projectID, zone
 			Project: projectID,
 			Zone:    zone,
 		})
-		getInstances = func() ([]*Instance, error) {
+		getInstances = func() ([]*gcpimds.Instance, error) {
 			resp, err := it.Next()
 			if resp == nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(convertAPIError(err))
 			}
-			return []*Instance{toInstance(resp, projectID)}, trace.Wrap(err)
+			return []*gcpimds.Instance{toInstance(resp, projectID)}, trace.Wrap(convertAPIError(err))
 		}
 	}
 
-	return stream.PageFunc(func() ([]*Instance, error) {
+	return stream.PageFunc(func() ([]*gcpimds.Instance, error) {
 		instances, err := getInstances()
 		if errors.Is(err, iterator.Done) {
 			return instances, io.EOF
@@ -248,31 +248,8 @@ func (clt *instancesClient) StreamInstances(ctx context.Context, projectID, zone
 	})
 }
 
-// InstanceRequest contains parameters for making a request to a specific instance.
-type InstanceRequest struct {
-	// ProjectID is the ID of the VM's project.
-	ProjectID string
-	// Zone is the instance's zone.
-	Zone string
-	// Name is the instance's name.
-	Name string
-}
-
-func (req *InstanceRequest) CheckAndSetDefaults() error {
-	if len(req.ProjectID) == 0 {
-		trace.BadParameter("projectID must be set")
-	}
-	if len(req.Zone) == 0 {
-		trace.BadParameter("zone must be set")
-	}
-	if len(req.Name) == 0 {
-		trace.BadParameter("name must be set")
-	}
-	return nil
-}
-
 // getHostKeys gets the SSH host keys from the VM, if available.
-func (clt *instancesClient) getHostKeys(ctx context.Context, req *InstanceRequest) ([]ssh.PublicKey, error) {
+func (clt *instancesClient) getHostKeys(ctx context.Context, req *gcpimds.InstanceRequest) ([]ssh.PublicKey, error) {
 	guestAttributes, err := clt.InstanceClient.GetGuestAttributes(ctx, &computepb.GetGuestAttributesInstanceRequest{
 		Instance:  req.Name,
 		Project:   req.ProjectID,
@@ -284,20 +261,20 @@ func (clt *instancesClient) getHostKeys(ctx context.Context, req *InstanceReques
 	}
 	items := guestAttributes.GetQueryValue().GetItems()
 	keys := make([]ssh.PublicKey, 0, len(items))
-	var errors []error
+	var errs []error
 	for _, item := range items {
 		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
 		if err == nil {
 			keys = append(keys, key)
 		} else {
-			errors = append(errors, err)
+			errs = append(errs, err)
 		}
 	}
-	return keys, trace.NewAggregate(errors...)
+	return keys, trace.NewAggregate(errs...)
 }
 
 // GetInstance gets a GCP VM.
-func (clt *instancesClient) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
+func (clt *instancesClient) GetInstance(ctx context.Context, req *gcpimds.InstanceRequest) (*gcpimds.Instance, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -312,19 +289,61 @@ func (clt *instancesClient) GetInstance(ctx context.Context, req *InstanceReques
 	inst := toInstance(resp, req.ProjectID)
 	inst.ProjectID = req.ProjectID
 
-	hostKeys, err := clt.getHostKeys(ctx, req)
-	if err == nil {
-		inst.hostKeys = hostKeys
-	} else if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+	if !req.WithoutHostKeys {
+		hostKeys, err := clt.getHostKeys(ctx, req)
+		if err == nil {
+			inst.HostKeys = hostKeys
+		} else if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return inst, nil
+}
+
+func (clt *instancesClient) getTagBindingsClient(ctx context.Context, zone string) (*resourcemanager.TagBindingsClient, error) {
+	var opts []option.ClientOption
+	if zone != "" {
+		endpoint := zone + "-cloudresourcemanager.googleapis.com:443"
+		opts = append(opts, option.WithEndpoint(endpoint))
+	}
+	client, err := resourcemanager.NewTagBindingsClient(ctx, opts...)
+	return client, trace.Wrap(convertAPIError(err))
+}
+
+// GetInstanceTags gets the GCP tags for the instance.
+func (clt *instancesClient) GetInstanceTags(ctx context.Context, req *gcpimds.InstanceRequest) (map[string]string, error) {
+	tagClient, err := clt.getTagBindingsClient(ctx, req.Zone)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	it := tagClient.ListEffectiveTags(ctx, &resourcemanagerpb.ListEffectiveTagsRequest{
+		Parent: fmt.Sprintf(
+			"//compute.googleapis.com/projects/%s/zones/%s/instances/%d",
+			req.ProjectID, req.Zone, req.ID,
+		),
+	})
+
+	tags := make(map[string]string)
+	for {
+		resp, err := it.Next()
+		if err != nil {
+			if errors.Is(err, iterator.Done) {
+				return tags, nil
+			}
+			return nil, trace.Wrap(convertAPIError(err))
+		}
+		// Tag value is in the form <project-name>/<key>/<value>
+		fields := strings.Split(resp.GetNamespacedTagValue(), "/")
+		k := fields[len(fields)-2]
+		v := fields[len(fields)-1]
+		tags[k] = v
+	}
 }
 
 // SSHKeyRequest contains parameters to add/removed SSH keys from an instance.
 type SSHKeyRequest struct {
 	// Instance is the instance to add/remove keys form.
-	Instance *Instance
+	Instance *gcpimds.Instance
 	// PublicKey is the key to add. Ignored when removing a key.
 	PublicKey ssh.PublicKey
 	// Expires is the expiration time of the key. Ignored when removing a key.
@@ -358,26 +377,14 @@ func formatSSHKey(pubKey ssh.PublicKey, expires time.Time) string {
 // keys.
 const sshKeyName = "ssh-keys"
 
-func addSSHKey(meta *computepb.Metadata, pubKey ssh.PublicKey, expires time.Time) {
-	var sshKeyItem *computepb.Items
-	for _, item := range meta.GetItems() {
-		if item.GetKey() == sshKeyName {
-			sshKeyItem = item
-			break
-		}
-	}
-	if sshKeyItem == nil {
-		sshKeyItem = &computepb.Items{Key: googleapi.String(sshKeyName)}
-		meta.Items = append(meta.Items, sshKeyItem)
+func addSSHKey(instance *gcpimds.Instance, pubKey ssh.PublicKey, expires time.Time) {
+	var existingKeys []string
+	if keys, ok := instance.MetadataItems[sshKeyName]; ok {
+		existingKeys = strings.Split(keys, "\n")
 	}
 
-	var existingKeys []string
-	if rawKeys := sshKeyItem.GetValue(); rawKeys != "" {
-		existingKeys = strings.Split(rawKeys, "\n")
-	}
 	existingKeys = append(existingKeys, formatSSHKey(pubKey, expires))
-	newKeys := strings.Join(existingKeys, "\n")
-	sshKeyItem.Value = &newKeys
+	instance.MetadataItems[sshKeyName] = strings.Join(existingKeys, "\n")
 }
 
 // AddSSHKey adds an SSH key to a GCP VM's metadata.
@@ -388,10 +395,11 @@ func (clt *instancesClient) AddSSHKey(ctx context.Context, req *SSHKeyRequest) e
 	if req.PublicKey == nil {
 		return trace.BadParameter("public key not set")
 	}
-	addSSHKey(req.Instance.metadata, req.PublicKey, req.Expires)
+	addSSHKey(req.Instance, req.PublicKey, req.Expires)
+
 	op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
 		Instance:         req.Instance.Name,
-		MetadataResource: req.Instance.metadata,
+		MetadataResource: convertInstanceMetadata(req.Instance),
 		Project:          req.Instance.ProjectID,
 		Zone:             req.Instance.Zone,
 	})
@@ -404,20 +412,32 @@ func (clt *instancesClient) AddSSHKey(ctx context.Context, req *SSHKeyRequest) e
 	return nil
 }
 
-func removeSSHKey(meta *computepb.Metadata) {
-	for _, item := range meta.GetItems() {
-		if item.GetKey() != sshKeyName {
-			continue
-		}
-		existingKeys := strings.Split(item.GetValue(), "\n")
-		newKeys := make([]string, 0, len(existingKeys))
-		for _, key := range existingKeys {
-			if !strings.HasPrefix(key, sshUser) {
-				newKeys = append(newKeys, key)
-			}
-		}
-		item.Value = googleapi.String(strings.TrimSpace(strings.Join(newKeys, "\n")))
+func removeSSHKey(instance *gcpimds.Instance) {
+	keys, ok := instance.MetadataItems[sshKeyName]
+	if !ok {
 		return
+	}
+
+	existingKeys := strings.Split(keys, "\n")
+	newKeys := make([]string, 0, len(existingKeys))
+	for _, key := range existingKeys {
+		if !strings.HasPrefix(key, sshUser) {
+			newKeys = append(newKeys, key)
+		}
+	}
+
+	instance.MetadataItems[sshKeyName] = strings.TrimSpace(strings.Join(newKeys, "\n"))
+}
+
+func convertInstanceMetadata(i *gcpimds.Instance) *computepb.Metadata {
+	items := make([]*computepb.Items, 0, len(i.MetadataItems))
+	for k, v := range i.MetadataItems {
+		items = append(items, &computepb.Items{Key: googleapi.String(k), Value: googleapi.String(v)})
+	}
+
+	return &computepb.Metadata{
+		Fingerprint: googleapi.String(i.Fingerprint),
+		Items:       items,
 	}
 }
 
@@ -426,10 +446,11 @@ func (clt *instancesClient) RemoveSSHKey(ctx context.Context, req *SSHKeyRequest
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	removeSSHKey(req.Instance.metadata)
+	removeSSHKey(req.Instance)
+
 	op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
 		Instance:         req.Instance.Name,
-		MetadataResource: req.Instance.metadata,
+		MetadataResource: convertInstanceMetadata(req.Instance),
 		Project:          req.Instance.ProjectID,
 		Zone:             req.Instance.Zone,
 	})
@@ -447,11 +468,13 @@ type RunCommandRequest struct {
 	// Client is the instance client to use.
 	Client InstancesClient
 	// InstanceRequest is the set of parameters identifying the instance.
-	InstanceRequest
+	gcpimds.InstanceRequest
 	// Script is the script to execute.
 	Script string
 	// SSHPort is the ssh server port to connect to. Defaults to 22.
 	SSHPort string
+	// SSHKeyAlgo is the algorithm to use for generated SSH keys.
+	SSHKeyAlgo cryptosuites.Algorithm
 
 	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -466,6 +489,9 @@ func (req *RunCommandRequest) CheckAndSetDefaults() error {
 	if req.SSHPort == "" {
 		req.SSHPort = "22"
 	}
+	if req.SSHKeyAlgo == cryptosuites.Algorithm(0) {
+		return trace.BadParameter("ssh key algorithm must be set")
+	}
 	if req.dialContext == nil {
 		dialer := net.Dialer{
 			Timeout: sshDefaultTimeout,
@@ -475,20 +501,13 @@ func (req *RunCommandRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-func generateKeyPair() (ssh.Signer, ssh.PublicKey, error) {
-	rawPriv, rawPub, err := native.GenerateKeyPair()
+func generateKeyPair(keyAlgo cryptosuites.Algorithm) (ssh.Signer, error) {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(keyAlgo)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	signer, err := ssh.ParsePrivateKey(rawPriv)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(rawPub)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return signer, publicKey, nil
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	return sshSigner, trace.Wrap(err)
 }
 
 // RunCommand runs a command on an instance.
@@ -498,7 +517,7 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	}
 
 	// Generate keys and add them to the instance.
-	signer, publicKey, err := generateKeyPair()
+	signer, err := generateKeyPair(req.SSHKeyAlgo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -506,23 +525,23 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(instance.hostKeys) == 0 {
+	if len(instance.HostKeys) == 0 {
 		return trace.NotFound(`Instance %v is missing host keys. Did you enable guest attributes on the instance?
 https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enabling_guest_attributes`, req.Name)
 	}
 	var ipAddrs []string
-	if instance.externalIPAddress != "" {
-		ipAddrs = append(ipAddrs, instance.externalIPAddress)
+	if instance.ExternalIPAddress != "" {
+		ipAddrs = append(ipAddrs, instance.ExternalIPAddress)
 	}
-	if instance.internalIPAddress != "" {
-		ipAddrs = append(ipAddrs, instance.internalIPAddress)
+	if instance.InternalIPAddress != "" {
+		ipAddrs = append(ipAddrs, instance.InternalIPAddress)
 	}
 	if len(ipAddrs) == 0 {
 		return trace.NotFound("Instance %v is missing an IP address.", req.Name)
 	}
 	keyReq := &SSHKeyRequest{
 		Instance:  instance,
-		PublicKey: publicKey,
+		PublicKey: signer.PublicKey(),
 	}
 	if err := req.Client.AddSSHKey(ctx, keyReq); err != nil {
 		return trace.Wrap(err)
@@ -534,16 +553,16 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		var err error
 		// Fetch the instance first to get the most up-to-date metadata hash.
 		if keyReq.Instance, err = req.Client.GetInstance(ctx, &req.InstanceRequest); err != nil {
-			logrus.WithError(err).Warn("Error fetching instance.")
+			slog.WarnContext(ctx, "Error fetching instance", "error", err)
 			return
 		}
 		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
-			logrus.WithError(err).Warn("Error deleting SSH Key.")
+			slog.WarnContext(ctx, "Error deleting SSH Key", "error", err)
 		}
 	}()
 
 	// Configure the SSH client.
-	callback, err := sshutils.HostKeyCallback(instance.hostKeys, true)
+	callback, err := sshutils.HostKeyCallback(instance.HostKeys, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -555,24 +574,35 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		HostKeyCallback: callback,
 	}
 
+	loggerWithVMMetadata := slog.With(
+		"project_id", req.ProjectID,
+		"zone", req.Zone,
+		"vm_name", req.Name,
+		"ips", ipAddrs,
+	)
+
 	var errs []error
 	for _, ip := range ipAddrs {
 		addr := net.JoinHostPort(ip, req.SSHPort)
 		stdout, stderr, err := sshutils.RunSSH(ctx, addr, req.Script, config, sshutils.WithDialer(req.dialContext))
-		logrus.Debug(string(stdout))
-		logrus.Debug(string(stderr))
 		if err == nil {
 			return nil
 		}
 
 		// An exit error means the connection was successful, so don't try another address.
 		if errors.Is(err, &ssh.ExitError{}) {
+			loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed after connecting",
+				"ip", ip,
+				"error", err,
+				"stdout", string(stdout),
+				"stderr", string(stderr),
+			)
 			return trace.Wrap(err)
 		}
 		errs = append(errs, err)
 	}
 
 	err = trace.NewAggregate(errs...)
-	logrus.WithError(err).Debug("Command exited with error.")
+	loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed", "error", err)
 	return err
 }

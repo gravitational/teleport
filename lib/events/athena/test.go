@@ -47,6 +47,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -106,6 +108,7 @@ func (a *AthenaContext) GetLog() *Log {
 // AthenaContextConfig is optional config to override defaults in athena context.
 type AthenaContextConfig struct {
 	MaxBatchSize int
+	BypassSNS    bool
 }
 
 type InfraOutputs struct {
@@ -147,6 +150,28 @@ func (e *EventuallyConsistentAuditLogger) SearchEvents(ctx context.Context, req 
 		e.emitWasAfterLastDelay = false
 	}
 	return e.Inner.SearchEvents(ctx, req)
+}
+
+func (e *EventuallyConsistentAuditLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.emitWasAfterLastDelay {
+		time.Sleep(e.QueryDelay)
+		// clear emit delay
+		e.emitWasAfterLastDelay = false
+	}
+	return e.Inner.ExportUnstructuredEvents(ctx, req)
+}
+
+func (e *EventuallyConsistentAuditLogger) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.emitWasAfterLastDelay {
+		time.Sleep(e.QueryDelay)
+		// clear emit delay
+		e.emitWasAfterLastDelay = false
+	}
+	return e.Inner.GetEventExportChunks(ctx, req)
 }
 
 func (e *EventuallyConsistentAuditLogger) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
@@ -200,12 +225,16 @@ func SetupAthenaContext(t *testing.T, ctx context.Context, cfg AthenaContextConf
 		region = "eu-central-1"
 	}
 
+	topicARN := infraOut.TopicARN
+	if cfg.BypassSNS {
+		topicARN = topicARNBypass
+	}
 	log, err := New(ctx, Config{
 		Region:           region,
 		Clock:            clock,
 		Database:         ac.Database,
 		TableName:        ac.TableName,
-		TopicARN:         infraOut.TopicARN,
+		TopicARN:         topicARN,
 		QueueURL:         infraOut.QueueURL,
 		LocationS3:       ac.s3eventsLocation,
 		QueryResultsS3:   ac.S3ResultsLocation,

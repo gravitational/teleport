@@ -1,4 +1,5 @@
-<Details title="Best practices for production security">
+<details>
+<summary>Best practices for production security</summary>
 
   When running Teleport in production, you should adhere to the following best
   practices to avoid security incidents:
@@ -14,7 +15,7 @@
     For example, don't assign users the built-in `access,editor` roles, which give
     them permissions to access and edit all cluster resources. Instead, define roles 
     with the minimum required permissions for each user and configure
-    **access requests** to provide temporary elevated permissions.
+    **Access Requests** to provide temporary elevated permissions.
   - When you enroll Teleport resources—for example, new databases or applications—you 
     should save the invitation token to a file.
     If you enter the token directly on the command line, a malicious user could view
@@ -23,4 +24,4 @@
 You should note that these practices aren't necessarily reflected in the examples used 
 in documentation. Examples in the documentation are primarily intended for demonstration 
 and for development environments.
-</Details>
+</details>

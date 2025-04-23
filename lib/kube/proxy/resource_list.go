@@ -53,7 +53,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	req = req.WithContext(ctx)
 
-	isLocalKubeCluster := f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
+	isLocalKubeCluster := sess.isLocalKubernetesCluster
 	supportsType := false
 	resourceKind := ""
 	if isLocalKubeCluster {
@@ -71,7 +71,6 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		status = rw.Status()
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
-
 		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -82,7 +81,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 				sess.requestVerb,
 				sess.apiResource,
 			)
-			return nil, trace.AccessDenied(notFoundMessage)
+			return nil, trace.AccessDenied("%s", notFoundMessage)
 		}
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
@@ -238,7 +237,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http
 			podName,
 		)
 		if err != nil {
-			f.log.WithError(err).Warn("error getting user ephemeral containers")
+			f.log.WarnContext(req.Context(), "error getting user ephemeral containers", "error", err)
 			return
 		}
 
@@ -248,7 +247,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http
 			}
 			evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
 			if err != nil {
-				f.log.WithError(err).Warn("error pushing pod event")
+				f.log.WarnContext(req.Context(), "error pushing pod event", "error", err)
 				continue
 			}
 			sentDebugContainers[wc.Spec.ContainerName] = struct{}{}

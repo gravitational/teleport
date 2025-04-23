@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useEffect } from 'react';
 
 import { getPlatformType } from 'design/platform';
 
@@ -56,7 +56,7 @@ export function getMappedAction(event) {
  * @param ctx data that is shared between Console related components
  */
 const useKeyboardNav = (ctx: ConsoleContext) => {
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeydown = event => {
       const { tabSwitch } = getMappedAction(event);
       if (!tabSwitch) {

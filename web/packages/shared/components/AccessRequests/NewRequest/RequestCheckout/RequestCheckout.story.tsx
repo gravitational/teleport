@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { MemoryRouter, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, MemoryRouter } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
-
 import { Option } from 'shared/components/Select';
 
 import { dryRunResponse } from '../../fixtures';
-
-import { RequestCheckout, RequestCheckoutProps } from './RequestCheckout';
+import { useSpecifiableFields } from '../useSpecifiableFields';
+import {
+  RequestCheckoutWithSlider,
+  RequestCheckoutWithSliderProps,
+} from './RequestCheckout';
 
 export default {
   title: 'Shared/AccessRequests/Checkout',
@@ -57,22 +59,15 @@ function SuccessActionComponent({ reset, onClose }) {
 }
 
 export const Loaded = () => {
-  const [selectedReviewers, setSelectedReviewers] = useState(
-    props.selectedReviewers
-  );
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
-  const [requestTTL, setRequestTTL] = useState<Option<number>>();
+  const props = useSpecifiableFields();
+  if (!props.dryRunResponse) {
+    props.onDryRunChange(dryRunResponse);
+  }
 
   return (
-    <RequestCheckout
-      {...props}
-      selectedReviewers={selectedReviewers}
-      setSelectedReviewers={setSelectedReviewers}
-      maxDuration={maxDuration}
-      setMaxDuration={setMaxDuration}
-      requestTTL={requestTTL}
-      setRequestTTL={setRequestTTL}
-    />
+    <MemoryRouter>
+      <RequestCheckoutWithSlider {...baseProps} {...props} />
+    </MemoryRouter>
   );
 };
 export const Empty = () => {
@@ -81,74 +76,110 @@ export const Empty = () => {
   const [requestTTL, setRequestTTL] = useState<Option<number>>();
 
   return (
-    <RequestCheckout
-      {...props}
-      data={[]}
-      selectedReviewers={selectedReviewers}
-      setSelectedReviewers={setSelectedReviewers}
-      maxDuration={maxDuration}
-      setMaxDuration={setMaxDuration}
-      requestTTL={requestTTL}
-      setRequestTTL={setRequestTTL}
-    />
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        pendingAccessRequests={[]}
+        selectedReviewers={selectedReviewers}
+        setSelectedReviewers={setSelectedReviewers}
+        maxDuration={maxDuration}
+        onMaxDurationChange={setMaxDuration}
+        pendingRequestTtl={requestTTL}
+        setPendingRequestTtl={setRequestTTL}
+      />
+    </MemoryRouter>
   );
 };
 
 export const Failed = () => (
-  <RequestCheckout
-    {...props}
-    requireReason={false}
-    createAttempt={{
-      status: 'failed',
-      statusText: 'some error message',
-    }}
-    SuccessComponent={SuccessActionComponent}
-    selectedReviewers={[]}
-  />
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      requireReason={false}
+      createAttempt={{
+        status: 'failed',
+        statusText: 'some error message',
+      }}
+      SuccessComponent={SuccessActionComponent}
+      selectedReviewers={[]}
+    />
+  </MemoryRouter>
 );
 
 export const LoadedResourceRequest = () => {
   const [selectedReviewers, setSelectedReviewers] = useState(
-    props.selectedReviewers
+    baseProps.selectedReviewers
   );
   const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
-    useState(props.resourceRequestRoles);
+    useState(baseProps.resourceRequestRoles);
   return (
-    <RequestCheckout
-      {...props}
-      isResourceRequest={true}
-      fetchResourceRequestRolesAttempt={{ status: 'success' }}
-      selectedResourceRequestRoles={selectedResourceRequestRoles}
-      setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
-      selectedReviewers={selectedReviewers}
-      setSelectedReviewers={setSelectedReviewers}
-    />
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        selectedResourceRequestRoles={selectedResourceRequestRoles}
+        setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
+        selectedReviewers={selectedReviewers}
+        setSelectedReviewers={setSelectedReviewers}
+      />
+    </MemoryRouter>
   );
 };
 
 export const ProcessingResourceRequest = () => (
-  <RequestCheckout
-    {...props}
-    isResourceRequest={true}
-    fetchResourceRequestRolesAttempt={{ status: 'processing' }}
-  />
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{ status: 'processing' }}
+    />
+  </MemoryRouter>
 );
 
 export const FailedResourceRequest = () => (
-  <RequestCheckout
-    {...props}
-    isResourceRequest={true}
-    fetchResourceRequestRolesAttempt={{
-      status: 'failed',
-      statusText: 'An error has occurred',
-    }}
-  />
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: 'An error has occurred',
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment], test-role-2: [pod secret configmap service serviceaccount kube_node persistentvolume persistentvolumeclaim deployment replicaset statefulset daemonset clusterrole kube_role clusterrolebinding rolebinding cronjob job certificatesigningrequest ingress]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment]`,
+      }}
+    />
+  </MemoryRouter>
 );
 
 export const Success = () => (
   <MemoryRouter initialEntries={['']}>
-    <RequestCheckout
-      {...props}
+    <RequestCheckoutWithSlider
+      {...baseProps}
       requireReason={false}
       createAttempt={{ status: 'success' }}
       SuccessComponent={SuccessActionComponent}
@@ -156,15 +187,19 @@ export const Success = () => (
   </MemoryRouter>
 );
 
-const props: RequestCheckoutProps = {
+const baseProps: RequestCheckoutWithSliderProps = {
+  fetchKubeNamespaces: async () => [
+    'namespace1',
+    'namespace2',
+    'namespace3',
+    'namespace4',
+  ],
+  updateNamespacesForKubeCluster: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
-  reviewers: ['bob', 'cat', 'george washington'],
   selectedReviewers: [
-    { value: 'bob', label: 'bob', isSelected: true },
-    { value: 'cat', label: 'cat', isSelected: true },
     {
       value: 'george washington',
       label: 'george washington',
@@ -173,7 +208,7 @@ const props: RequestCheckoutProps = {
   ],
   setSelectedReviewers: () => null,
   createRequest: () => null,
-  data: [
+  pendingAccessRequests: [
     {
       kind: 'app',
       name: 'app-name',
@@ -199,6 +234,16 @@ const props: RequestCheckoutProps = {
       name: 'desktop-name',
       id: 'app-name',
     },
+    {
+      kind: 'saml_idp_service_provider',
+      name: 'app-saml',
+      id: 'app-name',
+    },
+    {
+      kind: 'aws_ic_account_assignment',
+      name: 'account1',
+      id: 'admin-on-account1',
+    },
   ],
   clearAttempt: () => null,
   onClose: () => null,
@@ -211,8 +256,12 @@ const props: RequestCheckoutProps = {
   setSelectedResourceRequestRoles: () => null,
   fetchStatus: 'loaded',
   maxDuration: { value: 0, label: '12 hours' },
-  setMaxDuration: () => null,
-  requestTTL: { value: 0, label: '1 hour' },
-  setRequestTTL: () => null,
+  onMaxDurationChange: () => null,
+  maxDurationOptions: [],
+  pendingRequestTtl: { value: 0, label: '1 hour' },
+  setPendingRequestTtl: () => null,
+  pendingRequestTtlOptions: [],
   dryRunResponse,
+  startTime: null,
+  onStartTimeChange: () => null,
 };

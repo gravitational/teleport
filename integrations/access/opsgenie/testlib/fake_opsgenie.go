@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/opsgenie"
@@ -314,7 +313,7 @@ func (s *FakeOpsgenie) GetSchedule(scheduleName string) ([]opsgenie.Responder, b
 
 func panicIf(err error) {
 	if err != nil {
-		log.Panicf("%v at %v", err, string(debug.Stack()))
+		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
 	}
 }
 

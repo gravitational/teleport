@@ -30,28 +30,50 @@ import (
 	"cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*spanner.Client, error) {
+// SpannerTestClient wraps a [spanner.Client] and provides direct access to the
+// underlying [grpc.ClientConn] of the client.
+type SpannerTestClient struct {
+	ClientConn *grpc.ClientConn
+	*spanner.Client
+}
+
+// WaitForConnectionState waits until the spanner client's underlying gRPC
+// connection transitions into the given state or the context expires.
+func (c *SpannerTestClient) WaitForConnectionState(ctx context.Context, wantState connectivity.State) error {
+	for {
+		s := c.ClientConn.GetState()
+		if s == wantState {
+			return nil
+		}
+		if s == connectivity.Shutdown {
+			return trace.Errorf("spanner test client connection has shutdown")
+		}
+		if !c.ClientConn.WaitForStateChange(ctx, s) {
+			return ctx.Err()
+		}
+	}
+}
+
+func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*SpannerTestClient, error) {
 	return makeTestClient(ctx, config, false)
 }
 
-func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS bool) (*spanner.Client, error) {
+func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS bool) (*SpannerTestClient, error) {
 	databaseID, err := getDatabaseID(ctx, config.RouteToDatabase, config.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,25 +90,29 @@ func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS 
 		transportOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 
+	cc, err := grpc.NewClient(config.Address, transportOpt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	opts := []option.ClientOption{
-		// dial with custom transport security
-		option.WithGRPCDialOption(transportOpt),
-		// create 1 connection
-		option.WithGRPCConnectionPool(1),
-		// connect to the Teleport endpoint
-		option.WithEndpoint(config.Address),
+		option.WithGRPCConn(cc),
 		// client should not bring any GCP credentials
 		option.WithoutAuthentication(),
 	}
 
 	clientCfg := spanner.ClientConfig{
-		SessionPoolConfig: spanner.DefaultSessionPoolConfig,
+		DisableNativeMetrics: true,
+		SessionPoolConfig:    spanner.DefaultSessionPoolConfig,
 	}
 	clt, err := spanner.NewClientWithConfig(ctx, databaseID, clientCfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return clt, nil
+	return &SpannerTestClient{
+		ClientConn: cc,
+		Client:     clt,
+	}, nil
 }
 
 func getDatabaseID(ctx context.Context, route tlsca.RouteToDatabase, getter services.DatabaseServersGetter) (string, error) {
@@ -133,7 +159,6 @@ type TestServer struct {
 	srv      *grpc.Server
 	listener net.Listener
 	port     string
-	log      logrus.FieldLogger
 	spannerpb.UnimplementedSpannerServer
 }
 
@@ -154,11 +179,6 @@ func NewTestServer(config common.TestServerConfig) (tsrv *TestServer, err error)
 		return nil, trace.Wrap(err)
 	}
 
-	logger := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: defaults.ProtocolSpanner,
-		"name":                config.Name,
-	})
-
 	checker := credentialChecker{expectToken: "Bearer " + config.AuthToken}
 	testServer := &TestServer{
 		srv: grpc.NewServer(
@@ -168,7 +188,6 @@ func NewTestServer(config common.TestServerConfig) (tsrv *TestServer, err error)
 		),
 		listener: config.Listener,
 		port:     port,
-		log:      logger,
 	}
 	spannerpb.RegisterSpannerServer(testServer.srv, testServer)
 

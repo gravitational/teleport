@@ -16,32 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
-import api from 'teleport/services/api';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { userEventService } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
+import { resourceSpecAwsRdsAuroraMysql } from 'teleport/Discover/Fixtures/databases';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import { DiscoverContextState } from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import api from 'teleport/services/api';
 import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
-import {
-  IamPolicyStatus,
   CreateDatabaseRequest,
+  IamPolicyStatus,
 } from 'teleport/services/databases';
+import { userEventService } from 'teleport/services/userEvent';
 
 import {
-  useCreateDatabase,
   findActiveDatabaseSvc,
+  useCreateDatabase,
   WAITING_TIMEOUT,
 } from './useCreateDatabase';
 
@@ -249,6 +240,7 @@ const newDatabaseReq: CreateDatabaseRequest = {
 };
 
 jest.useFakeTimers();
+const defaultIsCloud = cfg.isCloud;
 
 describe('registering new databases, mainly error checking', () => {
   const discoverCtx: DiscoverContextState = {
@@ -257,12 +249,7 @@ describe('registering new databases, mainly error checking', () => {
     nextStep: jest.fn(x => x),
     prevStep: () => null,
     onSelectResource: () => null,
-    resourceSpec: {
-      dbMeta: {
-        location: DatabaseLocation.Aws,
-        engine: DatabaseEngine.AuroraMysql,
-      },
-    } as any,
+    resourceSpec: resourceSpecAwsRdsAuroraMysql,
     exitFlow: () => null,
     viewConfig: null,
     indexedViews: [],
@@ -277,6 +264,7 @@ describe('registering new databases, mainly error checking', () => {
   let wrapper;
 
   beforeEach(() => {
+    cfg.isCloud = true;
     jest.spyOn(api, 'get').mockResolvedValue([]); // required for fetchClusterAlerts
 
     jest
@@ -296,23 +284,19 @@ describe('registering new databases, mainly error checking', () => {
       .mockResolvedValue({ services });
 
     wrapper = ({ children }) => (
-      <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: 'database' } },
-        ]}
+      <RequiredDiscoverProviders
+        agentMeta={discoverCtx.agentMeta}
+        resourceSpec={discoverCtx.resourceSpec}
+        discoverCtx={discoverCtx}
+        teleportCtx={teleCtx}
       >
-        <ContextProvider ctx={teleCtx}>
-          <FeaturesContextProvider value={[]}>
-            <DiscoverProvider mockCtx={discoverCtx}>
-              {children}
-            </DiscoverProvider>
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </MemoryRouter>
+        {children}
+      </RequiredDiscoverProviders>
     );
   });
 
   afterEach(() => {
+    cfg.isCloud = defaultIsCloud;
     jest.clearAllMocks();
   });
 
@@ -344,6 +328,9 @@ describe('registering new databases, mainly error checking', () => {
     // of steps to skip.
     result.current.nextStep();
     expect(discoverCtx.nextStep).toHaveBeenCalledWith(2);
+    cfg.isCloud = false;
+    result.current.nextStep();
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith(3);
   });
 
   test('continue polling when poll result returns with iamPolicyStatus field set to "pending"', async () => {
@@ -393,12 +380,15 @@ describe('registering new databases, mainly error checking', () => {
         name: 'new-db',
         aws: { iamPolicyStatus: IamPolicyStatus.Success },
       },
-      serviceDeployedMethod: 'skipped',
+      serviceDeploy: { method: 'skipped' },
     });
 
     result.current.nextStep();
     // Skips both deploy service AND IAM policy step.
     expect(discoverCtx.nextStep).toHaveBeenCalledWith(3);
+    cfg.isCloud = false;
+    result.current.nextStep();
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith(4);
   });
 
   test('stops polling when poll result returns with iamPolicyStatus field set to "unspecified"', async () => {
@@ -467,6 +457,9 @@ describe('registering new databases, mainly error checking', () => {
     // number of steps to skip defined.
     result.current.nextStep();
     expect(discoverCtx.nextStep).toHaveBeenCalledWith();
+    cfg.isCloud = false;
+    result.current.nextStep();
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith(2);
   });
 
   test('when failed to create db, stops flow', async () => {

@@ -19,22 +19,22 @@
 package peer
 
 import (
-	"net"
+	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // proxyService implements the grpc ProxyService.
 type proxyService struct {
-	clusterDialer ClusterDialer
-	log           logrus.FieldLogger
+	dialer peerdial.Dialer
+	log    *slog.Logger
 }
 
 // DialNode opens a bidirectional stream to the requested node.
@@ -54,12 +54,12 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.BadParameter("invalid dial request: source and destination must not be nil")
 	}
 
-	log := s.log.WithFields(logrus.Fields{
-		"node": dial.NodeID,
-		"src":  dial.Source.Addr,
-		"dst":  dial.Destination.Addr,
-	})
-	log.Debugf("Dial request from peer.")
+	log := s.log.With(
+		"node", dial.NodeID,
+		"src", dial.Source.Addr,
+		"dst", dial.Destination.Addr,
+	)
+	log.DebugContext(stream.Context(), "dial request from peer")
 
 	_, clusterName, err := splitServerID(dial.NodeID)
 	if err != nil {
@@ -75,7 +75,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		AddrNetwork: dial.Destination.Network,
 	}
 
-	nodeConn, err := s.clusterDialer.Dial(clusterName, DialParams{
+	nodeConn, err := s.dialer.Dial(clusterName, peerdial.DialParams{
 		From:     source,
 		To:       destination,
 		ServerID: dial.NodeID,
@@ -103,8 +103,12 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 
 	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
 	sent, received := streamConn.Stat()
-	log.Debugf("Closing dial request from peer. sent: %d received %d", sent, received)
+	log.DebugContext(stream.Context(), "closing dial request from peer", "sent", sent, "received", received)
 	return trace.Wrap(err)
+}
+
+func (s *proxyService) Ping(ctx context.Context, _ *proto.ProxyServicePingRequest) (*proto.ProxyServicePingResponse, error) {
+	return new(proto.ProxyServicePingResponse), nil
 }
 
 // splitServerID splits a server id in to a node id and cluster name.
@@ -115,16 +119,4 @@ func splitServerID(address string) (string, string, error) {
 	}
 
 	return split[0], strings.Join(split[1:], "."), nil
-}
-
-// ClusterDialer dials a node in the given cluster.
-type ClusterDialer interface {
-	Dial(clusterName string, request DialParams) (net.Conn, error)
-}
-
-type DialParams struct {
-	From     *utils.NetAddr
-	To       *utils.NetAddr
-	ServerID string
-	ConnType types.TunnelType
 }

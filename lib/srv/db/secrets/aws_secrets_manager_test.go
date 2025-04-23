@@ -23,16 +23,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 )
 
 func TestAWSSecretsManager(t *testing.T) {
 	createFunc := func(_ context.Context) (Secrets, error) {
 		secrets, err := NewAWSSecretsManager(AWSSecretsManagerConfig{
-			Client: NewMockSecretsManagerClient(MockSecretsManagerClientConfig{}),
+			Client:      mocks.NewSecretsManagerClient(mocks.SecretsManagerClientConfig{}),
+			ClusterName: "example.teleport.sh",
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -68,33 +71,35 @@ func TestAWSSecretsManager(t *testing.T) {
 		t.Cleanup(cancel)
 
 		// Create secret for the first time with default KMS.
-		client := NewMockSecretsManagerClient(MockSecretsManagerClientConfig{})
+		client := mocks.NewSecretsManagerClient(mocks.SecretsManagerClientConfig{})
 		secrets, err := NewAWSSecretsManager(AWSSecretsManagerConfig{
-			Client: client,
+			Client:      client,
+			ClusterName: "example.teleport.sh",
 		})
 		require.NoError(t, err)
 		require.NoError(t, secrets.CreateOrUpdate(ctx, "key", "value"))
 
-		output1, err := client.DescribeSecretWithContext(ctx, &secretsmanager.DescribeSecretInput{
+		output1, err := client.DescribeSecret(ctx, &secretsmanager.DescribeSecretInput{
 			SecretId: aws.String("teleport/key"),
 		})
 		require.NoError(t, err)
-		require.Equal(t, "arn:aws:kms:us-east-1:123456789012:alias/aws/secretsmanager", aws.StringValue(output1.KmsKeyId))
+		require.Equal(t, "arn:aws:kms:us-east-1:123456789012:alias/aws/secretsmanager", aws.ToString(output1.KmsKeyId))
 
 		// Create secret for the second time with custom KMS. Create returns
 		// IsAlreadyExists but KMSKeyID should be updated.
 		secrets, err = NewAWSSecretsManager(AWSSecretsManagerConfig{
-			Client:   client,
-			KMSKeyID: "customKMS",
+			Client:      client,
+			KMSKeyID:    "customKMS",
+			ClusterName: "example.teleport.sh",
 		})
 		require.NoError(t, err)
 		require.True(t, trace.IsAlreadyExists(secrets.CreateOrUpdate(ctx, "key", "value")))
 
-		output2, err := client.DescribeSecretWithContext(ctx, &secretsmanager.DescribeSecretInput{
+		output2, err := client.DescribeSecret(ctx, &secretsmanager.DescribeSecretInput{
 			SecretId: aws.String("teleport/key"),
 		})
 		require.NoError(t, err)
-		require.Equal(t, "customKMS", aws.StringValue(output2.KmsKeyId))
+		require.Equal(t, "customKMS", aws.ToString(output2.KmsKeyId))
 
 		// Verify the versions are kept.
 		require.Equal(t, output1.VersionIdsToStages, output2.VersionIdsToStages)

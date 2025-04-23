@@ -22,7 +22,7 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -55,7 +56,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	pass := mfa.Password
 
 	ctx := context.Background()
-	req := CreateUserTokenRequest{
+	req := authclient.CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	}
@@ -101,43 +102,43 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 
 	type testCase struct {
 		desc string
-		req  CreateUserTokenRequest
+		req  authclient.CreateUserTokenRequest
 	}
 
 	testCases := []testCase{
 		{
 			desc: "Reset Password: TTL < 0",
-			req: CreateUserTokenRequest{
+			req: authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  -1,
 			},
 		},
 		{
 			desc: "Reset Password: TTL > max",
-			req: CreateUserTokenRequest{
+			req: authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxChangePasswordTokenTTL + time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: empty user name",
-			req: CreateUserTokenRequest{
+			req: authclient.CreateUserTokenRequest{
 				TTL: time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: user does not exist",
-			req: CreateUserTokenRequest{
+			req: authclient.CreateUserTokenRequest{
 				Name: "doesnotexist@example.com",
 				TTL:  time.Hour,
 			},
 		},
 		{
 			desc: "Invite: TTL > max",
-			req: CreateUserTokenRequest{
+			req: authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxSignupTokenTTL + time.Hour,
-				Type: UserTokenTypeResetPasswordInvite,
+				Type: authclient.UserTokenTypeResetPasswordInvite,
 			},
 		},
 	}
@@ -233,7 +234,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 
 	ctx := context.Background()
 
-	req := CreateUserTokenRequest{
+	req := authclient.CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	}
@@ -265,10 +266,10 @@ func TestUserTokenCreationSettings(t *testing.T) {
 	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
-	req := CreateUserTokenRequest{
+	req := authclient.CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
-		Type: UserTokenTypeResetPasswordInvite,
+		Type: authclient.UserTokenTypeResetPasswordInvite,
 	}
 
 	token, err := srv.Auth().newUserToken(req)
@@ -283,7 +284,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	fakeClock := srv.Clock().(clockwork.FakeClock)
+	fakeClock := srv.Clock().(*clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 	ctx := context.Background()
@@ -315,14 +316,14 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	}{
 		{
 			name:      "privilege exception token",
-			tokenType: UserTokenTypePrivilegeException,
+			tokenType: authclient.UserTokenTypePrivilegeException,
 			getReq: func() *proto.CreatePrivilegeTokenRequest {
 				return &proto.CreatePrivilegeTokenRequest{}
 			},
 		},
 		{
 			name:      "privilege token",
-			tokenType: UserTokenTypePrivilege,
+			tokenType: authclient.UserTokenTypePrivilege,
 			getReq: func() *proto.CreatePrivilegeTokenRequest {
 				// Upsert a TOTP device to authn with.
 				otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))

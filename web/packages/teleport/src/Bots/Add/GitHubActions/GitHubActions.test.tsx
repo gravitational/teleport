@@ -16,20 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-
 import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
-
 import * as botService from 'teleport/services/bot/bot';
-
 import TeleportContext from 'teleport/teleportContext';
 
-import { GitHubFlowProvider } from './useGitHubFlow';
 import { GitHubActions } from './GitHubActions';
+import { GitHubFlowProvider } from './useGitHubFlow';
 
 const tokenName = 'generated-test-token';
 const authVersion = 'v15.0.0';
@@ -69,6 +66,11 @@ describe('gitHub component', () => {
     jest.spyOn(ctx.joinTokenService, 'fetchJoinToken').mockResolvedValue({
       id: tokenName,
       expiry: new Date('2020-01-01'),
+      safeName: '',
+      isStatic: false,
+      method: 'kubernetes',
+      roles: [],
+      content: '',
     });
     jest.spyOn(botService, 'createBot').mockResolvedValue();
     jest.spyOn(botService, 'createBotToken').mockResolvedValue({
@@ -113,6 +115,8 @@ describe('gitHub component', () => {
     // step 1: Configure Bot Access
     const botNameInput = screen.getByPlaceholderText('github-actions-cd');
     await userEvent.type(botNameInput, 'bot-name');
+    const sshUserInput = screen.getByPlaceholderText('ubuntu');
+    await userEvent.type(sshUserInput, 'ssh-user');
     await userEvent.click(screen.getByTestId('button-next'));
     // step 2: Connect GitHub
     expect(

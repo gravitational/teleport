@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type { StoryObj } from '@storybook/react';
+import { delay } from 'msw';
+
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import { errorDeleteUser, handleDeleteUser } from 'teleport/test/helpers/users';
 
 import { UserDelete } from './UserDelete';
 
@@ -24,21 +28,49 @@ export default {
   title: 'Teleport/Users/UserDelete',
 };
 
-export const Processing = () => {
-  return <UserDelete {...props} attempt={{ status: 'processing' }} />;
+export const Processing: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [handleDeleteUser(() => delay('infinite'))],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <UserDelete {...props} />
+      </TeleportProviderBasic>
+    );
+  },
 };
 
-export const Confirm = () => {
-  return <UserDelete {...props} attempt={{ status: '' }} />;
+export const Confirm: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [handleDeleteUser(() => delay('infinite'))],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <UserDelete {...props} />
+      </TeleportProviderBasic>
+    );
+  },
 };
 
-export const Failed = () => {
-  return (
-    <UserDelete
-      {...props}
-      attempt={{ status: 'failed', statusText: 'server error' }}
-    />
-  );
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [errorDeleteUser('server error')],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <UserDelete {...props} />
+      </TeleportProviderBasic>
+    );
+  },
 };
 
 const props = {

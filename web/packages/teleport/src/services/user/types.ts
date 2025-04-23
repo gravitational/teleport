@@ -17,6 +17,7 @@
  */
 
 import { Cluster } from 'teleport/services/clusters';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export type AuthType = 'local' | 'sso' | 'passwordless';
 
@@ -28,6 +29,7 @@ export interface AccessStrategy {
 export interface AccessCapabilities {
   requestableRoles: string[];
   suggestedReviewers: string[];
+  requireReason: boolean;
 }
 
 export interface UserContext {
@@ -71,6 +73,7 @@ export interface AccessWithUse extends Access {
 
 export interface Acl {
   directorySharingEnabled: boolean;
+  reviewRequests: boolean;
   desktopSessionRecordingEnabled: boolean;
   clipboardSharingEnabled: boolean;
   authConnectors: Access;
@@ -92,11 +95,11 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
+  discoverConfigs: Access;
   plugins: Access;
   integrations: AccessWithUse;
   deviceTrust: Access;
   lock: Access;
-  assist: Access;
   samlIdpServiceProvider: Access;
   accessList: Access;
   auditQuery: Access;
@@ -105,10 +108,16 @@ export interface Acl {
   accessGraph: Access;
   bots: Access;
   accessMonitoringRule: Access;
+  contacts: Access;
+  fileTransferAccess: boolean;
+  gitServers: Access;
+  accessGraphSettings: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
 export type AllUserTraits = Record<string, string[]>;
+
+export type UserOrigin = 'okta' | 'saml' | 'scim';
 
 export interface User {
   // name is the teleport username.
@@ -118,15 +127,26 @@ export interface User {
   // authType describes how the user authenticated
   // e.g. locally or with a SSO provider.
   authType?: string;
+  // What kind of upstream IdP has the user come from?
+  origin?: UserOrigin;
   // isLocal is true if json.authType was 'local'.
   isLocal?: boolean;
-  // traits existed before field "externalTraits"
-  // and returns only "specific" traits.
+  // isBot is true if the user is a Bot User.
+  isBot?: boolean;
+  // traits are preset traits defined in Teleport, such as
+  // logins, db_role etc. These traits are defiend in UserTraits interface.
   traits?: UserTraits;
-  // externalTraits came after field "traits"
-  // and contains ALL the traits defined for
-  // this user.
+  // allTraits contains both preset traits, as well as externalTraits
+  // such as those created by external IdP attributes to roles mapping
+  // or new values as set by Teleport admin.
   allTraits?: AllUserTraits;
+}
+
+// Backend does not allow User fields "traits" and "allTraits"
+// both to be specified in the same request when creating or updating a user.
+export enum ExcludeUserField {
+  Traits = 'traits',
+  AllTraits = 'allTraits',
 }
 
 // UserTraits contain fields that define traits for local accounts.
@@ -171,3 +191,14 @@ export type OnboardDiscover = {
   // discover page.
   hasVisited?: boolean;
 };
+
+export interface CreateUserVariables {
+  user: User;
+  excludeUserField: ExcludeUserField;
+  mfaResponse?: MfaChallengeResponse;
+}
+
+export interface UpdateUserVariables {
+  user: User;
+  excludeUserField: ExcludeUserField;
+}

@@ -20,6 +20,9 @@ export const AWS_IAM_ARN_DEFAULT_PARTITION = 'arn:aws:iam::';
 export const AWS_IAM_ARN_CHINA_PARTITION = 'arn:aws-cn:iam::';
 export const AWS_IAM_ARN_USGOV_PARTITION = 'arn:aws-us-gov:iam::';
 
+export const IAM_ROLE_ARN_REGEX =
+  /^arn:(aws|aws-cn|aws-us-gov):iam::\d{12}:role\/[\w+=,.@-]+$/;
+
 /**
  * @returns
  *   - awsAccountId: the 12 digit aws account Id

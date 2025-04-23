@@ -21,6 +21,7 @@ package azure
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -40,6 +41,27 @@ type credentialProvider interface {
 	MakeCredential(ctx context.Context, userRequestedIdentity string) (azcore.TokenCredential, error)
 	// MapScope maps the input scope if necessary.
 	MapScope(scope string) string
+}
+
+func lazyGetAccessTokenFromDefaultCredentialProvider(logger *slog.Logger) getAccessTokenFunc {
+	var initOnce sync.Once
+	var initError error
+	var next getAccessTokenFunc
+	return func(ctx context.Context, userRequestedIdentity string, scope string) (*azcore.AccessToken, error) {
+		initOnce.Do(func() {
+			// This function shouldn't fail. Checking error just in case.
+			credProvider, err := findDefaultCredentialProvider(ctx, logger)
+			if err != nil {
+				initError = err
+				return
+			}
+			next = getAccessTokenFromCredentialProvider(credProvider)
+		})
+		if initError != nil {
+			return nil, trace.Wrap(initError)
+		}
+		return next(ctx, userRequestedIdentity, scope)
+	}
 }
 
 func getAccessTokenFromCredentialProvider(credProvider credentialProvider) getAccessTokenFunc {
@@ -67,11 +89,12 @@ func findDefaultCredentialProvider(ctx context.Context, logger *slog.Logger) (cr
 	defaultWorkloadIdentity, err := azidentity.NewWorkloadIdentityCredential(nil)
 	if err != nil {
 		// If no workload identity is found, fall back to regular managed identity.
-		logger.With("error", err).InfoContext(ctx, "Failed to load workload identity. Using managed identity.")
+		logger.DebugContext(ctx, "Failed to load azure workload identity.", "error", err)
+		logger.InfoContext(ctx, "Using azure managed identity.")
 		return managedIdentityCredentialProvider{}, nil
 	}
 
-	logger.InfoContext(ctx, "Using workload identity.")
+	logger.InfoContext(ctx, "Using azure workload identity.")
 	credProvider, err := newWorloadIdentityCredentialProvider(ctx, defaultWorkloadIdentity)
 	return credProvider, trace.Wrap(err)
 }

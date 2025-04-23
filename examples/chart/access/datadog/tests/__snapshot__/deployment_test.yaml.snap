@@ -1,0 +1,71 @@
+should match the snapshot:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-datadog
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-datadog-18.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-datadog
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-plugin-datadog
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: teleport-plugin-datadog
+            app.kubernetes.io/version: 18.0.0-dev
+            helm.sh/chart: teleport-plugin-datadog-18.0.0-dev
+        spec:
+          containers:
+          - command:
+            - /usr/local/bin/teleport-plugin
+            - start
+            - --config
+            - /etc/teleport-datadog.toml
+            env:
+            - name: TELEPORT_PLUGIN_FAIL_FAST
+              value: "true"
+            image: gcr.io/overridden/repository:v98.76.54
+            imagePullPolicy: IfNotPresent
+            name: teleport-plugin-datadog
+            resources: {}
+            securityContext: {}
+            volumeMounts:
+            - mountPath: /etc/teleport-datadog.toml
+              name: config
+              subPath: teleport-datadog.toml
+            - mountPath: /var/lib/teleport/plugins/datadog/teleport-identity
+              name: teleport-identity
+            - mountPath: /var/lib/teleport/plugins/datadog/datadog-api-key
+              name: password-file-api-key
+              subPath: datadogApiKey
+            - mountPath: /var/lib/teleport/plugins/datadog/datadog-application-key
+              name: password-file-application-key
+              subPath: datadogApplicationKey
+          securityContext: {}
+          volumes:
+          - configMap:
+              defaultMode: 384
+              name: RELEASE-NAME-teleport-plugin-datadog
+            name: config
+          - name: teleport-identity
+            secret:
+              defaultMode: 384
+              secretName: ""
+          - name: password-file-api-key
+            secret:
+              defaultMode: 384
+              secretName: RELEASE-NAME-teleport-plugin-datadog-api-key
+          - name: password-file-application-key
+            secret:
+              defaultMode: 384
+              secretName: RELEASE-NAME-teleport-plugin-datadog-application-key

@@ -73,6 +73,10 @@ message AWSResource {
     AWSEKSAssociatedAccessPolicyV1 eks_cluster_associated_policy = 17;
     // rds is an AWS RDS database.
     AWSRDSDatabaseV1 rds = 18;
+    // saml_provider is an AWS IAM SAML Identity Provider
+    AWSSAMLProviderV1 saml_provider = 19;
+    // oidc_provider is an AWS IAM OpenID Connect Identity Provider
+    AWSOIDCProviderV1 oidc_provider = 20;
   }
 }
 
@@ -88,6 +92,8 @@ message AWSUserInlinePolicyV1 {
   string account_id = 4;
   // user is the user who the policy is attached to.
   AWSUserV1 user = 5;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 6;
 }
 
 // AWSPolicyV1 is an AWS policy.
@@ -117,6 +123,8 @@ message AWSPolicyV1 {
   string policy_name = 11;
   // policy_document is the JSON document that defines the policy.
   bytes policy_document = 12;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 13;
 }
 
 // AWSGroupV1 is a group of AWS users.
@@ -133,6 +141,8 @@ message AWSGroupV1 {
   string path = 5;
   // account_id is the ID of the AWS account that the group belongs to.
   string account_id = 6;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 7;
 }
 
 // AWSUserGroupsV1 is a list of AWS groups that an AWS user belongs to.
@@ -141,6 +151,8 @@ message AWSUserGroupsV1 {
   AWSUserV1 user = 1;
   // groups is the list of AWS groups that the user belongs to.
   repeated AWSGroupV1 groups = 2;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 3;
 }
 
 // AWSUserV1 is an AWS user.
@@ -163,6 +175,8 @@ message AWSUserV1 {
   repeated AWSTag tags = 8;
   // account_id is the ID of the AWS account that the user belongs to.
   string account_id = 9;
+  // last_sync_time is the time when the user was last synced.
+  google.protobuf.Timestamp last_sync_time = 10;
 }
 
 // AWSTag is a tag that is attached to an AWS resource.
@@ -211,6 +225,8 @@ message AWSInstanceV1 {
   // launch_key_name is the name of the key pair that is used to launch the
   // instance.
   google.protobuf.StringValue launch_key_name = 8;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AWSUserAttachedPolicies is a list of AWS policies that are attached to an
@@ -222,6 +238,8 @@ message AWSUserAttachedPolicies {
   repeated AttachedPolicyV1 policies = 2;
   // account_id is the ID of the AWS account that the user belongs to.
   string account_id = 3;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AttachedPolicyV1 is a AWS policy identifier.
@@ -241,6 +259,8 @@ message AWSGroupAttachedPolicies {
   repeated AttachedPolicyV1 policies = 2;
   // account_id is the ID of the AWS account that the group belongs to.
   string account_id = 3;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 4;
 }
 
 // AWSGroupInlinePolicyV1 is a policy that is inlined to an AWS Group.
@@ -253,6 +273,8 @@ message AWSGroupInlinePolicyV1 {
   bytes policy_document = 3;
   // account_id is the ID of the AWS account that the group belongs to.
   string account_id = 4;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 5;
 }
 
 // AWSS3BucketV1 is an AWS S3 bucket.
@@ -267,6 +289,10 @@ message AWSS3BucketV1 {
   bool is_public = 4;
   // acl is the ACL of the S3 bucket.
   repeated AWSS3BucketACL acls = 5;
+  // tags is the list of tags that are attached to the S3 bucket.
+  repeated AWSTag tags = 6;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 7;
 }
 
 // AWSS3BucketACL is the ACL of an AWS S3 bucket.
@@ -318,6 +344,8 @@ message AWSRoleV1 {
   RoleLastUsedV1 role_last_used = 11;
   // account_id is the ID of the AWS account that the role belongs to.
   string account_id = 12;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 13;
 }
 
 // RolePermissionsBoundaryV1 is the permissions boundary of a role.
@@ -358,6 +386,8 @@ message AWSRoleInlinePolicyV1 {
   string account_id = 4;
   // aws_role is the role name of the AWS role that the policy is attached to.
   AWSRoleV1 aws_role = 5;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 6;
 }
 
 // AWSRoleAttachedPolicies is a list of AWS policies that are attached to an
@@ -371,6 +401,8 @@ message AWSRoleAttachedPolicies {
   string account_id = 3;
   // aws_role is the AWS role.
   AWSRoleV1 aws_role = 4;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 5;
 }
 
 // AWSInstanceProfileV1 is an AWS instance profile.
@@ -392,6 +424,8 @@ message AWSInstanceProfileV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 8;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AWSEKSClusterV1 represents an AWS EKS cluster.
@@ -413,6 +447,8 @@ message AWSEKSClusterV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 8;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AWSEKSClusterAccessEntriesV1 represents an EKS cluster Access Entry.
@@ -438,6 +474,8 @@ message AWSEKSClusterAccessEntryV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 10;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 11;
 }
 
 // AWSEKSAssociatedAccessPolicyV1 identifies an access policy association.
@@ -458,6 +496,8 @@ message AWSEKSAssociatedAccessPolicyV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 7;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 8;
 }
 
 //AWSEKSAccessScope identifies the scope to which the AssociatedAccessPolicy applies.
@@ -491,6 +531,8 @@ message AWSRDSDatabaseV1 {
   string account_id = 9;
   // resource_id is the RDS unique resource id.
   string resource_id = 10;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 11;
 }
 
 // AWSRDSEngineV1 defines the database engine details
@@ -499,4 +541,46 @@ message AWSRDSEngineV1 {
   string engine = 1;
   // version holds the version information.
   string version = 2;
+}
+
+// AWSSAMLProviderV1 defines the SAML identity provider details.
+message AWSSAMLProviderV1 {
+  // arn is the provider ARN.
+  string arn = 1;
+  // created_at is the time when the SAML provider was created.
+  google.protobuf.Timestamp created_at = 2;
+  // valid_until is the expiration date and time for the SAML provider.
+  google.protobuf.Timestamp valid_until = 3;
+  // tags is the list of tags that are attached to the SAML provider.
+  repeated AWSTag tags = 4;
+  // account_id is the ID of the AWS account that the provider belongs to.
+  string account_id = 5;
+  // entity_id is the SAML entity ID for this provider.
+  string entity_id = 6;
+  // sso_urls is a list of single sign-on service URLs for this identity provider.
+  repeated string sso_urls = 7;
+  // signing_certificates is a list of signing certificates for this identity provider.
+  repeated string signing_certificates = 8;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 9;
+}
+
+// AWSOIDCProviderV1 defines the OIDC identity provider details.
+message AWSOIDCProviderV1 {
+  // arn is the provider ARN.
+  string arn = 1;
+  // created_at is the time when the OIDC provider was created.
+  google.protobuf.Timestamp created_at = 2;
+  // tags is the list of tags that are attached to the SAML provider.
+  repeated AWSTag tags = 3;
+  // account_id is the ID of the AWS account that the provider belongs to.
+  string account_id = 4;
+  // client_ids is a list of client IDs (audiences) associated with this OIDC provider.
+  repeated string client_ids = 5;
+  // thumbprints is a list of certificate thumbprints for this OIDC provider.
+  repeated string thumbprints = 6;
+  // url is the URL for this OIDC provider.
+  string url = 7;
+  // last_sync_time is the time when the resource was last synced.
+  google.protobuf.Timestamp last_sync_time = 8;
 }

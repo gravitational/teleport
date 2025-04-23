@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function ListThin({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const ListThin = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-listthin"
       {...otherProps}
+      ref={ref}
     >
       <path d="M5.0625 6C5.0625 6.51777 4.64277 6.9375 4.125 6.9375C3.60723 6.9375 3.1875 6.51777 3.1875 6C3.1875 5.48223 3.60723 5.0625 4.125 5.0625C4.64277 5.0625 5.0625 5.48223 5.0625 6Z" />
       <path d="M8.25 5.25C7.83579 5.25 7.5 5.58579 7.5 6C7.5 6.41421 7.83579 6.75 8.25 6.75H20.25C20.6642 6.75 21 6.41421 21 6C21 5.58579 20.6642 5.25 20.25 5.25H8.25Z" />
@@ -65,5 +66,5 @@ export function ListThin({ size = 24, color, ...otherProps }: IconProps) {
       <path d="M4.125 18.9375C4.64277 18.9375 5.0625 18.5178 5.0625 18C5.0625 17.4822 4.64277 17.0625 4.125 17.0625C3.60723 17.0625 3.1875 17.4822 3.1875 18C3.1875 18.5178 3.60723 18.9375 4.125 18.9375Z" />
       <path d="M5.0625 12C5.0625 12.5178 4.64277 12.9375 4.125 12.9375C3.60723 12.9375 3.1875 12.5178 3.1875 12C3.1875 11.4822 3.60723 11.0625 4.125 11.0625C4.64277 11.0625 5.0625 11.4822 5.0625 12Z" />
     </Icon>
-  );
-}
+  )
+);

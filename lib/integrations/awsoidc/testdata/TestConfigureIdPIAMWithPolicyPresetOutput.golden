@@ -1,0 +1,101 @@
+"awsoidc-idp" will perform the following actions:
+
+1. Create an OpenID Connect identity provider in AWS IAM for your Teleport cluster.
+CreateOpenIDConnectProvider: {
+    "Url": "https://example.com",
+    "ClientIDList": [
+        "discover.teleport"
+    ],
+    "Tags": [
+        {
+            "Key": "teleport.dev/cluster",
+            "Value": "mycluster"
+        },
+        {
+            "Key": "teleport.dev/integration",
+            "Value": "myintegration"
+        },
+        {
+            "Key": "teleport.dev/origin",
+            "Value": "integration_awsoidc"
+        }
+    ],
+    "ThumbprintList": [
+        "15dbd260c7465ecca6de2c0b2181187f66ee0d1a"
+    ]
+}
+
+2. Create IAM role "integrationrole" with a custom trust policy.
+CreateRole: {
+    "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Principal": {
+                    "Federated": "arn:aws:iam::123456789012:oidc-provider/example.com"
+                },
+                "Condition": {
+                    "StringEquals": {
+                        "example.com:aud": "discover.teleport"
+                    }
+                }
+            }
+        ]
+    },
+    "RoleName": "integrationrole",
+    "Description": "Used by Teleport to provide access to AWS resources.",
+    "MaxSessionDuration": null,
+    "Path": null,
+    "PermissionsBoundary": null,
+    "Tags": [
+        {
+            "Key": "teleport.dev/cluster",
+            "Value": "mycluster"
+        },
+        {
+            "Key": "teleport.dev/integration",
+            "Value": "myintegration"
+        },
+        {
+            "Key": "teleport.dev/origin",
+            "Value": "integration_awsoidc"
+        }
+    ]
+}
+
+3. Assign IAM role "integrationrole" with an inline policy "TeleportAWSIdentityCenterIntegration".
+AssignPolicy: {
+    "PolicyDocument": {
+        "Effect": "Allow",
+        "Action": [
+            "organizations:ListAccounts",
+            "organizations:ListAccountsForParent",
+            "identitystore:ListUsers",
+            "identitystore:ListGroups",
+            "identitystore:ListGroupMemberships",
+            "sso:DescribeInstance",
+            "sso:DescribePermissionSet",
+            "sso:ListPermissionSets",
+            "sso:ListAccountAssignmentsForPrincipal",
+            "sso:ListPermissionSetsProvisionedToAccount",
+            "sso:CreateAccountAssignment",
+            "sso:DescribeAccountAssignmentCreationStatus",
+            "sso:DeleteAccountAssignment",
+            "sso:DescribeAccountAssignmentDeletionStatus",
+            "iam:AttachRolePolicy",
+            "iam:CreateRole",
+            "iam:GetRole",
+            "iam:ListAttachedRolePolicies",
+            "iam:ListRolePolicies",
+            "iam:GetSAMLProvider",
+            "iam:ListRoles"
+        ],
+        "Resource": "*",
+        "Sid": "TeleportIdentityCenterClient"
+    },
+    "PolicyName": "TeleportAWSIdentityCenterIntegration",
+    "RoleName": "integrationrole"
+}
+

@@ -1,3 +1,0 @@
-#!/bin/bash
-
-/usr/local/bin/tctl --auth-server=proxy.luna.teleport:3025 -i /mnt/shared/certs/editor.pem "$@"

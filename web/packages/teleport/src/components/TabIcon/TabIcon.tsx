@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ReactNode } from 'react';
 import styled from 'styled-components';
-import { Text } from 'design';
+
+import { H3 } from 'design';
 
 export default function TabIcon({ Icon, ...props }: Props) {
   return (
     <StyledTab
       ml="4"
-      typography="h5"
       key={props.title}
       active={props.active}
       onClick={props.onClick}
@@ -39,10 +39,10 @@ type Props = {
   active: boolean;
   onClick(): void;
   title: string;
-  Icon: (any) => JSX.Element;
+  Icon: (any) => ReactNode;
 };
 
-const StyledTab = styled(Text)`
+const StyledTab = styled(H3)<{ active?: boolean }>`
   align-items: center;
   display: flex;
   padding: 4px 8px;
@@ -54,9 +54,7 @@ const StyledTab = styled(Text)`
   }
 
   ${({ active, theme }) =>
-    active &&
-    `
-    font-weight: 500;
-    border-bottom: 4px solid ${theme.colors.brand};
-  `}
+    active
+      ? `border-bottom: 4px solid ${theme.colors.brand};`
+      : `font-weight: 400;`}
 `;

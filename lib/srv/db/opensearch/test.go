@@ -21,6 +21,7 @@ package opensearch
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -28,11 +29,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/opensearch-project/opensearch-go/v2"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // TestServerOption allows setting test server options.
@@ -43,7 +45,7 @@ type TestServer struct {
 	listener  net.Listener
 	port      string
 	tlsConfig *tls.Config
-	log       logrus.FieldLogger
+	log       *slog.Logger
 }
 
 // NewTestServer returns a new instance of a test OpenSearch server.
@@ -70,10 +72,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener:  config.Listener,
 		port:      port,
 		tlsConfig: tlsConfig,
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: defaults.ProtocolOpenSearch,
-			"name":                config.Name,
-		}),
+		log: utils.NewSlogLoggerForTests().With(
+			teleport.ComponentKey, defaults.ProtocolOpenSearch,
+			"name", config.Name,
+		),
 	}
 
 	for _, opt := range opts {
@@ -94,7 +96,7 @@ func (s *TestServer) Serve() error {
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		s.log.Debugf("URL", r.URL)
+		s.log.DebugContext(r.Context(), "Handling request", "url", logutils.StringerAttr(r.URL))
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Length", strconv.Itoa(len(testQueryResponse)))
 		w.Write([]byte(testQueryResponse))

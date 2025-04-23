@@ -9,9 +9,6 @@ docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
 ## Building and packaging
 
-**Note: At the moment, the OSS build of Connect is broken. Please refer to
-[#17706](https://github.com/gravitational/teleport/issues/17706) for a temporary workaround.**
-
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
 
 To get started, first we need to build `tsh`.
@@ -28,8 +25,8 @@ Next, we're going to build the Electron app.
 
 ```bash
 cd teleport
-yarn install
-yarn build-term && CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn package-term
+pnpm install
+pnpm build-term && CONNECT_TSH_BIN_PATH=$PWD/build/tsh pnpm package-term
 ```
 
 The resulting package can be found at `web/packages/teleterm/build/release`.
@@ -41,23 +38,33 @@ process](#build-process) section.
 
 ```sh
 cd teleport
-yarn install && make build/tsh
+pnpm install && make build/tsh
 ```
 
 To launch `teleterm` in development mode:
 
 ```sh
 cd teleport
-yarn start-term
-
 # By default, the dev version assumes that the tsh binary is at build/tsh.
-# You can provide a different absolute path to a tsh binary though the CONNECT_TSH_BIN_PATH env var.
-CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn start-term
+pnpm start-term
+
+# You can provide a different absolute path to the tsh binary though the CONNECT_TSH_BIN_PATH env var.
+CONNECT_TSH_BIN_PATH=$PWD/build/tsh pnpm start-term
 ```
 
-For a quick restart which restarts the Electron app and the tsh daemon, press `F6` while the
-Electron window is open. If you recompiled tsh, this is going to pick up any new changes as well as
-any changes introduced to the main process of the Electron app.
+To automatically restart the app when tsh gets rebuilt or
+[when the main process or preload scripts change](https://electron-vite.org/guide/hot-reloading),
+use [watchexec](https://github.com/watchexec/watchexec):
+
+```sh
+watchexec --restart --watch build --filter tsh --no-project-ignore -- pnpm start-term -w
+```
+
+This can be combined with a tool like [gow](https://github.com/mitranim/gow) to automatically rebuild tsh:
+
+```sh
+gow -s -S '✅\n' -g make build/tsh
+```
 
 ### Development-only tools
 
@@ -92,7 +99,7 @@ Resulting files can be found in `sharedProcess/api/protogen`.
 
 ## Build process
 
-`yarn package-term` is responsible for packaging the app code for distribution.
+`pnpm package-term` is responsible for packaging the app code for distribution.
 
 On all platforms, with the exception of production builds on macOS, the `CONNECT_TSH_BIN_PATH` env
 var is used to provide the path to the tsh binary that will be included in the package.
@@ -118,7 +125,7 @@ To make a fully-fledged build on macOS with Touch ID support, you need two thing
 - a signed version of tsh.app
 - an Apple Developer ID certificate in your Keychain
 
-When running `yarn package-term`, you need to provide these environment variables:
+When running `pnpm package-term`, you need to provide these environment variables:
 
 - `APPLE_USERNAME`
 - `APPLE_PASSWORD`
@@ -127,6 +134,14 @@ When running `yarn package-term`, you need to provide these environment variable
 - `TEAMID`
 
 The details behind those vars are described below.
+
+### Windows
+
+Packaging Connect on Windows requires wintun.dll, which VNet uses to create a
+virtual network interface.
+A zip file containing the DLL can be downloaded from https://www.wintun.net/builds/wintun-0.14.1.zip
+Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
+with the `CONNECT_WINTUN_DLL_PATH` environment variable.
 
 #### tsh.app
 
@@ -241,4 +256,76 @@ resource availability as possible.
 
 ### PTY communication overview (Renderer Process <=> Shared Process)
 
-![PTY communication](docs/ptyCommunication.png)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DT as Document Terminal
+    participant PS as PTY Service
+    participant PHS as PTY Host Service
+    participant PP as PTY Process
+
+    DT->>PS: wants new PTY
+    Note over PS,PHS: gRPC communication
+    PS->>PHS: createPtyProcess(options)
+    PHS->>PP: new PtyProcess()
+    PHS-->>PS: ptyId of the process is returned
+    PS->>PHS: establishExchangeEvents(ptyId) channel
+    Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
+    PS-->>DT: pty process object
+    DT->>PS: start()
+    PS->>PHS: exchangeEvents.start()
+    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
+    PHS->>PP: start()
+    PP-->>PHS: onOpen()
+    PHS-->>PS: exchangeEvents.onOpen()
+    PS-->>DT: onOpen()
+    DT->>PS: dispose()
+    PS->>PHS: end exchangeEvents channel
+    PHS->>PP: dispose process and remove it
+
+```
+
+### Overview of a deep link launch process
+
+The diagram below illustrates the process of launching a deep link,
+depending on the state of the workspaces.
+It assumes that the app is not running and that the deep link targets a workspace
+different from the persisted one.
+
+<details>
+<summary>Diagram</summary>
+
+```mermaid
+flowchart TD
+Start([Start]) --> IsPreviousWorkspaceConnected{Is the previously active workspace connected?}
+IsPreviousWorkspaceConnected --> |Valid certificate| PreviousWorkspaceReopenDocuments{Has documents to reopen from the previous workspace?}
+IsPreviousWorkspaceConnected --> |Expired certificate| CancelPreviousWorkspaceLogin[Cancel the login dialog]
+IsPreviousWorkspaceConnected --> |No persisted workspace| SwitchWorkspace
+
+    PreviousWorkspaceReopenDocuments --> |Yes| CancelPreviousWorkspaceDocumentsReopen[Cancel the reopen dialog without discarding documents]
+    PreviousWorkspaceReopenDocuments --> |No| SwitchWorkspace[Switch to a deep link workspace]
+
+    CancelPreviousWorkspaceDocumentsReopen --> SwitchWorkspace
+    CancelPreviousWorkspaceLogin --> SwitchWorkspace
+
+    SwitchWorkspace --> IsDeepLinkWorkspaceConnected{Is the deep link workspace connected?}
+    IsDeepLinkWorkspaceConnected --> |Valid certificate| DeepLinkWorkspaceReopenDocuments{Has documents to reopen from the deep link workspace?}
+    IsDeepLinkWorkspaceConnected --> |Not added| AddDeepLinkCluster[Add new cluster]
+    IsDeepLinkWorkspaceConnected --> |Expired certificate| LogInToDeepLinkWorkspace[Log in to workspace]
+
+    AddDeepLinkCluster --> AddDeepLinkClusterSuccess{Was the cluster added successfully?}
+    AddDeepLinkClusterSuccess --> |Yes| LogInToDeepLinkWorkspace
+    AddDeepLinkClusterSuccess --> |No| ReturnToPreviousWorkspace[Return to the previously active workspace and try to reopen its documents again]
+
+    LogInToDeepLinkWorkspace --> IsLoginToDeepLinkWorkspaceSuccess{Was login successful?}
+    IsLoginToDeepLinkWorkspaceSuccess --> |Yes| DeepLinkWorkspaceReopenDocuments
+    IsLoginToDeepLinkWorkspaceSuccess --> |No| ReturnToPreviousWorkspace
+
+    DeepLinkWorkspaceReopenDocuments --> |Yes| ReopenDeepLinkWorkspaceDocuments[Reopen documents]
+    DeepLinkWorkspaceReopenDocuments --> |No| End
+
+    ReopenDeepLinkWorkspaceDocuments --> End
+    ReturnToPreviousWorkspace --> End
+```
+
+</details>

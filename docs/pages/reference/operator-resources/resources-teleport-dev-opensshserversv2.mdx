@@ -1,0 +1,84 @@
+---
+title: TeleportOpenSSHServerV2
+description: Provides a comprehensive list of fields in the TeleportOpenSSHServerV2 resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportOpenSSHServerV2`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|OpenSSHServer resource definition v2 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|addr|string|Addr is a host:port address where this server can be reached.|
+|cloud_metadata|[object](#speccloud_metadata)|CloudMetadata contains info about the cloud instance the server is running on, if any.|
+|github|[object](#specgithub)|GitHub contains info about GitHub proxies where each server represents a GitHub organization.|
+|hostname|string|Hostname is server hostname|
+|peer_addr|string|PeerAddr is the address a proxy server is reachable at by its peer proxies.|
+|proxy_ids|[]string|ProxyIDs is a list of proxy IDs this server is expected to be connected to.|
+|public_addrs|[]string|PublicAddrs is a list of public addresses where this server can be reached.|
+|rotation|[object](#specrotation)|Rotation specifies server rotation|
+|use_tunnel|boolean|UseTunnel indicates that connections to this server should occur over a reverse tunnel.|
+|version|string|TeleportVersion is the teleport version that the server is running on|
+
+### spec.cloud_metadata
+
+|Field|Type|Description|
+|---|---|---|
+|aws|[object](#speccloud_metadataaws)|AWSInfo contains attributes to match to an EC2 instance.|
+
+### spec.cloud_metadata.aws
+
+|Field|Type|Description|
+|---|---|---|
+|account_id|string|AccountID is an AWS account ID.|
+|instance_id|string|InstanceID is an EC2 instance ID.|
+|integration|string|Integration is the integration name that added this Node. When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection. This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.|
+|region|string|Region is the AWS EC2 Instance Region.|
+|subnet_id|string|SubnetID is the Subnet ID in use by the instance.|
+|vpc_id|string|VPCID is the AWS VPC ID where the Instance is running.|
+
+### spec.github
+
+|Field|Type|Description|
+|---|---|---|
+|integration|string|Integration is the integration that is associated with this Server.|
+|organization|string|Organization specifies the name of the organization for the GitHub integration.|
+
+### spec.rotation
+
+|Field|Type|Description|
+|---|---|---|
+|current_id|string|CurrentID is the ID of the rotation operation to differentiate between rotation attempts.|
+|grace_period|string|GracePeriod is a period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.|
+|last_rotated|string|LastRotated specifies the last time of the completed rotation.|
+|mode|string|Mode sets manual or automatic rotation mode.|
+|phase|string|Phase is the current rotation phase.|
+|schedule|[object](#specrotationschedule)|Schedule is a rotation schedule - used in automatic mode to switch between phases.|
+|started|string|Started is set to the time when rotation has been started in case if the state of the rotation is "in_progress".|
+|state|string|State could be one of "init" or "in_progress".|
+
+### spec.rotation.schedule
+
+|Field|Type|Description|
+|---|---|---|
+|standby|string|Standby specifies time to switch to the "Standby" phase.|
+|update_clients|string|UpdateClients specifies time to switch to the "Update clients" phase|
+|update_servers|string|UpdateServers specifies time to switch to the "Update servers" phase.|
+

@@ -17,30 +17,37 @@
  */
 
 import React from 'react';
+
 import { Flex, Text } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 
 import {
-  kubeAccessRW,
-  kubeAccessRO,
-  nodeAccessRO,
-  nodeAccessRW,
+  awsAppAccessRO,
+  awsAppAccessRW,
   connDiagRW,
   dbAccessRO,
   dbAccessRW,
+  kubeAccessRO,
+  kubeAccessRW,
+  nodeAccessRO,
+  nodeAccessRW,
 } from '../../yamlTemplates';
 
 export function AccessInfo({ accessKind, traitKind, traitDesc }: Props) {
+  let accessDesc = `${traitKind} ${traitDesc}`;
+  if (traitKind === 'ARN') {
+    accessDesc = `AWS Role ${traitKind}s`;
+  }
   switch (accessKind) {
     case 'ssoUserAndNoTraits':
       return (
         <>
           <Info>
-            You don’t have any {traitKind} {traitDesc} defined and SSO users are
-            not able to add access.
+            You don’t have any {accessDesc} defined and SSO users are not able
+            to add access.
             <br />
             Please ask your Teleport administrator to update your role and add
-            the required {traitKind} {traitDesc}.
+            the required {accessDesc}.
           </Info>
           <YamlReader traitKind={traitKind} userAccessReadOnly={true} />
         </>
@@ -49,7 +56,7 @@ export function AccessInfo({ accessKind, traitKind, traitDesc }: Props) {
       return (
         <>
           <Info>
-            You don’t have {traitKind} access.
+            You don't have permission to setup {accessDesc}
             <br />
             Please ask your Teleport administrator to update your role:
           </Info>
@@ -60,10 +67,10 @@ export function AccessInfo({ accessKind, traitKind, traitDesc }: Props) {
       return (
         <>
           <Info>
-            You don't have permission to add new {traitKind} {traitDesc}.
+            You don't have permission to add new {accessDesc}.
             <br />
-            If you don't see the {traitKind} {traitDesc} that you require,
-            please ask your Teleport administrator to update your role:
+            If you don't see the {accessDesc} that you require, please ask your
+            Teleport administrator to update your role:
           </Info>
           <YamlReader traitKind={traitKind} />
         </>
@@ -72,10 +79,10 @@ export function AccessInfo({ accessKind, traitKind, traitDesc }: Props) {
       return (
         <>
           <Info>
-            SSO users are not able to add new {traitKind} {traitDesc}.
+            SSO users are not able to add new {accessDesc}.
             <br />
-            If you don't see the {traitKind} {traitDesc} that you require,
-            please ask your Teleport administrator to update your role:
+            If you don't see the {accessDesc} that you require, please ask your
+            Teleport administrator to update your role:
           </Info>
           <YamlReader traitKind={traitKind} userAccessReadOnly={true} />
         </>
@@ -136,13 +143,24 @@ export function YamlReader({
           <ReadOnlyYamlEditor content={connDiagRW} />
         </Flex>
       );
+    case 'ARN':
+      if (userAccessReadOnly) {
+        return (
+          <Flex minHeight="210px" mt={3}>
+            <ReadOnlyYamlEditor content={awsAppAccessRO} />
+          </Flex>
+        );
+      }
+      return (
+        <Flex minHeight="310px" mt={3}>
+          <ReadOnlyYamlEditor content={awsAppAccessRW} />
+        </Flex>
+      );
   }
 }
 
 const Info = ({ children }: { children: React.ReactNode }) => (
-  <Text mt={4} width="100px">
-    {children}
-  </Text>
+  <Text mt={4}>{children}</Text>
 );
 
 const ReadOnlyYamlEditor = ({ content }: { content: string }) => {
@@ -161,7 +179,7 @@ type AccessKind =
   | 'ssoUserAndNoTraits'
   | 'ssoUserButHasTraits';
 
-export type TraitKind = 'Kubernetes' | 'OS' | 'ConnDiag' | 'Database';
+export type TraitKind = 'Kubernetes' | 'OS' | 'ConnDiag' | 'Database' | 'ARN';
 
 type Props = {
   accessKind: AccessKind;

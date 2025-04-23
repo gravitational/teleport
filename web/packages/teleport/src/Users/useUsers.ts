@@ -16,20 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactElement, useEffect, useState } from 'react';
-import { useAttempt } from 'shared/hooks';
+import { ReactElement, useState } from 'react';
 
+import cfg from 'teleport/config';
+import { storageService } from 'teleport/services/storageService';
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
-import auth from 'teleport/services/auth/auth';
 
 export default function useUsers({
   InviteCollaborators,
   EmailPasswordReset,
 }: UsersContainerProps) {
   const ctx = useTeleport();
-  const [attempt, attemptActions] = useAttempt({ isProcessing: true });
-  const [users, setUsers] = useState([] as User[]);
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
@@ -69,38 +67,7 @@ export default function useUsers({
     return ctx.userService.createResetPasswordToken(name, 'password');
   }
 
-  function onDelete(name: string) {
-    return ctx.userService.deleteUser(name).then(() => {
-      const updatedUsers = users.filter(user => user.name !== name);
-      setUsers(updatedUsers);
-    });
-  }
-
-  function onUpdate(u: User) {
-    return ctx.userService.updateUser(u).then(result => {
-      setUsers([result, ...users.filter(i => i.name !== u.name)]);
-    });
-  }
-
-  async function onCreate(u: User) {
-    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
-    return ctx.userService
-      .createUser(u, webauthnResponse)
-      .then(result => setUsers([result, ...users]))
-      .then(() =>
-        ctx.userService.createResetPasswordToken(
-          u.name,
-          'invite',
-          webauthnResponse
-        )
-      );
-  }
-
-  function onInviteCollaboratorsClose(newUsers?: User[]) {
-    if (newUsers && newUsers.length > 0) {
-      setUsers([...newUsers, ...users]);
-    }
-
+  function onInviteCollaboratorsClose() {
     setInviteCollaboratorsOpen(false);
     setOperation({ type: 'none' });
   }
@@ -109,22 +76,21 @@ export default function useUsers({
     setOperation({ type: 'none' });
   }
 
-  async function fetchRoles(search: string): Promise<string[]> {
-    const { items } = await ctx.resourceService.fetchRoles({
-      search,
-      limit: 50,
-    });
-    return items.map(r => r.name);
+  function onDismissUsersMauNotice() {
+    storageService.setUsersMAUAcknowledged();
   }
 
-  useEffect(() => {
-    attemptActions.do(() => ctx.userService.fetchUsers().then(setUsers));
-  }, []);
+  // if the cluster has billing enabled, and usageBasedBilling, and they haven't acknowledged
+  // the info yet
+  const showMauInfo =
+    ctx.getFeatureFlags().billing &&
+    cfg.isUsageBasedBilling &&
+    !storageService.getUsersMauAcknowledged();
+
+  const usersAcl = ctx.storeUser.getUserAccess();
 
   return {
-    attempt,
-    users,
-    fetchRoles,
+    usersAcl,
     operation,
     onStartCreate,
     onStartDelete,
@@ -132,15 +98,14 @@ export default function useUsers({
     onStartReset,
     onStartInviteCollaborators,
     onClose,
-    onDelete,
-    onCreate,
-    onUpdate,
     onReset,
     onInviteCollaboratorsClose,
     InviteCollaborators,
     inviteCollaboratorsOpen,
     onEmailPasswordResetClose,
     EmailPasswordReset,
+    showMauInfo,
+    onDismissUsersMauNotice,
   };
 }
 

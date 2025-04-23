@@ -16,27 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import { Cross } from 'design/Icon';
+import { P } from 'design/Text/Text';
 import { pluralize } from 'shared/utils/text';
 
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
-interface DocumentsReopenProps {
+export function DocumentsReopen(props: {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
-  onCancel(): void;
+  onDiscard(): void;
   onConfirm(): void;
-}
-
-export function DocumentsReopen(props: DocumentsReopenProps) {
+  hidden?: boolean;
+}) {
   const { rootClusterUri } = props;
   const { clustersService } = useAppContext();
   // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
@@ -47,8 +46,9 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
 
   return (
     <DialogConfirmation
-      open={true}
-      onClose={props.onCancel}
+      open={!props.hidden}
+      keepInDOMAfterClose
+      onClose={props.onDiscard}
       dialogCss={() => ({
         maxWidth: '400px',
         width: '100%',
@@ -65,23 +65,21 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
           mb={0}
           alignItems="baseline"
         >
-          <Text typography="h4" bold>
-            Reopen previous session
-          </Text>
+          <H2 mb={4}>Reopen previous session</H2>
           <ButtonIcon
             type="button"
-            onClick={props.onCancel}
+            onClick={props.onDiscard}
+            title="Close"
             color="text.slightlyMuted"
           >
             <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text typography="body1" color="text.slightlyMuted">
+          <P color="text.slightlyMuted">
             Do you want to reopen tabs from the previous session?
-          </Text>
-          <Text
-            typography="body1"
+          </P>
+          <P
             color="text.slightlyMuted"
             // Split long continuous cluster names into separate lines.
             css={`
@@ -100,14 +98,14 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
               {pluralize(props.numberOfDocuments, 'tab')}
             </strong>{' '}
             open in <strong>{clusterName}</strong>.
-          </Text>
+          </P>
         </DialogContent>
         <DialogFooter>
           <ButtonPrimary autoFocus mr={3} type="submit">
             Reopen
           </ButtonPrimary>
-          <ButtonSecondary type="button" onClick={props.onCancel}>
-            Start new session
+          <ButtonSecondary type="button" onClick={props.onDiscard}>
+            Start New Session
           </ButtonSecondary>
         </DialogFooter>
       </form>

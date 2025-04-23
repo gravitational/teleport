@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 func TestMain(m *testing.M) {
@@ -39,7 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestLite(t *testing.T) {
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		clock := clockwork.NewFakeClock()
 
 		cfg, err := test.ApplyOptions(options)

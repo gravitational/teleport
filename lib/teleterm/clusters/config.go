@@ -19,11 +19,13 @@
 package clusters
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -35,11 +37,16 @@ type Config struct {
 	Clock clockwork.Clock
 	// InsecureSkipVerify is an option to skip TLS cert check
 	InsecureSkipVerify bool
-	// Log is a component logger
-	Log *logrus.Entry
+	// Logger is a component logger
+	Logger *slog.Logger
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to wancli.Login.
 	WebauthnLogin client.WebauthnLoginFunc
+	// AddKeysToAgent is passed to [client.Config].
+	AddKeysToAgent string
+	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for a hardware key PIN, touch, etc.
+	CustomHardwareKeyPrompt hardwarekey.Prompt
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
@@ -52,8 +59,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "conn:storage")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "conn:storage")
+	}
+
+	if c.AddKeysToAgent == "" {
+		c.AddKeysToAgent = client.AddKeysToAgentAuto
 	}
 
 	return nil

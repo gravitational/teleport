@@ -1,0 +1,62 @@
+---
+title: TeleportUser
+description: Provides a comprehensive list of fields in the TeleportUser resource available through the Teleport Kubernetes operator
+tocDepth: 3
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+This guide is a comprehensive reference to the fields in the `TeleportUser`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v2
+
+**apiVersion:** resources.teleport.dev/v2
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|User resource definition v2 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|github_identities|[][object](#specgithub_identities-items)|GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity|
+|oidc_identities|[][object](#specoidc_identities-items)|OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity|
+|roles|[]string|Roles is a list of roles assigned to user|
+|saml_identities|[][object](#specsaml_identities-items)|SAMLIdentities lists associated SAML identities that let user log in using externally verified identity|
+|traits|object|Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.|
+|trusted_device_ids|[]string|TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.  Note that SSO users are transient and thus may contain an empty TrustedDeviceIDs field, even though the user->device association exists under the Device Trust subsystem. Do not rely on this field to determine device associations or ownership, it exists for legacy/informative purposes only.  Managed by the Device Trust subsystem, avoid manual edits.|
+
+### spec.github_identities items
+
+|Field|Type|Description|
+|---|---|---|
+|connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
+|samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
+|user_id|string|UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.|
+|username|string|Username is username supplied by external identity provider|
+
+### spec.oidc_identities items
+
+|Field|Type|Description|
+|---|---|---|
+|connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
+|samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
+|user_id|string|UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.|
+|username|string|Username is username supplied by external identity provider|
+
+### spec.saml_identities items
+
+|Field|Type|Description|
+|---|---|---|
+|connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
+|samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
+|user_id|string|UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.|
+|username|string|Username is username supplied by external identity provider|
+

@@ -20,22 +20,28 @@ package db
 
 import (
 	"context"
+	"crypto/tls"
+	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -71,22 +77,37 @@ func TestAuthTokens(t *testing.T) {
 	for _, withDB := range withDBs {
 		databases = append(databases, withDB(t, ctx, testCtx))
 	}
-	ecMock := &mocks.ElastiCacheMock{}
-	elastiCacheIAMUser := &elasticache.User{
+	ecMock := &mocks.ElastiCacheClient{}
+	elastiCacheIAMUser := ectypes.User{
 		UserId:         aws.String("default"),
-		Authentication: &elasticache.Authentication{Type: aws.String("iam")},
+		Authentication: &ectypes.Authentication{Type: ectypes.AuthenticationTypeIam},
 	}
 	ecMock.AddMockUser(elastiCacheIAMUser, nil)
-	memorydbMock := &mocks.MemoryDBMock{}
-	memorydbIAMUser := &memorydb.User{
+
+	memorydbMock := &mocks.MemoryDBClient{}
+	memorydbIAMUser := memorydbtypes.User{
 		Name:           aws.String("default"),
-		Authentication: &memorydb.Authentication{Type: aws.String("iam")},
+		Authentication: &memorydbtypes.Authentication{Type: memorydbtypes.AuthenticationTypeIam},
 	}
 	memorydbMock.AddMockUser(memorydbIAMUser, nil)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
-		Databases:   databases,
-		ElastiCache: ecMock,
-		MemoryDB:    memorydbMock,
+		Databases: databases,
+		GetEngineFn: func(db types.Database, conf common.EngineConfig) (common.Engine, error) {
+			if db.GetProtocol() != defaults.ProtocolRedis {
+				return common.GetEngine(db, conf)
+			}
+			if err := conf.CheckAndSetDefaults(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			conf.AWSConfigProvider = &mocks.AWSConfigProvider{}
+			return &redis.Engine{
+				EngineConfig: conf,
+				AWSClients: fakeRedisAWSClients{
+					ecClient:  ecMock,
+					mdbClient: memorydbMock,
+				},
+			}, nil
+		},
 	})
 	go testCtx.startHandlingConnections()
 
@@ -261,9 +282,9 @@ func TestAuthTokens(t *testing.T) {
 type testAuth struct {
 	// Auth is the wrapped "real" auth that handles everything except for
 	// cloud auth tokens generation.
-	common.Auth
-	// FieldLogger is used for logging.
-	logrus.FieldLogger
+	realAuth common.Auth
+	// Logger is used for logging.
+	*slog.Logger
 }
 
 func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
@@ -272,10 +293,12 @@ func newTestAuth(ac common.AuthConfig) (*testAuth, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &testAuth{
-		Auth:        auth,
-		FieldLogger: logrus.WithField(teleport.ComponentKey, "auth:test"),
+		realAuth: auth,
+		Logger:   slog.With(teleport.ComponentKey, "auth:test"),
 	}, nil
 }
+
+var _ common.Auth = (*testAuth)(nil)
 
 const (
 	// rdsAuthToken is a mock RDS IAM auth token.
@@ -307,81 +330,109 @@ const (
 )
 
 type fakeTokenSource struct {
-	logrus.FieldLogger
+	*slog.Logger
 
 	token string
 	exp   time.Time
 }
 
 func (f *fakeTokenSource) Token() (*oauth2.Token, error) {
-	f.Infof("Generating Cloud Spanner auth token source")
+	f.InfoContext(context.Background(), "Generating Cloud Spanner auth token source")
 	return &oauth2.Token{
 		Expiry:      f.exp,
 		AccessToken: f.token,
 	}, nil
 }
 
-// GetRDSAuthToken generates RDS/Aurora auth token.
-func (a *testAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating RDS auth token for %v.", sessionCtx)
+func (a *testAuth) GetRDSAuthToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
+	a.InfoContext(ctx, "Generating RDS auth token.",
+		"database", database,
+		"database_user", databaseUser,
+	)
 	return rdsAuthToken, nil
 }
 
-// GetRedshiftAuthToken generates Redshift auth token.
-func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
-	a.Infof("Generating Redshift auth token for %v.", sessionCtx)
+func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, string, error) {
+	a.InfoContext(ctx, "Generating Redshift auth token",
+		"database", database,
+		"database_user", databaseUser,
+		"database_name", databaseName,
+	)
 	return redshiftAuthUser, redshiftAuthToken, nil
 }
 
-func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
+func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, string, error) {
 	return "", "", trace.NotImplemented("GetRedshiftServerlessAuthToken is not implemented")
 }
 
-func (a *testAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetElastiCacheRedisToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	return elastiCacheRedisToken, nil
 }
 
-func (a *testAuth) GetMemoryDBToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetMemoryDBToken(ctx context.Context, database types.Database, databaseUser string) (string, error) {
 	return memorydbToken, nil
 }
 
-// GetCloudSQLAuthToken generates Cloud SQL auth token.
-func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Cloud SQL auth token for %v.", sessionCtx)
+func (a *testAuth) GetCloudSQLAuthToken(ctx context.Context, databaseUser string) (string, error) {
+	a.InfoContext(ctx, "Generating Cloud SQL auth token", "database_user", databaseUser)
 	return cloudSQLAuthToken, nil
 }
 
-// GetSpannerTokenSource returns an oauth token source for GCP Spanner.
-func (a *testAuth) GetSpannerTokenSource(ctx context.Context, sessionCtx *common.Session) (oauth2.TokenSource, error) {
+func (a *testAuth) GetSpannerTokenSource(ctx context.Context, databaseUser string) (oauth2.TokenSource, error) {
 	return &fakeTokenSource{
-		token:       cloudSpannerAuthToken,
-		FieldLogger: a.WithField("session", sessionCtx),
+		token:  cloudSpannerAuthToken,
+		Logger: a.Logger.With("database_user", databaseUser),
 	}, nil
 }
 
-// GetCloudSQLPassword generates Cloud SQL user password.
-func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Cloud SQL user password %v.", sessionCtx)
+func (a *testAuth) GetCloudSQLPassword(ctx context.Context, database types.Database, databaseUser string) (string, error) {
+	a.InfoContext(ctx, "Generating Cloud SQL password",
+		"database", database,
+		"database_user", databaseUser,
+	)
 	return cloudSQLPassword, nil
 }
 
-// GetAzureAccessToken generates Azure access token.
-func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Azure access token for %v.", sessionCtx)
+func (a *testAuth) GetAzureAccessToken(ctx context.Context) (string, error) {
+	a.InfoContext(ctx, "Generating Azure access token")
 	return azureAccessToken, nil
 }
 
-// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
-func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
+func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, database types.Database) (string, error) {
+	a.InfoContext(ctx, "Generating Azure Redis token", "database", database)
 	return azureRedisToken, nil
 }
 
-// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
-// access key and session token.
-func (a *testAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *common.Session) (string, string, string, error) {
-	a.Infof("Generating AWS IAM credentials for %v.", sessionCtx)
+func (a *testAuth) GetTLSConfig(ctx context.Context, expiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
+	return a.realAuth.GetTLSConfig(ctx, expiry, database, databaseUser)
+}
+
+func (a *testAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return a.realAuth.GetAuthPreference(ctx)
+}
+
+func (a *testAuth) GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error) {
+	return a.realAuth.GetAzureIdentityResourceID(ctx, identityName)
+}
+
+func (a *testAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, databaseUser string) (string, string, string, error) {
+	a.InfoContext(ctx, "Generating AWS IAM credentials",
+		"database", database,
+		"database_user", databaseUser,
+	)
 	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
+}
+
+func (a *testAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.PrivateKey, error) {
+	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
+	return key, trace.Wrap(err)
+}
+
+func (a *testAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
+	return &testAuth{
+		realAuth: a.realAuth,
+		Logger:   a.Logger,
+	}
 }
 
 func TestMongoDBAtlas(t *testing.T) {
@@ -434,4 +485,17 @@ func TestMongoDBAtlas(t *testing.T) {
 			}
 		})
 	}
+}
+
+type fakeRedisAWSClients struct {
+	mdbClient redis.MemoryDBClient
+	ecClient  redis.ElastiCacheClient
+}
+
+func (f fakeRedisAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) redis.ElastiCacheClient {
+	return f.ecClient
+}
+
+func (f fakeRedisAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) redis.MemoryDBClient {
+	return f.mdbClient
 }

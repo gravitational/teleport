@@ -16,11 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import makeGitServer from 'teleport/services/gitServers/makeGitServer';
+
 import { UnifiedResource, UnifiedResourceKind } from '../agents';
 import makeApp from '../apps/makeApps';
 import { makeDatabase } from '../databases/makeDatabase';
 import { makeDesktop } from '../desktops/makeDesktop';
-import makeKube from '../kube/makeKube';
+import { makeKube } from '../kube/makeKube';
 import makeNode from '../nodes/makeNode';
 
 export function makeUnifiedResource(json: any): UnifiedResource {
@@ -37,6 +39,8 @@ export function makeUnifiedResource(json: any): UnifiedResource {
       return makeNode(json);
     case 'windows_desktop':
       return makeDesktop(json);
+    case 'git_server':
+      return makeGitServer(json);
     default:
       throw new Error(`Unknown unified resource kind: "${json.kind}"`);
   }

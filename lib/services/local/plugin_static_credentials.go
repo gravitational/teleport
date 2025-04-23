@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,11 +40,11 @@ type PluginStaticCredentialsService struct {
 }
 
 // NewPluginStaticCredentialsService creates a new PluginStaticCredentialsService.
-func NewPluginStaticCredentialsService(backend backend.Backend) (*PluginStaticCredentialsService, error) {
+func NewPluginStaticCredentialsService(b backend.Backend) (*PluginStaticCredentialsService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.PluginStaticCredentials]{
-		Backend:       backend,
+		Backend:       b,
 		ResourceKind:  types.KindPluginStaticCredentials,
-		BackendPrefix: pluginStaticCredentialsPrefix,
+		BackendPrefix: backend.NewKey(pluginStaticCredentialsPrefix),
 		MarshalFunc:   services.MarshalPluginStaticCredentials,
 		UnmarshalFunc: services.UnmarshalPluginStaticCredentials,
 	})
@@ -68,6 +69,11 @@ func (p *PluginStaticCredentialsService) GetPluginStaticCredentials(ctx context.
 	return creds, trace.Wrap(err)
 }
 
+func (p *PluginStaticCredentialsService) UpdatePluginStaticCredentials(ctx context.Context, item types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	creds, err := p.svc.ConditionalUpdateResource(ctx, item)
+	return creds, trace.Wrap(err)
+}
+
 // GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 func (p *PluginStaticCredentialsService) GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error) {
 	creds, err := p.svc.GetResources(ctx)
@@ -89,4 +95,62 @@ func (p *PluginStaticCredentialsService) DeletePluginStaticCredentials(ctx conte
 	return trace.Wrap(p.svc.DeleteResource(ctx, name))
 }
 
+// GetAllPluginStaticCredentials will get all plugin static credentials. Cache
+// use only.
+func (p *PluginStaticCredentialsService) GetAllPluginStaticCredentials(ctx context.Context) ([]types.PluginStaticCredentials, error) {
+	creds, err := p.svc.GetResources(ctx)
+	return creds, trace.Wrap(err)
+}
+
+// DeleteAllPluginStaticCredentials will remove all plugin static credentials.
+// Cache use only.
+func (p *PluginStaticCredentialsService) DeleteAllPluginStaticCredentials(ctx context.Context) error {
+	return trace.Wrap(p.svc.DeleteAllResources(ctx))
+}
+
+// UpsertPluginStaticCredentials will upsert a plugin static credentials. Cache
+// use only.
+func (p *PluginStaticCredentialsService) UpsertPluginStaticCredentials(ctx context.Context, item types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	cred, err := p.svc.UpsertResource(ctx, item)
+	return cred, trace.Wrap(err)
+}
+
 var _ services.PluginStaticCredentials = (*PluginStaticCredentialsService)(nil)
+
+type pluginStaticCredentialsParser struct {
+	baseParser
+}
+
+func newPluginStaticCredentialsParser() *pluginStaticCredentialsParser {
+	return &pluginStaticCredentialsParser{
+		baseParser: newBaseParser(backend.NewKey(pluginStaticCredentialsPrefix)),
+	}
+}
+
+func (p *pluginStaticCredentialsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		parts := event.Item.Key.Components()
+		if len(parts) != 2 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindPluginStaticCredentials, event.Item.Key)
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindPluginStaticCredentials,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:        parts[1],
+				Namespace:   apidefaults.Namespace,
+				Description: parts[0],
+			},
+		}, nil
+
+	case types.OpPut:
+		return services.UnmarshalPluginStaticCredentials(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}

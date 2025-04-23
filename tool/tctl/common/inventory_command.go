@@ -31,10 +31,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // InventoryCommand implements the `tctl inventory` family of commands.
@@ -64,7 +66,7 @@ type InventoryCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	inventory := app.Command("inventory", "Manage Teleport instance inventory.").Hidden()
 
@@ -85,21 +87,29 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicec
 }
 
 // TryRun takes the CLI command as an argument (like "inventory status") and executes it.
-func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.inventoryStatus.FullCommand():
-		err = c.Status(ctx, client)
+		commandFunc = c.Status
 	case c.inventoryList.FullCommand():
-		err = c.List(ctx, client)
+		commandFunc = c.List
 	case c.inventoryPing.FullCommand():
-		err = c.Ping(ctx, client)
+		commandFunc = c.Ping
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
-func (c *InventoryCommand) Status(ctx context.Context, client *auth.Client) error {
+func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
 	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
 		Connected: c.getConnected,
 	})
@@ -174,15 +184,23 @@ func printHierarchicalData(data map[string]any, indent string, depth int) {
 	}
 }
 
-func (c *InventoryCommand) List(ctx context.Context, client *auth.Client) error {
+func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) error {
 	var services []types.SystemRole
 	var err error
+	var omitControlPlane bool
 	if c.services != "" {
 		services, err = types.ParseTeleportRoles(c.services)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	} else {
+		resp, err := client.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		omitControlPlane = resp.GetServerFeatures().GetCloud()
 	}
+
 	upgrader := c.upgrader
 	var noUpgrader bool
 	if upgrader == "none" {
@@ -205,6 +223,13 @@ func (c *InventoryCommand) List(ctx context.Context, client *auth.Client) error 
 		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version"})
 		for instances.Next() {
 			instance := instances.Item()
+
+			// The auth and proxy services should be omitted from the inventory list
+			// on Managed Teleport Enterprise (Cloud-Hosted) instances.
+			if omitControlPlane && (instance.HasService(types.RoleAuth) || instance.HasService(types.RoleProxy)) {
+				continue
+			}
+
 			services := make([]string, 0, len(instance.GetServices()))
 			for _, s := range instance.GetServices() {
 				services = append(services, string(s))
@@ -247,7 +272,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *auth.Client) error 
 	}
 }
 
-func (c *InventoryCommand) Ping(ctx context.Context, client *auth.Client) error {
+func (c *InventoryCommand) Ping(ctx context.Context, client *authclient.Client) error {
 	rsp, err := client.PingInventory(ctx, proto.InventoryPingRequest{
 		ServerID:   c.serverID,
 		ControlLog: c.controlLog,

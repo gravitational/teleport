@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
+import {
   createContext,
   PropsWithChildren,
   useContext,
-  useState,
   useEffect,
   useRef,
+  useState,
 } from 'react';
 
 interface LayoutContextValue {
@@ -39,6 +39,8 @@ export function LayoutContextProvider(props: PropsWithChildren<unknown>) {
   const containerRef = useRef<HTMLDivElement>();
 
   useEffect(() => {
+    // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
+    // useResizeObserver has a stable identity.
     const resizeObserver = new ResizeObserver(entries => {
       const container = entries[0];
       setCurrentWidth(container?.contentRect.width || 0);

@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -116,6 +117,7 @@ func (s *EventHandlerSuite) SetupTest() {
 			Concurrency:      5,
 			StartTime:        &startTime,
 			SkipSessionTypes: map[string]struct{}{"print": {}},
+			WindowSize:       time.Hour * 24,
 		},
 	}
 
@@ -126,10 +128,11 @@ func (s *EventHandlerSuite) SetupTest() {
 }
 
 func (s *EventHandlerSuite) startApp() {
+	s.T().Helper()
 	t := s.T()
 	t.Helper()
 
-	app, err := NewApp(&s.appConfig)
+	app, err := NewApp(&s.appConfig, slog.Default())
 	require.NoError(t, err)
 
 	integration.RunAndWaitReady(s.T(), app)

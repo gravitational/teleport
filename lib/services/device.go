@@ -19,11 +19,20 @@
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// DevicesGetter allows to list all registered devices from storage.
+type DevicesGetter interface {
+	ListDevices(ctx context.Context, pageSize int, pageToken string, view devicepb.DeviceView) (devices []*devicepb.Device, nextPageToken string, err error)
+}
 
 // UnmarshalDevice unmarshals a DeviceV1 resource and runs CheckAndSetDefaults.
 func UnmarshalDevice(raw []byte) (*types.DeviceV1, error) {
@@ -41,4 +50,31 @@ func MarshalDevice(dev *types.DeviceV1) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return devBytes, nil
+}
+
+var (
+	// unmarshalDeviceFromBackendItemConv is a convenience function that converts
+	// a backend.Item to a *devicepb.Device.
+	// It's populated when e/lib/devicetrust/storage/ is initialized.
+	unmarshalDeviceFromBackendItemConv func(item backend.Item) (*devicepb.Device, error)
+)
+
+// SetUnmarshalDeviceFromBackendItemConv allows to set a custom conversion function for
+// unmarshaling a [devicepb.Device] from a [backend.Item].
+// This function must be called in the init() function of the package that owns the conversion logic.
+// It's not safe to call this function concurrently.
+func SetUnmarshalDeviceFromBackendItemConv(conv func(item backend.Item) (*devicepb.Device, error)) {
+	unmarshalDeviceFromBackendItemConv = conv
+}
+
+// UnmarshalDeviceFromBackendItem unmarshals a devicepb.Device from a backend.Item.
+// It's a convenience function that uses UnmarshalDeviceFromBackendItemConv because
+// the storage package uses an internal representation of devicepb.Device when storing
+// it in the backend.
+func UnmarshalDeviceFromBackendItem(item backend.Item) (*devicepb.Device, error) {
+	if unmarshalDeviceFromBackendItemConv == nil {
+		return nil, trace.BadParameter("UnmarshalDeviceFromBackendItemConv is not set")
+	}
+	res, err := unmarshalDeviceFromBackendItemConv(item)
+	return res, trace.Wrap(err)
 }

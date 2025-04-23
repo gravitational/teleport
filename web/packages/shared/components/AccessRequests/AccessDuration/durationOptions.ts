@@ -17,15 +17,14 @@
  */
 
 import {
-  addHours,
   addDays,
-  isAfter,
+  addHours,
   addWeeks,
   differenceInHours,
+  isAfter,
 } from 'date-fns';
 
 import { Option } from 'shared/components/Select';
-
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { getFormattedDurationTxt } from '../Shared/utils';
@@ -61,9 +60,10 @@ function getMaxDurationOption(
  * start date/time.
  */
 export function getDurationOptionsFromStartTime(
-  start: Date,
+  startDate: Date | null,
   accessRequest: AccessRequest
 ): DurationOption[] {
+  const start = startDate || accessRequest.created;
   // The setSeconds(0,0) removes the seconds and milliseconds since
   // `startDateTime` is constructed without them. Makes comparing difference
   // in hours ignore the small time difference.

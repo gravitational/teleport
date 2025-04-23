@@ -1,31 +1,66 @@
-Okta API tokens inherit the permissions of the user who created them. These can
-be controlled by using [custom admin roles](https://help.okta.com/en-us/Content/Topics/Security/custom-admin-role/about-creating-custom-admin-roles.htm)
+Okta API tokens inherit the permissions of the user who created them. These permissions can be
+controlled by using [custom admin
+roles](https://help.okta.com/en-us/Content/Topics/Security/custom-admin-role/about-creating-custom-admin-roles.htm)
 and assigning them to a user who will then create the API token. We recommend
 creating a user dedicated to the Teleport Okta API service to manage this token.
 
-The permissions required are:
+### Custom role
 
-### User permissions
+The user should have a [custom admin
+role](https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-role.htm)
+assigned with those minimal permissions:
+
+**User permissions**
 
 - View users and their details
 - Edit users' group membership
 - Edit users' application assignments
 
-### Group permissions
+**Group permissions**
 
-- View groups and their details
-- Manage group membership
+- Manage groups
 
-### Application permissions
+**Application permissions**
 
 - Add and configure applications (only required for installation)
 - View applications and their details
 - Edit application's user assignments
 
-Additionally, the resource set associated with the target user must have
-unconstrained access to Users, Applications, and Groups.
+### Group Membership Admin role
 
-One caveat here is that it's impossible to assign API token creation permissions to a
-custom role. However, the Okta built in role "Group Membership Admin" has permissions
-to create an API token. See more information about built in roles
-[here](https://help.okta.com/en-us/Content/Topics/Security/administrators-admin-comparison.htm).
+The user should also have built-in ["Group Membership
+Admin"](https://help.okta.com/en-us/content/topics/security/administrators-admin-comparison.htm#APItokens)
+role assigned to be able to create the API token. **Once API token is created this role can be
+unassigned.**
+
+### Resource sets (optional)
+
+If it's desired to limit the Okta integration to a subset of Group and Application resources, [Okta
+resource
+sets](https://help.okta.com/en-us/content/topics/security/custom-admin-role/create-resource-set.htm)
+can be used.
+
+For the resource set to be effective **the user has to have "Group Membership Admin" role
+unassigned** and the resource set should be associated with the custom role created earlier.
+
+There is a set to rules that have to be followed when using Okta resource sets.
+
+**Application resources rules:**
+
+- During the integration enrolment "All applications" has to be selected. This is because Teleport
+  will try to create a new SAML application or validate the existing one.
+- After the integration enrolment is complete, resource set can be limited to a subset of
+  Applications, but **extra care has to be taken that "Teleport $cluster" application is included**
+  in the subset. Otherwise Teleport won't be able to synchronize users.
+
+**Groups resources rules:**
+
+- If a subset of groups is selected Teleport won't be able to assign ["Everyone" built-in
+  group](https://support.okta.com/help/s/article/The-Everyone-Group-in-Okta?language=en_US) to the
+  "Teleport $cluster" application. **In this case "Everyone" built-in group has to be manually
+  assigned to "Teleport $cluster" SAML application.** Otherwise Teleport won't be able to
+  synchronize users.
+
+**Users resource rules:**
+
+- Users resources must not be restricted by resource set. "All users" should be selected.

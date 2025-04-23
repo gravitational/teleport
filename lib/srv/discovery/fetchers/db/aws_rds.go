@@ -20,20 +20,29 @@ package db
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+// RDSClient is a subset of the AWS RDS API.
+type RDSClient interface {
+	rds.DescribeDBClustersAPIClient
+	rds.DescribeDBInstancesAPIClient
+	rds.DescribeDBProxiesAPIClient
+	rds.DescribeDBProxyEndpointsAPIClient
+	ListTagsForResource(context.Context, *rds.ListTagsForResourceInput, ...func(*rds.Options)) (*rds.ListTagsForResourceOutput, error)
+}
 
 // newRDSDBInstancesFetcher returns a new AWS fetcher for RDS databases.
 func newRDSDBInstancesFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
@@ -49,38 +58,43 @@ func (f *rdsDBInstancesPlugin) ComponentShortName() string {
 
 // GetDatabases returns a list of database resources representing RDS instances.
 func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
+		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	instances, err := getAllDBInstances(ctx, rdsClient, maxAWSPages, cfg.Log)
+	clt := cfg.awsClients.GetRDSClient(awsCfg)
+	instances, err := getAllDBInstances(ctx, clt, maxAWSPages, cfg.Logger)
 	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		return nil, trace.Wrap(err)
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
-		if !services.IsRDSInstanceSupported(instance) {
-			cfg.Log.Debugf("RDS instance %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
-				aws.StringValue(instance.DBInstanceIdentifier),
-				aws.StringValue(instance.Engine),
-				aws.StringValue(instance.EngineVersion))
+		if !libcloudaws.IsRDSInstanceSupported(&instance) {
+			cfg.Logger.DebugContext(ctx, "Skipping RDS instance that does not support IAM authentication",
+				"instance", aws.ToString(instance.DBInstanceIdentifier),
+				"engine_mode", aws.ToString(instance.Engine),
+				"engine_version", aws.ToString(instance.EngineVersion),
+			)
 			continue
 		}
 
-		if !services.IsRDSInstanceAvailable(instance.DBInstanceStatus, instance.DBInstanceIdentifier) {
-			cfg.Log.Debugf("The current status of RDS instance %q is %q. Skipping.",
-				aws.StringValue(instance.DBInstanceIdentifier),
-				aws.StringValue(instance.DBInstanceStatus))
+		if !libcloudaws.IsRDSInstanceAvailable(instance.DBInstanceStatus, instance.DBInstanceIdentifier) {
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable RDS instance",
+				"instance", aws.ToString(instance.DBInstanceIdentifier),
+				"status", aws.ToString(instance.DBInstanceStatus),
+			)
 			continue
 		}
 
-		database, err := services.NewDatabaseFromRDSInstance(instance)
+		database, err := common.NewDatabaseFromRDSInstance(&instance)
 		if err != nil {
-			cfg.Log.Warnf("Could not convert RDS instance %q to database resource: %v.",
-				aws.StringValue(instance.DBInstanceIdentifier), err)
+			cfg.Logger.WarnContext(ctx, "Could not convert RDS instance to database resource",
+				"instance", aws.ToString(instance.DBInstanceIdentifier),
+				"error", err,
+			)
 		} else {
 			databases = append(databases, database)
 		}
@@ -90,36 +104,40 @@ func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcher
 
 // getAllDBInstances fetches all RDS instances using the provided client, up
 // to the specified max number of pages.
-func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
-	return getAllDBInstancesWithFilters(ctx, rdsClient, maxPages, rdsInstanceEngines(), rdsEmptyFilter(), log)
+func getAllDBInstances(ctx context.Context, clt RDSClient, maxPages int, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, clt, maxPages, rdsInstanceEngines(), rdsEmptyFilter(), logger)
 }
 
 // findDBInstancesForDBCluster returns the DBInstances associated with a given DB Cluster Identifier
-func findDBInstancesForDBCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, dbClusterIdentifier string, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
-	return getAllDBInstancesWithFilters(ctx, rdsClient, maxPages, auroraEngines(), rdsClusterIDFilter(dbClusterIdentifier), log)
+func findDBInstancesForDBCluster(ctx context.Context, clt RDSClient, maxPages int, dbClusterIdentifier string, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
+	return getAllDBInstancesWithFilters(ctx, clt, maxPages, auroraEngines(), rdsClusterIDFilter(dbClusterIdentifier), logger)
 }
 
 // getAllDBInstancesWithFilters fetches all RDS instances matching the filters using the provided client, up
 // to the specified max number of pages.
-func getAllDBInstancesWithFilters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, engines []string, baseFilters []*rds.Filter, log logrus.FieldLogger) ([]*rds.DBInstance, error) {
-	var instances []*rds.DBInstance
-	err := retryWithIndividualEngineFilters(log, engines, func(engineFilters []*rds.Filter) error {
-		var pageNum int
-		var out []*rds.DBInstance
-		err := rdsClient.DescribeDBInstancesPagesWithContext(ctx, &rds.DescribeDBInstancesInput{
-			Filters: append(engineFilters, baseFilters...),
-		}, func(ddo *rds.DescribeDBInstancesOutput, lastPage bool) bool {
-			pageNum++
-			instances = append(instances, ddo.DBInstances...)
-			return pageNum <= maxPages
-		})
-		if err == nil {
-			// only append to instances on nil error, just in case we have to retry.
-			instances = append(instances, out...)
+func getAllDBInstancesWithFilters(ctx context.Context, clt RDSClient, maxPages int, engines []string, baseFilters []rdstypes.Filter, logger *slog.Logger) ([]rdstypes.DBInstance, error) {
+	var out []rdstypes.DBInstance
+	err := retryWithIndividualEngineFilters(ctx, logger, engines, func(engineFilters []rdstypes.Filter) error {
+		pager := rds.NewDescribeDBInstancesPaginator(clt,
+			&rds.DescribeDBInstancesInput{
+				Filters: append(engineFilters, baseFilters...),
+			},
+			func(dcpo *rds.DescribeDBInstancesPaginatorOptions) {
+				dcpo.StopOnDuplicateToken = true
+			},
+		)
+		var instances []rdstypes.DBInstance
+		for i := 0; i < maxPages && pager.HasMorePages(); i++ {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			instances = append(instances, page.DBInstances...)
 		}
-		return trace.Wrap(err)
+		out = instances
+		return nil
 	})
-	return instances, trace.Wrap(err)
+	return out, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // newRDSAuroraClustersFetcher returns a new AWS fetcher for RDS Aurora
@@ -137,44 +155,51 @@ func (f *rdsAuroraClustersPlugin) ComponentShortName() string {
 
 // GetDatabases returns a list of database resources representing RDS clusters.
 func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
+		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := getAllDBClusters(ctx, rdsClient, maxAWSPages, cfg.Log)
+	clt := cfg.awsClients.GetRDSClient(awsCfg)
+	clusters, err := getAllDBClusters(ctx, clt, maxAWSPages, cfg.Logger)
 	if err != nil {
-		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
+		return nil, trace.Wrap(err)
 	}
 	databases := make(types.Databases, 0, len(clusters))
 	for _, cluster := range clusters {
-		if !services.IsRDSClusterSupported(cluster) {
-			cfg.Log.Debugf("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
-				aws.StringValue(cluster.DBClusterIdentifier),
-				aws.StringValue(cluster.EngineMode),
-				aws.StringValue(cluster.EngineVersion))
+		if !libcloudaws.IsRDSClusterSupported(&cluster) {
+			cfg.Logger.DebugContext(ctx, "Skipping Aurora cluster that does not support IAM authentication",
+				"cluster", aws.ToString(cluster.DBClusterIdentifier),
+				"engine_mode", aws.ToString(cluster.EngineMode),
+				"engine_version", aws.ToString(cluster.EngineVersion),
+			)
 			continue
 		}
 
-		if !services.IsRDSClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
-			cfg.Log.Debugf("The current status of Aurora cluster %q is %q. Skipping.",
-				aws.StringValue(cluster.DBClusterIdentifier),
-				aws.StringValue(cluster.Status))
+		if !libcloudaws.IsDBClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable Aurora cluster",
+				"instance", aws.ToString(cluster.DBClusterIdentifier),
+				"status", aws.ToString(cluster.Status),
+			)
 			continue
 		}
 
-		rdsDBInstances, err := findDBInstancesForDBCluster(ctx, rdsClient, maxAWSPages, aws.StringValue(cluster.DBClusterIdentifier), cfg.Log)
+		rdsDBInstances, err := findDBInstancesForDBCluster(ctx, clt, maxAWSPages, aws.ToString(cluster.DBClusterIdentifier), cfg.Logger)
 		if err != nil || len(rdsDBInstances) == 0 {
-			cfg.Log.Warnf("Could not fetch Member Instance for DB Cluster %q: %v.",
-				aws.StringValue(cluster.DBClusterIdentifier), err)
+			cfg.Logger.WarnContext(ctx, "Could not fetch Member Instance for DB Cluster",
+				"instance", aws.ToString(cluster.DBClusterIdentifier),
+				"error", err,
+			)
 		}
 
-		dbs, err := services.NewDatabasesFromRDSCluster(cluster, rdsDBInstances)
+		dbs, err := common.NewDatabasesFromRDSCluster(&cluster, rdsDBInstances)
 		if err != nil {
-			cfg.Log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
-				aws.StringValue(cluster.DBClusterIdentifier), err)
+			cfg.Logger.WarnContext(ctx, "Could not convert RDS cluster to database resources",
+				"identifier", aws.ToString(cluster.DBClusterIdentifier),
+				"error", err,
+			)
 		}
 		databases = append(databases, dbs...)
 	}
@@ -183,25 +208,30 @@ func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetc
 
 // getAllDBClusters fetches all RDS clusters using the provided client, up to
 // the specified max number of pages.
-func getAllDBClusters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages int, log logrus.FieldLogger) ([]*rds.DBCluster, error) {
-	var clusters []*rds.DBCluster
-	err := retryWithIndividualEngineFilters(log, auroraEngines(), func(filters []*rds.Filter) error {
-		var pageNum int
-		var out []*rds.DBCluster
-		err := rdsClient.DescribeDBClustersPagesWithContext(ctx, &rds.DescribeDBClustersInput{
-			Filters: filters,
-		}, func(ddo *rds.DescribeDBClustersOutput, lastPage bool) bool {
-			pageNum++
-			out = append(out, ddo.DBClusters...)
-			return pageNum <= maxPages
-		})
-		if err == nil {
-			// only append to clusters on nil error, just in case we have to retry.
-			clusters = append(clusters, out...)
+func getAllDBClusters(ctx context.Context, clt RDSClient, maxPages int, logger *slog.Logger) ([]rdstypes.DBCluster, error) {
+	var out []rdstypes.DBCluster
+	err := retryWithIndividualEngineFilters(ctx, logger, auroraEngines(), func(filters []rdstypes.Filter) error {
+		pager := rds.NewDescribeDBClustersPaginator(clt,
+			&rds.DescribeDBClustersInput{
+				Filters: filters,
+			},
+			func(pagerOpts *rds.DescribeDBClustersPaginatorOptions) {
+				pagerOpts.StopOnDuplicateToken = true
+			},
+		)
+
+		var clusters []rdstypes.DBCluster
+		for i := 0; i < maxPages && pager.HasMorePages(); i++ {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			clusters = append(clusters, page.DBClusters...)
 		}
-		return trace.Wrap(err)
+		out = clusters
+		return nil
 	})
-	return clusters, trace.Wrap(err)
+	return out, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }
 
 // rdsInstanceEngines returns engines to make sure DescribeDBInstances call returns
@@ -224,35 +254,35 @@ func auroraEngines() []string {
 }
 
 // rdsEngineFilter is a helper func to construct an RDS filter for engine names.
-func rdsEngineFilter(engines []string) []*rds.Filter {
-	return []*rds.Filter{{
+func rdsEngineFilter(engines []string) []rdstypes.Filter {
+	return []rdstypes.Filter{{
 		Name:   aws.String("engine"),
-		Values: aws.StringSlice(engines),
+		Values: engines,
 	}}
 }
 
 // rdsClusterIDFilter is a helper func to construct an RDS DB Instances for returning Instances of a specific DB Cluster.
-func rdsClusterIDFilter(clusterIdentifier string) []*rds.Filter {
-	return []*rds.Filter{{
+func rdsClusterIDFilter(clusterIdentifier string) []rdstypes.Filter {
+	return []rdstypes.Filter{{
 		Name:   aws.String("db-cluster-id"),
-		Values: aws.StringSlice([]string{clusterIdentifier}),
+		Values: []string{clusterIdentifier},
 	}}
 }
 
 // rdsEmptyFilter is a helper func to construct an empty RDS filter.
-func rdsEmptyFilter() []*rds.Filter {
-	return []*rds.Filter{}
+func rdsEmptyFilter() []rdstypes.Filter {
+	return []rdstypes.Filter{}
 }
 
 // rdsFilterFn is a function that takes RDS filters and performs some operation with them, returning any error encountered.
-type rdsFilterFn func([]*rds.Filter) error
+type rdsFilterFn func([]rdstypes.Filter) error
 
 // retryWithIndividualEngineFilters is a helper error handling function for AWS RDS unrecognized engine name filter errors,
 // that will call the provided RDS querying function with filters, check the returned error,
 // and if the error is an AWS unrecognized engine name error then it will retry once by calling the function with one filter
 // at a time. If any error other than an AWS unrecognized engine name error occurs, this function will return that error
 // without retrying, or skip retrying subsequent filters if it has already started to retry.
-func retryWithIndividualEngineFilters(log logrus.FieldLogger, engines []string, fn rdsFilterFn) error {
+func retryWithIndividualEngineFilters(ctx context.Context, logger *slog.Logger, engines []string, fn rdsFilterFn) error {
 	err := fn(rdsEngineFilter(engines))
 	if err == nil {
 		return nil
@@ -260,7 +290,7 @@ func retryWithIndividualEngineFilters(log logrus.FieldLogger, engines []string, 
 	if !isUnrecognizedAWSEngineNameError(err) {
 		return trace.Wrap(err)
 	}
-	log.WithError(trace.Unwrap(err)).Debug("Teleport supports an engine which is unrecognized in this AWS region. Querying engine names individually.")
+	logger.DebugContext(ctx, "Teleport supports an engine which is unrecognized in this AWS region. Querying engine names individually.", "error", err)
 	for _, engine := range engines {
 		err := fn(rdsEngineFilter([]string{engine}))
 		if err == nil {

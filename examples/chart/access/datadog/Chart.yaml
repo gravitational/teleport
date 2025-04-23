@@ -1,0 +1,13 @@
+.version: &version "18.0.0-dev"
+
+apiVersion: v2
+name: teleport-plugin-datadog
+description: A Helm chart for the Teleport Datadog Incident Management Plugin
+type: application
+version: *version
+appVersion: *version
+
+dependencies:
+  - name: tbot
+    version: *version
+    condition: tbot.enabled

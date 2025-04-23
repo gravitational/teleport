@@ -11,7 +11,7 @@
 # Written mainly for macOS builders.
 set -eu
 
-readonly MACOS_VERSION_MIN=10.13
+readonly MACOS_VERSION_MIN=11.0
 
 # Cross-architecture building
 # Set C_ARCH to $(uname -m) if unset, and validate supported architecture
@@ -21,12 +21,12 @@ if ! [[ "${C_ARCH:=$(uname -m)}" =~ ^(x86_64|arm64)$ ]]; then
 fi
 
 # Note: versions are the same as the corresponding git tags for each repo.
-readonly CBOR_VERSION=v0.10.2
-readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
-readonly CRYPTO_VERSION=openssl-3.0.13
-readonly CRYPTO_COMMIT=85cf92f55d9e2ac5aacf92bedd33fb890b9f8b4c
-readonly FIDO2_VERSION=1.14.0
-readonly FIDO2_COMMIT=1a9d335c8f0e821f9eff27482fdda96e59a4f577
+readonly CBOR_VERSION=v0.11.0
+readonly CBOR_COMMIT=170bee2b82cdb7b2ed25af301f62cb6efdd40ec1
+readonly CRYPTO_VERSION=openssl-3.0.16
+readonly CRYPTO_COMMIT=fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5
+readonly FIDO2_VERSION=1.15.0
+readonly FIDO2_COMMIT=f87c19c9487c0131531314d9ccb475ea5325794e
 
 readonly LIB_CACHE="/tmp/teleport-fido2-cache-$C_ARCH"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"

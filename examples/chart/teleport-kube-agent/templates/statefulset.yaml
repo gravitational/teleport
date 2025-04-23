@@ -13,6 +13,10 @@ metadata:
   {{- if .Values.extraLabels.deployment }}
     {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
   {{- end }}
+  {{- if .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml .Values.annotations.deployment | nindent 4 }}
+  {{- end }}
 spec:
   serviceName: {{ .Release.Name }}
   replicas: {{ $replicaCount }}
@@ -44,6 +48,9 @@ spec:
       {{- end }}
       {{- if .Values.podSecurityContext }}
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8}}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- end }}
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
@@ -107,6 +114,11 @@ spec:
           name: "teleport-tls-ca"
           readOnly: true
           {{- end }}
+          {{- if contains "jamf" (.Values.roles | toString) }}
+        - mountPath: /etc/teleport-jamf-api-credentials
+          name: "jamf-api-credentials"
+          readOnly: true
+          {{- end }}
   {{- if .Values.extraVolumeMounts }}
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
@@ -145,6 +157,10 @@ spec:
             value: kube
           - name: TELEPORT_EXT_UPGRADER_VERSION
             value: {{ include "teleport-kube-agent.version" . }}
+          {{- end }}
+          {{- if .Values.clusterDomain }}
+          - name: TELEPORT_KUBE_CLUSTER_DOMAIN
+            value: {{ .Values.clusterDomain | quote }}
           {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE
@@ -207,6 +223,11 @@ spec:
           name: "teleport-tls-ca"
           readOnly: true
 {{- end }}
+{{- if contains "jamf" (.Values.roles | toString) }}
+        - mountPath: /etc/teleport-jamf-api-credentials
+          name: "jamf-api-credentials"
+          readOnly: true
+{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -228,6 +249,11 @@ spec:
       - name: "teleport-tls-ca"
         secret:
           secretName: {{ .Values.tls.existingCASecretName }}
+{{- end }}
+{{- if contains "jamf" (.Values.roles | toString) }}
+      - name: "jamf-api-credentials"
+        secret:
+          secretName: {{ .Values.jamfCredentialsSecret.name }}
 {{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}

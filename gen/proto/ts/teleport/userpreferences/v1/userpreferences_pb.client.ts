@@ -49,7 +49,7 @@ export interface IUserPreferencesServiceClient {
      */
     upsertUserPreferences(input: UpsertUserPreferencesRequest, options?: RpcOptions): UnaryCall<UpsertUserPreferencesRequest, Empty>;
     /**
-     * GetUserPreferences returns the user preferences for a given user.
+     * GetKeyboardLayout returns the keyboard layout preference for the user.
      *
      * @generated from protobuf rpc: GetKeyboardLayout(teleport.userpreferences.v1.GetKeyboardLayoutRequest) returns (teleport.userpreferences.v1.GetKeyboardLayoutResponse);
      */
@@ -85,7 +85,7 @@ export class UserPreferencesServiceClient implements IUserPreferencesServiceClie
         return stackIntercept<UpsertUserPreferencesRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
-     * GetUserPreferences returns the user preferences for a given user.
+     * GetKeyboardLayout returns the keyboard layout preference for the user.
      *
      * @generated from protobuf rpc: GetKeyboardLayout(teleport.userpreferences.v1.GetKeyboardLayoutRequest) returns (teleport.userpreferences.v1.GetKeyboardLayoutResponse);
      */

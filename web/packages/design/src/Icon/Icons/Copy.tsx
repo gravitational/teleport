@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,9 +50,15 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Copy({ size = 24, color, ...otherProps }: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon icon-copy" {...otherProps}>
+export const Copy = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon icon-copy"
+      {...otherProps}
+      ref={ref}
+    >
       <path d="M6.75 3C6.33579 3 6 3.33579 6 3.75C6 4.16421 6.33579 4.5 6.75 4.5H19.5V17.25C19.5 17.6642 19.8358 18 20.25 18C20.6642 18 21 17.6642 21 17.25V3.75C21 3.33579 20.6642 3 20.25 3H6.75Z" />
       <path
         fillRule="evenodd"
@@ -60,5 +66,5 @@ export function Copy({ size = 24, color, ...otherProps }: IconProps) {
         d="M3.75 6C3.33579 6 3 6.33579 3 6.75V20.25C3 20.6642 3.33579 21 3.75 21H17.25C17.6642 21 18 20.6642 18 20.25V6.75C18 6.33579 17.6642 6 17.25 6H3.75ZM4.5 19.5V7.5H16.5V19.5H4.5Z"
       />
     </Icon>
-  );
-}
+  )
+);

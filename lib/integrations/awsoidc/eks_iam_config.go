@@ -20,13 +20,17 @@ package awsoidc
 
 import (
 	"context"
-	"log/slog"
+	"io"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/provisioning"
+	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -46,6 +50,15 @@ type EKSIAMConfigureRequest struct {
 	// IntegrationRoleEKSPolicy is the Policy Name that is created to allow access to call AWS APIs.
 	// Defaults to "EKSAccess"
 	IntegrationRoleEKSPolicy string
+
+	// AccountID is the AWS Account ID.
+	AccountID string
+
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+
+	// stdout is used to override stdout output in tests.
+	stdout io.Writer
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -67,11 +80,12 @@ func (r *EKSIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // EKSIAMConfigureClient describes the required methods to create the IAM Policies required for enrolling EKS clusters into Teleport.
 type EKSIAMConfigureClient interface {
-	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
-	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
+	CallerIdentityGetter
+	awsactions.RolePolicyPutter
 }
 
 type defaultEKSEIAMConfigureClient struct {
+	CallerIdentityGetter
 	*iam.Client
 }
 
@@ -87,7 +101,8 @@ func NewEKSIAMConfigureClient(ctx context.Context, region string) (EKSIAMConfigu
 	}
 
 	return &defaultEKSEIAMConfigureClient{
-		Client: iam.NewFromConfig(cfg),
+		Client:               iamutils.NewFromConfig(cfg),
+		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -99,6 +114,7 @@ func NewEKSIAMConfigureClient(ctx context.Context, region string) (EKSIAMConfigu
 // - eks:CreateAccessEntry
 // - eks:DeleteAccessEntry
 // - eks:AssociateAccessPolicy
+// - eks:TagResource
 //
 // For more info about EKS access entries see:
 // https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/
@@ -110,28 +126,24 @@ func ConfigureEKSIAM(ctx context.Context, clt EKSIAMConfigureClient, req EKSIAMC
 		return trace.Wrap(err)
 	}
 
-	eksPolicyDocument, err := awslib.NewPolicyDocument(
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	policy := awslib.NewPolicyDocument(
 		awslib.StatementForEKSAccess(),
-	).Marshal()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     &req.IntegrationRoleEKSPolicy,
-		RoleName:       &req.IntegrationRole,
-		PolicyDocument: &eksPolicyDocument,
-	})
-	if err != nil {
-		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("role %q not found.", req.IntegrationRole)
-		}
-		return trace.Wrap(err)
-	}
-
-	slog.InfoContext(ctx, "IntegrationRole: IAM Policy added to role",
-		"policy", req.IntegrationRoleEKSPolicy,
-		"role", req.IntegrationRole,
 	)
-	return nil
+	putRolePolicy, err := awsactions.PutRolePolicy(clt, req.IntegrationRoleEKSPolicy, req.IntegrationRole, policy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
+		Name: "eks-iam",
+		Actions: []provisioning.Action{
+			*putRolePolicy,
+		},
+		AutoConfirm: req.AutoConfirm,
+		Output:      req.stdout,
+	}))
 }

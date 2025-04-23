@@ -28,7 +28,8 @@ import (
 )
 
 const (
-	VersionKey = "version"
+	VersionKey                       = "version"
+	SessionRecordingFormatContextKey = "session-recording-format"
 )
 
 // defaultMetadata returns the default metadata which will be added to all outgoing calls.
@@ -132,4 +133,21 @@ func UserAgentFromContext(ctx context.Context) string {
 		return ""
 	}
 	return strings.Join(values, " ")
+}
+
+// WithSessionRecordingFormatContext returns a context.Context containing the
+// format of the accessed session recording.
+func WithSessionRecordingFormatContext(ctx context.Context, format string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, SessionRecordingFormatContextKey, format)
+}
+
+// SessionRecordingFormatFromContext returns the format of the accessed session
+// recording (if present).
+func SessionRecordingFormatFromContext(ctx context.Context) string {
+	values := metadata.ValueFromIncomingContext(ctx, SessionRecordingFormatContextKey)
+	if len(values) == 0 {
+		return ""
+	}
+
+	return values[0]
 }

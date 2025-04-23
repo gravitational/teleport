@@ -31,8 +31,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -45,24 +47,40 @@ func TestServiceAccess(t *testing.T) {
 		allowedStates []authz.AdminActionAuthState
 	}{
 		{
-			name:          "CreateCrownJewel",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate},
+			name: "CreateCrownJewel",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
-			name:          "UpdateCrownJewel",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbUpdate},
+			name: "UpdateCrownJewel",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
-			name:          "DeleteCrownJewel",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbDelete},
+			name: "DeleteCrownJewel",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbDelete},
 		},
 		{
-			name:          "UpsertCrownJewel",
-			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
-			allowedVerbs:  []string{types.VerbCreate, types.VerbUpdate},
+			name: "UpsertCrownJewel",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate, types.VerbUpdate},
 		},
 		{
 			name: "ListCrownJewels",
@@ -180,7 +198,7 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindCrownJewel {
-		for slices.Contains(f.allowedVerbs, verb) {
+		if slices.Contains(f.allowedVerbs, verb) {
 			return nil
 		}
 	}
@@ -206,6 +224,11 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 			User:                 user,
 			Checker:              checker,
 			AdminActionAuthState: authState,
+			Identity: authz.LocalUser{
+				Identity: tlsca.Identity{
+					Username: user.GetName(),
+				},
+			},
 		}, nil
 	})
 
@@ -213,6 +236,7 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 		Authorizer: authorizer,
 		Backend:    backendService,
 		Reader:     backendService,
+		Emitter:    events.NewDiscardEmitter(),
 	})
 	require.NoError(t, err)
 	return service

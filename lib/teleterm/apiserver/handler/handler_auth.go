@@ -23,19 +23,22 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, clusterClient, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// The credentials + MFA login flow in the Electron app assumes that the default CLI prompt is
-	// used and works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor
-	// added by daemon.Service.ResolveClusterURI.
-	clusterClient.MFAPromptConstructor = nil
+
+	if !cluster.URI.IsRoot() {
+		return nil, trace.BadParameter("cluster URI must be a root URI")
+	}
 
 	if err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
 		return nil, trace.Wrap(err)
@@ -58,11 +61,6 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.BadParameter("unsupported login parameters")
 	}
 
-	// Don't wait for the headless watcher to initialize as this could slow down logins.
-	if err := s.DaemonService.StartHeadlessWatcher(req.ClusterUri, false /* waitInit */); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &api.EmptyResponse{}, nil
 }
 
@@ -83,6 +81,11 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if !cluster.URI.IsRoot() {
+		return trace.BadParameter("cluster URI must be a root URI")
+	}
+
 	// The passwordless login flow in the Electron app assumes that the default CLI prompt is used and
 	// works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor added by
 	// daemon.Service.ResolveClusterURI.
@@ -94,11 +97,6 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Don't wait for the headless watcher to initialize as this could slow down logins.
-	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri(), false /* waitInit */); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -121,14 +119,12 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		return nil, trace.Wrap(err)
 	}
 
-	preferences, err := cluster.SyncAuthPreference(ctx)
+	preferences, pr, err := cluster.SyncAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	result := &api.AuthSettings{
-		PreferredMfa:       string(preferences.PreferredLocalMFA),
-		SecondFactor:       string(preferences.SecondFactor),
 		LocalAuthEnabled:   preferences.LocalAuthEnabled,
 		AuthType:           preferences.AuthType,
 		AllowPasswordless:  preferences.AllowPasswordless,
@@ -143,5 +139,56 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 		})
 	}
 
+	versions := client.Versions{
+		MinClient: pr.MinClientVersion,
+		Client:    teleport.Version,
+		Server:    pr.ServerVersion,
+	}
+
+	clientVersionStatus, err := client.GetClientVersionStatus(versions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result.ClientVersionStatus = libclientVersionStatusToAPIVersionStatus(clientVersionStatus)
+	result.Versions = &api.Versions{
+		MinClient: versions.MinClient,
+		Client:    versions.Client,
+		Server:    versions.Server,
+	}
+
+	if minClientWithoutPreRelease, err := utils.VersionWithoutPreRelease(versions.MinClient); err != nil {
+		log.DebugContext(ctx, "Could not strip pre-release suffix", "error", err)
+	} else {
+		result.Versions.MinClient = minClientWithoutPreRelease
+	}
+
 	return result, nil
+}
+
+// StartHeadlessWatcher starts a headless watcher.
+// If the watcher is already running, it is restarted.
+func (s *Handler) StartHeadlessWatcher(_ context.Context, req *api.StartHeadlessWatcherRequest) (*api.StartHeadlessWatcherResponse, error) {
+	// Don't wait for the headless watcher to initialize
+	err := s.DaemonService.StartHeadlessWatcher(req.RootClusterUri, false /* waitInit */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.StartHeadlessWatcherResponse{}, nil
+}
+
+func libclientVersionStatusToAPIVersionStatus(vs client.ClientVersionStatus) api.ClientVersionStatus {
+	switch vs {
+	case client.ClientVersionOK:
+		return api.ClientVersionStatus_CLIENT_VERSION_STATUS_OK
+
+	case client.ClientVersionTooOld:
+		return api.ClientVersionStatus_CLIENT_VERSION_STATUS_TOO_OLD
+
+	case client.ClientVersionTooNew:
+		return api.ClientVersionStatus_CLIENT_VERSION_STATUS_TOO_NEW
+	}
+
+	return api.ClientVersionStatus_CLIENT_VERSION_STATUS_COMPAT_UNSPECIFIED
 }

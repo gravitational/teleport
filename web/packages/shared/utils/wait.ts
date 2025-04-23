@@ -15,8 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { useEffect, useRef } from 'react';
 
-/** Resolves after a given duration */
+/** Resolves after a given duration. */
 export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
   if (abortSignal?.aborted) {
     return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
@@ -36,3 +37,38 @@ export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
     abortSignal?.addEventListener('abort', abort, { once: true });
   });
 }
+
+/** Blocks until the signal is aborted. */
+export function waitForever(abortSignal: AbortSignal): Promise<never> {
+  if (abortSignal.aborted) {
+    return Promise.reject(new DOMException('Wait was aborted.', 'AbortError'));
+  }
+
+  return new Promise((_, reject) => {
+    const abort = () => {
+      reject(new DOMException('Wait was aborted.', 'AbortError'));
+    };
+
+    abortSignal.addEventListener('abort', abort, { once: true });
+  });
+}
+
+/**
+ * usePromiseRejectedOnUnmount is useful when writing stories for loading states.
+ */
+export const usePromiseRejectedOnUnmount = () => {
+  const abortControllerRef = useRef(new AbortController());
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current.abort();
+    };
+  }, []);
+
+  const promiseRef = useRef<Promise<never>>();
+  if (!promiseRef.current) {
+    promiseRef.current = waitForever(abortControllerRef.current.signal);
+  }
+
+  return promiseRef.current;
+};

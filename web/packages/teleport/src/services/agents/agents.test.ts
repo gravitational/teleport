@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 import { agentService } from './agents';
 import { makeLabelMapOfStrArrs } from './make';
-
 import type { ConnectionDiagnosticRequest } from './types';
 
 test('createConnectionDiagnostic request', () => {

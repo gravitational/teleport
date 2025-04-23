@@ -181,7 +181,6 @@ func TestDBAuthorityUp(t *testing.T) {
 	cases := []struct {
 		name         string
 		fakeTrust    *fakeTrust
-		fakePresence fakePresence
 		assertion    require.ErrorAssertionFunc
 		validateFunc func(t *testing.T, created []types.CertAuthority)
 	}{
@@ -194,8 +193,6 @@ func TestDBAuthorityUp(t *testing.T) {
 					leaf1DB:   fakeCA,
 					leaf2Host: fakeCA,
 				},
-			},
-			fakePresence: fakePresence{
 				clusters: []types.TrustedCluster{
 					&types.TrustedClusterV2{
 						Kind:     types.KindTrustedCluster,
@@ -227,8 +224,6 @@ func TestDBAuthorityUp(t *testing.T) {
 					leaf2DB: fakeCA,
 					leaf1DB: fakeCA,
 				},
-			},
-			fakePresence: fakePresence{
 				clusters: []types.TrustedCluster{
 					&types.TrustedClusterV2{
 						Kind:     types.KindTrustedCluster,
@@ -255,7 +250,6 @@ func TestDBAuthorityUp(t *testing.T) {
 			b, err := memory.New(memory.Config{EventsOff: true})
 			require.NoError(t, err)
 
-			test.fakePresence.Presence = local.NewPresenceService(b)
 			test.fakeTrust.Trust = local.NewCAService(b)
 
 			migration := createDBAuthority{
@@ -272,9 +266,6 @@ func TestDBAuthorityUp(t *testing.T) {
 						clusterName:          clusterName("root"),
 					}, nil
 				},
-				presenceServiceFn: func(b backend.Backend) services.Presence {
-					return test.fakePresence
-				},
 			}
 
 			test.assertion(t, migration.Up(context.Background(), b))
@@ -288,17 +279,8 @@ type fakeConfig struct {
 	clusterName types.ClusterName
 }
 
-func (f fakeConfig) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (f fakeConfig) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return f.clusterName, nil
-}
-
-type fakePresence struct {
-	services.Presence
-	clusters []types.TrustedCluster
-}
-
-func (f fakePresence) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
-	return f.clusters, nil
 }
 
 type fakeTrust struct {
@@ -306,8 +288,9 @@ type fakeTrust struct {
 
 	authorities map[types.CertAuthID]types.CertAuthority
 
-	mu      sync.Mutex
-	created []types.CertAuthority
+	clusters []types.TrustedCluster
+	mu       sync.Mutex
+	created  []types.CertAuthority
 }
 
 func (f *fakeTrust) casCreated() []types.CertAuthority {
@@ -335,4 +318,8 @@ func (f *fakeTrust) GetCertAuthority(ctx context.Context, id types.CertAuthID, l
 	}
 
 	return ca, nil
+}
+
+func (f *fakeTrust) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	return f.clusters, nil
 }

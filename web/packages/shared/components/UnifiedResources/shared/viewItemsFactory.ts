@@ -19,26 +19,28 @@
 import {
   Application as ApplicationIcon,
   Database as DatabaseIcon,
+  Desktop as DesktopIcon,
+  GitHub as GitHubIcon,
   Kubernetes as KubernetesIcon,
   Server as ServerIcon,
-  Desktop as DesktopIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
-
-import { DbProtocol } from 'shared/services/databases';
 import { NodeSubKind } from 'shared/services';
+import { DbProtocol } from 'shared/services/databases';
 
 import {
-  UnifiedResourceViewItem,
-  UnifiedResourceUi,
-  UnifiedResourceNode,
+  SharedUnifiedResource,
   UnifiedResourceApp,
   UnifiedResourceDatabase,
   UnifiedResourceDesktop,
+  UnifiedResourceGitServer,
   UnifiedResourceKube,
+  UnifiedResourceNode,
+  UnifiedResourceUi,
   UnifiedResourceUserGroup,
-  SharedUnifiedResource,
+  UnifiedResourceViewItem,
 } from '../types';
+import { guessAppIcon } from './guessAppIcon';
 
 export function makeUnifiedResourceViewItemNode(
   resource: UnifiedResourceNode,
@@ -50,7 +52,7 @@ export function makeUnifiedResourceViewItemNode(
   return {
     name: resource.hostname,
     SecondaryIcon: ServerIcon,
-    primaryIconName: 'Server',
+    primaryIconName: 'server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     cardViewProps: {
@@ -61,6 +63,7 @@ export function makeUnifiedResourceViewItemNode(
       resourceType: nodeSubKind,
       addr: addressIfNotTunnel,
     },
+    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -82,6 +85,7 @@ export function makeUnifiedResourceViewItemDatabase(
       primaryDesc: resource.type,
       secondaryDesc: resource.description,
     },
+    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -92,7 +96,7 @@ export function makeUnifiedResourceViewItemKube(
   return {
     name: resource.name,
     SecondaryIcon: KubernetesIcon,
-    primaryIconName: 'Kube',
+    primaryIconName: 'kube',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     cardViewProps: {
@@ -101,6 +105,7 @@ export function makeUnifiedResourceViewItemKube(
     listViewProps: {
       resourceType: 'Kubernetes',
     },
+    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -123,6 +128,7 @@ export function makeUnifiedResourceViewItemApp(
       description: resource.samlApp ? '' : resource.description,
       addr: resource.addrWithProtocol,
     },
+    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -133,7 +139,7 @@ export function makeUnifiedResourceViewItemDesktop(
   return {
     name: resource.name,
     SecondaryIcon: DesktopIcon,
-    primaryIconName: 'Windows',
+    primaryIconName: 'windows',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     cardViewProps: {
@@ -144,6 +150,7 @@ export function makeUnifiedResourceViewItemDesktop(
       resourceType: 'Windows',
       addr: resource.addr,
     },
+    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -154,13 +161,34 @@ export function makeUnifiedResourceViewItemUserGroup(
   return {
     name: resource.friendlyName || resource.name,
     SecondaryIcon: ServerIcon,
-    primaryIconName: 'Server',
+    primaryIconName: 'server',
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     cardViewProps: {},
     listViewProps: {
       resourceType: 'User Group',
     },
+    requiresRequest: resource.requiresRequest,
+  };
+}
+
+export function makeUnifiedResourceViewItemGitServer(
+  resource: UnifiedResourceGitServer,
+  ui: UnifiedResourceUi
+): UnifiedResourceViewItem {
+  return {
+    name: resource.github ? resource.github.organization : resource.hostname,
+    SecondaryIcon: GitHubIcon,
+    primaryIconName: 'git',
+    ActionButton: ui.ActionButton,
+    labels: resource.labels,
+    cardViewProps: {
+      primaryDesc: 'GitHub Organization',
+    },
+    listViewProps: {
+      resourceType: 'GitHub Organization',
+    },
+    requiresRequest: resource.requiresRequest,
   };
 }
 
@@ -175,58 +203,22 @@ function formatNodeSubKind(subKind: NodeSubKind): string {
   }
 }
 
-type GuessedAppType = 'Grafana' | 'Slack' | 'Jenkins' | 'Application' | 'Aws';
-
-function guessAppIcon(app: UnifiedResourceApp): GuessedAppType {
-  const { name, labels, friendlyName, awsConsole = false } = app;
-
-  if (awsConsole) {
-    return 'Aws';
-  }
-
-  if (
-    name?.toLocaleLowerCase().includes('slack') ||
-    friendlyName?.toLocaleLowerCase().includes('slack') ||
-    labels?.some(l => `${l.name}:${l.value}` === 'icon:slack')
-  ) {
-    return 'Slack';
-  }
-
-  if (
-    name?.toLocaleLowerCase().includes('grafana') ||
-    friendlyName?.toLocaleLowerCase().includes('grafana') ||
-    labels?.some(l => `${l.name}:${l.value}` === 'icon:grafana')
-  ) {
-    return 'Grafana';
-  }
-
-  if (
-    name?.toLocaleLowerCase().includes('jenkins') ||
-    friendlyName?.toLocaleLowerCase().includes('jenkins') ||
-    labels?.some(l => `${l.name}:${l.value}` === 'icon:jenkins')
-  ) {
-    return 'Jenkins';
-  }
-
-  return 'Application';
-}
-
-function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
+export function getDatabaseIconName(protocol: DbProtocol): ResourceIconName {
   switch (protocol) {
     case 'postgres':
-      return 'Postgres';
+      return 'postgres';
     case 'mysql':
-      return 'MysqlLarge';
+      return 'mysqllarge';
     case 'mongodb':
-      return 'Mongo';
+      return 'mongo';
     case 'cockroachdb':
-      return 'Cockroach';
+      return 'cockroach';
     case 'snowflake':
-      return 'Snowflake';
+      return 'snowflake';
     case 'dynamodb':
-      return 'Dynamo';
+      return 'dynamo';
     default:
-      return 'Database';
+      return 'database';
   }
 }
 
@@ -244,5 +236,7 @@ export function mapResourceToViewItem({ resource, ui }: SharedUnifiedResource) {
       return makeUnifiedResourceViewItemDesktop(resource, ui);
     case 'user_group':
       return makeUnifiedResourceViewItemUserGroup(resource, ui);
+    case 'git_server':
+      return makeUnifiedResourceViewItemGitServer(resource, ui);
   }
 }

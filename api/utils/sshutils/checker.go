@@ -17,6 +17,8 @@ limitations under the License.
 package sshutils
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"net"
 
@@ -123,12 +125,21 @@ func validateFIPSAlgorithm(key ssh.PublicKey) error {
 	if !ok {
 		return trace.BadParameter("unable to determine underlying public key")
 	}
-	k, ok := cryptoKey.CryptoPublicKey().(*rsa.PublicKey)
-	if !ok {
-		return trace.BadParameter("only RSA keys supported")
-	}
-	if k.N.BitLen() != constants.RSAKeySize {
-		return trace.BadParameter("found %v-bit key, only %v-bit supported", k.N.BitLen(), constants.RSAKeySize)
+	switch k := cryptoKey.CryptoPublicKey().(type) {
+	case *rsa.PublicKey:
+		if k.N.BitLen() != constants.RSAKeySize {
+			return trace.BadParameter("found %v-bit RSA key, only %v-bit supported", k.N.BitLen(), constants.RSAKeySize)
+		}
+	case *ecdsa.PublicKey:
+		if k.Curve != elliptic.P256() && k.Curve != elliptic.P384() {
+			params := k.Curve.Params()
+			if params == nil {
+				return trace.BadParameter("unable to determine curve of ECDSA public key")
+			}
+			return trace.BadParameter("found ECDSA key with curve %s, only P-256 and P-384 are supported", params.Name)
+		}
+	default:
+		return trace.BadParameter("only RSA and ECDSA keys supported")
 	}
 	return nil
 }

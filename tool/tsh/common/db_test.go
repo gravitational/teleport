@@ -21,8 +21,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -40,7 +38,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -76,7 +76,9 @@ func TestTshDB(t *testing.T) {
 		&modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				DB: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.DB: {Enabled: true},
+				},
 			},
 		},
 	)
@@ -205,8 +207,13 @@ func testDatabaseLogin(t *testing.T) {
 				}, {
 					Name:         "mssql",
 					Protocol:     defaults.ProtocolSQLServer,
-					URI:          "localhost:1433",
+					URI:          "sqlserver.example.com:1433",
 					StaticLabels: map[string]string{"env": "dev"},
+					AD: servicecfg.DatabaseAD{
+						KeytabFile: "/etc/keytab",
+						Domain:     "EXAMPLE.COM",
+						SPN:        "MSSQLSvc/sqlserver.example.com:1433",
+					},
 				}, {
 					Name:         "dynamodb",
 					Protocol:     defaults.ProtocolDynamoDB,
@@ -224,7 +231,7 @@ func testDatabaseLogin(t *testing.T) {
 	s.user = alice
 
 	// Log into Teleport cluster.
-	tmpHomePath, _ := mustLogin(t, s)
+	tmpHomePath, _ := mustLoginLegacy(t, s)
 
 	testCases := []struct {
 		// the test name
@@ -433,7 +440,7 @@ func testDatabaseLogin(t *testing.T) {
 			}
 			args := append([]string{
 				// default --db-user and --db-name are selected from roles.
-				"db", "login",
+				"db", "login", "--insecure",
 			}, selectors...)
 			args = append(args, test.extraLoginOptions...)
 
@@ -570,11 +577,13 @@ func TestLocalProxyRequirement(t *testing.T) {
 	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err)
 	tests := map[string]struct {
-		clusterAuthPref types.AuthPreference
-		route           *tlsca.RouteToDatabase
-		setupTC         func(*client.TeleportClient)
-		wantLocalProxy  bool
-		wantTunnel      bool
+		clusterAuthPref  types.AuthPreference
+		route            *tlsca.RouteToDatabase
+		setupTC          func(*client.TeleportClient)
+		tunnelFlag       bool
+		wantLocalProxy   bool
+		wantTunnel       bool
+		wantTunnelReason string
 	}{
 		"tunnel not required": {
 			clusterAuthPref: defaultAuthPref,
@@ -592,8 +601,9 @@ func TestLocalProxyRequirement(t *testing.T) {
 					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
-			wantLocalProxy: true,
-			wantTunnel:     true,
+			wantLocalProxy:   true,
+			wantTunnel:       true,
+			wantTunnelReason: "MFA is required",
 		},
 		"local proxy not required for separate port": {
 			clusterAuthPref: defaultAuthPref,
@@ -613,6 +623,25 @@ func TestLocalProxyRequirement(t *testing.T) {
 			},
 			wantLocalProxy: true,
 			wantTunnel:     false,
+		},
+		"tunnel required by tunnel flag": {
+			clusterAuthPref:  defaultAuthPref,
+			tunnelFlag:       true,
+			wantLocalProxy:   true,
+			wantTunnel:       true,
+			wantTunnelReason: dbConnectRequireReasonTunnelFlag,
+		},
+		"tunnel required for separate port by tunnel flag": {
+			clusterAuthPref: defaultAuthPref,
+			setupTC: func(tc *client.TeleportClient) {
+				tc.TLSRoutingEnabled = false
+				tc.TLSRoutingConnUpgradeRequired = false
+				tc.PostgresProxyAddr = "separate.postgres.hostport:8888"
+			},
+			tunnelFlag:       true,
+			wantLocalProxy:   true,
+			wantTunnel:       true,
+			wantTunnelReason: dbConnectRequireReasonTunnelFlag,
 		},
 	}
 	for name, tt := range tests {
@@ -640,12 +669,12 @@ func TestLocalProxyRequirement(t *testing.T) {
 				Username:    "alice",
 				Database:    "postgres",
 			}
-			requires := getDBConnectLocalProxyRequirement(ctx, tc, route)
+			requires := getDBConnectLocalProxyRequirement(ctx, tc, route, tt.tunnelFlag)
 			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
 			require.Equal(t, tt.wantTunnel, requires.tunnel)
 			if requires.tunnel {
 				require.Len(t, requires.tunnelReasons, 1)
-				require.Contains(t, requires.tunnelReasons[0], "MFA is required")
+				require.Contains(t, requires.tunnelReasons[0], tt.wantTunnelReason)
 			}
 		})
 	}
@@ -688,7 +717,7 @@ func testListDatabase(t *testing.T) {
 		}),
 	)
 
-	tshHome, _ := mustLogin(t, s)
+	tshHome, _ := mustLoginLegacy(t, s)
 
 	captureStdout := new(bytes.Buffer)
 	err := Run(context.Background(), []string{
@@ -900,7 +929,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
 
 	for _, tc := range tests {
@@ -1560,7 +1589,7 @@ func testDatabaseSelection(t *testing.T) {
 	s.user = alice
 
 	// Log into Teleport cluster.
-	tmpHomePath, _ := mustLogin(t, s)
+	tmpHomePath, _ := mustLoginLegacy(t, s)
 
 	t.Run("GetDatabasesForLogout", func(t *testing.T) {
 		t.Parallel()

@@ -16,26 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
-import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
-import { GitHubIcon } from 'design/SVGIcon';
+import { useHistory } from 'react-router';
+import styled from 'styled-components';
+
+import { Box } from 'design';
 
 import { State as ResourceState } from 'teleport/components/useResources';
+import cfg from 'teleport/config';
+import {
+  DefaultAuthConnector,
+  KindAuthConnectors,
+  Resource,
+} from 'teleport/services/resources';
 
-import { ResponsiveConnector } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
+import { AuthConnectorTile, LocalConnectorTile } from '../AuthConnectorTile';
+import getSsoIcon from '../ssoIcons/getSsoIcon';
 
-import { State as AuthConnectorState } from '../useAuthConnectors';
-
-export default function ConnectorList({ items, onEdit, onDelete }: Props) {
+export function ConnectorList<T extends KindAuthConnectors>({
+  items,
+  defaultConnector,
+  setAsDefault,
+  onDelete,
+}: Props<T>) {
+  const history = useHistory();
   items = items || [];
   const $items = items.map(item => {
-    const { id, name } = item;
+    const { id, name, kind } = item;
+
+    const Icon = getSsoIcon(kind, name);
+
     return (
-      <ConnectorListItem
+      <AuthConnectorTile
         key={id}
+        kind={kind}
         id={id}
-        onEdit={onEdit}
+        Icon={Icon}
+        isDefault={
+          defaultConnector.name === name && defaultConnector.type === kind
+        }
+        onSetAsDefault={() => setAsDefault({ type: kind, name })}
+        isPlaceholder={false}
+        onEdit={() => history.push(cfg.getEditAuthConnectorRoute(kind, name))}
         onDelete={onDelete}
         name={name}
       />
@@ -43,55 +64,26 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
   });
 
   return (
-    <Flex flexWrap="wrap" alignItems="center" flex={1} gap={5}>
+    <AuthConnectorsGrid>
+      <LocalConnectorTile
+        isDefault={defaultConnector.type === 'local'}
+        setAsDefault={() => setAsDefault({ type: 'local' })}
+      />
       {$items}
-    </Flex>
+    </AuthConnectorsGrid>
   );
 }
 
-function ConnectorListItem({ name, id, onEdit, onDelete }) {
-  const onClickEdit = () => onEdit(id);
-  const onClickDelete = () => onDelete(id);
-
-  return (
-    <ResponsiveConnector>
-      <Flex width="100%" justifyContent="center">
-        <MenuIcon buttonIconProps={menuActionProps}>
-          <MenuItem onClick={onClickDelete}>Delete...</MenuItem>
-        </MenuIcon>
-      </Flex>
-      <Flex
-        flex="1"
-        alignItems="center"
-        justifyContent="center"
-        flexDirection="column"
-        width="200px"
-        style={{ textAlign: 'center' }}
-      >
-        <Box mb={3} mt={3}>
-          <GitHubIcon style={{ textAlign: 'center' }} size={50} />
-        </Box>
-        <Text style={{ width: '100%' }} typography="body2" bold caps>
-          {name}
-        </Text>
-      </Flex>
-      <ButtonPrimary mt="auto" size="medium" block onClick={onClickEdit}>
-        EDIT CONNECTOR
-      </ButtonPrimary>
-    </ResponsiveConnector>
-  );
-}
-
-const menuActionProps = {
-  style: {
-    right: '10px',
-    position: 'absolute',
-    top: '10px',
-  },
-};
-
-type Props = {
-  items: AuthConnectorState['items'];
-  onEdit: ResourceState['edit'];
+type Props<T extends KindAuthConnectors> = {
+  items: Resource<T>[];
+  defaultConnector: DefaultAuthConnector;
+  setAsDefault: (defaultConnector: DefaultAuthConnector) => void;
   onDelete: ResourceState['remove'];
 };
+
+export const AuthConnectorsGrid = styled(Box)`
+  width: 100%;
+  display: grid;
+  gap: ${p => p.theme.space[3]}px;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+`;

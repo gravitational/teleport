@@ -18,8 +18,8 @@
 
 import { Server, ServerCredentials } from '@grpc/grpc-js';
 
-import { createStdoutLoggerService } from 'teleterm/services/logger';
-
+import Logger from 'teleterm/logger';
+import { RuntimeSettings, TERMINATE_MESSAGE } from 'teleterm/mainProcess/types';
 import {
   createInsecureServerCredentials,
   createServerCredentials,
@@ -28,9 +28,7 @@ import {
   readGrpcCert,
   shouldEncryptConnection,
 } from 'teleterm/services/grpcCredentials';
-import { RuntimeSettings } from 'teleterm/mainProcess/types';
-import Logger from 'teleterm/logger';
-
+import { createStdoutLoggerService } from 'teleterm/services/logger';
 import { ptyHostDefinition } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb.grpc-server';
 
 import { createPtyHostService } from './ptyHost/ptyHostService';
@@ -74,7 +72,8 @@ async function initializeServer(
   }
 
   const server = new Server();
-  server.addService(ptyHostDefinition, createPtyHostService());
+  const ptyHostService = createPtyHostService();
+  server.addService(ptyHostDefinition, ptyHostService);
 
   // grpc-js requires us to pass localhost:port for TCP connections,
   const grpcServerAddress = address.replace('tcp://', '');
@@ -88,15 +87,18 @@ async function initializeServer(
       if (error) {
         return logger.error(error.message);
       }
-
-      server.start();
     });
   } catch (e) {
     logger.error('Could not start shared server', e);
   }
 
-  process.once('exit', () => {
-    server.forceShutdown();
+  process.on('message', async message => {
+    if (message === TERMINATE_MESSAGE) {
+      new Logger('Process').info('Received terminate message, exiting');
+      server.forceShutdown();
+      await ptyHostService.dispose();
+      process.exit(0);
+    }
   });
 }
 

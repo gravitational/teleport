@@ -16,27 +16,46 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonWarning, ButtonSecondary, Text, Alert } from 'design';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+import { Alert, ButtonSecondary, ButtonWarning, Text } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
-import { useAttemptNext } from 'shared/hooks';
 
-export default function Container(props: Props) {
-  const dialog = useDialog(props);
-  return <UserDelete {...dialog} />;
+import userService from 'teleport/services/user';
+import { GetUsersQueryKey } from 'teleport/services/user/hooks';
+
+interface UserDeleteProps {
+  username: string;
+  onClose(): void;
 }
 
-export function UserDelete({
-  username,
-  onDelete,
-  onClose,
-  attempt,
-}: ReturnType<typeof useDialog>) {
+export function UserDelete({ username, onClose }: UserDeleteProps) {
+  const queryClient = useQueryClient();
+
+  const deleteUser = useMutation({
+    mutationFn: userService.deleteUser,
+    onSuccess: (_, name) => {
+      queryClient.setQueryData(GetUsersQueryKey, previous => {
+        if (!previous) {
+          return [];
+        }
+
+        return previous.filter(user => user.name !== name);
+      });
+    },
+  });
+
+  async function handleDelete() {
+    await deleteUser.mutateAsync(username);
+
+    onClose();
+  }
+
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -48,7 +67,7 @@ export function UserDelete({
         <DialogTitle>Delete User?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
+        {deleteUser.isError && <Alert children={deleteUser.error.message} />}
         <Text mb={4}>
           You are about to delete user
           <Text bold as="span">
@@ -60,8 +79,8 @@ export function UserDelete({
       <DialogFooter>
         <ButtonWarning
           mr="3"
-          disabled={attempt.status === 'processing'}
-          onClick={onDelete}
+          disabled={deleteUser.isPending}
+          onClick={handleDelete}
         >
           I understand, delete user
         </ButtonWarning>
@@ -70,32 +89,3 @@ export function UserDelete({
     </Dialog>
   );
 }
-
-function useDialog(props: Props) {
-  const { attempt, setAttempt } = useAttemptNext();
-  function onDelete() {
-    setAttempt({ status: 'processing' });
-    props
-      .onDelete(props.username)
-      .then(() => {
-        setAttempt({ status: 'success' });
-        props.onClose();
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  }
-
-  return {
-    username: props.username,
-    onClose: props.onClose,
-    onDelete,
-    attempt,
-  };
-}
-
-type Props = {
-  username: string;
-  onClose(): void;
-  onDelete(username: string): Promise<any>;
-};

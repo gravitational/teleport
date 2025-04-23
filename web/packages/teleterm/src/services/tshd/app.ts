@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { App, Cluster } from 'teleterm/services/tshd/types';
+import {
+  App,
+  PortRange,
+  RouteToApp,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 /** Returns a URL that opens the web app in the browser. */
 export function getWebAppLaunchUrl({
@@ -83,3 +88,40 @@ export function isWebApp(app: App): boolean {
     app.endpointUri.startsWith('https://')
   );
 }
+
+/**
+ * Returns address with protocol which is an app protocol + a public address.
+ * If the public address is empty, it falls back to the endpoint URI.
+ *
+ * Always empty for SAML applications.
+ */
+export function getAppAddrWithProtocol(source: App): string {
+  const { publicAddr, endpointUri } = source;
+
+  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
+  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
+  let addrWithProtocol = endpointUri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp) {
+      addrWithProtocol = `tcp://${publicAddr}`;
+    } else {
+      addrWithProtocol = `https://${publicAddr}`;
+    }
+  }
+
+  return addrWithProtocol;
+}
+
+export const portRangeSeparator = '-';
+
+export const formatPortRange = (portRange: PortRange): string =>
+  portRange.endPort === 0
+    ? portRange.port.toString()
+    : `${portRange.port}${portRangeSeparator}${portRange.endPort}`;
+
+export const publicAddrWithTargetPort = (routeToApp: RouteToApp): string =>
+  routeToApp.targetPort
+    ? `${routeToApp.publicAddr}:${routeToApp.targetPort}`
+    : routeToApp.publicAddr;

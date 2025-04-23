@@ -97,7 +97,7 @@ which is difficult to maintain in a cross-platform way, and has broken
 [gopls integration](https://github.com/gravitational/teleport/blob/30effc1f08b6a699772ff22f79ebe756fe1a1e34/Makefile#L942-L952)
 a common tool used in Go development environments.
 
-Lastly, there is no guarantee that the code comitted to vendor actually
+Lastly, there is no guarantee that the code committed to vendor actually
 reflects the contents of go.mod. The onus is on the developer to remember to run
 `make update-vendor` and commit the results after making changes to
 dependencies. This has created several cases of confusing build results amongst

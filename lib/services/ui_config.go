@@ -38,15 +38,12 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 
 	var uiconfig types.UIConfigV1
 	if err := utils.FastUnmarshal(data, &uiconfig); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := uiconfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		uiconfig.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		uiconfig.SetRevision(cfg.Revision)
 	}
@@ -68,7 +65,7 @@ func MarshalUIConfig(uiconfig types.UIConfig, opts ...MarshalOption) ([]byte, er
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, uiconfig))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, uiconfig))
 	default:
 		return nil, trace.BadParameter("unrecognized uiconfig version %T", uiconfig)
 	}

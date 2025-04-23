@@ -48,10 +48,9 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
+		Key:     backend.NewKey(pluginsPrefix, plugin.GetName()),
 		Value:   value,
 		Expires: plugin.Expiry(),
-		ID:      plugin.GetResourceID(),
 	}
 	_, err = s.backend.Create(ctx, item)
 	if err != nil {
@@ -63,7 +62,7 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 
 // DeletePlugin implements service.Plugins
 func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
-	err := s.backend.Delete(ctx, backend.Key(pluginsPrefix, name))
+	err := s.backend.Delete(ctx, backend.NewKey(pluginsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("plugin %q doesn't exist", name)
@@ -71,6 +70,31 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// UpdatePlugin updates a plugin resource.
+func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error) {
+	if err := services.CheckAndSetDefaults(plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalPlugin(plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:      backend.NewKey(pluginsPrefix, plugin.GetName()),
+		Value:    value,
+		Expires:  plugin.Expiry(),
+		Revision: plugin.GetRevision(),
+	}
+	lease, err := s.backend.ConditionalUpdate(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := types.SetRevision(plugin, lease.Revision); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return plugin, nil
 }
 
 // DeleteAllPlugins implements service.Plugins
@@ -85,7 +109,7 @@ func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
 
 // GetPlugin implements services.Plugins
 func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	item, err := s.backend.Get(ctx, backend.Key(pluginsPrefix, name))
+	item, err := s.backend.Get(ctx, backend.NewKey(pluginsPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("plugin %q doesn't exist", name)
@@ -94,7 +118,7 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,10 +153,13 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 // ListPlugins returns a paginated list of plugin instances.
 // StartKey is a resource name, which is the suffix of its key.
 func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	if limit <= 0 {
+		limit = apidefaults.DefaultChunkSize
+	}
 	// Get at most limit+1 results to determine if there will be a next key.
 	maxLimit := limit + 1
 
-	startKeyBytes := backend.Key(pluginsPrefix, startKey)
+	startKeyBytes := backend.NewKey(pluginsPrefix, startKey)
 	endKey := backend.RangeEnd(backend.ExactKey(pluginsPrefix))
 	result, err := s.backend.GetRange(ctx, startKeyBytes, endKey, maxLimit)
 	if err != nil {
@@ -141,7 +168,7 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 
 	plugins := make([]types.Plugin, 0, len(result.Items))
 	for _, item := range result.Items {
-		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		plugin, err := services.UnmarshalPlugin(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -191,7 +218,7 @@ func (s *PluginsService) SetPluginStatus(ctx context.Context, name string, statu
 }
 
 func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify func(types.Plugin) error) error {
-	key := backend.Key(pluginsPrefix, name)
+	key := backend.NewKey(pluginsPrefix, name)
 	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -201,7 +228,7 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 	}
 
 	plugin, err := services.UnmarshalPlugin(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -219,11 +246,10 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 		return trace.Wrap(err)
 	}
 
-	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
-		Key:      backend.Key(pluginsPrefix, plugin.GetName()),
+	_, err = s.backend.ConditionalUpdate(ctx, backend.Item{
+		Key:      backend.NewKey(pluginsPrefix, plugin.GetName()),
 		Value:    value,
 		Expires:  plugin.Expiry(),
-		ID:       plugin.GetResourceID(),
 		Revision: rev,
 	})
 

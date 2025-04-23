@@ -23,13 +23,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+type mockClients struct {
+	cloud.AzureClients
+
+	azureClient azure.VirtualMachinesClient
+}
 
 func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
 	return c.azureClient, nil
@@ -43,40 +52,40 @@ func TestAzureWatcher(t *testing.T) {
 			VirtualMachines: map[string][]*armcompute.VirtualMachine{
 				"rg1": {
 					{
-						ID:       to.Ptr("vm1"),
+						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
 						Location: to.Ptr("location1"),
 					},
 					{
-						ID:       to.Ptr("vm2"),
+						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
 						Location: to.Ptr("location1"),
 						Tags: map[string]*string{
 							"teleport": to.Ptr("yes"),
 						},
 					},
 					{
-						ID:       to.Ptr("vm5"),
+						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm5"),
 						Location: to.Ptr("location2"),
 					},
 				},
 				"rg2": {
 					{
-						ID:       to.Ptr("vm3"),
+						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg2/providers/Microsoft.Compute/virtualMachines/vm3"),
 						Location: to.Ptr("location1"),
 					},
 					{
-						ID:       to.Ptr("vm4"),
+						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg2/providers/Microsoft.Compute/virtualMachines/vm4"),
 						Location: to.Ptr("location1"),
 						Tags: map[string]*string{
 							"teleport": to.Ptr("yes"),
 						},
 					},
 					{
-						ID:       to.Ptr("vm6"),
+						ID:       to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg2/providers/Microsoft.Compute/virtualMachines/vm6"),
 						Location: to.Ptr("location2"),
 					},
 				},
 			},
-		}),
+		}, nil /* scaleSetAPI */),
 	}
 
 	tests := []struct {
@@ -129,8 +138,18 @@ func TestAzureWatcher(t *testing.T) {
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
 		},
+		{
+			name: "resource group wildcard",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"*"},
+				Regions:        []string{types.Wildcard},
+				ResourceTags:   types.Labels{"*": []string{"*"}},
+			},
+			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
+		},
 	}
 
+	logger := utils.NewSlogLoggerForTests()
 	for _, tc := range tests {
 		tc.matcher.Types = []string{"vm"}
 		tc.matcher.Subscriptions = []string{"sub1"}
@@ -139,7 +158,7 @@ func TestAzureWatcher(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
 			watcher, err := NewAzureWatcher(ctx, func() []Fetcher {
-				return MatchersToAzureInstanceFetchers([]types.AzureMatcher{tc.matcher}, &clients)
+				return MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher}, &clients, "" /* discovery config */)
 			})
 			require.NoError(t, err)
 
@@ -152,8 +171,12 @@ func TestAzureWatcher(t *testing.T) {
 				select {
 				case results := <-watcher.InstancesC:
 					for _, vm := range results.Azure.Instances {
-						vmIDs = append(vmIDs, *vm.ID)
+						parsedResource, err := arm.ParseResourceID(*vm.ID)
+						require.NoError(t, err)
+						vmID := parsedResource.Name
+						vmIDs = append(vmIDs, vmID)
 					}
+					require.NotEqual(t, "*", results.Azure.ResourceGroup)
 				case <-ctx.Done():
 					require.Fail(t, "Expected %v VMs, got %v", tc.wantVMs, len(vmIDs))
 				}

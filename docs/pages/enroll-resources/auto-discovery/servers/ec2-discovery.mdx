@@ -1,0 +1,357 @@
+---
+title: Configure Teleport to Automatically Enroll EC2 instances 
+description: How to configure Teleport to automatically enroll EC2 instances.
+---
+
+The Teleport Discovery Service can connect to Amazon EC2 and automatically
+discover and enroll EC2 instances matching configured labels. It will then
+execute an install script on these discovered instances using AWS Systems
+Manager that will install Teleport, start it and join the cluster.
+
+In this scenario, Teleport Discovery Service uses an IAM invite token with a
+long time-to-live (TTL), so that new instances can be discovered and added to
+the Teleport cluster for the lifetime of the token.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- AWS account with EC2 instances and permissions to create and attach IAM
+policies.
+- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023 and SSM agent version 3.1 or greater if making use of the
+default Teleport install script. (For other Linux distributions, you can
+install Teleport manually.)
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/7. Create an EC2 invite token
+
+When discovering EC2 instances, Teleport makes use of IAM invite tokens for
+authenticating joining Nodes.
+
+Create a file called `token.yaml`:
+
+```yaml
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # the token name is not a secret because instances must prove that they are
+  # running in your AWS account to use this token
+  name: aws-discovery-iam-token
+spec:
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
+  roles: [Node]
+
+  # set the join method allowed for this token
+  join_method: iam
+
+  allow:
+  # specify the AWS account which Nodes may join from
+  - aws_account: "123456789"
+```
+
+Assign the `aws_account` field to your AWS account number.
+Add the token to the Teleport cluster with:
+
+```code
+$ tctl create -f token.yaml
+```
+
+## Step 2/7. Define an IAM policy
+
+The `teleport discovery bootstrap` command will automate the process of
+defining and implementing IAM policies required to make auto-discovery work. It
+requires only a single pre-defined policy, attached to the EC2 instance running
+the command:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:GetPolicy",
+                "iam:TagPolicy",
+                "iam:ListPolicyVersions",
+                "iam:CreatePolicyVersion",
+                "iam:CreatePolicy",
+                "ssm:CreateDocument",
+                "iam:DeletePolicyVersion",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePermissionsBoundary"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+Create this policy and apply it to the Node (EC2 instance) that will run the Discovery Service.
+
+## Step 3/7. Install Teleport on the Discovery Node
+
+<Admonition type="tip">
+
+If you plan on running the Discovery Service on the same Node already running
+another Teleport service (Auth or Proxy, for example), you can skip this step.
+
+</Admonition>
+
+Install Teleport on the EC2 instance that will run the Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 4/7. Configure Teleport to discover EC2 instances
+
+If you are running the Discovery Service on its own host, the service requires a
+valid invite token to connect to the cluster. Generate one by running the
+following command against your Teleport Auth Service:
+
+```code
+$ tctl tokens add --type=discovery
+```
+
+Save the generated token in `/tmp/token` on the Node (EC2 instance) that will
+run the Discovery Service.
+
+In order to enable EC2 instance discovery the `discovery_service.aws` section
+of `teleport.yaml` must include at least one entry:
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443" />"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+discovery_service:
+  enabled: "yes"
+  discovery_group: "aws-prod"
+  aws:
+   - types: ["ec2"]
+     regions: ["us-east-1","us-west-1"]
+     install:
+        join_params:
+          token_name: aws-discovery-iam-token
+          method: iam
+     tags:
+       "env": "prod" # Match EC2 instances where tag:env=prod
+```
+
+- Edit the `teleport.auth_servers` key to match your Auth Service or Proxy Service's URI
+  and port.
+- Adjust the keys under `discovery_service.aws` to match your EC2 environment,
+  specifically the regions and tags you want to associate with the Discovery
+  Service.
+
+## Step 5/7. Bootstrap the Discovery Service AWS configuration
+
+On the same Node as above, run `teleport discovery bootstrap`. This command
+will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
+required to enable the Discovery Service:
+
+```code
+$ sudo teleport discovery bootstrap
+Reading configuration at "/etc/teleport.yaml"...
+
+AWS
+1. Create IAM Policy "TeleportEC2Discovery":
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "ssm:DescribeInstanceInformation",
+                "ssm:GetCommandInvocation",
+                "ssm:ListCommandInvocations",
+                "ssm:SendCommand"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+
+2. Create IAM Policy "TeleportEC2DiscoveryBoundary":
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstances",
+                "ssm:DescribeInstanceInformation",
+                "ssm:GetCommandInvocation",
+                "ssm:ListCommandInvocations",
+                "ssm:SendCommand"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+
+3. Create SSM Document "TeleportDiscoveryInstaller":
+
+schemaVersion: '2.2'
+description: aws:runShellScript
+parameters:
+  token:
+    type: String
+    description: "(Required) The Teleport invite token to use when joining the cluster."
+  scriptName:
+    type: String
+    description: "(Required) The Teleport installer script to use when joining the cluster."
+mainSteps:
+- action: aws:downloadContent
+  name: downloadContent
+  inputs:
+    sourceType: "HTTP"
+    destinationPath: "/tmp/installTeleport.sh"
+    sourceInfo:
+      url: "https://<Var name="teleport.example.com:443" />/webapi/scripts/installer/{{ scriptName }}"
+- action: aws:runShellScript
+  name: runShellScript
+  inputs:
+    timeoutSeconds: '300'
+    runCommand:
+      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+
+4. Attach IAM policies to "yourUser-discovery-role".
+
+Confirm? [y/N]: y
+```
+
+Review the policies and confirm:
+
+```code
+Confirm? [y/N]: y
+✅[AWS] Create IAM Policy "TeleportEC2Discovery"... done.
+✅[AWS] Create IAM Policy "TeleportEC2DiscoveryBoundary"... done.
+✅[AWS] Create IAM SSM Document "TeleportDiscoveryInstaller"... done.
+✅[AWS] Attach IAM policies to "alex-discovery-role"... done.
+```
+
+All EC2 instances that are to be added to the Teleport cluster by the
+Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
+in order to receive commands from the Discovery Service.
+
+This policy includes the following permissions:
+
+```js
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssm:DescribeAssociation",
+                "ssm:GetDeployablePatchSnapshotForInstance",
+                "ssm:GetDocument",
+                "ssm:DescribeDocument",
+                "ssm:GetManifest",
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:ListAssociations",
+                "ssm:ListInstanceAssociations",
+                "ssm:PutInventory",
+                "ssm:PutComplianceItems",
+                "ssm:PutConfigurePackageResult",
+                "ssm:UpdateAssociationStatus",
+                "ssm:UpdateInstanceAssociationStatus",
+                "ssm:UpdateInstanceInformation"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ssmmessages:CreateControlChannel",
+                "ssmmessages:CreateDataChannel",
+                "ssmmessages:OpenControlChannel",
+                "ssmmessages:OpenDataChannel"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2messages:AcknowledgeMessage",
+                "ec2messages:DeleteMessage",
+                "ec2messages:FailMessage",
+                "ec2messages:GetEndpoint",
+                "ec2messages:GetMessages",
+                "ec2messages:SendReply"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+## Step 6/7. [Optional] Customize the default installer script
+
+(!docs/pages/includes/server-access/custom-installer.mdx cloud="AWS" matcher="aws" matchTypes="[\"ec2\"]"!)
+
+## Step 7/7. Start Teleport
+
+(!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+Once you have started the Discovery Service, EC2 instances matching the tags you
+specified earlier will begin to be added to the Teleport cluster automatically.
+
+## Troubleshooting
+
+If Installs are showing failed or instances are failing to appear check the
+Command history in AWS System Manager -> Node Management -> Run Command.
+Select the instance-id of the Target to review Errors.
+
+### `cannot unmarshal object into Go struct field`
+
+If you encounter an error similar to the following:
+
+```text
+invalid format in plugin properties map[destinationPath:/tmp/installTeleport.sh sourceInfo:map[url:[https://example.teleport.sh:443/webapi/scripts/installer/preprod-installer](https://example.teleport.sh/webapi/scripts/installer/preprod-installer)] sourceType:HTTP];
+error json: cannot unmarshal object into Go struct field DownloadContentPlugin.sourceInfo of type string
+```
+
+It is likely that you're running an older SSM agent version. Upgrade to SSM agent version 3.1 or greater to resolve.
+
+### `InvalidInstanceId: Instances [[i-123]] not in a valid state for account 456`
+
+The following problems can cause this error:
+- The Discovery Service doesn't have permission to access the managed node.
+- AWS Systems Manager Agent (SSM Agent) isn't running. Verify that SSM Agent is running.
+- SSM Agent isn't registered with the SSM endpoint. Try reinstalling SSM Agent.
+- The discovered instance does not have permission to receive SSM
+  commands, verify the instance includes the AmazonSSMManagedInstanceCore IAM policy.
+
+See SSM RunCommand error codes and troubleshooting information in AWS documentation for more details:
+- https://docs.aws.amazon.com/systems-manager/latest/userguide/troubleshooting-managed-instances.html
+- https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors
+
+## Next steps
+
+- Read [Joining Nodes via AWS IAM
+  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx)
+for more information on IAM Invite Tokens.
+- Information on IAM best practices on EC2 instances managed by Systems
+Manager can be found for in the [AWS Cloud Operations & Migrations Blog
+](https://aws.amazon.com/blogs/mt/applying-managed-instance-policy-best-practices/).
+- Full documentation on EC2 discovery configuration can be found through the [
+config file reference documentation](../../../reference/config.mdx).

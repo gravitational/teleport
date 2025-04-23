@@ -1,0 +1,34 @@
+# This style enforces the presence of an introductory paragraph before the first
+# H2 of a docs page.
+extends: script
+level: warning
+message: There must be a brief intro paragraph before the first H2-level section of a docs page. Use this to describe the purpose of the guide so a reader can determine whether they should continue reading. If the guide introduces a feature, describe the purpose and benefits of the feature. If there is already an "Introduction" H2 or similar, remove the heading.
+scope: raw
+script: |
+  text := import("text")
+  getMatches := func() {
+    docSeparators := text.re_find(`\n?---\n`, scope, 2)
+    // This is probably not a valid MDX file, but let other linters handler the
+    // error.
+    if docSeparators == undefined || len(docSeparators) != 2 {
+      return []
+    }
+
+    // Get the first H2 section
+    firstH2 := text.re_find(`\n## \w`, scope, 1)
+    if firstH2 == undefined {
+      return []
+    }
+
+    initialText := text.substr(scope, docSeparators[1][0].end,firstH2[0][0].begin)
+    // Check for at least one non-empty line before the first H2.
+    if !text.re_match(`\n[^\n]+\n`, initialText) {
+      return [{ 
+          begin: docSeparators[1][0].end,
+          end: firstH2[0][0].begin
+      }]
+    }
+
+  }
+
+  matches := getMatches()

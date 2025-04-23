@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useContext } from 'react';
-import { Option } from 'shared/components/Select';
+import React, { useContext, useState } from 'react';
 
+import { Option } from 'shared/components/Select';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { ResourceLabel } from 'teleport/services/agents';
 import {
-  createBot as serviceCreateBot,
   createBotToken,
   GITHUB_ACTIONS_LABEL_KEY,
+  createBot as serviceCreateBot,
 } from 'teleport/services/bot';
 import {
   BotUiFlow,
@@ -33,7 +33,6 @@ import {
   GitHubRepoRule,
   RefType,
 } from 'teleport/services/bot/types';
-
 import useTeleport from 'teleport/useTeleport';
 
 export const GITHUB_HOST = 'github.com';
@@ -125,7 +124,10 @@ export function GitHubFlowProvider({
             },
           }).then(token => {
             setTokenName(token.id);
-            return serviceCreateBot(createBotRequest);
+            return serviceCreateBot({
+              ...createBotRequest,
+              roles: [createBotRequest.botName],
+            });
           });
         })
     );
@@ -194,7 +196,7 @@ export function parseRepoAddress(repoAddr: string): {
   let url;
   try {
     url = new URL(repoAddr);
-  } catch (e) {
+  } catch {
     throw new Error('Must be a valid URL');
   }
 
@@ -226,9 +228,9 @@ function getRoleYaml(
   labels: ResourceLabel[],
   login: string
 ): string {
-  const nodeLabelsStanza = labels.map(
-    label => `'${label.name}': '${label.value}'\n`
-  );
+  const nodeLabels = labels
+    .map(label => `'${label.name}': '${label.value}'`)
+    .join('\n      ');
 
   return `kind: role
 metadata:
@@ -237,38 +239,12 @@ metadata:
     ${GITHUB_ACTIONS_LABEL_KEY}: ${GITHUB_ACTIONS_LABEL_VAL}
 spec:
   allow:
-    # List of Kubernetes cluster users can access the k8s API
-    kubernetes_labels:
-    ${nodeLabelsStanza}
-    kubernetes_groups:
-    - '{{internal.kubernetes_groups}}'
-    kubernetes_users:
-    - '{{internal.kubernetes_users}}'
-
-    kubernetes_resources:
-    - kind: '*'
-      namespace: '*'
-      name: '*'
-      verbs: ['*']
-
     # List of allowed SSH logins
     logins: [${login}]
 
     # List of node labels that users can SSH into
     node_labels:
-    ${nodeLabelsStanza}
-    rules:
-    - resources:
-      - event
-      verbs:
-      - list
-      - read
-    - resources:
-      - session
-      verbs:
-      - read
-      - list
-      where: contains(session.participants, user.metadata.name)
+      ${nodeLabels}
     options:
       max_session_ttl: 8h0m0s
 version: v7

@@ -21,9 +21,14 @@ package handler
 import (
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/ui"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "conn:handler")
 
 // New creates an instance of Handler
 func New(cfg Config) (*Handler, error) {
@@ -59,17 +64,13 @@ type Handler struct {
 	Config
 }
 
-// sortedLabels is a sort wrapper that sorts labels by name
-type APILabels []*api.Label
-
-func (s APILabels) Len() int {
-	return len(s)
-}
-
-func (s APILabels) Less(i, j int) bool {
-	return s[i].Name < s[j].Name
-}
-
-func (s APILabels) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
+func makeAPILabels(uiLabels []ui.Label) []*api.Label {
+	apiLabels := make([]*api.Label, 0, len(uiLabels))
+	for _, uiLabel := range uiLabels {
+		apiLabels = append(apiLabels, &api.Label{
+			Name:  uiLabel.Name,
+			Value: uiLabel.Value,
+		})
+	}
+	return apiLabels
 }

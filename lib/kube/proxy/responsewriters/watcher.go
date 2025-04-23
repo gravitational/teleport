@@ -54,6 +54,8 @@ const (
 // If the user is not allowed, the event is ignored.
 // If allowed, the event is encoded into the user's response.
 type WatcherResponseWriter struct {
+	// mtx protects target and ensures writes happen sequentially.
+	mtx sync.Mutex
 	// target is the user response writer.
 	// everything written will be received by the user.
 	target http.ResponseWriter
@@ -196,6 +198,13 @@ func (w *WatcherResponseWriter) Close() error {
 
 // Flush flushes the response into the target and returns.
 func (w *WatcherResponseWriter) Flush() {
+	w.mtx.Lock()
+	defer w.mtx.Unlock()
+
+	w.flushLocked()
+}
+
+func (w *WatcherResponseWriter) flushLocked() {
 	if flusher, ok := w.target.(http.Flusher); ok {
 		flusher.Flush()
 	}
@@ -244,10 +253,9 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 
 	// watchEncoderGuard prevents multiple sources to push events at the same time.
 	// only one source is able to push and flush events to ensure proper json formatting.
-	var watchEncoderGuard sync.Mutex
 	writeEventAndFlush := func(evt *watch.Event) error {
-		watchEncoderGuard.Lock()
-		defer watchEncoderGuard.Unlock()
+		w.mtx.Lock()
+		defer w.mtx.Unlock()
 		// encode the event into the target connection.
 		if err := watchEncoder.Encode(evt); err != nil {
 			return trace.Wrap(err)
@@ -263,7 +271,7 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 		// an abort.
 		// To avoid this, we flush the response after each event to ensure that
 		// the user receives the event as a chunk.
-		w.Flush()
+		w.flushLocked()
 		return nil
 	}
 

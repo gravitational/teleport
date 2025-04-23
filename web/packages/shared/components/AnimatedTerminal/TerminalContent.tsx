@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import { BufferEntry } from 'shared/components/AnimatedTerminal/content';
@@ -125,14 +125,14 @@ function renderLines(lines: BufferEntry[], highlights?: KeywordHighlight[]) {
   }
 
   const result = lines.map(line => (
-    <React.Fragment key={line.id}>
+    <Fragment key={line.id}>
       {line.isCommand ? (
         <Prompt>${line.text.length > 0 ? ' ' : ''}</Prompt>
       ) : null}
       {formatText(line.text, line.isCommand, highlights)}
       {line.isCurrent && line.isCommand ? <Cursor /> : null}
       <br />
-    </React.Fragment>
+    </Fragment>
   ));
 
   return result;
@@ -193,7 +193,7 @@ function formatText(
   outer: for (const [index, word] of words.entries()) {
     if (!isCommand && /(https?:\/\/\S+)/g.test(word)) {
       result.push(
-        <React.Fragment key={index}>
+        <Fragment key={index}>
           <a
             key={index}
             style={{ color: '#feaa01', textDecoration: 'underline' }}
@@ -203,7 +203,7 @@ function formatText(
           >
             {word}
           </a>{' '}
-        </React.Fragment>
+        </Fragment>
       );
 
       continue;

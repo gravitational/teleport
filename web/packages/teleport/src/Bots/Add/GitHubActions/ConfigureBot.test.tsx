@@ -16,19 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-import TeleportContext from 'teleport/teleportContext';
 import { allAccessAcl } from 'teleport/mocks/contexts';
-
-import { Access, Acl } from 'teleport/services/user';
 import * as botService from 'teleport/services/bot/bot';
+import { Access, Acl } from 'teleport/services/user';
+import TeleportContext from 'teleport/teleportContext';
 
-import { GitHubFlowProvider } from './useGitHubFlow';
 import { ConfigureBot } from './ConfigureBot';
+import { GitHubFlowProvider } from './useGitHubFlow';
 
 type SetupProps = {
   access?: Acl;
@@ -118,6 +117,8 @@ describe('configureBot Component', () => {
 
     const botNameInput = screen.getByPlaceholderText('github-actions-cd');
     await userEvent.type(botNameInput, 'bot-name');
+    const sshUserInput = screen.getByPlaceholderText('ubuntu');
+    await userEvent.type(sshUserInput, 'ssh-user');
     await userEvent.click(screen.getByTestId('button-next'));
     expect(
       screen.getByText(

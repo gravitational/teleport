@@ -24,39 +24,43 @@ import (
 	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	"github.com/aws/aws-sdk-go-v2/config"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 )
 
-// ConvertRequestFailureError converts `error` into AWS RequestFailure errors
-// to trace errors. If the provided error is not an `RequestFailure` it returns
-// the error without modifying it.
+// ConvertRequestFailureError converts AWS SDK v2 errors to trace errors.
+// If the provided error is not a [awshttp.ResponseError] it returns the error
+// without modifying it.
 func ConvertRequestFailureError(err error) error {
-	var requestErr awserr.RequestFailure
-	if !errors.As(err, &requestErr) {
-		return err
+	var re *awshttp.ResponseError
+	if errors.As(err, &re) {
+		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re)
 	}
-
-	return convertRequestFailureErrorFromStatusCode(requestErr.StatusCode(), requestErr)
+	return err
 }
+
+var (
+	ecsClusterNotFoundException *ecstypes.ClusterNotFoundException
+)
 
 func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) error {
 	switch statusCode {
 	case http.StatusForbidden:
-		return trace.AccessDenied(requestErr.Error())
+		return trace.AccessDenied("%s", requestErr)
 	case http.StatusConflict:
-		return trace.AlreadyExists(requestErr.Error())
+		return trace.AlreadyExists("%s", requestErr)
 	case http.StatusNotFound:
-		return trace.NotFound(requestErr.Error())
+		return trace.NotFound("%s", requestErr)
 	case http.StatusBadRequest:
 		// Some services like memorydb, redshiftserverless may return 400 with
 		// "AccessDeniedException" instead of 403.
-		if strings.Contains(requestErr.Error(), redshiftserverless.ErrCodeAccessDeniedException) {
-			return trace.AccessDenied(requestErr.Error())
+		if strings.Contains(requestErr.Error(), "AccessDeniedException") {
+			return trace.AccessDenied("%s", requestErr)
+		}
+
+		if strings.Contains(requestErr.Error(), ecsClusterNotFoundException.ErrorCode()) {
+			return trace.NotFound("%s", requestErr)
 		}
 	}
 
@@ -65,75 +69,29 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 
 // ConvertIAMError converts common errors from IAM clients to trace errors.
 func ConvertIAMError(err error) error {
-	// By error code.
-	var awsErr awserr.Error
-	if errors.As(err, &awsErr) {
-		switch awsErr.Code() {
-		case iam.ErrCodeUnmodifiableEntityException:
-			return trace.AccessDenied(awsErr.Error())
-
-		case iam.ErrCodeNoSuchEntityException:
-			return trace.NotFound(awsErr.Error())
-
-		case iam.ErrCodeMalformedPolicyDocumentException,
-			iam.ErrCodeInvalidInputException,
-			iam.ErrCodeDeleteConflictException:
-			return trace.BadParameter(awsErr.Error())
-
-		case iam.ErrCodeLimitExceededException:
-			return trace.LimitExceeded(awsErr.Error())
-		}
-	}
-
-	// By status code.
-	return ConvertRequestFailureError(err)
-}
-
-// parseMetadataClientError converts a failed instance metadata service call to a trace error.
-func parseMetadataClientError(err error) error {
-	var httpError interface{ HTTPStatusCode() int }
-	if errors.As(err, &httpError) {
-		return trace.ReadError(httpError.HTTPStatusCode(), nil)
-	}
-	return trace.Wrap(err)
-}
-
-// ConvertIAMv2Error converts common errors from IAM clients to trace errors.
-func ConvertIAMv2Error(err error) error {
 	if err == nil {
 		return nil
 	}
 
-	var entityExistsError *iamTypes.EntityAlreadyExistsException
+	var unmodifiableEntityErr *iamtypes.UnmodifiableEntityException
+	if errors.As(err, &unmodifiableEntityErr) {
+		return trace.AccessDenied("%s", *unmodifiableEntityErr.Message)
+	}
+
+	var entityExistsError *iamtypes.EntityAlreadyExistsException
 	if errors.As(err, &entityExistsError) {
-		return trace.AlreadyExists(*entityExistsError.Message)
+		return trace.AlreadyExists("%s", *entityExistsError.Message)
 	}
 
-	var entityNotFound *iamTypes.NoSuchEntityException
+	var entityNotFound *iamtypes.NoSuchEntityException
 	if errors.As(err, &entityNotFound) {
-		return trace.NotFound(*entityNotFound.Message)
+		return trace.NotFound("%s", *entityNotFound.Message)
 	}
 
-	var malformedPolicyDocument *iamTypes.MalformedPolicyDocumentException
+	var malformedPolicyDocument *iamtypes.MalformedPolicyDocumentException
 	if errors.As(err, &malformedPolicyDocument) {
-		return trace.BadParameter(*malformedPolicyDocument.Message)
+		return trace.BadParameter("%s", *malformedPolicyDocument.Message)
 	}
 
-	var re *awshttp.ResponseError
-	if errors.As(err, &re) {
-		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)
-	}
-
-	return err
-}
-
-// ConvertLoadConfigError converts common AWS config loading errors to trace errors.
-func ConvertLoadConfigError(configErr error) error {
-	var sharedConfigProfileNotExistError config.SharedConfigProfileNotExistError
-	switch {
-	case errors.As(configErr, &sharedConfigProfileNotExistError):
-		return trace.NotFound(configErr.Error())
-	}
-
-	return configErr
+	return ConvertRequestFailureError(err)
 }

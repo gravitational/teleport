@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -101,6 +102,9 @@ type Server interface {
 	GetAWSInstanceID() string
 	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
 	GetAWSAccountID() string
+
+	// GetGitHub returns the GitHub server spec.
+	GetGitHub() *GitHubServerMetadata
 }
 
 // NewServer creates an instance of Server.
@@ -158,6 +162,30 @@ func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
 	return server, nil
 }
 
+// NewGitHubServer creates a new Git server for GitHub.
+func NewGitHubServer(githubSpec GitHubServerMetadata) (Server, error) {
+	return NewGitHubServerWithName(uuid.NewString(), githubSpec)
+}
+
+// NewGitHubServerWithName creates a new Git server for GitHub with provided
+// name.
+func NewGitHubServerWithName(name string, githubSpec GitHubServerMetadata) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindGitServer,
+		SubKind: SubKindGitHub,
+		Metadata: Metadata{
+			Name: name,
+		},
+		Spec: ServerSpecV2{
+			GitHub: &githubSpec,
+		},
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
@@ -186,16 +214,6 @@ func (s *ServerV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (s *ServerV2) SetSubKind(sk string) {
 	s.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (s *ServerV2) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (s *ServerV2) SetResourceID(id int64) {
-	s.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -449,6 +467,11 @@ func (s *ServerV2) IsEICE() bool {
 	return s.GetAWSAccountID() != "" && s.GetAWSInstanceID() != ""
 }
 
+// GetGitHub returns the GitHub server spec.
+func (s *ServerV2) GetGitHub() *GitHubServerMetadata {
+	return s.Spec.GitHub
+}
+
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
 // They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
@@ -539,6 +562,8 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			// if the server is a registered OpenSSH node, allow the name to be
 			// randomly generated
 			s.Metadata.Name = uuid.NewString()
+		case SubKindGitHub:
+			s.Metadata.Name = uuid.NewString()
 		}
 	}
 
@@ -546,13 +571,32 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if s.Kind == "" {
+	switch s.Kind {
+	case "":
 		return trace.BadParameter("server Kind is empty")
-	}
-	if s.Kind != KindNode && s.SubKind != "" {
-		return trace.BadParameter(`server SubKind must only be set when Kind is "node"`)
+	case KindNode:
+		if err := s.nodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case KindGitServer:
+		if err := s.gitServerCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		if s.SubKind != "" {
+			return trace.BadParameter(`server SubKind must only be set when Kind is "node" or "git_server"`)
+		}
 	}
 
+	for key := range s.Spec.CmdLabels {
+		if !IsValidLabelKey(key) {
+			return trace.BadParameter("invalid label key: %q", key)
+		}
+	}
+	return nil
+}
+
+func (s *ServerV2) nodeCheckAndSetDefaults() error {
 	switch s.SubKind {
 	case "", SubKindTeleportNode:
 		// allow but do nothing
@@ -567,15 +611,39 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		}
 
 	default:
-		return trace.BadParameter("invalid SubKind %q", s.SubKind)
+		return trace.BadParameter("invalid SubKind %q of Kind %q", s.SubKind, s.Kind)
+	}
+	return nil
+}
+
+func (s *ServerV2) gitServerCheckAndSetDefaults() error {
+	switch s.SubKind {
+	case SubKindGitHub:
+		return trace.Wrap(s.githubCheckAndSetDefaults())
+	default:
+		return trace.BadParameter("invalid SubKind %q of Kind %q", s.SubKind, s.Kind)
+	}
+}
+
+func (s *ServerV2) githubCheckAndSetDefaults() error {
+	if s.Spec.GitHub == nil {
+		return trace.BadParameter("github must be set for Subkind %q", s.SubKind)
+	}
+	if s.Spec.GitHub.Integration == "" {
+		return trace.BadParameter("integration must be set for Subkind %q", s.SubKind)
+	}
+	if err := ValidateGitHubOrganizationName(s.Spec.GitHub.Organization); err != nil {
+		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 
-	for key := range s.Spec.CmdLabels {
-		if !IsValidLabelKey(key) {
-			return trace.BadParameter("invalid label key: %q", key)
-		}
+	// Set SSH host port for connection and "fake" hostname for routing. These
+	// values are hard-coded and cannot be customized.
+	s.Spec.Addr = "github.com:22"
+	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
+	if s.Metadata.Labels == nil {
+		s.Metadata.Labels = make(map[string]string)
 	}
-
+	s.Metadata.Labels[GitHubOrgLabel] = s.Spec.GitHub.Organization
 	return nil
 }
 
@@ -585,25 +653,46 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 	if s.GetKind() != KindNode {
 		return false
 	}
-
-	var custom func(val string) bool
-	if s.GetUseTunnel() {
-		custom = func(val string) bool {
-			return strings.EqualFold(val, "tunnel")
+Outer:
+	for _, searchV := range values {
+		for key, value := range s.Metadata.Labels {
+			if strcase.Contains(key, searchV) || strcase.Contains(value, searchV) {
+				continue Outer
+			}
 		}
+		for key, cmd := range s.Spec.CmdLabels {
+			if strcase.Contains(key, searchV) || strcase.Contains(cmd.Result, searchV) {
+				continue Outer
+			}
+		}
+
+		if strcase.Contains(s.Metadata.Name, searchV) {
+			continue
+		}
+
+		if strcase.Contains(s.Spec.Hostname, searchV) {
+			continue
+		}
+
+		if strcase.Contains(s.Spec.Addr, searchV) {
+			continue
+		}
+
+		for _, addr := range s.Spec.PublicAddrs {
+			if strcase.Contains(addr, searchV) {
+				continue Outer
+			}
+		}
+
+		if s.GetUseTunnel() && strings.EqualFold(searchV, "tunnel") {
+			continue
+		}
+
+		// When no fields matched a value, prematurely end if we can.
+		return false
 	}
 
-	fieldVals := make([]string, 0, (len(s.Metadata.Labels)*2)+(len(s.Spec.CmdLabels)*2)+len(s.Spec.PublicAddrs)+3)
-
-	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
-	for key, value := range labels {
-		fieldVals = append(fieldVals, key, value)
-	}
-
-	fieldVals = append(fieldVals, s.Metadata.Name, s.Spec.Hostname, s.Spec.Addr)
-	fieldVals = append(fieldVals, s.Spec.PublicAddrs...)
-
-	return MatchSearch(fieldVals, values, custom)
+	return true
 }
 
 // DeepCopy creates a clone of this server value
@@ -782,4 +871,30 @@ func (s Servers) GetFieldVals(field string) ([]string, error) {
 	}
 
 	return vals, nil
+}
+
+// MakeGitHubOrgServerDomain creates a special domain name used in server's
+// host address to identify the GitHub organization.
+func MakeGitHubOrgServerDomain(org string) string {
+	return fmt.Sprintf("%s.%s", org, GitHubOrgServerDomain)
+}
+
+// GetGitHubOrgFromNodeAddr parses the organization from the node address.
+func GetGitHubOrgFromNodeAddr(addr string) (string, bool) {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	if strings.HasSuffix(addr, "."+GitHubOrgServerDomain) {
+		return strings.TrimSuffix(addr, "."+GitHubOrgServerDomain), true
+	}
+	return "", false
+}
+
+// GetOrganizationURL returns the URL to the GitHub organization.
+func (m *GitHubServerMetadata) GetOrganizationURL() string {
+	if m == nil {
+		return ""
+	}
+	// Public github.com for now.
+	return fmt.Sprintf("%s/%s", GithubURL, m.Organization)
 }

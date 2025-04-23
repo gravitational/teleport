@@ -27,10 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 func TestLoadConfigFromProfile(t *testing.T) {
@@ -59,20 +61,20 @@ func TestLoadConfigFromProfile(t *testing.T) {
 
 	tests := []struct {
 		name string
-		ccf  *common.GlobalCLIFlags
+		ccf  *tctlcfg.GlobalCLIFlags
 		cfg  *servicecfg.Config
 		want error
 	}{
 		{
 			name: "teleportHome is valid dir",
-			ccf:  &common.GlobalCLIFlags{},
+			ccf:  &tctlcfg.GlobalCLIFlags{},
 			cfg: &servicecfg.Config{
 				TeleportHome: tmpHomePath,
 			},
 			want: nil,
 		}, {
 			name: "teleportHome is nonexistent dir",
-			ccf:  &common.GlobalCLIFlags{},
+			ccf:  &tctlcfg.GlobalCLIFlags{},
 			cfg: &servicecfg.Config{
 				TeleportHome: "some/dir/that/does/not/exist",
 			},
@@ -81,7 +83,7 @@ func TestLoadConfigFromProfile(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := common.LoadConfigFromProfile(tc.ccf, tc.cfg)
+			_, err := tctlcfg.LoadConfigFromProfile(tc.ccf, tc.cfg)
 			if tc.want != nil {
 				require.ErrorIs(t, err, tc.want)
 				return
@@ -169,6 +171,24 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
+	// we wont actually run this agent, just make a config file to test with.
+	fileConfigAgent := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "false",
+				ListenAddress: authProcess.Config.Auth.ListenAddr.String(),
+			},
+		},
+		SSH: config.SSH{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+		},
+	}
+
 	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
@@ -181,8 +201,14 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	tests := []struct {
 		desc           string
 		authServerFlag []string
+		configFileFlag string
 		want           []utils.NetAddr
 	}{
+		{
+			desc:           "ignores agent config file and loads profile setting",
+			configFileFlag: mustWriteFileConfig(t, fileConfigAgent),
+			want:           []utils.NetAddr{*proxyAddr},
+		},
 		{
 			desc: "sets default web proxy addr without auth server flag",
 			want: []utils.NetAddr{*proxyAddr},
@@ -206,8 +232,9 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			ccf := &common.GlobalCLIFlags{}
+			ccf := &tctlcfg.GlobalCLIFlags{}
 			ccf.AuthServerAddr = tt.authServerFlag
+			ccf.ConfigFile = tt.configFileFlag
 
 			cfg := &servicecfg.Config{}
 			cfg.TeleportHome = tmpHomePath
@@ -215,7 +242,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 			// ApplyConfig will try to read local auth server identity if the profile is not found.
 			cfg.DataDir = authProcess.Config.DataDir
 
-			_, err = common.ApplyConfig(ccf, cfg)
+			_, err = tctlcfg.ApplyConfig(ccf, cfg)
 			require.NoError(t, err)
 			require.NotEmpty(t, cfg.AuthServerAddresses(), "auth servers should be set to a non-empty default if not specified")
 

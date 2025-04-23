@@ -22,13 +22,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
@@ -36,7 +36,7 @@ import (
 )
 
 func (b *Backend) backgroundExpiry(ctx context.Context) {
-	defer b.log.Info("Exited expiry loop.")
+	defer b.log.InfoContext(ctx, "Exited expiry loop.")
 
 	for ctx.Err() == nil {
 		// "DELETE FROM kv WHERE expires <= now()" but more complicated: logical
@@ -71,15 +71,15 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 				return tag.RowsAffected(), nil
 			})
 			if err != nil {
-				b.log.WithError(err).Error("Failed to delete expired items.")
+				b.log.ErrorContext(ctx, "Failed to delete expired items.", "error", err)
 				break
 			}
 
 			if deleted > 0 {
-				b.log.WithFields(logrus.Fields{
-					"deleted": deleted,
-					"elapsed": time.Since(t0).String(),
-				}).Debug("Deleted expired items.")
+				b.log.DebugContext(ctx, "Deleted expired items.",
+					"deleted", deleted,
+					"elapsed", time.Since(t0),
+				)
 			}
 
 			if deleted < int64(b.cfg.ExpiryBatchSize) {
@@ -96,16 +96,16 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 }
 
 func (b *Backend) backgroundChangeFeed(ctx context.Context) {
-	defer b.log.Info("Exited change feed loop.")
+	defer b.log.InfoContext(ctx, "Exited change feed loop.")
 	defer b.buf.Close()
 
 	for ctx.Err() == nil {
-		b.log.Info("Starting change feed stream.")
+		b.log.InfoContext(ctx, "Starting change feed stream.")
 		err := b.runChangeFeed(ctx)
 		if ctx.Err() != nil {
 			break
 		}
-		b.log.WithError(err).Error("Change feed stream lost.")
+		b.log.ErrorContext(ctx, "Change feed stream lost.", "error", err)
 
 		select {
 		case <-ctx.Done():
@@ -135,7 +135,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 		closeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 		if err := conn.Close(closeCtx); err != nil && closeCtx.Err() != nil {
-			b.log.WithError(err).Warn("Error closing change feed connection.")
+			b.log.WarnContext(ctx, "Error closing change feed connection.", "error", err)
 		}
 	}()
 	if ac := b.feedConfig.AfterConnect; ac != nil {
@@ -164,7 +164,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	// permission issues, which would delete the temporary slot (it's deleted on
 	// any error), so we have to do it before that
 	if _, err := conn.Exec(ctx, "SET log_min_messages TO fatal", pgx.QueryExecModeExec); err != nil {
-		b.log.WithError(err).Debug("Failed to silence log messages for change feed session.")
+		b.log.DebugContext(ctx, "Failed to silence log messages for change feed session.", "error", err)
 	}
 
 	// this can be useful on Azure if we have azure_pg_admin permissions but not
@@ -174,12 +174,12 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	//
 	// HACK(espadolini): ALTER ROLE CURRENT_USER crashes Postgres on Azure, so
 	// we have to use an explicit username
-	if b.cfg.AuthMode == AzureADAuth && connConfig.User != "" {
+	if b.cfg.AuthMode == pgcommon.AzureADAuth && connConfig.User != "" {
 		if _, err := conn.Exec(ctx,
 			fmt.Sprintf("ALTER ROLE %v REPLICATION", pgx.Identifier{connConfig.User}.Sanitize()),
 			pgx.QueryExecModeExec,
 		); err != nil {
-			b.log.WithError(err).Debug("Failed to enable replication for the current user.")
+			b.log.DebugContext(ctx, "Failed to enable replication for the current user.", "error", err)
 		}
 	}
 
@@ -188,7 +188,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	// https://github.com/postgres/postgres/blob/b0ec61c9c27fb932ae6524f92a18e0d1fadbc144/src/backend/replication/slot.c#L193-L194
 	slotName := fmt.Sprintf("teleport_%x", [16]byte(uuid.New()))
 
-	b.log.WithField("slot_name", slotName).Info("Setting up change feed.")
+	b.log.InfoContext(ctx, "Setting up change feed.", "slot_name", slotName)
 
 	// be noisy about pg_create_logical_replication_slot taking too long, since
 	// hanging here leaves the backend non-functional
@@ -202,7 +202,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	}
 	cancel()
 
-	b.log.WithField("slot_name", slotName).Info("Change feed started.")
+	b.log.InfoContext(ctx, "Change feed started.", "slot_name", slotName)
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
@@ -260,10 +260,10 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, addTables,
 
 	messages := tag.RowsAffected()
 	if messages > 0 {
-		b.log.WithFields(logrus.Fields{
-			"messages": messages,
-			"elapsed":  time.Since(t0).String(),
-		}).Debug("Fetched change feed events.")
+		b.log.LogAttrs(ctx, slog.LevelDebug, "Fetched change feed events.",
+			slog.Int64("messages", messages),
+			slog.Duration("elapsed", time.Since(t0)),
+		)
 	}
 
 	return messages, nil

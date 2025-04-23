@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Banner } from './Banner';
 import { BannerList } from './BannerList';
+import { StandardBanner } from './StandardBanner';
 
-export { Banner, BannerList };
+export { StandardBanner, BannerList };

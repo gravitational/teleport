@@ -26,9 +26,11 @@ package scp
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -36,7 +38,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -94,7 +95,7 @@ type Config struct {
 	// this command will be run on the server
 	RunOnServer bool
 	// Log optionally specifies the logger
-	Log log.FieldLogger
+	Log *slog.Logger
 }
 
 // Command is an API that describes command operations
@@ -174,20 +175,18 @@ func CreateUploadCommand(cfg Config) (Command, error) {
 func (c *Config) CheckAndSetDefaults() error {
 	logger := c.Log
 	if logger == nil {
-		logger = log.StandardLogger()
+		logger = slog.Default()
 	}
-	c.Log = logger.WithFields(log.Fields{
-		teleport.ComponentKey: "SCP",
-		teleport.ComponentFields: log.Fields{
-			"LocalAddr":      c.Flags.LocalAddr,
-			"RemoteAddr":     c.Flags.RemoteAddr,
-			"Target":         c.Flags.Target,
-			"PreserveAttrs":  c.Flags.PreserveAttrs,
-			"User":           c.User,
-			"RunOnServer":    c.RunOnServer,
-			"RemoteLocation": c.RemoteLocation,
-		},
-	})
+	c.Log = logger.With(
+		teleport.ComponentKey, "SCP",
+		"local_addr", c.Flags.LocalAddr,
+		"remote_addr", c.Flags.RemoteAddr,
+		"target", c.Flags.Target,
+		"preserve_attrs", c.Flags.PreserveAttrs,
+		"user", c.User,
+		"run_on_server", c.RunOnServer,
+		"remote_location", c.RemoteLocation,
+	)
 	if c.FileSystem == nil {
 		c.FileSystem = &localFileSystem{}
 	}
@@ -216,7 +215,7 @@ func CreateCommand(cfg Config) (Command, error) {
 // to teleport can pretend it launches real SCP behind the scenes
 type command struct {
 	Config
-	log log.FieldLogger
+	log *slog.Logger
 }
 
 // Execute implements SSH file copy (SCP). It is called on both tsh (client)
@@ -301,7 +300,7 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 		}
 	}
 
-	cmd.log.Debug("Send completed.")
+	cmd.log.DebugContext(context.Background(), "Send completed")
 	return nil
 }
 
@@ -315,7 +314,7 @@ func (cmd *command) sendDir(r *reader, ch io.ReadWriter, fileInfo FileInfo) erro
 		return trace.Wrap(err)
 	}
 
-	cmd.log.Debug("sendDir got OK")
+	cmd.log.DebugContext(context.Background(), "sendDir got OK")
 
 	fileInfos, err := fileInfo.ReadDir()
 	if err != nil {
@@ -370,7 +369,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+		defer fmt.Fprint(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -381,7 +380,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 func (cmd *command) sendErr(ch io.Writer, err error) {
 	out := fmt.Sprintf("%c%s\n", byte(ErrByte), err)
 	if _, err := ch.Write([]byte(out)); err != nil {
-		cmd.log.Debugf("Failed sending SCP error message to the remote side: %v.", err)
+		cmd.log.DebugContext(context.Background(), "Failed sending SCP error message to the remote side", "error", err)
 	}
 }
 
@@ -447,7 +446,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 }
 
 func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
-	cmd.log.Debugf("<- %v %v", string(b), line)
+	cmd.log.DebugContext(context.Background(), "processing command", "b", string(b), "line", line)
 	switch b {
 	case WarnByte, ErrByte:
 		return trace.Errorf("error from sender: %q", line)
@@ -487,7 +486,8 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 }
 
 func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) error {
-	cmd.log.Debugf("scp.receiveFile(%v): %v", cmd.Flags.Target, fc.Name)
+	ctx := context.Background()
+	cmd.log.DebugContext(ctx, "processing file copy request", "targets", cmd.Flags.Target, "file_name", fc.Name)
 
 	// Unless target specifies a file, use the file name from the command
 	path := cmd.Flags.Target[0]
@@ -504,7 +504,7 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("<- %s (%d)", path, fc.Length)
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+		defer fmt.Fprint(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 
 	if err = sendOK(ch); err != nil {
@@ -534,12 +534,12 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 		}
 	}
 
-	cmd.log.Debugf("File %v(%v) copied to %v.", fc.Name, fc.Length, path)
+	cmd.log.DebugContext(ctx, "File successfully copied", "file", fc.Name, "size", fc.Length, "destination", path)
 	return nil
 }
 
 func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error {
-	cmd.log.Debugf("scp.receiveDir(%v): %v", cmd.Flags.Target, fc.Name)
+	cmd.log.DebugContext(context.Background(), "processing directory copy request", "targets", cmd.Flags.Target, "name", fc.Name)
 
 	if cmd.FileSystem.IsDir(cmd.Flags.Target[0]) {
 		// Copying into an existing directory? append to it:
@@ -561,7 +561,7 @@ func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error
 
 func (cmd *command) sendDirMode(r *reader, ch io.Writer, fileInfo FileInfo) error {
 	out := fmt.Sprintf("D%04o 0 %s\n", fileInfo.GetModePerm(), fileInfo.GetName())
-	cmd.log.WithField("cmd", out).Debug("Send directory mode.")
+	cmd.log.DebugContext(context.Background(), "Sending directory mode", "cmd", out)
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
@@ -582,7 +582,7 @@ func (cmd *command) sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) er
 		fileInfo.GetModTime().Unix(),
 		fileInfo.GetAccessTime().Unix(),
 	)
-	cmd.log.WithField("cmd", out).Debug("Send file times.")
+	cmd.log.DebugContext(context.Background(), "Sending file times", "cmd", out)
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
@@ -596,7 +596,7 @@ func (cmd *command) sendFileMode(r *reader, ch io.Writer, fileInfo FileInfo) err
 		fileInfo.GetSize(),
 		fileInfo.GetName(),
 	)
-	cmd.log.WithField("cmd", out).Debug("Send file mode.")
+	cmd.log.DebugContext(context.Background(), "Sending file mode", "cmd", out)
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)

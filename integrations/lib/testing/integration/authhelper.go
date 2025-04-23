@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"testing"
 	"time"
@@ -36,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	libauth "github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/plugin"
 )
 
@@ -60,6 +59,17 @@ func (a *MinimalAuthHelper) StartServer(t *testing.T) *client.Client {
 	if a.AuthConfig.Dir == "" {
 		a.AuthConfig.Dir = a.dir
 	}
+
+	// If there's no auth preference spec, we turn 2FA on as it is mandatory since v16.
+	if a.AuthConfig.AuthPreferenceSpec == nil {
+		a.AuthConfig.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOn,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+		}
+	}
+
 	authServer, err := libauth.NewTestAuthServer(a.AuthConfig)
 	require.NoError(t, err)
 
@@ -118,15 +128,18 @@ type userCerts struct {
 func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
 	auth := a.server.Auth()
 
-	clusterName, err := auth.GetClusterName()
+	clusterName, err := auth.GetClusterName(context.TODO())
 	require.NoError(t, err)
 	// Get user certs
-	userKey, err := native.GenerateRSAPrivateKey()
+	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	userPubKey, err := ssh.NewPublicKey(&userKey.PublicKey)
+	sshPub, err := ssh.NewPublicKey(userKey.Public())
+	require.NoError(t, err)
+	tlsPub, err := keys.MarshalPublicKey(userKey.Public())
 	require.NoError(t, err)
 	testCertsReq := libauth.GenerateUserTestCertsRequest{
-		Key:            ssh.MarshalAuthorizedKey(userPubKey),
+		SSHPubKey:      ssh.MarshalAuthorizedKey(sshPub),
+		TLSPubKey:      tlsPub,
 		Username:       user.GetName(),
 		TTL:            time.Hour,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -136,21 +149,17 @@ func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCert
 	require.NoError(t, err)
 
 	// Build credentials from the certs
-	pemKey := pem.EncodeToMemory(
-		&pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(userKey),
-		},
-	)
+	keyPEM, err := keys.MarshalPrivateKey(userKey)
+	require.NoError(t, err)
 
-	return userCerts{pemKey, sshCert, tlsCert}
+	return userCerts{keyPEM, sshCert, tlsCert}
 }
 
 // CredentialsForUser implements the AuthHelper interface.
 // It builds TLS client credentials for the given user.
 func (a *MinimalAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context, user types.User) client.Credentials {
 	auth := a.server.Auth()
-	clusterName, err := auth.GetClusterName()
+	clusterName, err := auth.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	certs := a.getUserCerts(t, user)
@@ -181,7 +190,7 @@ func (a *MinimalAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context
 // It signs an identity, write it to a temporary directory, and returns its path.
 func (a *MinimalAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Context, user types.User) string {
 	auth := a.server.Auth()
-	clusterName, err := auth.GetClusterName()
+	clusterName, err := auth.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	certs := a.getUserCerts(t, user)

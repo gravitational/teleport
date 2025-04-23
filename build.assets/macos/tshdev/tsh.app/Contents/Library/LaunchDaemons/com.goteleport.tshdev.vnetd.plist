@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.goteleport.tshdev.vnetd</string>
+	<key>BundleProgram</key>
+	<string>Contents/MacOS/tsh</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>tsh</string>
+		<string>vnet-daemon</string>
+	</array>
+	<key>MachServices</key>
+	<dict>
+		<key>com.goteleport.tshdev.vnetd</key>
+		<true/>
+	</dict>
+	<key>StandardErrorPath</key>
+	<string>/var/log/vnet.log</string>
+	<key>StandardOutPath</key>
+	<string>/var/log/vnet.log</string>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- Auto-updates are disabled because $HOME isn't available,
+		but let's also disable them explicitly anyway. -->
+		<key>TELEPORT_TOOLS_VERSION</key>
+		<string>off</string>
+	</dict>
+</dict>
+</plist>

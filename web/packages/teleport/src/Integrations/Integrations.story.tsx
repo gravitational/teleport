@@ -16,38 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
+import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
+import { integrations, plugins } from './fixtures';
 import { IntegrationList } from './IntegrationList';
 import { DeleteIntegrationDialog } from './RemoveIntegrationDialog';
-import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
-import { UpdateAwsOidcThumbprint } from './UpdateAwsOidcThumbprint';
-import { plugins, integrations } from './fixtures';
 
 export default {
   title: 'Teleport/Integrations',
 };
 
 export function List() {
-  return <IntegrationList list={[...plugins, ...integrations]} />;
-}
-
-export function UpdateAwsOidcThumbprintHoverTooltip() {
   return (
-    <UpdateAwsOidcThumbprint
-      integration={{
-        resourceType: 'integration',
-        name: 'aws',
-        kind: IntegrationKind.AwsOidc,
-        statusCode: IntegrationStatusCode.Running,
-        spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
-      }}
-    />
+    <MemoryRouter>
+      <IntegrationList list={[...plugins, ...integrations]} />
+    </MemoryRouter>
   );
 }
 
@@ -72,8 +61,6 @@ export function EditDialogWithoutS3() {
         name: 'some-integration-name',
         spec: {
           roleArn: 'arn:aws:iam::123456789012:role/johndoe',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
       }}

@@ -28,8 +28,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // DesktopCommand implements "tctl desktop" group of commands.
@@ -44,32 +46,47 @@ type DesktopCommand struct {
 
 	// desktopList implements the "tctl desktop ls" subcommand.
 	desktopList *kingpin.CmdClause
+
+	// desktopBootstrap implements the "tctl desktop bootstrap" subcommand.
+	desktopBootstrap *kingpin.CmdClause
 }
 
 // Initialize allows DesktopCommand to plug itself into the CLI parser
-func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *DesktopCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
-	desktop := app.Command("windows_desktops", "Operate on registered desktops.").Alias("desktops")
+	desktop := app.Command("desktop", "Operate on registered desktops.").Alias("desktops").Alias("windows_desktop").Alias("windows_desktops")
+
 	c.desktopList = desktop.Command("ls", "List all desktops registered with the cluster.")
 	c.desktopList.Flag("format", "Output format, 'text', 'json' or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.desktopList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
+
+	c.desktopBootstrap = desktop.Command("bootstrap", "Generate a PowerShell script to bootstrap Active Directory.")
 }
 
 // TryRun attempts to run subcommands like "desktop ls".
-func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.desktopList.FullCommand():
-		err = c.ListDesktop(ctx, client)
+		commandFunc = c.ListDesktop
+	case c.desktopBootstrap.FullCommand():
+		commandFunc = c.BootstrapAD
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 
 // ListDesktop prints the list of desktops that have recently sent heartbeats
 // to the cluster.
-func (c *DesktopCommand) ListDesktop(ctx context.Context, client *auth.Client) error {
+func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Client) error {
 	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err)
@@ -87,6 +104,16 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client *auth.Client) e
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
+}
+
+// BootstrapAD generates a PowerShell script that can be used to bootstrap Active Directory.
+func (c *DesktopCommand) BootstrapAD(ctx context.Context, client *authclient.Client) error {
+	script, err := client.GetDesktopBootstrapScript(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = os.Stdout.Write([]byte(script))
+	return trace.Wrap(err)
 }
 
 var desktopMessageTemplate = template.Must(template.New("desktop").Parse(`The invite token: {{.token}}

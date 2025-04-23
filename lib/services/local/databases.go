@@ -48,7 +48,7 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 	databases := make([]types.Database, len(result.Items))
 	for i, item := range result.Items {
 		database, err := services.UnmarshalDatabase(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -59,7 +59,7 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 
 // GetDatabase returns the specified database resource.
 func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.Database, error) {
-	item, err := s.Get(ctx, backend.Key(databasesPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(databasesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("database %q doesn't exist", name)
@@ -67,7 +67,7 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, name string) (types.D
 		return nil, trace.Wrap(err)
 	}
 	database, err := services.UnmarshalDatabase(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,10 +84,9 @@ func (s *DatabaseService) CreateDatabase(ctx context.Context, database types.Dat
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(databasesPrefix, database.GetName()),
+		Key:     backend.NewKey(databasesPrefix, database.GetName()),
 		Value:   value,
 		Expires: database.Expiry(),
-		ID:      database.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
@@ -111,10 +110,9 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(databasesPrefix, database.GetName()),
+		Key:      backend.NewKey(databasesPrefix, database.GetName()),
 		Value:    value,
 		Expires:  database.Expiry(),
-		ID:       database.GetResourceID(),
 		Revision: rev,
 	}
 	_, err = s.Update(ctx, item)
@@ -130,7 +128,7 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, database types.Dat
 
 // DeleteDatabase removes the specified database resource.
 func (s *DatabaseService) DeleteDatabase(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(databasesPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(databasesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("database %q doesn't exist", name)

@@ -19,64 +19,55 @@
 package expression
 
 import (
-	"golang.org/x/exp/maps"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Set is a map of type string key and struct values.
-type Set map[string]struct{}
+// Set is a map of type string key and struct values. Set is a thin wrapper over
+// the utils.Set[T] generic set type, allowing the Set to implement the
+// interface(s) required for use with the expression package.
+// The default value is an empty set and all methods are safe to call (even if
+// the underlying map is nil).
+type Set struct {
+	s utils.Set[string]
+}
 
-// NewSet returns Set from given string slice.
+// NewSet constructs a new set from an arbitrary collection of elements
 func NewSet(values ...string) Set {
-	s := make(Set, len(values))
-	for _, value := range values {
-		s[value] = struct{}{}
-	}
-	return s
+	return Set{utils.NewSet(values...)}
 }
 
-func (s Set) add(values ...string) Set {
-	out := s.clone()
-	for _, value := range values {
-		out[value] = struct{}{}
+// add creates a new Set containing all values in the receiver Set and adds
+// [elements].
+func (s Set) add(elements ...string) Set {
+	if s.s == nil {
+		return NewSet(elements...)
 	}
-	return out
+	return Set{s.s.Clone().Add(elements...)}
 }
 
-func (s Set) contains(str string) bool {
-	_, ok := s[str]
-	return ok
+// remove creates a new Set containing all values in the receiver Set, minus
+// all supplied elements. Implements expression.Remover for Set.
+func (s Set) remove(elements ...string) any {
+	return Set{s.s.Clone().Remove(elements...)}
 }
 
-func (s Set) remove(values ...string) any {
-	out := s.clone()
-	for _, value := range values {
-		delete(out, value)
-	}
-	return out
-}
-
-func (s Set) transform(f func(string) string) Set {
-	out := make(Set, len(s))
-	for str := range s {
-		out[f(str)] = struct{}{}
-	}
-	return out
+func (s Set) contains(element string) bool {
+	return s.s.Contains(element)
 }
 
 func (s Set) clone() Set {
-	return maps.Clone(s)
+	return Set{s.s.Clone()}
 }
 
 func (s Set) items() []string {
-	return maps.Keys(s)
+	return s.s.Elements()
 }
 
+// union computes the union of multiple sets
 func union(sets ...Set) Set {
-	result := make(Set)
-	for _, s := range sets {
-		for v := range s {
-			result[v] = struct{}{}
-		}
+	result := utils.NewSet[string]()
+	for _, set := range sets {
+		result.Union(set.s)
 	}
-	return result
+	return Set{result}
 }

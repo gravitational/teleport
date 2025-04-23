@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,17 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function EqualizersVertical({
-  size = 24,
-  color,
-  ...otherProps
-}: IconProps) {
-  return (
+export const EqualizersVertical = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-equalizersvertical"
       {...otherProps}
+      ref={ref}
     >
       <path d="M12 3C12.4142 3 12.75 3.33579 12.75 3.75V7.5H14.25C14.6642 7.5 15 7.83579 15 8.25C15 8.66421 14.6642 9 14.25 9H9.75C9.33579 9 9 8.66421 9 8.25C9 7.83579 9.33579 7.5 9.75 7.5H11.25V3.75C11.25 3.33579 11.5858 3 12 3Z" />
       <path d="M12 10.5C12.4142 10.5 12.75 10.8358 12.75 11.25V20.25C12.75 20.6642 12.4142 21 12 21C11.5858 21 11.25 20.6642 11.25 20.25V11.25C11.25 10.8358 11.5858 10.5 12 10.5Z" />
@@ -69,5 +66,5 @@ export function EqualizersVertical({
       <path d="M5.25 15C5.66421 15 6 15.3358 6 15.75V20.25C6 20.6642 5.66421 21 5.25 21C4.83579 21 4.5 20.6642 4.5 20.25V15.75C4.5 15.3358 4.83579 15 5.25 15Z" />
       <path d="M6 3.75C6 3.33579 5.66421 3 5.25 3C4.83579 3 4.5 3.33579 4.5 3.75V12H3C2.58579 12 2.25 12.3358 2.25 12.75C2.25 13.1642 2.58579 13.5 3 13.5H7.5C7.91421 13.5 8.25 13.1642 8.25 12.75C8.25 12.3358 7.91421 12 7.5 12H6V3.75Z" />
     </Icon>
-  );
-}
+  )
+);

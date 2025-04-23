@@ -19,22 +19,20 @@
 package kubev1
 
 import (
-	"bytes"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/pem"
+	"crypto/tls"
 	"net"
+	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -45,79 +43,61 @@ import (
 // multiplexing mode, the Kube proxy is always reachable on the same address as
 // the web server using the SNI.
 func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
-	addr, port, err := utils.SplitHostPort(proxyAddr)
+	// we avoid using utils.SplitHostPort because
+	// we allow the host to be empty
+	addr, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	ip := net.ParseIP(addr)
-	if ip == nil {
-		return "", "", trace.BadParameter("proxy address %q must be have address:port format", proxyAddr)
+
+	// validate the port
+	if _, err := strconv.Atoi(port); err != nil {
+		return "", "", trace.Wrap(err, "invalid port")
 	}
-	sni := client.GetKubeTLSServerName(addr)
-	// if the proxy is a unspecified address (0.0.0.0, ::), use localhost.
-	if ip.IsUnspecified() {
+
+	// if the proxy is an unspecified address (0.0.0.0, ::), use localhost.
+	if ip := net.ParseIP(addr); ip != nil && ip.IsUnspecified() || addr == "" {
 		addr = string(teleport.PrincipalLocalhost)
 	}
-	return sni, net.JoinHostPort(addr, port), nil
+
+	sni := client.GetKubeTLSServerName(addr)
+
+	return sni, "https://" + net.JoinHostPort(addr, port), nil
 }
 
-// requestCertificate requests a short-lived certificate for the user using the
-// Kubernetes CA.
-func (s *Server) requestCertificate(username string, cluster string, identity tlsca.Identity) (*rest.Config, error) {
-	s.cfg.Log.Debugf("Requesting K8s cert for %v.", username)
-	keyPEM, _, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// buildKubeClient creates a new Kubernetes client that is used to communicate
+// with the Kubernetes API server.
+func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
+	const idleConnsPerHost = 25
 
-	privateKey, err := ssh.ParseRawPrivateKey(keyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse private key")
+	tlsConfig := utils.TLSConfig(s.cfg.ConnTLSCipherSuites)
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		tlsCert, err := s.cfg.GetConnTLSCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tlsCert, nil
 	}
+	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(s.cfg.GetConnTLSRoots)
+	tlsConfig.ServerName = s.kubeProxySNI
 
-	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	csr := &x509.CertificateRequest{
-		Subject: subject,
-	}
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes})
-
-	response, err := s.cfg.Signer.ProcessKubeCSR(auth.KubeCSR{
-		Username:    username,
-		ClusterName: cluster,
-		CSR:         csrPEM,
+	transport := utilnet.SetTransportDefaults(&http.Transport{
+		TLSHandshakeTimeout: 10 * time.Second,
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConnsPerHost: idleConnsPerHost,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return &rest.Config{
-		Host: s.proxyAddress,
-		TLSClientConfig: rest.TLSClientConfig{
-			CertData:   response.Cert,
-			KeyData:    keyPEM,
-			CAData:     bytes.Join(response.CertAuthorities, []byte("\n")),
-			ServerName: s.kubeProxySNI,
-		},
-	}, nil
-}
-
-// newKubernetesClient creates a new Kubernetes client with short-lived user
-// certificates that include in the roles field the available search_as_role
-// roles.
-func (s *Server) newKubernetesClient(cluster string, identity tlsca.Identity) (kubernetes.Interface, error) {
-	cfg, err := s.requestCertificate(identity.Username, cluster, identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	cfg := &rest.Config{
+		Host:      s.proxyAddress,
+		Transport: auth.NewImpersonatorRoundTripper(transport),
 	}
-	client, err := kubernetes.NewForConfig(cfg)
-	return client, trace.Wrap(err)
+	kubeClient, err := kubernetes.NewForConfig(cfg)
+	return kubeClient, trace.Wrap(err)
 }
 
 // decideLimit returns the number of items we should request for. If respectLimit

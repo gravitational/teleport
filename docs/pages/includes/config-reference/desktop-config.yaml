@@ -70,6 +70,17 @@ windows_desktop_service:
   # to users and computers in a child domain.
   pki_domain: root.example.com
 
+  # (optional) Configures the address of the Kerberos Key Distribution Center,
+  # which is used to support RDP Network Level Authentication (NLA).
+  # If empty, the LDAP address will be used instead.
+  #
+  # example: kdc.example.com:88.
+  # The port is optional and defaults to port 88 if unspecified.
+  #
+  # Note: NLA is only supported in Active Directory environments - this field has
+  # no effect when connecting to desktops as local Windows users.
+  kdc_address: '$KDC_SERVER_ADDRESS'
+
   # (optional) static_hosts is a list of hosts to register as WindowsDesktop
   # objects in Teleport. You can define host name and labels directly.
   static_hosts:
@@ -98,13 +109,17 @@ windows_desktop_service:
     # The key of the label will be "ldap/" + the value of the attribute.
     label_attributes:
     - location
-  # Rules for applying labels to Windows hosts based on regular expressions
+
+  # (optional) configure a set of label selectors for dynamic registration.
+  # If specified, this service will monitor the cluster for dynamic_windows_desktop
+  # and automatically proxy connections for desktops with matching labels.
+  resources:
+  - labels:
+      "env": "dev"
+
+  # (optional) rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
-  #
-  # The rules for matching static hosts and discovered hosts
-  # are slightly different. See https://goteleport.com/docs/desktop-access/rbac/
-  # for details.
   host_labels:
   - match: '^.*\.dev\.example\.com'
     labels:

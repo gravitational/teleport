@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-pagerduty
-        app.kubernetes.io/version: 16.0.0-dev
-        helm.sh/chart: teleport-plugin-pagerduty-16.0.0-dev
+        app.kubernetes.io/version: 18.0.0-dev
+        helm.sh/chart: teleport-plugin-pagerduty-18.0.0-dev
       name: RELEASE-NAME-teleport-plugin-pagerduty
     spec:
       replicas: 1
@@ -22,8 +22,8 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-pagerduty
-            app.kubernetes.io/version: 16.0.0-dev
-            helm.sh/chart: teleport-plugin-pagerduty-16.0.0-dev
+            app.kubernetes.io/version: 18.0.0-dev
+            helm.sh/chart: teleport-plugin-pagerduty-18.0.0-dev
         spec:
           containers:
           - command:

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Camera({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Camera = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-camera"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -64,5 +65,5 @@ export function Camera({ size = 24, color, ...otherProps }: IconProps) {
         d="M3 5.25C2.17157 5.25 1.5 5.92157 1.5 6.75V17.25C1.5 18.0784 2.17157 18.75 3 18.75H18C18.8284 18.75 19.5 18.0784 19.5 17.25V14.9013L22.8341 17.124C23.0642 17.2775 23.3601 17.2918 23.604 17.1613C23.8478 17.0307 24.0001 16.7766 24.0001 16.5V7.5C24.0001 7.2234 23.8478 6.96926 23.604 6.83875C23.3601 6.70823 23.0642 6.72254 22.8341 6.87596L19.5 9.09867V6.75C19.5 5.92157 18.8284 5.25 18 5.25H3ZM19.5 10.9014V13.0986L22.5001 15.0986V8.90139L19.5 10.9014ZM3 6.75H18V17.25H3V6.75Z"
       />
     </Icon>
-  );
-}
+  )
+);

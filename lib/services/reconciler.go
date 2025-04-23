@@ -20,40 +20,50 @@ package services
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// ReconcilerConfig is the resource reconciler configuration.
-type ReconcilerConfig[T any] struct {
+// Matcher is used by reconciler to match resources.
+type Matcher[T any] func(T) bool
+
+// GenericReconcilerConfig is the resource reconciler configuration that allows
+// any type implementing comparable to be a key.
+type GenericReconcilerConfig[K comparable, T any] struct {
 	// Matcher is used to match resources.
 	Matcher Matcher[T]
 	// GetCurrentResources returns currently registered resources. Note that the
 	// map keys must be consistent across the current and new resources.
-	GetCurrentResources func() map[string]T
+	GetCurrentResources func() map[K]T
 	// GetNewResources returns resources to compare current resources against.
 	// Note that the map keys must be consistent across the current and new
 	// resources.
-	GetNewResources func() map[string]T
+	GetNewResources func() map[K]T
+	// Compare allows custom comparators without having to implement IsEqual.
+	// Defaults to `CompareResources[T]` if not specified.
+	CompareResources func(T, T) int
 	// OnCreate is called when a new resource is detected.
 	OnCreate func(context.Context, T) error
 	// OnUpdate is called when an existing resource is updated.
 	OnUpdate func(ctx context.Context, new, old T) error
 	// OnDelete is called when an existing resource is deleted.
 	OnDelete func(context.Context, T) error
-	// Log is the reconciler's logger.
-	Log logrus.FieldLogger
+	// Logger emits log messages.
+	Logger *slog.Logger
+	// AllowOriginChanges is a flag that allows the reconciler to change the
+	// origin value of a reconciled resource. By default, origin changes are
+	// disallowed to enforce segregation between of resources from different
+	// sources.
+	AllowOriginChanges bool
 }
 
-// Matcher is used by reconciler to match resources.
-type Matcher[T any] func(T) bool
-
 // CheckAndSetDefaults validates the reconciler configuration and sets defaults.
-func (c *ReconcilerConfig[T]) CheckAndSetDefaults() error {
+func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 	if c.Matcher == nil {
 		return trace.BadParameter("missing reconciler Matcher")
 	}
@@ -72,46 +82,44 @@ func (c *ReconcilerConfig[T]) CheckAndSetDefaults() error {
 	if c.OnDelete == nil {
 		return trace.BadParameter("missing reconciler OnDelete")
 	}
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "reconciler")
+	if c.CompareResources == nil {
+		c.CompareResources = CompareResources[T]
+	}
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "reconciler")
 	}
 	return nil
 }
 
-// NewReconciler creates a new reconciler with provided configuration.
-func NewReconciler[T any](cfg ReconcilerConfig[T]) (*Reconciler[T], error) {
+// NewGenericReconciler creates a new GenericReconciler with provided configuration.
+func NewGenericReconciler[K comparable, T any](cfg GenericReconcilerConfig[K, T]) (*GenericReconciler[K, T], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Reconciler[T]{
-		cfg: cfg,
-		// We do a WithFields here to force this into a *logrus.Entry, which has the ability to
-		// log at the Trace level. If we were to change this in ReconcilerConfig, we'd have to
-		// refactor existing code to use *logrus.Entry instead of logrus.FieldLogger, and with
-		// the eventual change to slog, it seems easier to do this for now until this can be
-		// changed to slog.
-		log: cfg.Log.WithFields(nil),
+	return &GenericReconciler[K, T]{
+		cfg:    cfg,
+		logger: cfg.Logger,
 	}, nil
 }
 
-// Reconciler reconciles currently registered resources with new resources and
-// creates/updates/deletes them appropriately.
+// GenericReconciler reconciles currently registered resources with new
+// resources and creates/updates/deletes them appropriately.
 //
 // It's used in combination with watchers by agents (app, database, desktop)
 // to enable dynamically registered resources.
-type Reconciler[T any] struct {
-	cfg ReconcilerConfig[T]
-	log *logrus.Entry
+type GenericReconciler[K comparable, T any] struct {
+	cfg    GenericReconcilerConfig[K, T]
+	logger *slog.Logger
 }
 
 // Reconcile reconciles currently registered resources with new resources and
 // creates/updates/deletes them appropriately.
-func (r *Reconciler[T]) Reconcile(ctx context.Context) error {
+func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 	currentResources := r.cfg.GetCurrentResources()
 	newResources := r.cfg.GetNewResources()
 
-	r.log.Debugf("Reconciling %v current resources with %v new resources.",
-		len(currentResources), len(newResources))
+	r.logger.DebugContext(ctx, "Reconciling current resources with new resources",
+		"current_resource_count", len(currentResources), "new_resource_count", len(newResources))
 
 	var errs []error
 
@@ -134,9 +142,9 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context) error {
 
 // processRegisteredResource checks the specified registered resource against the
 // new list of resources.
-func (r *Reconciler[T]) processRegisteredResource(ctx context.Context, newResources map[string]T, name string, registered T) error {
+func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context, newResources map[K]T, key K, registered T) error {
 	// See if this registered resource is still present among "new" resources.
-	if _, ok := newResources[name]; ok {
+	if _, ok := newResources[key]; ok {
 		return nil
 	}
 
@@ -144,48 +152,51 @@ func (r *Reconciler[T]) processRegisteredResource(ctx context.Context, newResour
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	r.log.Infof("%v %v removed, deleting.", kind, name)
+	r.logger.InfoContext(ctx, "Resource was removed, deleting", "name", key)
 	if err := r.cfg.OnDelete(ctx, registered); err != nil {
-		return trace.Wrap(err, "failed to delete  %v %v", kind, name)
+		return trace.Wrap(err, "failed to delete  %v %v", kind, key)
 	}
 
 	return nil
 }
 
-// processNewResource checks the provided new resource agsinst currently
+// processNewResource checks the provided new resource against currently
 // registered resources.
-func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources map[string]T, name string, newT T) error {
+func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, currentResources map[K]T, key K, newT T) error {
 	// First see if the resource is already registered and if not, whether it
 	// matches the selector labels and should be registered.
-	registered, ok := currentResources[name]
+	registered, ok := currentResources[key]
 	if !ok {
 		kind, err := types.GetKind(newT)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if r.cfg.Matcher(newT) {
-			r.log.Infof("%v %v matches, creating.", kind, name)
+			r.logger.InfoContext(ctx, "New resource matches, creating", "name", key)
 			if err := r.cfg.OnCreate(ctx, newT); err != nil {
-				return trace.Wrap(err, "failed to create %v %v", kind, name)
+				return trace.Wrap(err, "failed to create %v %v", kind, key)
 			}
 			return nil
 		}
-		r.log.Debugf("%v %v doesn't match, not creating.", kind, name)
+		r.logger.DebugContext(ctx, "New resource doesn't match, not creating", "name", key)
 		return nil
 	}
 
-	// Don't overwrite resource of a different origin (e.g., keep static resource from config and ignore dynamic resource)
-	registeredOrigin, err := types.GetOrigin(registered)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	newOrigin, err := types.GetOrigin(newT)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if registeredOrigin != newOrigin {
-		r.log.Warnf("%v has different origin (%v vs %v), not updating.", name, newOrigin, registeredOrigin)
-		return nil
+	if !r.cfg.AllowOriginChanges {
+		// Don't overwrite resource of a different origin (e.g., keep static resource from config and ignore dynamic resource)
+		registeredOrigin, err := types.GetOrigin(registered)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newOrigin, err := types.GetOrigin(newT)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if registeredOrigin != newOrigin {
+			r.logger.WarnContext(ctx, "New resource has different origin, not updating",
+				"name", key, "new_origin", newOrigin, "existing_origin", registeredOrigin)
+			return nil
+		}
 	}
 
 	// If the resource is already registered but was updated, see if its
@@ -194,21 +205,49 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if CompareResources(newT, registered) != Equal {
+	if r.cfg.CompareResources(newT, registered) != Equal {
 		if r.cfg.Matcher(newT) {
-			r.log.Infof("%v %v updated, updating.", kind, name)
+			r.logger.InfoContext(ctx, "Existing resource updated, updating", "name", key)
 			if err := r.cfg.OnUpdate(ctx, newT, registered); err != nil {
-				return trace.Wrap(err, "failed to update %v %v", kind, name)
+				return trace.Wrap(err, "failed to update %v %v", kind, key)
 			}
 			return nil
 		}
-		r.log.Infof("%v %v updated and no longer matches, deleting.", kind, name)
+		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "name", key)
 		if err := r.cfg.OnDelete(ctx, registered); err != nil {
-			return trace.Wrap(err, "failed to delete %v %v", kind, name)
+			return trace.Wrap(err, "failed to delete %v %v", kind, key)
 		}
 		return nil
 	}
 
-	r.log.Tracef("%v %v is already registered.", kind, name)
+	r.logger.Log(ctx, logutils.TraceLevel, "Existing resource is already registered", "name", key)
 	return nil
+}
+
+// ReconcilerConfig holds the configuration for a reconciler
+type ReconcilerConfig[T any] GenericReconcilerConfig[string, T]
+
+// Reconciler reconciles currently registered resources with new resources and
+// creates/updates/deletes them appropriately.
+//
+// This type exists for backwards compatibility, and is a simple wrapper around
+// a GenericReconciler[string, T]
+type Reconciler[T any] GenericReconciler[string, T]
+
+// NewReconciler creates a new reconciler with provided configuration.
+//
+// Creates a new GenericReconciler[string, T] and wraps it in a Reconciler[T]
+// for backwards compatibility.
+func NewReconciler[T any](cfg ReconcilerConfig[T]) (*Reconciler[T], error) {
+	embedded, err := NewGenericReconciler(GenericReconcilerConfig[string, T](cfg))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return (*Reconciler[T])(embedded), nil
+}
+
+// Reconcile reconciles currently registered resources with new resources and
+// creates/updates/deletes them appropriately.
+func (r *Reconciler[T]) Reconcile(ctx context.Context) error {
+	return (*GenericReconciler[string, T])(r).Reconcile(ctx)
 }

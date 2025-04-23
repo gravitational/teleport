@@ -62,6 +62,8 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 		name           string
 		integratioName string
 		hostID         string
+		publicAddr     string
+		labels         map[string]string
 		expectedApp    *AppServerV3
 		errCheck       require.ErrorAssertionFunc
 	}{
@@ -69,12 +71,15 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 			name:           "valid",
 			integratioName: "valid",
 			hostID:         "my-host-id",
+			publicAddr:     "valid.proxy.example.com",
+			labels:         map[string]string{"account_id": "123456789012"},
 			expectedApp: &AppServerV3{
 				Kind:    KindAppServer,
 				Version: V3,
 				Metadata: Metadata{
 					Name:      "valid",
 					Namespace: "default",
+					Labels:    map[string]string{"account_id": "123456789012"},
 				},
 				Spec: AppServerSpecV3{
 					Version: api.Version,
@@ -85,11 +90,13 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 						Metadata: Metadata{
 							Name:      "valid",
 							Namespace: "default",
+							Labels:    map[string]string{"account_id": "123456789012"},
 						},
 						Spec: AppSpecV3{
 							URI:         "https://console.aws.amazon.com",
 							Cloud:       "AWS",
 							Integration: "valid",
+							PublicAddr:  "valid.proxy.example.com",
 						},
 					},
 				},
@@ -103,7 +110,7 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			app, err := NewAppServerForAWSOIDCIntegration(tt.integratioName, tt.hostID)
+			app, err := NewAppServerForAWSOIDCIntegration(tt.integratioName, tt.hostID, tt.publicAddr, tt.labels)
 			if tt.errCheck != nil {
 				tt.errCheck(t, err)
 			}

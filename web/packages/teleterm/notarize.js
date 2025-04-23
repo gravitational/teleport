@@ -1,4 +1,4 @@
-const { notarize } = require('electron-notarize');
+const { notarize } = require('@electron/notarize');
 
 exports.default = async function notarizing(context) {
   const { electronPlatformName, appOutDir } = context;
@@ -22,6 +22,8 @@ exports.default = async function notarizing(context) {
 
   const appName = context.packager.appInfo.productFilename;
   const appBundleId = context.packager.appInfo.macBundleIdentifier;
+
+  console.log('notarize.js: Notarizing in progress.');
 
   return await notarize({
     appBundleId,

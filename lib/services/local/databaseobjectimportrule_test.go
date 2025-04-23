@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/label"
 	apilabels "github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
 
@@ -145,8 +146,6 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 	importRule, err = service.GetDatabaseObjectImportRule(ctx, importRule1.GetMetadata().GetName())
 	require.NoError(t, err)
-	//nolint:staticcheck // SA1019. Deprecated, but still needed.
-	importRule.Metadata.Id = importRule1.Metadata.Id
 	require.True(t, proto.Equal(importRule1, importRule))
 
 	// Delete an import rule
@@ -207,9 +206,11 @@ func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
 		Spec: spec,
 	}
 
-	out, err := marshalDatabaseObjectImportRule(obj)
+	//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
+	out, err := services.FastMarshalProtoResourceDeprecated(obj)
 	require.NoError(t, err)
-	newObj, err := unmarshalDatabaseObjectImportRule(out)
+	//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.
+	newObj, err := services.FastUnmarshalProtoResourceDeprecated[*databaseobjectimportrulev1.DatabaseObjectImportRule](out)
 	require.NoError(t, err)
 	require.True(t, proto.Equal(obj, newObj), "messages are not equal")
 }

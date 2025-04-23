@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Magnifier({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Magnifier = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-magnifier"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -64,5 +65,5 @@ export function Magnifier({ size = 24, color, ...otherProps }: IconProps) {
         d="M10.5 2.25C5.94365 2.25 2.25 5.94365 2.25 10.5C2.25 15.0563 5.94365 18.75 10.5 18.75C12.508 18.75 14.3484 18.0326 15.779 16.8402L20.4695 21.5306C20.7623 21.8235 21.2372 21.8235 21.5301 21.5306C21.823 21.2377 21.823 20.7628 21.5301 20.4699L16.8397 15.7796C18.0324 14.3489 18.75 12.5082 18.75 10.5C18.75 5.94365 15.0563 2.25 10.5 2.25ZM3.75 10.5C3.75 6.77208 6.77208 3.75 10.5 3.75C14.2279 3.75 17.25 6.77208 17.25 10.5C17.25 14.2279 14.2279 17.25 10.5 17.25C6.77208 17.25 3.75 14.2279 3.75 10.5Z"
       />
     </Icon>
-  );
-}
+  )
+);

@@ -21,17 +21,23 @@ package db
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+// OpenSearchClient is a subset of the AWS OpenSearch API.
+type OpenSearchClient interface {
+	DescribeDomains(context.Context, *opensearch.DescribeDomainsInput, ...func(*opensearch.Options)) (*opensearch.DescribeDomainsOutput, error)
+	ListDomainNames(context.Context, *opensearch.ListDomainNamesInput, ...func(*opensearch.Options)) (*opensearch.ListDomainNamesOutput, error)
+	ListTags(context.Context, *opensearch.ListTagsInput, ...func(*opensearch.Options)) (*opensearch.ListTagsOutput, error)
+}
 
 // newOpenSearchFetcher returns a new AWS fetcher for OpenSearch databases.
 func newOpenSearchFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
@@ -47,21 +53,22 @@ func (f *openSearchPlugin) ComponentShortName() string {
 
 // GetDatabases returns OpenSearch databases.
 func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	opensearchClient, err := cfg.AWSClients.GetAWSOpenSearchClient(ctx, cfg.Region,
-		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
+	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
+		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		awsconfig.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	domains, err := getOpenSearchDomains(ctx, opensearchClient)
+	clt := cfg.awsClients.GetOpenSearchClient(awsCfg)
+	domains, err := getOpenSearchDomains(ctx, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var eligibleDomains []*opensearchservice.DomainStatus
+	var eligibleDomains []opensearchtypes.DomainStatus
 	for _, domain := range domains {
-		if !services.IsOpenSearchDomainAvailable(domain) {
-			cfg.Log.Debugf("OpenSearch domain %q is unavailable. Skipping.", aws.StringValue(domain.DomainName))
+		if !libcloudaws.IsOpenSearchDomainAvailable(&domain) {
+			cfg.Logger.DebugContext(ctx, "Skipping unavailable OpenSearch domain", "domain", aws.ToString(domain.DomainName))
 			continue
 		}
 
@@ -74,19 +81,25 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 
 	var databases types.Databases
 	for _, domain := range eligibleDomains {
-		tags, err := getOpenSearchResourceTags(ctx, opensearchClient, domain.ARN)
+		tags, err := getOpenSearchResourceTags(ctx, clt, domain.ARN)
 
 		if err != nil {
 			if trace.IsAccessDenied(err) {
-				cfg.Log.WithError(err).Debug("No permissions to list resource tags")
+				cfg.Logger.DebugContext(ctx, "No permissions to list resource tags", "error", err)
 			} else {
-				cfg.Log.WithError(err).Infof("Failed to list resource tags for OpenSearch domain %q.", aws.StringValue(domain.DomainName))
+				cfg.Logger.InfoContext(ctx, "Failed to list resource tags for OpenSearch domain",
+					"error", err,
+					"domain", aws.ToString(domain.DomainName),
+				)
 			}
 		}
 
-		dbs, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
+		dbs, err := common.NewDatabasesFromOpenSearchDomain(&domain, tags)
 		if err != nil {
-			cfg.Log.WithError(err).Infof("Could not convert OpenSearch domain %q configuration to database resource.", aws.StringValue(domain.DomainName))
+			cfg.Logger.InfoContext(ctx, "Could not convert OpenSearch domain configuration to database resource",
+				"error", err,
+				"domain", aws.ToString(domain.DomainName),
+			)
 		} else {
 			databases = append(databases, dbs...)
 		}
@@ -95,18 +108,20 @@ func (f *openSearchPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConf
 }
 
 // getOpenSearchDomains fetches all OpenSearch domains.
-func getOpenSearchDomains(ctx context.Context, client opensearchserviceiface.OpenSearchServiceAPI) ([]*opensearchservice.DomainStatus, error) {
-	names, err := client.ListDomainNamesWithContext(ctx, nil)
+func getOpenSearchDomains(ctx context.Context, client OpenSearchClient) ([]opensearchtypes.DomainStatus, error) {
+	names, err := client.ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
 	if err != nil {
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 
-	req := &opensearchservice.DescribeDomainsInput{DomainNames: []*string{}}
+	req := &opensearch.DescribeDomainsInput{}
 	for _, domain := range names.DomainNames {
-		req.DomainNames = append(req.DomainNames, domain.DomainName)
+		if dn := aws.ToString(domain.DomainName); dn != "" {
+			req.DomainNames = append(req.DomainNames, dn)
+		}
 	}
 
-	domains, err := client.DescribeDomainsWithContext(ctx, req)
+	domains, err := client.DescribeDomains(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
@@ -114,8 +129,8 @@ func getOpenSearchDomains(ctx context.Context, client opensearchserviceiface.Ope
 }
 
 // getOpenSearchResourceTags fetches resource tags for provided ARN.
-func getOpenSearchResourceTags(ctx context.Context, client opensearchserviceiface.OpenSearchServiceAPI, resourceARN *string) ([]*opensearchservice.Tag, error) {
-	output, err := client.ListTagsWithContext(ctx, &opensearchservice.ListTagsInput{ARN: resourceARN})
+func getOpenSearchResourceTags(ctx context.Context, client OpenSearchClient, resourceARN *string) ([]opensearchtypes.Tag, error) {
+	output, err := client.ListTags(ctx, &opensearch.ListTagsInput{ARN: resourceARN})
 	if err != nil {
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}

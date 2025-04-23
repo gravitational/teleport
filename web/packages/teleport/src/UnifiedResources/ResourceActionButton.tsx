@@ -17,23 +17,38 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonBorder } from 'design';
-import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
+import { GitServer } from 'web/packages/teleport/src/services/gitServers';
+
+import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
+import {
+  LoginItem,
+  MenuInputType,
+  MenuLogin,
+} from 'shared/components/MenuLogin';
+import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
+import { AwsRole } from 'shared/services/apps';
 
-import { UnifiedResource } from 'teleport/services/agents';
+import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
 import cfg from 'teleport/config';
-
-import useTeleport from 'teleport/useTeleport';
-import { Database } from 'teleport/services/databases';
-import { openNewTab } from 'teleport/lib/util';
-import { Kube } from 'teleport/services/kube';
-import { Desktop } from 'teleport/services/desktops';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { ConnectDialog as GitServerConnectDialog } from 'teleport/GitServers';
 import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import { openNewTab } from 'teleport/lib/util';
+import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
+import { UnifiedResource } from 'teleport/services/agents';
+import { App, AppSubKind, SamlAppLaunchUrl } from 'teleport/services/apps';
+import { Database } from 'teleport/services/databases';
+import { Desktop } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
-import { App } from 'teleport/services/apps';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+import { DiscoverGuideId } from 'teleport/services/userPreferences/discoverPreference';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 type Props = {
   resource: UnifiedResource;
@@ -51,6 +66,8 @@ export const ResourceActionButton = ({ resource }: Props) => {
       return <KubeConnect kube={resource} />;
     case 'windows_desktop':
       return <DesktopConnect desktop={resource} />;
+    case 'git_server':
+      return <GitServerConnect gitServer={resource} />;
     default:
       return null;
   }
@@ -79,7 +96,8 @@ const NodeConnect = ({ node }: { node: Node }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
+      inputType={MenuInputType.FILTER}
       textTransform={'none'}
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -119,7 +137,8 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
 
   return (
     <MenuLogin
-      width="90px"
+      width="123px"
+      inputType={MenuInputType.FILTER}
       textTransform="none"
       alignButtonWidthToMenu
       getLoginItems={handleOnOpen}
@@ -136,65 +155,131 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
   );
 };
 
-const AppLaunch = ({ app }: { app: App }) => {
+type AppLaunchProps = {
+  app: App;
+};
+const AppLaunch = ({ app }: AppLaunchProps) => {
   const {
+    name,
     launchUrl,
     awsConsole,
     awsRoles,
     fqdn,
     clusterId,
     publicAddr,
-    isCloudOrTcpEndpoint,
+    isCloud,
+    isTcp,
     samlApp,
     samlAppSsoUrl,
+    samlAppPreset,
+    subKind,
+    permissionSets,
+    samlAppLaunchUrls,
   } = app;
-  if (awsConsole) {
+  const { actions, userSamlIdPPerm } = useSamlAppAction();
+
+  const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
+  if (awsConsole || isAwsIdentityCenterApp) {
+    let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
+    if (isAwsIdentityCenterApp) {
+      awsConsoleOrIdentityCenterRoles = permissionSets.map(
+        (ps): AwsRole => ({
+          name: ps.name,
+          arn: ps.name,
+          display: ps.name,
+          accountId: name,
+        })
+      );
+    }
+    function getAwsLaunchUrl(arnOrPermSetName: string) {
+      if (isAwsIdentityCenterApp) {
+        return `${publicAddr}&role_name=${arnOrPermSetName}`;
+      } else {
+        return cfg.getAppLauncherRoute({
+          fqdn,
+          clusterId,
+          publicAddr,
+          arn: arnOrPermSetName,
+        });
+      }
+    }
+
     return (
       <AwsLaunchButton
-        awsRoles={awsRoles}
-        getLaunchUrl={arn =>
-          cfg.getAppLauncherRoute({
-            fqdn,
-            clusterId,
-            publicAddr,
-            arn,
-          })
-        }
+        width="123px"
+        awsRoles={awsConsoleOrIdentityCenterRoles}
+        getLaunchUrl={getAwsLaunchUrl}
+        isAwsIdentityCenterApp={isAwsIdentityCenterApp}
       />
     );
   }
-  if (isCloudOrTcpEndpoint) {
+  if (isCloud) {
     return (
       <ButtonBorder
         disabled
-        width="90px"
+        width="123px"
         size="small"
-        title="Cloud or TCP applications cannot be launched by the browser"
+        title="Cloud apps cannot be launched by the browser"
         textTransform="none"
       >
         Launch
       </ButtonBorder>
     );
   }
+  if (isTcp) {
+    return <TcpAppConnect app={app} />;
+  }
   if (samlApp) {
-    return (
-      <ButtonBorder
-        as="a"
-        width="90px"
-        size="small"
-        target="_blank"
-        href={samlAppSsoUrl}
-        rel="noreferrer"
-        textTransform="none"
-      >
-        Login
-      </ButtonBorder>
-    );
+    if (actions.showActions) {
+      let guideId: DiscoverGuideId;
+      switch (samlAppPreset) {
+        case SamlServiceProviderPreset.Grafana:
+          guideId = DiscoverGuideId.ApplicationSamlGrafana;
+          break;
+        case SamlServiceProviderPreset.GcpWorkforce:
+          guideId = DiscoverGuideId.ApplicationSamlWorkforceIdentityFederation;
+          break;
+        default:
+          guideId = DiscoverGuideId.ApplicationSamlGeneric;
+      }
+      const currentSamlAppSpec: SelectResourceSpec = {
+        id: guideId,
+        name: name,
+        event: DiscoverEventResource.SamlApplication,
+        kind: ResourceKind.SamlApplication,
+        samlMeta: { preset: samlAppPreset },
+        icon: 'application',
+        keywords: ['saml'],
+      };
+      const samlAppActionMenu = (
+        <>
+          <MenuItem
+            onClick={() => actions.startEdit(currentSamlAppSpec)}
+            disabled={!userSamlIdPPerm.edit} // disable props does not disable onClick
+          >
+            Edit
+          </MenuItem>
+          <MenuItem
+            onClick={() => actions.startDelete(currentSamlAppSpec)}
+            disabled={!userSamlIdPPerm.remove} // disable props does not disable onClick
+          >
+            Delete
+          </MenuItem>
+        </>
+      );
+      return makeSamlAppLoginWithMenuButton(
+        samlAppSsoUrl,
+        samlAppLaunchUrls,
+        samlAppActionMenu
+      );
+    } else {
+      return makeSamlAppLoginButton(samlAppSsoUrl, samlAppLaunchUrls);
+    }
   }
   return (
     <ButtonBorder
       as="a"
-      width="90px"
+      width="123px"
       size="small"
       target="_blank"
       href={launchUrl}
@@ -207,7 +292,7 @@ const AppLaunch = ({ app }: { app: App }) => {
 };
 
 function DatabaseConnect({ database }: { database: Database }) {
-  const { name, protocol } = database;
+  const { name, protocol, supportsInteractive } = database;
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const [open, setOpen] = useState(false);
@@ -218,7 +303,7 @@ function DatabaseConnect({ database }: { database: Database }) {
     <>
       <ButtonBorder
         textTransform="none"
-        width="90px"
+        width="123px"
         size="small"
         onClick={() => {
           setOpen(true);
@@ -235,6 +320,7 @@ function DatabaseConnect({ database }: { database: Database }) {
           onClose={() => setOpen(false)}
           authType={authType}
           accessRequestId={accessRequestId}
+          supportsInteractive={supportsInteractive}
         />
       )}
     </>
@@ -251,7 +337,7 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
   return (
     <>
       <ButtonBorder
-        width="90px"
+        width="123px"
         textTransform="none"
         size="small"
         onClick={() => setOpen(true)}
@@ -271,6 +357,58 @@ const KubeConnect = ({ kube }: { kube: Kube }) => {
     </>
   );
 };
+
+function GitServerConnect({ gitServer }: { gitServer: GitServer }) {
+  const ctx = useTeleport();
+  const { clusterId } = useStickyClusterId();
+  const [open, setOpen] = useState(false);
+  const organization = gitServer.github.organization;
+  const username = ctx.storeUser.state.username;
+  const authType = ctx.storeUser.state.authType;
+  const accessRequestId = ctx.storeUser.getAccessRequestId();
+  return (
+    <>
+      <ButtonBorder
+        textTransform="none"
+        width="123px"
+        size="small"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        Connect
+      </ButtonBorder>
+      {open && (
+        <GitServerConnectDialog
+          username={username}
+          clusterId={clusterId}
+          organization={organization}
+          onClose={() => setOpen(false)}
+          authType={authType}
+          accessRequestId={accessRequestId}
+        />
+      )}
+    </>
+  );
+}
+
+function TcpAppConnect({ app }: { app: App }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <ButtonBorder
+        textTransform="none"
+        width="123px"
+        size="small"
+        onClick={() => setOpen(true)}
+      >
+        Connect
+      </ButtonBorder>
+      {open && <TcpAppConnectDialog app={app} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
 
 const makeNodeOptions = (clusterId: string, node: Node | undefined) => {
   const nodeLogins = node?.sshLogins || [];
@@ -305,6 +443,132 @@ const makeDesktopLoginOptions = (
     return {
       login: username,
       url,
+    };
+  });
+};
+
+/**
+ * makeSamlAppLoginWithMenuButton returns login button for SAML apps.
+ * If launchUrls is not empty and its length is greater than one,
+ * MenuLoginWithActionMenu button is returned.
+ * if launchUrls is not empty but its length is exactly one, ButtonWithMenu
+ * is returned with the href value configured with the launchUrls[0] value.
+ * If launchUrls is empty, ButtonWithMenu is returned with the href value
+ * configured with samlAppSsoUrl.
+ * @param samlAppSsoUrl - ACS URL (also known as SSO endpoint) value for SAML app.
+ * @param launchUrls - custom service provider endpoints that will be used to initiate
+ *                     authentication, instead of the ACS URL.
+ * @param SamlActionMenu - SAML app edit and delete action menu items.
+ */
+function makeSamlAppLoginWithMenuButton(
+  samlAppSsoUrl: string,
+  launchUrls: SamlAppLaunchUrl[],
+  SamlActionMenu: JSX.Element
+) {
+  let ssoUrl = samlAppSsoUrl;
+  if (launchUrls) {
+    if (launchUrls.length > 1) {
+      return (
+        <MenuLoginWithActionMenu
+          getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
+          width="100px"
+          onSelect={() => {}} // login item rendered as <a> link for saml apps.
+          buttonText="Log In"
+          size="small"
+          inputType={MenuInputType.NONE}
+          placeholder="Select URL to log in"
+        >
+          {SamlActionMenu}
+        </MenuLoginWithActionMenu>
+      );
+    }
+    ssoUrl = launchUrls[0].url;
+  }
+
+  return (
+    <ButtonWithMenu
+      text="Log In"
+      width="100px"
+      size="small"
+      target="_blank"
+      href={ssoUrl}
+      rel="noreferrer"
+      textTransform="none"
+      forwardedAs="a"
+      title="Log in to SAML application"
+    >
+      {SamlActionMenu}
+    </ButtonWithMenu>
+  );
+}
+
+/**
+ * makeSamlAppLoginButton returns login button for SAML apps.
+ * If launchUrls is not empty and its length is greater than one,
+ * MenuLogin button is returned.
+ * if launchUrls is not empty but its length is exactly one, ButtonBorder
+ * is returned with the href value configured with the launchUrls[0] value.
+ * If launchUrls is empty, ButtonBorder is returned with the href value
+ * configured with samlAppSsoUrl.
+ * @param samlAppSsoUrl - ACS URL (also known as SSO endpoint) value for SAML app.
+ * @param launchUrls - custom service provider endpoints that will be used to initiate
+ *                     authentication, instead of the ACS URL.
+ */
+function makeSamlAppLoginButton(
+  samlAppSsoUrl: string,
+  launchUrls: SamlAppLaunchUrl[]
+) {
+  let ssoUrl = samlAppSsoUrl;
+  if (launchUrls) {
+    if (launchUrls.length > 1) {
+      return (
+        <MenuLogin
+          width="100px"
+          inputType={MenuInputType.NONE}
+          onSelect={() => {}} // login item rendered as <a> link for saml apps.
+          textTransform="none"
+          alignButtonWidthToMenu
+          getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          buttonText="Log In"
+          placeholder="Select URL to log in"
+        />
+      );
+    }
+    ssoUrl = launchUrls[0].url;
+  }
+
+  return (
+    <ButtonBorder
+      as="a"
+      width="100px"
+      size="small"
+      target="_blank"
+      href={ssoUrl}
+      rel="noreferrer"
+      textTransform="none"
+      title="Log in to SAML application"
+    >
+      Log In
+    </ButtonBorder>
+  );
+}
+
+const makeSamlAppLoginOptions = (
+  launchUrls: SamlAppLaunchUrl[]
+): LoginItem[] => {
+  return launchUrls.map(u => {
+    return {
+      login: u.friendlyName ? u.friendlyName : u.url,
+      url: u.url,
+      isExternalUrl: true,
     };
   });
 };

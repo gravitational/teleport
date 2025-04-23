@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 type armPostgresFlexServersClient interface {
@@ -44,7 +43,6 @@ var _ PostgresFlexServersClient = (*postgresFlexServersClient)(nil)
 
 // NewPostgresFlexServersClient creates a new Azure PostgreSQL Flexible server client by subscription and credentials.
 func NewPostgresFlexServersClient(subID string, cred azcore.TokenCredential, opts *arm.ClientOptions) (PostgresFlexServersClient, error) {
-	logrus.Debug("Initializing Azure PostgreSQL Flexible servers client.")
 	api, err := armpostgresqlflexibleservers.NewServersClient(subID, cred, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

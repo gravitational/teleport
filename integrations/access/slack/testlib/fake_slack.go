@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/slack"
 )
@@ -315,6 +314,6 @@ func (s *FakeSlack) CheckMessageUpdateByResponding(ctx context.Context) (slack.M
 
 func panicIf(err error) {
 	if err != nil {
-		log.Panicf("%v at %v", err, string(debug.Stack()))
+		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
 	}
 }

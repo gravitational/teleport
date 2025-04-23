@@ -16,7 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type { StoryObj } from '@storybook/react';
+import { delay } from 'msw';
+
+import type { TraitsOption } from 'shared/components/TraitsEditor';
+
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import type { RoleResource } from 'teleport/services/resources';
+import { AllUserTraits } from 'teleport/services/user';
+import { successGetRoles } from 'teleport/test/helpers/roles';
+import { handleUpdateUser } from 'teleport/test/helpers/users';
 
 import { UserAddEdit } from './UserAddEdit';
 
@@ -24,34 +33,84 @@ export default {
   title: 'Teleport/Users/UserAddEdit',
 };
 
-export const Create = () => {
-  const p = {
-    ...props,
-    isNew: true,
-    name: '',
-    fetchRoles: async () => [],
-    selectedRoles: [],
-    attempt: { status: '' as const },
-  };
+export const Create: StoryObj = {
+  render() {
+    const p = {
+      ...props,
+      isNew: true,
+      name: '',
+      fetchRoles: async () => [],
+      selectedRoles: [],
+      user: {
+        name: '',
+        roles: [],
+        authType: 'local',
+        isLocal: true,
+      },
+    };
 
-  return <UserAddEdit {...p} />;
+    return (
+      <TeleportProviderBasic>
+        <UserAddEdit {...p} />
+      </TeleportProviderBasic>
+    );
+  },
 };
 
-export const Edit = () => {
-  return <UserAddEdit {...props} attempt={{ status: '' }} />;
+const roles: RoleResource[] = [
+  { id: '1', name: 'Relupba', content: '', kind: 'role' },
+  { id: '2', name: 'B', content: '', kind: 'role' },
+  { id: '3', name: 'Pilhibo', content: '', kind: 'role' },
+];
+
+export const Edit: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        successGetRoles({
+          startKey: '',
+          items: roles,
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <UserAddEdit {...props} />
+      </TeleportProviderBasic>
+    );
+  },
 };
 
-export const Processing = () => {
-  return <UserAddEdit {...props} attempt={{ status: 'processing' }} />;
+export const Processing: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [handleUpdateUser(() => delay('infinite'))],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <UserAddEdit {...props} />
+      </TeleportProviderBasic>
+    );
+  },
 };
 
-export const Failed = () => {
-  return (
-    <UserAddEdit
-      {...props}
-      attempt={{ status: 'failed', statusText: 'server error' }}
-    />
-  );
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [handleUpdateUser(() => delay('infinite'))],
+    },
+  },
+  render() {
+    return (
+      <TeleportProviderBasic>
+        <UserAddEdit {...props} />
+      </TeleportProviderBasic>
+    );
+  },
 };
 
 const props = {
@@ -62,7 +121,10 @@ const props = {
     { value: 'admin', label: 'admin' },
     { value: 'testrole', label: 'testrole' },
   ],
-  name: 'lester',
+  user: {
+    name: 'lester',
+    roles: ['editor'],
+  },
   isNew: false,
   onChangeName() {},
   onChangeRoles() {},
@@ -72,4 +134,12 @@ const props = {
     expires: new Date('2050-12-20T17:28:20.93Z'),
     username: 'Lester',
   },
+  allTraits: { ['logins']: ['root', 'ubuntu'] } as AllUserTraits,
+  configuredTraits: [
+    {
+      traitKey: { value: 'logins', label: 'logins' },
+      traitValues: [{ value: 'root', label: 'root' }],
+    },
+  ] as TraitsOption[],
+  setConfiguredTraits: () => null,
 };

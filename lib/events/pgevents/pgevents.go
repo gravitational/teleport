@@ -21,6 +21,7 @@ package pgevents
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
@@ -31,14 +32,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -57,42 +60,59 @@ const (
 
 // URL parameters for configuration.
 const (
-	authModeParam = "auth_mode"
+	authModeParam          = "auth_mode"
+	gcpConnectionNameParam = "gcp_connection_name"
+	gcpIPTypeParam         = "gcp_ip_type"
 
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
 	retentionPeriodParam = "retention_period"
 )
 
-// AuthMode determines if we should use some environment-specific authentication
-// mechanism or credentials.
-type AuthMode string
-
 const (
-	// FixedAuth uses the static credentials as defined in the connection
-	// string.
-	FixedAuth AuthMode = ""
-	// AzureADAuth gets a connection token from Azure and uses it as the
-	// password when connecting.
-	AzureADAuth AuthMode = "azure"
-)
+	// A note on "session_id uuid NOT NULL":
+	//
+	// Some session IDs aren't UUIDs. See [Log.deriveSessionID] for an example.
+	// The wiser choice of type would be "session_id text", ie, handling session
+	// IDs as an opaque identifier.
+	//
+	// If you are writing a new backend and stumbled on this comment, do not use
+	// a storage UUID type for session IDs. Use a string type.
+	schemaV1Table = `CREATE TABLE events (
+		event_time timestamptz NOT NULL,
+		event_id uuid NOT NULL,
+		event_type text NOT NULL,
+		session_id uuid NOT NULL,
+		event_data json NOT NULL,
+		creation_time timestamptz NOT NULL DEFAULT now(),
+		CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
+	);
+	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
+		WHERE session_id != '00000000-0000-0000-0000-000000000000';`
+	dateIndex                  = "CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);"
+	schemaV1TableWithDateIndex = schemaV1Table + "\n" + dateIndex
 
-// Check returns an error if the AuthMode is invalid.
-func (a AuthMode) Check() error {
-	switch a {
-	case FixedAuth, AzureADAuth:
-		return nil
-	default:
-		return trace.BadParameter("invalid authentication mode %q", a)
-	}
-}
+	// the 'n'::INTERVAL expression will saturate at around 292 years (which is
+	// perfectly acceptable for a retention period of the audit log), and the
+	// sum between a TIMESTAMPTZ set around 2024 and an INTERVAL of up to 292
+	// years is always representable
+	//
+	// the string to INTERVAL cast should be stable, unlike any integer to
+	// INTERVAL cast (see https://github.com/cockroachdb/cockroach/issues/57876)
+	schemaV1CockroachSetRowExpirySeconds = "ALTER TABLE events SET (ttl_expiration_expression = '((creation_time AT TIME ZONE ''UTC'') + (''%d''::INTERVAL)) AT TIME ZONE ''UTC''');"
+	// the asymmetry here is intended, crdb requires "RESET (ttl)" to disable
+	// row-level TTL on a table, whereas "RESET (ttl_expiration_expression)"
+	// would remove the expression in favor of ttl_expire_after (and it will
+	// error out if ttl_expire_after is unset)
+	schemaV1CockroachUnsetRowExpiry = "ALTER TABLE events RESET (ttl);"
+)
 
 // Config is the configuration struct to pass to New.
 type Config struct {
-	Log        logrus.FieldLogger
-	PoolConfig *pgxpool.Config
+	pgcommon.AuthConfig
 
-	AuthMode AuthMode
+	Log        *slog.Logger
+	PoolConfig *pgxpool.Config
 
 	DisableCleanup  bool
 	RetentionPeriod time.Duration
@@ -121,7 +141,9 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	}
 	c.PoolConfig = poolConfig
 
-	c.AuthMode = AuthMode(params.Get(authModeParam))
+	c.AuthMode = pgcommon.AuthMode(params.Get(authModeParam))
+	c.GCPConnectionName = params.Get(gcpConnectionNameParam)
+	c.GCPIPType = pgcommon.GCPIPType(params.Get(gcpIPTypeParam))
 
 	if s := params.Get(disableCleanupParam); s != "" {
 		b, err := strconv.ParseBool(s)
@@ -157,7 +179,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing pool config")
 	}
 
-	if err := c.AuthMode.Check(); err != nil {
+	if err := c.AuthConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -176,7 +198,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, componentName)
+		c.Log = slog.With(teleport.ComponentKey, componentName)
 	}
 
 	return nil
@@ -189,15 +211,15 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.AuthMode == AzureADAuth {
-		bc, err := pgcommon.AzureBeforeConnect(cfg.Log)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cfg.PoolConfig.BeforeConnect = bc
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err, "registering prometheus collectors")
 	}
 
-	cfg.Log.Info("Setting up events backend.")
+	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg.Log.InfoContext(ctx, "Setting up events backend.")
 
 	pgcommon.TryEnsureDatabase(ctx, cfg.PoolConfig, cfg.Log)
 
@@ -206,7 +228,19 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := pgcommon.SetupAndMigrate(ctx, cfg.Log, pool, "audit_version", schemas); err != nil {
+	var isCockroach bool
+
+	// We're a bit hacky here, we must not start the cleanup job if we're
+	// running on cockroach (rows have TTLs). To avoid running another query,
+	// the builder function detects and reports if it's a cockroach via a shared
+	// variable. This works because everything is synchronous.
+	schemaBuilder := func(conn *pgx.Conn) ([]string, error) {
+		isCockroach = conn.PgConn().ParameterStatus("crdb_version") != ""
+
+		return buildSchema(isCockroach, &cfg)
+	}
+
+	if err := pgcommon.SetupAndMigrateDynamic(ctx, cfg.Log, pool, "audit_version", schemaBuilder); err != nil {
 		pool.Close()
 		return nil, trace.Wrap(err)
 	}
@@ -218,19 +252,63 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		cancel: cancel,
 	}
 
-	if !cfg.DisableCleanup {
-		l.wg.Add(1)
-		go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
+	if isCockroach {
+		err = configureCockroachDBRetention(ctx, &cfg, pool)
+		if err != nil {
+			return nil, trace.Wrap(err, "configuring CockroachDB retention")
+		}
+	} else {
+		// Regular PostgreSQL that doesn't support expiring rows, we must run a
+		// periodic cleanup job.
+		if !cfg.DisableCleanup {
+			cfg.Log.DebugContext(
+				ctx, "Starting periodic cleanup background worker.",
+				"retention", cfg.RetentionPeriod.String(),
+				"cleanup_interval", cfg.CleanupInterval)
+			l.wg.Add(1)
+			go l.periodicCleanup(periodicCtx, cfg.CleanupInterval, cfg.RetentionPeriod)
+		}
 	}
 
-	l.log.Info("Started events backend.")
+	l.log.InfoContext(ctx, "Started events backend.")
 
 	return l, nil
 }
 
+func configureCockroachDBRetention(ctx context.Context, cfg *Config, pool *pgxpool.Pool) error {
+	// The first run of this query on multi region setup can sometimes take more than 5 seconds.
+	// The subsequent runs are faster (a couple of seconds at most).
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var expiryQuery string
+	if cfg.DisableCleanup {
+		cfg.Log.DebugContext(ctx, "Disabling CockroachDB native row expiry")
+		expiryQuery = schemaV1CockroachUnsetRowExpiry
+	} else {
+		cfg.Log.DebugContext(ctx, "Configuring CockroachDB native row expiry")
+		expiryQuery = fmt.Sprintf(schemaV1CockroachSetRowExpirySeconds, int64(cfg.RetentionPeriod.Seconds()))
+	}
+	_, err := pool.Exec(ctx, expiryQuery, pgx.QueryExecModeExec)
+	return trace.Wrap(err)
+}
+
+func buildSchema(isCockroach bool, cfg *Config) (schemas []string, err error) {
+	// If this is a real postgres, we cannot use self-expiring rows and we need
+	// to create an index for the deletion job to run. This index type is not
+	// supported by CockroachDB at the time of writing
+	// (see https://github.com/cockroachdb/cockroach/issues/41293)
+	if !isCockroach {
+		return []string{schemaV1TableWithDateIndex}, nil
+	}
+
+	cfg.Log.DebugContext(context.TODO(), "CockroachDB detected.")
+	return []string{schemaV1Table}, nil
+}
+
 // Log is an external [events.AuditLogger] backed by a PostgreSQL database.
 type Log struct {
-	log  logrus.FieldLogger
+	log  *slog.Logger
 	pool *pgxpool.Pool
 
 	cancel context.CancelFunc
@@ -243,21 +321,6 @@ func (l *Log) Close() error {
 	l.wg.Wait()
 	l.pool.Close()
 	return nil
-}
-
-var schemas = []string{
-	`CREATE TABLE events (
-		event_time timestamptz NOT NULL,
-		event_id uuid NOT NULL,
-		event_type text NOT NULL,
-		session_id uuid NOT NULL,
-		event_data json NOT NULL,
-		creation_time timestamptz NOT NULL DEFAULT now(),
-		CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
-	);
-	CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);
-	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
-		WHERE session_id != '00000000-0000-0000-0000-000000000000';`,
 }
 
 // periodicCleanup removes events past the retention period from the table,
@@ -275,7 +338,8 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 		case <-tk.C:
 		}
 
-		l.log.Debug("Executing periodic cleanup.")
+		l.log.DebugContext(ctx, "Executing periodic cleanup.")
+		start := time.Now()
 		deleted, err := pgcommon.RetryIdempotent(ctx, l.log, func() (int64, error) {
 			tag, err := l.pool.Exec(ctx,
 				"DELETE FROM events WHERE creation_time < (now() - $1::interval)",
@@ -287,10 +351,14 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 
 			return tag.RowsAffected(), nil
 		})
+		batchDeleteLatencies.Observe(time.Since(start).Seconds())
+
 		if err != nil {
-			l.log.WithError(err).Error("Failed to execute periodic cleanup.")
+			batchDeleteRequestsFailure.Inc()
+			l.log.ErrorContext(ctx, "Failed to execute periodic cleanup.", "error", err)
 		} else {
-			l.log.WithField("deleted_rows", deleted).Debug("Executed periodic cleanup.")
+			batchDeleteRequestsSuccess.Inc()
+			l.log.DebugContext(ctx, "Executed periodic cleanup.", "deleted", deleted)
 		}
 	}
 }
@@ -300,14 +368,6 @@ var _ events.AuditLogger = (*Log)(nil)
 // EmitAuditEvent implements [events.AuditLogger].
 func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
-	var sessionID uuid.UUID
-	if s := events.GetSessionID(event); s != "" {
-		u, err := uuid.Parse(s)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sessionID = u
-	}
 
 	eventJSON, err := utils.FastMarshal(event)
 	if err != nil {
@@ -315,10 +375,12 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 	}
 
 	eventID := uuid.New()
+	sessionID := l.deriveSessionID(ctx, events.GetSessionID(event))
 
+	start := time.Now()
 	// if an event with the same event_id exists, it means that we inserted it
 	// and then failed to receive the success reply from the commit
-	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
+	_, err = pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
 		_, err := l.pool.Exec(ctx,
 			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
 				" VALUES ($1, $2, $3, $4, $5)"+
@@ -326,9 +388,15 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
 		)
 		return struct{}{}, trace.Wrap(err)
-	}); err != nil {
+	})
+
+	writeLatencies.Observe(time.Since(start).Seconds())
+
+	if err != nil {
+		writeRequestsFailure.Inc()
 		return trace.Wrap(err)
 	}
+	writeRequestsSuccess.Inc()
 
 	return nil
 }
@@ -345,15 +413,6 @@ func (l *Log) searchEvents(
 	eventTypes []string, cond *types.WhereExpr, sessionID string,
 	limit int, order types.EventOrder, startKey string,
 ) ([]apievents.AuditEvent, string, error) {
-	var sessionUUID uuid.UUID
-	if sessionID != "" {
-		var err error
-		sessionUUID, err = uuid.Parse(sessionID)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-	}
-
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -379,6 +438,8 @@ func (l *Log) searchEvents(
 			return nil, "", trace.Wrap(err)
 		}
 	}
+
+	sessionUUID := l.deriveSessionID(ctx, sessionID)
 
 	var qb strings.Builder
 	qb.WriteString("DECLARE cur CURSOR FOR SELECT" +
@@ -424,8 +485,9 @@ func (l *Log) searchEvents(
 	var endTime time.Time
 	var endID uuid.UUID
 
+	transactionStart := time.Now()
 	const idempotent = true
-	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
+	err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
 		AccessMode: pgx.ReadOnly,
 	}, idempotent, func(tx pgx.Tx) error {
 		evs = nil
@@ -491,9 +553,14 @@ func (l *Log) searchEvents(
 			}
 		}
 		return nil
-	}); err != nil {
+	})
+	batchReadLatencies.Observe(time.Since(transactionStart).Seconds())
+
+	if err != nil {
+		batchReadRequestsFailure.Inc()
 		return nil, "", trace.Wrap(err)
 	}
+	batchReadRequestsSuccess.Inc()
 
 	var nextKey string
 	if len(evs) > 0 && (len(evs) >= limit || sizeLimit) {
@@ -510,8 +577,52 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 	return l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
 }
 
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("pgevents backend does not support streaming export"))
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("pgevents backend does not support streaming export"))
+}
+
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	sessionEndTypes := []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}
-	return l.searchEvents(ctx, req.From, req.To, sessionEndTypes, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
+	return l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
+}
+
+// sessionIDBase is a randomly-generated UUID used as the basis for deriving
+// an UUID from session IDs. See [Log.deriveSessionID].
+var sessionIDBase = uuid.MustParse("e481e221-77b0-4b9e-be98-bc2e486b751b")
+
+func (l *Log) deriveSessionID(ctx context.Context, sessionID string) uuid.UUID {
+	if sessionID == "" {
+		return uuid.Nil // return zero UUID for backwards compat
+	}
+
+	u, err := uuid.Parse(sessionID)
+	if err == nil {
+		return u
+	}
+
+	// Some session IDs aren't UUIDs. For example, App session IDs are 32-byte
+	// values encoded as hex. Whether the assumption of UUIDs is philosophically
+	// correct is immaterial, what matters is that we do not drop the audit
+	// event.
+	//
+	// To avoid dropping the event while conforming to the existing schema we
+	// deterministically derive an UUID from the session ID.
+	//
+	// Note that derived IDs are UUIDv5 (instead of the usual UUIDv4 from
+	// uuid.Parse), so that could be used as a hint to which UUIDs are original or
+	// derived.
+	//
+	// * https://github.com/gravitational/teleport/blob/63537e3da5a22b61d9218863f1ed535a31d229ea/lib/auth/sessions.go#L521
+	derived := uuid.NewSHA1(sessionIDBase, []byte(sessionID))
+
+	l.log.DebugContext(ctx,
+		"Failed to parse event session ID, using derived ID",
+		"error", err,
+		"derived_id", derived,
+	)
+	return derived
 }

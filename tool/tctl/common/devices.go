@@ -21,23 +21,25 @@ package common
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // DevicesCommand implements the `tctl devices` command.
@@ -67,7 +69,7 @@ var osTypeToEnum = map[osType]devicepb.OSType{
 	windowsType: devicepb.OSType_OS_TYPE_WINDOWS,
 }
 
-func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	devicesCmd := app.Command("devices", "Register and manage trusted devices").Hidden()
 
 	addCmd := devicesCmd.Command("add", "Register managed devices.")
@@ -109,22 +111,27 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Co
 
 // runner is used as a simple interface for subcommands.
 type runner interface {
-	Run(context.Context, *auth.Client) error
+	Run(context.Context, *authclient.Client) error
 }
 
-func (c *DevicesCommand) TryRun(ctx context.Context, selectedCommand string, authClient *auth.Client) (match bool, err error) {
+func (c *DevicesCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	innerCmd, ok := map[string]runner{
 		"devices add":    &c.add,
 		"devices ls":     &c.ls,
 		"devices rm":     &c.rm,
 		"devices enroll": &c.enroll,
 		"devices lock":   &c.lock,
-	}[selectedCommand]
+	}[cmd]
 	if !ok {
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer closeFn(ctx)
 
-	switch err := trail.FromGRPC(innerCmd.Run(ctx, authClient)); {
+	switch err := trail.FromGRPC(innerCmd.Run(ctx, client)); {
 	case trace.IsNotImplemented(err):
 		return true, trace.AccessDenied("Device Trust requires a Teleport Enterprise Auth Server running v12 or later.")
 	default:
@@ -140,7 +147,7 @@ type deviceAddCommand struct {
 	enrollTTL time.Duration
 }
 
-func (c *deviceAddCommand) Run(ctx context.Context, authClient *auth.Client) error {
+func (c *deviceAddCommand) Run(ctx context.Context, authClient *authclient.Client) error {
 	if _, err := c.setCurrentDevice(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -208,7 +215,7 @@ tsh device enroll --token=%v
 
 type deviceListCommand struct{}
 
-func (c *deviceListCommand) Run(ctx context.Context, authClient *auth.Client) error {
+func (c *deviceListCommand) Run(ctx context.Context, authClient *authclient.Client) error {
 	devices := authClient.DevicesClient()
 
 	// List all devices.
@@ -267,7 +274,7 @@ type deviceRemoveCommand struct {
 	deviceID string
 }
 
-func (c *deviceRemoveCommand) Run(ctx context.Context, authClient *auth.Client) error {
+func (c *deviceRemoveCommand) Run(ctx context.Context, authClient *authclient.Client) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)
@@ -307,7 +314,7 @@ type deviceEnrollCommand struct {
 	ttl      time.Duration
 }
 
-func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *auth.Client) error {
+func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *authclient.Client) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)
@@ -355,7 +362,7 @@ type deviceLockCommand struct {
 	ttl      time.Duration
 }
 
-func (c *deviceLockCommand) Run(ctx context.Context, authClient *auth.Client) error {
+func (c *deviceLockCommand) Run(ctx context.Context, authClient *authclient.Client) error {
 	switch ok, err := c.setCurrentDevice(); {
 	case err != nil:
 		return trace.Wrap(err)
@@ -483,10 +490,11 @@ func (c *canOperateOnCurrentDevice) setCurrentDevice() (bool, error) {
 
 	c.osType = cdd.OsType
 	c.assetTag = cdd.SerialNumber
-	log.Debugf(
-		"Running device command against current device: %q/%v",
-		c.assetTag,
-		devicetrust.FriendlyOSType(c.osType),
+	slog.DebugContext(
+		context.Background(),
+		"Running device command against current device",
+		"asset_tag", c.assetTag,
+		"os_type", devicetrust.FriendlyOSType(c.osType),
 	)
 	return true, nil
 }

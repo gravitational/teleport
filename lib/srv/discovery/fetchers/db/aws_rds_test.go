@@ -21,13 +21,17 @@ package db
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -38,8 +42,8 @@ import (
 func TestRDSFetchers(t *testing.T) {
 	t.Parallel()
 
-	auroraMySQLEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEngineAuroraMySQL)}
-	postgresEngine := &rds.DBEngineVersion{Engine: aws.String(services.RDSEnginePostgres)}
+	auroraMySQLEngine := &rdstypes.DBEngineVersion{Engine: aws.String(services.RDSEngineAuroraMySQL)}
+	postgresEngine := &rdstypes.DBEngineVersion{Engine: aws.String(services.RDSEnginePostgres)}
 
 	rdsInstance1, rdsDatabase1 := makeRDSInstance(t, "instance-1", "us-east-1", envProdLabels)
 	rdsInstance2, rdsDatabase2 := makeRDSInstance(t, "instance-2", "us-east-2", envProdLabels)
@@ -58,19 +62,19 @@ func TestRDSFetchers(t *testing.T) {
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
-			inputClients: &cloud.TestCloudClients{
-				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &mocks.RDSMock{
-						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3, auroraCluster1MemberInstance},
-						DBClusters:       []*rds.DBCluster{auroraCluster1},
-						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: newRegionalFakeRDSClientProvider(map[string]RDSClient{
+					"us-east-1": &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*rdsInstance1, *rdsInstance3, *auroraCluster1MemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster1},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine, *postgresEngine},
 					},
-					"us-east-2": &mocks.RDSMock{
-						DBInstances:      []*rds.DBInstance{rdsInstance2, auroraCluster2MemberInstance, auroraCluster3MemberInstance},
-						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
-						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
+					"us-east-2": &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*rdsInstance2, *auroraCluster2MemberInstance, *auroraCluster3MemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster2, *auroraCluster3},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine, *postgresEngine},
 					},
-				},
+				}),
 			},
 			inputMatchers: []types.AWSMatcher{
 				{
@@ -91,19 +95,19 @@ func TestRDSFetchers(t *testing.T) {
 		},
 		{
 			name: "fetch different labels for different regions",
-			inputClients: &cloud.TestCloudClients{
-				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &mocks.RDSMock{
-						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3, auroraCluster1MemberInstance},
-						DBClusters:       []*rds.DBCluster{auroraCluster1},
-						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: newRegionalFakeRDSClientProvider(map[string]RDSClient{
+					"us-east-1": &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*rdsInstance1, *rdsInstance3, *auroraCluster1MemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster1},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine, *postgresEngine},
 					},
-					"us-east-2": &mocks.RDSMock{
-						DBInstances:      []*rds.DBInstance{rdsInstance2, auroraCluster2MemberInstance, auroraCluster3MemberInstance},
-						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
-						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
+					"us-east-2": &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*rdsInstance2, *auroraCluster2MemberInstance, *auroraCluster3MemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster2, *auroraCluster3},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine, *postgresEngine},
 					},
-				},
+				}),
 			},
 			inputMatchers: []types.AWSMatcher{
 				{
@@ -124,19 +128,19 @@ func TestRDSFetchers(t *testing.T) {
 		},
 		{
 			name: "skip unrecognized engines",
-			inputClients: &cloud.TestCloudClients{
-				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &mocks.RDSMock{
-						DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstance3, auroraCluster1MemberInstance},
-						DBClusters:       []*rds.DBCluster{auroraCluster1},
-						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: newRegionalFakeRDSClientProvider(map[string]RDSClient{
+					"us-east-1": &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*rdsInstance1, *rdsInstance3, *auroraCluster1MemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster1},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine},
 					},
-					"us-east-2": &mocks.RDSMock{
-						DBInstances:      []*rds.DBInstance{rdsInstance2, auroraCluster2MemberInstance, auroraCluster3MemberInstance},
-						DBClusters:       []*rds.DBCluster{auroraCluster2, auroraCluster3},
-						DBEngineVersions: []*rds.DBEngineVersion{postgresEngine},
+					"us-east-2": &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*rdsInstance2, *auroraCluster2MemberInstance, *auroraCluster3MemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster2, *auroraCluster3},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*postgresEngine},
 					},
-				},
+				}),
 			},
 			inputMatchers: []types.AWSMatcher{
 				{
@@ -154,14 +158,14 @@ func TestRDSFetchers(t *testing.T) {
 		},
 		{
 			name: "skip unsupported databases",
-			inputClients: &cloud.TestCloudClients{
-				RDSPerRegion: map[string]rdsiface.RDSAPI{
-					"us-east-1": &mocks.RDSMock{
-						DBInstances:      []*rds.DBInstance{auroraCluster1MemberInstance},
-						DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
-						DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: newRegionalFakeRDSClientProvider(map[string]RDSClient{
+					"us-east-1": &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*auroraCluster1MemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster1, *auroraClusterUnsupported},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine},
 					},
-				},
+				}),
 			},
 			inputMatchers: []types.AWSMatcher{{
 				Types:   []string{types.AWSMatcherRDS},
@@ -172,11 +176,13 @@ func TestRDSFetchers(t *testing.T) {
 		},
 		{
 			name: "skip unavailable databases",
-			inputClients: &cloud.TestCloudClients{
-				RDS: &mocks.RDSMock{
-					DBInstances:      []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus, auroraCluster1MemberInstance, auroraClusterUnknownStatusMemberInstance},
-					DBClusters:       []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
-					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine, postgresEngine},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						DBInstances:      []rdstypes.DBInstance{*rdsInstance1, *rdsInstanceUnavailable, *rdsInstanceUnknownStatus, *auroraCluster1MemberInstance, *auroraClusterUnknownStatusMemberInstance},
+						DBClusters:       []rdstypes.DBCluster{*auroraCluster1, *auroraClusterUnavailable, *auroraClusterUnknownStatus},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine, *postgresEngine},
+					},
 				},
 			},
 			inputMatchers: []types.AWSMatcher{{
@@ -188,11 +194,13 @@ func TestRDSFetchers(t *testing.T) {
 		},
 		{
 			name: "Aurora cluster without writer",
-			inputClients: &cloud.TestCloudClients{
-				RDS: &mocks.RDSMock{
-					DBClusters:       []*rds.DBCluster{auroraClusterNoWriter},
-					DBInstances:      []*rds.DBInstance{auroraClusterMemberNoWriter},
-					DBEngineVersions: []*rds.DBEngineVersion{auroraMySQLEngine},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						DBClusters:       []rdstypes.DBCluster{*auroraClusterNoWriter},
+						DBInstances:      []rdstypes.DBInstance{*auroraClusterMemberNoWriter},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*auroraMySQLEngine},
+					},
 				},
 			},
 			inputMatchers: []types.AWSMatcher{{
@@ -206,29 +214,29 @@ func TestRDSFetchers(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func makeRDSInstance(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBInstance)) (*rds.DBInstance, types.Database) {
+func makeRDSInstance(t *testing.T, name, region string, labels map[string]string, opts ...func(*rdstypes.DBInstance)) (*rdstypes.DBInstance, types.Database) {
 	instance := mocks.RDSInstance(name, region, labels, opts...)
-	database, err := services.NewDatabaseFromRDSInstance(instance)
+	database, err := common.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return instance, database
 }
 
-func makeRDSCluster(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBCluster)) (*rds.DBCluster, *rds.DBInstance, types.Database) {
+func makeRDSCluster(t *testing.T, name, region string, labels map[string]string, opts ...func(*rdstypes.DBCluster)) (*rdstypes.DBCluster, *rdstypes.DBInstance, types.Database) {
 	cluster := mocks.RDSCluster(name, region, labels, opts...)
 	dbInstanceMember := makeRDSMemberForCluster(t, name, region, "vpc-123", *cluster.Engine, labels)
-	database, err := services.NewDatabaseFromRDSCluster(cluster, []*rds.DBInstance{dbInstanceMember})
+	database, err := common.NewDatabaseFromRDSCluster(cluster, []rdstypes.DBInstance{*dbInstanceMember})
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return cluster, dbInstanceMember, database
 }
 
-func makeRDSMemberForCluster(t *testing.T, name, region, vpcid, engine string, labels map[string]string) *rds.DBInstance {
-	instanceRDSMember, _ := makeRDSInstance(t, name+"-instance-1", region, labels, func(d *rds.DBInstance) {
+func makeRDSMemberForCluster(t *testing.T, name, region, vpcid, engine string, labels map[string]string) *rdstypes.DBInstance {
+	instanceRDSMember, _ := makeRDSInstance(t, name+"-instance-1", region, labels, func(d *rdstypes.DBInstance) {
 		if d.DBSubnetGroup == nil {
-			d.DBSubnetGroup = &rds.DBSubnetGroup{}
+			d.DBSubnetGroup = &rdstypes.DBSubnetGroup{}
 		}
-		d.DBSubnetGroup.SetVpcId(vpcid)
+		d.DBSubnetGroup.VpcId = aws.String(vpcid)
 		d.DBClusterIdentifier = aws.String(name)
 		d.Engine = aws.String(engine)
 	})
@@ -236,9 +244,9 @@ func makeRDSMemberForCluster(t *testing.T, name, region, vpcid, engine string, l
 	return instanceRDSMember
 }
 
-func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string, hasWriter bool) (*rds.DBCluster, *rds.DBInstance, types.Databases) {
+func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels map[string]string, hasWriter bool) (*rdstypes.DBCluster, *rdstypes.DBInstance, types.Databases) {
 	cluster := mocks.RDSCluster(name, region, labels,
-		func(cluster *rds.DBCluster) {
+		func(cluster *rdstypes.DBCluster) {
 			// Disable writer by default. If hasWriter, writer endpoint will be added below.
 			cluster.DBClusterMembers = nil
 		},
@@ -249,24 +257,24 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 
 	var databases types.Databases
 
-	instanceRDSMember := makeRDSMemberForCluster(t, name, region, "vpc-123", aws.StringValue(cluster.Engine), labels)
-	dbInstanceMembers := []*rds.DBInstance{instanceRDSMember}
+	instanceRDSMember := makeRDSMemberForCluster(t, name, region, "vpc-123", aws.ToString(cluster.Engine), labels)
+	dbInstanceMembers := []rdstypes.DBInstance{*instanceRDSMember}
 
 	if hasWriter {
-		cluster.DBClusterMembers = append(cluster.DBClusterMembers, &rds.DBClusterMember{
+		cluster.DBClusterMembers = append(cluster.DBClusterMembers, rdstypes.DBClusterMember{
 			IsClusterWriter: aws.Bool(true), // Add writer.
 		})
 
-		primaryDatabase, err := services.NewDatabaseFromRDSCluster(cluster, dbInstanceMembers)
+		primaryDatabase, err := common.NewDatabaseFromRDSCluster(cluster, dbInstanceMembers)
 		require.NoError(t, err)
 		databases = append(databases, primaryDatabase)
 	}
 
-	readerDatabase, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster, dbInstanceMembers)
+	readerDatabase, err := common.NewDatabaseFromRDSClusterReaderEndpoint(cluster, dbInstanceMembers)
 	require.NoError(t, err)
 	databases = append(databases, readerDatabase)
 
-	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster, dbInstanceMembers)
+	customDatabases, err := common.NewDatabasesFromRDSClusterCustomEndpoints(cluster, dbInstanceMembers)
 	require.NoError(t, err)
 	databases = append(databases, customDatabases...)
 
@@ -277,22 +285,69 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 }
 
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.
-func withRDSInstanceStatus(status string) func(*rds.DBInstance) {
-	return func(instance *rds.DBInstance) {
+func withRDSInstanceStatus(status string) func(*rdstypes.DBInstance) {
+	return func(instance *rdstypes.DBInstance) {
 		instance.DBInstanceStatus = aws.String(status)
 	}
 }
 
 // withRDSClusterEngineMode returns an option function for makeRDSCluster to overwrite engine mode.
-func withRDSClusterEngineMode(mode string) func(*rds.DBCluster) {
-	return func(cluster *rds.DBCluster) {
+func withRDSClusterEngineMode(mode string) func(*rdstypes.DBCluster) {
+	return func(cluster *rdstypes.DBCluster) {
 		cluster.EngineMode = aws.String(mode)
 	}
 }
 
 // withRDSClusterStatus returns an option function for makeRDSCluster to overwrite status.
-func withRDSClusterStatus(status string) func(*rds.DBCluster) {
-	return func(cluster *rds.DBCluster) {
+func withRDSClusterStatus(status string) func(*rdstypes.DBCluster) {
+	return func(cluster *rdstypes.DBCluster) {
 		cluster.Status = aws.String(status)
 	}
+}
+
+// provides a client specific to each region, where the map keys are regions.
+func newRegionalFakeRDSClientProvider(cs map[string]RDSClient) fakeRegionalRDSClients {
+	return fakeRegionalRDSClients{rdsClients: cs}
+}
+
+type fakeAWSClients struct {
+	ecClient         ElastiCacheClient
+	mdbClient        MemoryDBClient
+	openSearchClient OpenSearchClient
+	rdsClient        RDSClient
+	redshiftClient   RedshiftClient
+	rssClient        RSSClient
+}
+
+func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return f.ecClient
+}
+
+func (f fakeAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
+	return f.mdbClient
+}
+
+func (f fakeAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient {
+	return f.openSearchClient
+}
+
+func (f fakeAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
+	return f.rdsClient
+}
+
+func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
+	return f.redshiftClient
+}
+
+func (f fakeAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient {
+	return f.rssClient
+}
+
+type fakeRegionalRDSClients struct {
+	AWSClientProvider
+	rdsClients map[string]RDSClient
+}
+
+func (f fakeRegionalRDSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
+	return f.rdsClients[cfg.Region]
 }

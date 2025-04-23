@@ -33,6 +33,8 @@ Create the user and role:
 $ tctl create -f access-plugin.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 As with all Teleport users, the Teleport Auth Service authenticates the
 `access-plugin` user by issuing short-lived TLS credentials. In this case, we
 will need to request the credentials manually by *impersonating* the
@@ -66,14 +68,14 @@ Create the `access-plugin-impersonator` role:
 $ tctl create -f access-plugin-impersonator.yaml
 ```
 
-Retrieve your user definition:
+Edit your user definition:
 
 ```code
 $ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
-$ tctl get users/${TELEPORT_USER?} > myuser.yaml
+$ tctl edit users/${TELEPORT_USER?}
 ```
 
-Edit `myuser.yaml` to include the role you just created:
+Edit your user to include the role you just created:
 
 ```diff
   roles:
@@ -81,12 +83,6 @@ Edit `myuser.yaml` to include the role you just created:
    - auditor
    - editor
 +  - access-plugin-impersonator
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f myuser.yaml
 ```
 
 Log out of your Teleport cluster and log in again. You will now be able to

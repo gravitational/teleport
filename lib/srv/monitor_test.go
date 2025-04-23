@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
@@ -54,7 +54,7 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 		EmitterContext: context.Background(),
 		Clock:          asrv.Clock(),
 		Tracker:        &mockActivityTracker{asrv.Clock()},
-		Entry:          logrus.StandardLogger(),
+		Logger:         utils.NewSlogLoggerForTests(),
 		LockWatcher:    asrv.LockWatcher,
 		LockTargets:    []types.LockTarget{{User: "test-user"}},
 		LockingMode:    constants.LockingModeBestEffort,
@@ -86,7 +86,7 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 		Emitter:        emitter,
 		EmitterContext: ctx,
 		Clock:          asrv.Clock(),
-		Logger:         logrus.StandardLogger(),
+		Logger:         utils.NewSlogLoggerForTests(),
 		LockWatcher:    asrv.LockWatcher,
 		ServerID:       "test",
 	})
@@ -385,72 +385,4 @@ func (m mockChecker) AdjustClientIdleTimeout(ttl time.Duration) time.Duration {
 
 func (m mockChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	return defaultMode
-}
-
-type mockAuthPreference struct {
-	types.AuthPreference
-}
-
-var disconnectExpiredCert bool
-
-func (m *mockAuthPreference) GetDisconnectExpiredCert() bool {
-	return disconnectExpiredCert
-}
-
-func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	now := clock.Now()
-	inAnHour := clock.Now().Add(time.Hour)
-	var unset time.Time
-	checker := mockChecker{}
-	authPref := &mockAuthPreference{}
-
-	for _, test := range []struct {
-		name                    string
-		expires                 time.Time
-		previousIdentityExpires time.Time
-		mfaVerified             bool
-		disconnectExpiredCert   bool
-		expected                time.Time
-	}{
-		{
-			name:                    "mfa overrides expires when set",
-			expires:                 now,
-			previousIdentityExpires: inAnHour,
-			mfaVerified:             true,
-			disconnectExpiredCert:   true,
-			expected:                inAnHour,
-		},
-		{
-			name:                    "expires returned when mfa unset",
-			expires:                 now,
-			previousIdentityExpires: unset,
-			mfaVerified:             false,
-			disconnectExpiredCert:   true,
-			expected:                now,
-		},
-		{
-			name:                    "unset when disconnectExpiredCert is false",
-			expires:                 now,
-			previousIdentityExpires: inAnHour,
-			mfaVerified:             true,
-			disconnectExpiredCert:   false,
-			expected:                unset,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var mfaVerified string
-			if test.mfaVerified {
-				mfaVerified = "1234"
-			}
-			identity := tlsca.Identity{
-				Expires:                 test.expires,
-				PreviousIdentityExpires: test.previousIdentityExpires,
-				MFAVerified:             mfaVerified,
-			}
-			disconnectExpiredCert = test.disconnectExpiredCert
-			got := GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity)
-			require.Equal(t, test.expected, got)
-		})
-	}
 }

@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/gitlab"
@@ -33,6 +32,9 @@ import (
 type gitlabIDTokenValidator interface {
 	Validate(
 		ctx context.Context, domain string, token string,
+	) (*gitlab.IDTokenClaims, error)
+	ValidateTokenWithJWKS(
+		ctx context.Context, jwks []byte, token string,
 	) (*gitlab.IDTokenClaims, error)
 }
 
@@ -50,17 +52,27 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 		return nil, trace.BadParameter("gitlab join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
-	claims, err := a.gitlabIDTokenValidator.Validate(
-		ctx, token.Spec.GitLab.Domain, req.IDToken,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var claims *gitlab.IDTokenClaims
+	if token.Spec.GitLab.StaticJWKS != "" {
+		claims, err = a.gitlabIDTokenValidator.ValidateTokenWithJWKS(
+			ctx, []byte(token.Spec.GitLab.StaticJWKS), req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with static jwks")
+		}
+	} else {
+		claims, err = a.gitlabIDTokenValidator.Validate(
+			ctx, token.Spec.GitLab.Domain, req.IDToken,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "validating with oidc")
+		}
 	}
 
-	log.WithFields(logrus.Fields{
-		"claims": claims,
-		"token":  pt.GetName(),
-	}).Info("GitLab CI run trying to join cluster")
+	a.logger.InfoContext(ctx, "GitLab CI run trying to join cluster",
+		"claims", claims,
+		"token", pt.GetName(),
+	)
 
 	return claims, trace.Wrap(checkGitLabAllowRules(token, claims))
 }

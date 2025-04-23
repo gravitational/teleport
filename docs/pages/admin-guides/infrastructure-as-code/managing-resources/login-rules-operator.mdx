@@ -1,0 +1,251 @@
+---
+title: Deploy Login Rules using Kubernetes Operator 
+description: Use Teleport's Kubernetes Operator to deploy Login Rules to your cluster
+---
+
+This guide will explain how to:
+
+- Use Teleport's Kubernetes Operator to deploy Login Rules to your Teleport cluster
+- Edit deployed Login Rules with `kubectl`
+
+This guide is applicable if you self-host Teleport in Kubernetes using the
+`teleport-cluster` Helm chart.
+
+## Prerequisites
+
+- A Teleport Enterprise license
+
+- A Kubernetes cluster (with or without `teleport-cluster` Helm chart already deployed)
+
+- [Helm](https://helm.sh/docs/intro/quickstart/)
+
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+- Validate Kubernetes connectivity by running the following command:
+
+  ```code
+  $ kubectl cluster-info
+  # Kubernetes control plane is running at https://127.0.0.1:6443
+  # CoreDNS is running at https://127.0.0.1:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+  ```
+
+  <Admonition type="tip">
+    Users wanting to experiment locally with the Operator can use [minikube](https://minikube.sigs.k8s.io/docs/start/)
+    to start a local Kubernetes cluster:
+
+    ```code
+    $ minikube start
+    ```
+
+  </Admonition>
+
+- Follow the [Teleport operator guides](../teleport-operator/teleport-operator.mdx)
+  to install the Teleport Operator in your Kubernetes cluster.
+  Make sure to follow the Enterprise instructions if you're deploying the
+  operator as part of the `teleport-cluster` chart.
+
+  Confirm that the CRD (Custom Resource Definition) for Login Rules has been
+  installed with the following command:
+
+  ```code
+  $ kubectl explain TeleportLoginRule.spec
+  KIND:     TeleportLoginRule
+  VERSION:  resources.teleport.dev/v1
+
+  RESOURCE: spec <Object>
+
+  DESCRIPTION:
+      LoginRule resource definition v1 from Teleport
+
+  FIELDS:
+    priority     <integer>
+      Priority is the priority of the login rule relative to other login rules in
+      the same cluster. Login rules with a lower numbered priority will be
+      evaluated first.
+
+    traits_expression    <string>
+      TraitsExpression is a predicate expression which should return the desired
+      traits for the user upon login.
+
+    traits_map   <>
+      TraitsMap is a map of trait keys to lists of predicate expressions which
+      should evaluate to the desired values for that trait.
+  ```
+
+  If this fails, you may not have installed the Teleport Operator, or you may have
+  installed an older version.
+
+## Step 1/2. Create a Login Rule using `kubectl`
+
+Paste the following into a file called `login-rules.yaml` that describes two
+custom Login Rule resources:
+
+```yaml
+# login-rules.yaml
+apiVersion: resources.teleport.dev/v1
+kind: TeleportLoginRule
+metadata:
+  name: example-traits-map-rule
+  labels:
+    example: "true"
+spec:
+  # The rule with the lowest priority will be evaluated first.
+  priority: 0
+
+  # traits_map holds a map of all desired trait keys to lists of expressions
+  # that determine the trait values.
+  traits_map:
+
+    # The "logins" traits will be set to the external "username" trait converted
+    # to lowercase, and any external "logins" trait.
+    logins:
+      - 'strings.lower(external.username)'
+      - 'external.logins'
+
+    # The external "groups" trait will be passed through unchanged, all other
+    # traits will be filtered out.
+    groups:
+      - external.groups
+---
+apiVersion: resources.teleport.dev/v1
+kind: TeleportLoginRule
+metadata:
+  name: example-traits-expression-rule
+  labels:
+    example: "true"
+spec:
+  # This rule has a higher priority value, so it will be evaluated after the
+  # "terraform-test-map-rule".
+  priority: 1
+
+  # traits_expression is an alternative to traits_map, which returns all desired
+  # traits in a single expression.
+  traits_expression: |
+    external.put("groups",
+      choose(
+        option(external.groups.contains("admins"), external.groups.add("app-admins", "db-admins")),
+        option(external.groups.contains("ops"), external.groups.add("k8s-admins")),
+        option(true, external.groups)))
+```
+
+Create the Kubernetes resources:
+
+```code
+$ kubectl apply -f login-rules.yaml
+```
+
+List the created Kubernetes resources:
+
+```code
+$ kubectl get loginrules
+NAME                             AGE
+example-traits-expression-rule   8m8s
+example-traits-map-rule          8m8s
+```
+
+Check that the Login Rules have been created in Teleport:
+
+```code
+$ AUTH_POD=$(kubectl get pods -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ kubectl exec -i $AUTH_POD -c teleport -- tctl get login_rules
+kind: login_rule
+metadata:
+  id: 1680225062340767900
+  labels:
+    example: "true"
+    teleport.dev/origin: kubernetes
+  name: example-traits-expression-rule
+spec:
+  priority: 1
+  traits_expression: |
+    external.put("groups",
+      choose(
+        option(external.groups.contains("admins"),
+external.groups.add("app-admins", "db-admins")),
+        option(external.groups.contains("ops"),
+external.groups.add("k8s-admins")),
+        option(true, external.groups)))
+version: v1
+---
+kind: login_rule
+metadata:
+  id: 1680225067068319000
+  labels:
+    example: "true"
+    teleport.dev/origin: kubernetes
+  name: example-traits-map-rule
+spec:
+  priority: 0
+  traits_map:
+    groups:
+    - external.groups
+    logins:
+    - strings.lower(external.username)
+    - external.logins
+version: v1
+```
+
+Test the Login Rules by sending some example input traits to the standard input
+of the `tctl login_rule test` command and having it load all Login Rules from
+the cluster.
+
+```code
+$ echo '{"groups": ["admins", "ops"], "username": ["Alice"], "logins": ["user", "root"]}' | \
+  kubectl exec -i $AUTH_POD -c teleport -- tctl login_rule test --load-from-cluster
+groups:
+- admins
+- ops
+- app-admins
+- db-admins
+logins:
+- alice
+- user
+- root
+```
+
+## Step 2/2. Edit the Login Rules with `kubectl`
+
+Edit the `example-traits-map-rule` to add an extra login `example` login.
+
+```diff
+--- a/login-rules.yaml
++++ b/login-rules.yaml
+@@ -18,6 +18,7 @@ spec:
+     logins:
+       - 'strings.lower(external.username)'
+       - 'external.logins'
++      - 'example'
+
+     # The external "groups" trait will be passed through unchanged, all other
+     # traits will be filtered out.
+```
+
+Apply the update to the Kubernetes resource:
+
+```code
+$ kubectl apply -f login-rules.yaml
+```
+
+Test the Login Rules again to see the extra `example` login:
+
+```code
+$ echo '{"groups": ["admins", "ops"], "username": ["Alice"], "logins": ["user", "root"]}' | \
+  kubectl exec -i $AUTH_POD -c teleport -- tctl login_rule test --load-from-cluster
+groups:
+- ops
+- app-admins
+- db-admins
+- admins
+logins:
+- root
+- user
+- example
+- alice
+```
+
+## Next Steps
+
+- Read the [Teleport Operator Guide](../teleport-operator/teleport-operator.mdx) to
+  learn more about the Teleport Operator.
+- Read the [Login Rules reference](../../../reference/access-controls/login-rules.mdx) to learn mode about the
+  Login Rule expression syntax.

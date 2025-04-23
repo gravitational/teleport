@@ -17,13 +17,14 @@
  */
 
 import { useEffect, useRef } from 'react';
+import styled from 'styled-components';
+
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
 
-import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
-import { ListItem } from 'teleterm/ui/components/ListItem';
-
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
@@ -56,26 +57,18 @@ export function ConnectionItem(props: {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
-  const ref = useRef<HTMLElement>();
+  const ref = useRef<HTMLLIElement>();
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
   }, [scrollIntoViewIfActive]);
 
   return (
-    <ListItem
+    <ConnectionListItem
       onClick={props.activate}
       isActive={isActive}
       ref={ref}
       $showClusterName={props.showClusterName}
-      css={`
-        padding: ${props => props.theme.space[1]}px
-          ${props => props.theme.space[2]}px;
-        // Space out items more if there are two lines of text to show inside a single item.
-        margin-block-start: ${props =>
-          props.$showClusterName ? props.theme.space[1] : 0}px;
-        height: unset;
-      `}
     >
       <ConnectionStatusIndicator
         mr={3}
@@ -96,7 +89,7 @@ export function ConnectionItem(props: {
           `}
         >
           <Text
-            typography="body1"
+            typography="body2"
             bold
             color="text.main"
             title={props.item.title}
@@ -129,7 +122,7 @@ export function ConnectionItem(props: {
           {props.showClusterName && (
             <Text
               color="text.slightlyMuted"
-              typography="body2"
+              typography="body3"
               title={props.item.clusterName}
             >
               {props.item.clusterName}
@@ -147,9 +140,17 @@ export function ConnectionItem(props: {
           <actionIcon.Icon size={18} />
         </ButtonIcon>
       </Flex>
-    </ListItem>
+    </ConnectionListItem>
   );
 }
+
+const ConnectionListItem = styled(ListItem)<{ $showClusterName?: boolean }>`
+  padding: ${props => props.theme.space[1]}px ${props => props.theme.space[2]}px;
+  // Space out items more if there are two lines of text to show inside a single item.
+  margin-block-start: ${props =>
+    props.$showClusterName ? props.theme.space[1] : 0}px;
+  height: unset;
+`;
 
 function getKindName(connection: ExtendedTrackedConnection): string {
   switch (connection.kind) {

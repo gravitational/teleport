@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -30,7 +31,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // MakeTestClient returns MongoDB client connection according to the provided
@@ -82,7 +83,7 @@ type TestServer struct {
 	cfg      common.TestServerConfig
 	listener net.Listener
 	port     string
-	log      logrus.FieldLogger
+	logger   *slog.Logger
 
 	serverVersion    string
 	wireVersion      int
@@ -131,16 +132,16 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: defaults.ProtocolMongoDB,
-		"name":                config.Name,
-	})
+	log := utils.NewSlogLoggerForTests().With(
+		teleport.ComponentKey, defaults.ProtocolMongoDB,
+		"name", config.Name,
+	)
 	server := &TestServer{
 		cfg: config,
 		// MongoDB uses regular TLS handshake so standard TLS listener will work.
 		listener:      tls.NewListener(config.Listener, tlsConfig),
 		port:          port,
-		log:           log,
+		logger:        log,
 		serverVersion: "7.0.0",
 		usersTracker: usersTracker{
 			userEventsCh: make(chan UserEvent, 100),
@@ -155,27 +156,27 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
-	s.log.Debugf("Starting test MongoDB server on %v.", s.listener.Addr())
-	defer s.log.Debug("Test MongoDB server stopped.")
+	ctx := context.Background()
+	s.logger.DebugContext(ctx, "Starting test MongoDB server", "listen_addr", s.listener.Addr())
+	defer s.logger.DebugContext(ctx, "Test MongoDB server stopped")
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			s.log.WithError(err).Error("Failed to accept connection.")
+			s.logger.ErrorContext(ctx, "Failed to accept connection", "error", err)
 			continue
 		}
-		s.log.Debug("Accepted connection.")
+		s.logger.DebugContext(ctx, "Accepted connection")
 		go func() {
-			defer s.log.Debug("Connection done.")
+			defer s.logger.DebugContext(ctx, "Connection done")
 			defer conn.Close()
 			atomic.AddInt32(&s.activeConnection, 1)
 			defer atomic.AddInt32(&s.activeConnection, -1)
 			if err := s.handleConnection(conn); err != nil {
 				if !utils.IsOKNetworkError(err) {
-					s.log.Errorf("Failed to handle connection: %v.",
-						trace.DebugReport(err))
+					s.logger.ErrorContext(ctx, "Failed to handle connection", "error", err)
 				}
 			}
 		}()
@@ -263,7 +264,7 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.log.Debugf("Authenticate: %s.", message)
+	s.logger.DebugContext(context.Background(), "Authenticate", "message", logutils.StringerAttr(message))
 	if command != commandAuth {
 		return nil, trace.BadParameter("expected authenticate command, got: %s", message)
 	}

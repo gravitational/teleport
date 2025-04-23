@@ -16,14 +16,53 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { pluralize, capitalizeFirstLetter } from './text';
+import { capitalizeFirstLetter, listToSentence, pluralize } from './text';
 
-test('pluralize: sending in zero number', () => {
-  expect(pluralize(0, 'apple')).toBe('apple');
+test('pluralize', () => {
+  expect(pluralize(0, 'apple')).toBe('apples');
+  expect(pluralize(1, 'apple')).toBe('apple');
   expect(pluralize(2, 'apple')).toBe('apples');
+  expect(pluralize(undefined, 'apple')).toBe('apples');
+  expect(pluralize(null, 'apple')).toBe('apples');
 });
 
 test('capitalizeFirstLetter', () => {
   expect(capitalizeFirstLetter('hello')).toBe('Hello');
   expect(capitalizeFirstLetter('')).toBe('');
+});
+
+describe('listToSentence()', () => {
+  const testCases = [
+    {
+      name: 'no words',
+      list: [],
+      expected: '',
+    },
+    {
+      name: 'one word',
+      list: ['a'],
+      expected: 'a',
+    },
+    {
+      name: 'two words',
+      list: ['a', 'b'],
+      expected: 'a and b',
+    },
+    {
+      name: 'three words',
+      list: ['a', 'b', 'c'],
+      expected: 'a, b and c',
+    },
+    {
+      name: 'lost of words',
+      list: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+      expected: 'a, b, c, d, e, f and g',
+    },
+  ];
+
+  test.each(testCases)('$name', ({ list, expected }) => {
+    const originalList = [...list];
+    expect(listToSentence(list)).toEqual(expected);
+    expect(list).toEqual(originalList);
+  });
 });

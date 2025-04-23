@@ -16,24 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { useCallback, useEffect, useState } from 'react';
 
-import { AccessRequest } from 'shared/services/accessRequests';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  RequestFlags,
   SubmitReview,
   SuggestedAccessList,
-  RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
-
 import { useAsync } from 'shared/hooks/useAsync';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
-import { isUnimplementedError } from 'teleterm/services/tshd/errors';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { makeUiAccessRequest } from '../useAccessRequests';
 
@@ -70,9 +68,12 @@ export function useReviewAccessRequest({
     )
   );
   const [deleteRequestAttempt, runDeleteRequest] = useAsync(() =>
-    retry(() =>
-      ctx.clustersService.deleteAccessRequest(rootClusterUri, requestId)
-    )
+    retry(async () => {
+      await ctx.tshd.deleteAccessRequest({
+        rootClusterUri,
+        accessRequestId: requestId,
+      });
+    })
   );
   const [submitReviewAttempt, runSubmitReview] = useAsync(
     (review: SubmitReview) =>
@@ -107,22 +108,12 @@ export function useReviewAccessRequest({
   const [fetchSuggestedAccessListsAttempt, runFetchSuggestedAccessLists] =
     useAsync(
       useCallback(async () => {
-        try {
-          const { response } = await ctx.tshd.getSuggestedAccessLists({
-            rootClusterUri,
-            accessRequestId: requestId,
-          });
+        const { response } = await ctx.tshd.getSuggestedAccessLists({
+          rootClusterUri,
+          accessRequestId: requestId,
+        });
 
-          return response.accessLists.map(makeUiAccessList);
-        } catch (e) {
-          if (isUnimplementedError(e)) {
-            // TODO(gzdunek): DELETE IN 16.0.0
-            throw new Error(
-              'To approve long-term access via Access List in Teleport Connect, update your cluster to 13.4.13 or 14.3.'
-            );
-          }
-          throw e;
-        }
+        return response.accessLists.map(makeUiAccessList);
       }, [ctx.tshd, requestId, rootClusterUri])
     );
 
@@ -174,7 +165,7 @@ export function useReviewAccessRequest({
 function getRequestFlags(
   request: AccessRequest,
   user: tsh.LoggedInUser,
-  assumedMap: Record<string, tsh.AssumedRequest>
+  assumedMap: Record<string, tsh.AccessRequest>
 ): RequestFlags {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
@@ -189,11 +180,13 @@ function getRequestFlags(
     ? reviewed.state === 'PENDING'
     : request.state === 'PENDING';
 
+  const canReview = !ownRequest && isPendingState && user.acl.reviewRequests;
+
   return {
     canAssume,
     isAssumed,
     canDelete,
-    canReview: !ownRequest && isPendingState,
+    canReview,
     isPromoted,
     ownRequest,
   };

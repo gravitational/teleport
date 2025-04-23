@@ -1,0 +1,64 @@
+{{ dbName="test" }}
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
+
+Note that a single Teleport process can run multiple different services, for
+example multiple Database Service agents as well as the SSH Service or Application
+Service. The step below will overwrite an existing configuration file, so if
+you're running multiple services add `--output=stdout` to print the config in
+your terminal, and manually adjust `/etc/teleport.yaml`.
+
+Run the following command to generate a configuration file at
+`/etc/teleport.yaml` for the Database Service. Update 
+<Var name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
+Service:
+
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="example.teleport.sh" />:443 \
+   --name={{ dbName }} \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev 
+```
+
+To configure the Teleport Database Service to trust a custom CA:
+
+1. Export a CA certificate for the custom CA and make it available at
+   `/var/lib/teleport/db.ca` on the Teleport Database Service host.
+
+1. Run a variation of the command above that uses the `--ca-cert-file`
+   flag. This configures the Teleport Database Service to use the CA certificate
+   at `db.ca` to verify traffic from the database:
+
+   ```code
+   $ sudo teleport db configure create \
+      -o file \
+      --token=/tmp/token \
+      --proxy=<Var name="example.teleport.sh" />:443 \
+      --name={{ dbName }} \
+      --protocol={{ dbProtocol }} \
+      --uri={{ databaseAddress }} \
+      --ca-cert-file="/var/lib/teleport/db.ca" \
+      --labels=env=dev
+   ```
+
+
+If your database servers use certificates that are signed by a public CA such
+as ComodoCA or DigiCert, you can use the `trust_system_cert_pool` option
+without exporting the CA:
+```code
+$ sudo teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="example.teleport.sh" />:443 \
+   --name={{ dbName }} \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --trust_system_cert_pool \
+   --labels=env=dev
+```
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)

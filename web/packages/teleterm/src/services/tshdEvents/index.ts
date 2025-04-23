@@ -17,35 +17,23 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
+
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
-import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
+import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 import {
   ExtractRequestType,
   ExtractResponseType,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
-import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
+import * as uri from 'teleterm/ui/uri';
 
 export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
 }
-export interface GatewayCertExpired extends api.GatewayCertExpired {
-  gatewayUri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
-}
-
 export type SendNotificationRequest = api.SendNotificationRequest;
-export interface CannotProxyGatewayConnection
-  extends api.CannotProxyGatewayConnection {
-  gatewayUri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
-}
-export type PromptMfaRequest = api.PromptMFARequest & {
-  rootClusterUri: uri.RootClusterUri;
-};
 
 export interface SendPendingHeadlessAuthenticationRequest
   extends api.SendPendingHeadlessAuthenticationRequest {
@@ -97,8 +85,6 @@ async function createServer(
           reject(error);
           return logger.error(error.message);
         }
-
-        server.start();
 
         const resolvedAddress = requestedAddress.startsWith('tcp:')
           ? `localhost:${port}`
@@ -153,8 +139,7 @@ function createService(logger: Logger): {
   >(
     rpcName: RpcName,
     call: grpc.ServerUnaryCall<Request, Response>,
-    callback: (error: Error | null, response: Response | null) => void,
-    mapResponseObjectToResponseInstance: (responseObject: Response) => Response
+    callback: (error: Error | null, response: Response | null) => void
   ) {
     const request = call.request;
 
@@ -186,7 +171,7 @@ function createService(logger: Logger): {
           return;
         }
 
-        callback(null, mapResponseObjectToResponseInstance(response));
+        callback(null, response);
 
         logger.info(
           `replied to ${rpcName}`,
@@ -218,25 +203,36 @@ function createService(logger: Logger): {
   }
 
   const service: apiService.ITshdEventsService = {
-    relogin: (call, callback) =>
-      processEvent('relogin', call, callback, () =>
-        api.ReloginResponse.create()
-      ),
+    relogin: (call, callback) => processEvent('relogin', call, callback),
+
+    promptHardwareKeyPIN: (call, callback) =>
+      processEvent('promptHardwareKeyPIN', call, callback),
+
+    promptHardwareKeyTouch: (call, callback) =>
+      processEvent('promptHardwareKeyTouch', call, callback),
+
+    promptHardwareKeyPINChange: (call, callback) =>
+      processEvent('promptHardwareKeyPINChange', call, callback),
+
+    confirmHardwareKeySlotOverwrite: (call, callback) =>
+      processEvent('confirmHardwareKeySlotOverwrite', call, callback),
 
     sendNotification: (call, callback) =>
-      processEvent('sendNotification', call, callback, () =>
-        api.SendNotificationResponse.create()
-      ),
+      processEvent('sendNotification', call, callback),
 
     sendPendingHeadlessAuthentication: (call, callback) =>
-      processEvent('sendPendingHeadlessAuthentication', call, callback, () =>
-        api.SendPendingHeadlessAuthenticationResponse.create()
-      ),
+      processEvent('sendPendingHeadlessAuthentication', call, callback),
 
     promptMFA: (call, callback) => {
-      processEvent('promptMFA', call, callback, response =>
-        api.PromptMFAResponse.create({ totpCode: response?.totpCode })
-      );
+      processEvent('promptMFA', call, callback);
+    },
+
+    getUsageReportingSettings: (call, callback) => {
+      processEvent('getUsageReportingSettings', call, callback);
+    },
+
+    reportUnexpectedVnetShutdown: (call, callback) => {
+      processEvent('reportUnexpectedVnetShutdown', call, callback);
     },
   };
 

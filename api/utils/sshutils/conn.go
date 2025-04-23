@@ -19,7 +19,6 @@ package sshutils
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -68,10 +67,11 @@ func ConnectProxyTransport(sconn ssh.Conn, req *DialReq, exclusive bool) (conn *
 		// passed to us via stderr.
 		errMessageBytes, _ := io.ReadAll(channel.Stderr())
 		errMessage := string(bytes.TrimSpace(errMessageBytes))
-		if len(errMessage) == 0 {
-			errMessage = fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID)
+		if errMessage != "" {
+			return nil, false, trace.Errorf("%s", errMessage)
 		}
-		return nil, false, trace.Errorf(errMessage)
+
+		return nil, false, trace.Errorf("failed connecting to %v [%v]", req.Address, req.ServerID)
 	}
 
 	if exclusive {

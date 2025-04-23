@@ -266,7 +266,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			name:               "kube cluster",
 			matchingSearchVals: []string{"foo", "prod", "env"},
 			newResource: func(t *testing.T) ResourceWithLabels {
-				kc, err := NewKubernetesClusterV3FromLegacyCluster("_", &KubernetesCluster{
+				kc, err := NewKubernetesClusterV3FromLegacyCluster("", &KubernetesCluster{
 					Name:         "foo",
 					StaticLabels: labels,
 				})
@@ -613,7 +613,6 @@ func TestMetadataIsEqual(t *testing.T) {
 			Description: "description",
 			Labels:      map[string]string{"label1": "value1"},
 			Expires:     &time.Time{},
-			ID:          1234,
 			Revision:    "aaaa",
 		}
 
@@ -657,7 +656,6 @@ func TestMetadataIsEqual(t *testing.T) {
 			name: "id and revision have no effect",
 			m1:   newMetadata(),
 			m2: newMetadata(func(m *Metadata) {
-				m.ID = 7890
 				m.Revision = "bbbb"
 			}),
 			expected: true,
@@ -742,7 +740,6 @@ func TestResourceHeaderIsEqual(t *testing.T) {
 				Description: "description",
 				Labels:      map[string]string{"label1": "value1"},
 				Expires:     &time.Time{},
-				ID:          1234,
 				Revision:    "aaaa",
 			},
 		}

@@ -16,13 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useRef, useCallback, MutableRefObject } from 'react';
-
-import { ResourcesResponse } from 'teleport/services/agents';
-import { ApiError } from 'teleport/services/api/parseError';
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
+
+import { ResourcesResponse } from 'teleport/services/agents';
+import { ApiError } from 'teleport/services/api/parseError';
 
 /**
  * Supports fetching more data from the server when more data is available. Pass
@@ -58,6 +64,11 @@ export function useKeyBasedPagination<T>({
   const abortController = useRef<AbortController | null>(null);
   const pendingPromise = useRef<Promise<ResourcesResponse<T>> | null>(null);
 
+  useEffect(() => {
+    // Abort a pending request when the hook unmounts.
+    return () => abortController.current?.abort();
+  }, []);
+
   const clear = useCallback(() => {
     abortController.current?.abort();
     abortController.current = null;
@@ -72,7 +83,10 @@ export function useKeyBasedPagination<T>({
   }, [setState]);
 
   const fetch = useCallback(
-    async (options?: { force?: boolean }) => {
+    async (options?: { force?: boolean; clear?: boolean }) => {
+      if (options?.clear) {
+        clear();
+      }
       const { finished, attempt, resources, startKey } = stateRef.current;
       if (
         finished ||
@@ -110,16 +124,8 @@ export function useKeyBasedPagination<T>({
         pendingPromise.current = null;
         abortController.current = null;
 
-        // this will handle backward compatibility with access requests.
-        // The old access requests API returns only an array of resources while
-        // the new one sends the paginated object with startKey/requests
-        // If this webclient requests an older proxy, this should allow the
-        // old request to not break the webui
-        // TODO (avatus): DELETE in 17
-        const newResources = res[dataKey] || res;
-
         setState({
-          resources: [...resources, ...newResources],
+          resources: [...resources, ...res[dataKey]],
           startKey: res.startKey,
           finished: !res.startKey,
           attempt: { status: 'success' },
@@ -143,7 +149,15 @@ export function useKeyBasedPagination<T>({
         });
       }
     },
-    [fetchFunc, stateRef, setState, fetchMoreSize, initialFetchSize]
+    [
+      fetchFunc,
+      stateRef,
+      clear,
+      setState,
+      fetchMoreSize,
+      initialFetchSize,
+      dataKey,
+    ]
   );
 
   function updateFetchedResources(modifiedResources: T[]) {
@@ -198,12 +212,17 @@ type KeyBasedPagination<T> = {
    * as a mere suggestion to fetch more data and can be called multiple times,
    * for example, when the user scrolls to the bottom of the page.
    *
-   * @param options.force Cancels a pending request, if there is one.
-   * Disregards whether error has previously occurred. Intended for using as an
-   * explicit user's action. Don't call it from `useInfiniteScroll`, or you'll
-   * risk flooding the server with requests!
+   * @param options - Options to control the fetch behavior.
+   * @param options.force - If true, cancels any pending request and
+   * disregards whether an error occurred previously. This option is intended for
+   * explicit user actions. Do not call it from `useInfiniteScroll` to avoid
+   * flooding the server with requests.
+   * @param options.clear - If true, cancels any pending request and clears
+   * the state (useful for fetching data from the beginning). Similarly to
+   * `force`, do not call it from `useInfiniteScroll` to avoid flooding
+   * the server with requests.
    */
-  fetch(options?: { force?: boolean }): Promise<void>;
+  fetch(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   /** Aborts a pending request and clears the state. **/
   clear(): void;
   attempt: Attempt;

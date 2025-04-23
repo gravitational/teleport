@@ -47,6 +47,7 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		// Set it to empty as default.
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
+		MembershipKind:   msg.Spec.MembershipKind.String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -64,7 +65,7 @@ func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMemb
 	members := make([]*accesslist.AccessListMember, len(msgs))
 	for i, msg := range msgs {
 		var err error
-		members[i], err = FromMemberProto(msg)
+		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -79,6 +80,11 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
 	}
 
+	var membershipKind accesslistv1.MembershipKind
+	if enumVal, ok := accesslistv1.MembershipKind_value[member.Spec.MembershipKind]; ok {
+		membershipKind = accesslistv1.MembershipKind(enumVal)
+	}
+
 	return &accesslistv1.Member{
 		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
 		Spec: &accesslistv1.MemberSpec{
@@ -89,6 +95,7 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 			Reason:           member.Spec.Reason,
 			AddedBy:          member.Spec.AddedBy,
 			IneligibleStatus: ineligibleStatus,
+			MembershipKind:   membershipKind,
 		},
 	}
 }

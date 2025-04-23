@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Info } from 'design/Alert';
 
+import { dbWithoutDbServerExistsErrorMsg, timeoutErrorMsg } from './const';
 import {
   CreateDatabaseDialog,
   CreateDatabaseDialogProps,
@@ -40,11 +41,34 @@ export const Success = () => (
   <CreateDatabaseDialog {...props} attempt={{ status: 'success' }} />
 );
 
+export const AllowSkipOnTimeout = () => (
+  <>
+    <Info>Devs: it should be same state as success</Info>
+    <CreateDatabaseDialog
+      {...props}
+      attempt={{ status: 'failed', statusText: timeoutErrorMsg }}
+    />
+  </>
+);
+
+export const AllowOverwrite = () => (
+  <CreateDatabaseDialog
+    {...props}
+    attempt={{
+      status: 'failed',
+      statusText: `A database with the name "some-name" ${dbWithoutDbServerExistsErrorMsg}. \
+          You can overwrite it, or use a different name and retry.`,
+    }}
+  />
+);
+
 const props: CreateDatabaseDialogProps = {
   pollTimeout: 8080000000,
   attempt: { status: 'processing' },
   retry: () => null,
   close: () => null,
   next: () => null,
+  onOverwrite: () => null,
+  onTimeout: () => null,
   dbName: 'db-name',
 };

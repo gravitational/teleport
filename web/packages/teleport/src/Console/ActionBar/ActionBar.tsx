@@ -16,16 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { NavLink } from 'react-router-dom';
-import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
+import { Flex } from 'design';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
-import * as Icons from 'design/Icon';
-import { Flex, ButtonPrimary } from 'design';
-
-import cfg from 'teleport/config';
 import { DocumentSsh } from 'teleport/Console/stores';
 
 export default function ActionBar(props: Props) {
@@ -34,20 +27,6 @@ export default function ActionBar(props: Props) {
       {props.latencyIndicator.isVisible && (
         <LatencyDiagnostic latency={props.latencyIndicator.latency} />
       )}
-      <MenuIcon
-        buttonIconProps={{ mr: 2, ml: 2, size: 0, style: { fontSize: '16px' } }}
-        menuProps={menuProps}
-      >
-        <MenuItem as={NavLink} to={cfg.routes.root}>
-          <MenuItemIcon as={Icons.Home} mr="2" size="medium" />
-          Home
-        </MenuItem>
-        <MenuItem>
-          <ButtonPrimary my={3} block onClick={props.onLogout}>
-            Sign Out
-          </ButtonPrimary>
-        </MenuItem>
-      </MenuIcon>
     </Flex>
   );
 }
@@ -58,13 +37,4 @@ type Props = {
     | {
         isVisible: false;
       };
-  onLogout: VoidFunction;
 };
-
-const menuListCss = () => `
-  width: 250px;
-`;
-
-const menuProps = {
-  menuListCss,
-} as const;

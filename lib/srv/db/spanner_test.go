@@ -28,6 +28,7 @@ import (
 
 	gspanner "cloud.google.com/go/spanner"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/connectivity"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -234,7 +235,15 @@ func TestAuditSpanner(t *testing.T) {
 			_ = localProxy.Close()
 		})
 
-		require.NoError(t, err)
+		require.NoError(t, clt.WaitForConnectionState(ctx, connectivity.Ready))
+		reconnectingCh := make(chan bool)
+		go func() {
+			// we should observe the connection leave the "ready" state after
+			// it gets an access denied error.
+			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+			defer cancel()
+			reconnectingCh <- clt.ClientConn.WaitForStateChange(ctx, connectivity.Ready)
+		}()
 
 		row, err := pingSpanner(ctx, clt, 42)
 		require.Error(t, err)
@@ -246,6 +255,7 @@ func TestAuditSpanner(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, "googlesql", dbStart1.DatabaseName)
 
+		require.True(t, <-reconnectingCh, "timed out waiting for the spanner client to reconnect")
 		row, err = pingSpanner(ctx, clt, 42)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "access to db denied")
@@ -308,7 +318,7 @@ func TestAuditSpanner(t *testing.T) {
 	})
 }
 
-func pingSpanner(ctx context.Context, clt *gspanner.Client, want int64) (*gspanner.Row, error) {
+func pingSpanner(ctx context.Context, clt *spanner.SpannerTestClient, want int64) (*gspanner.Row, error) {
 	query := gspanner.NewStatement(fmt.Sprintf("SELECT %d", want))
 	rowIter := clt.Single().Query(ctx, query)
 	defer rowIter.Stop()

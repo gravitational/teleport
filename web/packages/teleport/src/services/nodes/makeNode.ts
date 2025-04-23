@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Node, AwsMetadata } from './types';
+import { AwsMetadata, Node } from './types';
 
 export default function makeNode(json: any): Node {
   json = json ?? {};

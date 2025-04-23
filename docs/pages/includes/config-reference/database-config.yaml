@@ -5,8 +5,6 @@ db_service:
   # Matchers for database resources created with "tctl create" command or by the
   # discovery service.
   resources:
-    # See "Database labels reference" (https://goteleport.com/docs/database-access/reference/labels/)
-    # to learn more on database labels.
   - labels:
       "*": "*"
     # Optional AWS role that the Database Service will assume to access the
@@ -18,13 +16,14 @@ db_service:
   # Matchers for registering AWS-hosted databases.
   aws:
     # Database types. Valid options are:
-    # 'rds' - discovers and registers AWS RDS and Aurora databases.
-    # 'rdsproxy' - discovers and registers AWS RDS Proxy databases.
-    # 'redshift' - discovers and registers AWS Redshift databases.
-    # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
-    # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
-    # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
-    # 'opensearch' - discovers and registers AWS OpenSearch Redis databases.
+    # 'rds' - discovers and registers Amazon RDS and Aurora databases.
+    # 'rdsproxy' - discovers and registers Amazon RDS Proxy databases.
+    # 'redshift' - discovers and registers Amazon Redshift databases.
+    # 'redshift-serverless' - discovers and registers Amazon Redshift Serverless databases.
+    # 'elasticache' - discovers and registers Amazon ElastiCache Redis databases.
+    # 'memorydb' - discovers and registers Amazon MemoryDB Redis databases.
+    # 'opensearch' - discovers and registers Amazon OpenSearch databases.
+    # 'docdb' - discovers and registers Amazon DocumentDB databases.
   - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
@@ -70,7 +69,21 @@ db_service:
     # Free-form description of the database proxy instance.
     description: "Production database"
 
-    # Database protocol. Can be: "postgres", "mysql", "mongodb", "oracle", "clickhouse", "clickhouse-http", "cockroachdb", "redis", "snowflake", "sqlserver", "cassandra", "elasticsearch", or "dynamodb"
+    # Database protocol. Valid options are:
+    # "cassandra"
+    # "clickhouse"
+    # "clickhouse-http"
+    # "cockroachdb"
+    # "dynamodb"
+    # "elasticsearch"
+    # "mongodb"
+    # "mysql"
+    # "oracle"
+    # "postgres"
+    # "redis"
+    # "snowflake"
+    # "spanner"
+    # "sqlserver"
     protocol: "postgres"
 
     # Database connection endpoint. Must be reachable from Database Service.
@@ -89,6 +102,13 @@ db_service:
       server_name: db.example.com
       # Optional path to the CA used to validate the database certificate.
       ca_cert_file: /path/to/pem
+      # Optional configuration that allows Teleport to trust certificate
+      # authorities available on the host system. If not set (by default),
+      # Teleport only trusts self-signed databases with TLS certificates signed
+      # by Teleport's Database Server CA or the ca_cert_file specified in this
+      # TLS setting. For cloud-hosted databases, Teleport downloads the
+      # corresponding required CAs for validation.
+      trust_system_cert_pool: false
 
     # MySQL only options.
     mysql:
@@ -154,7 +174,7 @@ db_service:
       session_tags:
         dynamodb_table_name: "table-a"
 
-    # GCP specific configuration for Cloud SQL databases.
+    # GCP specific configuration for Cloud SQL and Spanner databases.
     gcp:
       # GCP project ID.
       project_id: "xxx-1234"

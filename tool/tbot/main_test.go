@@ -21,13 +21,37 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+const initTestSentinel = "init_test"
+
+func TestMain(m *testing.M) {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
+	os.Exit(m.Run())
+}
+
+func BenchmarkInit(b *testing.B) {
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
 
 func TestRun_Configure(t *testing.T) {
 	t.Parallel()

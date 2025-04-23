@@ -32,8 +32,12 @@ var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
 var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
+var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kubes/:kubeName/namespaces/:kubeNamespaceName")
+var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName/namespaces/:kubeNamespaceName")
 var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
 var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
+var pathWindowsDesktops = urlpath.New("/clusters/:cluster/windows_desktops/:windowsDesktopName")
+var pathLeafWindowsDesktops = urlpath.New("/clusters/:cluster/leaves/:leaf/windows_desktops/:windowsDesktopName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -122,6 +126,21 @@ func (r ResourceURI) GetKubeName() string {
 	return ""
 }
 
+// GetKubeResourceNamespace extracts the kube resource namespace from r. Returns an empty string if the path is not a kube resource URI.
+func (r ResourceURI) GetKubeResourceNamespace() string {
+	result, ok := pathKubeResourceNamespace.Match(r.path)
+	if ok {
+		return result.Params["kubeNamespaceName"]
+	}
+
+	result, ok = pathLeafKubeResourceNamespace.Match(r.path)
+	if ok {
+		return result.Params["kubeNamespaceName"]
+	}
+
+	return ""
+}
+
 // GetAppName extracts the app name from r. Returns an empty string if the path is not an app URI.
 func (r ResourceURI) GetAppName() string {
 	result, ok := pathApps.Match(r.path)
@@ -132,6 +151,21 @@ func (r ResourceURI) GetAppName() string {
 	result, ok = pathLeafApps.Match(r.path)
 	if ok {
 		return result.Params["appName"]
+	}
+
+	return ""
+}
+
+// GetWindowsDesktopName extracts the Windows desktop name from r. Returns an empty string if the path is not a Windows desktop URI.
+func (r ResourceURI) GetWindowsDesktopName() string {
+	result, ok := pathWindowsDesktops.Match(r.path)
+	if ok {
+		return result.Params["windowsDesktopName"]
+	}
+
+	result, ok = pathLeafWindowsDesktops.Match(r.path)
+	if ok {
+		return result.Params["windowsDesktopName"]
 	}
 
 	return ""
@@ -164,12 +198,7 @@ func (r ResourceURI) GetRootClusterURI() ResourceURI {
 // If called on a leaf cluster resource URI, it'll return the URI of the leaf cluster.
 // If called on a root cluster URI or a leaf cluster URI, it's a noop.
 func (r ResourceURI) GetClusterURI() ResourceURI {
-	clusterURI := r.GetRootClusterURI()
-
-	if leafClusterName := r.GetLeafClusterName(); leafClusterName != "" {
-		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
-	}
-	return clusterURI
+	return r.GetRootClusterURI().AppendLeafCluster(r.GetLeafClusterName())
 }
 
 // AppendServer appends server segment to the URI
@@ -178,8 +207,12 @@ func (r ResourceURI) AppendServer(id string) ResourceURI {
 	return r
 }
 
-// AppendLeafCluster appends leaf cluster segment to the URI
+// AppendLeafCluster appends leaf cluster segment to the URI if name is not empty.
 func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
+	if name == "" {
+		return r
+	}
+
 	r.path = fmt.Sprintf("%v/leaves/%v", r.path, name)
 	return r
 }
@@ -187,6 +220,18 @@ func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
 // AppendKube appends kube segment to the URI
 func (r ResourceURI) AppendKube(name string) ResourceURI {
 	r.path = fmt.Sprintf("%v/kubes/%v", r.path, name)
+	return r
+}
+
+// AppendWindowsDesktop appends Windows desktop name segment to the URI.
+func (r ResourceURI) AppendWindowsDesktop(name string) ResourceURI {
+	r.path = fmt.Sprintf("%v/windowsDesktops/%v", r.path, name)
+	return r
+}
+
+// AppendKubeResourceNamespace appends kube resource namespace segment to the URI.
+func (r ResourceURI) AppendKubeResourceNamespace(kubeNamespaceName string) ResourceURI {
+	r.path = fmt.Sprintf("%v/namespaces/%v", r.path, kubeNamespaceName)
 	return r
 }
 
@@ -232,4 +277,9 @@ func (r ResourceURI) IsKube() bool {
 // IsApp returns true if URI is an app resource.
 func (r ResourceURI) IsApp() bool {
 	return r.GetAppName() != ""
+}
+
+// IsWindowsDesktop returns true if URI is a windows desktop resource.
+func (r ResourceURI) IsWindowsDesktop() bool {
+	return r.GetWindowsDesktopName() != ""
 }

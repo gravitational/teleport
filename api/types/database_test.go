@@ -316,7 +316,7 @@ func TestDatabaseAzureEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "valid PostgresSQL",
+			name: "valid PostgreSQL",
 			spec: DatabaseSpecV3{
 				Protocol: "postgres",
 				URI:      "example-postgres.postgres.database.azure.com:5432",
@@ -1061,6 +1061,170 @@ func TestDatabaseSpanner(t *testing.T) {
 			require.True(t, db.IsGCPHosted())
 			require.Equal(t, DatabaseTypeSpanner, db.GetType())
 			require.Equal(t, gcputils.SpannerEndpoint, db.GetURI())
+		})
+	}
+}
+
+func TestDatabaseGCPCloudSQL(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		inputName   string
+		inputSpec   DatabaseSpecV3
+		expectError bool
+	}{
+		{
+			inputName: "gcp-valid-configuration",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "gcp-project-id-specified-without-instance-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID: "project-1",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "gcp-instance-id-specified-without-project-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					InstanceID: "instance-1",
+				},
+			},
+			expectError: true,
+		},
+	} {
+		t.Run(test.inputName, func(t *testing.T) {
+			_, err := NewDatabaseV3(Metadata{
+				Name: test.inputName,
+			}, test.inputSpec)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetAdminUser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc      string
+		specAdmin *DatabaseAdminUser
+		labels    map[string]string
+		want      DatabaseAdminUser
+	}{
+		{
+			desc: "no admin",
+			want: DatabaseAdminUser{},
+		},
+		{
+			desc:      "gets admin from spec",
+			specAdmin: &DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+			want:      DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+		{
+			desc: "gets admin from labels",
+			labels: map[string]string{
+				DatabaseAdminLabel:                "llama",
+				DatabaseAdminDefaultDatabaseLabel: "hill",
+			},
+			want: DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+		{
+			desc:      "gets admin from spec ignoring labels",
+			specAdmin: &DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+			labels: map[string]string{
+				DatabaseAdminLabel:                "horse",
+				DatabaseAdminDefaultDatabaseLabel: "pasture",
+			},
+			want: DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			meta := Metadata{
+				Name:   "example",
+				Labels: test.labels,
+			}
+			spec := DatabaseSpecV3{
+				Protocol:  "postgres",
+				URI:       "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+				AdminUser: test.specAdmin,
+			}
+			d, err := NewDatabaseV3(meta, spec)
+			require.NoError(t, err)
+			require.Equal(t, test.want, d.GetAdminUser())
+		})
+	}
+}
+
+func TestDatabaseOracleRDS(t *testing.T) {
+	database, err := NewDatabaseV3(Metadata{
+		Name: "my-oracle",
+	}, DatabaseSpecV3{
+		Protocol: "oracle",
+		URI:      "my-oracle-db.abcdefghijklmnop.eu-central-1.rds.amazonaws.com:2484",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AWS{
+		Region: "eu-central-1",
+		RDS:    RDS{InstanceID: "my-oracle-db"},
+	}, database.GetAWS())
+	require.Equal(t, DatabaseTypeRDSOracle, database.GetType())
+}
+
+func TestIsAutoUsersEnabled(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec           DatabaseSpecV3
+		expectedResult bool
+	}{
+		"postgres with admin user": {
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "localhost:5432",
+				AdminUser: &DatabaseAdminUser{
+					Name:            "teleport-admin",
+					DefaultDatabase: "teleport",
+				},
+			},
+			expectedResult: true,
+		},
+		"postgres without admin user": {
+			spec: DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "localhost:5432",
+			},
+			expectedResult: false,
+		},
+		"unsupported protocol": {
+			spec: DatabaseSpecV3{
+				Protocol: "redis",
+				URI:      "localhost:6379",
+			},
+			expectedResult: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			db, err := NewDatabaseV3(Metadata{Name: "test"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedResult, db.IsAutoUsersEnabled())
 		})
 	}
 }

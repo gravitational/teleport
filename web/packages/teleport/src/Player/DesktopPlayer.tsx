@@ -16,31 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Box, Alert, Flex } from 'design';
+
+import { Alert, Box, Flex, Indicator } from 'design';
+import {
+  CanvasRenderer,
+  CanvasRendererRef,
+} from 'shared/components/CanvasRenderer';
+import { useListener } from 'shared/libs/tdp';
 
 import cfg from 'teleport/config';
-import { StatusEnum, formatDisplayTime } from 'teleport/lib/player';
-import { PlayerClient, TdpClient } from 'teleport/lib/tdp';
+import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
+import { PlayerClient } from 'teleport/lib/tdp';
 import { getHostName } from 'teleport/services/api';
-import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
 import ProgressBar from './ProgressBar';
 
-import type { PngFrame, ClientScreenSpec } from 'teleport/lib/tdp/codec';
-import type { BitmapFrame } from 'teleport/lib/tdp/client';
-
 const reload = () => window.location.reload();
-const handleContextMenu = () => true;
-const PROGRESS_BAR_ID = 'progressBarDesktop';
-
-// overflow: 'hidden' is needed to prevent the canvas from outgrowing the container due to some weird css flex idiosyncracy.
-// See https://gaurav5430.medium.com/css-flex-positioning-gotchas-child-expands-to-more-than-the-width-allowed-by-the-parent-799c37428dd6.
-const canvasStyle = {
-  alignSelf: 'center',
-  overflow: 'hidden',
-};
 
 export const DesktopPlayer = ({
   sid,
@@ -56,20 +49,35 @@ export const DesktopPlayer = ({
     playerStatus,
     statusText,
     time,
-    canvasSizeIsSet,
 
-    clientOnPngFrame,
-    clientOnBitmapFrame,
-    clientOnClientScreenSpec,
-    clientOnWsClose,
-    clientOnTdpError,
+    clientOnTransportOpen,
+    clientOnTransportClose,
+    clientOnError,
     clientOnTdpInfo,
   } = useDesktopPlayer({
     sid,
     clusterId,
   });
+  const canvasRendererRef = useRef<CanvasRendererRef>(null);
 
-  const isError = playerStatus === StatusEnum.ERROR;
+  useListener(playerClient?.onError, clientOnError);
+  useListener(playerClient?.onInfo, clientOnTdpInfo);
+  useListener(playerClient?.onTransportOpen, clientOnTransportOpen);
+  useListener(playerClient?.onTransportClose, clientOnTransportClose);
+  useListener(
+    playerClient?.onPngFrame,
+    canvasRendererRef.current?.renderPngFrame
+  );
+  useListener(
+    playerClient?.onBmpFrame,
+    canvasRendererRef.current?.renderBitmapFrame
+  );
+  useListener(
+    playerClient?.onScreenSpec,
+    canvasRendererRef.current?.setResolution
+  );
+
+  const isError = playerStatus === StatusEnum.ERROR || statusText !== '';
   const isLoading = playerStatus === StatusEnum.LOADING;
   const isPlaying = playerStatus === StatusEnum.PLAYING;
   const isComplete = isError || playerStatus === StatusEnum.COMPLETE;
@@ -78,16 +86,9 @@ export const DesktopPlayer = ({
     ? durationMs // Force progress bar to 100% when playback is complete or errored.
     : time; // Otherwise, use the current time.
 
-  // Hide the canvas and progress bar until the canvas' size has been fully defined.
-  // This prevents visual glitches at pageload where the canvas starts out small and
-  // then suddenly expands to its full size (moving the progress bar down with it).
-  const canvasAndProgressBarDisplayStyle = canvasSizeIsSet
-    ? {} // Canvas size is set, let TdpClientCanvas and ProgressBar use their default display styles.
-    : { display: 'none' }; // Canvas size is not set, hide the canvas and progress bar.
-
   return (
     <StyledPlayer>
-      {isError && <DesktopPlayerAlert my={4} children={statusText} />}
+      {isError && <DesktopPlayerAlert my={4}>{statusText}</DesktopPlayerAlert>}
       {isLoading && (
         <Box textAlign="center" m={10}>
           <Indicator />
@@ -95,24 +96,9 @@ export const DesktopPlayer = ({
       )}
 
       <StyledContainer>
-        <TdpClientCanvas
-          client={playerClient}
-          clientShouldConnect={true}
-          clientOnPngFrame={clientOnPngFrame}
-          clientOnBmpFrame={clientOnBitmapFrame}
-          clientOnClientScreenSpec={clientOnClientScreenSpec}
-          clientOnWsClose={clientOnWsClose}
-          clientOnTdpError={clientOnTdpError}
-          clientOnTdpInfo={clientOnTdpInfo}
-          canvasOnContextMenu={handleContextMenu}
-          style={{
-            ...canvasStyle,
-            ...canvasAndProgressBarDisplayStyle,
-          }}
-        />
+        <CanvasRenderer ref={canvasRendererRef} />
 
         <ProgressBar
-          id={PROGRESS_BAR_ID}
           min={0}
           max={durationMs}
           current={t}
@@ -127,33 +113,16 @@ export const DesktopPlayer = ({
           }}
           onPlaySpeedChange={s => playerClient.setPlaySpeed(s)}
           toggle={() => playerClient.togglePlayPause()}
-          style={{ ...canvasAndProgressBarDisplayStyle }}
         />
       </StyledContainer>
     </StyledPlayer>
   );
 };
 
-const clientOnPngFrame = (
-  ctx: CanvasRenderingContext2D,
-  pngFrame: PngFrame
-) => {
-  ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
-};
-
-const clientOnBitmapFrame = (
-  ctx: CanvasRenderingContext2D,
-  bmpFrame: BitmapFrame
-) => {
-  ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
-};
-
 const useDesktopPlayer = ({ clusterId, sid }) => {
   const [time, setTime] = useState(0);
   const [playerStatus, setPlayerStatus] = useState(StatusEnum.LOADING);
   const [statusText, setStatusText] = useState('');
-  // `canvasSizeIsSet` is used to track whether the canvas' size has been fully defined.
-  const [canvasSizeIsSet, setCanvasSizeIsSet] = useState(false);
 
   const playerClient = useMemo(() => {
     const url = cfg.api.desktopPlaybackWsAddr
@@ -163,13 +132,17 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
   }, [clusterId, sid]);
 
-  const clientOnWsClose = useCallback(() => {
+  const clientOnTransportOpen = useCallback(() => {
+    setPlayerStatus(StatusEnum.PLAYING);
+  }, []);
+
+  const clientOnTransportClose = useCallback(() => {
     if (playerClient) {
       playerClient.cancelTimeUpdate();
     }
   }, [playerClient]);
 
-  const clientOnTdpError = useCallback((error: Error) => {
+  const clientOnError = useCallback((error: Error) => {
     setPlayerStatus(StatusEnum.ERROR);
     setStatusText(error.message || error.toString());
   }, []);
@@ -179,35 +152,11 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     setStatusText(info);
   }, []);
 
-  const clientOnClientScreenSpec = useCallback(
-    (_cli: TdpClient, canvas: HTMLCanvasElement, spec: ClientScreenSpec) => {
-      const { width, height } = spec;
-
-      const styledPlayer = canvas.parentElement;
-      const progressBar = styledPlayer.children.namedItem(PROGRESS_BAR_ID);
-
-      const fullWidth = styledPlayer.clientWidth;
-      const fullHeight = styledPlayer.clientHeight - progressBar.clientHeight;
-      const originalAspectRatio = width / height;
-      const currentAspectRatio = fullWidth / fullHeight;
-
-      if (originalAspectRatio > currentAspectRatio) {
-        // Use the full width of the screen and scale the height.
-        canvas.style.height = `${(fullWidth * height) / width}px`;
-      } else if (originalAspectRatio < currentAspectRatio) {
-        // Use the full height of the screen and scale the width.
-        canvas.style.width = `${(fullHeight * width) / height}px`;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-
-      setCanvasSizeIsSet(true);
-    },
-    []
-  );
-
   useEffect(() => {
+    if (!playerClient) {
+      return;
+    }
+    void playerClient.connect();
     return () => {
       playerClient.shutdown();
     };
@@ -218,13 +167,10 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     playerClient,
     playerStatus,
     statusText,
-    canvasSizeIsSet,
 
-    clientOnPngFrame,
-    clientOnBitmapFrame,
-    clientOnClientScreenSpec,
-    clientOnWsClose,
-    clientOnTdpError,
+    clientOnTransportOpen,
+    clientOnTransportClose,
+    clientOnError,
     clientOnTdpInfo,
   };
 };
@@ -249,4 +195,5 @@ const StyledContainer = styled(Flex)`
   justify-content: center;
   width: 100%;
   height: 100%;
+  min-height: 0;
 `;

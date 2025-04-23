@@ -23,16 +23,19 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
@@ -105,11 +108,23 @@ type Profile struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
 
 	// PIVSlot is a specific piv slot that Teleport clients should use for hardware key support.
-	PIVSlot keys.PIVSlot `yaml:"piv_slot"`
+	PIVSlot hardwarekey.PIVSlotKeyString `yaml:"piv_slot"`
 
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.
 	MissingClusterDetails bool
+
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
+	// using an auth connector with a SAML SLO URL configured.
+	SAMLSingleLogoutEnabled bool `yaml:"saml_slo_enabled,omitempty"`
+
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout time.Duration `yaml:"ssh_dial_timeout,omitempty"`
+
+	// SSOHost is the host of the SSO provider used to log in. Clients can check this value, along
+	// with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
+	// Connect in the proxy host allow list.
+	SSOHost string `yaml:"sso_host,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -133,7 +148,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
+	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserTLSKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,6 +162,19 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 	}, nil
+}
+
+// Expiry returns the credential expiry.
+func (p *Profile) Expiry() (time.Time, bool) {
+	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
+	if err != nil {
+		return time.Time{}, false
+	}
+	cert, _, err := keys.X509Certificate(certPEMBlock)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return cert.NotAfter, true
 }
 
 // RequireKubeLocalProxy returns true if this profile indicates a local proxy
@@ -229,7 +257,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	priv, err := keys.LoadPrivateKey(p.UserKeyPath())
+	priv, err := keys.LoadPrivateKey(p.UserSSHKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -254,16 +282,6 @@ func SetCurrentProfileName(dir string, name string) error {
 	return nil
 }
 
-// RemoveProfile removes cluster profile file
-func RemoveProfile(dir, name string) error {
-	profilePath := filepath.Join(dir, name+".yaml")
-	if err := os.Remove(profilePath); err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	return nil
-}
-
 // GetCurrentProfileName attempts to load the current profile name.
 func GetCurrentProfileName(dir string) (name string, err error) {
 	if dir == "" {
@@ -282,33 +300,6 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.NotFound("current-profile is not set")
 	}
 	return name, nil
-}
-
-// ListProfileNames lists all available profiles.
-func ListProfileNames(dir string) ([]string, error) {
-	if dir == "" {
-		return nil, trace.BadParameter("cannot list profiles: missing dir")
-	}
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var names []string
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		if file.Type()&os.ModeSymlink != 0 {
-			continue
-		}
-		if !strings.HasSuffix(file.Name(), ".yaml") {
-			continue
-		}
-		names = append(names, strings.TrimSuffix(file.Name(), ".yaml"))
-	}
-	return names, nil
 }
 
 // FullProfilePath returns the full path to the user profile directory.
@@ -332,7 +323,7 @@ func defaultProfilePath() string {
 	}
 
 	home = os.TempDir()
-	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, profileDir)
@@ -380,6 +371,13 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
 	}
+
+	// For backwards compatibility, if the dial timeout was not set,
+	// then use the DefaultIOTimeout.
+	if p.SSHDialTimeout == 0 {
+		p.SSHDialTimeout = defaults.DefaultIOTimeout
+	}
+
 	return &p, nil
 }
 
@@ -420,9 +418,14 @@ func (p *Profile) ProxyKeyDir() string {
 	return keypaths.ProxyKeyDir(p.Dir, p.Name())
 }
 
-// UserKeyPath returns the path to the profile's private key.
-func (p *Profile) UserKeyPath() string {
-	return keypaths.UserKeyPath(p.Dir, p.Name(), p.Username)
+// UserSSHKeyPath returns the path to the profile's SSH private key.
+func (p *Profile) UserSSHKeyPath() string {
+	return keypaths.UserSSHKeyPath(p.Dir, p.Name(), p.Username)
+}
+
+// UserTLSKeyPath returns the path to the profile's TLS private key.
+func (p *Profile) UserTLSKeyPath() string {
+	return keypaths.UserTLSKeyPath(p.Dir, p.Name(), p.Username)
 }
 
 // TLSCertPath returns the path to the profile's TLS certificate.
@@ -475,4 +478,11 @@ func (p *Profile) KnownHostsPath() string {
 // is no guarantee that there is an actual certificate at that location.
 func (p *Profile) AppCertPath(appName string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
+}
+
+// AppKeyPath returns the path to the profile's private key for a given
+// application. Note that this function merely constructs the path - there
+// is no guarantee that there is an actual key at that location.
+func (p *Profile) AppKeyPath(appName string) string {
+	return keypaths.AppKeyPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
 }

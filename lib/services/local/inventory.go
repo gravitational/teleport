@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // GetInstances iterates all teleport instances.
@@ -52,31 +52,37 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 	endKey := backend.RangeEnd(startKey)
 	items := backend.StreamRange(ctx, s, startKey, endKey, pageSize)
 	return stream.FilterMap(items, func(item backend.Item) (types.Instance, bool) {
-		var instance types.InstanceV1
-		if err := utils.FastUnmarshal(item.Value, &instance); err != nil {
-			s.log.Warnf("Skipping instance at %s, failed to unmarshal: %v", item.Key, err)
+		instance, err := generic.FastUnmarshal[*types.InstanceV1](item)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Skipping instance failed to unmarshal",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
 		if err := instance.CheckAndSetDefaults(); err != nil {
-			s.log.Warnf("Skipping instance at %s: %v", item.Key, err)
+			s.logger.WarnContext(ctx, "Skipping invalid instance",
+				"key", item.Key,
+				"error", err,
+			)
 			return nil, false
 		}
-		if !req.Match(&instance) {
+		if !req.Match(instance) {
 			return nil, false
 		}
-		return &instance, true
+		return instance, true
 	})
 }
 
 // getInstance gets an instance resource by server ID.
 func (s *PresenceService) getInstance(ctx context.Context, serverID string) (types.Instance, error) {
-	item, err := s.Get(ctx, backend.Key(instancePrefix, serverID))
+	item, err := s.Get(ctx, backend.NewKey(instancePrefix, serverID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var instance types.InstanceV1
-	if err := utils.FastUnmarshal(item.Value, &instance); err != nil {
+	instance, err := generic.FastUnmarshal[*types.InstanceV1](*item)
+	if err != nil {
 		return nil, trace.BadParameter("failed to unmarshal instance %q: %v", serverID, err)
 	}
 
@@ -84,7 +90,7 @@ func (s *PresenceService) getInstance(ctx context.Context, serverID string) (typ
 		return nil, trace.BadParameter("instance %q appears malformed: %v", serverID, err)
 	}
 
-	return &instance, nil
+	return instance, nil
 }
 
 // UpsertInstance creates or updates an instance resource.
@@ -105,17 +111,9 @@ func (s *PresenceService) UpsertInstance(ctx context.Context, instance types.Ins
 		return trace.BadParameter("unexpected type %T, expected %T", instance, v1)
 	}
 
-	rev := instance.GetRevision()
-	value, err := utils.FastMarshal(v1)
+	item, err := generic.FastMarshal(backend.NewKey(instancePrefix, instance.GetName()), v1)
 	if err != nil {
 		return trace.Errorf("failed to marshal Instance: %v", err)
-	}
-
-	item := backend.Item{
-		Key:      backend.Key(instancePrefix, instance.GetName()),
-		Value:    value,
-		Expires:  instance.Expiry(),
-		Revision: rev,
 	}
 
 	_, err = s.Backend.Put(ctx, item)

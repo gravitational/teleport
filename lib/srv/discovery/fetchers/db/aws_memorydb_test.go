@@ -21,42 +21,42 @@ package db
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestMemoryDBFetcher(t *testing.T) {
 	t.Parallel()
 
-	memorydbProd, memorydbDatabaseProd, memorydbProdTags := makeMemoryDBCluster(t, "memory1", "us-east-1", "prod")
+	memorydbProd, memorydbDatabaseProd, memorydbProdTags := makeMemoryDBCluster(t, "memory1", "us-east-1", "prod", withMemoryDBEngine("valkey"))
 	memorydbTest, memorydbDatabaseTest, memorydbTestTags := makeMemoryDBCluster(t, "memory2", "us-east-1", "test")
-	memorydbUnavailable, _, memorydbUnavailableTags := makeMemoryDBCluster(t, "memory3", "us-east-1", "prod", func(cluster *memorydb.Cluster) {
+	memorydbUnavailable, _, memorydbUnavailableTags := makeMemoryDBCluster(t, "memory3", "us-east-1", "prod", func(cluster *memorydbtypes.Cluster) {
 		cluster.Status = aws.String("deleting")
 	})
-	memorydbUnsupported, _, memorydbUnsupportedTags := makeMemoryDBCluster(t, "memory4", "us-east-1", "prod", func(cluster *memorydb.Cluster) {
+	memorydbUnsupported, _, memorydbUnsupportedTags := makeMemoryDBCluster(t, "memory4", "us-east-1", "prod", func(cluster *memorydbtypes.Cluster) {
 		cluster.TLSEnabled = aws.Bool(false)
 	})
-	memorydbTagsByARN := map[string][]*memorydb.Tag{
-		aws.StringValue(memorydbProd.ARN):        memorydbProdTags,
-		aws.StringValue(memorydbTest.ARN):        memorydbTestTags,
-		aws.StringValue(memorydbUnavailable.ARN): memorydbUnavailableTags,
-		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
+	memorydbTagsByARN := map[string][]memorydbtypes.Tag{
+		aws.ToString(memorydbProd.ARN):        memorydbProdTags,
+		aws.ToString(memorydbTest.ARN):        memorydbTestTags,
+		aws.ToString(memorydbUnavailable.ARN): memorydbUnavailableTags,
+		aws.ToString(memorydbUnsupported.ARN): memorydbUnsupportedTags,
 	}
 
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
-			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &mocks.MemoryDBMock{
-					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbTest},
-					TagsByARN: memorydbTagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					mdbClient: &mocks.MemoryDBClient{
+						Clusters:  []memorydbtypes.Cluster{*memorydbProd, *memorydbTest},
+						TagsByARN: memorydbTagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
@@ -64,10 +64,12 @@ func TestMemoryDBFetcher(t *testing.T) {
 		},
 		{
 			name: "fetch prod",
-			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &mocks.MemoryDBMock{
-					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbTest},
-					TagsByARN: memorydbTagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					mdbClient: &mocks.MemoryDBClient{
+						Clusters:  []memorydbtypes.Cluster{*memorydbProd, *memorydbTest},
+						TagsByARN: memorydbTagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", envProdLabels),
@@ -75,10 +77,12 @@ func TestMemoryDBFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unavailable",
-			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &mocks.MemoryDBMock{
-					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbUnavailable},
-					TagsByARN: memorydbTagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					mdbClient: &mocks.MemoryDBClient{
+						Clusters:  []memorydbtypes.Cluster{*memorydbProd, *memorydbUnavailable},
+						TagsByARN: memorydbTagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
@@ -86,10 +90,12 @@ func TestMemoryDBFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unsupported",
-			inputClients: &cloud.TestCloudClients{
-				MemoryDB: &mocks.MemoryDBMock{
-					Clusters:  []*memorydb.Cluster{memorydbProd, memorydbUnsupported},
-					TagsByARN: memorydbTagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					mdbClient: &mocks.MemoryDBClient{
+						Clusters:  []memorydbtypes.Cluster{*memorydbProd, *memorydbUnsupported},
+						TagsByARN: memorydbTagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
@@ -99,17 +105,23 @@ func TestMemoryDBFetcher(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {
+func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydbtypes.Cluster)) (*memorydbtypes.Cluster, types.Database, []memorydbtypes.Tag) {
 	cluster := mocks.MemoryDBCluster(name, region, opts...)
 
-	tags := []*memorydb.Tag{{
+	tags := []memorydbtypes.Tag{{
 		Key:   aws.String("env"),
 		Value: aws.String(env),
 	}}
-	extraLabels := services.ExtraMemoryDBLabels(cluster, tags, nil)
+	extraLabels := common.ExtraMemoryDBLabels(cluster, tags, nil)
 
-	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+	database, err := common.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherMemoryDB)
 	return cluster, database, tags
+}
+
+func withMemoryDBEngine(engine string) func(*memorydbtypes.Cluster) {
+	return func(c *memorydbtypes.Cluster) {
+		c.Engine = &engine
+	}
 }

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function UserAdd({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const UserAdd = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-useradd"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -65,5 +66,5 @@ export function UserAdd({ size = 24, color, ...otherProps }: IconProps) {
       />
       <path d="M21.75 10.5C21.75 10.0858 21.4142 9.75 21 9.75C20.5858 9.75 20.25 10.0858 20.25 10.5V12H18.75C18.3358 12 18 12.3358 18 12.75C18 13.1642 18.3358 13.5 18.75 13.5H20.25V15C20.25 15.4142 20.5858 15.75 21 15.75C21.4142 15.75 21.75 15.4142 21.75 15V13.5H23.25C23.6642 13.5 24 13.1642 24 12.75C24 12.3358 23.6642 12 23.25 12H21.75V10.5Z" />
     </Icon>
-  );
-}
+  )
+);

@@ -67,18 +67,25 @@ export type ConnectMyComputerDeepURL = BaseDeepURL & {
 
 export type AuthenticateWebDeviceDeepURL = BaseDeepURL & {
   pathname: '/authenticate_web_device';
-  searchParams: { id: string; token: string };
+  searchParams: { id: string; token: string; redirect_uri?: string };
 };
 
-export type DeepURL = ConnectMyComputerDeepURL | AuthenticateWebDeviceDeepURL;
+export type VnetDeepURL = BaseDeepURL & {
+  pathname: '/vnet';
+  searchParams: Record<string, never>;
+};
+
+export type DeepURL =
+  | ConnectMyComputerDeepURL
+  | AuthenticateWebDeviceDeepURL
+  | VnetDeepURL;
 
 export const CUSTOM_PROTOCOL = 'teleport' as const;
 
 /**
  * makeDeepLinkWithSafeInput creates a deep link by interpolating passed arguments.
  *
- * Important: This function does not perform any validation or parsing. It must not be called with
- * user-generated content.
+ * Important: This function does not perform any validation or parsing.
  */
 export function makeDeepLinkWithSafeInput<
   Pathname extends DeepURL['pathname'],
@@ -94,7 +101,7 @@ export function makeDeepLinkWithSafeInput<
   username: string | undefined;
   searchParams: URL['searchParams'];
 }): string {
-  // The username in a URL should be percend-encoded. [1]
+  // The username in a URL should be percent-encoded. [1]
   //
   // What's more, Chrome 119, unlike Firefox and Safari, won't even trigger a custom protocol prompt
   // when clicking on a link that includes a username with an @ symbol that is not percent-encoded,
@@ -106,6 +113,8 @@ export function makeDeepLinkWithSafeInput<
     : '';
 
   const searchParamsString = Object.entries(args.searchParams)
+    // filter out params that have no value to prevent a string like "&myparam=null"
+    .filter(kv => kv[1] !== null && kv[1] !== undefined)
     .map(kv => kv.map(encodeURIComponent).join('='))
     .join('&');
 

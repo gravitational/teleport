@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"text/template"
@@ -29,19 +30,20 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -76,7 +78,7 @@ type NodeCommand struct {
 }
 
 // Initialize allows NodeCommand to plug itself into the CLI parser
-func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *NodeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	// add node command
@@ -99,16 +101,22 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *NodeCommand) TryRun(ctx context.Context, cmd string, client *auth.Client) (match bool, err error) {
+func (c *NodeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.nodeAdd.FullCommand():
-		err = c.Invite(ctx, client)
+		commandFunc = c.Invite
 	case c.nodeList.FullCommand():
-		err = c.ListActive(ctx, client)
-
+		commandFunc = c.ListActive
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 
@@ -137,7 +145,7 @@ Please note:
 
 // Invite generates a token which can be used to add another SSH node
 // to a cluster
-func (c *NodeCommand) Invite(ctx context.Context, client *auth.Client) error {
+func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) error {
 	// parse --roles flag
 	roles, err := types.ParseTeleportRoles(c.roles)
 	if err != nil {
@@ -194,7 +202,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *auth.Client) error {
 
 			pingResponse, err := client.Ping(ctx)
 			if err != nil {
-				log.Debugf("unable to ping auth client: %s.", err.Error())
+				slog.DebugContext(ctx, "unable to ping auth client", "error", err)
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {
@@ -230,7 +238,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *auth.Client) error {
 
 // ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
-func (c *NodeCommand) ListActive(ctx context.Context, clt *auth.Client) error {
+func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)

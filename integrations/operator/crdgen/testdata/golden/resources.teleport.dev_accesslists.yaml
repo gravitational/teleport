@@ -36,33 +36,54 @@ spec:
             description: AccessList resource definition v1 from Teleport
             properties:
               audit:
-                description: audit describes the frequency that this access list must
+                description: audit describes the frequency that this Access List must
                   be audited.
                 nullable: true
                 properties:
-                  frequency:
-                    description: frequency is a duration that describes how often
-                      an access list must be audited.
-                    format: duration
-                    type: string
                   next_audit_date:
                     description: next_audit_date is when the next audit date should
                       be done by.
                     format: date-time
                     type: string
+                  notifications:
+                    description: notifications is the configuration for notifying
+                      users.
+                    nullable: true
+                    properties:
+                      start:
+                        description: start specifies when to start notifying users
+                          that the next audit date is coming up.
+                        format: duration
+                        type: string
+                    type: object
+                  recurrence:
+                    description: recurrence is the recurrence definition
+                    nullable: true
+                    properties:
+                      day_of_month:
+                        description: day_of_month is the day of month that reviews
+                          will be scheduled on. Supported values are 0, 1, 15, and
+                          31.
+                        x-kubernetes-int-or-string: true
+                      frequency:
+                        description: frequency is the frequency of reviews. This represents
+                          the period in months between two reviews. Supported values
+                          are 0, 1, 3, 6, and 12.
+                        x-kubernetes-int-or-string: true
+                    type: object
                 type: object
               description:
                 description: description is an optional plaintext description of the
-                  access list.
+                  Access List.
                 type: string
               grants:
                 description: grants describes the access granted by membership to
-                  this access list.
+                  this Access List.
                 nullable: true
                 properties:
                   roles:
                     description: roles are the roles that are granted to users who
-                      are members of the access list.
+                      are members of the Access List.
                     items:
                       type: string
                     nullable: true
@@ -73,41 +94,13 @@ spec:
                         type: string
                       type: array
                     description: traits are the traits that are granted to users who
-                      are members of the access list.
+                      are members of the Access List.
                     type: object
                 type: object
-              members:
-                description: 'members describes the current members of the access
-                  list. TODO(mdwn): Remove this once members are independent objects.'
-                items:
-                  properties:
-                    added_by:
-                      description: added_by is the user that added this user to the
-                        access list.
-                      type: string
-                    expires:
-                      description: expires is when the user's membership to the access
-                        list expires.
-                      format: date-time
-                      type: string
-                    joined:
-                      description: joined is when the user joined the access list.
-                      format: date-time
-                      type: string
-                    name:
-                      description: name is the name of the member of the access list.
-                      type: string
-                    reason:
-                      description: reason is the reason this user was added to the
-                        access list.
-                      type: string
-                  type: object
-                nullable: true
-                type: array
               membership_requires:
                 description: membership_requires describes the requirements for a
-                  user to be a member of the access list. For a membership to an access
-                  list to be effective, the user must meet the requirements of Membership_requires
+                  user to be a member of the Access List. For a membership to an Access
+                  List to be effective, the user must meet the requirements of Membership_requires
                   and must be in the members list.
                 nullable: true
                 properties:
@@ -127,14 +120,43 @@ spec:
                       user to obtain access.
                     type: object
                 type: object
+              owner_grants:
+                description: owner_grants describes the access granted by owners to
+                  this Access List.
+                nullable: true
+                properties:
+                  roles:
+                    description: roles are the roles that are granted to users who
+                      are members of the Access List.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  traits:
+                    additionalProperties:
+                      items:
+                        type: string
+                      type: array
+                    description: traits are the traits that are granted to users who
+                      are members of the Access List.
+                    type: object
+                type: object
               owners:
-                description: owners is a list of owners of the access list.
+                description: owners is a list of owners of the Access List.
                 items:
                   properties:
                     description:
                       description: description is the plaintext description of the
                         owner and why they are an owner.
                       type: string
+                    ineligible_status:
+                      description: ineligible_status describes if this owner is eligible
+                        or not and if not, describes how they're lacking eligibility.
+                      x-kubernetes-int-or-string: true
+                    membership_kind:
+                      description: membership_kind describes the type of membership,
+                        either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+                      x-kubernetes-int-or-string: true
                     name:
                       description: name is the username of the owner.
                       type: string
@@ -143,7 +165,7 @@ spec:
                 type: array
               ownership_requires:
                 description: ownership_requires describes the requirements for a user
-                  to be an owner of the access list. For ownership of an access list
+                  to be an owner of the Access List. For ownership of an Access List
                   to be effective, the user must meet the requirements of ownership_requires
                   and must be in the owners list.
                 nullable: true
@@ -165,8 +187,8 @@ spec:
                     type: object
                 type: object
               title:
-                description: title is a plaintext short description of the access
-                  list.
+                description: title is a plaintext short description of the Access
+                  List.
                 type: string
             type: object
           status:
@@ -176,16 +198,8 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource.\n---\nThis struct is intended for
-                    direct use as an array at the field path .status.conditions.  For
-                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
-                    observations of a foo's current state.\n\t    // Known .status.conditions.type
-                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
-                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
-                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                    \   // other fields\n\t}"
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -226,12 +240,7 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        ---
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                        useful (see .node.status.conditions), the ability to deconflict is important.
-                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

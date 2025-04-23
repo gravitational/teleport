@@ -24,10 +24,29 @@ gpgcheck=0
 enabled=1
 EOF
 
+# mirrorlist is no longer available since CentOS 7 EOL. The software collection
+# stuff for arm64 (aarch64) is in /altarch not /centos on vault.centos.org.
+# Make the fixup a script as it needs to be run multiple times as installing
+# and updating centos-release-scl-rh leaves the old unavailable URLs.
+# https://serverfault.com/a/1161847
+RUN cat <<EOF > /tmp/fix-yum-repo-list.sh
+#!/bin/sh
+sed -e 's/mirror.centos.org/vault.centos.org/g' \
+    -e 's/^#.*baseurl=http/baseurl=http/g' \
+    -e 's/^mirrorlist=http/#mirrorlist=http/g' \
+    -i /etc/yum.repos.d/*.repo
+if [ "$(uname -m)" = 'aarch64' ]; then
+    sed 's|centos/7/sclo|altarch/7/sclo|' -i /etc/yum.repos.d/*.repo
+fi
+EOF
+RUN chmod 755 /tmp/fix-yum-repo-list.sh && \
+    /tmp/fix-yum-repo-list.sh
+
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
     yum install -y centos-release-scl-rh && \
+    /tmp/fix-yum-repo-list.sh \
     yum update -y && \
     yum install -y \
       ca-certificates \
@@ -43,7 +62,8 @@ RUN yum groupinstall -y 'Development Tools' && \
       perl-devel \
       scl-utils \
       wget && \
-    yum clean all
+    yum clean all && \
+    /tmp/fix-yum-repo-list.sh
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
@@ -92,9 +112,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 &&
     make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
+    [ "$(git rev-parse HEAD)" = '170bee2b82cdb7b2ed25af301f62cb6efdd40ec1' ] && \
     cmake3 \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -106,9 +126,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 # Specific install arguments used to skip docs.
 # Note that FIPS is enabled as part of this build, but it is unused without the
 # necessary configuration (which is included as part of the separate FIPS buildbox).
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.13 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '85cf92f55d9e2ac5aacf92bedd33fb890b9f8b4c' ] && \
+    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
     ./config enable-fips --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw install_ssldirs install_fips
@@ -118,9 +138,9 @@ ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib-devel.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.14.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '1a9d335c8f0e821f9eff27482fdda96e59a4f577' ] && \
+    [ "$(git rev-parse HEAD)" = 'f87c19c9487c0131531314d9ccb475ea5325794e' ] && \
     scl enable ${DEVTOOLSET} "\
       CFLAGS=-pthread cmake3 \
           -DBUILD_EXAMPLES=OFF \
@@ -278,7 +298,7 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.3 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.14.0 \
+    /usr/local/lib64/libfido2.so.1.15.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.3 \
     /usr/local/lib64/libudev.a \
@@ -286,7 +306,7 @@ COPY --from=libfido2 \
 # Re-create usual lib64 links.
 RUN cd /usr/local/lib64 && \
     ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.14.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.15.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.3 libssl.so && \
 # Update ld.

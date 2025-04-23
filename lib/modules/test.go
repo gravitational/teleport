@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // TestModules implements the Modules interface for testing.
@@ -41,6 +42,8 @@ type TestModules struct {
 	TestBuildType string
 	// TestFeatures is returned from the Features function.
 	TestFeatures Features
+	// FIPS allows tests to toggle fips behavior.
+	FIPS bool
 
 	defaultModules
 
@@ -80,7 +83,7 @@ func (m *TestModules) PrintVersion() {
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (m *TestModules) IsBoringBinary() bool {
-	return m.defaultModules.IsBoringBinary()
+	return m.FIPS
 }
 
 // Features returns supported features.
@@ -93,8 +96,16 @@ func (m *TestModules) BuildType() string {
 	return m.TestBuildType
 }
 
+func (m *TestModules) IsEnterpriseBuild() bool {
+	return m.BuildType() == BuildEnterprise
+}
+
+func (m *TestModules) IsOSSBuild() bool {
+	return m.BuildType() != BuildEnterprise
+}
+
 // AttestHardwareKey attests a hardware key.
-func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, as *keys.AttestationStatement, pk crypto.PublicKey, d time.Duration) (*keys.AttestationData, error) {
+func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, as *hardwarekey.AttestationStatement, pk crypto.PublicKey, d time.Duration) (*keys.AttestationData, error) {
 	if m.MockAttestationData != nil {
 		return m.MockAttestationData, nil
 	}

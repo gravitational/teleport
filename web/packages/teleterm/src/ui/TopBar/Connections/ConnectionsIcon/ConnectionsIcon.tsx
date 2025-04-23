@@ -16,50 +16,48 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
-import { Cluster } from 'design/Icon';
+import { forwardRef } from 'react';
 import styled from 'styled-components';
-import { Button } from 'design';
+
+import { ButtonSecondary } from 'design';
+import { Cluster } from 'design/Icon';
 
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
-import { ConnectionsIconStatusIndicator } from './ConnectionsIconStatusIndicator';
+import {
+  ConnectionsIconStatusIndicator,
+  Status,
+} from './ConnectionsIconStatusIndicator';
 
-interface ConnectionsIconProps {
-  isAnyConnectionActive: boolean;
-
-  onClick(): void;
-}
-
-export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
-  (props, ref) => {
-    const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-    return (
-      <Container ref={ref}>
-        <ConnectionsIconStatusIndicator
-          connected={props.isAnyConnectionActive}
-        />
-        <StyledButton
-          onClick={props.onClick}
-          kind="secondary"
-          size="small"
-          m="auto"
-          title={getLabelWithAccelerator('Open Connections', 'openConnections')}
-        >
-          <Cluster size="medium" />
-        </StyledButton>
-      </Container>
-    );
+export const ConnectionsIcon = forwardRef<
+  HTMLDivElement,
+  {
+    status: Status;
+    onClick(): void;
   }
-);
+>((props, ref) => {
+  const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
+  return (
+    <Container ref={ref}>
+      <ConnectionsIconStatusIndicator status={props.status} />
+      <StyledButton
+        onClick={props.onClick}
+        size="small"
+        m="auto"
+        title={getLabelWithAccelerator('Open Connections', 'openConnections')}
+      >
+        <Cluster size="medium" />
+      </StyledButton>
+    </Container>
+  );
+});
 
 const Container = styled.div`
   position: relative;
   display: inline-block;
 `;
 
-const StyledButton = styled(Button)`
-  background: ${props => props.theme.colors.spotBackground[0]};
+const StyledButton = styled(ButtonSecondary)`
   padding: 0;
   width: ${props => props.theme.space[5]}px;
   height: ${props => props.theme.space[5]}px;

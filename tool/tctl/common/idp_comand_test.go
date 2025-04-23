@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestIdPSAMLCommand(t *testing.T) {
@@ -42,7 +43,8 @@ func TestIdPSAMLCommand(t *testing.T) {
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	t.Run("test-attribute-mapping", func(t *testing.T) {
 		// Create user file
@@ -55,17 +57,17 @@ func TestIdPSAMLCommand(t *testing.T) {
 
 		// nonexistent file should try to get user from cluster. Since we provide user name "testuser" which does not exist in cluster,
 		// error should be 'user "testuser" not found.'
-		err := runIdPSAMLCommand(t, fileConfig, []string{"saml", "test-attribute-mapping", "--users", "testuser", "--sp", spFilepath})
+		err := runIdPSAMLCommand(t, clt, []string{"saml", "test-attribute-mapping", "--users", "testuser", "--sp", spFilepath})
 		require.ErrorContains(t, err, `user "testuser" not found`)
 
 		// empty user file
 		require.NoError(t, os.WriteFile(userFilepath, []byte(""), 0644))
-		err = runIdPSAMLCommand(t, fileConfig, []string{"saml", "test-attribute-mapping", "--users", userFilepath, "--sp", spFilepath})
+		err = runIdPSAMLCommand(t, clt, []string{"saml", "test-attribute-mapping", "--users", userFilepath, "--sp", spFilepath})
 		require.ErrorContains(t, err, "users not found in file")
 
 		// empty sp file
 		require.NoError(t, os.WriteFile(spFilepath, []byte(""), 0644))
-		err = runIdPSAMLCommand(t, fileConfig, []string{"saml", "test-attribute-mapping", "--users", userFilepath, "--sp", spFilepath})
+		err = runIdPSAMLCommand(t, clt, []string{"saml", "test-attribute-mapping", "--users", userFilepath, "--sp", spFilepath})
 		require.ErrorContains(t, err, "service provider not found in file")
 	})
 }

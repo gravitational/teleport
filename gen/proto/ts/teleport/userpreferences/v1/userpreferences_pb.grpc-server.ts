@@ -44,7 +44,7 @@ export interface IUserPreferencesService extends grpc.UntypedServiceImplementati
      */
     upsertUserPreferences: grpc.handleUnaryCall<UpsertUserPreferencesRequest, Empty>;
     /**
-     * GetUserPreferences returns the user preferences for a given user.
+     * GetKeyboardLayout returns the keyboard layout preference for the user.
      *
      * @generated from protobuf rpc: GetKeyboardLayout(teleport.userpreferences.v1.GetKeyboardLayoutRequest) returns (teleport.userpreferences.v1.GetKeyboardLayoutResponse);
      */

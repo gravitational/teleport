@@ -16,42 +16,69 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Meta } from '@storybook/react';
+import { useEffect, useState } from 'react';
+
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import cfg from 'teleport/config';
 
 import { UserReset } from './UserReset';
 
-export default {
+type StoryProps = {
+  status: 'processing' | 'success' | 'error';
+  isMfaEnabled: boolean;
+  allowPasswordless: boolean;
+};
+
+const meta: Meta<StoryProps> = {
   title: 'Teleport/Users/UserReset',
+  component: Story,
+  argTypes: {
+    status: {
+      control: { type: 'radio' },
+      options: ['processing', 'success', 'error'],
+    },
+  },
+  args: {
+    status: 'processing',
+    isMfaEnabled: true,
+    allowPasswordless: true,
+  },
 };
 
-export const Processing = () => {
-  return <UserReset {...props} attempt={{ status: 'processing' }} />;
-};
+export default meta;
 
-export const Success = () => {
-  return <UserReset {...props} attempt={{ status: 'success' }} />;
-};
+export function Story(props: StoryProps) {
+  const statusToAttempt: Record<StoryProps['status'], Attempt> = {
+    processing: { status: 'processing' },
+    success: { status: 'success' },
+    error: { status: 'failed', statusText: 'some server error' },
+  };
+  const [, setState] = useState({});
 
-export const Failed = () => {
+  useEffect(() => {
+    const defaultAuth = structuredClone(cfg.auth);
+    cfg.auth.second_factor = props.isMfaEnabled ? 'on' : 'off';
+    cfg.auth.allowPasswordless = props.allowPasswordless;
+    setState({}); // Force re-render of the component with new cfg.
+
+    return () => {
+      cfg.auth = defaultAuth;
+    };
+  }, [props.isMfaEnabled, props.allowPasswordless]);
+
   return (
     <UserReset
-      {...props}
-      attempt={{ status: 'failed', statusText: 'some server error' }}
+      username="smith"
+      token={{
+        value: '0c536179038b386728dfee6602ca297f',
+        expires: new Date('2021-04-08T07:30:00Z'),
+        username: 'Lester',
+      }}
+      onReset={() => {}}
+      onClose={() => {}}
+      attempt={statusToAttempt[props.status]}
     />
   );
-};
-
-const props = {
-  username: 'smith',
-  token: {
-    value: '0c536179038b386728dfee6602ca297f',
-    expires: new Date('2021-04-08T07:30:00Z'),
-    username: 'Lester',
-  },
-  onReset() {},
-  onClose() {},
-  attempt: {
-    status: 'processing',
-    statusText: '',
-  },
-};
+}

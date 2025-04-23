@@ -1,5 +1,7 @@
 {{ scheme="" query="" }}
-Modify the Teleport Database Service to trust your {{ db }} CA:
+Modify the Teleport Database Service to trust your {{ db }} CA, assigning
+<Var name='/path/to/your/ca.crt' /> to the path to your CA certificate:
+
   ```yaml
     databases:
     - name: "example-{{ protocol }}"

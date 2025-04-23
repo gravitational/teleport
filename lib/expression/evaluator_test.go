@@ -29,15 +29,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-func TestEvaluateTraitsMap(t *testing.T) {
-	t.Parallel()
-
-	baseInputTraits := map[string][]string{
-		"groups":   []string{"devs", "security"},
-		"username": []string{"alice"},
+var (
+	baseInputTraits = map[string][]string{
+		"groups":   {"devs", "security"},
+		"username": {"alice"},
 	}
 
-	tests := []struct {
+	testCases = []struct {
 		desc           string
 		expressions    map[string][]string
 		inputTraits    map[string][]string
@@ -51,17 +49,17 @@ func TestEvaluateTraitsMap(t *testing.T) {
 		},
 		{
 			desc: "simple traits map",
-			expressions: map[string][]string{"groups": []string{
+			expressions: map[string][]string{"groups": {
 				"user.spec.traits.groups",
 			}},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"groups": []string{"devs", "security"},
+				"groups": {"devs", "security"},
 			},
 		},
 		{
 			desc:        "wrong map return type",
-			expressions: map[string][]string{"groups": []string{"user.spec.traits"}},
+			expressions: map[string][]string{"groups": {"user.spec.traits"}},
 			errorContains: []string{
 				"traits_map expression must evaluate to type string or set, the following expression evaluates to expression.Dict:",
 			},
@@ -69,30 +67,30 @@ func TestEvaluateTraitsMap(t *testing.T) {
 		{
 			desc: "ifelse",
 			expressions: map[string][]string{
-				"a": []string{
+				"a": {
 					`ifelse(true, "correct", "wrong")`,
 					`ifelse(false, "wrong", "correct")`,
 					`ifelse(ifelse(true, true, false), "correct", "wrong")`,
 					`set(ifelse(true, "correct", "wrong"), "correct")`,
 				},
-				"groups": []string{
+				"groups": {
 					`ifelse(true, user.spec.traits.groups, "wrong")`,
 				},
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"a":      []string{"correct"},
+				"a":      {"correct"},
 				"groups": baseInputTraits["groups"],
 			},
 		},
 		{
 			desc: "set methods",
 			expressions: map[string][]string{
-				"extragroups":            []string{`user.spec.traits.groups.add("extra", "surplus")`},
-				"fewergroups":            []string{`user.spec.traits.groups.remove("security")`},
-				"nogroups":               []string{`user.spec.traits.groups.remove("devs", "security").add("test").remove("test").remove("not-a-group")`},
-				"groups-by-another-name": []string{`user.spec.traits.groups.remove("not-a-group")`},
-				"logins": []string{
+				"extragroups":            {`user.spec.traits.groups.add("extra", "surplus")`},
+				"fewergroups":            {`user.spec.traits.groups.remove("security")`},
+				"nogroups":               {`user.spec.traits.groups.remove("devs", "security").add("test").remove("test").remove("not-a-group")`},
+				"groups-by-another-name": {`user.spec.traits.groups.remove("not-a-group")`},
+				"logins": {
 					// user.spec.traits.groups does not contain "admins", so we
 					// expect to just get the username.
 					`ifelse(user.spec.traits.groups.contains("admins"), user.spec.traits.username.add("root"), user.spec.traits.username)`,
@@ -104,40 +102,40 @@ func TestEvaluateTraitsMap(t *testing.T) {
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
 				"extragroups":            append([]string{"extra", "surplus"}, baseInputTraits["groups"]...),
-				"fewergroups":            []string{"devs"},
-				"nogroups":               []string{},
+				"fewergroups":            {"devs"},
+				"nogroups":               {},
 				"groups-by-another-name": baseInputTraits["groups"],
-				"logins":                 []string{"alice", "security-team"},
+				"logins":                 {"alice", "security-team"},
 			},
 		},
 		{
 			desc: "set union",
 			expressions: map[string][]string{
-				"groups": []string{`union(user.spec.traits.groups, set("test1", "test2"))`},
-				"fruits": []string{`union(set("apple", "banana"), set("cherry"), set("dragonfruit", "eggplant"))`},
+				"groups": {`union(user.spec.traits.groups, set("test1", "test2"))`},
+				"fruits": {`union(set("apple", "banana"), set("cherry"), set("dragonfruit", "eggplant"))`},
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
 				"groups": append([]string{"test1", "test2"}, baseInputTraits["groups"]...),
-				"fruits": []string{"apple", "banana", "cherry", "dragonfruit", "eggplant"},
+				"fruits": {"apple", "banana", "cherry", "dragonfruit", "eggplant"},
 			},
 		},
 		{
 			desc: "string helpers",
 			expressions: map[string][]string{
-				"lower": []string{
+				"lower": {
 					`strings.lower("APPLE")`,
 					`strings.lower("BaNaNa")`,
 					`strings.lower(set("cherry", "dragonFRUIT"))`,
 					`strings.lower(user.spec.traits.username)`,
 				},
-				"upper": []string{
+				"upper": {
 					`strings.upper("APPLE")`,
 					`strings.upper("BaNaNa")`,
 					`strings.upper(set("cherry", "dragonFRUIT"))`,
 					`strings.upper(user.spec.traits.username)`,
 				},
-				"replaced": []string{
+				"replaced": {
 					`strings.replaceall("snake_case_example", "_", "-")`,
 					`strings.replaceall(strings.replaceall("user@example.com", "@", "_"), ".", "-")`,
 					`strings.replaceall(set("dev-team", "platform-team"), "-team", "")`,
@@ -145,21 +143,21 @@ func TestEvaluateTraitsMap(t *testing.T) {
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"lower":    []string{"apple", "banana", "cherry", "dragonfruit", "alice"},
-				"upper":    []string{"APPLE", "BANANA", "CHERRY", "DRAGONFRUIT", "ALICE"},
-				"replaced": []string{"snake-case-example", "user_example-com", "dev", "platform"},
+				"lower":    {"apple", "banana", "cherry", "dragonfruit", "alice"},
+				"upper":    {"APPLE", "BANANA", "CHERRY", "DRAGONFRUIT", "ALICE"},
+				"replaced": {"snake-case-example", "user_example-com", "dev", "platform"},
 			},
 		},
 		{
 			desc: "choose",
 			expressions: map[string][]string{
-				"choose_first": []string{
+				"choose_first": {
 					`choose(option(true, "first"), option(false, "second"))`,
 				},
-				"choose_second": []string{
+				"choose_second": {
 					`choose(option(false, "first"), option(true, "second"))`,
 				},
-				"groups": []string{
+				"groups": {
 					`choose(
 							option(user.spec.traits.username.contains("alice"), set("devs", "security", "requester")),
 							option(user.spec.traits.username.contains("bob"), set("security", "reviewer")),
@@ -170,9 +168,9 @@ func TestEvaluateTraitsMap(t *testing.T) {
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
-				"choose_first":  []string{"first"},
-				"choose_second": []string{"second"},
-				"groups":        []string{"devs", "security", "requester"},
+				"choose_first":  {"first"},
+				"choose_second": {"second"},
+				"groups":        {"devs", "security", "requester"},
 			},
 		},
 		{
@@ -253,7 +251,68 @@ func TestEvaluateTraitsMap(t *testing.T) {
 				"localEmails": {"alice", "bob", "charlie", "darrell", "esther", "frank"},
 			},
 		},
+		{
+			desc: "methods on nil set from nonexistent map key",
+			expressions: map[string][]string{
+				"a": {`user.spec.traits["a"].add("a")`},
+				"b": {`ifelse(user.spec.traits["b"].contains("b"), set("z"), set("b"))`},
+				"c": {`ifelse(user.spec.traits["c"].contains_any(set("c")), set("z"), set("c"))`},
+				"d": {`ifelse(user.spec.traits["d"].isempty(), set("d"), set("z"))`},
+				"e": {`user.spec.traits["e"].remove("e")`},
+				"f": {`user.spec.traits["f"].remove("f").add("f")`},
+				"g": {`ifelse(user.spec.traits["g"].contains_all(set("g")), set("z"), set("g"))`},
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"a": {"a"},
+				"b": {"b"},
+				"c": {"c"},
+				"d": {"d"},
+				"e": {},
+				"f": {"f"},
+				"g": {"g"},
+			},
+		},
+		{
+			desc: "contains_all",
+			expressions: map[string][]string{
+				"contains_all": {
+					`ifelse(
+						user.spec.traits.groups.contains_all(set("security")) ||
+						contains_all(user.spec.traits.groups, set("security")),
+						"true",
+						"false",
+					)`,
+				},
+				"does_not_contain_all": {
+					`ifelse(
+						user.spec.traits.groups.contains_all(set("security", "not-in-group")) ||
+						contains_all(user.spec.traits.groups, set("security", "not-in-group")),
+						"true",
+						"false",
+					)`,
+				},
+				"empty_set": {
+					`ifelse(
+						user.spec.traits.groups.contains_all(set()) ||
+						contains_all(user.spec.traits.groups, set()),
+						"true",
+						"false",
+					)`,
+				},
+			},
+			inputTraits: baseInputTraits,
+			expectedTraits: map[string][]string{
+				"contains_all":         {"true"},
+				"does_not_contain_all": {"false"},
+				"empty_set":            {"false"},
+			},
+		},
 	}
+)
+
+func TestEvaluateTraitsMap(t *testing.T) {
+	t.Parallel()
 
 	type evaluationEnv struct {
 		Traits Dict
@@ -270,7 +329,7 @@ func TestEvaluateTraitsMap(t *testing.T) {
 	attributeParser, err := NewTraitsExpressionParser[evaluationEnv](typicalEnvVar)
 	require.NoError(t, err)
 
-	for _, tc := range tests {
+	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := EvaluateTraitsMap[evaluationEnv](
 				evaluationEnv{
@@ -291,4 +350,36 @@ func TestEvaluateTraitsMap(t *testing.T) {
 			require.Empty(t, cmp.Diff(tc.expectedTraits, StringSliceMapFromDict(result), cmpopts.SortSlices(func(a, b string) bool { return a < b })))
 		})
 	}
+}
+
+func FuzzTraitsExpressionParser(f *testing.F) {
+	type evaluationEnv struct {
+		Traits Dict
+	}
+	parser, err := NewTraitsExpressionParser[evaluationEnv](map[string]typical.Variable{
+		"true":  true,
+		"false": false,
+		"user.spec.traits": typical.DynamicMap[evaluationEnv, Set](func(env evaluationEnv) (Dict, error) {
+			return env.Traits, nil
+		}),
+	})
+	require.NoError(f, err)
+	for _, tc := range testCases {
+		for _, expressions := range tc.expressions {
+			for _, expression := range expressions {
+				f.Add(expression)
+			}
+		}
+	}
+	f.Fuzz(func(t *testing.T, expression string) {
+		expr, err := parser.Parse(expression)
+		if err != nil {
+			// Many/most fuzzed expressions won't parse, as long as we didn't
+			// panic that's okay.
+			return
+		}
+		// If the expression parsed, try to evaluate it, errors are okay just
+		// make sure we don't panic.
+		_, _ = expr.Evaluate(evaluationEnv{DictFromStringSliceMap(baseInputTraits)})
+	})
 }

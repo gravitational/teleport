@@ -16,15 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Flex, Text, ButtonPrimary } from 'design';
 
-import Document from 'teleterm/ui/Document';
-import * as types from 'teleterm/ui/services/workspacesService';
+import { ButtonPrimary, Flex, Text } from 'design';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
+import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
+import * as types from 'teleterm/ui/services/workspacesService';
 import { connectToDatabase } from 'teleterm/ui/services/workspacesService';
 
 /**
@@ -49,10 +50,10 @@ export const DocumentGatewayCliClient = (props: {
   const { doc, visible } = props;
   const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);
 
-  const gateway = clustersService.findGatewayByConnectionParams(
-    doc.targetUri,
-    doc.targetUser
-  );
+  const gateway = clustersService.findGatewayByConnectionParams({
+    targetUri: doc.targetUri,
+    targetUser: doc.targetUser,
+  });
 
   // Once we render the terminal, we want to keep it visible. Otherwise removing the gateway would
   // mean that this document would immediately unmount DocumentTerminal and close the PTY.
@@ -155,6 +156,6 @@ export const WaitingForGatewayContent = ({
 );
 
 const StyledText = styled(Text).attrs({
-  typography: 'h5',
+  typography: 'body1',
   textAlign: 'center',
 })``;

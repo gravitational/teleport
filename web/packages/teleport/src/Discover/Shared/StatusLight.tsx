@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box } from 'design';
 import styled from 'styled-components';
+
+import { Box } from 'design';
 
 export enum ItemStatus {
   Success,
@@ -25,7 +26,7 @@ export enum ItemStatus {
   Error,
 }
 
-export const StatusLight = styled(Box)`
+export const StatusLight = styled(Box)<{ status: ItemStatus }>`
   border-radius: 50%;
   margin-right: ${props => props.theme.space[2]}px;
   width: 8px;

@@ -18,17 +18,22 @@ package email
 
 import (
 	"context"
+	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -48,9 +53,10 @@ const (
 type App struct {
 	conf Config
 
-	apiClient teleport.Client
-	client    Client
-	mainJob   lib.ServiceJob
+	apiClient             teleport.Client
+	client                Client
+	mainJob               lib.ServiceJob
+	accessMonitoringRules *accessmonitoring.RuleHandler
 
 	*lib.Process
 }
@@ -86,18 +92,28 @@ func (a *App) run(ctx context.Context) error {
 	var err error
 
 	log := logger.Get(ctx)
-	log.Infof("Starting Teleport Access Email Plugin")
 
 	if err = a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	watcherJob, err := watcherjob.NewJob(
+
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,12 +123,24 @@ func (a *App) run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(acceptedWatchKinds) == 0 {
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
+	}
 
 	a.mainJob.SetReady(ok)
 	if ok {
-		log.Info("Plugin is ready")
+		log.InfoContext(ctx, "Plugin is ready")
 	} else {
-		log.Error("Plugin is not ready")
+		log.ErrorContext(ctx, "Plugin is not ready")
 	}
 
 	<-watcherJob.Done()
@@ -122,11 +150,12 @@ func (a *App) run(ctx context.Context) error {
 
 // init inits plugin
 func (a *App) init(ctx context.Context) error {
+	log := logger.Get(ctx)
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 
 	var err error
-	if a.apiClient, err = common.GetTeleportClient(ctx, a.conf.Teleport); err != nil {
+	if a.apiClient, err = a.conf.GetTeleportClient(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -145,42 +174,72 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     a.apiClient,
+		PluginType: types.PluginTypeEmail,
+		PluginName: pluginName,
+		FetchRecipientCallback: func(_ context.Context, recipient string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: recipient,
+				ID:   recipient,
+				Kind: common.RecipientKindEmail,
+			}, nil
+		},
+	})
+
+	log.DebugContext(ctx, "Starting client connection health check")
+	if err = a.client.CheckHealth(ctx); err != nil {
+		return trace.Wrap(err, "client connection health check failed")
+	}
+	log.DebugContext(ctx, "Client connection health check finished ok")
 	return nil
 }
 
 // checkTeleportVersion checks that Teleport version is not lower than required
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
-	log.Debug("Checking Teleport server version")
+	log.DebugContext(ctx, "Checking Teleport server version")
 	pong, err := a.apiClient.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
 		}
-		log.Error("Unable to get Teleport server version")
+		log.ErrorContext(ctx, "Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
-// onWatcherEvent processes new incoming access request
+// onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
+// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
+	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+// handleAccessRequest processes new incoming access request
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.WithField(ctx, "request_id", reqID)
+	ctx, _ = logger.With(ctx, "request_id", reqID)
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.WithField(ctx, "request_op", "put")
+		ctx, _ = logger.With(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.Errorf("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
+		ctx, log := logger.With(ctx, "request_state", req.GetState().String())
 
 		var err error
 		switch {
@@ -191,21 +250,31 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		case req.GetState().IsDenied():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WithField("event", event).Warn("Unknown request state")
+			log.WarnContext(ctx, "Unknown request state",
+				slog.Group("event",
+					slog.Any("type", logutils.StringerAttr(event.Type)),
+					slog.Group("resource",
+						"kind", event.Resource.GetKind(),
+						"name", event.Resource.GetName(),
+					),
+				),
+			)
+
+			log.With("event", event).WarnContext(ctx, "Unknown request state")
 			return nil
 		}
 
 		if err != nil {
-			log.WithError(err).Errorf("Failed to process request")
+			log.ErrorContext(ctx, "Failed to process request", "error", err)
 			return trace.Wrap(err)
 		}
 
 		return nil
 	case types.OpDelete:
-		ctx, log := logger.WithField(ctx, "request_op", "delete")
+		ctx, log := logger.With(ctx, "request_op", "delete")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.WithError(err).Errorf("Failed to process deleted request")
+			log.ErrorContext(ctx, "Failed to process deleted request", "error", err)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -232,13 +301,14 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	if isNew {
-		if recipients := a.getEmailRecipients(ctx, req.GetRoles(), req.GetSuggestedReviewers()); len(recipients) > 0 {
-			if err := a.sendNewThreads(ctx, recipients, reqID, reqData); err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			log.Warning("No recipients to send")
+		recipients := a.getRecipients(ctx, req)
+		if len(recipients) == 0 {
+			log.WarnContext(ctx, "No recipients to send")
 			return nil
+		}
+
+		if err := a.sendNewThreads(ctx, recipients, reqID, reqData); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -270,7 +340,7 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 	case types.RequestState_DENIED:
 		resolution.Tag = ResolvedDenied
 	default:
-		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
+		logger.Get(ctx).WarnContext(ctx, "Unknown state", "state", logutils.StringerAttr(state))
 		return replyErr
 	}
 	err := trace.Wrap(a.sendResolution(ctx, req.GetName(), resolution))
@@ -282,27 +352,38 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 	return a.sendResolution(ctx, reqID, Resolution{Tag: ResolvedExpired})
 }
 
-// getEmailRecipients converts suggested reviewers to email recipients
-func (a *App) getEmailRecipients(ctx context.Context, roles, suggestedReviewers []string) []string {
+func (a *App) getRecipients(ctx context.Context, req types.AccessRequest) []common.Recipient {
 	log := logger.Get(ctx)
-	validEmailRecipients := []string{}
 
-	recipients := a.conf.RoleToRecipients.GetRawRecipientsFor(roles, suggestedReviewers)
+	recipientSet := common.NewRecipientSet()
+	recipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	recipients.ForEach(func(r common.Recipient) {
+		recipientSet.Add(r)
+	})
 
-	for _, recipient := range recipients {
-		if !lib.IsEmail(recipient) {
-			log.Warningf("Failed to notify a reviewer: %q does not look like a valid email", recipient)
-			continue
-		}
-
-		validEmailRecipients = append(validEmailRecipients, recipient)
+	// Return the set of recipients if it is not empty.
+	// Otherwise, use the legacy role to recipients map to search for recipients.
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice()
 	}
 
-	return validEmailRecipients
+	rawRecipients := a.conf.RoleToRecipients.GetRawRecipientsFor(req.GetRoles(), req.GetSuggestedReviewers())
+	for _, rawRecipient := range rawRecipients {
+		if !lib.IsEmail(rawRecipient) {
+			log.WarnContext(ctx, "Failed to notify a suggested reviewer with an invalid email address", "reviewer", rawRecipient)
+			continue
+		}
+		recipientSet.Add(common.Recipient{
+			ID:   rawRecipient,
+			Name: rawRecipient,
+			Kind: common.RecipientKindEmail,
+		})
+	}
+	return recipientSet.ToSlice()
 }
 
 // broadcastNewThreads sends notifications on a new request
-func (a *App) sendNewThreads(ctx context.Context, recipients []string, reqID string, reqData RequestData) error {
+func (a *App) sendNewThreads(ctx context.Context, recipients []common.Recipient, reqID string, reqData RequestData) error {
 	threadsSent, err := a.client.SendNewThreads(ctx, recipients, reqID, reqData)
 
 	if len(threadsSent) == 0 && err != nil {
@@ -312,7 +393,7 @@ func (a *App) sendNewThreads(ctx context.Context, recipients []string, reqID str
 	logSentThreads(ctx, threadsSent, "new threads")
 
 	if err != nil {
-		logger.Get(ctx).WithError(err).Error("Failed send one or more messages")
+		logger.Get(ctx).ErrorContext(ctx, "Failed send one or more messages", "error", err)
 	}
 
 	_, err = a.modifyPluginData(ctx, reqID, func(existing *PluginData) (PluginData, bool) {
@@ -355,7 +436,7 @@ func (a *App) sendReviews(ctx context.Context, reqID string, reqData RequestData
 		return trace.Wrap(err)
 	}
 	if !ok {
-		logger.Get(ctx).Debug("Failed to post reply: plugin data is missing")
+		logger.Get(ctx).DebugContext(ctx, "Failed to post reply: plugin data is missing")
 		return nil
 	}
 	reviews := reqReviews[oldCount:]
@@ -369,7 +450,11 @@ func (a *App) sendReviews(ctx context.Context, reqID string, reqData RequestData
 		if err != nil {
 			errors = append(errors, err)
 		}
-		logger.Get(ctx).Infof("New review for request %v by %v is %v", reqID, review.Author, review.ProposedState.String())
+		logger.Get(ctx).InfoContext(ctx, "New review for request",
+			"request_id", reqID,
+			"author", review.Author,
+			"state", logutils.StringerAttr(review.ProposedState),
+		)
 		logSentThreads(ctx, threadsSent, "new review")
 	}
 
@@ -403,7 +488,7 @@ func (a *App) sendResolution(ctx context.Context, reqID string, resolution Resol
 		return trace.Wrap(err)
 	}
 	if !ok {
-		log.Debug("Failed to update messages: plugin data is missing")
+		log.DebugContext(ctx, "Failed to update messages: plugin data is missing")
 		return nil
 	}
 
@@ -412,7 +497,7 @@ func (a *App) sendResolution(ctx context.Context, reqID string, resolution Resol
 	threadsSent, err := a.client.SendResolution(ctx, threads, reqID, reqData)
 	logSentThreads(ctx, threadsSent, "request resolved")
 
-	log.Infof("Marked request as %s and sent emails!", resolution.Tag)
+	log.InfoContext(ctx, "Marked request with resolution and sent emails", "resolution", resolution.Tag)
 
 	if err != nil {
 		return trace.Wrap(err)
@@ -497,10 +582,11 @@ func (a *App) updatePluginData(ctx context.Context, reqID string, data PluginDat
 // logSentThreads logs successfully sent emails
 func logSentThreads(ctx context.Context, threads []EmailThread, kind string) {
 	for _, thread := range threads {
-		logger.Get(ctx).WithFields(logger.Fields{
-			"email":      thread.Email,
-			"timestamp":  thread.Timestamp,
-			"message_id": thread.MessageID,
-		}).Infof("Successfully sent %v!", kind)
+		logger.Get(ctx).InfoContext(ctx, "Successfully sent",
+			"email", thread.Email,
+			"timestamp", thread.Timestamp,
+			"message_id", thread.MessageID,
+			"kind", kind,
+		)
 	}
 }

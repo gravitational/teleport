@@ -1,30 +1,29 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { format } from 'date-fns';
+import { useState } from 'react';
 
 import { Box, Text } from 'design';
-
+import { displayDateTime } from 'design/datetime';
 import { Option } from 'shared/components/Select';
-import cfg from 'shared/config';
 
-import { dryRunResponse } from '../fixtures';
 import { AccessDurationRequest, AccessDurationReview } from '../AccessDuration';
-
+import { dryRunResponse } from '../fixtures';
 import { AssumeStartTime } from './AssumeStartTime';
 
 export default {
@@ -40,12 +39,11 @@ export const NewRequest = () => {
       <Box mb={4}>
         <Text>Sample Dry Run Access Requeset Response:</Text>
         <Text>
-          <b>Created Date:</b>{' '}
-          {format(dryRunResponse.created, cfg.dateTimeFormat)}
+          <b>Created Date:</b> {displayDateTime(dryRunResponse.created)}
         </Text>
         <Text>
           <b>Max Duration Date:</b>{' '}
-          {format(dryRunResponse.maxDuration, cfg.dateTimeFormat)}
+          {displayDateTime(dryRunResponse.maxDuration)}
         </Text>
       </Box>
       <AssumeStartTime
@@ -54,10 +52,9 @@ export const NewRequest = () => {
         accessRequest={dryRunResponse}
       />
       <AccessDurationRequest
-        assumeStartTime={start}
-        accessRequest={dryRunResponse}
         maxDuration={maxDuration}
-        setMaxDuration={setMaxDuration}
+        onMaxDurationChange={setMaxDuration}
+        maxDurationOptions={[]}
       />
     </Box>
   );
@@ -71,12 +68,11 @@ export const CreatedRequestWithoutStart = () => {
       <Box mb={4}>
         <Text>Sample Access Request:</Text>
         <Text>
-          <b>Created Date:</b>{' '}
-          {format(dryRunResponse.created, cfg.dateTimeFormat)}
+          <b>Created Date:</b> {displayDateTime(dryRunResponse.created)}
         </Text>
         <Text>
           <b>Max Duration Date:</b>{' '}
-          {format(dryRunResponse.maxDuration, cfg.dateTimeFormat)}
+          {displayDateTime(dryRunResponse.maxDuration)}
         </Text>
       </Box>
       <AssumeStartTime
@@ -106,11 +102,10 @@ export const CreatedRequestWithStart = () => {
       <Box mb={4}>
         <Text>Sample Access Request:</Text>
         <Text>
-          <b>Created Date:</b> {format(withStart.created, cfg.dateTimeFormat)}
+          <b>Created Date:</b> {displayDateTime(withStart.created)}
         </Text>
         <Text>
-          <b>Max Duration Date:</b>{' '}
-          {format(withStart.maxDuration, cfg.dateTimeFormat)}
+          <b>Max Duration Date:</b> {displayDateTime(withStart.maxDuration)}
         </Text>
       </Box>
       <AssumeStartTime

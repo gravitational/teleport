@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 type addedToken struct {
@@ -77,61 +78,64 @@ func TestTokens(t *testing.T) {
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	// Test all output formats of "tokens add".
-	t.Run("add", func(t *testing.T) {
-		buf, err := runTokensCommand(t, fileConfig, []string{"add", "--type=node"})
-		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(buf.String(), "The invite token:"))
+	buf, err := runTokensCommand(t, clt, []string{"add", "--type=node"})
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(buf.String(), "The invite token:"))
 
-		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=node,app", "--format", teleport.Text})
-		require.NoError(t, err)
-		require.Equal(t, 1, strings.Count(buf.String(), "\n"))
+	buf, err = runTokensCommand(t, clt, []string{"add", "--type=node,app", "--format", teleport.Text})
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(buf.String(), "\n"))
 
-		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=node,app", "--format", teleport.JSON})
-		require.NoError(t, err)
-		out := mustDecodeJSON[addedToken](t, buf)
+	buf, err = runTokensCommand(t, clt, []string{"add", "--type=node,app", "--format", teleport.JSON})
+	require.NoError(t, err)
+	out := mustDecodeJSON[addedToken](t, buf)
 
-		require.Len(t, out.Roles, 2)
-		require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
-		require.Equal(t, types.KindApp, strings.ToLower(out.Roles[1]))
+	require.Len(t, out.Roles, 2)
+	require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
+	require.Equal(t, types.KindApp, strings.ToLower(out.Roles[1]))
 
-		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=node,app", "--format", teleport.YAML})
-		require.NoError(t, err)
-		out = mustDecodeYAML[addedToken](t, buf)
+	buf, err = runTokensCommand(t, clt, []string{"add", "--type=node,app", "--format", teleport.YAML})
+	require.NoError(t, err)
+	out = mustDecodeYAML[addedToken](t, buf)
 
-		require.Len(t, out.Roles, 2)
-		require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
-		require.Equal(t, types.KindApp, strings.ToLower(out.Roles[1]))
+	require.Len(t, out.Roles, 2)
+	require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
+	require.Equal(t, types.KindApp, strings.ToLower(out.Roles[1]))
 
-		buf, err = runTokensCommand(t, fileConfig, []string{"add", "--type=kube"})
-		require.NoError(t, err)
-		require.Contains(t, buf.String(), `--set roles="kube\,app\,discovery"`,
-			"Command print out should include setting kube, app and discovery roles for helm install.")
-	})
+	buf, err = runTokensCommand(t, clt, []string{"add", "--type=kube", "--labels=foo=bar"})
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), `--set roles="kube\,app\,discovery"`,
+		"Command print out should include setting kube, app and discovery roles for helm install.")
 
 	// Test all output formats of "tokens ls".
-	t.Run("ls", func(t *testing.T) {
-		buf, err := runTokensCommand(t, fileConfig, []string{"ls"})
-		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(buf.String(), "Token "))
-		require.Equal(t, 7, strings.Count(buf.String(), "\n")) // account for header lines
+	buf, err = runTokensCommand(t, clt, []string{"ls"})
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(buf.String(), "Token "))
+	require.Equal(t, 7, strings.Count(buf.String(), "\n")) // account for header lines
 
-		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.Text})
-		require.NoError(t, err)
-		require.Equal(t, 5, strings.Count(buf.String(), "\n"))
+	buf, err = runTokensCommand(t, clt, []string{"ls", "--format", teleport.Text})
+	require.NoError(t, err)
+	require.Equal(t, 5, strings.Count(buf.String(), "\n"))
 
-		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.JSON})
-		require.NoError(t, err)
-		jsonOut := mustDecodeJSON[[]listedToken](t, buf)
-		require.Len(t, jsonOut, 5)
+	buf, err = runTokensCommand(t, clt, []string{"ls", "--format", teleport.JSON})
+	require.NoError(t, err)
+	jsonOut := mustDecodeJSON[[]listedToken](t, buf)
+	require.Len(t, jsonOut, 5)
 
-		buf, err = runTokensCommand(t, fileConfig, []string{"ls", "--format", teleport.YAML})
-		require.NoError(t, err)
-		yamlOut := []listedToken{}
-		mustDecodeYAMLDocuments(t, buf, &yamlOut)
-		require.Len(t, yamlOut, 5)
-		require.Equal(t, jsonOut, yamlOut)
-	})
+	buf, err = runTokensCommand(t, clt, []string{"ls", "--format", teleport.YAML})
+	require.NoError(t, err)
+	yamlOut := []listedToken{}
+	mustDecodeYAMLDocuments(t, buf, &yamlOut)
+	require.Len(t, yamlOut, 5)
+	require.Equal(t, jsonOut, yamlOut)
+
+	// Test filtering by label
+	buf, err = runTokensCommand(t, clt, []string{"ls", "--format", teleport.JSON, "--labels=foo=bar"})
+	require.NoError(t, err)
+	jsonOut = mustDecodeJSON[[]listedToken](t, buf)
+	require.Len(t, jsonOut, 1)
 }

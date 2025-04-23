@@ -19,20 +19,28 @@
 import React, { useState } from 'react';
 
 import { Flex, Link } from 'design';
-import Table, { Cell } from 'design/DataTable';
 import { Danger } from 'design/Alert';
 import { CheckboxInput } from 'design/Checkbox';
+import Table, { Cell } from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
-
+import { IconTooltip } from 'design/Tooltip';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { SecurityGroup } from 'teleport/services/integrations';
+import {
+  SecurityGroup,
+  SecurityGroupRule,
+} from 'teleport/services/integrations';
 
 import { SecurityGroupRulesDialog } from './SecurityGroupRulesDialog';
 
+export type SecurityGroupWithRecommendation = SecurityGroup & {
+  recommended?: boolean;
+  tips?: string[];
+};
+
 type Props = {
   attempt: Attempt;
-  items: SecurityGroup[];
+  items: SecurityGroupWithRecommendation[];
   fetchStatus: FetchStatus;
   fetchNextPage(): void;
   onSelectSecurityGroup: (
@@ -43,7 +51,8 @@ type Props = {
 };
 
 export type ViewRulesSelection = {
-  sg: SecurityGroup;
+  name: string;
+  rules: ExpandedSecurityGroupRule[];
   ruleType: 'inbound' | 'outbound';
 };
 
@@ -59,12 +68,14 @@ export const SecurityGroupPicker = ({
     useState<ViewRulesSelection>();
 
   function onCloseRulesDialog() {
-    setViewRulesSelection(null);
+    setViewRulesSelection(undefined);
   }
 
   if (attempt.status === 'failed') {
     return <Danger>{attempt.statusText}</Danger>;
   }
+
+  const hasRecommendSGs = items.some(item => item.recommended);
 
   return (
     <>
@@ -102,15 +113,20 @@ export const SecurityGroupPicker = ({
             altKey: 'inboundRules',
             headerText: 'Inbound Rules',
             render: sg => {
+              const rules = expandSecurityGroupRules(sg.inboundRules);
               return (
                 <Cell>
                   <Link
                     style={{ cursor: 'pointer' }}
                     onClick={() =>
-                      setViewRulesSelection({ sg, ruleType: 'inbound' })
+                      setViewRulesSelection({
+                        name: sg.name,
+                        rules: rules,
+                        ruleType: 'inbound',
+                      })
                     }
                   >
-                    View ({sg.inboundRules.length})
+                    View ({rules.length})
                   </Link>
                 </Cell>
               );
@@ -120,20 +136,49 @@ export const SecurityGroupPicker = ({
             altKey: 'outboundRules',
             headerText: 'Outbound Rules',
             render: sg => {
+              const rules = expandSecurityGroupRules(sg.outboundRules);
               return (
                 <Cell>
                   <Link
                     style={{ cursor: 'pointer' }}
                     onClick={() =>
-                      setViewRulesSelection({ sg, ruleType: 'outbound' })
+                      setViewRulesSelection({
+                        name: sg.name,
+                        rules: rules,
+                        ruleType: 'outbound',
+                      })
                     }
                   >
-                    View ({sg.outboundRules.length})
+                    View ({rules.length})
                   </Link>
                 </Cell>
               );
             },
           },
+          ...(hasRecommendSGs
+            ? [
+                {
+                  altKey: 'tooltip',
+                  headerText: '',
+                  render: (sg: SecurityGroupWithRecommendation) => {
+                    if (sg.recommended && sg.tips?.length) {
+                      return (
+                        <Cell>
+                          <IconTooltip>
+                            <ul>
+                              {sg.tips.map((tip, index) => (
+                                <li key={index}>{tip}</li>
+                              ))}
+                            </ul>
+                          </IconTooltip>
+                        </Cell>
+                      );
+                    }
+                    return <Cell />;
+                  },
+                },
+              ]
+            : []),
         ]}
         emptyText="No Security Groups Found"
         pagination={{ pageSize: 5 }}
@@ -166,14 +211,59 @@ function CheckboxCell({
     <Cell width="20px">
       <Flex alignItems="center" my={2} justifyContent="center">
         <CheckboxInput
-          type="checkbox"
           id={item.id}
           onChange={e => {
             onChange(item, e);
           }}
           checked={isChecked}
+          data-testid={item.id}
         />
       </Flex>
     </Cell>
   );
+}
+
+type ExpandedSecurityGroupRule = {
+  // IPProtocol is the protocol used to describe the rule.
+  ipProtocol: string;
+  // FromPort is the inclusive start of the Port range for the Rule.
+  fromPort: string;
+  // ToPort is the inclusive end of the Port range for the Rule.
+  toPort: string;
+  // Source is IP range, security group ID, or prefix list that the rule applies to.
+  source: string;
+  // Description contains a small text describing the source.
+  description: string;
+};
+
+// expandSecurityGroupRule takes a security group rule in the compact form that
+// AWS API returns, wherein rules are grouped by port range, and expands the
+// rule into a list of rules that is not grouped by port range.
+// This is the same display format that the AWS console uses when you view a
+// security group's rules.
+function expandSecurityGroupRule(
+  rule: SecurityGroupRule
+): ExpandedSecurityGroupRule[] {
+  return [
+    ...rule.cidrs.map(cidr => ({
+      source: cidr.cidr,
+      description: cidr.description,
+    })),
+    ...rule.groups.map(group => ({
+      source: group.groupId,
+      description: group.description,
+    })),
+  ].map(entry => ({
+    ipProtocol: rule.ipProtocol,
+    fromPort: rule.fromPort,
+    toPort: rule.toPort,
+    source: entry.source,
+    description: entry.description,
+  }));
+}
+
+function expandSecurityGroupRules(
+  rules: SecurityGroupRule[]
+): ExpandedSecurityGroupRule[] {
+  return rules.flatMap(rule => expandSecurityGroupRule(rule));
 }

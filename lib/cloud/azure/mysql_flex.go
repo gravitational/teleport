@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // armMySQLFlexServersClient is an interface that defines a subset of functions of armmysqlflexibleservers.ServersClient.
@@ -44,7 +43,6 @@ var _ MySQLFlexServersClient = (*mySQLFlexServersClient)(nil)
 
 // NewMySQLFlexServersClient creates a new Azure MySQL Flexible server client by subscription and credentials.
 func NewMySQLFlexServersClient(subID string, cred azcore.TokenCredential, opts *arm.ClientOptions) (MySQLFlexServersClient, error) {
-	logrus.Debug("Initializing Azure MySQL Flexible servers client.")
 	api, err := armmysqlflexibleservers.NewServersClient(subID, cred, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

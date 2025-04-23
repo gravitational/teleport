@@ -3,6 +3,7 @@ kind: role
 version: v7
 metadata:
   name: example
+  description: This is an example role.
 spec:
   # options specify connection, in case if user has multiple non-default
   # conflicting options, teleport chooses the least permissive value.
@@ -12,8 +13,18 @@ spec:
     max_session_ttl: 8h
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
-    # port_forwarding controls whether TCP port forwarding is allowed for SSH
-    port_forwarding: true
+    # ssh_port_forwarding controls which TCP port forwarding modes are allowed over SSH. This replaces
+    # the deprecated port_forwarding field, which did not differentiate between remote and local
+    # port forwarding modes. If you have any existing roles that allow forwarding by enabling the
+    # legacy port_forwarding field then the forwarding controls configured in ssh_port_forwarding will be
+    # ignored.
+    ssh_port_forwarding:
+      # configures remote port forwarding behavior
+      remote:
+        enabled: true
+      # configures local port forwarding behavior
+      local:
+        enabled: true
     # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
     # Defaults to true.
     ssh_file_copy: false
@@ -41,6 +52,10 @@ spec:
     device_trust_mode: optional|required|off
     # require_session_mfa require per-session MFA for any assigned user of this role
     require_session_mfa: true
+    # mfa_verification_interval optionally defines the maximum duration that can elapse between successive MFA verifications.
+    # This variable is used to ensure that users are periodically prompted to verify their identity, enhancing
+    # security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives.
+    mfa_verification_interval: 1h
     # lock sets locking mode for user of this role,
     # valid values are 'strict' or 'best_effort'
     lock: strict
@@ -83,6 +98,11 @@ spec:
     # if unspecified. If one or more of the user's roles has disabled
     # the clipboard, then it will be disabled.
     desktop_clipboard: true
+    # Specify whether directory sharing should be allowed from the
+    # local machine to remote desktop (requires a supported browser). Defaults to true
+    # if unspecified. If one or more of the user's roles has disabled
+    # directory sharing, then it will be disabled.
+    desktop_directory_sharing: true
     # enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
     # certificates, preventing a compromised certificate from being used on another
     # network. The default is false.
@@ -96,10 +116,14 @@ spec:
        mode: extension
        name: login@github.com
        value: '{{ external.github_login }}'
-    # Controls whether this role supports auto provisioning of SSH users.
+    # Controls whether this role supports auto-provisioning of SSH users.
     # Options: keep (keep users at session end), insecure-drop (remove user on session end),
     #          and off (disable host user creation)
     create_host_user_mode: keep
+    # Sets the default shell for auto-provisioned SSH users. An absolute path to a shell or a name
+    # reachable through the system PATH are both valid values. Only applies when
+    # create_host_user_mode is not set to off.
+    create_host_user_default_shell: bash
     # Controls whether this role requires automatic database user provisioning.
     # Options: off (disable database user auto-provisioning), keep (disables the
     # user at session end, removing the roles and locking it), and
@@ -139,6 +163,20 @@ spec:
       # The list example above can be expressed as:
       # 'region': '^us-west-1|eu-central-1$'
       'reg': '^us-west-1|eu-central-1$'
+
+    # List of host groups the created user will be added to. Any that don't
+    # already exist are created. Only applies when create_host_user_mode
+    # is not 'off'.
+    host_groups: [ubuntu, nginx, other]
+
+    # List of entries to include in a temporary sudoers file created in
+    # `/etc/sudoers.d`. The records are removed on session close.
+    host_sudoers: [
+      # This line will allow the login user to run `systemctl restart nginx.service`
+      # as root without requiring a password. The sudoers entry will be prefixed
+      # with the logged in username.
+      "ALL = (root) NOPASSWD: /usr/bin/systemctl restart nginx.service"
+    ]
 
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the 'external' property bag.
@@ -224,7 +262,7 @@ spec:
 
     # List of database roles to grant. Mutually exclusive with 'db_permissions'.
     db_roles: ['{{external.db_roles}}']
-    
+
     # Grant all possible Postgres permissions for all tables.
     # List of database permissions to grant. Mutually exclusive with 'db_roles'.
     db_permissions:
@@ -291,6 +329,15 @@ spec:
       - 'arn:aws:iam::1234567890:role/ec2-full-access'
       - 'arn:aws:iam::0987654321:role/example-role'
 
+    # AWS account and permission set bindings for the Identity Center integration
+    account_assignments:
+    - # AWS identity center account ID
+      account: "<account_id>"
+      # name of the permission set in AWS
+      name: AdministratorAccess
+      # permission set ARN
+      permission_set: arn:aws:sso:::permissionSet/ssoins-1234/ps-5678 # permission set ARN
+
     # impersonate allows a user with this role to issue certificates on behalf
     # of other users and roles matching expressions below
     impersonate:
@@ -322,6 +369,21 @@ spec:
       # resources accessible by the listed roles (enterprise-only)
       search_as_roles: ['access']
 
+      # 'kubernetes_resources' restricts what kinds of Kubernetes resources
+      # a user can request access to. In the below example, users can
+      # request only Kubernetes namespaces. Default (when nothing is defined) allows
+      # access requests to any Kubernetes resource or the entire cluster.
+      kubernetes_resources:
+        - kind: "namespace"
+
+      # 'reason' defines settings for the reason for the access provided by the user.
+      reason:
+        # 'mode' can be either "required" or "optional". Empty string is treated as
+        # "optional". If a role has the request reason mode set to "required", then reason
+        # is required for all Access Requests requesting roles or resources allowed by
+        # this role. It applies only to users who have this role assigned.
+        mode: "optional"
+
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)
       thresholds:
@@ -332,7 +394,7 @@ spec:
       # max_duration specifies the maximum duration for which a user can request
       # access to a role. The duration can be specified in seconds (s), minutes
       # (m), hours (h), or days (d), e.g. 4d, 10h, 30m, 60s.
-      # The maximum duration is 7 days.
+      # The maximum duration is 14 days.
       max_duration: 7d
 
       # the 'claims_to_roles' mapping works the same as it does in
@@ -353,7 +415,7 @@ spec:
           # generates a role name from the value capture
           roles: ['$1-admin']
 
-      # Teleport can attach annotations to pending Access Requests. these
+      # Teleport can attach annotations to pending Access Requests. These
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
       # external identity provider to the plugin system.
@@ -391,7 +453,7 @@ spec:
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.
-        modes: ['moderator', 'observer']
+        modes: ['moderator', 'observer', 'peer']
 
     # spiffe is a list of SPIFFE IDs that the role holder is allowed to request
     # SVIDs for. As long as the request matches one of the blocks within the
@@ -414,6 +476,12 @@ spec:
         # 'foo.example.com'.
         dns_sans: ["foo.svc.example.com"]
 
+    # GitHub-related permissions used for proxying Git commands.
+    github_permissions:
+      # List of GitHub organizations the user has access to.
+    - orgs:
+      - my-org
+
     # rules allow a user holding this role to modify other resources
     # matching the expressions below
     # supported resources:
@@ -433,7 +501,6 @@ spec:
     #
     # session            - session playback records
     # session_tracker    - an active session
-    # ssh_session        - allows seeing active sessions page
     # instance           - a Teleport instance
     # event              - structured audit logging event
     #
@@ -449,6 +516,7 @@ spec:
     # kube_cluster          - Kubernetes cluster resource
     # token                 - provisioning token resource
     # cert_authority        - certificate authority resource
+    # git_server            - Git server resource
     #
     # cluster_name              - resource that contains the cluster name.
     # cluster_config            - resource that holds cluster level config

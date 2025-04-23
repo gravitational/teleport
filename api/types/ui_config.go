@@ -100,16 +100,6 @@ func (c *UIConfigV1) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetResourceID returns resource ID.
-func (c *UIConfigV1) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *UIConfigV1) SetResourceID(id int64) {
-	c.Metadata.ID = id
-}
-
 // GetKind returns resource kind.
 func (c *UIConfigV1) GetKind() string {
 	return c.Kind

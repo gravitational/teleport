@@ -52,7 +52,7 @@ func TestUserLoginStateCRUD(t *testing.T) {
 	state2 := newUserLoginState(t, "state2")
 
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(header.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 	}
 
 	// Neither state should exist.

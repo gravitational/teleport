@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import * as connectMyComputer from 'shared/connectMyComputer';
 
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export interface CreateAgentConfigFileArgs {
   rootClusterUri: RootClusterUri;
@@ -52,12 +52,12 @@ export async function createAgentConfigFile(
     .map(keyAndValue => keyAndValue.join('='))
     .join(',');
 
-  await asyncExecFile(
+  const { stdout } = await asyncExecFile(
     runtimeSettings.agentBinaryPath,
     [
       'node',
       'configure',
-      `--output=${configFile}`,
+      '--output=stdout',
       `--data-dir=${dataDirectory}`,
       `--proxy=${args.proxy}`,
       `--token=${args.token}`,
@@ -67,7 +67,41 @@ export async function createAgentConfigFile(
       timeout: 10_000, // 10 seconds
     }
   );
+
+  try {
+    await fs.mkdir(path.dirname(configFile), {
+      // Create the agents dir too if it doesn't already exist.
+      recursive: true,
+    });
+  } catch (error) {
+    // Ignore error if directory already exists.
+    if (error['code'] !== 'EEXIST') {
+      throw error;
+    }
+  }
+
+  await fs.writeFile(configFile, stdout + disableDebugServiceStanza);
 }
+
+// The debug service is enabled by default. It starts when the teleport agent is launched and it
+// creates a debug.sock file in the data directory. Unfortunately, there's a length limit on the
+// socket path – 107 characters on Linux and 104 characters on macOS [1]. If exceeded, creating a
+// new listener fails with "bind: invalid argument".
+//
+// The default path for debug.sock for Connect My Computer on macOS is
+// /Users/<user>/Library/Application Support/Teleport Connect/agents/<proxy hostname>/data/debug.sock
+// The constant part is 76 characters which leaves just 28 characters for the hostname and user.
+//
+// As a workaround, we disable the debug service. This is going to work until someone adds another
+// socket which is crucial to run a Teleport agent.
+//
+// See the GitHub issue for more details: https://github.com/gravitational/teleport/issues/43250
+//
+// [1] https://unix.stackexchange.com/questions/367008/why-is-socket-path-length-limited-to-a-hundred-chars
+export const disableDebugServiceStanza = `
+debug_service:
+  enabled: false
+`;
 
 export async function removeAgentDirectory(
   runtimeSettings: RuntimeSettings,

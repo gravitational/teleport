@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// Package csrf is used to protect against login CSRF in Teleport's SSO flows.
 package csrf
 
 import (
@@ -28,71 +29,30 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	// CookieName is the name of the CSRF cookie. It's prefixed with "__Host-" as
-	// an additional defense in depth measure. It makes sure it is sent from a
-	// secure page (HTTPS), won't be sent to subdomains, and the path attribute
-	// is set to /.
-	CookieName = "__Host-grv_csrf"
-	// HeaderName is the default HTTP request header to inspect.
-	HeaderName = "X-CSRF-Token"
-	// FormFieldName is the default form field to inspect.
-	FormFieldName = "csrf_token"
-	// tokenLenBytes is CSRF token length in bytes.
-	tokenLenBytes = 32
-	// defaultMaxAge is the default MaxAge for cookies.
-	defaultMaxAge = 0
-)
+// CookieName is the name of the CSRF cookie used to protect against login
+// CSRF in Teleport's SSO flows.
+//
+// It's prefixed with "__Host-" as an additional defense in depth measure.
+// This makes sure the cookie is sent from a secure page (HTTPS),
+// won't be sent to subdomains, and the path attribute is set to /.
+const CookieName = "__Host-grv_csrf"
 
-// GenerateToken generates a random CSRF token.
-func GenerateToken() (string, error) {
-	return utils.CryptoRandomHex(tokenLenBytes)
-}
+// tokenLenBytes is the length of a raw CSRF token prior to encoding
+const tokenLenBytes = 32
 
-// AddCSRFProtection adds CSRF token into the user session via secure cookie,
-// it implements "double submit cookie" approach to check against CSRF attacks
-// https://www.owasp.org/index.php/Cross-Site_Request_Forgery_%28CSRF%29_Prevention_Cheat_Sheet#Double_Submit_Cookie
+// AddCSRFProtection adds CSRF token into the user session via a secure cookie.
+// This CSRF token is used to protect against login CSRF in Teleport's SSO flows.
 func AddCSRFProtection(w http.ResponseWriter, r *http.Request) (string, error) {
 	token, err := ExtractTokenFromCookie(r)
 	// if there was an error retrieving the token, the token doesn't exist
 	if err != nil || len(token) == 0 {
-		token, err = GenerateToken()
+		token, err = utils.CryptoRandomHex(tokenLenBytes)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
 	}
 	save(token, w)
 	return token, nil
-}
-
-// VerifyHTTPHeader checks if HTTP header value matches the cookie.
-func VerifyHTTPHeader(r *http.Request) error {
-	token := r.Header.Get(HeaderName)
-	if len(token) == 0 {
-		return trace.BadParameter("cannot retrieve CSRF token from HTTP header %q", HeaderName)
-	}
-
-	err := VerifyToken(token, r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// VerifyFormField checks if HTTP form value matches the cookie.
-func VerifyFormField(r *http.Request) error {
-	token := r.FormValue(FormFieldName)
-	if len(token) == 0 {
-		return trace.BadParameter("cannot retrieve CSRF token from form field %q", FormFieldName)
-	}
-
-	err := VerifyToken(token, r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // VerifyToken validates given token based on HTTP request cookie
@@ -112,7 +72,7 @@ func VerifyToken(token string, r *http.Request) error {
 		return trace.Wrap(err, "unable to decode cookie CSRF token")
 	}
 
-	if !compareTokens(decodedTokenA, decodedTokenB) {
+	if subtle.ConstantTimeCompare(decodedTokenA, decodedTokenB) != 1 {
 		return trace.BadParameter("CSRF tokens do not match")
 	}
 
@@ -129,7 +89,7 @@ func ExtractTokenFromCookie(r *http.Request) (string, error) {
 	return cookie.Value, nil
 }
 
-// decode decodes a cookie using base64.
+// decode decodes a hex-encoded CSRF token.
 func decode(token string) ([]byte, error) {
 	decoded, err := hex.DecodeString(token)
 	if err != nil {
@@ -143,17 +103,11 @@ func decode(token string) ([]byte, error) {
 	return decoded, nil
 }
 
-// compareTokens securely (constant-time) compares CSRF tokens
-func compareTokens(a, b []byte) bool {
-	return subtle.ConstantTimeCompare(a, b) == 1
-}
-
 // save stores encoded CSRF token in the session cookie.
 func save(encodedToken string, w http.ResponseWriter) string {
 	cookie := &http.Cookie{
-		Name:   CookieName,
-		Value:  encodedToken,
-		MaxAge: defaultMaxAge,
+		Name:  CookieName,
+		Value: encodedToken,
 		// Set SameSite to none so browsers preserve gravitational CSRF cookie
 		// while processing SSO providers redirects.
 		SameSite: http.SameSiteNoneMode,

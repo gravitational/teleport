@@ -16,21 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import { render, screen, userEvent, fireEvent } from 'design/utils/testing';
-
-import { Option } from 'shared/components/Select';
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
+import { RequestState } from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
-
-import { ReviewerOption } from './types';
-
+import { useSpecifiableFields } from '../useSpecifiableFields';
 import {
-  RequestCheckout as RequestCheckoutComp,
-  RequestCheckoutProps,
+  RequestCheckoutWithSlider as RequestCheckoutComp,
+  RequestCheckoutWithSliderProps,
 } from './RequestCheckout';
 
-test('start with no suggested reviewers', async () => {
+test('adding a reviewer and then removing it afterwards when there are no suggested reviewers', async () => {
   render(<RequestCheckout />);
 
   // Test init renders no reviewers.
@@ -55,10 +51,10 @@ test('start with no suggested reviewers', async () => {
   expect(reviewers.childNodes).toHaveLength(0);
 });
 
-test('start with suggested reviewers', async () => {
+test('adding a reviewer and removing a suggested reviewer does not remove it from the suggested section', async () => {
   render(<RequestCheckout reviewers={['llama']} />);
 
-  // Test init renders reviewers.
+  // Initially, all suggested reviewers are pre-selected.
   let reviewers = screen.getByTestId('reviewers');
   expect(reviewers.childNodes).toHaveLength(1);
   expect(reviewers.childNodes[0]).toHaveTextContent('llama');
@@ -99,7 +95,7 @@ test('start with suggested reviewers', async () => {
   expect(reviewers.childNodes[1]).toHaveTextContent('llama');
 });
 
-test('assume start time + additional info access request lifetime', () => {
+test('changing access duration, also changes pending TTL options and the request lifetime text', () => {
   jest.useFakeTimers().setSystemTime(dryRunResponse.created);
   render(<RequestCheckout />);
 
@@ -109,54 +105,54 @@ test('assume start time + additional info access request lifetime', () => {
   expect(screen.queryByText(/start time/i)).not.toBeInTheDocument();
   expect(screen.getByText(/access duration/i)).toBeInTheDocument();
   expect(screen.getAllByText(/2 days/i)).toHaveLength(1);
-  const calendarBtn = screen.getByText(/immediately/i);
-  fireEvent.click(calendarBtn);
 
   // Expand the additional info box where the access lifetime
   // gets displayed.
   fireEvent.click(infoBtn);
   expect(screen.getByText(/Access Request Lifetime/i)).toBeInTheDocument();
-  expect(screen.getAllByText(/2 days/i)).toHaveLength(2);
+
+  // Test that all three fields display the same time info (max duration, pending, and lifetime)
+  expect(screen.getAllByText(/2 days/i)).toHaveLength(3);
 
   // Changing the "access duration" to a shorter time
-  // should reduce the "access lifetime".
+  // should also update pending and lifetime text
   fireEvent.keyDown(screen.getAllByText(/2 days/i)[0], { key: 'ArrowDown' });
   fireEvent.click(screen.getByText(/1 day/i));
-  expect(screen.getAllByText(/1 day/i)).toHaveLength(2);
+  expect(screen.getAllByText(/1 day/i)).toHaveLength(3);
 });
 
 const RequestCheckout = ({ reviewers = [] }: { reviewers?: string[] }) => {
-  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>(
-    () => reviewers.map(r => ({ label: r, value: r, isSelected: true }))
-  );
-  const [maxDuration, setMaxDuration] = useState<Option<number>>();
+  const specifiableProps = useSpecifiableFields();
+
+  if (!specifiableProps.dryRunResponse) {
+    const request = {
+      ...dryRunResponse,
+      reviewers: reviewers.map(r => ({ name: r, state: '' as RequestState })),
+    };
+    specifiableProps.onDryRunChange(request);
+  }
 
   return (
     <div>
       <RequestCheckoutComp
         {...props}
-        reviewers={reviewers}
-        selectedReviewers={selectedReviewers}
-        setSelectedReviewers={setSelectedReviewers}
         isResourceRequest={true}
         fetchResourceRequestRolesAttempt={{ status: 'success' }}
-        maxDuration={maxDuration}
-        setMaxDuration={setMaxDuration}
+        {...specifiableProps}
       />
     </div>
   );
 };
 
-const props: RequestCheckoutProps = {
+const props: RequestCheckoutWithSliderProps = {
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
-  reviewers: [],
   selectedReviewers: [],
   setSelectedReviewers: () => null,
   createRequest: () => null,
-  data: [],
+  pendingAccessRequests: [],
   clearAttempt: () => null,
   onClose: () => null,
   toggleResource: () => null,
@@ -168,8 +164,14 @@ const props: RequestCheckoutProps = {
   setSelectedResourceRequestRoles: () => null,
   fetchStatus: 'loaded',
   maxDuration: { value: 0, label: '12 hours' },
-  setMaxDuration: () => null,
-  requestTTL: { value: 0, label: '1 hour' },
-  setRequestTTL: () => null,
-  dryRunResponse,
+  onMaxDurationChange: () => null,
+  maxDurationOptions: [],
+  pendingRequestTtlOptions: [],
+  pendingRequestTtl: { value: 0, label: '1 hour' },
+  setPendingRequestTtl: () => null,
+  dryRunResponse: null,
+  startTime: null,
+  onStartTimeChange: () => null,
+  fetchKubeNamespaces: () => null,
+  updateNamespacesForKubeCluster: () => null,
 };

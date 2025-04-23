@@ -207,10 +207,15 @@ type Identity interface {
 
 	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnector returns OIDC connector data, withSecrets adds or removes secrets from return results
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 
 	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
 	// Invalid Connectors are simply logged but errors are not forwarded.
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectors returns valid registered connectors, withSecrets adds or removes secret from return results.
+	// Invalid Connectors are simply logged but errors are not forwarded.
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
@@ -245,6 +250,17 @@ type Identity interface {
 
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
+
+	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
+	// storage, for the purpose of later verifying an MFA authentication attempt.
+	// SSO MFA session data is expected to expire according to backend settings.
+	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
+
+	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
+	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
+
+	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
+	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
 
 	// CreateUserToken creates a new user token.
 	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)

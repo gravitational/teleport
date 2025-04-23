@@ -16,135 +16,42 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
 import { Link as InternalRouteLink } from 'react-router-dom';
-import { useLocation } from 'react-router';
 import styled from 'styled-components';
-import {
-  Box,
-  ButtonSecondary,
-  Text,
-  Link,
-  Flex,
-  ButtonPrimary,
-  ButtonText,
-} from 'design';
+
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
+import Validation from 'shared/components/Validation';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
-import Validation, { Validator } from 'shared/components/Validation';
-import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  IntegrationEnrollEvent,
-  IntegrationEnrollEventData,
-  IntegrationEnrollKind,
-  userEventService,
-} from 'teleport/services/userEvent';
-import { Header } from 'teleport/Discover/Shared';
-import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-
-import {
-  Integration,
-  IntegrationKind,
-  integrationService,
-} from 'teleport/services/integrations';
 import cfg from 'teleport/config';
-
-import { FinishDialog } from './FinishDialog';
-import { S3BucketConfiguration } from './S3BucketConfiguration';
+import { Header } from 'teleport/Discover/Shared';
+import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
 import {
-  getDefaultS3BucketName,
-  requiredPrefixName,
-  validPrefixNameToolTipContent,
-} from './Shared/utils';
-import { S3BucketWarningBanner } from './S3BucketWarningBanner';
+  RoleArnInput,
+  ShowConfigurationScript,
+} from 'teleport/Integrations/shared';
+import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
+import { FinishDialog } from './FinishDialog';
+import { useAwsOidcIntegration } from './useAwsOidcIntegration';
 
 export function AwsOidc() {
-  const [integrationName, setIntegrationName] = useState('');
-  const [roleArn, setRoleArn] = useState('');
-  const [roleName, setRoleName] = useState('');
-  const [scriptUrl, setScriptUrl] = useState('');
-  const [s3Bucket, setS3Bucket] = useState(() => getDefaultS3BucketName());
-  const [s3Prefix, setS3Prefix] = useState('');
-  const [showS3BucketWarning, setShowS3BucketWarning] = useState(false);
-  const [confirmedS3BucketWarning, setConfirmedS3BucketWarning] =
-    useState(false);
-  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
-  const { attempt, run } = useAttempt('');
-
-  const location = useLocation<DiscoverUrlLocationState>();
-
-  const [eventData] = useState<IntegrationEnrollEventData>({
-    id: crypto.randomUUID(),
-    kind: IntegrationEnrollKind.AwsOidc,
-  });
-
-  const requiresS3BucketWarning = !s3Bucket && !s3Prefix;
-
-  useEffect(() => {
-    // If a user came from the discover wizard,
-    // discover wizard will send of appropriate events.
-    if (location.state?.discover) {
-      return;
-    }
-
-    emitEvent(IntegrationEnrollEvent.Started);
-    // Only send event once on init.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function handleOnCreate(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-
-    run(() =>
-      integrationService
-        .createIntegration({
-          name: integrationName,
-          subKind: IntegrationKind.AwsOidc,
-          awsoidc: {
-            roleArn,
-            issuerS3Bucket: s3Bucket,
-            issuerS3Prefix: s3Prefix,
-          },
-        })
-        .then(res => {
-          setCreatedIntegration(res);
-
-          if (location.state?.discover) {
-            return;
-          }
-          emitEvent(IntegrationEnrollEvent.Complete);
-        })
-    );
-  }
-
-  function emitEvent(event: IntegrationEnrollEvent) {
-    userEventService.captureIntegrationEnrollEvent({
-      event,
-      eventData,
-    });
-  }
-
-  function generateAwsOidcConfigIdpScript(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-
-    validator.reset();
-
-    const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
-      integrationName,
-      roleName,
-      s3Bucket,
-      s3Prefix,
-    });
-
-    setScriptUrl(newScriptUrl);
-  }
+  const {
+    integrationConfig,
+    setIntegrationConfig,
+    scriptUrl,
+    setScriptUrl,
+    handleOnCreate,
+    createdIntegration,
+    createIntegrationAttempt,
+    generateAwsOidcConfigIdpScript,
+  } = useAwsOidcIntegration();
+  const { clusterId } = useStickyClusterId();
 
   return (
     <Box pt={3}>
@@ -173,78 +80,68 @@ export function AwsOidc() {
           AWS RDS
         </RouteLink>{' '}
         instances during resource enrollment.
+        <Box mt={3}>
+          AWS Resources created by the integration are tagged so that you can
+          search and export them using the{' '}
+          <Link target="_blank" href={AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK}>
+            AWS Resource Groups / Tag Editor
+          </Link>
+          . The following tags are applied:
+          <TextSelectCopyMulti
+            bash={false}
+            lines={[
+              {
+                text:
+                  `teleport.dev/cluster: ` +
+                  clusterId +
+                  `\n` +
+                  `teleport.dev/origin: integration_awsoidc\n` +
+                  `teleport.dev/integration: ` +
+                  integrationConfig.name,
+              },
+            ]}
+          />
+        </Box>
       </Box>
 
       <Validation>
         {({ validator }) => (
           <>
-            <Container mb={5}>
+            <Container mb={5} width={800}>
               <Text bold>Step 1</Text>
               <Box width="600px">
                 <FieldInput
-                  rule={requiredPrefixName(true)}
                   autoFocus={true}
-                  value={integrationName}
+                  value={integrationConfig.name}
                   label="Give this AWS integration a name"
                   placeholder="Integration Name"
-                  onChange={e => setIntegrationName(e.target.value)}
+                  onChange={e =>
+                    setIntegrationConfig({
+                      ...integrationConfig,
+                      name: e.target.value,
+                    })
+                  }
                   disabled={!!scriptUrl}
-                  onBlur={() => {
-                    // s3Bucket by default is defined.
-                    // If empty user intentionally cleared it.
-                    if (!integrationName || (!s3Bucket && !s3Prefix)) return;
-                    // Help come up with a default prefix name for user.
-                    if (!s3Prefix) {
-                      setS3Prefix(`${integrationName}-oidc-idp`);
-                    }
-                  }}
-                  toolTipContent={validPrefixNameToolTipContent('Integration')}
                 />
                 <FieldInput
                   rule={requiredIamRoleName}
-                  value={roleName}
-                  placeholder="IAM Role Name"
-                  label="IAM Role Name"
-                  onChange={e => setRoleName(e.target.value)}
-                  disabled={!!scriptUrl}
-                />
-                <S3BucketConfiguration
-                  s3Bucket={s3Bucket}
-                  setS3Bucket={setS3Bucket}
-                  s3Prefix={s3Prefix}
-                  setS3Prefix={setS3Prefix}
+                  value={integrationConfig.roleName}
+                  placeholder="Integration role name"
+                  label="Give a name for an AWS IAM role this integration will create"
+                  onChange={e =>
+                    setIntegrationConfig({
+                      ...integrationConfig,
+                      roleName: e.target.value,
+                    })
+                  }
                   disabled={!!scriptUrl}
                 />
               </Box>
-              {confirmedS3BucketWarning && (
-                <Box>
-                  <ButtonText
-                    pl={0}
-                    gap={2}
-                    onClick={() => setShowS3BucketWarning(true)}
-                    alignItems="center"
-                  >
-                    <Icons.Warning size="small" color="warning.main" />
-                    <Text fontSize={1}>Click to view S3 Bucket Warning</Text>
-                  </ButtonText>
-                </Box>
-              )}
-              {showS3BucketWarning ? (
-                <S3BucketWarningBanner
-                  onClose={() => setShowS3BucketWarning(false)}
-                  onContinue={() => {
-                    setShowS3BucketWarning(false);
-                    setConfirmedS3BucketWarning(true);
-                    generateAwsOidcConfigIdpScript(validator);
-                  }}
-                  reviewing={confirmedS3BucketWarning}
-                />
-              ) : scriptUrl ? (
+              {scriptUrl ? (
                 <ButtonSecondary
                   mb={3}
                   onClick={() => {
                     setScriptUrl('');
-                    setConfirmedS3BucketWarning(false);
                   }}
                 >
                   Edit
@@ -252,13 +149,12 @@ export function AwsOidc() {
               ) : (
                 <ButtonSecondary
                   mb={3}
-                  onClick={() => {
-                    if (requiresS3BucketWarning) {
-                      setShowS3BucketWarning(true);
-                    } else {
-                      generateAwsOidcConfigIdpScript(validator);
-                    }
-                  }}
+                  onClick={() =>
+                    generateAwsOidcConfigIdpScript(
+                      validator,
+                      AwsOidcPolicyPreset.Unspecified
+                    )
+                  }
                 >
                   Generate Command
                 </ButtonSecondary>
@@ -266,64 +162,47 @@ export function AwsOidc() {
             </Container>
             {scriptUrl && (
               <>
-                <Container mb={5}>
-                  <Text bold>Step 2</Text>
-                  <Text mb={2}>
-                    Open{' '}
-                    <Link
-                      href="https://console.aws.amazon.com/cloudshell/home"
-                      target="_blank"
-                    >
-                      AWS CloudShell
-                    </Link>{' '}
-                    and copy and paste the command that configures the
-                    permissions for you:
-                  </Text>
-                  <Box mb={2}>
-                    <TextSelectCopyMulti
-                      lines={[
-                        {
-                          text: `bash -c "$(curl '${scriptUrl}')"`,
-                        },
-                      ]}
+                <Container mb={5} width={800}>
+                  <Flex gap={1} alignItems="center">
+                    <Text bold>Step 2</Text>
+                    <ConfigureAwsOidcSummary
+                      roleName={integrationConfig.roleName}
+                      integrationName={integrationConfig.name}
                     />
-                  </Box>
+                  </Flex>
+                  <ShowConfigurationScript scriptUrl={scriptUrl} />
                 </Container>
-                <Container mb={5}>
+                <Container mb={5} width={800}>
                   <Text bold>Step 3</Text>
-                  After configuring is finished, go to your{' '}
-                  <Link
-                    target="_blank"
-                    href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleName}`}
-                  >
-                    IAM Role dashboard
-                  </Link>{' '}
-                  and copy and paste the ARN below.
-                  <FieldInput
-                    mt={2}
-                    rule={requiredRoleArn(roleName)}
-                    value={roleArn}
-                    label="Role ARN (Amazon Resource Name)"
-                    placeholder={`arn:aws:iam::123456789012:role/${roleName}`}
-                    width="430px"
-                    onChange={e => setRoleArn(e.target.value)}
-                    disabled={attempt.status === 'processing'}
-                    toolTipContent={`Unique AWS resource identifier and uses the format: arn:aws:iam::<ACCOUNT_ID>:role/<IAM_ROLE_NAME>`}
+                  <RoleArnInput
+                    roleName={integrationConfig.roleName}
+                    roleArn={integrationConfig.roleArn}
+                    setRoleArn={(v: string) =>
+                      setIntegrationConfig({
+                        ...integrationConfig,
+                        roleArn: v,
+                      })
+                    }
+                    disabled={createIntegrationAttempt.status === 'processing'}
                   />
                 </Container>
               </>
             )}
-            {attempt.status === 'failed' && (
+            {createIntegrationAttempt.status === 'error' && (
               <Flex>
                 <Icons.Warning mr={2} color="error.main" size="small" />
-                <Text color="error.main">Error: {attempt.statusText}</Text>
+                <Text color="error.main">
+                  Error: {createIntegrationAttempt.statusText}
+                </Text>
               </Flex>
             )}
             <Box mt={6}>
               <ButtonPrimary
                 onClick={() => handleOnCreate(validator)}
                 disabled={
-                  !scriptUrl || attempt.status === 'processing' || !roleArn
+                  !scriptUrl ||
+                  createIntegrationAttempt.status === 'processing' ||
+                  !integrationConfig.roleArn
                 }
               >
                 Create Integration
@@ -350,24 +229,6 @@ const Container = styled(Box)`
   border-radius: ${p => `${p.theme.space[2]}px`};
   padding: ${p => p.theme.space[3]}px;
 `;
-
-const requiredRoleArn = (roleName: string) => (roleArn: string) => () => {
-  const regex = new RegExp(
-    '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
-  );
-
-  if (regex.test(roleArn)) {
-    return {
-      valid: true,
-    };
-  }
-
-  return {
-    valid: false,
-    message:
-      'invalid role ARN, double check you copied and pasted the correct output',
-  };
-};
 
 const RouteLink = styled(InternalRouteLink)`
   color: ${({ theme }) => theme.colors.buttons.link.default};

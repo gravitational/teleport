@@ -23,7 +23,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 )
@@ -41,10 +43,10 @@ var defaultCompareOpts = []cmp.Option{
 	// Fixes time precision issues that might be caused by serialization/deserialization
 	cmpopts.EquateApproxTime(MaxTimeDiff),
 	// New resource headers
-	cmpopts.IgnoreFields(header.Metadata{}, "ID", "Labels", "Revision"),
+	cmpopts.IgnoreFields(header.Metadata{}, "Labels", "Revision"),
 	cmpopts.IgnoreFields(header.ResourceHeader{}, "Kind"),
 	// Legacy gogoproto resource headers
-	cmpopts.IgnoreFields(types.Metadata{}, "ID", "Labels", "Revision", "Namespace"),
+	cmpopts.IgnoreFields(types.Metadata{}, "Labels", "Revision", "Namespace"),
 	cmpopts.IgnoreFields(types.ResourceHeader{}, "Kind"),
 }
 
@@ -52,4 +54,15 @@ var defaultCompareOpts = []cmp.Option{
 // custom ones for the test/resource.
 func CompareOptions(customOpts ...cmp.Option) []cmp.Option {
 	return append(defaultCompareOpts, customOpts...)
+}
+
+var defaultProtoCompareOpts = []cmp.Option{
+	protocmp.Transform(),
+	protocmp.IgnoreFields(&headerv1.Metadata{}, "labels", "revision"),
+}
+
+// ProtoCompareOptions returns comparison options for comparing protobuf messages.
+// Use instead of CompareOptions when using with RFD153 bare proto resources.
+func ProtoCompareOptions(customOpts ...cmp.Option) []cmp.Option {
+	return append(defaultProtoCompareOpts, customOpts...)
 }

@@ -1,30 +1,26 @@
-# Build the plugin binary
-ARG GO_VERSION
 ARG BASE_IMAGE=gcr.io/distroless/static-debian12
 
-FROM golang:${GO_VERSION}-bookworm as builder
+# BUILDPLATFORM is provided by Docker/buildx
+# Extract the built tarball to reduce the final image size
+FROM --platform=${BUILDPLATFORM} alpine:3.20.0 as extractor
 
-ARG GITREF
-ARG VERSION
+ARG TARGETARCH
+ARG TARGETOS
+ARG ARTIFACT_NAME=plugin    # Should be something like 'access-slack' or 'event-handler'
+ARG TELEPORT_VERSION=0.0.0  # Should be the version without 'v' prefix
+ARG FILENAME=teleport-${ARTIFACT_NAME}-v${TELEPORT_VERSION}-${TARGETOS}-${TARGETARCH}-bin.tar.gz # Optional override
 
-WORKDIR /workspace
+WORKDIR /extraction
+COPY *${TARGETARCH}*.tar.gz /plugin.tar.gz
+COPY "${FILENAME}" /plugin.tar.gz
 
-# Copy the Go Modules manifests
-COPY go.mod go.mod
-COPY go.sum go.sum
+RUN tar -xzvf /plugin.tar.gz && \
+    find . -type f -executable -name 'teleport-*' -exec mv {} /teleport-plugin \;
 
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+# Create the image with the build operator on the $TARGETPLATFORM
+# TARGETPLATFORM is provided by Docker/buildx
+FROM --platform=${TARGETPLATFORM} ${BASE_IMAGE}
+WORKDIR /
+COPY --from=extractor /teleport-plugin /usr/local/bin/teleport-plugin
 
-# Copy the go source
-COPY event-handler event-handler
-
-# Build
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build make -C event-handler GITREF=${GITREF} VERSION=${VERSION}
-
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM $BASE_IMAGE
-
-COPY --from=builder /workspace/event-handler/build/teleport-event-handler /usr/local/bin/teleport-event-handler
-
-ENTRYPOINT ["/usr/local/bin/teleport-event-handler"]
+ENTRYPOINT ["/usr/local/bin/teleport-plugin"]

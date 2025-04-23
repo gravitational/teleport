@@ -1,0 +1,416 @@
+---
+title: Configuring Workload Identity and GCP Workload Identity Federation with JWTs
+description: Configuring GCP to accept Workload Identity JWTs as authentication using Workload Identity Federation
+---
+
+Teleport Workload Identity issues flexible short-lived identities in JWT format.
+GCP Workload Identity Federation allows you to use these JWTs to authenticate to
+GCP services.
+
+This can be useful in cases where a machine needs to securely authenticate with
+GCP services without the use of a long-lived credential. This is because the
+machine can authenticate with Teleport without using any shared secrets by
+using one of our delegated join methods.
+
+In this guide, we'll configure Teleport Workload Identity and GCP to allow our
+workload to authenticate to the GCP Cloud Storage API and upload content to a
+bucket.
+
+## How it works
+
+This implementation differs from using the Teleport Application Service to protect
+GCP APIs in a few ways:
+
+- Requests to GCP are not proxied through the Teleport Proxy Service, meaning
+  reduced latency but also less visibility, as these requests will not be
+  recorded in Teleport's audit log.
+- Workload Identity works with any GCP client, including the command-line tool
+  but also their SDKs.
+- Using the Teleport Application Service to access GCP does not work with Machine ID
+  and therefore cannot be used when a machine needs to authenticate with AWS.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- `tbot` must already be installed and configured on the host where the
+workloads which need to access Teleport Workload Identity will run. For more
+information, see the [deployment guides](../machine-id/deployment/deployment.mdx).
+
+<Admonition type="warning">
+Issuing JWT SVIDs with Teleport Workload Identity requires at minimum version
+16.4.3.
+</Admonition>
+
+### Deciding on a SPIFFE ID structure
+
+Within Teleport Workload Identity, all identities are represented using a
+SPIFFE ID. This is a URI that uniquely identifies the entity that the identity
+represents. The scheme is always `spiffe://`, and the host will be the name of
+your Teleport cluster. The structure of the path of this URI is up to you.
+
+For the purposes of this guide, we will be granting access to GCP to the
+`spiffe://example.teleport.sh/svc/example-service` SPIFFE ID.
+
+If you have already deployed Teleport Workload Identity, then you will already
+have a SPIFFE ID structure in place. If you have not, then you will need to
+decide on a structure for your SPIFFE IDs.
+
+If you are only using Teleport Workload Identity with GCP Workload Identity
+Federation, you may structure your SPIFFE IDs so that they explicitly specify
+the GCP service account they are allowed to assume. However, it often makes more
+sense to name the workload or person that will use the SPIFFE ID. See the
+[best practices guide](./best-practices.mdx) for further advice.
+
+## Step 1/4. Configure GCP
+
+Configuring GCP Workload Identity Federation for the first time involves a few
+steps. Some of these may not be necessary if you have previously configured GCP
+Workload Identity Federation for your Teleport cluster.
+
+### Create a Workload Identity Pool and OIDC Provider
+
+First, you'll need to create a workload identity pool and an OIDC provider
+within this pool in GCP. A workload identity pool is an entity for managing
+how external workload identities are represented within GCP.
+
+The provider configures how the external identities should authenticate to the
+pool. Since Teleport Workload Identity issues OIDC compatible JWT-SVIDs, you'll
+use the OIDC provider type.
+
+When configuring the pool, you need to choose a name to identify it. This name
+should uniquely identify the source of the workload identities. It may make
+sense to name it after your Teleport cluster. In this example, it will be called
+`workload-id-pool`.
+
+When configuring the provider, you need to specify the issuer URI. This will be
+the public address of your Teleport Proxy Service with the path
+`/workload-identity` appended. Your Teleport Proxy Service must be accessible
+by GCP in order for OIDC federation to work.
+
+You'll also specify an "attribute mapping". This determines how GCP will map the
+identity within the JWT to a principal in GCP. Since we're using SVIDs, we'll
+map the `sub` claim within the JWT to the `google.subject` attribute to
+be able to use the workload's SPIFFE ID to make authorization decisions in GCP.
+
+<Tabs>
+<TabItem label="Terraform">
+
+```hcl
+data "google_project" "project" {}
+
+resource "google_iam_workload_identity_pool" "workload_identity" {
+    workload_identity_pool_id = "workload-id-pool"
+}
+
+resource "google_iam_workload_identity_pool_provider" "workload_identity_oidc" {
+    workload_identity_pool_id          = google_iam_workload_identity_pool.workload_identity.workload_identity_pool_id
+    workload_identity_pool_provider_id = "workload-id-oidc"
+    attribute_mapping                  = {
+        // Maps the `sub` claim within the JWT to the `google.subject` attribute.
+        // This will allow it to be used to make Authz decisions in GCP.
+        "google.subject" = "assertion.sub"
+    }
+    oidc {
+        // Replace example.teleport.sh with the hostname of your Proxy Service's
+        // public address.
+        issuer_uri        = "https://example.teleport.sh/workload-identity"
+    }
+}
+```
+
+</TabItem>
+<TabItem label="gcloud">
+Use the `gcloud` CLI to create a workload identity pool:
+
+```code
+# Replace "workload-id-pool" with a meaningful, unique name.
+$ gcloud iam workload-identity-pools create workload-id-pool \
+    --location="global"
+```
+
+Use the `gcloud` CLI to create a workload identity provider:
+
+```code
+# Replace "workload-id-pool" with the name of the pool you just created and
+# "workload-id-oidc" with a meaningful, unique name.
+$ gcloud iam workload-identity-pools providers create-oidc workload-id-oidc \
+    --location="global" \
+    # This should match the name of the pool you just created.
+    --workload-identity-pool="workload-id-pool" \
+    # Replace example.teleport.sh with the hostname of your Proxy Service's
+    # public address.
+    --issuer-uri="https://example.teleport.sh/workload-identity" \
+    # Maps the `sub` claim within the JWT to the `google.subject` attribute.
+    # This will allow it to be used to make Authz decisions in GCP.
+    --attribute-mapping="google.subject=assertion.sub"
+```
+
+</TabItem>
+
+</Tabs>
+
+### Create a storage bucket and RBAC
+
+For the purposes of this guide, we'll be granting the workload access to a
+GCP storage bucket. You can substitute this step to grant access to a different
+service within GCP of your choice.
+
+We'll be granting our workload identity direct access to the resource without
+the workload assuming a service account.
+
+To do this, we use the principal that is generated by the workload identity
+federation pool based on the attribute mapping that we have already configured.
+This principal can be used directly in IAM policies to grant privileges to a
+workload identity. The principal contains the GCP project number, the name of
+the workload identity pool and the SPIFFE ID. It takes the following format:
+
+`principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL_NAME/subject/$SPIFFE_ID`
+
+It is also possible to grant a workload the ability to assume a service account.
+This is not covered within this guide, but, can be useful in scenarios where you
+already have a service account created with the necessary privileges and now
+wish to allow the workload to use this without the use of a long-lived shared
+secret.
+
+<Tabs>
+<TabItem label="Terraform">
+
+```hcl
+resource "google_storage_bucket" "demo" {
+    // Replace with a meaningful, unique name.
+    name          = "example"
+    location      = "EU"
+    force_destroy = true
+
+    uniform_bucket_level_access = true
+}
+
+locals {
+    // Replace with the SPIFFE ID of the workload that will access the bucket.
+    allow_spiffe_id = "spiffe://example.teleport.sh/svc/example-service"
+}
+
+resource "google_storage_bucket_iam_binding" "binding" {
+    bucket = google_storage_bucket.demo.name
+    role = "roles/storage.admin"
+    members = [
+        "principal://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.leaf_cluster.workload_identity_pool_id}/subject/${local.allow_spiffe_id}",
+    ]
+}
+```
+
+</TabItem>
+<TabItem label="gcloud">
+
+Create a storage bucket using the `gcloud` CLI:
+
+```code
+# Replace "example" with a meaningful, unique name.
+$ gcloud storage buckets create gs://example \
+    --location=EU \
+    --uniform-bucket-level-access
+```
+
+Use the `gcloud` CLI to grant our workload access to the bucket:
+
+```code
+$ ROLE="roles/storage.admin"
+# Replace PROJECT_NUMBER with your GCP project number.
+$ PROJECT_NUMBER="123456789000"
+# Replace POOL_ID with the ID of the Workload Identity Pool you created.
+$ POOL_ID="workload-id-pool"
+# Replace SPIFFE_ID with the SPIFFE ID of the workload that will access the bucket.
+$ SPIFFE_ID="spiffe://example.teleport.sh/svc/example-service"
+$ MEMBER="principal://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/subject/${SPIFFE_ID}"
+$ gcloud storage buckets add-iam-policy-binding gs://example --member=$MEMBER --role=$ROLE
+```
+
+</TabItem>
+</Tabs>
+
+## Step 2/4. Configure Teleport RBAC
+
+Now we need to configure Teleport to allow a JWT to be issued containing the
+SPIFFE ID we have chosen.
+
+First, you'll create a Workload Identity resource to define the identity and
+its characteristics. Create a new file called `workload-identity.yaml`:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: /svc/example-service
+```
+
+Apply this to your cluster using `tctl`:
+
+```code
+$ tctl create -f workload-identity.yaml
+```
+
+Next, you'll create a role which grants access to this Workload Identity. Create
+`role.yaml` with the following content:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: example-workload-identity-issuer
+spec:
+  allow:
+    workload_identity_labels:
+      example: ["getting-started"]
+    rules:
+    - resources:
+      - workload_identity
+      verbs:
+      - list
+      - read
+```
+
+Replace:
+
+- `example-workload-identity-issuer` with a descriptive name for the role.
+- The labels selector if you have modified the labels of the Workload Identity.
+
+Apply this role to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f role.yaml
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+You now need to assign this role to the bot:
+
+```code
+$ tctl bots update my-bot --add-roles example-workload-identity-issuer
+```
+
+## Step 3/4. Issue Workload Identity JWTs
+
+You'll now configure `tbot` to issue and renew the short-lived JWT SVIDs for
+your workload. It'll write the JWT as a file on disk, where you can then
+configure GCP clients and SDKs to read it.
+
+Before configuring this, you'll need to determine the correct audience to
+request in the JWT SVIDs. This is specific to the Workload Identity Federation
+configuration you have just created and contains three components:
+
+- The project number of your GCP project
+- The name of your Workload Identity Federation pool as configured in GCP
+- The name of your Workload Identity Federation provider as configured in GCP
+
+It has the following format: `https://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL_NAME/providers/$PROVIDER_NAME`.
+
+Take your already deployed `tbot` service and configure it to issue SPIFFE SVIDs
+by adding the following to the `tbot` configuration file:
+
+```yaml
+outputs:
+  - type: workload-identity-jwt
+    destination:
+      type: directory
+      path: /opt/workload-identity
+    selector:
+      name: example-workload-identity
+    audiences: ["https://iam.googleapis.com/projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc"]
+```
+
+Replace:
+
+- `123456789000` with your GCP project number.
+- `workload-id-pool` with the name of your Workload Identity Federation pool.
+- `workload-id-oidc` with the name of your Workload Identity Federation provider.
+- `example-workload-identity` with the name of the Workload Identity you have
+  created.
+
+Restart your `tbot` service to apply the new configuration. You should see a
+file created at `/opt/workload-identity/jwt_svid` containing the JWT.
+
+## Step 4/4. Configure GCP CLIs and SDKs
+
+Finally, you need to create a configuration file to configure the GCP CLIs and
+SDKs to authenticate using Workload Identity. This configuration file will
+specify the path to the JWT file that `tbot` is writing and will specify which
+Workload Identity Federation pool and provider to use.
+
+You can generate this configuration file using the `gcloud` CLI:
+
+```code
+$ gcloud iam workload-identity-pools create-cred-config \
+    projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc \
+    --output-file=gcp-workload-identity.json \
+    --credential-source-file=/opt/workload-identity/jwt_svid \
+    --credential-source-type=text
+```
+
+Replace:
+
+- `123456789000` with your GCP project number.
+- `workload-id-pool` with the name of your Workload Identity Federation pool.
+- `workload-id-oidc` with the name of your Workload Identity Federation provider.
+- `/opt/workload-identity/jwt_svid` with the path to the JWT file that `tbot` is
+  writing.
+
+The command should have created a file called `gcp-workload-identity.json` in
+the current directory.
+
+### `gcloud` CLI
+
+To configure the `gcloud` CLI to authenticate using Workload Identity, you use
+the `gcloud auth login` command and specify the path to the configuration file
+that you have just created:
+
+```code
+$ gcloud auth login --cred-file gcp-workload-identity.json
+```
+
+You can now test authenticating to the GCP Storage API. Create a file which
+you can upload to your bucket:
+
+```code
+$ echo "Hello, World!" > hello.txt
+```
+
+Now, use the `gcloud` CLI to upload this file to your bucket:
+
+```code
+$ gcloud storage cp hello.txt gs://example
+```
+
+If everything is configured correctly, you should see this file uploaded to your
+bucket. Inspecting the audit logs on GCP should indicate that the request was
+authenticated using Workload Identity and specify the SPIFFE ID of the workload
+that made the request.
+
+### GCP SDKs
+
+To configure the GCP SDKs to authenticate using Workload Identity, you need to
+set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of the
+configuration file that you have just created:
+
+```code
+$ export GOOGLE_APPLICATION_CREDENTIALS=gcp-workload-identity.json
+```
+
+## Next steps
+
+- [GCP Workload Identity Federation documentation](https://cloud.google.com/iam/docs/workload-identity-federation):
+The official GCP documentation for Workload Identity Federation.
+- [Workload Identity Overview](./introduction.mdx): Overview of Teleport
+Workload Identity.
+- [JWT SVID Overview](./jwt-svids.mdx): Overview of the JWT SVIDs issued by
+Teleport Workload Identity.
+- [Best Practices](./best-practices.mdx): Best practices for using Workload
+Identity in Production.
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.

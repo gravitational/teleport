@@ -16,17 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
-
-import { ContextProvider } from 'teleport';
-import cfg from 'teleport/config';
-import { nodes } from 'teleport/Nodes/fixtures';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
+  RequiredDiscoverProviders,
+  resourceSpecServerLinuxUbuntu,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { nodes } from 'teleport/Nodes/fixtures';
 
 import { TestConnection } from './TestConnection';
 
@@ -52,31 +46,12 @@ export const Init = () => (
 );
 
 const Provider = ({ children }) => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    ...agentStepProps,
-    currentStep: 0,
-    onSelectResource: () => null,
-    resourceSpec: undefined,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'server' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentStepProps.agentMeta}
+      resourceSpec={resourceSpecServerLinuxUbuntu}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      {children}
+    </RequiredDiscoverProviders>
   );
 };

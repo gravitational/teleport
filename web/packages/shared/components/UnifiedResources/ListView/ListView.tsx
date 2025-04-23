@@ -16,17 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Flex } from 'design';
 
+import { LoadingSkeleton } from '../shared/LoadingSkeleton';
 import { ResourceViewProps } from '../types';
 import { FETCH_MORE_SIZE } from '../UnifiedResources';
-
-import { LoadingSkeleton } from '../shared/LoadingSkeleton';
-
-import { ResourceListItem } from './ResourceListItem';
 import { LoadingListItem } from './LoadingListItem';
+import { ResourceListItem } from './ResourceListItem';
 
 export function ListView({
   mappedResources,
@@ -53,6 +49,7 @@ export function ListView({
           labels={item.labels}
           pinned={pinnedResources.includes(key)}
           pinningSupport={pinningSupport}
+          requiresRequest={item.requiresRequest}
           selected={selectedResources.includes(key)}
           selectResource={() => onSelectResource(key)}
           pinResource={() => onPinResource(key)}

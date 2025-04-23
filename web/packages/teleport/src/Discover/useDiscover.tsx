@@ -16,51 +16,58 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useContext, useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
-import {
-  DiscoverEventStatus,
-  DiscoverEventStepStatus,
-  DiscoverEvent,
-  DiscoverEventResource,
-  userEventService,
-  DiscoverServiceDeployMethod,
-  DiscoverServiceDeploy,
-  DiscoverServiceDeployType,
-} from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
-import { DiscoveryConfig } from 'teleport/services/discovery';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import {
   addIndexToViews,
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
-
-import { ResourceViewConfig, View } from './flow';
-import { viewConfigs } from './resourceViewConfigs';
-import { EViewConfigs } from './types';
-import { ServiceDeployMethod } from './Database/common';
-
-import type { Node } from 'teleport/services/nodes';
-import type { Kube } from 'teleport/services/kube';
-import type { Database } from 'teleport/services/databases';
+import cfg from 'teleport/config';
 import type { ResourceLabel } from 'teleport/services/agents';
-import type { ResourceSpec } from './SelectResource';
+import type { App } from 'teleport/services/apps';
+import type { Database } from 'teleport/services/databases';
+import { DiscoveryConfig } from 'teleport/services/discovery';
 import type {
   AwsRdsDatabase,
-  Ec2InstanceConnectEndpoint,
-  Integration,
+  IntegrationAwsOidc,
   Regions,
 } from 'teleport/services/integrations';
+import type { Kube } from 'teleport/services/kube';
+import type { Node } from 'teleport/services/nodes';
+import type {
+  SamlGcpWorkforce,
+  SamlIdpServiceProvider,
+  SamlMicrosoftEntraId,
+} from 'teleport/services/samlidp/types';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEvent,
+  DiscoverEventResource,
+  DiscoverEventStatus,
+  DiscoverEventStepStatus,
+  DiscoverServiceDeploy,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
+  userEventService,
+} from 'teleport/services/userEvent';
+
+import { ResourceViewConfig, View } from './flow';
+import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
+import { viewConfigs } from './resourceViewConfigs';
+import { SelectResourceSpec } from './SelectResource/resources';
+import { EViewConfigs } from './types';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
   currentStep: number;
   nextStep: (count?: number) => void;
   prevStep: () => void;
-  onSelectResource: (resource: ResourceSpec) => void;
+  onSelectResource: (resource: SelectResourceSpec) => void;
   exitFlow: () => void;
-  resourceSpec: ResourceSpec;
+  resourceSpec: SelectResourceSpec;
   viewConfig: ResourceViewConfig<T>;
   indexedViews: View[];
   setResourceSpec: (value: T) => void;
@@ -68,6 +75,7 @@ export interface DiscoverContextState<T = any> {
   emitErrorEvent(errorStr: string): void;
   emitEvent(status: DiscoverEventStepStatus, custom?: CustomEventInput): void;
   eventState: EventState;
+  isUpdateFlow?: boolean;
 }
 
 type EventState = {
@@ -83,6 +91,16 @@ type CustomEventInput = {
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
   serviceDeploy?: DiscoverServiceDeploy;
+  discoveryConfigMethod?: DiscoverDiscoveryConfigMethod;
+};
+
+export type DiscoverUpdateProps = {
+  // resourceSpec specifies ResourceSpec which should be used to
+  // start a Discover flow.
+  resourceSpec: SelectResourceSpec;
+  // agentMeta includes data that will be used to prepopulate input fields
+  // in the respective Discover compnents.
+  agentMeta: AgentMeta;
 };
 
 type DiscoverProviderProps = {
@@ -90,6 +108,8 @@ type DiscoverProviderProps = {
   mockCtx?: DiscoverContextState;
   // Extra view configs that are passed in. This is used to add view configs from Enterprise.
   eViewConfigs?: EViewConfigs;
+  // updateFlow holds properties used in Discover update flow.
+  updateFlow?: DiscoverUpdateProps;
 };
 
 // DiscoverUrlLocationState define fields to preserve state between
@@ -101,11 +121,11 @@ export type DiscoverUrlLocationState = {
   // the flow from where user left off.
   discover: {
     eventState: EventState;
-    resourceSpec: ResourceSpec;
+    resourceSpec: SelectResourceSpec;
     currentStep: number;
   };
   // integration is the created aws-oidc integration
-  integration: Integration;
+  integration: IntegrationAwsOidc;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
@@ -114,13 +134,15 @@ export function DiscoverProvider({
   mockCtx,
   children,
   eViewConfigs = [],
+  updateFlow,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
+  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
+  const [resourceSpec, setResourceSpec] = useState<SelectResourceSpec>();
   const [viewConfig, setViewConfig] = useState<ResourceViewConfig>();
   const [eventState, setEventState] = useState<EventState>({} as any);
 
@@ -146,14 +168,24 @@ export function DiscoverProvider({
         }
       }
 
+      let discoveryConfigMethod: DiscoverDiscoveryConfigMethod;
+      if (event === DiscoverEvent.CreateDiscoveryConfig) {
+        if (custom?.discoveryConfigMethod) {
+          discoveryConfigMethod = custom.discoveryConfigMethod;
+        } else {
+          discoveryConfigMethod = DiscoverDiscoveryConfigMethod.Unspecified;
+        }
+      }
+
       userEventService.captureDiscoverEvent({
         event,
         eventData: {
-          id: id || custom.id,
+          id: id || custom?.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
           serviceDeploy,
+          discoveryConfigMethod,
           ...status,
         },
       });
@@ -216,6 +248,14 @@ export function DiscoverProvider({
     });
   }
 
+  // trigger update Discover flow.
+  useEffect(() => {
+    if (updateFlow && updateFlow.agentMeta) {
+      updateAgentMeta(updateFlow.agentMeta);
+      onSelectResource(updateFlow.resourceSpec);
+    }
+  }, [updateFlow]);
+
   // If a location.state.discover was provided, that means the user is
   // coming back from another location to resume the flow.
   // Users will resume at the step that is +1 from the step they left from.
@@ -254,7 +294,7 @@ export function DiscoverProvider({
 
   // onSelectResources inits states, starts flow, and
   // emits events.
-  function onSelectResource(resource: ResourceSpec) {
+  function onSelectResource(resource: SelectResourceSpec) {
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
@@ -286,7 +326,7 @@ export function DiscoverProvider({
   // startDiscoverFlow sets all the required states
   // that will begin the flow.
   function startDiscoverFlow(
-    resource: ResourceSpec,
+    resource: SelectResourceSpec,
     initEventState: EventState,
     targetViewIndex = 0
   ) {
@@ -317,6 +357,9 @@ export function DiscoverProvider({
     setIndexedViews(indexedViews);
     setResourceSpec(resource);
     setCurrentStep(targetViewIndex);
+    // Open the guide for the user when starting the flow.
+    const overview = getOverview({ resourceSpec: resource });
+    setInfoGuideConfig(getDiscoverInfoGuideConfig(overview));
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -402,6 +445,10 @@ export function DiscoverProvider({
     setViewConfig(null);
     setResourceSpec(null);
     setIndexedViews([]);
+
+    if (infoGuideConfig) {
+      setInfoGuideConfig(null);
+    }
   }
 
   function updateAgentMeta(meta: AgentMeta) {
@@ -440,6 +487,7 @@ export function DiscoverProvider({
     emitErrorEvent,
     emitEvent,
     eventState,
+    isUpdateFlow: !!updateFlow,
   };
 
   return (
@@ -474,7 +522,7 @@ type BaseMeta = {
    * awsIntegration is set to the selected AWS integration.
    * This field is set when a user wants to enroll AWS resources.
    */
-  awsIntegration?: Integration;
+  awsIntegration?: IntegrationAwsOidc;
   /**
    * awsRegion is set to the selected AWS region.
    * This field is set when a user wants to enroll AWS resources.
@@ -486,21 +534,37 @@ type BaseMeta = {
    * in customers infrastructure such as Kubernetes clusters or databases hosted
    * on cloud platforms like AWS, Azure, etc.
    */
-  autoDiscovery?: {
-    config: DiscoveryConfig;
-    // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
-    // If this is empty, then a user can skip deploying db agents.
-    // If >0, auto discovery requires deploying db agents.
-    requiredVpcsAndSubnets?: Record<string, string[]>;
-  };
+  autoDiscovery?: AutoDiscovery;
+  /**
+   * If this field is defined, it means the user selected a specific vpc ID.
+   * Not all flows will allow a user to select a vpc ID.
+   */
+  awsVpcId?: string;
+};
+
+export type AutoDiscovery = {
+  config?: DiscoveryConfig;
+  // requiredVpcsAndSubnets is a map of required vpcs for auto discovery.
+  // If this is empty, then a user can skip deploying db agents.
+  // If >0, auto discovery requires deploying db agents.
+  requiredVpcsAndSubnets?: Record<string, string[]>;
 };
 
 // NodeMeta describes the fields for node resource
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
-  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
+
+export type DatabaseServiceDeploy =
+  | {
+      method: 'auto';
+      selectedSecurityGroups: string[];
+      selectedSubnetIds: string[];
+    }
+  | {
+      method: 'manual' | 'skipped';
+    };
 
 // DbMeta describes the fields for a db resource
 // that needs to be preserved throughout the flow.
@@ -510,10 +574,10 @@ export type DbMeta = BaseMeta & {
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
   /**
-   * serviceDeployedMethod flag will be undefined if user skipped
-   * deploying service (service already existed).
+   * Only defined after the database service deploy step,
+   * before this step, it will be undefined.
    */
-  serviceDeployedMethod?: ServiceDeployMethod;
+  serviceDeploy?: DatabaseServiceDeploy;
 };
 
 // KubeMeta describes the fields for a kube resource
@@ -522,27 +586,39 @@ export type KubeMeta = BaseMeta & {
   kube: Kube;
 };
 
-// KubeMeta describes the fields for a kube resource
-// that needs to be preserved throughout the flow.
+/**
+ * EksMeta describes the fields for a kube resource
+ * that needs to be preserved throughout the flow.
+ */
 export type EksMeta = BaseMeta & {
   kube: Kube;
 };
 
-// SamlMeta describes the fields for SAML IdP
-// service provider resource that needs to be
-// preserved throughout the flow.
-export type SamlMeta = BaseMeta & SamlGcpWorkforceMeta;
-
-// GcpWorkforceMeta describes the fields for SAML
-// GCP workforce pool resource that needs to be
-// preserved throughout the flow.
-export type SamlGcpWorkforceMeta = {
-  isAutoConfig: boolean;
-  orgId: string;
-  poolName: string;
-  poolProviderName: string;
+/**
+ * AppMeta describes the fields for a app resource
+ * that needs to be preserved throughout the flow.
+ */
+export type AppMeta = BaseMeta & {
+  app: App;
 };
 
-export type AgentMeta = DbMeta | NodeMeta | KubeMeta | EksMeta | SamlMeta;
+/**
+ * SamlMeta describes the fields for SAML IdP
+ * service provider resource that needs to be
+ * preserved throughout the flow.
+ */
+export type SamlMeta = BaseMeta & {
+  samlGeneric?: SamlIdpServiceProvider;
+  samlGcpWorkforce?: SamlGcpWorkforce;
+  samlMicrosoftEntraId?: SamlMicrosoftEntraId;
+};
+
+export type AgentMeta =
+  | DbMeta
+  | NodeMeta
+  | KubeMeta
+  | EksMeta
+  | SamlMeta
+  | AppMeta;
 
 export type State = ReturnType<typeof useDiscover>;

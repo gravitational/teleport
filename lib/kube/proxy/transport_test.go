@@ -20,10 +20,12 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"testing"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
@@ -136,4 +138,46 @@ func newKubeServerWithProxyIDs(t *testing.T, hostname, hostID string, proxyIds [
 	require.NoError(t, err)
 	ks.Spec.ProxyIDs = proxyIds
 	return ks
+}
+
+func TestDirectTransportNotCached(t *testing.T) {
+	t.Parallel()
+
+	transportClients, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:   transportCacheTTL,
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	forwarder := &Forwarder{
+		ctx:             context.Background(),
+		cachedTransport: transportClients,
+	}
+
+	kubeAPICreds := &dynamicKubeCreds{
+		staticCreds: &staticKubeCreds{
+			tlsConfig: &tls.Config{
+				ServerName: "localhost",
+			},
+		},
+	}
+
+	clusterSess := &clusterSession{
+		kubeAPICreds: kubeAPICreds,
+		authContext: authContext{
+			kubeClusterName: "b",
+			teleportCluster: teleportClusterClient{
+				name: "a",
+			},
+		},
+	}
+
+	_, tlsConfig, err := forwarder.transportForRequestWithImpersonation(clusterSess)
+	require.NoError(t, err)
+	require.Equal(t, "localhost", tlsConfig.ServerName)
+
+	kubeAPICreds.staticCreds.tlsConfig.ServerName = "example.com"
+	_, tlsConfig, err = forwarder.transportForRequestWithImpersonation(clusterSess)
+	require.NoError(t, err)
+	require.Equal(t, "example.com", tlsConfig.ServerName)
 }

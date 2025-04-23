@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"path"
 	"strings"
@@ -31,7 +32,6 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -199,20 +199,18 @@ func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, 
 		return nil, trace.Wrap(err)
 	}
 	h := &Handler{
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.SchemeGCS),
-		}),
+		logger:        slog.With(teleport.ComponentKey, teleport.SchemeGCS),
 		Config:        cfg,
 		gcsClient:     client,
 		clientContext: ctx,
 		clientCancel:  cancelFunc,
 	}
 	start := time.Now()
-	h.Infof("Setting up bucket %q, sessions path %q.", h.Bucket, h.Path)
+	h.logger.InfoContext(ctx, "Setting up GCS bucket.", "bucket", h.Bucket, "path", h.Path)
 	if err := h.ensureBucket(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.WithFields(log.Fields{"duration": time.Since(start)}).Infof("Setup bucket %q completed.", h.Bucket)
+	h.logger.InfoContext(ctx, "Setting up bucket completed.", "bucket", h.Bucket, "duration", time.Since(start))
 	return h, nil
 }
 
@@ -220,8 +218,8 @@ func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, 
 type Handler struct {
 	// Config is handler configuration
 	Config
-	// Entry is a logging entry
-	*log.Entry
+	// logger emits log messages
+	logger *slog.Logger
 	// gcsClient is the google cloud storage client used for persistence
 	gcsClient *storage.Client
 	// clientContext is used for non-request operations and cleanup
@@ -240,7 +238,7 @@ func (h *Handler) Close() error {
 // and returns the target GCS bucket path in case of successful upload.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	path := h.path(sessionID)
-	h.Logger.Debugf("Uploading %s.", path)
+	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
 
 	// Make sure we don't overwrite an existing recording.
 	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
@@ -271,7 +269,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // return trace.NotFound error is object is not found
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
 	path := h.path(sessionID)
-	h.Logger.Debugf("Downloading %s.", path)
+	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
 	writer, ok := writerAt.(io.Writer)
 	if !ok {
 		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)
@@ -311,7 +309,9 @@ func (h *Handler) ensureBucket() error {
 		return nil
 	}
 	if !trace.IsNotFound(err) {
-		h.Errorf("Failed to ensure that bucket %q exists (%v). GCS session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", h.Bucket, err)
+		h.logger.ErrorContext(h.clientContext,
+			"Failed to ensure that bucket exists. GCS session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.",
+			"bucket", h.Bucket, "error", err)
 		return nil
 	}
 	err = h.gcsClient.Bucket(h.Config.Bucket).Create(h.clientContext, h.Config.ProjectID, &storage.BucketAttrs{
@@ -332,15 +332,15 @@ func (h *Handler) ensureBucket() error {
 	return nil
 }
 
-func convertGCSError(err error, args ...interface{}) error {
+func convertGCSError(err error) error {
 	if err == nil {
 		return nil
 	}
 
 	switch {
 	case errors.Is(err, storage.ErrBucketNotExist), errors.Is(err, storage.ErrObjectNotExist):
-		return trace.NotFound(err.Error(), args...)
+		return trace.NotFound("%s", err)
 	default:
-		return trace.Wrap(err, args...)
+		return trace.Wrap(err)
 	}
 }

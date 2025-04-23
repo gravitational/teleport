@@ -57,7 +57,7 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		UseSearchAsRoles: true,
 	})
 	if err != nil {
-		h.log.Debugf("Unable to fetch applications while listing user groups, unable to display associated applications: %v", err)
+		h.logger.DebugContext(r.Context(), "Unable to fetch applications while listing user groups, unable to display associated applications", "error", err)
 	}
 
 	appServerLookup := make(map[string]types.AppServer, len(appServers))
@@ -71,7 +71,7 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		for _, appName := range userGroup.GetApplications() {
 			app := appServerLookup[appName]
 			if app == nil {
-				h.log.Debugf("Unable to find application %s when creating user groups, skipping", appName)
+				h.logger.DebugContext(r.Context(), "Unable to find application when creating user groups, skipping", "app", appName)
 				continue
 			}
 			apps = append(apps, app.GetApp())

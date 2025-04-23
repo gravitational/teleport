@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -115,6 +116,46 @@ func Test_Channels_CheckAndSetDefaults(t *testing.T) {
 	})
 }
 
+func Test_Channels_DefaultChannel(t *testing.T) {
+	channels := make(Channels)
+	require.NoError(t, channels.CheckAndSetDefaults())
+
+	defaultChannel, err := NewDefaultChannel()
+	require.NoError(t, err)
+
+	customDefaultChannel := &Channel{ForwardURL: "asdf"}
+	tests := []struct {
+		desc     string
+		channels Channels
+		want     *Channel
+	}{
+		{
+			desc: "nil channels",
+			want: defaultChannel,
+		},
+		{
+			desc:     "default channels",
+			channels: channels,
+			want:     defaultChannel,
+		},
+		{
+			desc: "configured channels",
+			channels: Channels{
+				DefaultChannelName: customDefaultChannel,
+			},
+			want: customDefaultChannel,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got, err := test.channels.DefaultChannel()
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
 func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 
 	tests := []struct {
@@ -170,41 +211,46 @@ func Test_Channel_GetVersion(t *testing.T) {
 	tests := []struct {
 		name            string
 		targetVersion   string
-		expectedVersion string
+		expectedVersion *semver.Version
 		assertErr       require.ErrorAssertionFunc
+		assertCheckErr  require.ErrorAssertionFunc
 	}{
 		{
 			name:            "normal version",
 			targetVersion:   "v1.2.3",
-			expectedVersion: "v1.2.3",
+			expectedVersion: semver.Must(version.EnsureSemver("v1.2.3")),
 			assertErr:       require.NoError,
 		},
 		{
 			name:            "no version",
 			targetVersion:   constants.NoVersion,
-			expectedVersion: "",
+			expectedVersion: nil,
 			assertErr:       require.Error,
 		},
 		{
 			name:            "version too high",
 			targetVersion:   "v99.1.1",
-			expectedVersion: "v" + teleport.Version,
+			expectedVersion: teleport.SemVersion,
 			assertErr:       require.NoError,
 		},
 		{
-			name:          "version invalid",
-			targetVersion: "foobar",
-			assertErr:     require.Error,
+			name:           "version invalid",
+			targetVersion:  "foobar",
+			assertCheckErr: require.Error,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ch := Channel{StaticVersion: tt.targetVersion}
-			require.NoError(t, ch.CheckAndSetDefaults())
+			if tt.assertCheckErr != nil {
+				tt.assertCheckErr(t, ch.CheckAndSetDefaults())
+			} else {
+				require.NoError(t, ch.CheckAndSetDefaults())
+				result, err := ch.GetVersion(ctx)
 
-			result, err := ch.GetVersion(ctx)
-			tt.assertErr(t, err)
-			require.Equal(t, tt.expectedVersion, result)
+				tt.assertErr(t, err)
+				require.Equal(t, tt.expectedVersion, result)
+			}
 		})
 	}
 }

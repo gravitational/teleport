@@ -19,6 +19,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gravitational/trace"
@@ -133,7 +134,7 @@ func MapRoles(r types.RoleMap, remoteRoles []string) ([]string, error) {
 					}
 					seen[replacement] = struct{}{}
 					outRoles = append(outRoles, replacement)
-				case trace.IsNotFound(err):
+				case errors.Is(err, utils.ErrReplaceRegexNotFound):
 					continue
 				default:
 					return nil, trace.Wrap(err)
@@ -157,7 +158,7 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.Trusted
 	}
 
 	if err := utils.FastUnmarshal(bytes, &trustedCluster); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	// DELETE IN(7.0)
 	// temporarily allow to read trusted cluster with no role map
@@ -165,9 +166,6 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (types.Trusted
 	const allowEmptyRoleMap = true
 	if err = ValidateTrustedCluster(&trustedCluster, allowEmptyRoleMap); err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		trustedCluster.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		trustedCluster.SetRevision(cfg.Revision)
@@ -195,7 +193,7 @@ func MarshalTrustedCluster(trustedCluster types.TrustedCluster, opts ...MarshalO
 
 	switch trustedCluster := trustedCluster.(type) {
 	case *types.TrustedClusterV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, trustedCluster))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, trustedCluster))
 	default:
 		return nil, trace.BadParameter("unrecognized trusted cluster version %T", trustedCluster)
 	}

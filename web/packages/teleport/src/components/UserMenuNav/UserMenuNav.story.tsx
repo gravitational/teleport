@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import * as Icons from 'design/Icon';
 
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import TeleportContext from 'teleport/teleportContext';
-import { makeUserContext } from 'teleport/services/user';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getOSSFeatures } from 'teleport/features';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { makeUserContext } from 'teleport/services/user';
+import TeleportContext from 'teleport/teleportContext';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
 import { UserMenuNav } from './UserMenuNav';
 

@@ -1,0 +1,140 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+syntax = "proto3";
+package accessgraph.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// AzureResourceList is a list of Azure resources
+message AzureResourceList {
+  repeated AzureResource resources = 1;
+}
+
+// AzureResource is a list of Azure resources supported by the access graph.
+message AzureResource {
+  oneof resource {
+    // principal  is an Azure principal
+    AzurePrincipal principal = 1;
+    // role_definition is an Azure role definition
+    AzureRoleDefinition role_definition = 2;
+    // role_assignment is an Azure role assignment, which assigns a role definition to a principal
+    AzureRoleAssignment role_assignment = 3;
+    // virtual_machine is an Azure virtual machine, an instance of a compute resource
+    AzureVirtualMachine virtual_machine = 4;
+  }
+}
+
+// AzureVirtualMachine is an Azure virtual machine
+message AzureVirtualMachine {
+  // id is the ID of the virtual machine
+  string id = 1;
+  // subscription_id is the ID of the subscription to which the virtual machine belongs
+  string subscription_id = 2;
+  // last_sync_time is when the virtual machine was last fetched from Azure
+  google.protobuf.Timestamp last_sync_time = 3;
+  // name is the given name of the virtual machine
+  string name = 4;
+  // resource_group is the name of the resource group to which the virtual machine belongs
+  string resource_group = 5;
+  // tags are a collection of arbitrary key-values applied to the virtual machine
+  map<string, string> tags = 6;
+  // location is the geographical location of the Virtual Machine
+  string location = 7;
+}
+
+// AzureIdentity is a Graph API object identity
+message AzureIdentity {
+  // sign_in_type is the type of identity used when signing in, e.g. "emailAddress" or "userName"
+  string sign_in_type = 1;
+  // issuer is the issuer of the identity, such as a domain name like "goteleport.com"
+  string issuer = 2;
+  // issuer_assigned_id unique identifier assigned to the user by the issuer
+  string issuer_assigned_id = 3;
+}
+
+// AzurePrincipal is a Graph API principal (user, group, service principal)
+message AzurePrincipal {
+  // id is the ID of the principal
+  string id = 1;
+  // subscription_id is the ID of the subscription to which the principal belongs
+  string subscription_id = 2;
+  // last_sync_time is when the principal was last fetched from Azure
+  google.protobuf.Timestamp last_sync_time = 3;
+  // display_name is the given name for the principal, e.g. a user's first+last name
+  string display_name = 4;
+  // member_of lists the groups and directories the principal is assigned to
+  repeated string member_of = 5;
+  // identities lists the identities that can be used to sign in to the account
+  repeated AzureIdentity identities = 6;
+  // object_type defines the type of principal, e.g. "user" or "group"
+  string object_type = 7;
+}
+
+// AzureRoleAssignment links an Azure principal to a role definition with a scope
+message AzureRoleAssignment {
+  // id is the ID of the role assignment
+  string id = 1;
+  // subscription_id is the ID of the subscription to which the role assignment belongs
+  string subscription_id = 2;
+  // last_sync_time is when the role assignment was last fetched from Azure
+  google.protobuf.Timestamp last_sync_time = 3;
+  // principal_id is the ID of the principal being assigned a role
+  string principal_id = 4;
+  // role_definition_id is the ID of the role definition assigned to the principal
+  string role_definition_id = 5;
+  // scope constrains which resources the assignment applies to
+  string scope = 6;
+  // condition further which resources the assignment applies to
+  string condition = 7;
+}
+
+// AzureRoleDefinition defines a role by its permissions
+message AzureRoleDefinition {
+  // id is the ID of the role definition
+  string id = 1;
+  // subscription_id is the ID of the subscription to which the role definition belongs
+  string subscription_id = 2;
+  // last_sync_time is when the role definition was last fetched from Azure
+  google.protobuf.Timestamp last_sync_time = 3;
+  // name is the given name for the role definition
+  string name = 4;
+  // description provides additional detail about the role definition
+  string description = 5;
+  // assignable_scopes limits the scopes defined in corresponding role assignments
+  repeated string assignable_scopes = 6;
+  // permissions define the actions and not (disallowed) actions
+  repeated AzureRBACPermission permissions = 7;
+  // role_name is the given name for the role itself
+  string role_name = 8;
+  // type defines the type of role
+  string type = 9;
+}
+
+// AzureRBACPermission defines the actions and not (disallowed) actions for a role definition
+message AzureRBACPermission {
+  // actions define the resources and verbs allowed on the resources
+  repeated string actions = 1;
+  // not_actions define the resources and verbs disallowed on the resources
+  repeated string not_actions = 2;
+  // data_actions define fine-grained resources and verbs allowed within the resource
+  repeated string data_actions = 3;
+  // not_data_actions define fine-grained resources and verbs disallowed within the resource
+  repeated string not_data_actions = 4;
+}

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,13 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function Terminal({ size = 24, color, ...otherProps }: IconProps) {
-  return (
+export const Terminal = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-terminal"
       {...otherProps}
+      ref={ref}
     >
       <path
         fillRule="evenodd"
@@ -64,5 +65,5 @@ export function Terminal({ size = 24, color, ...otherProps }: IconProps) {
         d="M3.75 3.75C2.92157 3.75 2.25 4.42157 2.25 5.25V18.75C2.25 19.5784 2.92157 20.25 3.75 20.25H20.25C21.0784 20.25 21.75 19.5784 21.75 18.75V5.25C21.75 4.42157 21.0784 3.75 20.25 3.75H3.75ZM3.75 5.25H20.25V18.75H3.75V5.25ZM6.91438 8.53151C7.17313 8.20806 7.6451 8.15562 7.96855 8.41438L11.7185 11.4144C11.8965 11.5567 12 11.7722 12 12C12 12.2279 11.8965 12.4433 11.7185 12.5857L7.96855 15.5857C7.6451 15.8444 7.17313 15.792 6.91438 15.4685C6.65562 15.1451 6.70806 14.6731 7.03151 14.4144L10.0494 12L7.03151 9.58568C6.70806 9.32692 6.65562 8.85495 6.91438 8.53151ZM12 15C12 14.5858 12.3358 14.25 12.75 14.25H16.5C16.9142 14.25 17.25 14.5858 17.25 15C17.25 15.4142 16.9142 15.75 16.5 15.75H12.75C12.3358 15.75 12 15.4142 12 15Z"
       />
     </Icon>
-  );
-}
+  )
+);

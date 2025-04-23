@@ -13,14 +13,14 @@ deployments, use your own private key and certificate.
 
     On the host where you will start the Teleport Auth Service and Proxy Service,
     run the following `teleport configure` command. Assign 
-    <Var name="tele.example.com" /> to the
+    <Var name="teleport.example.com" /> to the
     domain name of your Teleport cluster and <Var name="user@example.com" /> to
     an email address used for notifications (you can use any domain):
 
     ```code
     $ sudo teleport configure -o file \
         --acme --acme-email=<Var name="user@example.com" description="Your email address to register with Let's Encrypt for TLS certificates" /> \
-        --cluster-name=<Var name="tele.example.com" description="The domain name of your Teleport cluster" />
+        --cluster-name=<Var name="teleport.example.com" description="The domain name of your Teleport cluster" />
     ```
 
     Port 443 on your Teleport Proxy Service host must allow traffic from all sources.
@@ -34,12 +34,12 @@ deployments, use your own private key and certificate.
 
   On the host where you will start the Teleport Auth Service and Proxy Service,
   run the following `teleport configure` command. Assign <Var
-  name="tele.example.com" /> to the domain name of your Teleport cluster.
+  name="teleport.example.com" /> to the domain name of your Teleport cluster.
 
   ```code
   $ sudo teleport configure -o file \
-      --cluster-name=<Var name="tele.example.com" /> \
-      --public-addr=<Var name="tele.example.com" />:443 \
+      --cluster-name=<Var name="teleport.example.com" /> \
+      --public-addr=<Var name="teleport.example.com" />:443 \
       --cert-file=/var/lib/teleport/fullchain.pem \
       --key-file=/var/lib/teleport/privkey.pem
   ```

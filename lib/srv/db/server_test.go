@@ -20,12 +20,14 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -35,10 +37,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/mysql"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -67,13 +70,21 @@ func TestDatabaseServerStart(t *testing.T) {
 	}
 
 	// Make sure servers were announced and their labels updated.
-	servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, servers, 4)
-	for _, server := range servers {
-		require.Equal(t, map[string]string{"echo": "test"},
-			server.GetDatabase().GetAllLabels())
-	}
+	retryutils.RetryStaticFor(5*time.Second, 20*time.Millisecond, func() error {
+		servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			return err
+		}
+		if len(servers) != 4 {
+			return fmt.Errorf("expected 4 servers, got %d", len(servers))
+		}
+		for _, server := range servers {
+			if diff := cmp.Diff(map[string]string{"echo": "test"}, server.GetDatabase().GetAllLabels()); diff != "" {
+				return fmt.Errorf("expected echo:test label, diff: %s", diff)
+			}
+		}
+		return nil
+	})
 }
 
 func TestDatabaseServerLimiting(t *testing.T) {
@@ -136,7 +147,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 	})
 
 	t.Run("mysql", func(t *testing.T) {
-		dbConns := make([]*client.Conn, 0)
+		dbConns := make([]mysql.TestClientConn, 0)
 		t.Cleanup(func() {
 			// Disconnect all clients.
 			for _, dbConn := range dbConns {
@@ -245,7 +256,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 // Most testing code should NOT need to use this function.
 //
 // In technical terms, it divides the clock advancement into 100 smaller steps, with a short sleep after each one.
-func advanceInSteps(clock clockwork.FakeClock, total time.Duration) {
+func advanceInSteps(clock *clockwork.FakeClock, total time.Duration) {
 	step := total / 100
 	if step <= 0 {
 		step = 1
@@ -354,6 +365,10 @@ func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
 		}, 2*time.Second, 500*time.Millisecond)
 
 		require.NotContains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+
+		dbServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+		require.NoError(t, err)
+		require.Equal(t, "teleport.cluster.local", dbServices[0].GetHostname())
 	})
 	t.Run("when running as AWS OIDC ECS/Fargate Agent, it has a label indicating that", func(t *testing.T) {
 		ctx := context.Background()
@@ -384,6 +399,10 @@ func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
 		}, 2*time.Second, 500*time.Millisecond)
 
 		require.Contains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+
+		dbServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+		require.NoError(t, err)
+		require.Equal(t, "teleport.cluster.local", dbServices[0].GetHostname())
 	})
 }
 
@@ -423,32 +442,46 @@ func TestShutdown(t *testing.T) {
 			// Validate that the server is proxying db0 after start.
 			require.Equal(t, types.Databases{db0}, server.getProxiedDatabases())
 
-			// Validate heartbeat is present after start.
-			server.ForceHeartbeat()
-			dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
-			require.Len(t, dbServers, 1)
-			require.Equal(t, dbServers[0].GetDatabase(), db0)
+			// Validate that the heartbeat is eventually emitted and that
+			// the configured databases exist in the inventory.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, dbServers, 1) {
+					return
+				}
+				if !assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+					return
+				}
+			}, 10*time.Second, 100*time.Millisecond)
 
-			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-			t.Cleanup(cancel)
-			if test.hasForkedChild {
-				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
+			require.NoError(t, server.Shutdown(ctx))
+
+			// Send a Goodbye to simulate process shutdown.
+			if !test.hasForkedChild {
+				require.NoError(t, server.cfg.InventoryHandle.SendGoodbye(ctx))
 			}
 
-			require.NoError(t, server.Shutdown(shutdownCtx))
+			require.NoError(t, server.cfg.InventoryHandle.Close())
 
-			// Validate that the server is not proxying db0 after close.
-			require.Empty(t, server.getProxiedDatabases())
-
-			// Validate database servers based on the test.
-			dbServersAfterShutdown, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
+			// Validate db servers based on the test.
 			if test.wantDatabaseServersAfterShutdown {
-				require.Equal(t, dbServers, dbServersAfterShutdown)
+				dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, dbServersAfterShutdown, 1)
+				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
-				require.Empty(t, dbServersAfterShutdown)
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+					if !assert.NoError(t, err) {
+						return
+					}
+					if !assert.Empty(t, dbServersAfterShutdown) {
+						return
+					}
+				}, 10*time.Second, 100*time.Millisecond)
 			}
 		})
 	}

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,17 +50,14 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function ChevronCircleDown({
-  size = 24,
-  color,
-  ...otherProps
-}: IconProps) {
-  return (
+export const ChevronCircleDown = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
     <Icon
       size={size}
       color={color}
       className="icon icon-chevroncircledown"
       {...otherProps}
+      ref={ref}
     >
       <path d="M8.78033 9.96967C8.48744 9.67678 8.01256 9.67678 7.71967 9.96967C7.42678 10.2626 7.42678 10.7374 7.71967 11.0303L11.4697 14.7803C11.7626 15.0732 12.2374 15.0732 12.5303 14.7803L16.2803 11.0303C16.5732 10.7374 16.5732 10.2626 16.2803 9.96967C15.9874 9.67678 15.5126 9.67678 15.2197 9.96967L12 13.1893L8.78033 9.96967Z" />
       <path
@@ -69,5 +66,5 @@ export function ChevronCircleDown({
         d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM3.75 12C3.75 7.44365 7.44365 3.75 12 3.75C16.5563 3.75 20.25 7.44365 20.25 12C20.25 16.5563 16.5563 20.25 12 20.25C7.44365 20.25 3.75 16.5563 3.75 12Z"
       />
     </Icon>
-  );
-}
+  )
+);

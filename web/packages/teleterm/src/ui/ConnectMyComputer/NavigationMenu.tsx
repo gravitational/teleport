@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef, useRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
-import { Box, Button, Indicator, Menu, MenuItem } from 'design';
-import { Laptop, Warning } from 'design/Icon';
 
+import { blink, Box, Button, Indicator, Menu, MenuItem } from 'design';
+import { Laptop, Warning } from 'design/Icon';
 import { Attempt, AttemptStatus } from 'shared/hooks/useAsync';
 
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -174,13 +174,14 @@ interface MenuIconProps {
   indicatorStatus: IndicatorStatus;
 }
 
-export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
+export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
   (props, ref) => {
     return (
       <StyledButton
         setRef={ref}
         onClick={props.onClick}
-        kind="secondary"
+        intent="neutral"
+        fill="filled"
         size="small"
         title="Open Connect My Computer"
         data-testid="connect-my-computer-icon"
@@ -198,13 +199,12 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
 
 const StyledButton = styled(Button)`
   position: relative;
-  background: ${props => props.theme.colors.spotBackground[0]};
   padding: 0;
   width: ${props => props.theme.space[5]}px;
   height: ${props => props.theme.space[5]}px;
 `;
 
-const StyledStatus = styled(Box)`
+const StyledStatus = styled(Box)<{ status: IndicatorStatus }>`
   position: absolute;
   top: -4px;
   right: -4px;
@@ -214,19 +214,7 @@ const StyledStatus = styled(Box)`
   border-radius: 50%;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 
-  @keyframes blink {
-    0% {
-      opacity: 0;
-    }
-    50% {
-      opacity: 100%;
-    }
-    100% {
-      opacity: 0;
-    }
-  }
-
-  animation: blink 1.4s ease-in-out;
+  animation: ${blink} 1.4s ease-in-out;
   animation-iteration-count: ${props =>
     props.status === 'processing' ? 'infinite' : '0'};
 

@@ -45,7 +45,7 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := s.newAPIGateway(gateway)
+	apiGateway, err := s.newAPIGateway(ctx, gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -59,7 +59,7 @@ func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest
 
 	apiGws := make([]*api.Gateway, 0, len(gws))
 	for _, gw := range gws {
-		apiGateway, err := s.newAPIGateway(gw)
+		apiGateway, err := s.newAPIGateway(ctx, gw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -81,8 +81,8 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func (s *Handler) newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
-	cmds, err := s.DaemonService.GetGatewayCLICommand(gateway)
+func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*api.Gateway, error) {
+	cmds, err := s.DaemonService.GetGatewayCLICommand(ctx, gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,12 +119,12 @@ func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {
 //
 // In Connect this is used to update the db name of a db connection along with the CLI command.
 func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.SetGatewayTargetSubresourceNameRequest) (*api.Gateway, error) {
-	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(req.GatewayUri, req.TargetSubresourceName)
+	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(ctx, req.GatewayUri, req.TargetSubresourceName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := s.newAPIGateway(gateway)
+	apiGateway, err := s.newAPIGateway(ctx, gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLo
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := s.newAPIGateway(gateway)
+	apiGateway, err := s.newAPIGateway(ctx, gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

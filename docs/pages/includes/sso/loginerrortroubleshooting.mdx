@@ -15,9 +15,8 @@ If something is not working, we recommend to:
 
 ### Using the Web UI
 
-If you get "access denied" or other login errors, the number one place to check is the Audit
-Log. Under the **Management** area you can access it within the **Activity** tab in the
-Teleport Web UI. 
+If you get "access denied" or other login errors, the number one place to check is the Audit Log. 
+To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu. 
 
 ![Audit Log Entry for SSO Login error](../../../img/sso/teleportauditlogssofailed.png)
 
@@ -28,10 +27,11 @@ Example of a user being denied because the role `clusteradmin` wasn't set up:
   "code": "T1001W",
   "error": "role clusteradmin is not found",
   "event": "user.login",
+  "message": "Failed to calculate user attributes.\n\trole clusteradmin is not found",
   "method": "oidc",
   "success": false,
-  "time": "2019-06-15T19:38:07Z",
-  "uid": "cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"
+  "time": "2024-11-07T15:41:25.584Z",
+  "uid": "71e46f17-d611-48bb-bf5e-effd90016c13"
 }
 ```
 

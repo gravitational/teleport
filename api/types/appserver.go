@@ -86,16 +86,19 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 
 // NewAppServerForAWSOIDCIntegration creates a new AppServer that will be used to grant AWS App Access
 // using the AWSOIDC credentials.
-func NewAppServerForAWSOIDCIntegration(integrationName string, hostID string) (*AppServerV3, error) {
+func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr string, labels map[string]string) (*AppServerV3, error) {
 	return NewAppServerV3(Metadata{
-		Name: integrationName,
+		Name:   integrationName,
+		Labels: labels,
 	}, AppServerSpecV3{
 		HostID: hostID,
 		App: &AppV3{Metadata: Metadata{
-			Name: integrationName,
+			Name:   integrationName,
+			Labels: labels,
 		}, Spec: AppSpecV3{
 			URI:         constants.AWSConsoleURL,
 			Integration: integrationName,
+			PublicAddr:  publicAddr,
 		}},
 	})
 }
@@ -133,16 +136,6 @@ func (s *AppServerV3) GetSubKind() string {
 // SetSubKind sets the resource subkind.
 func (s *AppServerV3) SetSubKind(sk string) {
 	s.SubKind = sk
-}
-
-// GetResourceID returns the resource ID.
-func (s *AppServerV3) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets the resource ID.
-func (s *AppServerV3) SetResourceID(id int64) {
-	s.Metadata.ID = id
 }
 
 // GetRevision returns the revision

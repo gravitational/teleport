@@ -16,24 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
-  UserPreferences,
   GetUserPreferencesResponse,
   UpdateUserPreferencesResponse,
+  UserPreferences,
 } from 'teleterm/services/tshd/types';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { useUserPreferences } from './useUserPreferences';
 
@@ -44,6 +44,7 @@ const preferences: UserPreferences = {
     viewMode: ViewMode.CARD,
     defaultTab: DefaultTab.ALL,
     labelsViewMode: LabelsViewMode.COLLAPSED,
+    availableResourceMode: AvailableResourceMode.ACCESSIBLE,
   },
 };
 
@@ -161,6 +162,7 @@ describe('updating preferences', () => {
         viewMode: ViewMode.LIST,
         defaultTab: DefaultTab.PINNED,
         labelsViewMode: LabelsViewMode.COLLAPSED,
+        availableResourceMode: AvailableResourceMode.ACCESSIBLE,
       },
     };
 
@@ -229,6 +231,7 @@ describe('updating preferences', () => {
         viewMode: ViewMode.LIST,
         defaultTab: DefaultTab.PINNED,
         labelsViewMode: LabelsViewMode.COLLAPSED,
+        availableResourceMode: AvailableResourceMode.ACCESSIBLE,
       },
     };
 
@@ -263,6 +266,7 @@ describe('updating preferences', () => {
             viewMode: ViewMode.CARD,
             defaultTab: DefaultTab.PINNED,
             labelsViewMode: LabelsViewMode.COLLAPSED,
+            availableResourceMode: AvailableResourceMode.ACCESSIBLE,
           },
         },
       })

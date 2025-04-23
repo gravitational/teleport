@@ -11,8 +11,6 @@ teleport:
     nodename: graviton
 
     # Data directory where Teleport daemon keeps its data.
-    # See "Storage backends" for more details
-    # (https://goteleport.com/docs/setup/reference/backends/).
     data_dir: /var/lib/teleport
 
     # PID file for Teleport process
@@ -32,11 +30,6 @@ teleport:
 
     # join_params are parameters to set when joining a cluster via
     # EC2, IAM or a token.
-    #
-    # EC2 join method documentation:
-    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-ec2/
-    # IAM join method documentation:
-    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
     join_params:
         # When `method` is set to "token", it is the equivalent to using `auth_token` above.
         # You should only use either auth_token or join_params.
@@ -67,9 +60,6 @@ teleport:
     # ca_pin:
     #   - /var/lib/teleport/pin1
     #   - /var/lib/teleport/pin2
-    #
-    # See the documentation on using CA pins:
-    # https://goteleport.com/docs/management/join-services-to-your-cluster/join-token/#connecting-directly-to-the-auth-service.
     ca_pin:
       "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
@@ -81,8 +71,6 @@ teleport:
 
     # Teleport provides HTTP endpoints for monitoring purposes. They are
     # disabled by default but you can enable them using the diagnosis address.
-    # See the Teleport metrics reference:
-    # https://goteleport.com/docs/management/diagnostics/metrics/
     diag_addr: "127.0.0.1:3000"
 
     # Only use one of auth_server or proxy_server.
@@ -108,11 +96,11 @@ teleport:
     #  # The cache is enabled by default, it can be disabled with this flag
     #  enabled: true
 
-    # Teleport throttles all connections to avoid abuse. These settings allow
-    # you to adjust the default limits
+    # Teleport can limit the number of connections coming from each client
+    # IP address to avoid abuse. Note that these limits are enforced separately
+    # for each service (SSH, Kubernetes, etc.)
     connection_limits:
         max_connections: 1000
-        max_users: 250
 
     # Logging configuration. Possible output values to disk via
     # '/var/lib/teleport/teleport.log',

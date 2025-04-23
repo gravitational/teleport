@@ -18,6 +18,8 @@
 
 import { Auth2faType, PreferredMfaType } from 'shared/services/types';
 
+// Deprecated: use getMfaRegisterOptions or getMfaChallengeOptions instead.
+// TODO(Joerger): Delete once no longer used.
 export default function createMfaOptions(opts: Options) {
   const { auth2faType, required = false } = opts;
   const mfaOptions: MfaOption[] = [];

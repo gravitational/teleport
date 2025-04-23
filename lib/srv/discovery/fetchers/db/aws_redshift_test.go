@@ -21,14 +21,12 @@ package db
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -43,9 +41,11 @@ func TestRedshiftFetcher(t *testing.T) {
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
-			inputClients: &cloud.TestCloudClients{
-				Redshift: &mocks.RedshiftMock{
-					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Dev},
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", wildcardLabels),
@@ -53,9 +53,11 @@ func TestRedshiftFetcher(t *testing.T) {
 		},
 		{
 			name: "fetch prod",
-			inputClients: &cloud.TestCloudClients{
-				Redshift: &mocks.RedshiftMock{
-					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Dev},
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", envProdLabels),
@@ -63,9 +65,11 @@ func TestRedshiftFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unavailable",
-			inputClients: &cloud.TestCloudClients{
-				Redshift: &mocks.RedshiftMock{
-					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable, redshiftUse1UnknownStatus},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					redshiftClient: &mocks.RedshiftClient{
+						Clusters: []redshifttypes.Cluster{*redshiftUse1Prod, *redshiftUse1Unavailable, *redshiftUse1UnknownStatus},
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRedshift, "us-east-1", wildcardLabels),
@@ -75,18 +79,18 @@ func TestRedshiftFetcher(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshift.Cluster)) (*redshift.Cluster, types.Database) {
+func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshifttypes.Cluster)) (*redshifttypes.Cluster, types.Database) {
 	cluster := mocks.RedshiftCluster(env, region, map[string]string{"env": env}, opts...)
 
-	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
+	database, err := common.NewDatabaseFromRedshiftCluster(&cluster)
 	require.NoError(t, err)
 	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshift)
-	return cluster, database
+	return &cluster, database
 }
 
 // withRedshiftStatus returns an option function for makeRedshiftCluster to overwrite status.
-func withRedshiftStatus(status string) func(*redshift.Cluster) {
-	return func(cluster *redshift.Cluster) {
+func withRedshiftStatus(status string) func(*redshifttypes.Cluster) {
+	return func(cluster *redshifttypes.Cluster) {
 		cluster.ClusterStatus = aws.String(status)
 	}
 }

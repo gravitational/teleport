@@ -212,7 +212,6 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "otp",
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "otp",
@@ -225,7 +224,6 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "off",
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "off",
@@ -246,7 +244,6 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "u2f",
@@ -280,7 +277,6 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "webauthn",
@@ -313,7 +309,6 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "on",
@@ -338,7 +333,6 @@ func TestAuthenticationSection(t *testing.T) {
 					"connector_name": "passwordless",
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "on",
@@ -361,7 +355,6 @@ func TestAuthenticationSection(t *testing.T) {
 					"connector_name": "headless",
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "on",
@@ -383,7 +376,6 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				DeviceTrust: &DeviceTrust{
 					Mode: "required",
@@ -402,11 +394,88 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
-			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				DeviceTrust: &DeviceTrust{
 					Mode:       "required",
 					AutoEnroll: "yes",
+				},
+			},
+		}, {
+			desc: "signature suite empty",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"signature_algorithm_suite": "",
+				}
+			},
+			expected: &AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
+			},
+		}, {
+			desc: "signature suite legacy",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"signature_algorithm_suite": "legacy",
+				}
+			},
+			expected: &AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+			},
+		}, {
+			desc: "signature suite balanced-v1",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"signature_algorithm_suite": "balanced-v1",
+				}
+			},
+			expected: &AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			},
+		}, {
+			desc: "signature suite fips-v1",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"signature_algorithm_suite": "fips-v1",
+				}
+			},
+			expected: &AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+			},
+		}, {
+			desc: "signature suite hsm-v1",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"signature_algorithm_suite": "hsm-v1",
+				}
+			},
+			expected: &AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+			},
+		}, {
+			desc: "signature suite typo",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"signature_algorithm_suite": "balanced-v0",
+				}
+			},
+			expectError: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorContains(t, err, "invalid value: balanced-v0")
+			},
+		}, {
+			desc: "stable unix users",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"stable_unix_user_config": cfgMap{
+						"enabled":   true,
+						"first_uid": 100,
+						"last_uid":  10,
+					},
+				}
+			},
+			expected: &AuthenticationConfig{
+				StableUNIXUserConfig: &StableUNIXUserConfig{
+					Enabled:  true,
+					FirstUID: 100,
+					LastUID:  10,
 				},
 			},
 		},
@@ -415,7 +484,11 @@ func TestAuthenticationSection(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))
 			cfg, err := ReadConfig(text)
-			tt.expectError(t, err)
+			if tt.expectError != nil {
+				tt.expectError(t, err)
+				return
+			}
+			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
 		})
@@ -779,6 +852,30 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthenticationConfig_Parse_StableUNIXUserConfig(t *testing.T) {
+	text := editConfig(t, func(cfg cfgMap) {
+		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			"stable_unix_user_config": nil,
+		}
+	})
+	cfg, err := ReadConfig(bytes.NewBuffer(text))
+	require.NoError(t, err)
+	_, err = cfg.Auth.Authentication.Parse()
+	require.NoError(t, err)
+
+	text = editConfig(t, func(cfg cfgMap) {
+		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+			"stable_unix_user_config": cfgMap{
+				"enabled": true,
+			},
+		}
+	})
+	cfg, err = ReadConfig(bytes.NewBuffer(text))
+	require.NoError(t, err)
+	_, err = cfg.Auth.Authentication.Parse()
+	require.ErrorContains(t, err, "UID range includes negative or system UIDs")
 }
 
 // TestSSHSection tests the config parser for the SSH config block

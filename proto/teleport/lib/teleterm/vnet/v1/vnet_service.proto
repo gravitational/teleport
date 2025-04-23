@@ -18,14 +18,36 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.vnet.v1;
 
+import "teleport/lib/vnet/diag/v1/diag.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1";
 
 // VnetService provides methods to manage a VNet instance.
 service VnetService {
   // Start starts VNet.
   rpc Start(StartRequest) returns (StartResponse);
+
   // Stop stops VNet.
   rpc Stop(StopRequest) returns (StopResponse);
+
+  // ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
+  // includes the proxy service hostnames and custom DNS zones configured in vnet_config.
+  //
+  // This is fetched independently of what the Electron app thinks the current state of the cluster
+  // looks like, since the VNet admin process also fetches this data independently of the Electron
+  // app.
+  //
+  // Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+  // be fetched (due to e.g., a network error or an expired cert).
+  rpc ListDNSZones(ListDNSZonesRequest) returns (ListDNSZonesResponse);
+
+  // GetBackgroundItemStatus returns the status of the background item responsible for launching
+  // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+  rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
+
+  // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
+  // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
+  rpc RunDiagnostics(RunDiagnosticsRequest) returns (RunDiagnosticsResponse);
 }
 
 // Request for Start.
@@ -39,3 +61,41 @@ message StopRequest {}
 
 // Response for Stop.
 message StopResponse {}
+
+// Request for ListDNSZones.
+message ListDNSZonesRequest {}
+
+// Response for ListDNSZones.
+message ListDNSZonesResponse {
+  // dns_zones is a deduplicated list of DNS zones.
+  repeated string dns_zones = 1;
+}
+
+// Request for GetBackgroundItemStatus.
+message GetBackgroundItemStatusRequest {}
+
+// Response for GetBackgroundItemStatus.
+message GetBackgroundItemStatusResponse {
+  BackgroundItemStatus status = 1;
+}
+
+// BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.
+// https://developer.apple.com/documentation/servicemanagement/smappservice/status-swift.enum?language=objc
+enum BackgroundItemStatus {
+  BACKGROUND_ITEM_STATUS_UNSPECIFIED = 0;
+  BACKGROUND_ITEM_STATUS_NOT_REGISTERED = 1;
+  // This is the status the background item should have before tsh attempts to send a message to the
+  // daemon.
+  BACKGROUND_ITEM_STATUS_ENABLED = 2;
+  BACKGROUND_ITEM_STATUS_REQUIRES_APPROVAL = 3;
+  BACKGROUND_ITEM_STATUS_NOT_FOUND = 4;
+  BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
+}
+
+// Request for RunDiagnostics.
+message RunDiagnosticsRequest {}
+
+// Response for RunDiagnostics.
+message RunDiagnosticsResponse {
+  teleport.lib.vnet.diag.v1.Report report = 1;
+}

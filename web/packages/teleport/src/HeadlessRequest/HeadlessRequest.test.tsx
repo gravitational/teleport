@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-import React from 'react';
-import { Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+import { Route, Router } from 'react-router';
 
-import { HeadlessRequest } from 'teleport/HeadlessRequest/HeadlessRequest';
+import { render, screen } from 'design/utils/testing';
+
 import cfg from 'teleport/config';
+import { HeadlessRequest } from 'teleport/HeadlessRequest/HeadlessRequest';
 import auth from 'teleport/services/auth';
 
 test('ip address should be visible', async () => {
-  jest.spyOn(auth, 'headlessSSOGet').mockImplementation(
+  jest.spyOn(auth, 'headlessSsoGet').mockImplementation(
     () =>
       new Promise(resolve => {
         resolve({ clientIpAddress: '1.2.3.4' });

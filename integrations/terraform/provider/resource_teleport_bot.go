@@ -28,6 +28,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
@@ -89,7 +90,7 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 			// Implementation note: This needs RequiresReplace() to handle
 			// updates properly but we aren't able to attach plan modifiers to
 			// fields from schema methods here. See ModifyPlan below.
-			"traits": tfschema.GenSchemaTraits(ctx),
+			"traits": tfschema.GenSchemaTraits(ctx, tfsdk.Attribute{}),
 		},
 	}, nil
 }
@@ -175,6 +176,8 @@ func (r resourceTeleportBot) Create(ctx context.Context, req tfsdk.CreateResourc
 	// This is a temporary workaround to fix the provider compilation in v16 (the legacy RPC got removed).
 	// We must do a breaking change in v16 and rely on the new bot schema and the tf code generator.
 	response, err := r.p.Client.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: &machineidv1.Bot{
+		Kind:    apitypes.KindBot,
+		Version: apitypes.V1,
 		Metadata: &headerv1.Metadata{
 			Name: plan.Name.Value,
 		},

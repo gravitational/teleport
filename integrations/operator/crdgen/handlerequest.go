@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package crdgen
 
 import (
-	"fmt"
 	"os"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -29,12 +28,19 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/pluginpb"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
+func HandleCRDRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsCRD)
+}
+
+func HandleDocsRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsDocsPage)
+}
+
+func handleRequest(req *gogoplugin.CodeGeneratorRequest, out crdFormatFunc) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")
 	}
@@ -52,7 +58,12 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	for _, fileDesc := range gen.AllFiles().File {
 		file := gen.addFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
-			if err := generateSchema(file, "resources.teleport.dev", gen.Response); err != nil {
+			if err := generateSchema(
+				file,
+				"resources.teleport.dev",
+				out,
+				gen.Response,
+			); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -152,7 +163,7 @@ var tokenColumns = []apiextv1.CustomResourceColumnDefinition{
 	},
 }
 
-func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
+func generateSchema(file *File, groupName string, format crdFormatFunc, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := NewSchemaGenerator(groupName)
 
 	resources := []resource{
@@ -202,6 +213,15 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 				withAdditionalColumns(serverColumns),
 			},
 		},
+		{name: "TrustedClusterV2", opts: []resourceSchemaOption{withVersionInKindOverride()}},
+		{name: "Bot", opts: []resourceSchemaOption{withVersionOverride(types.V1), withVersionInKindOverride()}},
+		{
+			name: "WorkloadIdentity",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withVersionInKindOverride(),
+			},
+		},
 	}
 
 	for _, resource := range resources {
@@ -211,7 +231,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		}
 		err := generator.addResource(file, resource.name, resource.opts...)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating %q", resource.name)
 		}
 	}
 
@@ -220,13 +240,12 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		if err != nil {
 			return trace.Wrap(err, "generating CRD")
 		}
-		data, err := yaml.Marshal(crd)
+		data, filename, err := format(crd, groupName, root.pluralName)
 		if err != nil {
-			return trace.Wrap(err, "marshaling CRD")
+			return trace.Wrap(err)
 		}
-		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
 		content := string(data)
-		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
+		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &filename, Content: &content})
 	}
 
 	return nil

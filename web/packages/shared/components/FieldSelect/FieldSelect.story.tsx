@@ -17,55 +17,159 @@
  */
 
 import { useState } from 'react';
+
 import { Flex } from 'design';
-
-import { wait } from 'shared/utils/wait';
-import Validation from 'shared/components/Validation';
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { wait } from 'shared/utils/wait';
 
+import { requiredField } from '../Validation/rules';
 import { FieldSelect, FieldSelectAsync } from './FieldSelect';
+import {
+  FieldSelectCreatable,
+  FieldSelectCreatableAsync,
+} from './FieldSelectCreatable';
 
 export default {
   title: 'Shared/FieldSelect',
 };
 
+function noPenguinsAllowed(opt: Option) {
+  return () =>
+    opt.value !== 'linux'
+      ? { valid: true }
+      : { valid: false, message: 'No penguins allowed' };
+}
+
+function noPenguinsAllowedInArray(opt: Option[]) {
+  return () =>
+    opt.every(o => o.value !== 'linux')
+      ? { valid: true }
+      : { valid: false, message: 'No penguins allowed' };
+}
+
 export function Default() {
   const [selectedOption, setSelectedOption] = useState<Option>(OPTIONS[0]);
+  const [selectedOptions, setSelectedOptions] = useState<readonly Option[]>([]);
   return (
     <Validation>
-      {() => (
-        <Flex flexDirection="column">
-          <FieldSelect
-            label="FieldSelect with search"
-            onChange={option => setSelectedOption(option as Option)}
-            value={selectedOption}
-            isSearchable
-            options={OPTIONS}
-          />
-          <FieldSelectAsync
-            label="FieldSelectAsync with search"
-            onChange={option => setSelectedOption(option as Option)}
-            value={selectedOption}
-            isSearchable
-            loadOptions={async input => {
-              await wait(400);
-              return OPTIONS.filter(o => o.label.includes(input));
-            }}
-            noOptionsMessage={() => 'No options'}
-          />
-          <FieldSelectAsync
-            label="FieldSelectAsync with error"
-            onChange={undefined}
-            value={undefined}
-            isSearchable
-            loadOptions={async () => {
-              await wait(400);
-              return Promise.reject('Network error');
-            }}
-            noOptionsMessage={() => 'No options'}
-          />
-        </Flex>
-      )}
+      {({ validator }) => {
+        // Prevent rendering loop.
+        if (!validator.state.validating) {
+          validator.validate();
+        }
+        return (
+          <Flex flexDirection="column">
+            <FieldSelect
+              label="FieldSelect with search"
+              onChange={option => setSelectedOption(option)}
+              value={selectedOption}
+              isSearchable
+              options={OPTIONS}
+              helperText="And a helper text"
+            />
+            <FieldSelect
+              label="FieldSelect with validation rule"
+              onChange={option => setSelectedOption(option)}
+              rule={noPenguinsAllowed}
+              value={selectedOption}
+              options={OPTIONS}
+            />
+            <FieldSelect
+              label="FieldSelect, multi-select"
+              isMulti
+              options={OPTIONS}
+              value={selectedOptions}
+              onChange={setSelectedOptions}
+            />
+            <FieldSelect
+              label="FieldSelect, multi-select, required, with tooltip"
+              isMulti
+              options={OPTIONS}
+              value={selectedOptions}
+              onChange={setSelectedOptions}
+              rule={requiredField('Field is required')}
+              required
+              toolTipContent="I'm a tooltip."
+            />
+            <FieldSelectAsync
+              label="FieldSelectAsync with search"
+              onChange={option => setSelectedOption(option)}
+              value={selectedOption}
+              isSearchable
+              loadOptions={async input => {
+                await wait(400);
+                return OPTIONS.filter(o => o.label.includes(input));
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectAsync
+              label="FieldSelectAsync with search and validation rule"
+              onChange={option => setSelectedOption(option)}
+              rule={noPenguinsAllowed}
+              value={selectedOption}
+              isSearchable
+              loadOptions={async input => {
+                await wait(400);
+                return OPTIONS.filter(o => o.label.includes(input));
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectAsync
+              label="FieldSelectAsync with error"
+              onChange={undefined}
+              value={undefined}
+              isSearchable
+              loadOptions={async () => {
+                await wait(400);
+                throw new Error('Network error');
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectAsync
+              label="Empty FieldSelectAsync"
+              onChange={undefined}
+              value={undefined}
+              isSearchable
+              loadOptions={async () => {
+                await wait(400);
+                return [];
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectCreatable
+              label="FieldSelectCreatable, multi-select"
+              isMulti
+              onChange={setSelectedOptions}
+              value={selectedOptions}
+              isSearchable
+              options={OPTIONS}
+            />
+            <FieldSelectCreatable
+              label="FieldSelectCreatable, multi-select, with validation rule"
+              isMulti
+              rule={noPenguinsAllowedInArray}
+              onChange={setSelectedOptions}
+              value={selectedOptions}
+              isSearchable
+              options={OPTIONS}
+            />
+            <FieldSelectCreatableAsync
+              label="FieldSelectCreatableAsync, multi-select"
+              isMulti
+              onChange={setSelectedOptions}
+              value={selectedOptions}
+              isSearchable
+              defaultOptions={true}
+              loadOptions={async input => {
+                await wait(400);
+                return OPTIONS.filter(o => o.label.includes(input));
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+          </Flex>
+        );
+      }}
     </Validation>
   );
 }

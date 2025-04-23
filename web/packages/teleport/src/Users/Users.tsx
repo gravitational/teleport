@@ -17,17 +17,37 @@
  */
 
 import React from 'react';
-import { Indicator, Box, ButtonPrimary, Alert } from 'design';
+import { Link as InternalLink } from 'react-router-dom';
+
+import {
+  Alert,
+  Box,
+  Button,
+  Link as ExternalLink,
+  Flex,
+  Indicator,
+  Text,
+} from 'design';
+import { HoverTooltip } from 'design/Tooltip';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  InfoUl,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import cfg from 'teleport/config';
+import { useGetUsers } from 'teleport/services/user/hooks';
 
+import { UserAddEdit } from './UserAddEdit';
+import { UserDelete } from './UserDelete';
 import UserList from './UserList';
-import UserAddEdit from './UserAddEdit';
-import UserDelete from './UserDelete';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
 
@@ -38,18 +58,15 @@ export function UsersContainer(props: UsersContainerProps) {
 
 export function Users(props: State) {
   const {
-    attempt,
-    users,
-    fetchRoles,
     operation,
     onStartCreate,
     onStartDelete,
     onStartEdit,
     onStartReset,
+    usersAcl,
+    showMauInfo,
+    onDismissUsersMauNotice,
     onClose,
-    onCreate,
-    onUpdate,
-    onDelete,
     onReset,
     onStartInviteCollaborators,
     onInviteCollaboratorsClose,
@@ -58,38 +75,134 @@ export function Users(props: State) {
     EmailPasswordReset,
     onEmailPasswordResetClose,
   } = props;
+
+  const users = useGetUsers();
+
+  const requiredPermissions = Object.entries(usersAcl)
+    .map(([key, value]) => {
+      if (key === 'edit') {
+        return { value, label: 'update' };
+      }
+      if (key === 'create') {
+        return { value, label: 'create' };
+      }
+    })
+    .filter(Boolean);
+
+  const isMissingPermissions = requiredPermissions.some(v => !v.value);
+
   return (
     <FeatureBox>
-      <FeatureHeader>
+      <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
-        {attempt.isSuccess && (
-          <>
+        {users.isSuccess && (
+          <Flex gap={2}>
             {!InviteCollaborators && (
-              <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
-                Create New User
-              </ButtonPrimary>
+              <HoverTooltip
+                placement="bottom"
+                tipContent={
+                  !isMissingPermissions ? (
+                    ''
+                  ) : (
+                    <Box>
+                      {/* TODO (avatus): extract this into a new "missing permissions" component. This will
+                          require us to change the internals of HoverTooltip to allow more arbitrary styling of the popover.
+                      */}
+                      <Text mb={1}>
+                        You do not have all of the required permissions.
+                      </Text>
+                      <Box mb={1}>
+                        <Text bold>You are missing permissions:</Text>
+                        <Flex gap={2}>
+                          {requiredPermissions
+                            .filter(perm => !perm.value)
+                            .map(perm => (
+                              <Text
+                                key={perm.label}
+                              >{`users.${perm.label}`}</Text>
+                            ))}
+                        </Flex>
+                      </Box>
+                    </Box>
+                  )
+                }
+              >
+                <Button
+                  intent="primary"
+                  data-testid="create_new_users_button"
+                  fill="border"
+                  disabled={!usersAcl.edit}
+                  ml="auto"
+                  width="240px"
+                  onClick={onStartCreate}
+                >
+                  Create New User
+                </Button>
+              </HoverTooltip>
             )}
             {InviteCollaborators && (
-              <ButtonPrimary
+              <Button
+                intent="primary"
+                fill="border"
                 ml="auto"
                 width="240px"
-                onClick={onStartInviteCollaborators}
+                // TODO(bl-nero): There may be a bug here that used to be hidden
+                // by inadequate type checking; investigate and fix.
+                onClick={
+                  onStartInviteCollaborators as any as React.MouseEventHandler<HTMLButtonElement>
+                }
               >
                 Enroll Users
-              </ButtonPrimary>
+              </Button>
             )}
-          </>
+            <InfoGuideButton config={{ guide: <InfoGuide /> }} />
+          </Flex>
         )}
       </FeatureHeader>
-      {attempt.isProcessing && (
+      {users.isFetching && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}
-      {attempt.isSuccess && (
+      {showMauInfo && (
+        <Alert
+          data-testid="users-not-mau-alert"
+          dismissible
+          onDismiss={onDismissUsersMauNotice}
+          kind="info"
+          css={`
+            a.external-link {
+              color: ${({ theme }) => theme.colors.buttons.link.default};
+            }
+          `}
+        >
+          The users displayed here are not an accurate reflection of Monthly
+          Active Users (MAU). For example, users who log in through Single
+          Sign-On (SSO) providers such as Okta may only appear here temporarily
+          and disappear once their sessions expire. For more information, read
+          our documentation on{' '}
+          <ExternalLink
+            target="_blank"
+            href="https://goteleport.com/docs/usage-billing/#monthly-active-users"
+            className="external-link"
+          >
+            MAU
+          </ExternalLink>{' '}
+          and{' '}
+          <ExternalLink
+            href="https://goteleport.com/docs/reference/user-types/"
+            className="external-link"
+          >
+            User Types
+          </ExternalLink>
+          .
+        </Alert>
+      )}
+      {users.isError && <Alert kind="danger" children={users.error.message} />}
+      {users.isSuccess && !users.isFetching && (
         <UserList
-          users={users}
+          usersAcl={usersAcl}
+          users={users.data}
           onEdit={onStartEdit}
           onDelete={onStartDelete}
           onReset={onStartReset}
@@ -98,19 +211,12 @@ export function Users(props: State) {
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit
           isNew={operation.type === 'create'}
-          fetchRoles={fetchRoles}
           onClose={onClose}
-          onCreate={onCreate}
-          onUpdate={onUpdate}
           user={operation.user}
         />
       )}
       {operation.type === 'delete' && (
-        <UserDelete
-          onClose={onClose}
-          onDelete={onDelete}
-          username={operation.user.name}
-        />
+        <UserDelete onClose={onClose} username={operation.user.name} />
       )}
       {operation.type === 'reset' && !EmailPasswordReset && (
         <UserReset
@@ -134,3 +240,38 @@ export function Users(props: State) {
     </FeatureBox>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  Users: {
+    title: 'Teleport Users',
+    href: 'https://goteleport.com/docs/core-concepts/#teleport-users',
+  },
+};
+
+const InfoGuide = () => (
+  <Box>
+    <InfoParagraph>
+      Teleport allows for two kinds of{' '}
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.Users.href}>
+        users
+      </InfoExternalTextLink>
+      :
+      <InfoUl>
+        <li>
+          <b>Local</b> users are created and managed in Teleport and stored in
+          the Auth Service backend.
+        </li>
+        <li>
+          <b>Single Sign-On (SSO)</b> users are stored on the backend of your
+          SSO solution, e.g., Okta or GitHub. SSO can be set up with an{' '}
+          <InternalLink to={cfg.routes.sso}>Auth Connector</InternalLink>.
+        </li>
+      </InfoUl>
+    </InfoParagraph>
+    <InfoParagraph>
+      To take any action in Teleport, users must have at least one{' '}
+      <InternalLink to={cfg.routes.roles}>Role</InternalLink> assigned.
+    </InfoParagraph>
+    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+  </Box>
+);

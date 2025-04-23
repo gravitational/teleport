@@ -23,18 +23,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ExitCodeError wraps an exit code as an error.
@@ -55,29 +57,40 @@ type SessionsCollection struct {
 
 // WriteText writes the session collection as text to the provided io.Writer.
 func (e *SessionsCollection) WriteText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
+	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Target", "Timestamp"})
 	for _, event := range e.SessionEvents {
-		var id, typ, participants, hostname, timestamp string
+		var id, typ, participants, target, timestamp string
 
 		switch session := event.(type) {
 		case *events.SessionEnd:
 			id = session.GetSessionID()
 			typ = session.Protocol
 			participants = strings.Join(session.Participants, ", ")
-			hostname = session.ServerAddr
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+
+			target = session.ServerHostname
+			if typ == libevents.EventProtocolKube {
+				target = session.KubernetesCluster
+			}
+
 		case *events.WindowsDesktopSessionEnd:
 			id = session.GetSessionID()
 			typ = "windows"
 			participants = strings.Join(session.Participants, ", ")
-			hostname = session.DesktopName
+			target = session.DesktopName
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		case *events.DatabaseSessionEnd:
+			id = session.GetSessionID()
+			typ = session.DatabaseProtocol
+			participants = session.GetUser()
+			target = session.DatabaseName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		default:
-			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd or WindowsDesktopSessionEnd: got: %T", event))
+			slog.WarnContext(context.Background(), "unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd", "event_type", logutils.TypeAttr(event))
 			continue
 		}
 
-		t.AddRow([]string{id, typ, participants, hostname, timestamp})
+		t.AddRow([]string{id, typ, participants, target, timestamp})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -174,6 +187,17 @@ func FormatLabels(labels map[string]string, verbose bool) string {
 	return strings.Join(append(result, namespaced...), ",")
 }
 
+// FormatMultiValueLabels formats labels that have multiple values as a map
+// where each key has only one formatted value, then that map is formatted with
+// FormatLabels as above.
+func FormatMultiValueLabels(labels map[string][]string, verbose bool) string {
+	ll := make(map[string]string, len(labels))
+	for key, values := range labels {
+		ll[key] = fmt.Sprintf("%v", values)
+	}
+	return FormatLabels(ll, verbose)
+}
+
 // FormatResourceName returns the resource's name or its name as originally
 // discovered in the cloud by the Teleport Discovery Service.
 // In verbose mode, it always returns the resource name.
@@ -188,4 +212,14 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 		}
 	}
 	return r.GetName()
+}
+
+// FormatDefault formats a zero value with its default, or if the value is not
+// zero it just returns the value.
+func FormatDefault[T comparable](val, defaultVal T) string {
+	var zero T
+	if val == zero {
+		return fmt.Sprintf("%v (default)", defaultVal)
+	}
+	return fmt.Sprintf("%v", val)
 }

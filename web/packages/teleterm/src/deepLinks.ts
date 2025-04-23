@@ -17,12 +17,14 @@
  */
 
 import * as whatwg from 'whatwg-url';
+
 import {
-  CUSTOM_PROTOCOL,
-  Path,
-  DeepURL,
-  ConnectMyComputerDeepURL,
   AuthenticateWebDeviceDeepURL,
+  ConnectMyComputerDeepURL,
+  CUSTOM_PROTOCOL,
+  DeepURL,
+  Path,
+  VnetDeepURL,
 } from 'shared/deepLinks';
 
 export type DeepLinkParseResult =
@@ -94,7 +96,8 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     username: decodeURIComponent(username),
   };
 
-  switch (pathname as Path) {
+  const pathnameAsPath = pathname as Path;
+  switch (pathnameAsPath) {
     case '/connect_my_computer': {
       const url: ConnectMyComputerDeepURL = {
         ...baseUrl,
@@ -106,6 +109,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     case '/authenticate_web_device': {
       const id = searchParams.get('id');
       const token = searchParams.get('token');
+      const redirect_uri = searchParams.get('redirect_uri');
       if (!(id && token)) {
         return {
           status: 'error',
@@ -122,11 +126,21 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
         searchParams: {
           id,
           token,
+          redirect_uri,
         },
       };
       return { status: 'success', url };
     }
+    case '/vnet': {
+      const url: VnetDeepURL = {
+        ...baseUrl,
+        pathname: '/vnet',
+        searchParams: {},
+      };
+      return { status: 'success', url };
+    }
     default:
+      pathnameAsPath satisfies never;
       return { status: 'error', reason: 'unsupported-url' };
   }
 }

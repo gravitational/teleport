@@ -1,5 +1,4 @@
 //go:build bpf && !386
-// +build bpf,!386
 
 /*
  * Teleport
@@ -22,6 +21,7 @@
 package bpf
 
 import (
+	"context"
 	"encoding/binary"
 	"os"
 	"sync"
@@ -30,14 +30,12 @@ import (
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentBPF,
-})
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentBPF)
 
 const (
 	kprobeProgPrefix     = "kprobe__"
@@ -224,7 +222,7 @@ func (c *Counter) loop() {
 		var key int32 = 0
 		cntBytes, err := c.arr.GetValue(unsafe.Pointer(&key))
 		if err != nil {
-			log.Errorf("Error reading array value at index 0")
+			logger.ErrorContext(context.Background(), "Error reading array value at index 0")
 			continue
 		}
 

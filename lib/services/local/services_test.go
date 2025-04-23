@@ -60,18 +60,24 @@ func setupServicesContext(ctx context.Context, t *testing.T) *servicesContext {
 	eventsService := NewEventsService(tt.bk)
 	presenceService := NewPresenceService(tt.bk)
 
+	caService := NewCAService(tt.bk)
+
+	identityService, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
+
 	tt.suite = &suite.ServicesTestSuite{
-		CAS:           NewCAService(tt.bk),
-		PresenceS:     presenceService,
-		ProvisioningS: NewProvisioningService(tt.bk),
-		WebS:          NewTestIdentityService(tt.bk),
-		Access:        NewAccessService(tt.bk),
-		EventsS:       eventsService,
-		ChangesC:      make(chan interface{}),
-		ConfigS:       configService,
-		LocalConfigS:  configService,
-		RestrictionsS: NewRestrictionsService(tt.bk),
-		Clock:         clock,
+		TrustS:         caService,
+		TrustInternalS: caService,
+		PresenceS:      presenceService,
+		ProvisioningS:  NewProvisioningService(tt.bk),
+		WebS:           identityService,
+		Access:         NewAccessService(tt.bk),
+		EventsS:        eventsService,
+		ChangesC:       make(chan interface{}),
+		ConfigS:        configService,
+		LocalConfigS:   configService,
+		RestrictionsS:  NewRestrictionsService(tt.bk),
+		Clock:          clock,
 	}
 
 	return &tt
@@ -87,7 +93,6 @@ func TestCRUD(t *testing.T) {
 	t.Run("TestUserCACRUD", tt.suite.CertAuthCRUD)
 	t.Run("TestServerCRUD", tt.suite.ServerCRUD)
 	t.Run("TestAppServerCRUD", tt.suite.AppServerCRUD)
-	t.Run("TestReverseTunnelsCRUD", tt.suite.ReverseTunnelsCRUD)
 	t.Run("TestUsersCRUD", tt.suite.UsersCRUD)
 	t.Run("TestUsersExpiry", tt.suite.UsersExpiry)
 	t.Run("TestLoginAttempts", tt.suite.LoginAttempts)

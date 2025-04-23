@@ -43,18 +43,6 @@ export interface AuthSettings {
      */
     localAuthEnabled: boolean;
     /**
-     * second_factor is the type of second factor to use in authentication.
-     *
-     * @generated from protobuf field: string second_factor = 2;
-     */
-    secondFactor: string;
-    /**
-     * preferred_mfa is the prefered mfa for local logins
-     *
-     * @generated from protobuf field: string preferred_mfa = 3;
-     */
-    preferredMfa: string;
-    /**
      * auth_providers contains a list of auth providers
      *
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.AuthProvider auth_providers = 4;
@@ -86,6 +74,17 @@ export interface AuthSettings {
      * @generated from protobuf field: string local_connector_name = 8;
      */
     localConnectorName: string;
+    /**
+     * client_version_status describes the compatibility status of the client version when compared
+     * against the version of the server.
+     *
+     * @generated from protobuf field: teleport.lib.teleterm.v1.ClientVersionStatus client_version_status = 9;
+     */
+    clientVersionStatus: ClientVersionStatus;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.Versions versions = 10;
+     */
+    versions?: Versions;
 }
 /**
  * AuthProvider describes a way of authentication that is supported by the server. Auth provider is
@@ -113,30 +112,89 @@ export interface AuthProvider {
      */
     displayName: string;
 }
+/**
+ * Versions contains versions of different components that can be used to show the client
+ * incompatibility warning. This way Connect can show the warning before the cluster is added to the
+ * app.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.Versions
+ */
+export interface Versions {
+    /**
+     * @generated from protobuf field: string min_client = 1;
+     */
+    minClient: string;
+    /**
+     * client is the version of tsh. Included for convenience, in theory the Electron app knows this
+     * without asking tsh.
+     *
+     * @generated from protobuf field: string client = 2;
+     */
+    client: string;
+    /**
+     * @generated from protobuf field: string server = 3;
+     */
+    server: string;
+}
+/**
+ * ClientVersionStatus describes the compatibility status of the client version when compared
+ * against the version of the server.
+ *
+ * @generated from protobuf enum teleport.lib.teleterm.v1.ClientVersionStatus
+ */
+export enum ClientVersionStatus {
+    /**
+     * @generated from protobuf enum value: CLIENT_VERSION_STATUS_COMPAT_UNSPECIFIED = 0;
+     */
+    COMPAT_UNSPECIFIED = 0,
+    /**
+     * CLIENT_VERSION_STATUS_OK means that the client is on the same major version as the server or at
+     * most one major version behind.
+     * For example, the server is on v17.1.0 and the client is on v16.0.4.
+     *
+     * @generated from protobuf enum value: CLIENT_VERSION_STATUS_OK = 1;
+     */
+    OK = 1,
+    /**
+     * CLIENT_VERSION_STATUS_TOO_OLD means that the client is at least two major versions behind the
+     * server.
+     * For example, the server is on v19.3.2 and the client is on v17.4.1.
+     *
+     * @generated from protobuf enum value: CLIENT_VERSION_STATUS_TOO_OLD = 2;
+     */
+    TOO_OLD = 2,
+    /**
+     * CLIENT_VERSION_STATUS_TOO_NEW means that the client is at least one major version ahead of the
+     * server.
+     * For example, the server is on v18.2.1 and the client is on v19.0.0.
+     *
+     * @generated from protobuf enum value: CLIENT_VERSION_STATUS_TOO_NEW = 3;
+     */
+    TOO_NEW = 3
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class AuthSettings$Type extends MessageType<AuthSettings> {
     constructor() {
         super("teleport.lib.teleterm.v1.AuthSettings", [
             { no: 1, name: "local_auth_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 2, name: "second_factor", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "preferred_mfa", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "auth_providers", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AuthProvider },
             { no: 5, name: "has_message_of_the_day", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "allow_passwordless", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 8, name: "local_connector_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 8, name: "local_connector_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "client_version_status", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ClientVersionStatus", ClientVersionStatus, "CLIENT_VERSION_STATUS_"] },
+            { no: 10, name: "versions", kind: "message", T: () => Versions }
         ]);
     }
     create(value?: PartialMessage<AuthSettings>): AuthSettings {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.localAuthEnabled = false;
-        message.secondFactor = "";
-        message.preferredMfa = "";
         message.authProviders = [];
         message.hasMessageOfTheDay = false;
         message.authType = "";
         message.allowPasswordless = false;
         message.localConnectorName = "";
+        message.clientVersionStatus = 0;
         if (value !== undefined)
             reflectionMergePartial<AuthSettings>(this, message, value);
         return message;
@@ -148,12 +206,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
             switch (fieldNo) {
                 case /* bool local_auth_enabled */ 1:
                     message.localAuthEnabled = reader.bool();
-                    break;
-                case /* string second_factor */ 2:
-                    message.secondFactor = reader.string();
-                    break;
-                case /* string preferred_mfa */ 3:
-                    message.preferredMfa = reader.string();
                     break;
                 case /* repeated teleport.lib.teleterm.v1.AuthProvider auth_providers */ 4:
                     message.authProviders.push(AuthProvider.internalBinaryRead(reader, reader.uint32(), options));
@@ -170,6 +222,12 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
                 case /* string local_connector_name */ 8:
                     message.localConnectorName = reader.string();
                     break;
+                case /* teleport.lib.teleterm.v1.ClientVersionStatus client_version_status */ 9:
+                    message.clientVersionStatus = reader.int32();
+                    break;
+                case /* teleport.lib.teleterm.v1.Versions versions */ 10:
+                    message.versions = Versions.internalBinaryRead(reader, reader.uint32(), options, message.versions);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -185,12 +243,6 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         /* bool local_auth_enabled = 1; */
         if (message.localAuthEnabled !== false)
             writer.tag(1, WireType.Varint).bool(message.localAuthEnabled);
-        /* string second_factor = 2; */
-        if (message.secondFactor !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.secondFactor);
-        /* string preferred_mfa = 3; */
-        if (message.preferredMfa !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.preferredMfa);
         /* repeated teleport.lib.teleterm.v1.AuthProvider auth_providers = 4; */
         for (let i = 0; i < message.authProviders.length; i++)
             AuthProvider.internalBinaryWrite(message.authProviders[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
@@ -206,6 +258,12 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
         /* string local_connector_name = 8; */
         if (message.localConnectorName !== "")
             writer.tag(8, WireType.LengthDelimited).string(message.localConnectorName);
+        /* teleport.lib.teleterm.v1.ClientVersionStatus client_version_status = 9; */
+        if (message.clientVersionStatus !== 0)
+            writer.tag(9, WireType.Varint).int32(message.clientVersionStatus);
+        /* teleport.lib.teleterm.v1.Versions versions = 10; */
+        if (message.versions)
+            Versions.internalBinaryWrite(message.versions, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -279,3 +337,66 @@ class AuthProvider$Type extends MessageType<AuthProvider> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.AuthProvider
  */
 export const AuthProvider = new AuthProvider$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class Versions$Type extends MessageType<Versions> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.Versions", [
+            { no: 1, name: "min_client", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "client", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "server", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<Versions>): Versions {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.minClient = "";
+        message.client = "";
+        message.server = "";
+        if (value !== undefined)
+            reflectionMergePartial<Versions>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Versions): Versions {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string min_client */ 1:
+                    message.minClient = reader.string();
+                    break;
+                case /* string client */ 2:
+                    message.client = reader.string();
+                    break;
+                case /* string server */ 3:
+                    message.server = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Versions, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string min_client = 1; */
+        if (message.minClient !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.minClient);
+        /* string client = 2; */
+        if (message.client !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.client);
+        /* string server = 3; */
+        if (message.server !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.server);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.Versions
+ */
+export const Versions = new Versions$Type();

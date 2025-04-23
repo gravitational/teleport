@@ -16,9 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fonts } from '../fonts';
+import { Fonts } from '../fonts';
 import { blueGrey } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
+
+type InteractiveColorGroup = {
+  default: string;
+  hover: string;
+  active: string;
+};
 
 export type ThemeColors = {
   /**
@@ -52,10 +58,16 @@ export type ThemeColors = {
    * Interactive colors are used to highlight different actions or states
    * based on intent.
    *
-   * For example, primary would be used for as selected states,
-   * or hover over primary intent actions.
+   * For example, primary would be used for as selected states.
    */
   interactive: {
+    solid: {
+      primary: InteractiveColorGroup;
+      success: InteractiveColorGroup;
+      accent: InteractiveColorGroup;
+      danger: InteractiveColorGroup;
+      alert: InteractiveColorGroup;
+    };
     tonal: {
       primary: string[];
       neutral: string[];
@@ -87,6 +99,7 @@ export type ThemeColors = {
     textDisabled: string;
     bgDisabled: string;
 
+    /** @deprecated Use `interactive.solid.primary` instead. */
     primary: {
       text: string;
       default: string;
@@ -94,6 +107,7 @@ export type ThemeColors = {
       active: string;
     };
 
+    /** @deprecated Use `interactive.tonal.neutral` instead. */
     secondary: {
       default: string;
       hover: string;
@@ -107,6 +121,7 @@ export type ThemeColors = {
       border: string;
     };
 
+    /** @deprecated Use `interactive.solid.danger` instead. */
     warning: {
       text: string;
       default: string;
@@ -116,6 +131,7 @@ export type ThemeColors = {
 
     trashButton: { default: string; hover: string };
 
+    /** @deprecated Use `interactive.solid.accent` instead. */
     link: {
       default: string;
       hover: string;
@@ -125,27 +141,33 @@ export type ThemeColors = {
 
   tooltip: {
     background: string;
+    inverseBackground: string;
   };
 
   progressBarColor: string;
 
+  /** @deprecated Use `interactive.solid.danger` instead. */
   error: {
     main: string;
     hover: string;
     active: string;
   };
+
+  /** @deprecated Use `interactive.solid.alert` instead. */
   warning: {
     main: string;
     hover: string;
     active: string;
   };
 
+  /** @deprecated Use `interactive.solid.success` instead. */
   success: {
     main: string;
     hover: string;
     active: string;
   };
 
+  /** @deprecated Use `interactive.solid.accent` instead. */
   accent: {
     main: string;
     hover: string;
@@ -187,6 +209,8 @@ export type ThemeColors = {
     brightBlue: string;
     brightMagenta: string;
     brightCyan: string;
+    searchMatch: string;
+    activeSearchMatch: string;
   };
 
   editor: {
@@ -288,19 +312,30 @@ export type SharedStyles = {
   sidebarWidth: number;
   boxShadow: string[];
   breakpoints: {
-    mobile: number;
-    tablet: number;
-    desktop: number;
-    small: number;
-    medium: number;
-    large: number;
+    /** @deprecated Use the "small" breakpoint instead. */
+    mobile: string;
+    /** @deprecated Use the "medium" breakpoint instead. */
+    tablet: string;
+    /** @deprecated Use the "large" breakpoint instead. */
+    desktop: string;
+    small: string;
+    medium: string;
+    large: string;
+    700: string;
+    900: string;
+    1200: string;
   };
   topBarHeight: number[];
+  /**
+   *
+   * idx:    0  1  2   3   4   5   6   7   8   9  10  11
+   * space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
+   */
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;
   font: string;
-  fonts: typeof fonts;
+  fonts: Fonts;
   fontWeights: typeof fontWeights;
   fontSizes: typeof fontSizes;
   radii: (number | string)[];

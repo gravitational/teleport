@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { DiscoverBox } from 'teleport/Discover/Shared';
+
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
 import { CreateDatabaseView } from './CreateDatabase';
-
 import type { State } from './useCreateDatabase';
 
 export default {
@@ -31,38 +30,48 @@ export default {
 
 export const InitSelfHostedPostgres = () => (
   <MemoryRouter>
-    <CreateDatabaseView {...props} />
+    <DiscoverBox>
+      <CreateDatabaseView {...props} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const InitSelfHostedMySql = () => (
   <MemoryRouter>
-    <CreateDatabaseView {...props} dbEngine={DatabaseEngine.MySql} />
+    <DiscoverBox>
+      <CreateDatabaseView {...props} dbEngine={DatabaseEngine.MySql} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const NoPerm = () => (
   <MemoryRouter>
-    <CreateDatabaseView {...props} canCreateDatabase={false} />
+    <DiscoverBox>
+      <CreateDatabaseView {...props} canCreateDatabase={false} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const Processing = () => (
   <MemoryRouter>
-    <CreateDatabaseView {...props} attempt={{ status: 'processing' }} />
+    <DiscoverBox>
+      <CreateDatabaseView {...props} attempt={{ status: 'processing' }} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const Failed = () => (
   <MemoryRouter>
-    <CreateDatabaseView
-      {...props}
-      attempt={{
-        status: 'failed',
-        statusText:
-          'invalid database "sfd" address "sfdsdf": address sfdsdf: missing port in address',
-      }}
-    />
+    <DiscoverBox>
+      <CreateDatabaseView
+        {...props}
+        attempt={{
+          status: 'failed',
+          statusText:
+            'invalid database "sfd" address "sfdsdf": address sfdsdf: missing port in address',
+        }}
+      />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
@@ -79,4 +88,5 @@ const props: State = {
   prevStep: () => null,
   nextStep: () => null,
   createdDb: {} as any,
+  handleOnTimeout: () => null,
 };

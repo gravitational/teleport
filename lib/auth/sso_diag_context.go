@@ -56,7 +56,10 @@ func (c *SSODiagContext) WriteToBackend(ctx context.Context) {
 	if c.Info.TestFlow {
 		err := c.DiagService.CreateSSODiagnosticInfo(ctx, c.AuthKind, c.RequestID, c.Info)
 		if err != nil {
-			log.WithError(err).WithField("requestID", c.RequestID).Warn("failed to write SSO diag info data")
+			logger.WarnContext(ctx, "failed to write SSO diag info data",
+				"error", err,
+				"request_id", c.RequestID,
+			)
 		}
 	}
 }

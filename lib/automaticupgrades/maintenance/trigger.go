@@ -20,7 +20,9 @@ package maintenance
 
 import (
 	"context"
+	"strings"
 
+	"github.com/gravitational/trace"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -51,12 +53,60 @@ func (t Triggers) CanStart(ctx context.Context, object client.Object) bool {
 		start, err := trigger.CanStart(ctx, object)
 		if err != nil {
 			start = trigger.Default()
-			log.Error(err, "trigger failed to evaluate, using its default value", "trigger", trigger.Name(), "defaultValue", start)
+			log.Error(
+				err, "trigger failed to evaluate, using its default value", "trigger", trigger.Name(), "defaultValue",
+				start,
+			)
 		} else {
 			log.Info("trigger evaluated", "trigger", trigger.Name(), "result", start)
 		}
 		if start {
 			log.Info("maintenance triggered", "trigger", trigger.Name())
+			return true
+		}
+	}
+	return false
+}
+
+// FailoverTrigger wraps multiple Triggers and tries them sequentially.
+// Any error is considered fatal, except for the trace.NotImplementedErr
+// which indicates the trigger is not supported yet and we should
+// failover to the next trigger.
+type FailoverTrigger []Trigger
+
+// Name implements Trigger
+func (f FailoverTrigger) Name() string {
+	names := make([]string, len(f))
+	for i, t := range f {
+		names[i] = t.Name()
+	}
+
+	return strings.Join(names, ", failover ")
+}
+
+// CanStart implements Trigger
+// Triggers are evaluated sequentially, the result of the first trigger not returning
+// trace.NotImplementedErr is used.
+func (f FailoverTrigger) CanStart(ctx context.Context, object client.Object) (bool, error) {
+	for _, trigger := range f {
+		canStart, err := trigger.CanStart(ctx, object)
+		switch {
+		case err == nil:
+			return canStart, nil
+		case trace.IsNotImplemented(err):
+			continue
+		default:
+			return false, trace.Wrap(err)
+		}
+	}
+	return false, trace.NotFound("every trigger returned NotImplemented")
+}
+
+// Default implements Trigger.
+// The default is the logical OR of every Trigger.Default.
+func (f FailoverTrigger) Default() bool {
+	for _, trigger := range f {
+		if trigger.Default() {
 			return true
 		}
 	}

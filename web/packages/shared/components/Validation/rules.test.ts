@@ -17,13 +17,16 @@
  */
 
 import {
-  requiredToken,
-  requiredPassword,
+  arrayOf,
   requiredConfirmedPassword,
-  requiredField,
-  requiredRoleArn,
   requiredEmailLike,
+  requiredField,
   requiredIamRoleName,
+  requiredPassword,
+  requiredPort,
+  requiredRoleArn,
+  requiredToken,
+  runRules,
 } from './rules';
 
 describe('requiredField', () => {
@@ -137,4 +140,75 @@ describe('requiredEmailLike', () => {
       expect.objectContaining(expected)
     );
   });
+});
+
+describe('requiredPort', () => {
+  const errMsg = 'Port required [1-65535]';
+  test.each`
+    port       | expected
+    ${''}      | ${{ valid: false, message: errMsg }}
+    ${'alice'} | ${{ valid: false, message: errMsg }}
+    ${'99999'} | ${{ valid: false, message: errMsg }}
+    ${'1'}     | ${{ valid: true }}
+    ${'65535'} | ${{ valid: true }}
+  `('port: $port', ({ port, expected }) => {
+    expect(requiredPort(port)()).toEqual(expected);
+  });
+});
+
+test('runRules', () => {
+  expect(
+    runRules(
+      { foo: 'val1', bar: 'val2', irrelevant: undefined },
+      { foo: requiredField('no foo'), bar: requiredField('no bar') }
+    )
+  ).toEqual({
+    valid: true,
+    fields: {
+      foo: { valid: true, message: '' },
+      bar: { valid: true, message: '' },
+    },
+  });
+
+  expect(
+    runRules(
+      { foo: '', bar: 'val2', irrelevant: undefined },
+      { foo: requiredField('no foo'), bar: requiredField('no bar') }
+    )
+  ).toEqual({
+    valid: false,
+    fields: {
+      foo: { valid: false, message: 'no foo' },
+      bar: { valid: true, message: '' },
+    },
+  });
+});
+
+test.each([
+  {
+    name: 'invalid',
+    items: ['a', '', 'c'],
+    expected: {
+      valid: false,
+      results: [
+        { valid: true, message: '' },
+        { valid: false, message: 'required' },
+        { valid: true, message: '' },
+      ],
+    },
+  },
+  {
+    name: 'valid',
+    items: ['a', 'b', 'c'],
+    expected: {
+      valid: true,
+      results: [
+        { valid: true, message: '' },
+        { valid: true, message: '' },
+        { valid: true, message: '' },
+      ],
+    },
+  },
+])('arrayOf: $name', ({ items, expected }) => {
+  expect(arrayOf(requiredField('required'))(items)()).toEqual(expected);
 });

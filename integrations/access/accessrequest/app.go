@@ -21,18 +21,23 @@ package accessrequest
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -50,6 +55,11 @@ type App struct {
 	pluginData *pd.CompareAndSwap[PluginData]
 	bot        MessagingBot
 	job        lib.ServiceJob
+
+	accessMonitoringRules *accessmonitoring.RuleHandler
+	// teleportUser is the name of the Teleport user that will act as the
+	// access request approver.
+	teleportUser string
 }
 
 // NewApp will create a new access request application.
@@ -77,6 +87,14 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 	if !ok {
 		return trace.BadParameter("bot does not implement access request bot methods")
 	}
+
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:                 a.apiClient,
+		PluginType:             a.pluginType,
+		PluginName:             a.pluginName,
+		FetchRecipientCallback: a.bot.FetchRecipient,
+	})
+	a.teleportUser = baseApp.Conf.GetTeleportUser()
 
 	return nil
 }
@@ -108,13 +126,24 @@ func (a *App) Err() error {
 func (a *App) run(ctx context.Context) error {
 	process := lib.MustGetProcess(ctx)
 
-	job, err := watcherjob.NewJob(
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	job, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -125,6 +154,17 @@ func (a *App) run(ctx context.Context) error {
 	ok, err := job.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(acceptedWatchKinds) == 0 {
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
 	}
 
 	a.job.SetReady(ok)
@@ -139,21 +179,28 @@ func (a *App) run(ctx context.Context) error {
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
 // call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
-	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
-		return trace.Errorf("unexpected kind %s", kind)
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
 	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.WithField(ctx, "request_id", reqID)
+	ctx, _ = logger.With(ctx, "request_id", reqID)
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.WithField(ctx, "request_op", "put")
+		ctx, _ = logger.With(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
-			return trace.Errorf("unexpected resource type %T", event.Resource)
+			return trace.BadParameter("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
+		ctx, log := logger.With(ctx, "request_state", req.GetState().String())
 
 		var err error
 		switch {
@@ -162,21 +209,29 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WithField("event", event).Warn("Unknown request state")
+			log.WarnContext(ctx, "Unknown request state",
+				slog.Group("event",
+					slog.Any("type", logutils.StringerAttr(event.Type)),
+					slog.Group("resource",
+						"kind", event.Resource.GetKind(),
+						"name", event.Resource.GetName(),
+					),
+				),
+			)
 			return nil
 		}
 
 		if err != nil {
-			log.WithError(err).Errorf("Failed to process request")
+			log.ErrorContext(ctx, "Failed to process request", "error", err)
 			return trace.Wrap(err)
 		}
 
 		return nil
 	case types.OpDelete:
-		ctx, log := logger.WithField(ctx, "request_op", "delete")
+		ctx, log := logger.With(ctx, "request_op", "delete")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.WithError(err).Errorf("Failed to process deleted request")
+			log.ErrorContext(ctx, "Failed to process deleted request", "error", err)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -195,12 +250,20 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return trace.Wrap(err)
 	}
 
+	loginsByRole, err := a.getLoginsByRole(ctx, req)
+	if trace.IsAccessDenied(err) {
+		log.WarnContext(ctx, "Missing permissions to get logins by role, please add role.read to the associated role", "error", err)
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
 	reqData := pd.AccessRequestData{
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
 		RequestReason:     req.GetRequestReason(),
 		SystemAnnotations: req.GetSystemAnnotations(),
 		Resources:         resourceNames,
+		LoginsByRole:      loginsByRole,
 	}
 
 	_, err = a.pluginData.Create(ctx, reqID, PluginData{AccessRequestData: reqData})
@@ -212,7 +275,12 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 				return trace.Wrap(err)
 			}
 		} else {
-			log.Warning("No channel to post")
+			log.WarnContext(ctx, "No channel to post")
+		}
+
+		// Try to approve the request if user is currently on-call.
+		if err := a.tryApproveRequest(ctx, reqID, req); err != nil {
+			log.WarnContext(ctx, "Failed to auto approve request", "error", err)
 		}
 	case trace.IsAlreadyExists(err):
 		// The messages were already sent, nothing to do, we can update the reviews
@@ -253,7 +321,7 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 	case types.RequestState_PROMOTED:
 		tag = pd.ResolvedPromoted
 	default:
-		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
+		logger.Get(ctx).WarnContext(ctx, "Unknown state", "state", logutils.StringerAttr(state))
 		return replyErr
 	}
 	err := trace.Wrap(a.updateMessages(ctx, req.GetName(), tag, reason, req.GetReviews()))
@@ -272,13 +340,13 @@ func (a *App) broadcastAccessRequestMessages(ctx context.Context, recipients []c
 		return trace.Wrap(err)
 	}
 	for _, data := range sentMessages {
-		logger.Get(ctx).WithFields(logger.Fields{
-			"channel_id": data.ChannelID,
-			"message_id": data.MessageID,
-		}).Info("Successfully posted messages")
+		logger.Get(ctx).InfoContext(ctx, "Successfully posted messages",
+			"channel_id", data.ChannelID,
+			"message_id", data.MessageID,
+		)
 	}
 	if err != nil {
-		logger.Get(ctx).WithError(err).Error("Failed to post one or more messages")
+		logger.Get(ctx).ErrorContext(ctx, "Failed to post one or more messages", "error", err)
 	}
 
 	_, err = a.pluginData.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
@@ -311,7 +379,7 @@ func (a *App) postReviewReplies(ctx context.Context, reqID string, reqReviews []
 		return existing, nil
 	})
 	if trace.IsAlreadyExists(err) {
-		logger.Get(ctx).Debug("Failed to post reply: replies are already sent")
+		logger.Get(ctx).DebugContext(ctx, "Failed to post reply: replies are already sent")
 		return nil
 	}
 	if err != nil {
@@ -325,7 +393,7 @@ func (a *App) postReviewReplies(ctx context.Context, reqID string, reqReviews []
 
 	errors := make([]error, 0, len(slice))
 	for _, data := range pd.SentMessages {
-		ctx, _ = logger.WithFields(ctx, logger.Fields{"channel_id": data.ChannelID, "message_id": data.MessageID})
+		ctx, _ = logger.With(ctx, "channel_id", data.ChannelID, "message_id", data.MessageID)
 		for _, review := range slice {
 			if err := a.bot.PostReviewReply(ctx, data.ChannelID, data.MessageID, review); err != nil {
 				errors = append(errors, err)
@@ -345,6 +413,14 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := common.NewRecipientSet()
 
+	recipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	recipients.ForEach(func(r common.Recipient) {
+		recipientSet.Add(r)
+	})
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice()
+	}
+
 	switch a.pluginType {
 	case types.PluginTypeServiceNow:
 		// The ServiceNow plugin does not use recipients currently and create incidents in the incident table directly.
@@ -359,7 +435,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		for _, recipient := range recipients {
 			rec, err := a.bot.FetchRecipient(ctx, recipient)
 			if err != nil {
-				log.Warningf("Failed to fetch Opsgenie recipient: %v", err)
+				log.WarnContext(ctx, "Failed to fetch Opsgenie recipient", "error", err)
 				continue
 			}
 			recipientSet.Add(*rec)
@@ -370,7 +446,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	validEmailSuggReviewers := []string{}
 	for _, reviewer := range req.GetSuggestedReviewers() {
 		if !lib.IsEmail(reviewer) {
-			log.Warningf("Failed to notify a suggested reviewer: %q does not look like a valid email", reviewer)
+			log.WarnContext(ctx, "Failed to notify a suggested reviewer with an invalid email address", "reviewer", reviewer)
 			continue
 		}
 
@@ -380,7 +456,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	for _, rawRecipient := range rawRecipients {
 		recipient, err := a.bot.FetchRecipient(ctx, rawRecipient)
 		if err != nil {
-			log.WithError(err).Warn("Failure when fetching recipient, continuing anyway")
+			log.WarnContext(ctx, "Failure when fetching recipient, continuing anyway", "error", err)
 		} else {
 			recipientSet.Add(*recipient)
 		}
@@ -410,7 +486,7 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		return existing, nil
 	})
 	if trace.IsNotFound(err) {
-		log.Debug("Failed to update messages: plugin data is missing")
+		log.DebugContext(ctx, "Failed to update messages: plugin data is missing")
 		return nil
 	}
 	if trace.IsAlreadyExists(err) {
@@ -419,7 +495,7 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 				"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
 				pluginData.ResolutionTag, tag)
 		}
-		log.Debug("Request is already resolved, ignoring event")
+		log.DebugContext(ctx, "Request is already resolved, ignoring event")
 		return nil
 	}
 	if err != nil {
@@ -430,15 +506,33 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	if err := a.bot.UpdateMessages(ctx, reqID, reqData, sentMessages, reviews); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Successfully marked request as %s in all messages", tag)
+
+	log.InfoContext(ctx, "Marked request with resolution and sent emails!", "resolution", tag)
 
 	if err := a.bot.NotifyUser(ctx, reqID, reqData); err != nil && !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
 	}
 
-	log.Infof("Successfully notified user %s request marked as %s", reqData.User, tag)
+	log.InfoContext(ctx, "Successfully notified user",
+		"user", reqData.User,
+		"resolution", tag,
+	)
 
 	return nil
+}
+
+func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	loginsByRole := make(map[string][]string, len(req.GetRoles()))
+
+	for _, role := range req.GetRoles() {
+		currentRole, err := a.apiClient.GetRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		loginsByRole[role] = currentRole.GetLogins(types.Allow)
+	}
+
+	return loginsByRole, nil
 }
 
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
@@ -460,4 +554,43 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 		}
 	}
 	return resourceNames, nil
+}
+
+// tryApproveRequest attempts to automatically approve the access request if the
+// user is on call for the configured service/team.
+func (a *App) tryApproveRequest(ctx context.Context, reqID string, req types.AccessRequest) error {
+	log := logger.Get(ctx).With("req_id", reqID, "user", req.GetUser())
+
+	oncallUsers, err := a.bot.FetchOncallUsers(ctx, req)
+	if trace.IsNotImplemented(err) {
+		log.DebugContext(ctx, "Skipping auto-approval because bot does not support automatic approvals", "bot", a.pluginName)
+		return nil
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !slices.Contains(oncallUsers, req.GetUser()) {
+		log.DebugContext(ctx, "Skipping approval because user is not on-call")
+		return nil
+	}
+
+	if _, err := a.apiClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: reqID,
+		Review: types.AccessReview{
+			Author:        a.teleportUser,
+			ProposedState: types.RequestState_APPROVED,
+			Reason:        fmt.Sprintf("Access request has been automatically approved by %q plugin because user %q is on-call.", a.pluginName, req.GetUser()),
+			Created:       time.Now(),
+		},
+	}); err != nil {
+		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
+			log.DebugContext(ctx, "Request has already been reviewed")
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	log.InfoContext(ctx, "Successfully submitted a request approval")
+	return nil
 }

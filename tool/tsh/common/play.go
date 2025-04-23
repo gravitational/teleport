@@ -1,18 +1,20 @@
 /*
-Copyright 2016-2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package common
 
@@ -30,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/metadata"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
@@ -55,7 +58,7 @@ func onPlay(cf *CLIConf) error {
 		return playSession(cf)
 	}
 	if cf.PlaySpeed != "1x" {
-		log.Warn("--speed is not applicable for formats other than pty")
+		logger.WarnContext(cf.Context, "--speed is not applicable for formats other than pty")
 	}
 	return exportSession(cf)
 }
@@ -78,7 +81,7 @@ func playSession(cf *CLIConf) error {
 	isLocalFile := path.Ext(cf.SessionID) == ".tar"
 	if isLocalFile {
 		sid := sessionIDFromPath(cf.SessionID)
-		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed); err != nil {
+		if err := client.PlayFile(cf.Context, cf.SessionID, sid, speed, cf.NoWait); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -89,9 +92,9 @@ func playSession(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.Play(cf.Context, cf.SessionID, speed); err != nil {
+	if err := tc.Play(cf.Context, cf.SessionID, speed, cf.NoWait); err != nil {
 		if trace.IsNotFound(err) {
-			log.WithError(err).Debug("error playing session")
+			logger.DebugContext(cf.Context, "error playing session", "error", err)
 			return trace.NotFound("Recording for session %s not found.", cf.SessionID)
 		}
 		return trace.Wrap(err)
@@ -113,9 +116,10 @@ func exportSession(cf *CLIConf) error {
 	}
 
 	switch format {
-	case teleport.JSON, teleport.YAML:
+	case teleport.JSON, teleport.YAML, teleport.Text:
 	default:
-		return trace.Errorf("Invalid format %s, only json and yaml are supported", format)
+		// this should be unreachable since kingpin validates the format flag
+		return trace.BadParameter("Invalid format %s", format)
 	}
 
 	sid, err := session.ParseID(cf.SessionID)
@@ -134,7 +138,7 @@ func exportSession(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
-	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(cf.Context, *sid, 0)
+	eventC, errC := clusterClient.AuthClient.StreamSessionEvents(metadata.WithSessionRecordingFormatContext(cf.Context, format), *sid, 0)
 
 	var exporter sessionExporter
 	switch format {
@@ -142,6 +146,8 @@ func exportSession(cf *CLIConf) error {
 		exporter = jsonSessionExporter{}
 	case teleport.YAML:
 		exporter = yamlSessionExporter{}
+	case teleport.Text:
+		exporter = textSessionExporter{}
 	}
 
 	exporter.WriteStart()
@@ -229,6 +235,22 @@ func (yamlSessionExporter) WriteEvent(evt apievents.AuditEvent) error {
 	}
 	_, err = os.Stdout.Write(b)
 	return err
+}
+
+type textSessionExporter struct{}
+
+func (textSessionExporter) WriteStart() error     { return nil }
+func (textSessionExporter) WriteEnd() error       { return nil }
+func (textSessionExporter) WriteSeparator() error { return nil }
+
+func (textSessionExporter) WriteEvent(evt apievents.AuditEvent) error {
+	printEvent, ok := evt.(*apievents.SessionPrint)
+	if !ok {
+		return nil
+	}
+
+	_, err := os.Stdout.Write(printEvent.Data)
+	return trace.Wrap(err)
 }
 
 // exportFile converts the binary protobuf events from the file

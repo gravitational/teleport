@@ -195,7 +195,7 @@ func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 		case <-r.After():
 			r.Inc()
 		case <-ctx.Done():
-			return trace.LimitExceeded(ctx.Err().Error())
+			return trace.LimitExceeded("%s", ctx.Err())
 		}
 	}
 }
@@ -215,7 +215,7 @@ func (e *permanentRetryError) Error() string {
 	return e.err.Error()
 }
 
-// RetryFastFor retries a function repeatedly for a set amount of
+// RetryStaticFor retries a function repeatedly for a set amount of
 // time before returning an error.
 //
 // Intended mostly for tests.

@@ -19,6 +19,7 @@
 package utils
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -162,6 +163,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		name      string
 		input     types.KubernetesResource
 		resources []types.KubernetesResource
+		action    types.RoleConditionType
 		matches   bool
 		assert    require.ErrorAssertionFunc
 	}{
@@ -180,7 +182,101 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.Error,
+			action:  types.Allow,
 			matches: false,
+		},
+		{
+			name: "list namespace matches resource",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+		{
+			name: "list namespace doesn't match denying secrets",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: false,
+		},
+		{
+			name: "get namespace match denying everything",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
+		},
+		{
+			name: "get namespace doesn't match denying secrets",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: false,
+		},
+		{
+			name: "get secret matches denying secrets",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeSecret,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
 		},
 		{
 			name: "input matches single resource with wildcard verb",
@@ -199,6 +295,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -218,6 +315,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -237,6 +335,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 		{
@@ -255,6 +354,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 		{
@@ -286,6 +386,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -305,6 +406,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -324,6 +426,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 		{
@@ -342,6 +445,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 				},
 			},
+			action: types.Allow,
 			assert: require.Error,
 		},
 		{
@@ -359,6 +463,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 					Name:      "podname",
 				},
 			},
+			action: types.Allow,
 			assert: require.NoError,
 		},
 		{
@@ -376,6 +481,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -394,6 +500,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -412,6 +519,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 		{
@@ -430,6 +538,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 
@@ -449,6 +558,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 
@@ -468,6 +578,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -486,6 +597,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 
@@ -505,6 +617,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -523,6 +636,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 		{
@@ -547,12 +661,13 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := KubeResourceMatchesRegex(tt.input, tt.resources)
+			got, err := KubeResourceMatchesRegex(tt.input, tt.resources, tt.action)
 			tt.assert(t, err)
 			require.Equal(t, tt.matches, got)
 		})
@@ -612,6 +727,42 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Namespace: "default",
 					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			action:  types.Allow,
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input doesn't match kind deny",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			action:  types.Deny,
+			assert:  require.NoError,
+			matches: false,
+		},
+		{
+			name: "input doesn't match kind allow",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
 					Verbs:     []string{types.Wildcard},
 				},
 			},
@@ -1030,9 +1181,10 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
-			matches: true,
+			matches: false,
 			action:  types.Deny,
 		},
+
 		{
 			name: "list namespace with resource denying update access to namespace",
 			input: types.KubernetesResource{
@@ -1167,4 +1319,36 @@ func TestKubeResourceCouldMatchRules(t *testing.T) {
 			require.Equal(t, tt.matches, got)
 		})
 	}
+}
+
+func BenchmarkReplaceRegexp(b *testing.B) {
+	b.Run("same expression", func(b *testing.B) {
+		for b.Loop() {
+			replaced, err := ReplaceRegexp("*", "foo", "test")
+			require.NoError(b, err)
+			require.NotEmpty(b, replaced)
+		}
+	})
+
+	b.Run("unique expressions", func(b *testing.B) {
+		i := 0
+		for b.Loop() {
+			r := strconv.Itoa(i)
+			replaced, err := ReplaceRegexp(r, r, r)
+			require.NoError(b, err)
+			require.NotEmpty(b, replaced)
+			i++
+		}
+	})
+
+	b.Run("no matches", func(b *testing.B) {
+		expression := "$abc^"
+		i := 0
+		for b.Loop() {
+			replaced, err := ReplaceRegexp(expression, strconv.Itoa(i), "test")
+			require.ErrorIs(b, err, ErrReplaceRegexNotFound)
+			require.Empty(b, replaced)
+			i++
+		}
+	})
 }

@@ -51,11 +51,13 @@ PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-poli
 UBUNTU_CODENAME=jammy
 `),
 			want: &linux.OSRelease{
-				PrettyName: "Ubuntu 22.04.3 LTS",
-				Name:       "Ubuntu",
-				VersionID:  "22.04",
-				Version:    "22.04.3 LTS (Jammy Jellyfish)",
-				ID:         "ubuntu",
+				PrettyName:      "Ubuntu 22.04.3 LTS",
+				Name:            "Ubuntu",
+				VersionID:       "22.04",
+				Version:         "22.04.3 LTS (Jammy Jellyfish)",
+				ID:              "ubuntu",
+				VersionCodename: "jammy",
+				IDLike:          "debian",
 			},
 		},
 		{
@@ -68,6 +70,8 @@ ID=fake
 not supposed to be here either
 
 a=b=c
+
+# a comment
 
 VERSION=1.0
 `),

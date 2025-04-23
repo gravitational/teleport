@@ -1,0 +1,105 @@
+---
+title: Database Access AWS IAM Reference
+description: AWS IAM policies for Teleport database access.
+---
+
+The Teleport Database Service requires IAM permissions for various tasks
+depending on the database type and setup, such as discovering endpoints and
+metadata of the database servers, generating IAM authentication tokens, and
+assuming IAM roles.
+
+You can generate IAM permissions with the [`teleport db configure aws
+print-iam`](cli.mdx)
+command. For example, the following command would generate and print the IAM
+policies:
+
+```code
+$ teleport db configure aws print-iam --types rds,redshift --role teleport-db-service-role
+```
+
+To learn more about IAM permissions for a specific type of database, refer to
+the related section below.
+
+## DocumentDB
+
+(!docs/pages/includes/database-access/reference/aws-iam/documentdb/access-policy.mdx dbUserRole="documentdb-user-role"!)
+
+### IAM role as a DocumentDB database user
+
+(!docs/pages/includes/database-access/reference/aws-iam/documentdb/role-as-user-policy.mdx!)
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="documentdb-user-role"!)
+
+## DynamoDB
+
+(!docs/pages/includes/database-access/reference/aws-iam/dynamodb/access-policy.mdx dbUserRole="dynamodb-user-role"!)
+
+### IAM role as a DynamoDB database user
+
+(!docs/pages/includes/database-access/reference/aws-iam/dynamodb/role-as-user-policy.mdx!)
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="dynamodb-user-role"!)
+
+## ElastiCache for Redis
+
+(!docs/pages/includes/database-access/reference/aws-iam/elasticache/access-policy.mdx!)
+
+### ElastiCache managed users
+
+(!docs/pages/includes/database-access/reference/aws-iam/redis/auto-password-access-policy.mdx dbType="ElastiCache" permissionType="elasticache" updateUserPermission="ModifyUser" listTagsPermission="ListTagsForResource"!)
+
+## Keyspaces
+
+(!docs/pages/includes/database-access/reference/aws-iam/keyspaces/access-policy.mdx dbUserRole="keyspaces-user-role"!)
+
+### IAM role as a Keyspaces database user
+
+(!docs/pages/includes/database-access/reference/aws-iam/keyspaces/role-as-user-policy.mdx!)
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="keyspaces-user-role"!)
+
+## MemoryDB
+
+(!docs/pages/includes/database-access/reference/aws-iam/memorydb/access-policy.mdx!)
+
+### MemoryDB managed users
+
+(!docs/pages/includes/database-access/reference/aws-iam/redis/auto-password-access-policy.mdx dbType="MemoryDB" permissionType="memorydb" updateUserPermission="UpdateUser" listTagsPermission="ListTags"!)
+
+## OpenSearch
+
+(!docs/pages/includes/database-access/reference/aws-iam/opensearch/access-policy.mdx dbUserRole="opensearch-user-role"!)
+
+### IAM role as an OpenSearch database user
+
+(!docs/pages/includes/database-access/reference/aws-iam/opensearch/role-as-user-policy.mdx!)
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="opensearch-user-role"!)
+
+## RDS
+
+(!docs/pages/includes/database-access/reference/aws-iam/rds/access-policy.mdx!)
+
+## RDS Proxy
+
+(!docs/pages/includes/database-access/reference/aws-iam/rds-proxy/access-policy.mdx!)
+
+## Redshift
+
+(!docs/pages/includes/database-access/reference/aws-iam/redshift/access-policy.mdx dbUserRole="redshift-user-role"!)
+
+### IAM role as a Redshift database user
+
+(!docs/pages/includes/database-access/reference/aws-iam/redshift/role-as-user-policy.mdx dbUserRole="redshift-user-role"!)
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="redshift-user-role"!)
+
+## Redshift Serverless
+
+(!docs/pages/includes/database-access/reference/aws-iam/redshift-serverless/access-policy.mdx dbUserRole="redshift-serverless-user-role"!)
+
+### IAM role as a Redshift Serverless database user
+
+(!docs/pages/includes/database-access/reference/aws-iam/redshift-serverless/role-as-user-policy.mdx dbUserRole="redshift-serverless-user-role" !)
+
+(!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="redshift-serverless-user-role"!)

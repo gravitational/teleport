@@ -30,7 +30,7 @@ import (
 // `dt` and the current modules.
 func GetEffectiveMode(dt *types.DeviceTrust) string {
 	// OSS doesn't support device trust.
-	if modules.GetModules().BuildType() == modules.BuildOSS {
+	if modules.GetModules().IsOSSBuild() {
 		return constants.DeviceTrustModeOff
 	}
 
@@ -39,6 +39,18 @@ func GetEffectiveMode(dt *types.DeviceTrust) string {
 		return constants.DeviceTrustModeOptional
 	}
 
+	return dt.Mode
+}
+
+// GetEnforcementMode returns the configured device trust mode, disregarding the
+// provenance of the binary if the mode is set.
+// Used for device enforcement checks. Guarantees that OSS binaries paired with
+// an Enterprise Auth will correctly enforce device trust.
+func GetEnforcementMode(dt *types.DeviceTrust) string {
+	// If absent use the defaults from GetEffectiveMode.
+	if dt == nil || dt.Mode == "" {
+		return GetEffectiveMode(dt)
+	}
 	return dt.Mode
 }
 

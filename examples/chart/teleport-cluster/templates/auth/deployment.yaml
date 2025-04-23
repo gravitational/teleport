@@ -1,6 +1,7 @@
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
+{{- $topologySpreadConstraints := and (semverCompare ">=1.18.0-0" .Capabilities.KubeVersion.Version) (not $auth.disableTopologySpreadConstraints) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -55,6 +56,23 @@ spec:
     spec:
 {{- if $auth.nodeSelector }}
       nodeSelector: {{- toYaml $auth.nodeSelector | nindent 8 }}
+{{- end }}
+{{- if $topologySpreadConstraints }}
+  {{- if $auth.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- toYaml $auth.topologySpreadConstraints | nindent 8 }}
+  {{- else }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 14 }}
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 14 }}
+  {{- end }}
 {{- end }}
       affinity:
 {{- if $auth.affinity }}
@@ -177,15 +195,16 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
-          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+          timeoutSeconds: {{ $auth.probeTimeoutSeconds }}
         readinessProbe:
           httpGet:
             path: /readyz
             port: diag
-          initialDelaySeconds: 5 # wait 5s for agent to register
-          periodSeconds: 5 # poll health every 5s
-          failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
-          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+          initialDelaySeconds: {{ $auth.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ $auth.readinessProbe.periodSeconds }}
+          failureThreshold: {{$auth.readinessProbe.failureThreshold}}
+          successThreshold: {{$auth.readinessProbe.successThreshold}}
+          timeoutSeconds: {{ $auth.probeTimeoutSeconds }}
         lifecycle:
           # waiting during preStop ensures no new request will hit the Terminating pod
           # on clusters using kube-proxy (kube-proxy syncs the node iptables rules every 30s)
@@ -266,7 +285,7 @@ spec:
 {{- if $auth.enterprise }}
       - name: license
         secret:
-          secretName: "license"
+          secretName: {{ $auth.licenseSecretName | quote }}
 {{- end }}
 {{- if and ($auth.gcp.credentialSecretName) (eq $auth.chartMode "gcp") }}
       - name: gcp-credentials

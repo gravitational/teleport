@@ -19,74 +19,62 @@
 package mocks
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/redshift"
-	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awstesthelpers"
 )
 
-// RedshiftMock mocks AWS Redshift API.
-type RedshiftMock struct {
-	redshiftiface.RedshiftAPI
-	Clusters                           []*redshift.Cluster
+type RedshiftClient struct {
+	Unauth bool
+
+	Clusters                           []redshifttypes.Cluster
 	GetClusterCredentialsOutput        *redshift.GetClusterCredentialsOutput
 	GetClusterCredentialsWithIAMOutput *redshift.GetClusterCredentialsWithIAMOutput
 }
 
-func (m *RedshiftMock) GetClusterCredentialsWithContext(aws.Context, *redshift.GetClusterCredentialsInput, ...request.Option) (*redshift.GetClusterCredentialsOutput, error) {
-	if m.GetClusterCredentialsOutput == nil {
-		return nil, trace.AccessDenied("access denied")
+func (m *RedshiftClient) DescribeClusters(_ context.Context, input *redshift.DescribeClustersInput, _ ...func(*redshift.Options)) (*redshift.DescribeClustersOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
 	}
-	return m.GetClusterCredentialsOutput, nil
-}
 
-func (m *RedshiftMock) GetClusterCredentialsWithIAMWithContext(aws.Context, *redshift.GetClusterCredentialsWithIAMInput, ...request.Option) (*redshift.GetClusterCredentialsWithIAMOutput, error) {
-	if m.GetClusterCredentialsWithIAMOutput == nil {
-		return nil, trace.AccessDenied("access denied")
-	}
-	return m.GetClusterCredentialsWithIAMOutput, nil
-}
-
-func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, options ...request.Option) (*redshift.DescribeClustersOutput, error) {
-	if aws.StringValue(input.ClusterIdentifier) == "" {
+	if aws.ToString(input.ClusterIdentifier) == "" {
 		return &redshift.DescribeClustersOutput{
 			Clusters: m.Clusters,
 		}, nil
 	}
 	for _, cluster := range m.Clusters {
-		if aws.StringValue(cluster.ClusterIdentifier) == aws.StringValue(input.ClusterIdentifier) {
+		if aws.ToString(cluster.ClusterIdentifier) == aws.ToString(input.ClusterIdentifier) {
 			return &redshift.DescribeClustersOutput{
-				Clusters: []*redshift.Cluster{cluster},
+				Clusters: []redshifttypes.Cluster{cluster},
 			}, nil
 		}
 	}
-	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterIdentifier))
+	return nil, trace.NotFound("cluster %v not found", aws.ToString(input.ClusterIdentifier))
 }
 
-func (m *RedshiftMock) DescribeClustersPagesWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, fn func(*redshift.DescribeClustersOutput, bool) bool, options ...request.Option) error {
-	fn(&redshift.DescribeClustersOutput{
-		Clusters: m.Clusters,
-	}, true)
-	return nil
+func (m *RedshiftClient) GetClusterCredentials(context.Context, *redshift.GetClusterCredentialsInput, ...func(*redshift.Options)) (*redshift.GetClusterCredentialsOutput, error) {
+	if m.Unauth || m.GetClusterCredentialsOutput == nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+	return m.GetClusterCredentialsOutput, nil
 }
 
-// RedshiftMockUnauth is a mock Redshift client that returns access denied to each call.
-type RedshiftMockUnauth struct {
-	redshiftiface.RedshiftAPI
+func (m *RedshiftClient) GetClusterCredentialsWithIAM(context.Context, *redshift.GetClusterCredentialsWithIAMInput, ...func(*redshift.Options)) (*redshift.GetClusterCredentialsWithIAMOutput, error) {
+	if m.Unauth || m.GetClusterCredentialsWithIAMOutput == nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+	return m.GetClusterCredentialsWithIAMOutput, nil
 }
 
-func (m *RedshiftMockUnauth) DescribeClustersWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, options ...request.Option) (*redshift.DescribeClustersOutput, error) {
-	return nil, trace.AccessDenied("unauthorized")
-}
-
-// RedshiftGetClusterCredentialsOutput return a sample redshift.GetClusterCredentialsOutput.
+// RedshiftGetClusterCredentialsOutput return a sample [redshift.GetClusterCredentialsOutput].
 func RedshiftGetClusterCredentialsOutput(user, password string, clock clockwork.Clock) *redshift.GetClusterCredentialsOutput {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
@@ -99,7 +87,7 @@ func RedshiftGetClusterCredentialsOutput(user, password string, clock clockwork.
 }
 
 // RedshiftGetClusterCredentialsWithIAMOutput return a sample
-// redshift.GetClusterCredentialsWithIAMeOutput.
+// [redshift.GetClusterCredentialsWithIAMOutput].
 func RedshiftGetClusterCredentialsWithIAMOutput(user, password string, clock clockwork.Clock) *redshift.GetClusterCredentialsWithIAMOutput {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
@@ -111,20 +99,19 @@ func RedshiftGetClusterCredentialsWithIAMOutput(user, password string, clock clo
 	}
 }
 
-// RedshiftCluster returns a sample redshift.Cluster.
-func RedshiftCluster(name, region string, labels map[string]string, opts ...func(*redshift.Cluster)) *redshift.Cluster {
-	cluster := &redshift.Cluster{
+func RedshiftCluster(name, region string, labels map[string]string, opts ...func(*redshifttypes.Cluster)) redshifttypes.Cluster {
+	cluster := redshifttypes.Cluster{
 		ClusterIdentifier:   aws.String(name),
 		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:123456789012:namespace:%s", region, name)),
 		ClusterStatus:       aws.String("available"),
-		Endpoint: &redshift.Endpoint{
+		Endpoint: &redshifttypes.Endpoint{
 			Address: aws.String(fmt.Sprintf("%v.aabbccdd.%v.redshift.amazonaws.com", name, region)),
-			Port:    aws.Int64(5439),
+			Port:    aws.Int32(5439),
 		},
-		Tags: libcloudaws.LabelsToTags[redshift.Tag](labels),
+		Tags: awstesthelpers.LabelsToRedshiftTags(labels),
 	}
 	for _, opt := range opts {
-		opt(cluster)
+		opt(&cluster)
 	}
 	return cluster
 }

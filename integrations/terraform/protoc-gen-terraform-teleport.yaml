@@ -14,15 +14,17 @@ types:
     - "GithubConnectorV3"
     - "OIDCConnectorV3"
     - "OktaImportRuleV1"
-    - "ProvisionTokenV2"
     - "RoleV6"
     - "SAMLConnectorV2"
     - "ServerV2"
     - "SessionRecordingConfigV2"
     - "TrustedClusterV2"
     - "UserV2"
+    - "InstallerV1"
+    - "DynamicWindowsDesktopV1"
+    - "ProvisionTokenV2"
 
-# id field is required for integration tests. It is not used by provider. 
+# id field is required for integration tests. It is not used by provider.
 # We have to add it manually (might be removed in the future versions).
 injected_fields:
   AppV3:
@@ -130,6 +132,20 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  InstallerV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  DynamicWindowsDesktopV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
 
 # These fields will be excluded
 exclude_fields:
@@ -173,9 +189,13 @@ computed_fields:
 
     # App
     - "AppV3.Metadata.Labels"
-    - "AppV3.Kind"    
+    - "AppV3.Kind"
 
     # Auth preference
+    - "AuthPreferenceV2.Spec.AllowPasswordless"
+    - "AuthPreferenceV2.Spec.AllowHeadless"
+    - "AuthPreferenceV2.Spec.DisconnectExpiredCert"
+    - "AuthPreferenceV2.Spec.AllowLocalAuth"
     - "AuthPreferenceV2.Spec.SecondFactor"
     - "AuthPreferenceV2.Spec.Type"
     - "AuthPreferenceV2.Spec.LockingMode"
@@ -198,16 +218,16 @@ computed_fields:
     # Github connector
     - "GithubConnectorV3.Kind"
 
-    # Provision token
-    - "ProvisionTokenV2.Spec.AWSIIDTTL"
-    - "ProvisionTokenV2.Kind"
-    - "ProvisionTokenV2.Metadata.Name"    
-
     # OIDC connector
     - "OIDCConnectorV3.Kind"
 
     # Okta import rule
     - "OktaImportRuleV1.Kind"
+
+    # Provision token
+    - "ProvisionTokenV2.Spec.AWSIIDTTL"
+    - "ProvisionTokenV2.Kind"
+    - "ProvisionTokenV2.Metadata.Name"
 
     # Role
     - "RoleV6.Spec.Options.MaxSessionTTL"
@@ -219,15 +239,15 @@ computed_fields:
     # Computed is often used to represent values that are not user configurable or can not be known at time of terraform plan or apply,
     #------------------------------------
     # role_test.go:244: Step 1/8 error: Error running apply: exit status 1
-    #    
+    #
     #     Error: Provider produced inconsistent result after apply
-    #    
+    #
     #     When applying changes to teleport_role.upgrade, provider
     #     "provider[\"registry.terraform.io/hashicorp/teleport\"]" produced an
     #     unexpected new value: .spec.allow.kubernetes_resources: was null, but now
     #     cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{"kind":cty.StringVal("pod"),
     #     "name":cty.StringVal("*"), "namespace":cty.StringVal("*")})}).
-    #    
+    #
     #     This is a bug in the provider, which should be reported in the provider's own
     #     issue tracker.
     #------------------------------------
@@ -238,6 +258,12 @@ computed_fields:
     - "RoleV6.Spec.Allow.KubernetesResources.Verbs"
     - "RoleV6.Spec.Options.BPF"
     - "RoleV6.Kind"
+    - "RoleV6.Spec.Options"
+    - "RoleV6.Spec.Options.SSHFileCopy"
+    - "RoleV6.Spec.Options.CreateDatabaseUser"
+    - "RoleV6.Spec.Options.CreateDesktopUser"
+    - "RoleV6.Spec.Options.DesktopClipboard"
+    - "RoleV6.Spec.Options.DesktopDirectorySharing"
 
     # SAML connector
     - "SAMLConnectorV2.Spec.Audience"
@@ -268,7 +294,7 @@ computed_fields:
     # back into the state.
     - "ServerV2.Metadata"
 
-  # Session recording
+    # Session recording
     - "SessionRecordingConfigV2.Spec.Mode"
     - "SessionRecordingConfigV2.Kind"
 
@@ -278,7 +304,13 @@ computed_fields:
     # User
     - "UserV2.Kind"
 
-# These fields will be marked as Required: true 
+    # Installer
+    - "InstallerV1.Kind"
+
+    # DynamicWindowsDesktop
+    - "DynamicWindowsDesktopV1.Kind"
+
+# These fields will be marked as Required: true
 required_fields:
     # App
     - "AppV3.Metadata.Name"
@@ -289,8 +321,8 @@ required_fields:
     - "AuthPreferenceV2.Metadata.Name"
 
     # Database
-    - "DatabaseV3.Spec.Protocol"    
-    - "DatabaseV3.Spec.URI"        
+    - "DatabaseV3.Spec.Protocol"
+    - "DatabaseV3.Spec.URI"
     - "DatabaseV3.Metadata.Name"
     - "DatabaseV3.Version"
 
@@ -345,13 +377,25 @@ required_fields:
     - "ClusterMaintenanceConfigV1.Version"
     - "AuthPreferenceV2.Version"
 
+    # Installer
+    - "InstallerV1.Spec"
+    - "InstallerV1.Spec.Script"
+    - "InstallerV1.Metadata.Name"
+    - "InstallerV1.Version"
+
+    # DynamicWindowsDesktop
+    - "DynamicWindowsDesktopV1.Spec"
+    - "DynamicWindowsDesktopV1.Spec.Addr"
+    - "DynamicWindowsDesktopV1.Metadata.Name"
+    - "DynamicWindowsDesktopV1.Version"
+
 # These fields must be marked as sensitive
 sensitive_fields:
     - "ProvisionTokenV2.Metadata.Name"
     - "SAMLConnectorV2.Spec.Cert"
     - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
-    - "SAMLConnectorV2.Spec.EntityDescriptor"    
+    - "SAMLConnectorV2.Spec.EntityDescriptor"
     - "GithubConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.GoogleServiceAccount"
@@ -368,12 +412,14 @@ plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
-    ProvisionTokenV2.Metadata.Name:
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
-      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    ProvisionTokenV2.Metadata.Name:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    RoleV6.Spec.Options:
+      - "DefaultRoleOptions()"
 
 validators:
   # Expires must be in the future
@@ -419,13 +465,17 @@ validators:
     - UseVersionBetween(2,2)
   ClusterMaintenanceConfigV1.Version:
     - UseVersionBetween(1,1)
+  InstallerV1.Version:
+    - UseVersionBetween(1,1)
+  DynamicWindowsDesktopV1.Version:
+    - UseVersionBetween(1,1)
 
 time_type:
     type: "TimeType"
     value_type: "TimeValue"
     cast_to_type: "time.Time"
     cast_from_type: "time.Time"
-    type_constructor: UseRFC3339Time()    
+    type_constructor: UseRFC3339Time()
 
 duration_type:
     type: "DurationType"

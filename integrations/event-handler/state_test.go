@@ -17,6 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"cmp"
+	"log/slog"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -49,7 +53,7 @@ func newStartCmdConfig(t *testing.T) *StartCmdConfig {
 // TestStatePersist checks that state is persisted when StartTime stays constant
 func TestStatePersist(t *testing.T) {
 	config := newStartCmdConfig(t)
-	state, err := NewState(config)
+	state, err := NewState(config, slog.Default())
 	require.NoError(t, err)
 
 	startTime, errt := state.GetStartTime()
@@ -71,7 +75,7 @@ func TestStatePersist(t *testing.T) {
 	require.NoError(t, erri)
 	require.NoError(t, errt)
 
-	state, err = NewState(config)
+	state, err = NewState(config, slog.Default())
 	require.NoError(t, err)
 
 	startTime, errt = state.GetStartTime()
@@ -87,4 +91,61 @@ func TestStatePersist(t *testing.T) {
 
 	assert.Equal(t, "testCursor", cursor)
 	assert.Equal(t, "testId", id)
+}
+
+func TestStateMissingRecordings(t *testing.T) {
+	config := newStartCmdConfig(t)
+	state, err := NewState(config, slog.Default())
+	require.NoError(t, err)
+
+	// Iterating should find no records if nothing has been stored yet.
+	err = state.IterateMissingRecordings(func(s session, attempts int) error {
+		t.Errorf("no missing sessions should have been found, got %v", s)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Removing a missing item should not produce an error.
+	err = state.RemoveMissingRecording("llama")
+	require.NoError(t, err)
+
+	expected := make([]session, 0, 10)
+	for i := 0; i < 10; i++ {
+		s := session{
+			ID:         strconv.Itoa(i),
+			Index:      int64(i),
+			UploadTime: time.Now().UTC(),
+		}
+		err := state.SetMissingRecording(s, 0)
+		expected = append(expected, s)
+		assert.NoError(t, err)
+	}
+
+	// Iterating find all stored records and validate they match
+	// the original sessions.
+	records := make([]session, 0, 10)
+	err = state.IterateMissingRecordings(func(s session, attempts int) error {
+		records = append(records, s)
+		return nil
+	})
+	require.NoError(t, err)
+
+	slices.SortFunc(records, func(a, b session) int {
+		return cmp.Compare(a.Index, b.Index)
+	})
+
+	require.EqualValues(t, expected, records)
+
+	// Remove all items and validate they no longer exist.
+	for i := 0; i < 10; i++ {
+		err = state.RemoveMissingRecording(expected[i].ID)
+		require.NoError(t, err)
+	}
+
+	err = state.IterateMissingRecordings(func(s session, attempts int) error {
+		t.Errorf("no missing sessions should have been found, got %v", s)
+		return nil
+	})
+	require.NoError(t, err)
+
 }

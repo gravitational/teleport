@@ -16,21 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef } from 'react';
+import { useRef } from 'react';
+
 import { Flex } from 'design';
 
 import { AccessRequestCheckout } from 'teleterm/ui/AccessRequestCheckout';
+import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
+import { StatusBar } from 'teleterm/ui/StatusBar';
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';
-import { StatusBar } from 'teleterm/ui/StatusBar';
-import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
 
 export function LayoutManager() {
-  const topBarContainerRef = useRef<HTMLDivElement>();
+  const topBarConnectMyComputerRef = useRef<HTMLDivElement>();
+  const topBarAccessRequestRef = useRef<HTMLDivElement>();
 
   return (
     <Flex flex="1" flexDirection="column" minHeight={0}>
-      <TopBar topBarContainerRef={topBarContainerRef} />
+      <TopBar
+        connectMyComputerRef={topBarConnectMyComputerRef}
+        accessRequestRef={topBarAccessRequestRef}
+      />
       <Flex
         flex="1"
         minHeight={0}
@@ -38,11 +43,28 @@ export function LayoutManager() {
           position: relative;
         `}
       >
-        <TabHostContainer topBarContainerRef={topBarContainerRef} />
+        <TabHostContainer
+          topBarConnectMyComputerRef={topBarConnectMyComputerRef}
+          topBarAccessRequestRef={topBarAccessRequestRef}
+        />
         <NotificationsHost />
       </Flex>
       <AccessRequestCheckout />
-      <StatusBar />
+      <StatusBar
+        onAssumedRolesClick={() => {
+          // This is a little hacky, but has one advantage:
+          // we don't need to expose a way to open/close the popover.
+          // This would require extra effort, since each workspace has its own
+          // AccessRequestsContext, which is located lower in the component tree
+          // (so we would have to inject a component through the portal).
+          const menu = topBarAccessRequestRef.current?.querySelector(
+            '#access-requests-menu'
+          );
+          if (menu instanceof HTMLButtonElement) {
+            menu.click();
+          }
+        }}
+      />
     </Flex>
   );
 }

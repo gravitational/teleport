@@ -1,0 +1,27 @@
+```yaml
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # The token name is not a secret because instances must prove that they are
+  # running in your Oracle tenant to use this token.
+  name: oracle-token
+spec:
+  # Use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop).
+  roles: [Node]
+
+  # Set the join method allowed for this token.
+  join_method: oracle
+
+  oracle:
+    allow:
+      # OCID of the tenancy to allow instances to join from. Required.
+      - tenancy: "ocid1.tenancy.oc1..<unique ID>"
+        # (Optional) OCIDs of compartments to allow instances to join from. Only the direct parent
+        # compartment applies; i.e. nested compartments are not taken into account.
+        # If empty, instances can join from any compartment in the tenancy.
+        parent_compartments: ["ocid1.compartment.oc1...<unique_ID>"]
+        # (Optional) Regions to allow instances to join from. Both full names ("us-phoenix-1")
+        # and abbreviations ("phx") are allowed. If empty, instances can join from any region.
+        regions: ["example-region"]
+```

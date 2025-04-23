@@ -1,0 +1,67 @@
+"access-graph-aws-iam" will perform the following action:
+
+Attach an inline IAM policy named "AccessGraphSyncAccess" to IAM role "integrationrole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ec2:DescribeInstances",
+                    "ec2:DescribeImages",
+                    "ec2:DescribeTags",
+                    "ec2:DescribeSnapshots",
+                    "ec2:DescribeKeyPairs",
+                    "eks:ListClusters",
+                    "eks:DescribeCluster",
+                    "eks:ListAccessEntries",
+                    "eks:ListAccessPolicies",
+                    "eks:ListAssociatedAccessPolicies",
+                    "eks:DescribeAccessEntry",
+                    "rds:DescribeDBInstances",
+                    "rds:DescribeDBClusters",
+                    "rds:ListTagsForResource",
+                    "rds:DescribeDBProxies",
+                    "dynamodb:ListTables",
+                    "dynamodb:DescribeTable",
+                    "redshift:DescribeClusters",
+                    "redshift:Describe*",
+                    "s3:ListAllMyBuckets",
+                    "s3:GetBucketPolicy",
+                    "s3:ListBucket",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketTagging",
+                    "s3:GetBucketPolicyStatus",
+                    "s3:GetBucketAcl",
+                    "iam:ListUsers",
+                    "iam:GetUser",
+                    "iam:ListRoles",
+                    "iam:ListGroups",
+                    "iam:ListPolicies",
+                    "iam:ListGroupsForUser",
+                    "iam:ListInstanceProfiles",
+                    "iam:ListUserPolicies",
+                    "iam:GetUserPolicy",
+                    "iam:ListAttachedUserPolicies",
+                    "iam:ListGroupPolicies",
+                    "iam:GetGroupPolicy",
+                    "iam:ListAttachedGroupPolicies",
+                    "iam:GetPolicy",
+                    "iam:GetPolicyVersion",
+                    "iam:ListRolePolicies",
+                    "iam:ListAttachedRolePolicies",
+                    "iam:GetRolePolicy",
+                    "iam:ListSAMLProviders",
+                    "iam:GetSAMLProvider",
+                    "iam:ListOpenIDConnectProviders",
+                    "iam:GetOpenIDConnectProvider"
+                ],
+                "Resource": "*"
+            }
+        ]
+    },
+    "PolicyName": "AccessGraphSyncAccess",
+    "RoleName": "integrationrole"
+}
+

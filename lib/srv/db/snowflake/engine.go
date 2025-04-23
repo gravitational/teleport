@@ -113,7 +113,7 @@ func (e *Engine) SendError(err error) {
 		Message: err.Error(),
 	})
 	if err != nil {
-		e.Log.WithError(err).Errorf("failed to marshal error response")
+		e.Log.ErrorContext(e.Context, "failed to marshal error response", "error", err)
 		return
 	}
 
@@ -129,7 +129,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.Errorf("snowflake error: %+v", trace.Unwrap(err))
+		e.Log.ErrorContext(e.Context, "snowflake error", "error", err)
 		return
 	}
 }
@@ -451,7 +451,7 @@ func (e *Engine) processLoginResponse(bodyBytes []byte, createSessionFn func(tok
 	}
 
 	if !loginResp.Success {
-		e.Log.Errorf("Snowflake authentication failed: %s", loginResp.Message)
+		e.Log.ErrorContext(e.Context, "Snowflake authentication failed.", "error_message", loginResp.Message)
 		// Return not modified response, so client can handle it. Otherwise, the client my keep retrying where
 		// most likely each response will return the same error (invalid JWT when user doesn't exist for ex.)
 		return bodyBytes, nil

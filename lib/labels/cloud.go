@@ -19,19 +19,20 @@
 package labels
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 )
 
 const (
@@ -41,20 +42,28 @@ const (
 	// AzureLabelNamespace is used as the namespace prefix for any labels
 	// imported from Azure.
 	AzureLabelNamespace = "azure"
+	// GCPLabelNamespace is used as the namespace prefix for any labels imported
+	// from GCP.
+	GCPLabelNamespace = "gcp"
+	// OracleLabelNamespace is used as the namespace prefix for any labels
+	// imported from Oracle Cloud.
+	OracleLabelNamespace = "oracle"
 	// labelUpdatePeriod is the period for updating cloud labels.
 	labelUpdatePeriod = time.Hour
 )
 
 const (
-	awsErrorMessage   = "Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance."
-	azureErrorMessage = "Could not fetch Azure instance's tags."
+	awsErrorMessage    = "Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance."
+	azureErrorMessage  = "Could not fetch Azure instance's tags."
+	gcpErrorMessage    = "Could not fetch GCP instance's labels, please ensure instance's service principal has read access to instances."
+	oracleErrorMessage = "Could not fetch Oracle Cloud instance's tags."
 )
 
 // CloudConfig is the configuration for a cloud label service.
 type CloudConfig struct {
-	Client               cloud.InstanceMetadata
+	Client               imds.Client
 	Clock                clockwork.Clock
-	Log                  logrus.FieldLogger
+	Log                  *slog.Logger
 	namespace            string
 	instanceMetadataHint string
 }
@@ -63,12 +72,25 @@ func (conf *CloudConfig) checkAndSetDefaults() error {
 	if conf.Client == nil {
 		return trace.BadParameter("missing parameter: Client")
 	}
-	if conf.Clock == nil {
-		conf.Clock = clockwork.NewRealClock()
+	switch conf.Client.GetType() {
+	case types.InstanceMetadataTypeEC2:
+		conf.namespace = AWSLabelNamespace
+		conf.instanceMetadataHint = awsErrorMessage
+	case types.InstanceMetadataTypeAzure:
+		conf.namespace = AzureLabelNamespace
+		conf.instanceMetadataHint = azureErrorMessage
+	case types.InstanceMetadataTypeGCP:
+		conf.namespace = GCPLabelNamespace
+		conf.instanceMetadataHint = gcpErrorMessage
+	case types.InstanceMetadataTypeOracle:
+		conf.namespace = OracleLabelNamespace
+		conf.instanceMetadataHint = oracleErrorMessage
+	default:
+		return trace.BadParameter("invalid client type: %v", conf.Client.GetType())
 	}
-	if conf.Log == nil {
-		conf.Log = logrus.WithField(teleport.ComponentKey, "cloudlabels")
-	}
+
+	conf.Clock = cmp.Or(conf.Clock, clockwork.NewRealClock())
+	conf.Log = cmp.Or(conf.Log, slog.With(teleport.ComponentKey, "cloudlabels"))
 	return nil
 }
 
@@ -91,28 +113,11 @@ func NewCloudImporter(ctx context.Context, c *CloudConfig) (*CloudImporter, erro
 	if err := c.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cloudImporter := &CloudImporter{
+	return &CloudImporter{
 		CloudConfig: c,
 		labels:      make(map[string]string),
 		closeCh:     make(chan struct{}),
-	}
-	switch c.Client.GetType() {
-	case types.InstanceMetadataTypeEC2:
-		cloudImporter.initEC2()
-	case types.InstanceMetadataTypeAzure:
-		cloudImporter.initAzure()
-	}
-	return cloudImporter, nil
-}
-
-func (l *CloudImporter) initEC2() {
-	l.namespace = AWSLabelNamespace
-	l.instanceMetadataHint = awsErrorMessage
-}
-
-func (l *CloudImporter) initAzure() {
-	l.namespace = AzureLabelNamespace
-	l.instanceMetadataHint = azureErrorMessage
+	}, nil
 }
 
 // Get returns the list of updated cloud labels.
@@ -136,10 +141,10 @@ func (l *CloudImporter) Apply(r types.ResourceWithLabels) {
 func (l *CloudImporter) Sync(ctx context.Context) error {
 	tags, err := l.Client.GetTags(ctx)
 	if err != nil {
-		if trace.IsNotFound(err) {
+		if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
 			// Only show the error the first time around.
 			l.instanceTagsNotFoundOnce.Do(func() {
-				l.Log.Warning(l.instanceMetadataHint)
+				l.Log.WarnContext(ctx, l.instanceMetadataHint) //nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
 			})
 			return nil
 		}
@@ -149,7 +154,7 @@ func (l *CloudImporter) Sync(ctx context.Context) error {
 	m := make(map[string]string)
 	for key, value := range tags {
 		if !types.IsValidLabelKey(key) {
-			l.Log.Debugf("Skipping cloud tag %q, not a valid label key.", key)
+			l.Log.DebugContext(ctx, "Skipping cloud tag due to invalid label key", "tag", key)
 			continue
 		}
 		m[FormatCloudLabelKey(l.namespace, key)] = value
@@ -172,7 +177,7 @@ func (l *CloudImporter) periodicUpdateLabels(ctx context.Context) {
 
 	for {
 		if err := l.Sync(ctx); err != nil {
-			l.Log.Warningf("Error fetching cloud tags: %v", err)
+			l.Log.WarnContext(ctx, "Failed to fetch cloud tags", "error", err)
 		}
 		select {
 		case <-ticker.Chan():

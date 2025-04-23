@@ -1,0 +1,158 @@
+---
+title: Database Access Audit Events Reference
+description: Audit events reference for Teleport database access.
+---
+
+
+(!docs/pages/includes/database-access/db-audit-events.mdx!)
+
+## db.session.start (TDB00I/W)
+
+Emitted when a client successfully connects to a database, or when a connection
+attempt fails due to access denied.
+
+Successful connection event:
+
+```json
+{
+  "cluster_name": "root", // Teleport cluster name.
+  "code": "TDB00I", // Event code.
+  "db_name": "test", // Database/schema name.
+  "db_protocol": "postgres", // Database protocol.
+  "db_service": "local", // Database service name.
+  "db_uri": "localhost:5432", // Database server endpoint.
+  "db_user": "postgres", // Database account name.
+  "ei": 0, // Event index within the session.
+  "event": "db.session.start", // Event name.
+  "namespace": "default", // Event namespace, always "default".
+  "server_id": "05ff66c9-a948-42f4-af0e-a1b6ba62561e", // Database Service host ID.
+  "sid": "63b6fa11-cd44-477b-911a-602b75ab13b5", // Unique database session ID.
+  "success": true, // Indicates successful connection.
+  "time": "2021-04-27T23:00:26.014Z", // Event timestamp.
+  "uid": "eac5b6c8-384a-4471-9559-e135834b1ab0", // Unique event ID.
+  "user": "alice" // Teleport user name.
+}
+```
+
+Access denied event:
+
+```json
+{
+  "cluster_name": "root", // Teleport cluster name.
+  "code": "TDB00W", // Event code.
+  "db_name": "test", // Database/schema name user attempted to connect to.
+  "db_protocol": "postgres", // Database protocol.
+  "db_service": "local", // Database service name.
+  "db_uri": "localhost:5432", // Database server endpoint.
+  "db_user": "superuser", // Database account name user attempted to log in as.
+  "ei": 0, // Event index within the session.
+  "error": "access to database denied", // Connection error.
+  "event": "db.session.start", // Event name.
+  "message": "access to database denied", // Detailed error message.
+  "namespace": "default", // Event namespace, always "default".
+  "server_id": "05ff66c9-a948-42f4-af0e-a1b6ba62561e", // Database Service host ID.
+  "sid": "d18388e5-cc7c-4624-b22b-d36db60d0c50", // Unique database session ID.
+  "success": false, // Indicates unsuccessful connection.
+  "time": "2021-04-27T23:03:05.226Z", // Event timestamp.
+  "uid": "507fe008-99a4-4247-8603-6ba03408d047", // Unique event ID.
+  "user": "alice" // Teleport user name.
+}
+```
+
+## db.session.end (TDB01I)
+
+Emitted when a client disconnects from the database.
+
+```json
+{
+  "cluster_name": "root", // Teleport cluster name.
+  "code": "TDB01I", // Event code.
+  "db_name": "test", // Database/schema name.
+  "db_protocol": "postgres", // Database protocol.
+  "db_service": "local", // Database service name.
+  "db_uri": "localhost:5432", // Database server endpoint.
+  "db_user": "postgres", // Database account name.
+  "ei": 3, // Event index within the session.
+  "event": "db.session.end", // Event name.
+  "sid": "63b6fa11-cd44-477b-911a-602b75ab13b5", // Unique database session ID.
+  "time": "2021-04-27T23:00:30.046Z", // Event timestamp.
+  "uid": "a626b22d-bbd0-40ef-9896-b7ff365664b0", // Unique event ID.
+  "user": "alice" // Teleport user name.
+}
+```
+
+## db.session.query (TDB02I)
+
+Emitted when a client executes a SQL query.
+
+```json
+{
+  "cluster_name": "root", // Teleport cluster name.
+  "code": "TDB02I", // Event code.
+  "db_name": "test", // Database/schema name.
+  "db_protocol": "postgres", // Database protocol.
+  "db_query": "INSERT INTO public.test (id,\"timestamp\",json)\n\tVALUES ($1,$2,$3)", // Query text.
+  "db_query_parameters": [ // Query parameters (for prepared statements).
+    "test-id",
+    "2022-04-02 17:50:20-07",
+    "{\"k\": \"v\"}"
+  ],
+  "db_service": "local", // Database service name.
+  "db_uri": "localhost:5432", // Database server endpoint.
+  "db_user": "postgres", // Database account name.
+  "ei": 29, // Event index within the session.
+  "event": "db.session.query", // Event name.
+  "sid": "691e6f70-3c31-4412-90aa-fe0558abb212", // Unique database session ID.
+  "time": "2021-04-27T23:04:57.395Z", // Event timestamp.
+  "uid": "9f7b4179-b9cf-4302-bb7c-1408e404823f", // Unique event ID.
+  "user": "alice" // Teleport user name.
+}
+```
+
+## db.session.spanner.rpc (TSPN001I/W)
+
+Emitted when a client executes a remote procedure call (RPC), or when an RPC
+execution attempt fails due to access denied.
+
+```json
+{
+  "args": { // RPC arguments (specific to the "procedure" below).
+    "query_options": {},
+    "request_options": {},
+    "seqno": 1,
+    "session": "projects/project-id/instances/instance-id/databases/dev-db/sessions/ABCDEF1234567890",
+    "sql": "select * from TestTable",
+    "transaction": {
+      "Selector": {
+        "SingleUse": {
+          "Mode": {
+            "ReadOnly": {
+              "TimestampBound": {
+                "Strong": true
+              },
+              "return_read_timestamp": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "cluster_name": "root", // Teleport cluster name.
+  "code": "TSPN001I", // Event code.
+  "db_name": "dev-db", // Database name.
+  "db_origin": "dynamic", // Teleport database service config origin.
+  "db_protocol": "spanner", // Database protocol.
+  "db_service": "teleport-spanner", // Database service name.
+  "db_type": "spanner", // Database type.
+  "db_uri": "spanner.googleapis.com:443", // Database service endpoint.
+  "db_user": "some-user", // Database account name, (a GCP IAM service account name without its @<project>.iam.gserviceaccount.com suffix).
+  "ei": 29, // Event index within the session.
+  "event": "db.session.spanner.rpc", // Event name.
+  "procedure": "ExecuteStreamingSql", // Name of the remote procedure call (RPC).
+  "sid": "406b9883-0e16-42f2-9d0b-b3bd956f9cd4", // Unique database session ID.
+  "success": true, // The RPC was allowed by Teleport RBAC.
+  "time": "2024-03-13T00:02:44.739Z", // Event timestamp.
+  "uid": "e0625e79-9399-4ea3-aa8b-dba1eb98658d", // Unique event ID.
+  "user": "alice@example.com" // Teleport user name.
+}
+```

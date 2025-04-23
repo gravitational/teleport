@@ -17,6 +17,7 @@ package msteams
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
@@ -77,10 +79,15 @@ type Bot struct {
 	webProxyURL *url.URL
 	// clusterName cluster name
 	clusterName string
+	// log is the logger
+	log *slog.Logger
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // NewBot creates new bot struct
-func NewBot(c msapi.Config, clusterName, webProxyAddr string) (*Bot, error) {
+func NewBot(c *Config, clusterName, webProxyAddr string, log *slog.Logger) (*Bot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error
@@ -94,13 +101,15 @@ func NewBot(c msapi.Config, clusterName, webProxyAddr string) (*Bot, error) {
 	}
 
 	bot := &Bot{
-		Config:      c,
-		graphClient: msapi.NewGraphClient(c),
-		botClient:   msapi.NewBotFrameworkClient(c),
+		Config:      c.MSAPI,
+		graphClient: msapi.NewGraphClient(c.MSAPI),
+		botClient:   msapi.NewBotFrameworkClient(c.MSAPI),
 		recipients:  make(map[string]RecipientData),
 		webProxyURL: webProxyURL,
 		clusterName: clusterName,
 		mu:          &sync.RWMutex{},
+		log:         log,
+		StatusSink:  c.StatusSink,
 	}
 
 	return bot, nil
@@ -108,55 +117,62 @@ func NewBot(c msapi.Config, clusterName, webProxyAddr string) (*Bot, error) {
 
 // GetTeamsApp finds the application in org store and caches it in a bot instance
 func (b *Bot) GetTeamsApp(ctx context.Context) (*msapi.TeamsApp, error) {
+	b.log.DebugContext(ctx, "Retrieving the Teams application from the organization store", "teams_app_id", b.Config.TeamsAppID)
 	teamsApp, err := b.graphClient.GetTeamsApp(ctx, b.Config.TeamsAppID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	b.log.DebugContext(ctx, "Retrieved the Teams application from the organization store",
+		slog.Group("teams_app",
+			"id", teamsApp.ID,
+			"display_name", teamsApp.DisplayName,
+			"external_id", teamsApp.ExternalID,
+			"distribution_method", teamsApp.DistributionMethod),
+	)
 	b.teamsApp = teamsApp
 	return b.teamsApp, nil
 }
 
 // GetUserIDByEmail gets a user ID by email. NotFoundError if not found.
 func (b *Bot) GetUserIDByEmail(ctx context.Context, email string) (string, error) {
+	b.log.DebugContext(ctx, "Resolving user ID via email", "email", email)
 	user, err := b.graphClient.GetUserByEmail(ctx, email)
 	if trace.IsNotFound(err) {
+		b.log.DebugContext(ctx, "Failed to resolve user ID via email", "email", email, "error", err)
 		return "", trace.Wrap(err, "try user id instead")
 	} else if err != nil {
+		b.log.DebugContext(ctx, "Failed to resolve user ID via email", "email", email, "error", err)
 		return "", trace.Wrap(err)
 	}
+	b.log.DebugContext(ctx, "Resolved user ID via email", "email", email, "user_id", user.ID)
 
 	return user.ID, nil
-}
-
-// UserExists return true if a user exists. Returns NotFoundError if not found.
-func (b *Bot) UserExists(ctx context.Context, id string) error {
-	_, err := b.graphClient.GetUserByID(ctx, id)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 func (b *Bot) UninstallAppForUser(ctx context.Context, userIDOrEmail string) error {
 	if b.teamsApp == nil {
 		return trace.Errorf("Bot is not configured, run GetTeamsApp first")
 	}
+	b.log.DebugContext(ctx, "Starting to uninstall app for user", "user_id_or_email", userIDOrEmail, "teams_app_id", b.teamsApp.ID)
 
 	userID, err := b.getUserID(ctx, userIDOrEmail)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log := b.log.With("user_id", userID, "user_id_or_email", userIDOrEmail, "teams_app_id", b.Config.TeamsAppID)
 
+	log.DebugContext(ctx, "Retrieving the app installation ID for the user")
 	installedApp, err := b.graphClient.GetAppForUser(ctx, b.teamsApp, userID)
 	if trace.IsNotFound(err) {
 		// App is already uninstalled, nothing to do
+		log.DebugContext(ctx, "App is already not installed for user")
 		return nil
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
+	log.DebugContext(ctx, "Removing the app from the user's installed apps")
 	err = b.graphClient.UninstallAppForUser(ctx, userID, installedApp.ID)
 	return trace.Wrap(err)
 }
@@ -169,19 +185,46 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 		return nil, trace.Errorf("Bot is not configured, run GetTeamsApp first")
 	}
 
+	log := b.log.With("recipient", recipient)
+	log.DebugContext(ctx, "Fetching recipient")
+
 	b.mu.RLock()
 	d, ok := b.recipients[recipient]
 	b.mu.RUnlock()
 	if ok {
+		log.DebugContext(ctx, "Found recipient in cache",
+			slog.Group("recipient",
+				"id", d.ID,
+				"installed_app_id", d.App.ID,
+				"chat_id", d.Chat.ID,
+				"chat_url", d.Chat.WebURL,
+				"chat_tenant_id", d.Chat.TenantID,
+				"kind", d.Kind,
+			),
+		)
 		return &d, nil
 	}
 
+	log.DebugContext(ctx, "Recipient not in cache")
 	// Check if the recipient is a channel
-	channel, isChannel := checkChannelURL(recipient)
+	channel, isChannel := b.checkChannelURL(recipient)
 	if isChannel {
+		log.DebugContext(ctx, "Recipient is a valid channel",
+			slog.Group("channel",
+				"name", channel.Name,
+				"chat_id", channel.ChatID,
+				"group", channel.Group,
+				"tenant_id", channel.Tenant,
+				"url", channel.URL,
+			),
+		)
 		// A team and a group are different but in MsTeams the team is associated to a group and will have the same id.
+
+		log = log.With("teams_app_id", b.teamsApp.ID, "channel_group", channel.Group)
+		log.DebugContext(ctx, "Retrieving the app installation ID for the team")
 		installedApp, err := b.graphClient.GetAppForTeam(ctx, b.teamsApp, channel.Group)
 		if err != nil {
+			log.ErrorContext(ctx, "Failed to retrieve the app installation ID for the team", "error", err)
 			return nil, trace.Wrap(err)
 		}
 		d = RecipientData{
@@ -194,36 +237,52 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 			},
 			Kind: RecipientKindChannel,
 		}
+		log.DebugContext(ctx, "Retrieved the app installation ID for the team", "recipient_installed_app_id", installedApp.ID)
+
 		// If the recipient is not a channel, it means it is a user (either email or userID)
 	} else {
+		log.DebugContext(ctx, "Recipient is a user")
 		userID, err := b.getUserID(ctx, recipient)
 		if err != nil {
+			log.ErrorContext(ctx, "Failed to resolve recipient", "error", err)
 			return &RecipientData{}, trace.Wrap(err)
 		}
+		log = log.With("user_id", userID)
+		log.DebugContext(ctx, "Successfully resolve user recipient")
 
 		var installedApp *msapi.InstalledApp
 
+		log = log.With("teams_app_id", b.teamsApp.ID)
+		log.DebugContext(ctx, "Checking if app is already installed for user")
 		installedApp, err = b.graphClient.GetAppForUser(ctx, b.teamsApp, userID)
 		if trace.IsNotFound(err) {
+			log.DebugContext(ctx, "App is not installed for user, attempting to install it")
 			err := b.graphClient.InstallAppForUser(ctx, userID, b.teamsApp.ID)
 			// If two installations are running at the same time, one of them will return "Conflict".
 			// This status code is OK to ignore as it means the app is already installed.
 			if err != nil && msapi.GetErrorCode(err) != http.StatusText(http.StatusConflict) {
+				log.ErrorContext(ctx, "Failed to install app for user", "error", err)
 				return nil, trace.Wrap(err)
 			}
 
+			log.DebugContext(ctx, "App installed for the user, retrieving the installation ID")
 			installedApp, err = b.graphClient.GetAppForUser(ctx, b.teamsApp, userID)
 			if err != nil {
+				log.ErrorContext(ctx, "Cannot retrieve app installation ID for user")
 				return nil, trace.Wrap(err, "Failed to install app %v for user %v", b.teamsApp.ID, userID)
 			}
 		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		log = log.With("recipient_installed_app_id", installedApp.ID)
+		log.DebugContext(ctx, "Successfully resolved app installation ID for user")
 
+		log.DebugContext(ctx, "Looking up the installed app chat ID")
 		chat, err := b.graphClient.GetChatForInstalledApp(ctx, userID, installedApp.ID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		log.DebugContext(ctx, "Found the chat ID for the user", "chat_id", chat.ID)
 
 		d = RecipientData{userID, *installedApp, chat, RecipientKindUser}
 	}
@@ -237,7 +296,9 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 
 // getUserID takes a userID or an email, checks if it exists, and returns the userID.
 func (b *Bot) getUserID(ctx context.Context, userIDOrEmail string) (string, error) {
+	b.log.DebugContext(ctx, "Resolving user", "user_id_or_email", userIDOrEmail)
 	if lib.IsEmail(userIDOrEmail) {
+		b.log.DebugContext(ctx, "User looks like an email", "user_id_or_email", userIDOrEmail)
 		uid, err := b.GetUserIDByEmail(ctx, userIDOrEmail)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -245,6 +306,7 @@ func (b *Bot) getUserID(ctx context.Context, userIDOrEmail string) (string, erro
 
 		return uid, nil
 	}
+	b.log.DebugContext(ctx, "User does not look like an email, resolving via user ID", "user_id_or_email", userIDOrEmail)
 	_, err := b.graphClient.GetUserByID(ctx, userIDOrEmail)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -259,13 +321,22 @@ func (b *Bot) PostAdaptiveCardActivity(ctx context.Context, recipient, cardBody,
 		return "", trace.Wrap(err)
 	}
 
+	log := b.log.With("recipient", recipient, "recipient_installed_app_id", recipientData.App.ID, "recipient_chat_id", recipientData.Chat.ID)
+	if updateID == "" {
+		log.DebugContext(ctx, "Posting a message")
+	} else {
+		log.DebugContext(ctx, "Updating a message", "update_id", updateID)
+	}
+
 	id, err := b.botClient.PostAdaptiveCardActivity(
 		ctx, recipientData.App.ID, recipientData.Chat.ID, cardBody, updateID,
 	)
 	if err != nil {
+		log.ErrorContext(ctx, "Failed to send message")
 		return "", trace.Wrap(err)
 	}
 
+	log.DebugContext(ctx, "Message sent", "message_id", id)
 	return id, nil
 }
 
@@ -279,6 +350,7 @@ func (b *Bot) PostMessages(ctx context.Context, recipients []string, id string, 
 		return nil, trace.Wrap(err)
 	}
 
+	b.log.DebugContext(ctx, "Looping through every recipient", "id", id, "recipients", recipients)
 	for _, recipient := range recipients {
 		id, err := b.PostAdaptiveCardActivity(ctx, recipient, body, "")
 		if err != nil {
@@ -309,6 +381,7 @@ func (b *Bot) UpdateMessages(ctx context.Context, id string, data PluginData, re
 		return trace.Wrap(err)
 	}
 
+	b.log.DebugContext(ctx, "Updating messages", "id", id, "message_count", len(data.TeamsData))
 	for _, msg := range data.TeamsData {
 		_, err := b.PostAdaptiveCardActivity(ctx, msg.RecipientID, body, msg.ID)
 		if err != nil {
@@ -325,12 +398,19 @@ func (b *Bot) UpdateMessages(ctx context.Context, id string, data PluginData, re
 
 // checkChannelURL receives a recipient and checks if it is a channel URL.
 // If it is the case, the URL is parsed and the channel RecipientData is returned
-func checkChannelURL(recipient string) (*Channel, bool) {
+func (b *Bot) checkChannelURL(recipient string) (*Channel, bool) {
+	// This context is solely for logging purposes
+	ctx := context.Background()
+	log := b.log.With("recipient", recipient)
+
+	log.DebugContext(ctx, "Checking if the recipient is a channel")
 	channelURL, err := url.Parse(recipient)
 	if err != nil {
+		log.DebugContext(ctx, "Cannot parse recipient as a URL", "error", err)
 		return nil, false
 	}
 
+	log.DebugContext(ctx, "Recipient is a valid URL")
 	var tenantID, groupID, channelName, chatID string
 	for k, v := range channelURL.Query() {
 		switch k {
@@ -342,12 +422,14 @@ func checkChannelURL(recipient string) (*Channel, bool) {
 		}
 	}
 	if tenantID == "" || groupID == "" {
+		log.DebugContext(ctx, "The URL query is missing tenantID or groupID, this is not a channel")
 		return nil, false
 	}
 
 	// There is no risk to have a channelName with a "/" as they are url-encoded twice
 	path := strings.Split(channelURL.Path, "/")
 	if len(path) != 5 {
+		log.DebugContext(ctx, "The URL path length is not 5, this is not a channel")
 		return nil, false
 	}
 	channelName = path[len(path)-1]
@@ -360,6 +442,34 @@ func checkChannelURL(recipient string) (*Channel, bool) {
 		URL:    *channelURL,
 		ChatID: chatID,
 	}
+	log.DebugContext(ctx, "The recipient is a channel",
+		slog.Group("channel",
+			"name", channel.Name,
+			"group_id", channel.Group,
+			"tenant_id", channel.Tenant,
+			"chat_id", channel.ChatID,
+		),
+	)
 
 	return &channel, true
+}
+
+// CheckHealth checks if the bot can connect to its messaging service
+func (b *Bot) CheckHealth(ctx context.Context) error {
+	_, err := b.graphClient.GetTeamsApp(ctx, b.Config.TeamsAppID)
+	if b.StatusSink != nil {
+		status := types.PluginStatusCode_RUNNING
+		message := ""
+		if err != nil {
+			status = types.PluginStatusCode_OTHER_ERROR
+			message = err.Error()
+		}
+		if err := b.StatusSink.Emit(ctx, &types.PluginStatusV1{
+			Code:         status,
+			ErrorMessage: message,
+		}); err != nil {
+			b.log.ErrorContext(ctx, "Error while emitting ms teams plugin status", "error", err)
+		}
+	}
+	return trace.Wrap(err)
 }

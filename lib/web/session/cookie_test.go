@@ -48,7 +48,7 @@ func TestCookies(t *testing.T) {
 	require.Len(t, setCookies, 2)
 
 	// SetCookie will store the encoded session in the cookie
-	require.Equal(t, "__Host-session=7b2275736572223a226c6c616d61222c22736964223a223938373635227d; Path=/; HttpOnly; Secure", setCookies[0])
+	require.Equal(t, "__Host-session=7b2275736572223a226c6c616d61222c22736964223a223938373635227d; Path=/; HttpOnly; Secure; SameSite=Lax", setCookies[0])
 	// ClearCookie will add an entry with the cookie value cleared out
-	require.Equal(t, "__Host-session=; Path=/; HttpOnly; Secure", setCookies[1])
+	require.Equal(t, "__Host-session=; Path=/; HttpOnly; Secure; SameSite=Lax", setCookies[1])
 }

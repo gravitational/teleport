@@ -39,7 +39,7 @@ func UnmarshalClusterNetworkingConfig(bytes []byte, opts ...MarshalOption) (type
 	}
 
 	if err := utils.FastUnmarshal(bytes, &netConfig); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	err = netConfig.CheckAndSetDefaults()
@@ -47,9 +47,6 @@ func UnmarshalClusterNetworkingConfig(bytes []byte, opts ...MarshalOption) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.ID != 0 {
-		netConfig.SetResourceID(cfg.ID)
-	}
 	if cfg.Revision != "" {
 		netConfig.SetRevision(cfg.Revision)
 	}
@@ -72,7 +69,7 @@ func MarshalClusterNetworkingConfig(netConfig types.ClusterNetworkingConfig, opt
 			return nil, trace.Wrap(err)
 		}
 
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, netConfig))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, netConfig))
 	default:
 		return nil, trace.BadParameter("unrecognized cluster networking config version %T", netConfig)
 	}

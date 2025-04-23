@@ -31,10 +31,12 @@ func TestGetKnownRegions(t *testing.T) {
 	// something that includes these.
 	t.Run("hand picked", func(t *testing.T) {
 		for _, region := range []string{
-			"us-east-1",
-			"il-central-1",
 			"cn-north-1",
+			"eu-isoe-west-1",
+			"il-central-1",
+			"us-east-1",
 			"us-gov-west-1",
+			"us-isob-east-1",
 			"us-isob-east-1",
 		} {
 			require.Contains(t, GetKnownRegions(), region)

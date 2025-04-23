@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -49,19 +48,17 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 
 	d := &db{base}
 
-	tlsCert, err := keys.LoadX509KeyPair(d.cfg.CertPath, d.cfg.KeyPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkCertSubject(tlsCert, d.RouteToDatabase()); err != nil {
-		return nil, trace.Wrap(err,
-			"database certificate check failed, try restarting the database connection")
-	}
-
 	listener, err := d.cfg.makeListener()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	middleware := &dbMiddleware{
+		logger: d.cfg.Logger,
+		onExpiredCert: func(ctx context.Context) (tls.Certificate, error) {
+			cert, err := d.cfg.OnExpiredCert(ctx, d)
+			return cert, trace.Wrap(err)
+		},
 	}
 
 	localProxyConfig := alpnproxy.LocalProxyConfig{
@@ -69,44 +66,20 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 		RemoteProxyAddr:         d.cfg.WebProxyAddr,
 		Listener:                listener,
 		ParentContext:           d.closeContext,
-		Cert:                    tlsCert,
 		Clock:                   d.cfg.Clock,
 		ALPNConnUpgradeRequired: d.cfg.TLSRoutingConnUpgradeRequired,
 	}
 
-	if d.cfg.OnExpiredCert != nil {
-		localProxyConfig.Middleware = &dbMiddleware{
-			log:     d.cfg.Log,
-			dbRoute: d.cfg.RouteToDatabase(),
-			onExpiredCert: func(ctx context.Context) error {
-				// TODO(ravicious): Add support for per-session MFA in db gateways by utilizing the cert
-				// returned from onExpiredCert. Make DBCertChecker from tsh more modular and reuse it
-				// instead of shipping custom dbMiddleware.
-				_, err := d.cfg.OnExpiredCert(ctx, d)
-				return trace.Wrap(err)
-			},
-		}
-	}
-
 	localProxy, err := alpnproxy.NewLocalProxy(localProxyConfig,
 		alpnproxy.WithDatabaseProtocol(d.cfg.Protocol),
+		alpnproxy.WithClientCert(d.cfg.Cert),
 		alpnproxy.WithClusterCAsIfConnUpgrade(d.closeContext, d.cfg.RootClusterCACertPoolFunc),
+		alpnproxy.WithMiddleware(middleware),
 	)
 	if err != nil {
 		return nil, trace.NewAggregate(err, listener.Close())
 	}
 
 	d.localProxy = localProxy
-	d.onNewCertFuncs = append(d.onNewCertFuncs, d.setDBCert)
 	return d, nil
-}
-
-func (d *db) setDBCert(newCert tls.Certificate) error {
-	if err := checkCertSubject(newCert, d.RouteToDatabase()); err != nil {
-		return trace.Wrap(err,
-			"database certificate check failed, try restarting the database connection")
-	}
-
-	d.localProxy.SetCert(newCert)
-	return nil
 }

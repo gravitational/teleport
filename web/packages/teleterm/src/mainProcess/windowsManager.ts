@@ -22,22 +22,22 @@ import * as url from 'node:url';
 import {
   app,
   BrowserWindow,
+  ipcMain,
   Menu,
+  nativeTheme,
   Rectangle,
   screen,
-  nativeTheme,
-  ipcMain,
 } from 'electron';
 
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
-import { FileStorage } from 'teleterm/services/fileStorage';
 import {
   RendererIpc,
   RuntimeSettings,
   WindowsManagerIpc,
 } from 'teleterm/mainProcess/types';
+import { FileStorage } from 'teleterm/services/fileStorage';
 import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
-import { DeepLinkParseResult } from 'teleterm/deepLinks';
 
 type WindowState = Rectangle;
 
@@ -154,7 +154,10 @@ export class WindowsManager {
           return callback(false);
         }
 
-        if (permission === 'clipboard-sanitized-write') {
+        if (
+          permission === 'clipboard-sanitized-write' ||
+          permission === 'clipboard-read'
+        ) {
           return callback(true);
         }
         return callback(false);
@@ -269,6 +272,38 @@ export class WindowsManager {
     app.focus({ steal: true });
   }
 
+  /**
+   * Returns a promise that resolves after window is focused or after a timeout, or after the
+   * passed signal is aborted. There's no guarantee that the window receives focus, hence the
+   * built-in timeout.
+   */
+  waitForWindowFocus(signal?: AbortSignal, timeoutMs = 400): Promise<void> {
+    if (signal?.aborted) {
+      return Promise.resolve();
+    }
+
+    return new Promise(resolve => {
+      const interval = setInterval(() => {
+        if (this.window.isFocused()) {
+          resolve();
+          clearInterval(interval);
+          clearTimeout(timeout);
+        }
+      }, 16);
+
+      const timeout = setTimeout(() => {
+        resolve();
+        clearInterval(interval);
+      }, timeoutMs);
+
+      signal?.addEventListener('abort', () => {
+        resolve();
+        clearInterval(interval);
+        clearTimeout(timeout);
+      });
+    });
+  }
+
   getWindow() {
     return this.window;
   }
@@ -359,7 +394,7 @@ export class WindowsManager {
  * */
 function getWindowUrl(isDev: boolean): string {
   if (isDev) {
-    return 'https://localhost:8080/';
+    return 'http://localhost:8080/';
   }
 
   // The returned URL is percent-encoded.

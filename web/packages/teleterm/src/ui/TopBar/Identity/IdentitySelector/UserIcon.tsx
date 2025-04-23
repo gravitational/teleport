@@ -16,26 +16,67 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { MouseEvent, ReactNode } from 'react';
 import styled from 'styled-components';
 
-interface UserIconProps {
+import {
+  WorkspaceColor,
+  workspaceColorMapping,
+} from 'teleterm/ui/services/workspacesService';
+
+export function UserIcon(props: {
   letter: string;
+  /** If not provided, a default neutral color is rendered. */
+  color?: WorkspaceColor;
+  onClick?(e: MouseEvent<HTMLSpanElement>): void;
+  children?: ReactNode;
+  interactive?: boolean;
+  size?: 'regular' | 'big';
+}) {
+  return (
+    <Circle
+      as={props.interactive ? 'button' : 'span'}
+      size={props.size === 'big' ? '34px' : '30px'}
+      onClick={props.onClick}
+      interactive={props.interactive}
+      color={workspaceColorMapping[props.color]}
+    >
+      {props.letter?.toLocaleUpperCase()}
+      {props.children}
+    </Circle>
+  );
 }
 
-export function UserIcon(props: UserIconProps) {
-  return <Circle>{props.letter.toLocaleUpperCase()}</Circle>;
-}
-
-const Circle = styled.span`
+const Circle = styled.span<{
+  color?: string;
+  interactive?: boolean;
+  size: string;
+}>`
+  position: relative;
   border-radius: 50%;
-  color: ${props => props.theme.colors.buttons.primary.text};
-  background: ${props => props.theme.colors.buttons.primary.default};
-  height: 24px;
-  width: 24px;
+  color: ${props =>
+    props.color
+      ? props.theme.colors.text.primaryInverse
+      : props.theme.colors.text.main};
+  background: ${props =>
+    props.color || props.theme.colors.interactive.tonal.neutral[1]};
+  height: ${props => props.size};
+  width: ${props => props.size};
   display: flex;
-  flex-shrink: 0;
+  font-weight: 500;
   justify-content: center;
   align-items: center;
-  overflow: hidden;
+  box-shadow: rgba(0, 0, 0, 0.15) 0 1px 3px;
+  border: none;
+  &:focus-visible {
+    outline: 2px solid ${props => props.theme.colors.text.muted};
+  }
+  ${props =>
+    props.interactive &&
+    `
+    &:hover {
+      opacity: 0.9;
+    }
+    cursor: pointer;
+    `}
 `;

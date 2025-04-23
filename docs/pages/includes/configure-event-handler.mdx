@@ -13,7 +13,7 @@ $ teleport-event-handler configure . mytenant.teleport.sh:443
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Run the `configure` command to generate a sample configuration. Replace
-`teleport.example.com:443` with the DNS name and HTTPS port of Teleport's Proxy
+`mytenant.teleport.sh:443` with the DNS name and HTTPS port of Teleport's Proxy
 Service:
 
 ```code
@@ -29,7 +29,7 @@ Service or Proxy Service:
 
 ```code
 $ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 
 In order to export audit events, you'll need to have the root certificate and the
@@ -42,6 +42,15 @@ $ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca
 
 This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
 secret so the Helm chart can mount them to their appropriate path.
+
+</TabItem>
+<TabItem label="Local Docker test">
+
+Run the `configure` command to generate a sample configuration:
+
+```code
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure .
+```
 
 </TabItem>
 </Tabs>
@@ -80,7 +89,8 @@ $ ls -l
 | `teleport-event-handler-role.yaml` | `user` and `role` resource definitions for Teleport's event handler |
 | `fluent.conf`                      | Fluentd plugin configuration                                        |
 
-<Details title="Running the Event Handler separately from the log forwarder">
+<details>
+<summary>Running the Event Handler separately from the log forwarder</summary>
 
 This guide assumes that you are running the Event Handler on the same host or
 Kubernetes pod as your log forwarder. If you are not, you will need to instruct
@@ -101,8 +111,6 @@ the value of `--cn`.
 
 The `--dns-names` flag accepts a comma-separated list of DNS names. It will
 append subject alternative names (SANs) to the server certificate (the one you
-will provide to your log forwarder) for each DNS name in the list. The Event
-Handler looks up each DNS name before appending it as an SAN and exits with an
-error if the lookup fails.
+will provide to your log forwarder) for each DNS name in the list.
+</details>
 
-</Details>

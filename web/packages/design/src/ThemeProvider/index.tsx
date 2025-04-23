@@ -16,77 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import isPropValid from '@emotion/is-prop-valid';
+import { ReactNode } from 'react';
 import {
-  StyleSheetManager,
   ThemeProvider as StyledThemeProvider,
+  StyleSheetManager,
+  WebTarget,
 } from 'styled-components';
 
-import { KeysEnum, storageService } from 'teleport/services/storageService';
+import { Theme } from 'design/theme';
+import { GlobalStyle } from 'design/ThemeProvider/globals';
 
-import cfg from 'teleport/config';
-
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-
-import { darkTheme, lightTheme, bblpTheme } from '../theme';
-
-import { GlobalStyle } from './globals';
-
-function themePreferenceToTheme(themePreference: Theme) {
-  return themePreference === Theme.LIGHT ? lightTheme : darkTheme;
+/**
+ * This function has been taken from the [styled-components library
+ * FAQ](https://styled-components.com/docs/faqs#shouldforwardprop-is-no-longer-provided-by-default).
+ * It implements the default behavior from styled-components v5. It's required,
+ * because it would be otherwise incompatible with styled-system (or at least
+ * the way we are using it). Not using this function would cause a lot of props
+ * being passed unnecessarily to the underlying elements. Not only it's
+ * unnecessary and potentially a buggy behavior, it also causes a lot of
+ * warnings printed on the console, which in turn causes test failures.
+ */
+export function shouldForwardProp(propName: string, target: WebTarget) {
+  if (typeof target === 'string') {
+    // For HTML elements, forward the prop if it is a valid HTML attribute
+    return isPropValid(propName);
+  }
+  // For other elements, forward all props
+  return true;
 }
 
-const ThemeProvider = props => {
-  const [themePreference, setThemePreference] = useState<Theme>(
-    storageService.getThemePreference()
-  );
-
-  useEffect(() => {
-    storageService.subscribe(receiveMessage);
-
-    function receiveMessage(event) {
-      const { key, newValue } = event;
-
-      if (!newValue || key !== KeysEnum.USER_PREFERENCES) {
-        return;
-      }
-
-      const preferences = JSON.parse(newValue);
-      if (preferences.theme !== themePreference) {
-        setThemePreference(preferences.theme);
-      }
-    }
-
-    // Cleanup on unmount
-    return function unsubscribe() {
-      storageService.unsubscribe(receiveMessage);
-    };
-  }, [themePreference]);
-
-  const customThemes = {
-    bblp: bblpTheme,
-  };
-
-  // If no props.theme is defined, use the custom theme instead of the user preference theme.
-  let theme;
-  if (props.theme) {
-    theme = props.theme;
-  } else if (customThemes[cfg.customTheme]) {
-    theme = customThemes[cfg.customTheme];
-  } else {
-    theme = themePreferenceToTheme(themePreference);
-  }
-
+/**
+ * Uses a theme from the prop and configures a `styled-components` theme.
+ * Can be used in tests, storybook or in an app.
+ */
+export function ConfiguredThemeProvider(props: {
+  theme: Theme;
+  children?: ReactNode;
+}) {
   return (
-    <StyledThemeProvider theme={theme}>
-      <StyleSheetManager disableVendorPrefixes>
-        <React.Fragment>
-          <GlobalStyle />
-          {props.children}
-        </React.Fragment>
+    <StyledThemeProvider theme={props.theme}>
+      <StyleSheetManager shouldForwardProp={shouldForwardProp}>
+        <GlobalStyle />
+        {props.children}
       </StyleSheetManager>
     </StyledThemeProvider>
   );
-};
-
-export default ThemeProvider;
+}

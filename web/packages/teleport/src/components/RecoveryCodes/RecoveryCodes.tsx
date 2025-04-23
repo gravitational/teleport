@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import styled from 'styled-components';
+
 import { Box, ButtonPrimary, Card, Flex, Text } from 'design';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
@@ -31,7 +32,7 @@ export default function RecoveryCodesDialog({
   isNewCodes,
   continueText = 'Continue',
   username = '',
-}: Props) {
+}: RecoveryCodesProps) {
   const codesRef = useRef();
 
   const captureRecoveryCodeEvent = (event: CaptureEvent) => {
@@ -218,7 +219,7 @@ const MiniActionButton = styled(ButtonPrimary)`
   font-size: 10px;
 `;
 
-export type Props = {
+export type RecoveryCodesProps = {
   recoveryCodes: RecoveryCodes;
   onContinue: () => void;
   isNewCodes: boolean;

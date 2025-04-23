@@ -247,3 +247,43 @@ func TestMatchGCPRequests(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchAWSRequests(t *testing.T) {
+	makeRequest := func(url string) *http.Request {
+		// Forward proxy always receives CONNECT requests.
+		request, err := http.NewRequest("CONNECT", url, nil)
+		require.NoError(t, err)
+		return request
+	}
+	tests := []struct {
+		name  string
+		req   *http.Request
+		check require.BoolAssertionFunc
+	}{
+		{
+			name:  "AWS request",
+			req:   makeRequest("http://s3.ca-central-1.amazonaws.com"),
+			check: require.True,
+		},
+		{
+			name:  "non-AWS request",
+			req:   makeRequest("https://registry.terraform.io"),
+			check: require.False,
+		},
+		{
+			name:  "SSM API",
+			req:   makeRequest("https://ssm.ca-central-1.amazonaws.com"),
+			check: require.True,
+		},
+		{
+			name:  "SSM session WebSocket",
+			req:   makeRequest("wss://ssmmessages.ca-central-1.amazonaws.com"),
+			check: require.False,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.check(t, MatchAWSRequests(tt.req))
+		})
+	}
+}

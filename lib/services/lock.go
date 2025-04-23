@@ -36,7 +36,7 @@ func LockInForceAccessDenied(lock types.Lock) error {
 	if len(msg) > 0 {
 		s += ": " + msg
 	}
-	err := trace.AccessDenied(s)
+	err := trace.AccessDenied("%s", s)
 	return trace.WithField(err, "lock-in-force", lock)
 }
 
@@ -85,7 +85,7 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 
 	var lock types.LockV2
 	if err := utils.FastUnmarshal(bytes, &lock); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := lock.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -94,9 +94,6 @@ func UnmarshalLock(bytes []byte, opts ...MarshalOption) (types.Lock, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		lock.SetResourceID(cfg.ID)
 	}
 	if cfg.Revision != "" {
 		lock.SetRevision(cfg.Revision)
@@ -123,7 +120,7 @@ func MarshalLock(lock types.Lock, opts ...MarshalOption) ([]byte, error) {
 		if version := lock.GetVersion(); version != types.V2 {
 			return nil, trace.BadParameter("mismatched lock version %v and type %T", version, lock)
 		}
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, lock))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, lock))
 	default:
 		return nil, trace.BadParameter("unrecognized lock version %T", lock)
 	}

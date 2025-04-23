@@ -19,8 +19,10 @@
 package reversetunnel
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -28,12 +30,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // connKey is a key used to identify tunnel connections. It contains the UUID
@@ -54,8 +56,8 @@ type remoteConn struct {
 	lastHeartbeat atomic.Int64
 
 	*connConfig
-	mu  sync.Mutex
-	log *logrus.Entry
+	mu     sync.Mutex
+	logger *slog.Logger
 
 	// discoveryCh is the SSH channel over which discovery requests are sent.
 	discoveryCh ssh.Channel
@@ -109,9 +111,7 @@ type connConfig struct {
 
 func newRemoteConn(cfg *connConfig) *remoteConn {
 	c := &remoteConn{
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: "discovery",
-		}),
+		logger:      slog.With(teleport.ComponentKey, "discovery"),
 		connConfig:  cfg,
 		clock:       clockwork.NewRealClock(),
 		newProxiesC: make(chan []types.Server, 100),
@@ -181,7 +181,11 @@ func (c *remoteConn) markInvalid(err error) {
 
 	c.lastError = err
 	c.invalid.Store(true)
-	c.log.Warnf("Unhealthy connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
+	c.logger.WarnContext(context.Background(), "Unhealthy reverse tunnel connection",
+		"cluster", c.clusterName,
+		"remote_addr", logutils.StringerAttr(c.conn.RemoteAddr()),
+		"error", err,
+	)
 }
 
 func (c *remoteConn) markValid() {
@@ -256,7 +260,7 @@ func (c *remoteConn) updateProxies(proxies []types.Server) {
 	default:
 		// Missing proxies update is no longer critical with more permissive
 		// discovery protocol that tolerates conflicting, stale or missing updates
-		c.log.Warnf("Discovery channel overflow at %v.", len(c.newProxiesC))
+		c.logger.WarnContext(context.Background(), "Discovery channel overflow", "new_proxy_count", len(c.newProxiesC))
 	}
 }
 
@@ -267,7 +271,7 @@ func (c *remoteConn) adviseReconnect() error {
 
 // sendDiscoveryRequest sends a discovery request with up to date
 // list of connected proxies
-func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
+func (c *remoteConn) sendDiscoveryRequest(ctx context.Context, req discoveryRequest) error {
 	discoveryCh, err := c.openDiscoveryChannel()
 	if err != nil {
 		return trace.Wrap(err)
@@ -282,7 +286,10 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 
 	// Log the discovery request being sent. Useful for debugging to know what
 	// proxies the tunnel server thinks exist.
-	c.log.Debugf("Sending discovery request with proxies %v to %v.", req.ProxyNames(), c.sconn.RemoteAddr())
+	c.logger.DebugContext(ctx, "Sending discovery request",
+		"proxies", req.ProxyNames(),
+		"target_addr", logutils.StringerAttr(c.sconn.RemoteAddr()),
+	)
 
 	if _, err := discoveryCh.SendRequest(chanDiscoveryReq, false, payload); err != nil {
 		c.markInvalid(err)

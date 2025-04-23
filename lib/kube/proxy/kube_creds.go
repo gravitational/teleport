@@ -21,13 +21,13 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
@@ -42,7 +42,7 @@ type kubeCreds interface {
 	getTransportConfig() *transport.Config
 	getTargetAddr() string
 	getKubeRestConfig() *rest.Config
-	getKubeClient() *kubernetes.Clientset
+	getKubeClient() kubernetes.Interface
 	getTransport() http.RoundTripper
 	wrapTransport(http.RoundTripper) (http.RoundTripper, error)
 	close() error
@@ -65,7 +65,7 @@ type staticKubeCreds struct {
 	transportConfig *transport.Config
 	// targetAddr is a kubernetes API address.
 	targetAddr string
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	// clientRestCfg is the Kubernetes Rest config for the cluster.
 	clientRestCfg *rest.Config
 	transport     http.RoundTripper
@@ -87,7 +87,7 @@ func (s *staticKubeCreds) getTargetAddr() string {
 	return s.targetAddr
 }
 
-func (s *staticKubeCreds) getKubeClient() *kubernetes.Clientset {
+func (s *staticKubeCreds) getKubeClient() kubernetes.Interface {
 	return s.kubeClient
 }
 
@@ -151,7 +151,7 @@ type dynamicKubeCreds struct {
 	ctx         context.Context
 	renewTicker clockwork.Ticker
 	staticCreds *staticKubeCreds
-	log         logrus.FieldLogger
+	log         *slog.Logger
 	closeC      chan struct{}
 	client      dynamicCredsClient
 	checker     servicecfg.ImpersonationPermissionsChecker
@@ -164,7 +164,7 @@ type dynamicKubeCreds struct {
 // dynamicCredsConfig contains configuration for dynamicKubeCreds.
 type dynamicCredsConfig struct {
 	kubeCluster          types.KubeCluster
-	log                  logrus.FieldLogger
+	log                  *slog.Logger
 	client               dynamicCredsClient
 	checker              servicecfg.ImpersonationPermissionsChecker
 	clock                clockwork.Clock
@@ -224,7 +224,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 				return
 			case <-dyn.renewTicker.Chan():
 				if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
-					logrus.WithError(err).Warnf("Unable to renew cluster %q credentials.", cfg.kubeCluster.GetName())
+					cfg.log.WarnContext(ctx, "Unable to renew cluster credentials", "cluster", cfg.kubeCluster.GetName(), "error", err)
 				}
 			}
 		}
@@ -236,7 +236,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 func (d *dynamicKubeCreds) getTLSConfig() *tls.Config {
 	d.RLock()
 	defer d.RUnlock()
-	return d.staticCreds.tlsConfig
+	return d.staticCreds.getTLSConfig()
 }
 
 func (d *dynamicKubeCreds) getTransportConfig() *transport.Config {
@@ -257,7 +257,7 @@ func (d *dynamicKubeCreds) getTargetAddr() string {
 	return d.staticCreds.targetAddr
 }
 
-func (d *dynamicKubeCreds) getKubeClient() *kubernetes.Clientset {
+func (d *dynamicKubeCreds) getKubeClient() kubernetes.Interface {
 	d.RLock()
 	defer d.RUnlock()
 	return d.staticCreds.kubeClient

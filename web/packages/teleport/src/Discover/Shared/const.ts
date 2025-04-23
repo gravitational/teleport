@@ -17,3 +17,9 @@
  */
 
 export const WILD_CARD = '*';
+
+export const AWS_TAG_INFO_LINK =
+  'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags_roles.html#id_tags_roles_procs-console';
+
+export const AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK =
+  'https://console.aws.amazon.com/resource-groups/tag-editor/find-resources';

@@ -16,21 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Box, ButtonLink, Flex, Label, Text } from 'design';
-import { StyledCheckbox } from 'design/Checkbox';
-
+import { CheckboxInput } from 'design/Checkbox';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { HoverTooltip } from 'design/Tooltip';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { HoverTooltip } from 'shared/components/ToolTip';
-
-import { ResourceItemProps } from '../types';
-import { PinButton } from '../shared/PinButton';
 import { CopyButton } from '../shared/CopyButton';
+import {
+  BackgroundColorProps,
+  getBackgroundColor,
+} from '../shared/getBackgroundColor';
+import { PinButton } from '../shared/PinButton';
+import { ResourceItemProps } from '../types';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -60,6 +62,7 @@ export function ResourceCard({
   pinned,
   pinResource,
   selectResource,
+  requiresRequest,
   selected,
 }: Omit<ResourceItemProps, 'listViewProps' | 'expandAllLabels'>) {
   const { primaryDesc, secondaryDesc } = cardViewProps;
@@ -70,8 +73,8 @@ export function ResourceCard({
 
   const [hovered, setHovered] = useState(false);
 
-  const innerContainer = useRef<HTMLElement | null>(null);
-  const labelsInnerContainer = useRef<HTMLElement>(null);
+  const innerContainer = useRef<HTMLDivElement | null>(null);
+  const labelsInnerContainer = useRef<HTMLDivElement>(null);
   const collapseTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
   // This effect installs a resize observer whose purpose is to detect the size
@@ -80,6 +83,8 @@ export function ResourceCard({
   useLayoutEffect(() => {
     if (!labelsInnerContainer.current) return;
 
+    // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
+    // useResizeObserver has a stable identity.
     const observer = new ResizeObserver(entries => {
       const container = entries[0];
 
@@ -167,10 +172,11 @@ export function ResourceCard({
           alignItems="start"
           onMouseLeave={onMouseLeave}
           pinned={pinned}
+          requiresRequest={requiresRequest}
           selected={selected}
         >
           <HoverTooltip tipContent={selected ? 'Deselect' : 'Select'}>
-            <StyledCheckbox
+            <CheckboxInput
               css={`
                 position: absolute;
                 top: 16px;
@@ -201,15 +207,16 @@ export function ResourceCard({
             width="45px"
             height="45px"
             ml={2}
+            css={`
+              opacity: ${requiresRequest ? '0.5' : '1'};
+            `}
           />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
             <Flex flexDirection="row" alignItems="center">
               <SingleLineBox flex="1">
                 <HoverTooltip tipContent={name} showOnlyOnOverflow>
-                  <Text typography="h5" fontWeight={300}>
-                    {name}
-                  </Text>
+                  <Text typography="body1">{name}</Text>
                 </HoverTooltip>
               </SingleLineBox>
               {hovered && <CopyButton name={name} mr={2} />}
@@ -221,14 +228,14 @@ export function ResourceCard({
               </ResTypeIconBox>
               {primaryDesc && (
                 <SingleLineBox ml={1} title={primaryDesc}>
-                  <Text typography="body2" color="text.slightlyMuted">
+                  <Text typography="body3" color="text.slightlyMuted">
                     {primaryDesc}
                   </Text>
                 </SingleLineBox>
               )}
               {secondaryDesc && (
                 <SingleLineBox ml={2} title={secondaryDesc}>
-                  <Text typography="body2" color="text.muted">
+                  <Text typography="body3" color="text.muted">
                     {secondaryDesc}
                   </Text>
                 </SingleLineBox>
@@ -285,7 +292,7 @@ const CardContainer = styled(Box)`
   position: relative;
 `;
 
-const CardOuterContainer = styled(Box)`
+const CardOuterContainer = styled(Box)<{ showAllLabels?: boolean }>`
   border-radius: ${props => props.theme.radii[3]}px;
 
   ${props =>
@@ -304,7 +311,7 @@ const CardOuterContainer = styled(Box)`
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    :after {
+    &:after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       border-radius: ${props => props.theme.radii[3]}px;
       content: '';
@@ -327,27 +334,17 @@ const CardOuterContainer = styled(Box)`
  * layout; we may need to globally set the card height to fixed size on the
  * outer container.
  */
-const CardInnerContainer = styled(Flex)`
+const CardInnerContainer = styled(Flex)<BackgroundColorProps>`
   border: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => props.theme.radii[3]}px;
   background-color: ${props => getBackgroundColor(props)};
 
-  :hover {
+  &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }
 `;
-
-const getBackgroundColor = props => {
-  if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2];
-  }
-  if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0];
-  }
-  return 'transparent';
-};
 
 const SingleLineBox = styled(Box)`
   overflow: hidden;
@@ -360,7 +357,7 @@ const SingleLineBox = styled(Box)`
  * single row, or all labels. It hides the internal container's overflow if more
  * than one row of labels exist, but is not yet visible.
  */
-const LabelsContainer = styled(Box)`
+const LabelsContainer = styled(Box)<{ showAll?: boolean }>`
   ${props => (props.showAll ? '' : `height: ${labelRowHeight}px;`)}
   overflow: hidden;
 `;

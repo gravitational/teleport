@@ -36,22 +36,3 @@ export type Desktop = {
   host_addr?: string;
   requiresRequest?: boolean;
 };
-
-// DesktopService is a Windows Desktop Service.
-export type WindowsDesktopService = {
-  kind: 'windows_desktop_service';
-  // Name is name (uuid) of the windows desktop service.
-  name: string;
-  // Hostname is the hostname of the windows desktop service.
-  hostname: string;
-  // Addr is the network address the desktop service can be reached at.
-  addr: string;
-  // Labels.
-  labels: ResourceLabel[];
-};
-
-export type WindowsDesktopServicesResponse = {
-  desktopServices: WindowsDesktopService[];
-  startKey?: string;
-  totalCount?: number;
-};

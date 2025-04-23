@@ -16,15 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Text } from 'design';
+import { Fragment, useCallback } from 'react';
+import { useTheme } from 'styled-components';
 
-import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
-import { ShareFeedback } from './ShareFeedback';
+import { ButtonPrimary, Flex, Text } from 'design';
+import { ChevronRight } from 'design/Icon';
+
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { getAssumedRequests } from 'teleterm/ui/services/clusters';
+import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
+
 import { AccessRequestCheckoutButton } from './AccessRequestCheckoutButton';
+import { ShareFeedback } from './ShareFeedback';
+import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
-export function StatusBar() {
-  const clusterBreadcrumbs = useActiveDocumentClusterBreadcrumbs();
+export function StatusBar(props: { onAssumedRolesClick(): void }) {
+  const breadcrumbs = useActiveDocumentClusterBreadcrumbs();
+  const theme = useTheme();
+  const rootClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(store => store.rootClusterUri, [])
+  );
+  const assumedRoles = Object.values(
+    useStoreSelector(
+      'clustersService',
+      useCallback(
+        state => getAssumedRequests(state, rootClusterUri),
+        [rootClusterUri]
+      )
+    )
+  );
+  const assumedRolesText = assumedRoles.flatMap(r => r.roles).join(', ');
 
   return (
     <Flex
@@ -36,19 +58,78 @@ export function StatusBar() {
       alignItems="center"
       justifyContent="space-between"
       px={2}
+      gap={3}
+      color="text.slightlyMuted"
       overflow="hidden"
     >
-      <Text
-        color="text.slightlyMuted"
-        fontSize="14px"
+      <Flex
         css={`
-          white-space: nowrap;
+          // If the breadcrumbs are wider than the available space,
+          // allow scrolling them horizontally, but do not show the scrollbar.
+          overflow: scroll;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
         `}
-        title={clusterBreadcrumbs}
       >
-        {clusterBreadcrumbs}
-      </Text>
-      <Flex gap={2} alignItems="center">
+        {breadcrumbs && (
+          <Flex
+            gap={2}
+            css={`
+              flex-shrink: 0;
+              font-size: 13px;
+            `}
+            title={breadcrumbs.map(({ name }) => name).join(' → ')}
+          >
+            {breadcrumbs.map((breadcrumb, index) => (
+              <Fragment key={`${index}-${breadcrumb.name}`}>
+                {breadcrumb.Icon && (
+                  <breadcrumb.Icon color="text.muted" size="small" mr={-1} />
+                )}
+                <Text>{breadcrumb.name}</Text>
+                {index !== breadcrumbs.length - 1 && (
+                  // Size 'small' is too large here.
+                  <ChevronRight size={13} color="text.muted" />
+                )}
+              </Fragment>
+            ))}
+          </Flex>
+        )}
+      </Flex>
+
+      <Flex
+        gap={1}
+        alignItems="center"
+        justifyContent="flex-end"
+        css={`
+          // Allows the content to shrink.
+          min-width: 0;
+        `}
+      >
+        {!!assumedRoles.length && (
+          <ButtonPrimary
+            css={`
+              min-width: 40px;
+            `}
+            gap={2}
+            title={assumedRolesText}
+            size="small"
+            onClick={props.onAssumedRolesClick}
+          >
+            <ConnectionStatusIndicator
+              status="on"
+              activeStatusColor={theme.colors.text.primaryInverse}
+            />
+            <Text
+              css={`
+                white-space: nowrap;
+              `}
+            >
+              {assumedRolesText}
+            </Text>
+          </ButtonPrimary>
+        )}
         <AccessRequestCheckoutButton />
         <ShareFeedback />
       </Flex>

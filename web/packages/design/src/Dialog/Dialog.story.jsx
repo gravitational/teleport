@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { ButtonPrimary, Input, LabelInput } from './..';
-
 import Dialog, {
-  DialogHeader,
   DialogContent,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from './index';
 

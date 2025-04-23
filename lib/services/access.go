@@ -79,12 +79,12 @@ func CheckDynamicLabelsInDenyRules(r types.Role) error {
 		}
 		for label := range labelMatchers.Labels {
 			if strings.HasPrefix(label, types.TeleportDynamicLabelPrefix) {
-				return trace.BadParameter(dynamicLabelsErrorMessage)
+				return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 			}
 		}
 		const expressionMatch = `"` + types.TeleportDynamicLabelPrefix
 		if strings.Contains(labelMatchers.Expression, expressionMatch) {
-			return trace.BadParameter(dynamicLabelsErrorMessage)
+			return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 		}
 	}
 
@@ -93,7 +93,7 @@ func CheckDynamicLabelsInDenyRules(r types.Role) error {
 		r.GetImpersonateConditions(types.Deny).Where,
 	} {
 		if strings.Contains(where, types.TeleportDynamicLabelPrefix) {
-			return trace.BadParameter(dynamicLabelsErrorMessage)
+			return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 		}
 	}
 

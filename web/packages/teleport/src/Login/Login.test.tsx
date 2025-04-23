@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
 import selectEvent from 'react-select-event';
-import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+
+import cfg from 'teleport/config';
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
-import cfg from 'teleport/config';
+import session from 'teleport/services/websession';
 
 import { Login } from './Login';
 
@@ -32,7 +33,9 @@ let user: UserEvent;
 beforeEach(() => {
   jest.restoreAllMocks();
   jest.spyOn(history, 'push').mockImplementation();
+  jest.spyOn(history, 'replace').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
+  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
   user = userEvent.setup();
 });
 
@@ -184,4 +187,35 @@ describe('test MOTD', () => {
       screen.queryByText('Welcome to cluster, your activity will be recorded.')
     ).not.toBeInTheDocument();
   });
+
+  test('access changed message renders when the URL param is set', () => {
+    jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => true);
+
+    render(<Login />);
+
+    expect(screen.getByText(/sign in to teleport/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your access has changed/i)).toBeInTheDocument();
+  });
+});
+
+test('redirect to root if session is valid and path is not "/enterprise/saml-idp/sso"', () => {
+  jest.spyOn(session, 'isValid').mockImplementation(() => true);
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(
+      'http://localhost/web/login?redirect_url=http://localhost/web/cluster/localhost/resources'
+    );
+  render(<Login />);
+
+  expect(history.replace).toHaveBeenCalledWith('/web');
+});
+
+test('redirect if session is valid and path matches "/enterprise/saml-idp/sso"', () => {
+  const samlIdPPath = new URL('http://localhost' + cfg.routes.samlIdpSso);
+  jest.spyOn(session, 'isValid').mockImplementation(() => true);
+  jest
+    .spyOn(history, 'getRedirectParam')
+    .mockReturnValue(samlIdPPath.toString());
+  render(<Login />);
+  expect(history.push).toHaveBeenCalledWith(samlIdPPath, true);
 });

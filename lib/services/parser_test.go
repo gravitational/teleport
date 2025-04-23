@@ -403,9 +403,7 @@ func BenchmarkContains(b *testing.B) {
 	expression, err := NewResourceExpression(`contains(split(labels["ip"], "|"), "1.2.3.1")`)
 	require.NoError(b, err)
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		match, err := expression.Evaluate(server)
 		require.NoError(b, err)
 		require.True(b, match)

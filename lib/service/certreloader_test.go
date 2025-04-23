@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestCertReloader(t *testing.T) {
@@ -121,7 +121,7 @@ func TestCertReloader(t *testing.T) {
 				// Update c0 key, and partially update c0 cert.
 				key, crt := newCertKeyPair(t)
 				write(t, certs[0].PrivateKey, key)
-				write(t, certs[0].Certificate, crt[0:1024])
+				write(t, certs[0].Certificate, crt[0:len(crt)/2])
 			},
 			certsReloadErrorAssert: require.Error,
 			certsAssert: func(t *testing.T, before []tls.Certificate, after []tls.Certificate) {
@@ -182,7 +182,7 @@ func TestCertReloader(t *testing.T) {
 			tc.certsUpdate(t, certs)
 
 			// Perform cert reload.
-			err = certReloader.loadCertificates()
+			err = certReloader.loadCertificates(ctx)
 			tc.certsReloadErrorAssert(t, err)
 
 			// Perform certs assert, passing in the certs before & after the update.
@@ -225,7 +225,7 @@ func newCertKeyPair(t *testing.T) ([]byte, []byte) {
 		Organization: []string{"teleport"},
 		CommonName:   "teleport",
 	}
-	key, crt, err := utils.GenerateSelfSignedSigningCert(entity, nil, time.Hour)
+	key, crt, err := tlsca.GenerateSelfSignedCA(entity, nil, time.Hour)
 	require.NoError(t, err)
 	return key, crt
 }

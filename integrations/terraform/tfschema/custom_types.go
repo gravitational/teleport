@@ -31,15 +31,18 @@ import (
 )
 
 // GenSchemaBoolOptions returns Terraform schema for BoolOption type
-func GenSchemaBoolOption(_ context.Context) tfsdk.Attribute {
+func GenSchemaBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
-		Optional: true,
-		Type:     types.BoolType,
+		Optional:      true,
+		Type:          types.BoolType,
+		Description:   attr.Description,
+		Computed:      attr.Computed,
+		PlanModifiers: attr.PlanModifiers,
 	}
 }
 
-// GenSchemaBoolOptions returns Terraform schema for Traits type
-func GenSchemaTraits(_ context.Context) tfsdk.Attribute {
+// GenSchemaTraits returns Terraform schema for Traits type
+func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
 		Optional: true,
 		Type: types.MapType{
@@ -47,12 +50,13 @@ func GenSchemaTraits(_ context.Context) tfsdk.Attribute {
 				ElemType: types.StringType,
 			},
 		},
+		Description: attr.Description,
 	}
 }
 
 // GenSchemaBoolOptions returns Terraform schema for Labels type
-func GenSchemaLabels(ctx context.Context) tfsdk.Attribute {
-	return GenSchemaTraits(ctx)
+func GenSchemaLabels(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return GenSchemaTraits(ctx, attr)
 }
 
 func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.BoolOption) {
@@ -61,8 +65,11 @@ func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.Bool
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Bool", tf))
 		return
 	}
-	value := apitypes.BoolOption{Value: v.Value}
-	*o = &value
+
+	if !v.Null && !v.Unknown {
+		value := apitypes.BoolOption{Value: v.Value}
+		*o = &value
+	}
 }
 
 func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Type, v attr.Value) attr.Value {
@@ -76,6 +83,8 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 		return value
 	}
 
+	value.Null = false
+	value.Unknown = false
 	value.Value = o.Value
 
 	return value
@@ -196,12 +205,13 @@ func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr
 }
 
 // GenSchemaStrings returns Terraform schema for Strings type
-func GenSchemaStrings(_ context.Context) tfsdk.Attribute {
+func GenSchemaStrings(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
 	return tfsdk.Attribute{
 		Optional: true,
 		Type: types.ListType{
 			ElemType: types.StringType,
 		},
+		Description: attr.Description,
 	}
 }
 

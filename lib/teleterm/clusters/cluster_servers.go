@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
@@ -42,7 +42,7 @@ type Server struct {
 }
 
 // GetServers returns a paginated list of servers.
-func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest, authClient auth.ClientI) (*GetServersResponse, error) {
+func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest, authClient authclient.ClientI) (*GetServersResponse, error) {
 	var (
 		page apiclient.ResourcePage[types.Server]
 		err  error

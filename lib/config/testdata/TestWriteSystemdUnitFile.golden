@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-Restart=on-failure
+Restart=always
 RestartSec=5
 EnvironmentFile=-/custom/env/dir/teleport
 ExecStart=/custom/install/dir/teleport start --config /etc/teleport.yaml --pid-file=/custom/pid/dir/teleport.pid

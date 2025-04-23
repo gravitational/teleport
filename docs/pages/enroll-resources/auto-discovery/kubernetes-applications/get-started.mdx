@@ -1,0 +1,117 @@
+---
+title: Get Started with Kubernetes Application Discovery
+description: Detailed guide for configuring Kubernetes Application Discovery.
+---
+
+Teleport can automatically detect applications running in your Kubernetes
+clusters and register them with your Teleport cluster. In this setup, users with
+Kubernetes-hosted infrastructure can configure secure access to any new
+applications they deploy with no need for manual intervention beyond the initial
+setup step.
+
+In this guide, we show you how to enable Kubernetes application auto-discovery.
+
+## How it works
+
+The Teleport Discovery Service queries the API server of the Kubernetes cluster
+in which you want to detect applications, maintaining dynamic `app` resources to
+match the Kubernetes services that it detects within the cluster. The Teleport
+Application Service queries the Teleport Auth Service to fetch `app` resources,
+and proxies applications based the dynamically generated configuration.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Kubernetes cluster version >=
+  v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
+
+- Helm >= (=helm.version=)
+
+  (!docs/pages/includes/helm.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/2. Create a join token
+
+Create a join token for a new Teleport Agent that will run the Teleport
+Kubernetes Service, Application Service, and Discovery Service:
+
+```code
+$ tctl tokens add --type=kube,app,discovery
+```
+
+Enabling the `discovery` role by default will automatically start the discovery
+of Kubernetes services and registration of Teleport applications from them. And
+enabling `app` role on the chart will start the process of proxying all new
+Teleport applications created from discovered Kubernetes services.
+
+## Step 2/2. Deploy the agent
+
+If you want to install a new Teleport Agent in your Kubernetes cluster, you can
+use the `teleport-kube-agent` Helm chart. If you already have a Teleport Agent
+installed, you can upgrade it to enable the Kubernetes Application Discovery
+by adding the `kube`, `app`, and `discovery` to roles as shown below.
+
+<Tabs>
+<TabItem label="Install a new agent">
+
+Deploy a new Teleport Agent running your configured services by installing the
+`teleport-kube-agent` Helm chart, assigning <Var name="proxy-address" /> to the
+host and port of your Teleport Proxy Service and <Var name="token" /> to the
+join token you created earlier:
+
+```code
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  --set roles=kube\,app\,discovery \
+  --set kubeClusterName=main-cluster \
+  --set proxyAddr=<Var name="proxy-address" /> \
+  --set authToken=<Var name="token" /> \
+  --create-namespace \
+  --namespace=teleport
+```
+
+</TabItem>
+
+<TabItem label="Upgrade an existing agent">
+
+If you want to have an existing `teleport-kube-agent` installation and want to enable
+Kubernetes App Discovery, you need to update the existing installation role to
+include `kube`, `app`, and `discovery` roles:
+
+```code
+$ helm upgrade teleport-agent teleport/teleport-kube-agent \
+  --reuse-values \
+  --set roles=kube\,app\,discovery \
+  --set authToken=<Var name="token" /> \
+  --namespace=teleport
+```
+</TabItem>
+
+</Tabs>
+
+## Troubleshooting
+
+First, make sure that all expected agents for the Teleport Discovery,
+Application, and Kubernetes Services are running. The token you created for them
+must have the required roles.
+
+If agents are running, but you don't see expected apps appearing in Teleport,
+there could be two main reasons:
+- The Teleport Discovery Service can't find relevant Kubernetes services.
+- The Teleport Application Service can't proxy discovered applications.
+
+Make sure that Kubernetes service account under which the Discovery Service is
+running has enough permissions to list the cluster's services. Also make sure
+that labels and namespaces configuration is correct.
+
+For the Application Service, make sure that labels in `resources` field are defined correctly, specifically that label
+`teleport.dev/kubernetes-cluster` matches `discovery_group` field of the Discovery Service running in the Kubernetes cluster.
+
+## Next steps
+
+You can configure the scope of the Discovery Service. For more information, see
+[`teleport-kube-agent` helm chart
+documentation](../../../reference/helm-reference/teleport-kube-agent.mdx).
+
+

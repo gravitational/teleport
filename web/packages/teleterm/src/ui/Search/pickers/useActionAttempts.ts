@@ -17,27 +17,28 @@
  */
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
-  useCallback,
 } from 'react';
+
 import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { mapToAction } from 'teleterm/ui/Search/actions';
+import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
+import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import {
   rankResults,
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
-import { mapToAction } from 'teleterm/ui/Search/actions';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
-import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
-import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
+import { useVnetAppLauncher, useVnetContext } from 'teleterm/ui/Vnet';
 
 import { useDisplayResults } from './useDisplayResults';
 
@@ -47,8 +48,8 @@ export function useActionAttempts() {
   const searchContext = useSearchContext();
   const { inputValue, filters, pauseUserInteraction } = searchContext;
   const { isSupported: isVnetSupported } = useVnetContext();
-  const vnetLauncher = useVnetLauncher();
-  const launchVnet = isVnetSupported ? vnetLauncher : undefined;
+  const vnetLauncher = useVnetAppLauncher();
+  const launchVnet = isVnetSupported ? vnetLauncher.launchVnet : undefined;
 
   const [resourceSearchAttempt, runResourceSearch, setResourceSearchAttempt] =
     useAsync(useResourceSearch());

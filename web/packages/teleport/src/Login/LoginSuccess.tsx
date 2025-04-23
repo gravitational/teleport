@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { CardSuccessLogin } from 'design';
 
-import LogoHero from 'teleport/components/LogoHero';
+import { LogoHero } from 'teleport/components/LogoHero';
 
 export function LoginSuccess() {
   return (

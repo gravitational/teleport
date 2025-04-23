@@ -70,7 +70,7 @@ func TestAuthPreference(t *testing.T) {
 	suite.AuthPreference(t)
 }
 
-func TestClusterName(t *testing.T) {
+func TestAccessGraphSettings(t *testing.T) {
 	tt := setupConfigContext(context.Background(), t)
 
 	clusterConfig, err := NewClusterConfigurationService(tt.bk)
@@ -78,6 +78,19 @@ func TestClusterName(t *testing.T) {
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
+	}
+	suite.AccessGraphSettings(t)
+}
+
+func TestClusterName(t *testing.T) {
+	tt := setupConfigContext(context.Background(), t)
+
+	clusterConfig, err := NewClusterConfigurationService(tt.bk)
+	require.NoError(t, err)
+
+	suite := &suite.ServicesTestSuite{
+		ConfigS:      clusterConfig,
+		LocalConfigS: clusterConfig,
 	}
 	suite.ClusterName(t)
 }

@@ -26,24 +26,82 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/fixtures"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+type mockEKSClientGetter struct {
+	mocks.AWSConfigProvider
+	stsPresignClient *mockSTSPresignAPI
+	eksClient        *mockEKSAPI
+}
+
+func (e *mockEKSClientGetter) GetAWSEKSClient(aws.Config) EKSClient {
+	return e.eksClient
+}
+
+func (e *mockEKSClientGetter) GetAWSSTSPresignClient(aws.Config) kubeutils.STSPresignClient {
+	return e.stsPresignClient
+}
+
+type mockSTSPresignAPI struct {
+	url *url.URL
+}
+
+func (a *mockSTSPresignAPI) PresignGetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+	return &v4.PresignedHTTPRequest{URL: a.url.String()}, nil
+}
+
+type mockEKSAPI struct {
+	EKSClient
+
+	notify   chan struct{}
+	clusters []*ekstypes.Cluster
+}
+
+func (m *mockEKSAPI) ListClusters(ctx context.Context, req *eks.ListClustersInput, _ ...func(*eks.Options)) (*eks.ListClustersOutput, error) {
+	defer func() { m.notify <- struct{}{} }()
+
+	var names []string
+	for _, cluster := range m.clusters {
+		names = append(names, aws.ToString(cluster.Name))
+	}
+	return &eks.ListClustersOutput{
+		Clusters: names,
+	}, nil
+}
+
+func (m *mockEKSAPI) DescribeCluster(_ context.Context, req *eks.DescribeClusterInput, _ ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
+	defer func() { m.notify <- struct{}{} }()
+
+	for _, cluster := range m.clusters {
+		if aws.ToString(cluster.Name) == aws.ToString(req.Name) {
+			return &eks.DescribeClusterOutput{
+				Cluster: cluster,
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("cluster %q not found", aws.ToString(req.Name))
+}
 
 // Test_DynamicKubeCreds tests the dynamic kube credrentials generator for
 // AWS, GCP, and Azure clusters accessed using their respective IAM credentials.
@@ -54,7 +112,6 @@ func Test_DynamicKubeCreds(t *testing.T) {
 	t.Parallel()
 	var (
 		fakeClock = clockwork.NewFakeClock()
-		log       = logrus.New()
 		notify    = make(chan struct{}, 1)
 		ttl       = 14 * time.Minute
 	)
@@ -100,32 +157,37 @@ func Test_DynamicKubeCreds(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// mock sts client
+	// Mock sts client.
 	u := &url.URL{
 		Scheme: "https",
 		Host:   "sts.amazonaws.com",
 		Path:   "/?Action=GetCallerIdentity&Version=2011-06-15",
 	}
-	sts := &mocks.STSMock{
-		// u is used to presign the request
-		// here we just verify the pre-signed request includes this url.
-		URL: u,
-	}
-	// mock clients
-	cloudclients := &cloud.TestCloudClients{
-		STS: sts,
-		EKS: &mocks.EKSMock{
-			Notify: notify,
-			Clusters: []*eks.Cluster{
+	// EKS clients.
+	eksClients := &mockEKSClientGetter{
+		AWSConfigProvider: mocks.AWSConfigProvider{
+			STSClient: &mocks.STSClient{},
+		},
+		stsPresignClient: &mockSTSPresignAPI{
+			// u is used to presign the request
+			// here we just verify the pre-signed request includes this url.
+			url: u,
+		},
+		eksClient: &mockEKSAPI{
+			notify: notify,
+			clusters: []*ekstypes.Cluster{
 				{
 					Endpoint: aws.String("https://api.eks.us-west-2.amazonaws.com"),
 					Name:     aws.String(awsKube.GetAWSConfig().Name),
-					CertificateAuthority: &eks.Certificate{
+					CertificateAuthority: &ekstypes.Certificate{
 						Data: aws.String(base64.RawStdEncoding.EncodeToString([]byte(fixtures.TLSCACertPEM))),
 					},
 				},
 			},
 		},
+	}
+	// Mock clients.
+	cloudclients := &cloud.TestCloudClients{
 		GCPGKE: &mocks.GKEMock{
 			Notify: notify,
 			Clock:  fakeClock,
@@ -205,7 +267,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			name: "aws eks cluster without assume role",
 			args: args{
 				cluster:             awsKube,
-				client:              getAWSClientRestConfig(cloudclients, fakeClock, nil),
+				client:              getAWSClientRestConfig(eksClients, fakeClock, nil),
 				validateBearerToken: validateEKSToken,
 			},
 			wantAddr: "api.eks.us-west-2.amazonaws.com:443",
@@ -214,7 +276,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			name: "aws eks cluster with unmatched assume role",
 			args: args{
 				cluster: awsKube,
-				client: getAWSClientRestConfig(cloudclients, fakeClock, []services.ResourceMatcher{
+				client: getAWSClientRestConfig(eksClients, fakeClock, []services.ResourceMatcher{
 					{
 						Labels: types.Labels{
 							"rand": []string{"value"},
@@ -234,7 +296,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			args: args{
 				cluster: awsKube,
 				client: getAWSClientRestConfig(
-					cloudclients,
+					eksClients,
 					fakeClock,
 					[]services.ResourceMatcher{
 						{
@@ -303,7 +365,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 					) error {
 						return nil
 					},
-					log:                  log,
+					log:                  utils.NewSlogLoggerForTests(),
 					kubeCluster:          tt.args.cluster,
 					client:               tt.args.client,
 					initialRenewInterval: ttl / 2,
@@ -332,8 +394,9 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			}
 			require.NoError(t, got.close())
 
-			require.Equal(t, tt.wantAssumedRole, utils.Deduplicate(sts.GetAssumedRoleARNs()))
-			require.Equal(t, tt.wantExternalIds, utils.Deduplicate(sts.GetAssumedRoleExternalIDs()))
+			sts := eksClients.AWSConfigProvider.STSClient
+			require.Equal(t, tt.wantAssumedRole, apiutils.Deduplicate(sts.GetAssumedRoleARNs()))
+			require.Equal(t, tt.wantExternalIds, apiutils.Deduplicate(sts.GetAssumedRoleExternalIDs()))
 			sts.ResetAssumeRoleHistory()
 		})
 	}

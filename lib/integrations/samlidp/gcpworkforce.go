@@ -108,7 +108,7 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 		if err := waitForPoolStatus(pollCtx, workforceService, poolFullName, s.APIParams.PoolName); err != nil {
 			return trace.Wrap(err)
 		}
-		slog.With("pool_name", s.APIParams.PoolName, "Pool ready for use.")
+		slog.With("pool_name", s.APIParams.PoolName).InfoContext(ctx, "Pool ready for use.")
 	}
 
 	return s.createWorkforceProvider(ctx, workforceService, poolFullName)

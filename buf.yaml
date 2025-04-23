@@ -1,0 +1,91 @@
+version: v2
+
+modules:
+  - path: api/proto
+  - path: proto
+
+deps:
+  # gogo/protobuf v1.3.2, keep in sync with build.assets/versions.mk.
+  - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
+  - buf.build/googleapis/googleapis:beb34b4050abfcfff72ff5cc6a28f0afa4043ce0
+
+lint:
+  use:
+    - STANDARD
+    - COMMENT_ENUM
+    - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+    - PACKAGE_NO_IMPORT_CYCLE
+    - UNARY_RPC
+  except:
+    - FIELD_NOT_REQUIRED
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_RESPONSE_STANDARD_NAME
+  ignore:
+    - api/proto/teleport/legacy/client/proto/authservice.proto
+    - api/proto/teleport/legacy/client/proto/certs.proto
+    - api/proto/teleport/legacy/client/proto/event.proto
+    - api/proto/teleport/legacy/client/proto/proxyservice.proto
+    - api/proto/teleport/legacy/types/events/athena.proto
+    - api/proto/teleport/legacy/types/events/events.proto
+    - api/proto/teleport/legacy/types/types.proto
+    - api/proto/teleport/legacy/types/wrappers/wrappers.proto
+    - proto/teleport/lib/multiplexer/test/ping.proto
+    - proto/teleport/lib/web/terminal/envelope.proto
+  ignore_only:
+    COMMENT_MESSAGE:
+      - proto/prehog
+      - proto/teleport/lib/teleterm/v1/access_request.proto
+      - proto/teleport/lib/teleterm/v1/app.proto
+      - proto/teleport/lib/teleterm/v1/auth_settings.proto
+      - proto/teleport/lib/teleterm/v1/cluster.proto
+      - proto/teleport/lib/teleterm/v1/database.proto
+      - proto/teleport/lib/teleterm/v1/gateway.proto
+      - proto/teleport/lib/teleterm/v1/kube.proto
+      - proto/teleport/lib/teleterm/v1/label.proto
+      - proto/teleport/lib/teleterm/v1/server.proto
+      - proto/teleport/lib/teleterm/v1/service.proto
+      - proto/teleport/lib/teleterm/v1/usage_events.proto
+    COMMENT_RPC:
+      - proto/prehog
+    COMMENT_SERVICE:
+      - proto/prehog
+    FIELD_LOWER_SNAKE_CASE:
+      - api/proto/teleport/legacy/types/device.proto
+    PACKAGE_DIRECTORY_MATCH:
+      - api/proto/teleport/legacy/client/proto/joinservice.proto
+      - api/proto/teleport/legacy/types/device.proto
+      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
+      - api/proto/teleport/legacy/types/webauthn/webauthn.proto
+    PACKAGE_VERSION_SUFFIX:
+      - api/proto/teleport/legacy/client/proto/joinservice.proto
+      - api/proto/teleport/legacy/types/device.proto
+      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
+      - api/proto/teleport/legacy/types/webauthn/webauthn.proto
+    RPC_REQUEST_STANDARD_NAME:
+      - proto/teleport/lib/teleterm/v1/service.proto
+    UNARY_RPC:
+      - api/proto/teleport/auditlog/v1/auditlog.proto
+      - api/proto/teleport/devicetrust/v1/devicetrust_service.proto
+      - api/proto/teleport/legacy/client/proto/joinservice.proto
+      - api/proto/teleport/transport/v1/transport_service.proto
+      - api/proto/teleport/access_graph/v1/secrets_service.proto
+      - api/proto/teleport/workloadidentity/v1/revocation_service.proto
+      - proto/accessgraph/v1alpha/access_graph_service.proto
+      - proto/teleport/lib/teleterm/v1/service.proto
+  disallow_comment_ignores: true
+
+breaking:
+  use:
+    - ENUM_VALUE_NO_DELETE
+    - WIRE_JSON
+  except:
+    - FIELD_SAME_DEFAULT
+  ignore:
+    # TODO(codingllama): Remove ignore once the PDP API is stable.
+    - api/proto/teleport/decision/v1alpha1
+  ignore_only:
+    RESERVED_ENUM_NO_DELETE:
+      - api/proto/teleport/legacy/types/types.proto
+      - proto/teleport/legacy/types/types.proto

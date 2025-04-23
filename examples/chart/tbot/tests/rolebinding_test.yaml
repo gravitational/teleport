@@ -1,0 +1,20 @@
+suite: Test RoleBinding
+templates:
+  - rolebinding.yaml
+tests:
+  - it: should match the snapshot (simple)
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: skips creation when explictely disabled
+    set:
+      rbac.create: false
+    asserts:
+      - hasDocuments:
+          count: 0

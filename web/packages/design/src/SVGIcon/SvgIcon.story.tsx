@@ -16,46 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
+import { Fragment, ReactNode } from 'react';
 import { useTheme } from 'styled-components';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
 import Flex from '../Flex';
 import Text from '../Text';
-
-import * as SvgIcons from '.';
+import { SVGIconProps } from './common';
+import { TeleportGearIcon } from './TeleportGearIcon';
 
 export default {
   title: 'Design/Icon',
 };
 
 export const CustomIcons = () => {
-  const icons = Object.keys(SvgIcons);
+  const icons = Object.entries({ TeleportGearIcon });
   return (
     <Flex flexWrap="wrap">
-      {icons.map(icon => {
-        // eslint-disable-next-line import/namespace
-        const S = SvgIcons[icon];
+      {icons.map(([icon, S]) => {
         const size = 64;
 
         return (
-          <>
+          <Fragment key={icon}>
             <IconBox text={icon}>
               <IconContainer Icon={S} size={size} />
             </IconBox>
             <IconBox text={icon}>
               <IconCircle Icon={S} size={size} />
             </IconBox>
-          </>
+          </Fragment>
         );
       })}
     </Flex>
   );
 };
 
-const IconBox = ({ children, text }) => {
+const IconBox = ({ children, text }: { children: ReactNode; text: string }) => {
   const theme = useTheme();
 
   return (
@@ -71,21 +68,21 @@ const IconBox = ({ children, text }) => {
       <Flex justifyContent="center" p={2}>
         {children}
       </Flex>
-      <Text typography="paragraph2" mt={2}>
+      <Text typography="body3" mt={2}>
         {text}
       </Text>
     </Flex>
   );
 };
 
-const IconContainer = ({ Icon, size }) => {
+const IconContainer = ({
+  Icon,
+  size,
+}: {
+  Icon: React.ComponentType<SVGIconProps>;
+  size: number;
+}) => {
   const theme = useTheme();
 
-  return (
-    <Icon
-      size={size}
-      bg={theme.colors.spotBackground[0]}
-      fill={theme.colors.text.main}
-    />
-  );
+  return <Icon size={size} fill={theme.colors.text.main} />;
 };

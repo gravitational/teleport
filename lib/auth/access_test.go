@@ -125,7 +125,7 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleUser)
 	require.NoError(t, p.a.DeleteUser(ctx, user.GetName()))
 
-	clusterName, err := p.a.GetClusterName()
+	clusterName, err := p.a.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	// Update the user CA with the role.
@@ -328,7 +328,7 @@ func TestCreateRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -483,7 +483,7 @@ func TestUpdateRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -627,7 +627,7 @@ func TestUpsertRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -744,7 +744,7 @@ func TestGetRole(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 				))
 			}
 		})
@@ -856,7 +856,7 @@ func TestGetRoles(t *testing.T) {
 				require.Nil(t, got)
 			} else {
 				require.Empty(t, cmp.Diff(test.want, got,
-					cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					cmpopts.SortSlices(func(r1, r2 types.Role) bool {
 						return r1.GetName() < r2.GetName()
 					}),

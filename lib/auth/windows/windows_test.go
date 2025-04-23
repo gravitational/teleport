@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/asn1"
+	"os"
 	"testing"
 	"time"
 
@@ -29,7 +30,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 )
+
+func TestMain(m *testing.M) {
+	modules.SetInsecureTestMode(true)
+	os.Exit(m.Run())
+}
 
 // TestGenerateCredentials verifies that the smartcard certificates generated
 // by Teleport meet the requirements for Windows logon.
@@ -61,9 +68,6 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	ldapConfig := LDAPConfig{
-		Domain: domain,
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -86,10 +90,9 @@ func TestGenerateCredentials(t *testing.T) {
 			certb, keyb, err := GenerateWindowsDesktopCredentials(ctx, &GenerateCredentialsRequest{
 				Username:           user,
 				Domain:             domain,
-				TTL:                CertTTL,
+				TTL:                5 * time.Minute,
 				ClusterName:        clusterName,
 				ActiveDirectorySID: test.activeDirectorySID,
-				LDAPConfig:         ldapConfig,
 				AuthClient:         client,
 			})
 			require.NoError(t, err)
@@ -172,10 +175,7 @@ func TestCRLDN(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := LDAPConfig{
-				Domain: "test.goteleport.com",
-			}
-			require.Equal(t, test.crlDN, crlDN(test.clusterName, cfg, test.caType))
+			require.Equal(t, test.crlDN, crlDN(test.clusterName, "test.goteleport.com", test.caType))
 		})
 	}
 }

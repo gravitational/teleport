@@ -16,15 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
-import { render, screen } from 'design/utils/testing';
+
+import {
+  fireEvent,
+  render,
+  screen,
+  testQueryClient,
+  userEvent,
+} from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Access } from 'teleport/services/user';
+import { successGetUsers } from 'teleport/test/helpers/users';
 
 import { Users } from './Users';
 import { State } from './useUsers';
+
+const defaultAcl: Access = {
+  read: true,
+  edit: true,
+  remove: true,
+  list: true,
+  create: true,
+};
+
+const server = setupServer();
+
+beforeEach(() => server.listen());
+afterEach(() => {
+  server.resetHandlers();
+
+  return testQueryClient.resetQueries();
+});
+afterAll(() => server.close());
 
 describe('invite collaborators integration', () => {
   const ctx = createTeleportContext();
@@ -32,14 +60,6 @@ describe('invite collaborators integration', () => {
   let props: State;
   beforeEach(() => {
     props = {
-      attempt: {
-        message: 'success',
-        isSuccess: true,
-        isProcessing: false,
-        isFailed: false,
-      },
-      users: [],
-      fetchRoles: async () => [],
       operation: { type: 'invite-collaborators' },
 
       onStartCreate: () => undefined,
@@ -48,32 +68,40 @@ describe('invite collaborators integration', () => {
       onStartReset: () => undefined,
       onStartInviteCollaborators: () => undefined,
       onClose: () => undefined,
-      onDelete: () => undefined,
-      onCreate: () => undefined,
-      onUpdate: () => undefined,
       onReset: () => undefined,
       onInviteCollaboratorsClose: () => undefined,
       InviteCollaborators: null,
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
+      showMauInfo: false,
+      onDismissUsersMauNotice: () => null,
+      usersAcl: defaultAcl,
     };
   });
 
   test('displays the Create New User button when not configured', async () => {
+    server.use(successGetUsers([]));
+
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
+
+    await screen.findByPlaceholderText('Search...');
 
     expect(screen.getByText('Create New User')).toBeInTheDocument();
     expect(screen.queryByText('Enroll Users')).not.toBeInTheDocument();
   });
 
   test('displays the Enroll Users button when configured', async () => {
+    server.use(successGetUsers([]));
+
     const startMock = jest.fn();
     props = {
       ...props,
@@ -85,11 +113,15 @@ describe('invite collaborators integration', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
+
+    await screen.findByPlaceholderText('Search...');
 
     const enrollButton = screen.getByText('Enroll Users');
     expect(enrollButton).toBeInTheDocument();
@@ -105,20 +137,59 @@ describe('invite collaborators integration', () => {
   });
 });
 
+test('Users not equal to MAU Notice', async () => {
+  server.use(successGetUsers([]));
+
+  const ctx = createTeleportContext();
+  let props: State;
+
+  props = {
+    operation: { type: 'invite-collaborators' },
+    onStartCreate: () => undefined,
+    onStartDelete: () => undefined,
+    onStartEdit: () => undefined,
+    onStartReset: () => undefined,
+    onStartInviteCollaborators: () => undefined,
+    onClose: () => undefined,
+    onReset: () => undefined,
+    onInviteCollaboratorsClose: () => undefined,
+    InviteCollaborators: null,
+    inviteCollaboratorsOpen: false,
+    onEmailPasswordResetClose: () => undefined,
+    EmailPasswordReset: null,
+    showMauInfo: true,
+    onDismissUsersMauNotice: jest.fn(),
+    usersAcl: defaultAcl,
+  };
+
+  const user = userEvent.setup();
+
+  render(
+    <MemoryRouter>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <Users {...props} />
+        </ContextProvider>
+      </InfoGuidePanelProvider>
+    </MemoryRouter>
+  );
+
+  await screen.findByPlaceholderText('Search...');
+
+  expect(screen.getByTestId('users-not-mau-alert')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+  expect(props.onDismissUsersMauNotice).toHaveBeenCalled();
+  expect(screen.queryByTestId('users-not-mau-alert')).not.toBeInTheDocument();
+});
+
 describe('email password reset integration', () => {
   const ctx = createTeleportContext();
 
   let props: State;
   beforeEach(() => {
+    server.use(successGetUsers([]));
+
     props = {
-      attempt: {
-        message: 'success',
-        isSuccess: true,
-        isProcessing: false,
-        isFailed: false,
-      },
-      users: [],
-      fetchRoles: () => Promise.resolve([]),
       operation: {
         type: 'reset',
         user: { name: 'alice@example.com', roles: ['foo'] },
@@ -130,24 +201,26 @@ describe('email password reset integration', () => {
       onStartReset: () => undefined,
       onStartInviteCollaborators: () => undefined,
       onClose: () => undefined,
-      onDelete: () => undefined,
-      onCreate: () => undefined,
-      onUpdate: () => undefined,
       onReset: () => undefined,
       onInviteCollaboratorsClose: () => undefined,
       InviteCollaborators: null,
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
+      showMauInfo: false,
+      onDismissUsersMauNotice: () => null,
+      usersAcl: defaultAcl,
     };
   });
 
   test('displays the traditional reset UI when not configured', async () => {
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -165,9 +238,11 @@ describe('email password reset integration', () => {
 
     render(
       <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...props} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
       </MemoryRouter>
     );
 
@@ -177,5 +252,169 @@ describe('email password reset integration', () => {
     // dialog itself, and our mock above is trivial, but we can make sure it
     // renders.
     expect(screen.getByTestId('new-reset-ui')).toBeInTheDocument();
+  });
+});
+
+describe('permission handling', () => {
+  const ctx = createTeleportContext();
+
+  let props: State;
+  beforeEach(() => {
+    server.use(
+      successGetUsers([
+        {
+          name: 'tester',
+          roles: [],
+          authType: 'local',
+        },
+      ])
+    );
+
+    props = {
+      operation: {
+        type: 'reset',
+        user: { name: 'alice@example.com', roles: ['foo'] },
+      },
+
+      onStartCreate: () => undefined,
+      onStartDelete: () => undefined,
+      onStartEdit: () => undefined,
+      onStartReset: () => undefined,
+      onStartInviteCollaborators: () => undefined,
+      onClose: () => undefined,
+      onReset: () => undefined,
+      onInviteCollaboratorsClose: () => undefined,
+      InviteCollaborators: null,
+      inviteCollaboratorsOpen: false,
+      onEmailPasswordResetClose: () => undefined,
+      EmailPasswordReset: null,
+      showMauInfo: false,
+      onDismissUsersMauNotice: () => null,
+      usersAcl: defaultAcl,
+    };
+  });
+
+  test('displays a disabled Create Users button if lacking permissions', async () => {
+    const testProps = {
+      ...props,
+      usersAcl: {
+        ...defaultAcl,
+        edit: false,
+      },
+    };
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByPlaceholderText('Search...');
+
+    expect(screen.getByTestId('create_new_users_button')).toBeDisabled();
+  });
+
+  test('edit and reset options not available in the menu', async () => {
+    const testProps = {
+      ...props,
+      usersAcl: {
+        ...defaultAcl,
+        edit: false,
+      },
+    };
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByPlaceholderText('Search...');
+
+    const optionsButton = screen.getByRole('button', { name: /options/i });
+    fireEvent.click(optionsButton);
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(1);
+    expect(menuItems.some(item => item.textContent.includes('Delete'))).toBe(
+      true
+    );
+  });
+
+  test('all options are available in the menu', async () => {
+    const testProps = {
+      ...props,
+      usersAcl: {
+        read: true,
+        list: true,
+        edit: true,
+        create: true,
+        remove: true,
+      },
+    };
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByPlaceholderText('Search...');
+
+    expect(screen.getByText('tester')).toBeInTheDocument();
+    const optionsButton = screen.getByRole('button', { name: /options/i });
+    fireEvent.click(optionsButton);
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(3);
+    expect(menuItems.some(item => item.textContent.includes('Delete'))).toBe(
+      true
+    );
+    expect(
+      menuItems.some(item => item.textContent.includes('Reset Auth'))
+    ).toBe(true);
+    expect(menuItems.some(item => item.textContent.includes('Edit'))).toBe(
+      true
+    );
+  });
+
+  test('delete is not available in menu', async () => {
+    const testProps = {
+      ...props,
+      usersAcl: {
+        read: true,
+        list: true,
+        edit: true,
+        create: true,
+        remove: false,
+      },
+    };
+    render(
+      <MemoryRouter>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <Users {...testProps} />
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </MemoryRouter>
+    );
+
+    await screen.findByPlaceholderText('Search...');
+
+    expect(screen.getByText('tester')).toBeInTheDocument();
+    const optionsButton = screen.getByRole('button', { name: /options/i });
+    fireEvent.click(optionsButton);
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(2);
+    expect(
+      menuItems.every(item => item.textContent.includes('Delete'))
+    ).not.toBe(true);
   });
 });

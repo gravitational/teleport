@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { Danger } from 'design/Alert';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { Danger } from 'design/Alert';
-import { ButtonPrimary, ButtonSecondary, Text } from 'design';
 
 export default function HeadlessRequestDialog({
   ipAddress,

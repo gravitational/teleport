@@ -9,8 +9,8 @@ TF_VAR_cluster_name ?=
 # AWS SSH key name to provision in installed instances, should be available in the region
 TF_VAR_key_name ?=
 
-# Full absolute path to the license file for Teleport Enterprise or Pro.
-# This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise/Pro functionality
+# Full absolute path to the license file for Teleport Enterprise 
+# This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise functionality
 TF_VAR_license_path ?=
 
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
@@ -20,6 +20,23 @@ TF_VAR_license_path ?=
 # Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
 TF_VAR_ami_name ?=
+
+
+# Instance types used for authentication server auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_auth_instance_type ?= m7g.large
+
+# Instance types used for proxy server auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_proxy_instance_type ?= m7g.large
+
+# Instance types used for Teleport node auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_node_instance_type ?= t4g.medium
+
+# Instance type used for bastion server
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_bastion_instance_type ?= t4g.medium
 
 # Route 53 zone to use, should be the zone registered in AWS, e.g. example.com
 TF_VAR_route53_zone ?=
@@ -70,6 +87,24 @@ TF_VAR_use_tls_routing ?= false
 # Teleport Enterprise Edition supports "local", "github", "oidc", or "saml"
 # Teleport Enterprise FIPS deployments have local authentication disabled, so should use "github", "oidc", or "saml"
 TF_VAR_teleport_auth_type ?= "local"
+
+# (optional) AWS tags applied to all resources.
+TF_VAR_default_tags ?= {}
+
+# (optional) Whether to trigger instance refresh rollout for Teleport Auth
+# servers when the launch template or configuration changes.
+# Enable this with caution - upgrading Teleport version will trigger an
+# instance refresh and auth servers must be scaled down to only one instance
+# before upgrading your Teleport cluster.
+TF_VAR_enable_auth_asg_instance_refresh ?= false
+
+# (optional) Whether to trigger instance refresh rollout for Teleport Proxy
+# servers when the launch template or configuration changes.
+TF_VAR_enable_proxy_asg_instance_refresh ?= false
+
+# (optional) Whether to trigger instance refresh rollout for Teleport Node
+# servers when the launch template or configuration changes.
+TF_VAR_enable_node_asg_instance_refresh ?= false
 
 export
 

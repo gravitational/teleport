@@ -16,197 +16,88 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useMemo } from 'react';
+import { Box, Flex, Link } from 'design';
+import { Info } from 'design/Alert';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Roles } from 'shared/components/AccessRequests/NewRequest';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import styled from 'styled-components';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
-import { Alert, Box, Flex } from 'design';
-import { space, width } from 'design/system';
-
-import { SearchPagination, SearchPanel } from 'shared/components/Search';
-import { ResourceList } from 'shared/components/AccessRequests/NewRequest';
-
-import useNewRequest, { ResourceKind } from './useNewRequest';
-import ChangeResourceDialog from './ChangeResourceDialog';
-
-const agentOptions: ResourceOption[] = [
-  { value: 'role', label: 'Roles' },
-  {
-    value: 'node',
-    label: 'Servers',
-  },
-  {
-    value: 'app',
-    label: 'Apps',
-  },
-  {
-    value: 'db',
-    label: 'Databases',
-  },
-  {
-    value: 'kube_cluster',
-    label: 'Kubes',
-  },
-];
-
+/**
+ * Only allows requesting roles (resources can be requested through the unified
+ * resources or the search bar).
+ *
+ * Available via Additional actions -> New role request.
+ */
 export function NewRequest() {
+  const ctx = useAppContext();
+
   const {
-    attempt,
-    agentFilter,
-    pageCount,
-    updateQuery,
-    updateSearch,
-    selectedResource,
-    customSort,
-    handleConfirmChangeResource,
-    toResource,
-    setToResource,
-    fetchStatus,
-    onAgentLabelClick,
-    addedResources,
-    addOrRemoveResource,
-    updateResourceKind,
-    prevPage,
-    requestableRoles,
-    isLeafCluster,
-    nextPage,
-    agents,
-  } = useNewRequest();
+    rootClusterUri,
+    localClusterUri,
+    documentsService,
+    accessRequestsService,
+  } = useWorkspaceContext();
+  const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
+  ctx.clustersService.useState();
 
-  function handleUpdateSelectedResource(kind: ResourceKind) {
-    const numAddedAgents =
-      Object.keys(addedResources.node).length +
-      Object.keys(addedResources.db).length +
-      Object.keys(addedResources.app).length +
-      Object.keys(addedResources.kube_cluster).length +
-      Object.keys(addedResources.windows_desktop).length;
+  const loggedInUser = rootCluster?.loggedInUser;
+  const requestableRoles = loggedInUser?.requestableRoles || [];
+  const addedResources = accessRequestsService.getPendingAccessRequest();
 
-    const numAddedRoles = Object.keys(addedResources.role).length;
-
-    if (
-      (kind === 'role' && numAddedAgents > 0) ||
-      (kind !== 'role' && numAddedRoles > 0)
-    ) {
-      setToResource(kind);
-    } else {
-      updateResourceKind(kind);
-    }
+  function openClusterDocument() {
+    const doc = documentsService.createClusterDocument({
+      clusterUri: localClusterUri,
+    });
+    documentsService.add(doc);
+    documentsService.open(doc.uri);
   }
 
-  // Leaf clusters do not allow role requests, so we do not show that option in the UI if leaf
-  const filteredAgentOptions = useMemo(
-    () =>
-      agentOptions.filter(agent =>
-        isLeafCluster ? agent.value !== 'role' : agent
-      ),
-    [isLeafCluster]
-  );
+  const doesUnifiedResourcesShowBothAccessibleAndRequestableResources =
+    rootCluster?.showResources === ShowResources.REQUESTABLE;
 
-  const isRoleList = selectedResource === 'role';
+  const [addOrRemoveRoleAttempt, addOrRemoveRole] = useAsync((role: string) =>
+    accessRequestsService.addOrRemoveRole(role)
+  );
 
   return (
-    <Layout mx="auto" px={5} pt={3} height="100%" flexDirection="column">
-      {attempt.status === 'failed' && (
-        <Alert kind="danger" children={attempt.statusText} />
-      )}
-      <ChangeResourceDialog
-        toResource={toResource}
-        onClose={() => setToResource(null)}
-        onConfirm={handleConfirmChangeResource}
-      />
-      <StyledMain>
-        <Flex mt={3} mb={3}>
-          {filteredAgentOptions.map(agent => (
-            <StyledNavButton
-              key={agent.value}
-              mr={6}
-              p={1}
-              active={selectedResource === agent.value}
-              onClick={() => handleUpdateSelectedResource(agent.value)}
-            >
-              {agent.label}
-            </StyledNavButton>
-          ))}
-        </Flex>
-        {/* roles use client-side search */}
-        {!isRoleList && (
-          <SearchPanel
-            updateQuery={updateQuery}
-            updateSearch={updateSearch}
-            pageIndicators={pageCount}
-            filter={agentFilter}
-            showSearchBar={true}
-            disableSearch={fetchStatus === 'loading'}
-          />
-        )}
-        <ResourceList
-          agents={agents}
-          selectedResource={selectedResource}
-          customSort={customSort}
-          onLabelClick={onAgentLabelClick}
-          addedResources={addedResources}
-          addOrRemoveResource={addOrRemoveResource}
-          requestableRoles={requestableRoles}
-          disableRows={fetchStatus === 'loading'}
+    <Flex
+      mx="auto"
+      flexDirection="column"
+      justifyContent="space-between"
+      p={3}
+      gap={3}
+      width="100%"
+      maxWidth="1248px"
+    >
+      <Box>
+        <Roles
+          requestable={requestableRoles}
+          requested={
+            addedResources.kind === 'role' ? addedResources.roles : new Set()
+          }
+          onToggleRole={role => void addOrRemoveRole(role)}
+          disabled={addOrRemoveRoleAttempt.status === 'processing'}
         />
-        {!isRoleList && (
-          <SearchPagination
-            nextPage={fetchStatus === 'loading' ? null : nextPage}
-            prevPage={fetchStatus === 'loading' ? null : prevPage}
-          />
-        )}
-      </StyledMain>
-    </Layout>
+      </Box>
+      <Info mb={0}>
+        To request access to a resource, go to{' '}
+        {/*TODO: Improve ButtonLink to look more like a text, then use it instead of the Link. */}
+        <Link
+          css={`
+            cursor: pointer;
+            color: inherit !important;
+          `}
+          onClick={openClusterDocument}
+        >
+          the resources view
+        </Link>{' '}
+        {doesUnifiedResourcesShowBothAccessibleAndRequestableResources
+          ? 'or find it in the search bar.'
+          : 'and select Access Requests > Show requestable resources.'}
+      </Info>
+    </Flex>
   );
 }
-
-const Layout = styled(Box)`
-  flex-direction: column;
-  display: flex;
-  flex: 1;
-  max-width: 1248px;
-
-  ::after {
-    content: ' ';
-    padding-bottom: 24px;
-  }
-`;
-
-const StyledNavButton = styled.button(props => {
-  return {
-    color: props.active
-      ? props.theme.colors.text.main
-      : props.theme.colors.text.slightlyMuted,
-    cursor: 'pointer',
-    display: 'inline-flex',
-    fontSize: '14px',
-    position: 'relative',
-    padding: '0',
-    marginRight: '24px',
-    textDecoration: 'none',
-    fontWeight: props.active ? 700 : 400,
-    outline: 'inherit',
-    border: 'none',
-    backgroundColor: 'inherit',
-    flexShrink: '0',
-    borderRadius: '4px',
-    fontFamily: 'inherit',
-
-    '&:hover, &:focus': {
-      background: props.theme.colors.spotBackground[0],
-    },
-    ...space(props),
-    ...width(props),
-  };
-});
-
-const StyledMain = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`;
-
-type ResourceOption = {
-  value: ResourceKind;
-  label: string;
-};

@@ -36,7 +36,7 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	return cert, nil
 }
@@ -77,15 +77,6 @@ func TLSDial(ctx context.Context, dialer ContextDialer, network, addr string, tl
 	conn := tls.Client(plainConn, tlsConfig)
 	err = conn.HandshakeContext(ctx)
 	if err != nil {
-		plainConn.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	if tlsConfig.InsecureSkipVerify {
-		return conn, nil
-	}
-
-	if err := conn.VerifyHostname(tlsConfig.ServerName); err != nil {
 		plainConn.Close()
 		return nil, trace.Wrap(err)
 	}

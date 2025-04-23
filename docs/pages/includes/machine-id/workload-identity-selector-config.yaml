@@ -1,0 +1,12 @@
+# Selector is used to control which WorkloadIdentity resource will be used to
+# issue the workload identity credential. The selector can either be the name of
+# a specific WorkloadIdentity resource or a label selector that can match
+# multiple WorkloadIdentity resources.
+#
+# The selector must be set to either a name or labels, but not both.
+selector:
+  # Name is used to select a specific WorkloadIdentity resource by its name.
+  name: foo
+  # Labels is used to select multiple WorkloadIdentity resources by their labels.
+  labels:
+    app: [foo, bar]

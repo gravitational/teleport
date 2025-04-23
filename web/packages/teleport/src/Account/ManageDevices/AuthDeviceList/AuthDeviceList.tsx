@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+import styled from 'styled-components';
+
+import { ButtonWarningBorder } from 'design/Button/Button';
 import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
-import React from 'react';
-
-import styled from 'styled-components';
-import { MultiRowBox, Row } from 'design/MultiRowBox';
 import * as Icon from 'design/Icon';
-import { ButtonWarningBorder } from 'design/Button/Button';
+import { MultiRowBox, Row } from 'design/MultiRowBox';
 
 import { MfaDevice } from 'teleport/services/mfa';
 
@@ -49,7 +49,7 @@ export function AuthDeviceList({
       <Row>{header}</Row>
       {devices.length > 0 && (
         <Row>
-          <StyledTable<MfaDevice>
+          <StyledTable
             columns={[
               {
                 key: 'description',
@@ -72,9 +72,14 @@ export function AuthDeviceList({
               {
                 altKey: 'remove-btn',
                 headerText: 'Actions',
-                render: device => (
-                  <RemoveCell onRemove={() => onRemove(device)} />
-                ),
+                render: device => {
+                  return (
+                    <RemoveCell
+                      isSsoDevice={device.type === 'sso'}
+                      onRemove={() => onRemove(device)}
+                    />
+                  );
+                },
               },
             ]}
             data={devices}
@@ -93,19 +98,25 @@ export function AuthDeviceList({
 
 interface RemoveCellProps {
   onRemove?: () => void;
+  isSsoDevice?: boolean;
 }
 
-function RemoveCell({ onRemove }: RemoveCellProps) {
+function RemoveCell({ onRemove, isSsoDevice }: RemoveCellProps) {
   return (
-    <Cell>
-      <ButtonWarningBorder p={2} onClick={onRemove}>
+    <Cell data-testid="delete-device">
+      <ButtonWarningBorder
+        disabled={isSsoDevice}
+        title={isSsoDevice ? 'SSO device cannot be deleted' : 'Delete'}
+        p={2}
+        onClick={onRemove}
+      >
         <Icon.Trash size="small" />
       </ButtonWarningBorder>
     </Cell>
   );
 }
 
-const StyledTable = styled(Table)`
+const StyledTable = styled(Table<MfaDevice>)`
   & > tbody > tr > td,
   thead > tr > th {
     font-weight: 300;

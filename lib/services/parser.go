@@ -19,14 +19,14 @@
 package services
 
 import (
+	"context"
 	"fmt"
-	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"github.com/vulcand/predicate/builder"
 
@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -175,6 +176,19 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 				}
 				return string(ca.GetType()), nil
 			},
+			"has_prefix": func(a, b interface{}) predicate.BoolPredicate {
+				return func() bool {
+					aval, ok := a.(string)
+					if !ok {
+						return false
+					}
+					bval, ok := b.(string)
+					if !ok {
+						return false
+					}
+					return strings.HasPrefix(aval, bval)
+				}
+			},
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   GetStringMapValue,
@@ -231,34 +245,41 @@ func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 // NewLogActionFn creates logger functions
 func NewLogActionFn(ctx RuleContext) interface{} {
 	l := &LogAction{ctx: ctx}
-	writer, ok := ctx.(io.Writer)
-	if ok && writer != nil {
-		l.writer = writer
-	}
+
 	return l.Log
 }
 
 // LogAction represents action that will emit log entry
 // when specified in the actions of a matched rule
 type LogAction struct {
-	ctx    RuleContext
-	writer io.Writer
+	ctx RuleContext
 }
 
-// Log logs with specified level and formatting string with arguments
-func (l *LogAction) Log(level, format string, args ...interface{}) predicate.BoolPredicate {
+// Log logs with specified level and message string and attributes
+func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate {
 	return func() bool {
-		ilevel, err := log.ParseLevel(level)
-		if err != nil {
-			ilevel = log.DebugLevel
+		slevel := slog.LevelDebug
+		switch strings.ToLower(level) {
+		case "error":
+			slevel = slog.LevelError
+		case "warn", "warning":
+			slevel = slog.LevelWarn
+		case "info":
+			slevel = slog.LevelInfo
+		case "debug":
+			slevel = slog.LevelDebug
+		case "trace":
+			slevel = logutils.TraceLevel
 		}
-		var writer io.Writer
-		if l.writer != nil {
-			writer = l.writer
-		} else {
-			writer = log.StandardLogger().WriterLevel(ilevel)
+
+		ctx := context.Background()
+		// Expicitly check whether logging is enabled for the level
+		// to avoid formatting the message if the log won't be sampled.
+		if !slog.Default().Handler().Enabled(ctx, slevel) {
+			//nolint:sloglint // msg cannot be constant
+			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
 		}
-		writer.Write([]byte(fmt.Sprintf(format, args...)))
+
 		return true
 	}
 }
@@ -270,6 +291,9 @@ type Context struct {
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
+	// Resource153 is an optional resource, in case if the rule
+	// checks access to the resource
+	Resource153 types.Resource153
 	// Session is an optional session.end or windows.desktop.session.end event.
 	// These events hold information about session recordings.
 	Session events.AuditEvent
@@ -283,7 +307,7 @@ type Context struct {
 
 // String returns user friendly representation of this context
 func (ctx *Context) String() string {
-	return fmt.Sprintf("user %v, resource: %v", ctx.User, ctx.Resource)
+	return fmt.Sprintf("user %v, resource: %v, resource153: %v", ctx.User, ctx.Resource, ctx.Resource153)
 }
 
 const (
@@ -318,10 +342,16 @@ const (
 // GetResource returns resource specified in the context,
 // returns error if not specified.
 func (ctx *Context) GetResource() (types.Resource, error) {
-	if ctx.Resource == nil {
+	switch {
+	case ctx.Resource == nil && ctx.Resource153 == nil:
 		return nil, trace.NotFound("resource is not set in the context")
+	case ctx.Resource == nil && ctx.Resource153 != nil:
+		return types.Resource153ToLegacy(ctx.Resource153), nil
+	case ctx.Resource != nil && ctx.Resource153 == nil:
+		return ctx.Resource, nil
+	default:
+		return nil, trace.BadParameter("only one resource should be provided")
 	}
-	return ctx.Resource, nil
 }
 
 // GetIdentifier returns identifier defined in a context
@@ -336,13 +366,19 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		}
 		return predicate.GetFieldByTag(user, teleport.JSON, fields[1:])
 	case ResourceIdentifier:
-		var resource types.Resource
-		if ctx.Resource == nil {
-			resource = emptyResource
-		} else {
-			resource = ctx.Resource
+		var r any
+		switch {
+		case ctx.Resource == nil && ctx.Resource153 == nil:
+			r = emptyResource
+		case ctx.Resource == nil && ctx.Resource153 != nil:
+			r = ctx.Resource153
+		case ctx.Resource != nil && ctx.Resource153 == nil:
+			r = ctx.Resource
+		default:
+			return nil, trace.BadParameter("only one resource should be provided")
 		}
-		return predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
+
+		return predicate.GetFieldByTag(r, teleport.JSON, fields[1:])
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
@@ -364,6 +400,26 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		return predicate.GetFieldByTag(hostCert, teleport.JSON, fields[1:])
 	case SessionTrackerIdentifier:
 		return predicate.GetFieldByTag(toCtxTracker(ctx.SessionTracker), teleport.JSON, fields[1:])
+	case ResourceNameIdentifier:
+		if len(fields) > 1 {
+			return nil, trace.BadParameter(
+				"only one field is supported with identifier %q, got %d: %v",
+				ResourceNameIdentifier,
+				len(fields),
+				fields,
+			)
+		}
+
+		switch {
+		case ctx.Resource == nil && ctx.Resource153 == nil:
+			return "", nil
+		case ctx.Resource == nil && ctx.Resource153 != nil:
+			return ctx.Resource153.GetMetadata().GetName(), nil
+		case ctx.Resource != nil && ctx.Resource153 == nil:
+			return ctx.Resource.GetName(), nil
+		default:
+			return nil, trace.BadParameter("only one resource should be provided")
+		}
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}
@@ -529,16 +585,6 @@ func (r *EmptyResource) SetSubKind(s string) {
 // GetKind returns resource kind
 func (r *EmptyResource) GetKind() string {
 	return r.Kind
-}
-
-// GetResourceID returns resource ID
-func (r *EmptyResource) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *EmptyResource) SetResourceID(id int64) {
-	r.Metadata.ID = id
 }
 
 // GetRevision returns the revision

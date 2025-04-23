@@ -48,7 +48,7 @@ func TestLegacyToResource153(t *testing.T) {
 
 	// Unwrap gives the underlying resource back.
 	t.Run("unwrap", func(t *testing.T) {
-		unwrapped := resource.(interface{ Unwrap() types.Resource }).Unwrap()
+		unwrapped := resource.(interface{ UnwrapT() types.Resource }).UnwrapT()
 		if diff := cmp.Diff(user, unwrapped, protocmp.Transform()); diff != "" {
 			t.Errorf("Unwrap mismatch (-want +got)\n%s", diff)
 		}
@@ -80,11 +80,11 @@ func TestResource153ToLegacy(t *testing.T) {
 	}
 
 	legacyResource := types.Resource153ToLegacy(bot)
-
 	// Unwrap gives the underlying resource back.
 	t.Run("unwrap", func(t *testing.T) {
-		unwrapped := legacyResource.(interface{ Unwrap() types.Resource153 }).Unwrap()
-		if diff := cmp.Diff(bot, unwrapped, protocmp.Transform()); diff != "" {
+		unwrapperT := legacyResource.(types.Resource153UnwrapperT[*machineidv1.Bot])
+		unwrappedT := unwrapperT.UnwrapT()
+		if diff := cmp.Diff(bot, unwrappedT, protocmp.Transform()); diff != "" {
 			t.Errorf("Unwrap mismatch (-want +got)\n%s", diff)
 		}
 	})
@@ -113,7 +113,6 @@ func TestResourceMethods(t *testing.T) {
 		Metadata: types.Metadata{
 			Name:     "llama",
 			Expires:  &expiry,
-			ID:       1234,
 			Revision: "alpaca",
 			Labels: map[string]string{
 				types.OriginLabel: "earth",
@@ -132,7 +131,6 @@ func TestResourceMethods(t *testing.T) {
 		Metadata: &headerv1.Metadata{
 			Name:     "Bernard",
 			Expires:  timestamppb.New(expiry),
-			Id:       4567,
 			Revision: "tinman",
 			Labels: map[string]string{
 				types.OriginLabel: "mars",
@@ -165,23 +163,6 @@ func TestResourceMethods(t *testing.T) {
 		objExpiry, err = types.GetExpiry(bot)
 		require.NoError(t, err)
 		require.Equal(t, time.Time{}, objExpiry)
-	})
-
-	t.Run("GetResourceID", func(t *testing.T) {
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		_, err := types.GetResourceID("invalid type")
-		require.Error(t, err)
-
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		id, err := types.GetResourceID(user)
-		require.NoError(t, err)
-		require.Equal(t, user.GetResourceID(), id)
-
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		id, err = types.GetResourceID(bot)
-		require.NoError(t, err)
-		//nolint:staticcheck // SA1019. Deprecated, but still needed.
-		require.Equal(t, bot.GetMetadata().Id, id)
 	})
 
 	t.Run("GetRevision", func(t *testing.T) {

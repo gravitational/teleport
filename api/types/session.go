@@ -61,10 +61,14 @@ type WebSession interface {
 	SetUser(string)
 	// GetPub is returns public certificate signed by auth server
 	GetPub() []byte
-	// GetPriv returns private OpenSSH key used to auth with SSH nodes
-	GetPriv() []byte
-	// SetPriv sets private key
-	SetPriv([]byte)
+	// GetSSHPriv returns private SSH key used to auth with SSH nodes.
+	GetSSHPriv() []byte
+	// SetSSHPriv sets SSH private key.
+	SetSSHPriv([]byte)
+	// GetTLSPriv returns private TLS key.
+	GetTLSPriv() []byte
+	// SetTLSPriv sets TLS private key.
+	SetTLSPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
 	// GetBearerToken is a special bearer token used for additional
@@ -104,6 +108,13 @@ type WebSession interface {
 	// If true the session's TLS and SSH certificates are augmented with device
 	// extensions.
 	GetHasDeviceExtensions() bool
+	// SetTrustedDeviceRequirement sets the session's trusted device requirement.
+	// See [TrustedDeviceRequirement].
+	SetTrustedDeviceRequirement(r TrustedDeviceRequirement)
+	// GetTrustedDeviceRequirement returns the session's trusted device
+	// requirement.
+	// See [TrustedDeviceRequirement].
+	GetTrustedDeviceRequirement() TrustedDeviceRequirement
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -167,16 +178,6 @@ func (ws *WebSessionV2) GetMetadata() Metadata {
 	return ws.Metadata
 }
 
-// GetResourceID gets ResourceID
-func (ws *WebSessionV2) GetResourceID() int64 {
-	return ws.Metadata.GetID()
-}
-
-// SetResourceID sets ResourceID
-func (ws *WebSessionV2) SetResourceID(id int64) {
-	ws.Metadata.SetID(id)
-}
-
 // GetRevision returns the revision
 func (ws *WebSessionV2) GetRevision() string {
 	return ws.Metadata.GetRevision()
@@ -196,6 +197,7 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	cp := *ws
 	cp.Spec.Priv = nil
+	cp.Spec.TLSPriv = nil
 	cp.Spec.SAMLSession = nil
 	cp.Spec.DeviceWebToken = nil
 	return &cp
@@ -238,6 +240,17 @@ func (ws *WebSessionV2) GetDeviceWebToken() *DeviceWebToken {
 // extensions.
 func (ws *WebSessionV2) GetHasDeviceExtensions() bool {
 	return ws.Spec.HasDeviceExtensions
+}
+
+// SetTrustedDeviceRequirement sets the session's trusted device requirement.
+func (ws *WebSessionV2) SetTrustedDeviceRequirement(r TrustedDeviceRequirement) {
+	ws.Spec.TrustedDeviceRequirement = r
+}
+
+// GetTrustedDeviceRequirement returns the session's trusted device
+// requirement.
+func (ws *WebSessionV2) GetTrustedDeviceRequirement() TrustedDeviceRequirement {
+	return ws.Spec.TrustedDeviceRequirement
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -292,14 +305,30 @@ func (ws *WebSessionV2) GetPub() []byte {
 	return ws.Spec.Pub
 }
 
-// GetPriv returns private OpenSSH key used to auth with SSH nodes
-func (ws *WebSessionV2) GetPriv() []byte {
+// GetSSHPriv returns private SSH key.
+func (ws *WebSessionV2) GetSSHPriv() []byte {
 	return ws.Spec.Priv
 }
 
-// SetPriv sets private key
-func (ws *WebSessionV2) SetPriv(priv []byte) {
+// SetSSHPriv sets private SSH key.
+func (ws *WebSessionV2) SetSSHPriv(priv []byte) {
 	ws.Spec.Priv = priv
+}
+
+// GetTLSPriv returns private TLS key.
+func (ws *WebSessionV2) GetTLSPriv() []byte {
+	// TODO(nklaassen): DELETE IN 18.0.0 when all auth servers are writing web session TLS key.
+	if ws.Spec.TLSPriv == nil {
+		// An older auth instance may have written this web session before the
+		// SSH and TLS keys were split.
+		return ws.Spec.Priv
+	}
+	return ws.Spec.TLSPriv
+}
+
+// SetTLSPriv sets private TLS key.
+func (ws *WebSessionV2) SetTLSPriv(priv []byte) {
+	ws.Spec.TLSPriv = priv
 }
 
 // GetBearerToken gets a special bearer token used for additional
@@ -521,16 +550,6 @@ func (r *WebTokenV3) GetName() string {
 // SetName sets the token value
 func (r *WebTokenV3) SetName(name string) {
 	r.Metadata.Name = name
-}
-
-// GetResourceID returns the token resource ID
-func (r *WebTokenV3) GetResourceID() int64 {
-	return r.Metadata.GetID()
-}
-
-// SetResourceID sets the token resource ID
-func (r *WebTokenV3) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
 }
 
 // GetRevision returns the revision

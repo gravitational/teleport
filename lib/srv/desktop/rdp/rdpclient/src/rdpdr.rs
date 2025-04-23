@@ -28,13 +28,14 @@ use self::tdp::{
 };
 use crate::client::ClientHandle;
 use crate::CgoHandle;
-use ironrdp_pdu::{custom_err, PduResult};
+use ironrdp_core::impl_as_any;
+use ironrdp_pdu::{pdu_other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{
     DeviceControlRequest, NtStatus, ServerDeviceAnnounceResponse, ServerDriveIoRequest,
 };
 use ironrdp_rdpdr::pdu::esc::{ScardCall, ScardIoCtlCode};
 use ironrdp_rdpdr::RdpdrBackend;
-use ironrdp_svc::impl_as_any;
+use ironrdp_svc::SvcMessage;
 
 #[derive(Debug)]
 pub struct TeleportRdpdrBackend {
@@ -56,10 +57,13 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         // If the device announce for the smart card failed, return an error that will end the session.
         // Authentication is impossible without a smart card.
         if pdu.device_id == SCARD_DEVICE_ID && pdu.result_code != NtStatus::SUCCESS {
-            return Err(custom_err!(TeleportRdpdrBackendError(format!(
-                "ServerDeviceAnnounceResponse for smartcard failed with NtStatus: {:?}",
-                pdu.result_code
-            ))));
+            return Err(pdu_other_err!(
+                "",
+                source:TeleportRdpdrBackendError(format!(
+                    "ServerDeviceAnnounceResponse for smartcard failed with NtStatus: {:?}",
+                    pdu.result_code
+                ))
+            ));
         }
 
         // If the device announce is not for a smart card, assume it's for a directory
@@ -79,16 +83,21 @@ impl RdpdrBackend for TeleportRdpdrBackend {
         self.scard.handle(req, call)
     }
 
-    fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<()> {
+    fn handle_drive_io_request(&mut self, req: ServerDriveIoRequest) -> PduResult<Vec<SvcMessage>> {
         // If directory sharing isn't enabled, we don't advertise drive redirection as a supported
-        // feature, so we should never receive a drive IO request. However this check acts as a
+        // feature, so we should never receive a drive IO request. However, this check acts as a
         // safeguard in case of a server bug or some other anomalous behavior.
         if self.allow_directory_sharing {
-            self.fs.handle_rdp_drive_io_request(req)
+            self.fs.handle_rdp_drive_io_request(req)?;
+            Ok(vec![])
         } else {
-            Err(custom_err!(TeleportRdpdrBackendError(
-                "Received a directory sharing PDU but directory sharing is not enabled".to_string()
-            )))
+            Err(pdu_other_err!(
+                "",
+                source:TeleportRdpdrBackendError(
+                    "Received a directory sharing PDU but directory sharing is not enabled"
+                        .to_string()
+                )
+            ))
         }
     }
 }
@@ -167,6 +176,7 @@ impl TeleportRdpdrBackend {
 }
 
 /// A generic error type for the TeleportRdpdrBackend that can contain any arbitrary error message.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TeleportRdpdrBackendError(pub String);
 

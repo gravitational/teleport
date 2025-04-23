@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonBorder } from 'design';
+import { ButtonPrimary } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
-import { dateTimeMatcher } from 'design/utils/match';
-
 import * as Icons from 'design/Icon';
+import { dateTimeMatcher } from 'design/utils/match';
 
 import cfg from 'teleport/config';
 import { Recording, RecordingType } from 'teleport/services/recordings';
@@ -70,7 +68,7 @@ export default function RecordingsList(props: Props) {
           key: 'createdDate',
           headerText: 'Created (UTC)',
           isSortable: true,
-          render: ({ createdDate }) => <Cell>{createdDate}</Cell>,
+          render: ({ createdDate }) => <Cell>{createdDate.toISOString()}</Cell>,
         },
         {
           key: 'sid',
@@ -109,6 +107,8 @@ const renderIconCell = (type: RecordingType) => {
     Icon = Icons.Desktop;
   } else if (type === 'k8s') {
     Icon = Icons.Kubernetes;
+  } else if (type === 'database') {
+    Icon = Icons.Database;
   }
 
   return (
@@ -139,8 +139,7 @@ const renderPlayCell = (
   );
   return (
     <Cell align="right">
-      <ButtonBorder
-        kind="primary"
+      <ButtonPrimary
         as="a"
         href={url}
         width="80px"
@@ -148,7 +147,7 @@ const renderPlayCell = (
         size="small"
       >
         Play
-      </ButtonBorder>
+      </ButtonPrimary>
     </Cell>
   );
 };

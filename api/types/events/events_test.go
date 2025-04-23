@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
@@ -139,7 +140,7 @@ func TestTrimToMaxSize(t *testing.T) {
 	}
 }
 
-func TestTrimN(t *testing.T) {
+func TestTrimStr(t *testing.T) {
 	tests := []struct {
 		have string
 		want string
@@ -153,6 +154,49 @@ func TestTrimN(t *testing.T) {
 
 	const maxLen = 20
 	for _, test := range tests {
-		require.Equal(t, test.want, trimN(test.have, maxLen))
+		require.Equal(t, test.want, trimStr(test.have, maxLen))
+	}
+}
+
+func TestStructTrimToMaxSize(t *testing.T) {
+	testCases := []struct {
+		name    string
+		maxSize int
+		in      *Struct
+		want    *Struct
+	}{
+		{
+			name:    "Field key exceeds max limit size",
+			maxSize: 10,
+			in: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 100): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+			want: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 8): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.in.trimToMaxSize(tc.maxSize)
+			require.Equal(t, tc.want, got)
+		})
 	}
 }

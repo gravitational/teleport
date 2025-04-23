@@ -1,0 +1,16 @@
+kind: role
+spec:
+  allow:
+    # app_labels: a user with this role will be allowed to connect to
+    # applications with labels matching below.
+    app_labels:
+      '*': '*'
+    aws_role_arns:
+    # Define AWS role ARNS for this role:
+    - 'arn:aws:iam::<AWS_ACCOUNT_ID>:role/<NAME_OF_ROLE>'
+    rules:
+    # Rule that allows users to define their own ARN's
+    - resources:
+      - user
+      verbs:
+      - update

@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+import styled, { css, useTheme } from 'styled-components';
+
 import {
   Box,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Indicator,
-  Text,
+  Subtitle2,
 } from 'design';
-import React from 'react';
-import styled, { useTheme, css } from 'styled-components';
 
 export interface HeaderProps {
   title: React.ReactNode;
@@ -56,16 +58,17 @@ export function Header({
         {icon}
       </Box>
       <Box flex="1">
-        <Text typography="h4">{title}</Text>
-        <Text typography="body1" color={theme.colors.text.slightlyMuted}>
+        <H2>{title}</H2>
+        <Subtitle2 color={theme.colors.text.slightlyMuted}>
           {description}
-        </Text>
+        </Subtitle2>
       </Box>
       {/* Indicator is always in the layout so that the description text doesn't
           reflow if visibility changes. */}
       <Box
         lineHeight={0}
         style={{ visibility: showIndicator ? 'visible' : 'hidden' }}
+        data-testid="indicator-wrapper"
       >
         <Indicator size={40} />
       </Box>

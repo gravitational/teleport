@@ -16,19 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
-import { allAccessAcl } from 'teleport/mocks/contexts';
-
 import { ContextProvider } from 'teleport';
+import { allAccessAcl } from 'teleport/mocks/contexts';
 import TeleportContext from 'teleport/teleportContext';
 
 import { ConnectGitHub } from './ConnectGitHub';
-
 import { GitHubFlowProvider } from './useGitHubFlow';
 
 describe('connectGitHub Component', () => {
@@ -72,7 +68,7 @@ describe('connectGitHub Component', () => {
       screen.getByText('Name of the GitHub Actions Workflow')
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText('cd')).toBeInTheDocument();
-    expect(screen.getByText('Environmnet')).toBeInTheDocument();
+    expect(screen.getByText('Environment')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('development')).toBeInTheDocument();
     expect(screen.getByText('Restrict to a GitHub User')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('octocat')).toBeInTheDocument();

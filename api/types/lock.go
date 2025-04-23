@@ -104,16 +104,6 @@ func (c *LockV2) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetResourceID returns resource ID.
-func (c *LockV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *LockV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (c *LockV2) GetRevision() string {
 	return c.Metadata.GetRevision()
@@ -308,5 +298,13 @@ func (t LockTarget) String() string {
 
 // Equals returns true when the two lock targets are equal.
 func (t LockTarget) Equals(t2 LockTarget) bool {
-	return proto.Equal(&t, &t2)
+	return t.User == t2.User &&
+		t.Role == t2.Role &&
+		t.Login == t2.Login &&
+		t.MFADevice == t2.MFADevice &&
+		t.WindowsDesktop == t2.WindowsDesktop &&
+		t.AccessRequest == t2.AccessRequest &&
+		t.Device == t2.Device &&
+		t.ServerID == t2.ServerID &&
+		t.Node == t2.Node
 }

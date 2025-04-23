@@ -1,0 +1,111 @@
+clusterName: "test.teleport.sh"
+teleportAuthAddress: "my-auth:3024"
+defaultOutput:
+  enabled: true
+token: "my-token"
+joinMethod: "modified-join-method"
+
+serviceAccount:
+  name: "modified-sa-name"
+
+anonymousTelemetry: true
+debug: true
+
+outputs:
+  - type: "application"
+    app_name: "foo"
+    destination:
+      type: "directory"
+      path: "/bar"
+
+services:
+  - type: "example-service"
+    param: boo
+
+imagePullPolicy: "Always"
+
+persistence: "disabled"
+
+extraLabels:
+  role:
+    test-key: test-label-role
+  roleBinding:
+    test-key: test-label-role-binding
+  config:
+    test-key: test-label-config
+  deployment:
+    test-key: test-label-deployment
+  pod:
+    test-key: test-label-pod
+  serviceAccount:
+    test-key: test-label-service-account
+
+annotations:
+  role:
+    test-key: test-annotation-role
+  roleBinding:
+    test-key: test-annotation-role-binding
+  config:
+    test-key: test-annotation-config
+  deployment:
+    test-key: test-annotation-deployment
+  pod:
+    test-key: test-annotation-pod
+  serviceAccount:
+    test-key: test-annotation-service-account
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "250m"
+  limits:
+    memory: "128Mi"
+    cpu: "500m"
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - antarctica-east1
+                - antarctica-west1
+
+tolerations:
+  - key: "key1"
+    operator: "Exists"
+    effect: "NoSchedule"
+
+nodeSelector:
+  test-key: test-node-selector
+
+imagePullSecrets:
+  - name: test-pull-secret
+
+extraVolumes:
+  - name: test-volume
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: test-volume
+    mountPath: /test/path
+
+extraArgs:
+  - --extra-arg
+
+extraEnv:
+  - name: "TEST_ENV"
+    value: "test-value"
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+  seccompProfile:
+    type: RuntimeDefault

@@ -1,0 +1,160 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.lib.vnet.diag.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1;diagv1";
+
+// Report represents the attempts at running individual checks. It also includes general information
+// about the network stack managed by VNet. It assumes that each individual check as well as getting
+// info about the network stack can fail.
+message Report {
+  // created_at is the UTC timestamp at which the report was generated.
+  google.protobuf.Timestamp created_at = 1;
+  NetworkStackAttempt network_stack_attempt = 2;
+  repeated CheckAttempt checks = 3;
+}
+
+// NetworkStackAttempt represents the attempt at getting information about the network stack managed
+// by VNet.
+message NetworkStackAttempt {
+  CheckAttemptStatus status = 1;
+  // error is present if status is CHECK_ATTEMPT_STATUS_ERROR.
+  string error = 2;
+  NetworkStack network_stack = 3;
+}
+
+// NetworkStack describes the network stack managed by VNet.
+message NetworkStack {
+  // interface_name is the name of the interface set up and used by VNet.
+  string interface_name = 1;
+  // ipv4_cidr_ranges are all the possible ranges under which VNet is going to assign IPv4 addresses
+  // for apps. The first IP of the first range is used for the TUN device.
+  // Each root cluster can specify its own CIDR range to be used for apps within that profile.
+  repeated string ipv4_cidr_ranges = 2;
+  // ipv6_prefix is the IPv6 prefix under which VNet creates IPv6 addresses for apps and its DNS
+  // server.
+  string ipv6_prefix = 3;
+  // dns_zones lists domains for which DNS queries are supposed to be captured by VNet.
+  repeated string dns_zones = 4;
+}
+
+// CheckAttempt describes the attempt at running a particular diagnostic check. If it succeeds
+// (status is CHECK_ATTEMPT_STATUS_OK), check_report can be inspected to see if the check has found
+// any issues.
+//
+// For example, a check that inspects network routes can succeed (CHECK_ATTEMPT_STATUS_OK) and it
+// might or might not find conflicting routes (CHECK_REPORT_STATUS_ISSUES_FOUND or
+// CHECK_REPORT_STATUS_OK). But it can also fail to run (CHECK_ATTEMPT_STATUS_ERROR) because the
+// syscall to list routes has failed.
+message CheckAttempt {
+  // status represents the status of an attempt at running a particular diagnostic check. This is
+  // not the same as the status of CheckReport.
+  //
+  CheckAttemptStatus status = 1;
+  // error is present if the check failed to run (status is CHECK_ATTEMPT_STATUS_ERROR).
+  string error = 2;
+  // check_report is the output of a particular check.
+  //
+  // If check failed to run (status is CHECK_ATTEMPT_STATUS_ERROR), the report oneof in check_report
+  // is set to a specific member while the member itself is empty. This means that a particular
+  // CheckAttempt can be distinguished from other attempts describing other checks even if the check
+  // failed to run.
+  CheckReport check_report = 3;
+  // commands are the outputs from additional diagnostic commands executed by the diagnostic
+  // check. They are meant to help inspect the general state of the OS related to the given check.
+  // Unless a callsite specifically requests commands to be skipped, commands are present even if
+  // status is CHECK_ATTEMPT_STATUS_ERROR, as they are useful even if the check failed.
+  repeated CommandAttempt commands = 4;
+}
+
+// CheckAttemptStatus describes whether CheckAttempt finished successfully. This is different from
+// CheckReportStatus, which describes whether a successful attempt at running a check has found any
+// issues. See the comment for CheckAttempt for an example.
+enum CheckAttemptStatus {
+  CHECK_ATTEMPT_STATUS_UNSPECIFIED = 0;
+  // CHECK_ATTEMPT_STATUS_OK indicates that the check ran successfully.
+  CHECK_ATTEMPT_STATUS_OK = 1;
+  // CHECK_ATTEMPT_STATUS_ERROR indicates that the check failed to run.
+  CHECK_ATTEMPT_STATUS_ERROR = 2;
+}
+
+// CheckReport is the output of a successful attempt at running a particular check.
+message CheckReport {
+  // status indicates if the check has found any issues. This is so that a callsite operating on
+  // a CheckReport can understand the outcome of the check without having to understand the
+  // semantics of the output included under report.
+  CheckReportStatus status = 1;
+
+  oneof report {
+    // route_conflict reports whether there are routes that might conflict with routes set up by
+    // VNet.
+    RouteConflictReport route_conflict_report = 2;
+  }
+}
+
+// CheckReportStatus describes the outcome of a successful attempt at running a check.
+enum CheckReportStatus {
+  CHECK_REPORT_STATUS_UNSPECIFIED = 0;
+  // CHECK_REPORT_STATUS_OK indicates that the check has not found any issues.
+  CHECK_REPORT_STATUS_OK = 1;
+  // CHECK_REPORT_STATUS_ISSUES_FOUND indicates that the check has found at least one issue.
+  CHECK_REPORT_STATUS_ISSUES_FOUND = 2;
+}
+
+// CommandAttempt describes the attempt at running a particular command associated with a diagnostic
+// check.
+message CommandAttempt {
+  CommandAttemptStatus status = 1;
+  // error is present if status is COMMAND_ATTEMPT_STATUS_ERROR.
+  string error = 2;
+  // command shows which command was executed along with its arguments, e.g., "netstat -rn -f inet".
+  string command = 3;
+  // output is stdout from the command if status is COMMAND_ATTEMPT_STATUS_OK.
+  string output = 4;
+}
+
+// CommandAttemptStatus describes the status of CommandAttempt.
+enum CommandAttemptStatus {
+  COMMAND_ATTEMPT_STATUS_UNSPECIFIED = 0;
+  COMMAND_ATTEMPT_STATUS_OK = 1;
+  COMMAND_ATTEMPT_STATUS_ERROR = 2;
+}
+
+// RouteConflictReport describes conflicting routes found by RouteConflictDiag.
+message RouteConflictReport {
+  repeated RouteConflict route_conflicts = 1;
+}
+
+// RouteConflict describes a conflict between a route set up by a 3rd-party app where the
+// destination overlaps with a destination in a route set up by VNet.
+message RouteConflict {
+  // dest is the destination of the conflicting route.
+  string dest = 1;
+  // vnet_dest is the destination of a VNet route that Dest overlaps with.
+  string vnet_dest = 2;
+  // interface_name is the name of the interface the route uses, e.g. "utun4".
+  string interface_name = 3;
+  // interface_app may contain the name of the application responsible for setting up the interface.
+  // At the moment, the only source of this information is NetworkExtension description included in
+  // the output of `ifconfig -v <interface name>`. Not all VPN applications use this framework, so
+  // it's likely to be empty.
+  string interface_app = 4;
+}

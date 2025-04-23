@@ -21,27 +21,38 @@ package keystore
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	clusterName = "test-cluster"
+)
+
 var (
-	testRawPrivateKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
+	testRSA2048PrivateKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAqiD2rRJ5kq7hP55eOCM9DtdkWPMI8PBKgxaAiQ9J9YF3aNur
 98b8kACcTQ8ixSkHsLccVqRdt/Cnb7jtBSrwxJ9BN09fZEiyCvy7lwxNGBMQEaov
 9UU722nvuWKb+EkHzcVV9ie9i8wM88xpzzYO8eda8FZjHxaaoe2lkrHiiOFQRubJ
@@ -69,9 +80,8 @@ fPTgihJAeKdWbBmRMjIDe8hkz/oxR6JE2Ap+4G+KZtwVON4b+ucCYTQS+1CQp2Xc
 RPAMyjbzPhWQpfJnIxLcqGmvXxosABvs/b2CWaPqfCQhZIWpLeKW
 -----END RSA PRIVATE KEY-----
 `)
-	testRawSSHPublicKey = []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqIPatEnmSruE/nl44Iz0O12RY8wjw8EqDFoCJD0n1gXdo26v3xvyQAJxNDyLFKQewtxxWpF238KdvuO0FKvDEn0E3T19kSLIK/LuXDE0YExARqi/1RTvbae+5Ypv4SQfNxVX2J72LzAzzzGnPNg7x51rwVmMfFpqh7aWSseKI4VBG5smodWFb5I0VA5Xo6xURNNmWDmuZaEDmsqIHobRB4sfKxIwltssw5evVVu7tGqiGarQAXoR0yCLHc4nPeov1gMpA8DOGPtWI/NPTs+//2+Hl+NdoTmJOE9Piffe5jU3Z8kCfOxxm9WanHG5I6rHBYGqRHMgl7PW+/cX7nEMv")
-	testRawPublicKeyDER = []byte{48, 130, 1, 34, 48, 13, 6, 9, 42, 134, 72, 134, 247, 13, 1, 1, 1, 5, 0, 3, 130, 1, 15, 0, 48, 130, 1, 10, 2, 130, 1, 1, 0, 170, 32, 246, 173, 18, 121, 146, 174, 225, 63, 158, 94, 56, 35, 61, 14, 215, 100, 88, 243, 8, 240, 240, 74, 131, 22, 128, 137, 15, 73, 245, 129, 119, 104, 219, 171, 247, 198, 252, 144, 0, 156, 77, 15, 34, 197, 41, 7, 176, 183, 28, 86, 164, 93, 183, 240, 167, 111, 184, 237, 5, 42, 240, 196, 159, 65, 55, 79, 95, 100, 72, 178, 10, 252, 187, 151, 12, 77, 24, 19, 16, 17, 170, 47, 245, 69, 59, 219, 105, 239, 185, 98, 155, 248, 73, 7, 205, 197, 85, 246, 39, 189, 139, 204, 12, 243, 204, 105, 207, 54, 14, 241, 231, 90, 240, 86, 99, 31, 22, 154, 161, 237, 165, 146, 177, 226, 136, 225, 80, 70, 230, 201, 168, 117, 97, 91, 228, 141, 21, 3, 149, 232, 235, 21, 17, 52, 217, 150, 14, 107, 153, 104, 64, 230, 178, 162, 7, 161, 180, 65, 226, 199, 202, 196, 140, 37, 182, 203, 48, 229, 235, 213, 86, 238, 237, 26, 168, 134, 106, 180, 0, 94, 132, 116, 200, 34, 199, 115, 137, 207, 122, 139, 245, 128, 202, 64, 240, 51, 134, 62, 213, 136, 252, 211, 211, 179, 239, 255, 219, 225, 229, 248, 215, 104, 78, 98, 78, 19, 211, 226, 125, 247, 185, 141, 77, 217, 242, 64, 159, 59, 28, 102, 245, 102, 167, 28, 110, 72, 234, 177, 193, 96, 106, 145, 28, 200, 37, 236, 245, 190, 253, 197, 251, 156, 67, 47, 2, 3, 1, 0, 1}
-	testRawPublicKeyPEM = []byte(`-----BEGIN RSA PUBLIC KEY-----
+	testRSASSHPublicKey = []byte("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCqIPatEnmSruE/nl44Iz0O12RY8wjw8EqDFoCJD0n1gXdo26v3xvyQAJxNDyLFKQewtxxWpF238KdvuO0FKvDEn0E3T19kSLIK/LuXDE0YExARqi/1RTvbae+5Ypv4SQfNxVX2J72LzAzzzGnPNg7x51rwVmMfFpqh7aWSseKI4VBG5smodWFb5I0VA5Xo6xURNNmWDmuZaEDmsqIHobRB4sfKxIwltssw5evVVu7tGqiGarQAXoR0yCLHc4nPeov1gMpA8DOGPtWI/NPTs+//2+Hl+NdoTmJOE9Piffe5jU3Z8kCfOxxm9WanHG5I6rHBYGqRHMgl7PW+/cX7nEMv")
+	testRSAPublicKeyPEM = []byte(`-----BEGIN RSA PUBLIC KEY-----
 MIIBCgKCAQEAqiD2rRJ5kq7hP55eOCM9DtdkWPMI8PBKgxaAiQ9J9YF3aNur98b8
 kACcTQ8ixSkHsLccVqRdt/Cnb7jtBSrwxJ9BN09fZEiyCvy7lwxNGBMQEaov9UU7
 22nvuWKb+EkHzcVV9ie9i8wM88xpzzYO8eda8FZjHxaaoe2lkrHiiOFQRubJqHVh
@@ -79,7 +89,7 @@ W+SNFQOV6OsVETTZlg5rmWhA5rKiB6G0QeLHysSMJbbLMOXr1Vbu7Rqohmq0AF6E
 dMgix3OJz3qL9YDKQPAzhj7ViPzT07Pv/9vh5fjXaE5iThPT4n33uY1N2fJAnzsc
 ZvVmpxxuSOqxwWBqkRzIJez1vv3F+5xDLwIDAQAB
 -----END RSA PUBLIC KEY-----`)
-	testRawCert = []byte(`-----BEGIN CERTIFICATE-----
+	testRSACert = []byte(`-----BEGIN CERTIFICATE-----
 MIIDeTCCAmGgAwIBAgIRALmlBQhTQQiGIS/P0PwF97wwDQYJKoZIhvcNAQELBQAw
 VjEQMA4GA1UEChMHc2VydmVyMTEQMA4GA1UEAxMHc2VydmVyMTEwMC4GA1UEBRMn
 MjQ2NzY0MDEwMjczNTA2ODc3NjY1MDEyMTc3Mzg5MTkyODY5ODIwMB4XDTIxMDcx
@@ -104,33 +114,33 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 	testPKCS11Key = []byte(`pkcs11:{"host_id": "server2", "key_id": "00000000-0000-0000-0000-000000000000"}`)
 
 	testRawSSHKeyPair = &types.SSHKeyPair{
-		PublicKey:      testRawSSHPublicKey,
-		PrivateKey:     testRawPrivateKey,
+		PublicKey:      testRSASSHPublicKey,
+		PrivateKey:     testRSA2048PrivateKeyPEM,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 	testRawTLSKeyPair = &types.TLSKeyPair{
-		Cert:    testRawCert,
-		Key:     testRawPrivateKey,
+		Cert:    testRSACert,
+		Key:     testRSA2048PrivateKeyPEM,
 		KeyType: types.PrivateKeyType_RAW,
 	}
 	testRawJWTKeyPair = &types.JWTKeyPair{
-		PublicKey:      testRawPublicKeyPEM,
-		PrivateKey:     testRawPrivateKey,
+		PublicKey:      testRSAPublicKeyPEM,
+		PrivateKey:     testRSA2048PrivateKeyPEM,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 
 	testPKCS11SSHKeyPair = &types.SSHKeyPair{
-		PublicKey:      testRawSSHPublicKey,
+		PublicKey:      testRSASSHPublicKey,
 		PrivateKey:     testPKCS11Key,
 		PrivateKeyType: types.PrivateKeyType_PKCS11,
 	}
 	testPKCS11TLSKeyPair = &types.TLSKeyPair{
-		Cert:    testRawCert,
+		Cert:    testRSACert,
 		Key:     testPKCS11Key,
 		KeyType: types.PrivateKeyType_PKCS11,
 	}
 	testPKCS11JWTKeyPair = &types.JWTKeyPair{
-		PublicKey:      testRawPublicKeyPEM,
+		PublicKey:      testRSAPublicKeyPEM,
 		PrivateKey:     testPKCS11Key,
 		PrivateKeyType: types.PrivateKeyType_PKCS11,
 	}
@@ -149,28 +159,45 @@ func TestBackends(t *testing.T) {
 		t.Run(backendDesc.name, func(t *testing.T) {
 			backend := backendDesc.backend
 
-			// create a key
-			key, signer, err := backend.generateRSA(ctx)
-			require.NoError(t, err, trace.DebugReport(err))
-			require.NotNil(t, key)
-			require.NotNil(t, signer)
-			require.Equal(t, backendDesc.expectedKeyType, keyType(key))
+			for _, tc := range []struct {
+				alg    cryptosuites.Algorithm
+				verify func(pubkey any, hash, signature []byte) error
+			}{
+				{
+					alg: cryptosuites.RSA2048,
+					verify: func(pubkey any, hash, signature []byte) error {
+						return rsa.VerifyPKCS1v15(pubkey.(*rsa.PublicKey), crypto.SHA256, messageHash[:], signature)
+					},
+				},
+				{
+					alg: cryptosuites.ECDSAP256,
+					verify: func(pubkey any, hash, signature []byte) error {
+						if !ecdsa.VerifyASN1(pubkey.(*ecdsa.PublicKey), messageHash[:], signature) {
+							return errors.New("ECDSA signature is invalid")
+						}
+						return nil
+					},
+				},
+			} {
+				t.Run(tc.alg.String(), func(t *testing.T) {
+					// create a key
+					key, signer, err := backend.generateKey(ctx, tc.alg)
+					require.NoError(t, err, trace.DebugReport(err))
+					require.Equal(t, backendDesc.expectedKeyType, keyType(key))
 
-			// delete the key when we're done with it
-			t.Cleanup(func() { require.NoError(t, backend.deleteKey(ctx, key)) })
+					// delete the key when we're done with it
+					t.Cleanup(func() { require.NoError(t, backend.deleteKey(ctx, key)) })
 
-			// get a signer from the key
-			signer, err = backend.getSigner(ctx, key, signer.Public())
-			require.NoError(t, err)
-			require.NotNil(t, signer)
+					// get a signer from the key
+					signer, err = backend.getSigner(ctx, key, signer.Public())
+					require.NoError(t, err)
 
-			// try signing something
-			signature, err := signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
-			require.NoError(t, err, trace.DebugReport(err))
-			require.NotEmpty(t, signature)
-			// make sure we can verify the signature with a "known good" rsa implementation
-			err = rsa.VerifyPKCS1v15(signer.Public().(*rsa.PublicKey), crypto.SHA256, messageHash[:], signature)
-			require.NoError(t, err)
+					// try signing something
+					signature, err := signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
+					require.NoError(t, err, trace.DebugReport(err))
+					require.NoError(t, tc.verify(signer.Public(), messageHash[:], signature))
+				})
+			}
 		})
 	}
 
@@ -181,14 +208,13 @@ func TestBackends(t *testing.T) {
 			// create some keys to test deleteUnusedKeys
 			const numKeys = 3
 			rawPrivateKeys := make([][]byte, numKeys)
-			rawPublicKeys := make([][]byte, numKeys)
+			publicKeys := make([]crypto.PublicKey, numKeys)
 			for i := 0; i < numKeys; i++ {
 				var signer crypto.Signer
 				var err error
-				rawPrivateKeys[i], signer, err = backend.generateRSA(ctx)
+				rawPrivateKeys[i], signer, err = backend.generateKey(ctx, cryptosuites.ECDSAP256)
 				require.NoError(t, err)
-				rawPublicKeys[i], err = utils.MarshalPublicKey(signer)
-				require.NoError(t, err)
+				publicKeys[i] = signer.Public()
 			}
 
 			// AWS KMS keystore will not delete any keys created in the past 5
@@ -201,14 +227,14 @@ func TestBackends(t *testing.T) {
 			require.NoError(t, err, trace.DebugReport(err))
 
 			// make sure the first key is still good
-			signer, err := backend.getSigner(ctx, rawPrivateKeys[0], rawPublicKeys[0])
+			signer, err := backend.getSigner(ctx, rawPrivateKeys[0], publicKeys[0])
 			require.NoError(t, err)
 			_, err = signer.Sign(rand.Reader, messageHash[:], crypto.SHA256)
 			require.NoError(t, err)
 
 			// make sure all other keys are deleted
 			for i := 1; i < numKeys; i++ {
-				signer, err := backend.getSigner(ctx, rawPrivateKeys[i], rawPublicKeys[0])
+				signer, err := backend.getSigner(ctx, rawPrivateKeys[i], publicKeys[0])
 				if err != nil {
 					// For PKCS11 we expect to fail to get the signer, for cloud
 					// KMS backends it won't fail until actually signing.
@@ -244,13 +270,16 @@ func TestManager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	pack := newTestPack(ctx, t)
+	sshSubjectKey, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	sshSubjectPubKey, err := ssh.NewPublicKey(sshSubjectKey)
+	require.NoError(t, err)
 
-	const clusterName = "test-cluster"
+	pack := newTestPack(ctx, t)
 
 	for _, backendDesc := range pack.backends {
 		t.Run(backendDesc.name, func(t *testing.T) {
-			manager, err := NewManager(ctx, backendDesc.config)
+			manager, err := NewManager(ctx, &backendDesc.config, backendDesc.opts)
 			require.NoError(t, err)
 
 			// Delete all keys to clean up the test.
@@ -258,15 +287,15 @@ func TestManager(t *testing.T) {
 				require.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
 			})
 
-			sshKeyPair, err := manager.NewSSHKeyPair(ctx)
+			sshKeyPair, err := manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 			require.NoError(t, err)
 			require.Equal(t, backendDesc.expectedKeyType, sshKeyPair.PrivateKeyType)
 
-			tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName)
+			tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName, cryptosuites.UserCATLS)
 			require.NoError(t, err)
 			require.Equal(t, backendDesc.expectedKeyType, tlsKeyPair.KeyType)
 
-			jwtKeyPair, err := manager.NewJWTKeyPair(ctx)
+			jwtKeyPair, err := manager.NewJWTKeyPair(ctx, cryptosuites.JWTCAJWT)
 			require.NoError(t, err)
 			require.Equal(t, backendDesc.expectedKeyType, jwtKeyPair.PrivateKeyType)
 
@@ -306,9 +335,23 @@ func TestManager(t *testing.T) {
 
 			jwtSigner, err := manager.GetJWTSigner(ctx, ca)
 			require.NoError(t, err, trace.DebugReport(err))
-			pubkeyPem, err := utils.MarshalPublicKey(jwtSigner)
+			pubkeyPem, err := keys.MarshalPublicKey(jwtSigner.Public())
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
+
+			// Try signing an SSH cert.
+			sshCert := ssh.Certificate{
+				Key:         sshSubjectPubKey,
+				ValidBefore: uint64(time.Now().Add(time.Hour).Unix()),
+			}
+			require.NoError(t, sshCert.SignCert(rand.Reader, sshSigner))
+			// Verify the signature.
+			checker := ssh.CertChecker{
+				IsUserAuthority: func(pub ssh.PublicKey) bool {
+					return pub == sshSigner.PublicKey()
+				},
+			}
+			require.NoError(t, checker.CheckCert("root", &sshCert))
 
 			// Test what happens when the CA has only raw keys, which will be the
 			// initial state when migrating from software to a HSM/KMS backend.
@@ -389,14 +432,89 @@ func TestManager(t *testing.T) {
 	}
 }
 
+// TestAlgorithmSuites asserts that the keystore generates keys with the
+// expected signature algorithm for all valid signature algorithm suites.
+func TestAlgorithmSuites(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	pack := newTestPack(ctx, t)
+	for _, suite := range []types.SignatureAlgorithmSuite{
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+		types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
+	} {
+		t.Run(suite.String(), func(t *testing.T) {
+			testAlgorithmSuite(t, ctx, pack, suite)
+		})
+	}
+}
+
+func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite types.SignatureAlgorithmSuite) {
+	for _, backendDesc := range pack.backends {
+		t.Run(backendDesc.name, func(t *testing.T) {
+			authPrefGetter := &fakeAuthPreferenceGetter{suite}
+			backendDesc.opts.AuthPreferenceGetter = authPrefGetter
+			currentSuiteGetter := cryptosuites.GetCurrentSuiteFromAuthPreference(authPrefGetter)
+			manager, err := NewManager(ctx, &backendDesc.config, backendDesc.opts)
+			require.NoError(t, err)
+
+			// Delete all keys to clean up the test.
+			t.Cleanup(func() {
+				assert.NoError(t, manager.DeleteUnusedKeys(context.Background(), nil /*activeKeys*/))
+			})
+
+			sshKeyPair, err := manager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+			require.NoError(t, err)
+			sshPubKey, _, _, _, err := ssh.ParseAuthorizedKey(sshKeyPair.PublicKey)
+			require.NoError(t, err)
+			sshPub := sshPubKey.(ssh.CryptoPublicKey).CryptoPublicKey()
+			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.UserCASSH)
+			require.NoError(t, err)
+			assertKeyAlgorithm(t, expectedAlgorithm, sshPub)
+
+			tlsKeyPair, err := manager.NewTLSKeyPair(ctx, clusterName, cryptosuites.DatabaseClientCATLS)
+			require.NoError(t, err)
+			tlsCert, err := tlsca.ParseCertificatePEM(tlsKeyPair.Cert)
+			require.NoError(t, err)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.DatabaseClientCATLS)
+			require.NoError(t, err)
+			assertKeyAlgorithm(t, expectedAlgorithm, tlsCert.PublicKey)
+
+			jwtKeyPair, err := manager.NewJWTKeyPair(ctx, cryptosuites.JWTCAJWT)
+			require.NoError(t, err)
+			jwtPubKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
+			require.NoError(t, err)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.JWTCAJWT)
+			require.NoError(t, err)
+			assertKeyAlgorithm(t, expectedAlgorithm, jwtPubKey)
+		})
+	}
+}
+
+func assertKeyAlgorithm(t *testing.T, expectedAlgorithm cryptosuites.Algorithm, pubKey crypto.PublicKey) {
+	t.Helper()
+	switch expectedAlgorithm {
+	case cryptosuites.RSA2048:
+		assert.IsType(t, &rsa.PublicKey{}, pubKey)
+	case cryptosuites.ECDSAP256:
+		assert.IsType(t, &ecdsa.PublicKey{}, pubKey)
+	case cryptosuites.Ed25519:
+		assert.IsType(t, ed25519.PublicKey{}, pubKey)
+	default:
+		t.Fatalf("test does not support algorithm %s", expectedAlgorithm.String())
+	}
+}
+
 type testPack struct {
 	backends []*backendDesc
-	clock    clockwork.FakeClock
+	clock    *clockwork.FakeClock
 }
 
 type backendDesc struct {
 	name                string
-	config              Config
+	config              servicecfg.KeystoreConfig
+	opts                *Options
 	backend             backend
 	expectedKeyType     types.PrivateKeyType
 	unusedRawKey        []byte
@@ -408,7 +526,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	var backends []*backendDesc
 
 	hostUUID := uuid.NewString()
-	logger := utils.NewLoggerForTests()
+	logger := utils.NewSlogLoggerForTests()
 
 	unusedPKCS11Key, err := keyID{
 		HostID: hostUUID,
@@ -416,25 +534,44 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	}.marshal()
 	require.NoError(t, err)
 
-	softwareConfig := Config{Software: SoftwareConfig{
-		RSAKeyPairSource: native.GenerateKeyPair,
-	}}
-	softwareBackend := newSoftwareKeyStore(&softwareConfig.Software, logger)
+	_, gcpKMSDialer := newTestGCPKMSService(t)
+	testGCPKMSClient := newTestGCPKMSClient(t, gcpKMSDialer)
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+	})
+	require.NoError(t, err)
+
+	baseOpts := Options{
+		ClusterName:          clusterName,
+		HostUUID:             hostUUID,
+		Logger:               logger,
+		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
+		awsKMSClient:         newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+		awsSTSClient: &fakeAWSSTSClient{
+			account: "123456789012",
+		},
+		kmsClient:         testGCPKMSClient,
+		clockworkOverride: clock,
+	}
+
+	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
 	backends = append(backends, &backendDesc{
 		name:                "software",
-		config:              softwareConfig,
+		config:              servicecfg.KeystoreConfig{},
+		opts:                &baseOpts,
 		backend:             softwareBackend,
-		unusedRawKey:        testRawPrivateKey,
+		unusedRawKey:        testRSA2048PrivateKeyPEM,
 		deletionDoesNothing: true,
 	})
 
 	if config, ok := softHSMTestConfig(t); ok {
-		config.PKCS11.HostUUID = hostUUID
-		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "softhsm",
 			config:          config,
+			opts:            &baseOpts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
@@ -442,12 +579,12 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	}
 
 	if config, ok := yubiHSMTestConfig(t); ok {
-		config.PKCS11.HostUUID = hostUUID
-		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "yubihsm",
 			config:          config,
+			opts:            &baseOpts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
@@ -455,25 +592,29 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	}
 
 	if config, ok := cloudHSMTestConfig(t); ok {
-		config.PKCS11.HostUUID = hostUUID
-		backend, err := newPKCS11KeyStore(&config.PKCS11, logger)
+		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "yubihsm",
 			config:          config,
+			opts:            &baseOpts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
 		})
 	}
 
+	// Test with real GCP account if environment is enabled.
 	if config, ok := gcpKMSTestConfig(t); ok {
-		config.GCPKMS.HostUUID = hostUUID
-		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, logger)
+		opts := baseOpts
+		opts.kmsClient = nil
+
+		backend, err := newGCPKMSKeyStore(ctx, &config.GCPKMS, &opts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "gcp_kms",
 			config:          config,
+			opts:            &opts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_GCP_KMS,
 			unusedRawKey: gcpKMSKeyID{
@@ -481,21 +622,19 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 			}.marshal(),
 		})
 	}
-	_, gcpKMSDialer := newTestGCPKMSService(t)
-	testGCPKMSClient := newTestGCPKMSClient(t, gcpKMSDialer)
-	fakeGCPKMSConfig := Config{
-		GCPKMS: GCPKMSConfig{
-			HostUUID:          hostUUID,
-			ProtectionLevel:   "HSM",
-			KeyRing:           "test-keyring",
-			kmsClientOverride: testGCPKMSClient,
+	// Always test with fake GCP client.
+	fakeGCPKMSConfig := servicecfg.KeystoreConfig{
+		GCPKMS: servicecfg.GCPKMSConfig{
+			ProtectionLevel: "HSM",
+			KeyRing:         "test-keyring",
 		},
 	}
-	fakeGCPKMSBackend, err := newGCPKMSKeyStore(ctx, &fakeGCPKMSConfig.GCPKMS, logger)
+	fakeGCPKMSBackend, err := newGCPKMSKeyStore(ctx, &fakeGCPKMSConfig.GCPKMS, &baseOpts)
 	require.NoError(t, err)
 	backends = append(backends, &backendDesc{
 		name:            "fake_gcp_kms",
 		config:          fakeGCPKMSConfig,
+		opts:            &baseOpts,
 		backend:         fakeGCPKMSBackend,
 		expectedKeyType: types.PrivateKeyType_GCP_KMS,
 		unusedRawKey: gcpKMSKeyID{
@@ -503,62 +642,77 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		}.marshal(),
 	})
 
-	if config, ok := awsKMSTestConfig(t); ok {
-		config.AWSKMS.clock = clock
-		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, logger)
+	// Test AWS with and without multi-region keys
+	for _, multiRegion := range []bool{false, true} {
+		// Test with real AWS account if environment is enabled.
+		if config, ok := awsKMSTestConfig(t); ok {
+			config.AWSKMS.MultiRegion.Enabled = multiRegion
+			opts := baseOpts
+			// Unset the fake clients so this test can use the real AWS clients.
+			opts.awsKMSClient = nil
+			opts.awsSTSClient = nil
+
+			backend, err := newAWSKMSKeystore(ctx, config.AWSKMS, &opts)
+			require.NoError(t, err)
+			name := "aws_kms"
+			if multiRegion {
+				name += "_multi_region"
+			}
+			backends = append(backends, &backendDesc{
+				name:            name,
+				config:          config,
+				opts:            &opts,
+				backend:         backend,
+				expectedKeyType: types.PrivateKeyType_AWS_KMS,
+				unusedRawKey: awsKMSKeyID{
+					arn: arn.ARN{
+						Partition: "aws",
+						Service:   "kms",
+						Region:    config.AWSKMS.AWSRegion,
+						AccountID: config.AWSKMS.AWSAccount,
+						Resource:  "unused",
+					}.String(),
+					account: config.AWSKMS.AWSAccount,
+					region:  config.AWSKMS.AWSRegion,
+				}.marshal(),
+			})
+		}
+
+		// Always test with fake AWS client.
+		fakeAWSKMSConfig := servicecfg.KeystoreConfig{
+			AWSKMS: &servicecfg.AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+				MultiRegion: struct{ Enabled bool }{
+					Enabled: multiRegion,
+				},
+			},
+		}
+		fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, fakeAWSKMSConfig.AWSKMS, &baseOpts)
 		require.NoError(t, err)
+		name := "fake_aws_kms"
+		if multiRegion {
+			name += "_multi_region"
+		}
 		backends = append(backends, &backendDesc{
-			name:            "aws_kms",
-			config:          config,
-			backend:         backend,
+			name:            name,
+			config:          fakeAWSKMSConfig,
+			opts:            &baseOpts,
+			backend:         fakeAWSKMSBackend,
 			expectedKeyType: types.PrivateKeyType_AWS_KMS,
 			unusedRawKey: awsKMSKeyID{
 				arn: arn.ARN{
 					Partition: "aws",
 					Service:   "kms",
-					Region:    config.AWSKMS.AWSRegion,
-					AccountID: config.AWSKMS.AWSAccount,
+					Region:    "us-west-2",
+					AccountID: "123456789012",
 					Resource:  "unused",
 				}.String(),
-				account: config.AWSKMS.AWSAccount,
-				region:  config.AWSKMS.AWSRegion,
+				account: "123456789012",
+				region:  "us-west-2",
 			}.marshal(),
 		})
 	}
-
-	fakeAWSKMSConfig := Config{
-		AWSKMS: AWSKMSConfig{
-			Cluster:    "test-cluster",
-			AWSAccount: "123456789012",
-			AWSRegion:  "us-west-2",
-			CloudClients: &cloud.TestCloudClients{
-				KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
-				STS: &fakeAWSSTSClient{
-					account: "123456789012",
-				},
-			},
-			clock: clock,
-		},
-	}
-	fakeAWSKMSBackend, err := newAWSKMSKeystore(ctx, &fakeAWSKMSConfig.AWSKMS, logger)
-	require.NoError(t, err)
-	backends = append(backends, &backendDesc{
-		name:            "fake_aws_kms",
-		config:          fakeAWSKMSConfig,
-		backend:         fakeAWSKMSBackend,
-		expectedKeyType: types.PrivateKeyType_AWS_KMS,
-		unusedRawKey: awsKMSKeyID{
-			arn: arn.ARN{
-				Partition: "aws",
-				Service:   "kms",
-				Region:    "us-west-2",
-				AccountID: "123456789012",
-				Resource:  "unused",
-			}.String(),
-			account: "123456789012",
-			region:  "us-west-2",
-		}.marshal(),
-	})
 
 	return &testPack{
 		backends: backends,

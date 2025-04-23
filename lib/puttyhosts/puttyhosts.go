@@ -20,6 +20,7 @@ package puttyhosts
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"slices"
@@ -29,9 +30,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -175,7 +175,7 @@ func getAllHostCAs(tc *client.TeleportClient, cfContext context.Context) ([]type
 	var err error
 	// get all CAs for the cluster (including trusted clusters)
 	var cas []types.CertAuthority
-	err = tc.WithRootClusterClient(cfContext, func(clt auth.ClientI) error {
+	err = tc.WithRootClusterClient(cfContext, func(clt authclient.ClientI) error {
 		cas, err = clt.GetCertAuthorities(cfContext, types.HostCA, false /* exportSecrets */)
 		if err != nil {
 			return trace.Wrap(err)
@@ -214,7 +214,7 @@ func ProcessHostCAPublicKeys(tc *client.TeleportClient, cfContext context.Contex
 					return nil, trace.Wrap(err)
 				}
 
-				hostCAPublicKey := strings.TrimPrefix(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCABytes))), constants.SSHRSAType+" ")
+				hostCAPublicKey := base64.StdEncoding.EncodeToString(hostCABytes.Marshal())
 				hostCAPublicKeys[ca.GetName()] = append(hostCAPublicKeys[ca.GetName()], hostCAPublicKey)
 			}
 		}
@@ -247,7 +247,7 @@ func FormatHostCAPublicKeysForRegistry(hostCAPublicKeys map[string][]string, hos
 // See https://the.earth.li/~sgtatham/putty/0.79/htmldoc/Chapter4.html#config-ssh-cert-valid-expr for details.
 func CheckAndSplitValidityKey(input string, caName string) ([]string, error) {
 	var output []string
-	docsURL := "https://goteleport.com/docs/connect-your-client/putty/#troubleshooting"
+	docsURL := "https://goteleport.com/docs/connect-your-client/putty-winscp/#troubleshooting"
 
 	// if the input string has no content (because the Validity key has no value yet), return the empty list
 	if len(input) == 0 {

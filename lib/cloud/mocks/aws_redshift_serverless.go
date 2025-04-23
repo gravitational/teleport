@@ -19,123 +19,127 @@
 package mocks
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless"
-	"github.com/aws/aws-sdk-go/service/redshiftserverless/redshiftserverlessiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
 
-// RedshiftServerlessMock mocks RedshiftServerless API.
-type RedshiftServerlessMock struct {
-	redshiftserverlessiface.RedshiftServerlessAPI
-
+type RedshiftServerlessClient struct {
 	Unauth               bool
-	Workgroups           []*redshiftserverless.Workgroup
-	Endpoints            []*redshiftserverless.EndpointAccess
-	TagsByARN            map[string][]*redshiftserverless.Tag
-	GetCredentialsOutput *redshiftserverless.GetCredentialsOutput
+	Workgroups           []rsstypes.Workgroup
+	Endpoints            []rsstypes.EndpointAccess
+	TagsByARN            map[string][]rsstypes.Tag
+	GetCredentialsOutput *rss.GetCredentialsOutput
 }
 
-func (m RedshiftServerlessMock) GetWorkgroupWithContext(_ aws.Context, input *redshiftserverless.GetWorkgroupInput, _ ...request.Option) (*redshiftserverless.GetWorkgroupOutput, error) {
+func (m RedshiftServerlessClient) GetWorkgroup(_ context.Context, input *rss.GetWorkgroupInput, _ ...func(*rss.Options)) (*rss.GetWorkgroupOutput, error) {
 	if m.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
 
 	for _, workgroup := range m.Workgroups {
-		if aws.StringValue(workgroup.WorkgroupName) == aws.StringValue(input.WorkgroupName) {
-			return new(redshiftserverless.GetWorkgroupOutput).SetWorkgroup(workgroup), nil
+		if aws.ToString(workgroup.WorkgroupName) == aws.ToString(input.WorkgroupName) {
+			return &rss.GetWorkgroupOutput{
+				Workgroup: &workgroup,
+			}, nil
 		}
 	}
-	return nil, trace.NotFound("workgroup %q not found", aws.StringValue(input.WorkgroupName))
+	return nil, trace.NotFound("workgroup %q not found", aws.ToString(input.WorkgroupName))
 }
-func (m RedshiftServerlessMock) GetEndpointAccessWithContext(_ aws.Context, input *redshiftserverless.GetEndpointAccessInput, _ ...request.Option) (*redshiftserverless.GetEndpointAccessOutput, error) {
+
+func (m RedshiftServerlessClient) GetEndpointAccess(_ context.Context, input *rss.GetEndpointAccessInput, _ ...func(*rss.Options)) (*rss.GetEndpointAccessOutput, error) {
 	if m.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	for _, endpoint := range m.Endpoints {
-		if aws.StringValue(endpoint.EndpointName) == aws.StringValue(input.EndpointName) {
-			return new(redshiftserverless.GetEndpointAccessOutput).SetEndpoint(endpoint), nil
+		if aws.ToString(endpoint.EndpointName) == aws.ToString(input.EndpointName) {
+			return &rss.GetEndpointAccessOutput{
+				Endpoint: &endpoint,
+			}, nil
 		}
 	}
-	return nil, trace.NotFound("endpoint %q not found", aws.StringValue(input.EndpointName))
+	return nil, trace.NotFound("endpoint %q not found", aws.ToString(input.EndpointName))
 }
-func (m RedshiftServerlessMock) ListWorkgroupsPagesWithContext(_ aws.Context, input *redshiftserverless.ListWorkgroupsInput, fn func(*redshiftserverless.ListWorkgroupsOutput, bool) bool, _ ...request.Option) error {
+
+func (m RedshiftServerlessClient) ListWorkgroups(_ context.Context, input *rss.ListWorkgroupsInput, _ ...func(*rss.Options)) (*rss.ListWorkgroupsOutput, error) {
 	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
+		return nil, trace.AccessDenied("unauthorized")
 	}
-	fn(&redshiftserverless.ListWorkgroupsOutput{
+	return &rss.ListWorkgroupsOutput{
 		Workgroups: m.Workgroups,
-	}, true)
-	return nil
+	}, nil
 }
-func (m RedshiftServerlessMock) ListEndpointAccessPagesWithContext(_ aws.Context, input *redshiftserverless.ListEndpointAccessInput, fn func(*redshiftserverless.ListEndpointAccessOutput, bool) bool, _ ...request.Option) error {
+
+func (m RedshiftServerlessClient) ListEndpointAccess(_ context.Context, input *rss.ListEndpointAccessInput, _ ...func(*rss.Options)) (*rss.ListEndpointAccessOutput, error) {
 	if m.Unauth {
-		return trace.AccessDenied("unauthorized")
+		return nil, trace.AccessDenied("unauthorized")
 	}
-	fn(&redshiftserverless.ListEndpointAccessOutput{
+	return &rss.ListEndpointAccessOutput{
 		Endpoints: m.Endpoints,
-	}, true)
-	return nil
+	}, nil
 }
-func (m RedshiftServerlessMock) ListTagsForResourceWithContext(_ aws.Context, input *redshiftserverless.ListTagsForResourceInput, _ ...request.Option) (*redshiftserverless.ListTagsForResourceOutput, error) {
+
+func (m RedshiftServerlessClient) ListTagsForResource(_ context.Context, input *rss.ListTagsForResourceInput, _ ...func(*rss.Options)) (*rss.ListTagsForResourceOutput, error) {
 	if m.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	if m.TagsByARN == nil {
-		return &redshiftserverless.ListTagsForResourceOutput{}, nil
+		return &rss.ListTagsForResourceOutput{}, nil
 	}
-	return &redshiftserverless.ListTagsForResourceOutput{
-		Tags: m.TagsByARN[aws.StringValue(input.ResourceArn)],
+	return &rss.ListTagsForResourceOutput{
+		Tags: m.TagsByARN[aws.ToString(input.ResourceArn)],
 	}, nil
 }
-func (m RedshiftServerlessMock) GetCredentialsWithContext(aws.Context, *redshiftserverless.GetCredentialsInput, ...request.Option) (*redshiftserverless.GetCredentialsOutput, error) {
+
+func (m RedshiftServerlessClient) GetCredentials(context.Context, *rss.GetCredentialsInput, ...func(*rss.Options)) (*rss.GetCredentialsOutput, error) {
 	if m.Unauth || m.GetCredentialsOutput == nil {
 		return nil, trace.AccessDenied("access denied")
 	}
 	return m.GetCredentialsOutput, nil
 }
 
-// RedshiftServerlessWorkgroup returns a sample redshiftserverless.Workgroup.
-func RedshiftServerlessWorkgroup(name, region string) *redshiftserverless.Workgroup {
-	return &redshiftserverless.Workgroup{
-		BaseCapacity: aws.Int64(32),
-		ConfigParameters: []*redshiftserverless.ConfigParameter{{
+// RedshiftServerlessWorkgroup returns a sample rsstypes.Workgroup.
+func RedshiftServerlessWorkgroup(name, region string) *rsstypes.Workgroup {
+	return &rsstypes.Workgroup{
+		BaseCapacity: aws.Int32(32),
+		ConfigParameters: []rsstypes.ConfigParameter{{
 			ParameterKey:   aws.String("max_query_execution_time"),
 			ParameterValue: aws.String("14400"),
 		}},
 		CreationDate: aws.Time(sampleTime),
-		Endpoint: &redshiftserverless.Endpoint{
+		Endpoint: &rsstypes.Endpoint{
 			Address: aws.String(fmt.Sprintf("%v.123456789012.%v.redshift-serverless.amazonaws.com", name, region)),
-			Port:    aws.Int64(5439),
-			VpcEndpoints: []*redshiftserverless.VpcEndpoint{{
+			Port:    aws.Int32(5439),
+			VpcEndpoints: []rsstypes.VpcEndpoint{{
 				VpcEndpointId: aws.String("vpc-endpoint-id"),
 				VpcId:         aws.String("vpc-id"),
 			}},
 		},
 		NamespaceName:      aws.String("my-namespace"),
 		PubliclyAccessible: aws.Bool(true),
-		Status:             aws.String("AVAILABLE"),
+		Status:             rsstypes.WorkgroupStatusAvailable,
 		WorkgroupArn:       aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%v:123456789012:workgroup/some-uuid-for-%v", region, name)),
 		WorkgroupId:        aws.String(fmt.Sprintf("some-uuid-for-%v", name)),
 		WorkgroupName:      aws.String(name),
 	}
 }
 
-// RedshiftServerlessEndpointAccess returns a sample redshiftserverless.EndpointAccess.
-func RedshiftServerlessEndpointAccess(workgroup *redshiftserverless.Workgroup, name, region string) *redshiftserverless.EndpointAccess {
-	return &redshiftserverless.EndpointAccess{
+// RedshiftServerlessEndpointAccess returns a sample rsstypes.EndpointAccess.
+func RedshiftServerlessEndpointAccess(workgroup *rsstypes.Workgroup, name, region string) *rsstypes.EndpointAccess {
+	return &rsstypes.EndpointAccess{
 		Address:            aws.String(fmt.Sprintf("%s-endpoint-xxxyyyzzz.123456789012.%s.redshift-serverless.amazonaws.com", name, region)),
 		EndpointArn:        aws.String(fmt.Sprintf("arn:aws:redshift-serverless:%s:123456789012:managedvpcendpoint/some-uuid-for-%v", region, name)),
 		EndpointCreateTime: aws.Time(sampleTime),
 		EndpointName:       aws.String(name),
 		EndpointStatus:     aws.String("AVAILABLE"),
-		Port:               aws.Int64(5439),
-		VpcEndpoint: &redshiftserverless.VpcEndpoint{
+		Port:               aws.Int32(5439),
+		VpcEndpoint: &rsstypes.VpcEndpoint{
 			VpcEndpointId: aws.String("vpce-id"),
 			VpcId:         aws.String("vpc-id"),
 		},
@@ -144,11 +148,11 @@ func RedshiftServerlessEndpointAccess(workgroup *redshiftserverless.Workgroup, n
 }
 
 // RedshiftServerlessGetCredentialsOutput return a sample redshiftserverless.GetCredentialsOutput.
-func RedshiftServerlessGetCredentialsOutput(user, password string, clock clockwork.Clock) *redshiftserverless.GetCredentialsOutput {
+func RedshiftServerlessGetCredentialsOutput(user, password string, clock clockwork.Clock) *rss.GetCredentialsOutput {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
-	return &redshiftserverless.GetCredentialsOutput{
+	return &rss.GetCredentialsOutput{
 		DbUser:          aws.String(user),
 		DbPassword:      aws.String(password),
 		Expiration:      aws.Time(clock.Now().Add(15 * time.Minute)),

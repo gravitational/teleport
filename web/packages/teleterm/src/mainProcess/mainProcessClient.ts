@@ -18,19 +18,17 @@
 
 import { ipcRenderer } from 'electron';
 
-import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { createConfigServiceClient } from '../services/config';
-
-import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
-
+import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
 import {
-  MainProcessClient,
-  ChildProcessAddresses,
   AgentProcessState,
+  ChildProcessAddresses,
+  MainProcessClient,
   MainProcessIpc,
   RendererIpc,
   WindowsManagerIpc,
@@ -41,6 +39,7 @@ export default function createMainProcessClient(): MainProcessClient {
     /*
      * Listeners for messages received by the renderer from the main process.
      */
+
     subscribeToNativeThemeUpdate: listener => {
       const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
         listener(value);
@@ -90,6 +89,7 @@ export default function createMainProcessClient(): MainProcessClient {
     /*
      * Messages sent from the renderer to the main process.
      */
+
     getRuntimeSettings() {
       return ipcRenderer.sendSync(MainProcessIpc.GetRuntimeSettings);
     },
@@ -103,6 +103,9 @@ export default function createMainProcessClient(): MainProcessClient {
     showFileSaveDialog(filePath: string) {
       return ipcRenderer.invoke('main-process-show-file-save-dialog', filePath);
     },
+    saveTextToFile(args) {
+      return ipcRenderer.invoke(MainProcessIpc.SaveTextToFile, args);
+    },
     openTerminalContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),
@@ -110,8 +113,8 @@ export default function createMainProcessClient(): MainProcessClient {
     removeKubeConfig(options) {
       return ipcRenderer.invoke('main-process-remove-kube-config', options);
     },
-    forceFocusWindow() {
-      return ipcRenderer.invoke('main-process-force-focus-window');
+    forceFocusWindow(args) {
+      return ipcRenderer.invoke(MainProcessIpc.ForceFocusWindow, args);
     },
     symlinkTshMacOs() {
       return ipcRenderer.invoke('main-process-symlink-tsh-macos');
@@ -181,10 +184,6 @@ export default function createMainProcessClient(): MainProcessClient {
         args
       );
     },
-    /**
-     * Signals to the windows manager that the UI has been fully initialized, that is the user has
-     * interacted with the relevant modals during startup and is free to use the app.
-     */
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },

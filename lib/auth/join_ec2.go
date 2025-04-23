@@ -34,13 +34,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/digitorus/pkcs7"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 type ec2Client interface {
@@ -61,7 +65,9 @@ func ec2ClientFromConfig(ctx context.Context, cfg aws.Config) ec2Client {
 	if ok {
 		return ec2Client
 	}
-	return ec2.NewFromConfig(cfg)
+	return ec2.NewFromConfig(cfg, func(o *ec2.Options) {
+		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+	})
 }
 
 // checkEC2AllowRules checks that the iid matches at least one of the allow
@@ -96,7 +102,9 @@ func checkInstanceRunning(ctx context.Context, instanceID, region, IAMRole strin
 
 	// assume the configured IAM role if necessary
 	if IAMRole != "" {
-		stsClient := sts.NewFromConfig(awsClientConfig)
+		stsClient := stsutils.NewFromConfig(awsClientConfig, func(o *sts.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		})
 		creds := stscreds.NewAssumeRoleProvider(stsClient, IAMRole)
 		awsClientConfig.Credentials = aws.NewCredentialsCache(creds)
 	}
@@ -173,21 +181,15 @@ func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken types.P
 }
 
 func nodeExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
-	if err != nil {
+	_, err := presence.GetNode(ctx, defaults.Namespace, hostID)
+	switch {
+	case trace.IsNotFound(err):
+		return false, nil
+	case err != nil:
 		return false, trace.Wrap(err)
+	default:
+		return true, nil
 	}
-	for _, namespace := range namespaces {
-		_, err := presence.GetNode(ctx, namespace.GetName(), hostID)
-		if trace.IsNotFound(err) {
-			continue
-		} else if err != nil {
-			return false, trace.Wrap(err)
-		} else {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func proxyExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
@@ -217,59 +219,46 @@ func kubeExists(ctx context.Context, presence services.Presence, hostID string) 
 }
 
 func appExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
+	apps, err := presence.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, namespace := range namespaces {
-		apps, err := presence.GetApplicationServers(ctx, namespace.GetName())
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		for _, app := range apps {
-			if app.GetName() == hostID {
-				return true, nil
-			}
+
+	for _, app := range apps {
+		if app.GetName() == hostID {
+			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
 func dbExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
+	dbs, err := presence.GetDatabaseServers(ctx, defaults.Namespace)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, namespace := range namespaces {
-		dbs, err := presence.GetDatabaseServers(ctx, namespace.GetName())
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		for _, db := range dbs {
-			if db.GetName() == hostID {
-				return true, nil
-			}
+
+	for _, db := range dbs {
+		if db.GetName() == hostID {
+			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
 func oktaExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	namespaces, err := presence.GetNamespaces()
+	apps, err := presence.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, namespace := range namespaces {
-		apps, err := presence.GetApplicationServers(ctx, namespace.GetName())
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		for _, app := range apps {
-			if app.GetName() == hostID && app.Origin() == types.OriginOkta {
-				return true, nil
-			}
+	for _, app := range apps {
+		if app.GetName() == hostID && app.Origin() == types.OriginOkta {
+			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
@@ -332,8 +321,12 @@ func (a *Server) tryToDetectIdentityReuse(ctx context.Context, req *types.Regist
 		return trace.Wrap(err)
 	}
 	if instanceExists {
-		log.Warnf("Server with ID %q and role %q is attempting to join the cluster with a Simplified Node Joining request, but"+
-			" a server with this ID is already present in the cluster.", req.HostID, req.Role)
+		const msg = "Server is attempting to join the cluster with a Simplified Node Joining request, but" +
+			" a server with this ID is already present in the cluster"
+		a.logger.WarnContext(ctx, msg,
+			"host_id", req.HostID,
+			"role", req.Role,
+		)
 		return trace.AccessDenied("server with host ID %q and role %q already exists", req.HostID, req.Role)
 	}
 	return nil
@@ -357,7 +350,7 @@ func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsi
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Received Simplified Node Joining request for host %q", req.HostID)
+	a.logger.DebugContext(ctx, "Received Simplified Node Joining request", "host_id", req.HostID)
 
 	if len(req.EC2IdentityDocument) == 0 {
 		return trace.AccessDenied("this token is only valid for the EC2 join " +

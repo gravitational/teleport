@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonSecondary, ButtonWarning, Text } from 'design';
+import { ButtonSecondary, ButtonWarning, H2, P1, Text } from 'design';
 import { Danger } from 'design/Alert';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
@@ -34,19 +33,17 @@ export default function RemoveDialog(props: Props) {
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
       <DialogContent width="400px">
-        <Text typography="h2" mb={2}>
-          Remove Device
-        </Text>
+        <H2 mb={4}>Remove Device</H2>
         {attempt.status == 'failed' && (
           <Danger mb={2}>{attempt.statusText}</Danger>
         )}
-        <Text typography="paragraph" mb="6">
+        <P1>
           Are you sure you want to remove device{' '}
           <Text as="span" bold color="text.main">
             {name}
           </Text>{' '}
           ?
-        </Text>
+        </P1>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning

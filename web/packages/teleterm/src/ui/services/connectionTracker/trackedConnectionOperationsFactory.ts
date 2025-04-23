@@ -16,18 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
+  DocumentGateway,
   DocumentOrigin,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
+import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import {
   getGatewayDocumentByConnection,
+  getGatewayKubeDocumentByConnection,
   getKubeDocumentByConnection,
   getServerDocumentByConnection,
-  getGatewayKubeDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
   TrackedConnection,
@@ -120,16 +121,25 @@ export class TrackedConnectionOperationsFactory {
       activate: params => {
         let gwDoc = documentsService
           .getDocuments()
-          .find(getGatewayDocumentByConnection(connection));
+          .find(getGatewayDocumentByConnection(connection)) as DocumentGateway;
 
         if (!gwDoc) {
+          const gw = this._clustersService.findGatewayByConnectionParams({
+            targetUri: connection.targetUri,
+            targetUser: connection.targetUser,
+            targetSubresourceName: connection.targetSubresourceName,
+          });
+
           gwDoc = documentsService.createGatewayDocument({
             targetUri: connection.targetUri,
             targetName: connection.targetName,
             targetUser: connection.targetUser,
             targetSubresourceName: connection.targetSubresourceName,
             title: connection.title,
-            gatewayUri: connection.gatewayUri,
+            // If the doc was closed but the gateway is still running, it's important for the
+            // doc to reopen with the existing gateway URI. Otherwise the doc would attempt to
+            // create a new gateway with the same connection params.
+            gatewayUri: gw?.uri,
             port: connection.port,
             origin: params.origin,
           });
@@ -139,16 +149,22 @@ export class TrackedConnectionOperationsFactory {
         documentsService.open(gwDoc.uri);
       },
       disconnect: async () => {
-        return this._clustersService
-          .removeGateway(connection.gatewayUri)
-          .then(() => {
-            documentsService
-              .getDocuments()
-              .filter(getGatewayDocumentByConnection(connection))
-              .forEach(document => {
-                documentsService.close(document.uri);
-              });
-          });
+        // When disconnecting, assume that the gateway exists. If a gateway doesn't exist, the UI is
+        // supposed to expose the remove operation, not the disconnect operation.
+        const gw = this._clustersService.findGatewayByConnectionParams({
+          targetUri: connection.targetUri,
+          targetUser: connection.targetUser,
+          targetSubresourceName: connection.targetSubresourceName,
+        });
+
+        return this._clustersService.removeGateway(gw.uri).then(() => {
+          documentsService
+            .getDocuments()
+            .filter(getGatewayDocumentByConnection(connection))
+            .forEach(document => {
+              documentsService.close(document.uri);
+            });
+        });
       },
       remove: async () => {},
     };

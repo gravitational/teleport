@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import styled from 'styled-components';
 
-import { Box, ButtonLink, ButtonPrimary, Text, Card } from 'design';
-
-import { OnboardCard } from 'design/Onboard/OnboardCard';
+import { Box, ButtonLink, ButtonPrimary, Card, H1, H2, Text } from 'design';
 
 import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';
 
@@ -28,9 +27,11 @@ export default {
   title: 'Design/StepSlider',
 };
 
-const singleFlow = { default: [Body1, Body2] };
+const singleFlow = { default: [Body1, Body2, Body3] };
 export const SingleFlowInPlaceSlider = (props: {
   defaultStepIndex?: number;
+  wrapping?: boolean;
+  tDuration?: number;
 }) => {
   return (
     <Card my="5" mx="auto" width={464}>
@@ -42,6 +43,8 @@ export const SingleFlowInPlaceSlider = (props: {
         currFlow={'default'}
         testProp="I'm that test prop"
         defaultStepIndex={props.defaultStepIndex}
+        wrapping={props.wrapping}
+        tDuration={props.tDuration}
       />
     </Card>
   );
@@ -49,6 +52,10 @@ export const SingleFlowInPlaceSlider = (props: {
 
 export const SingleFlowWithDefaultStepIndex = () => {
   return <SingleFlowInPlaceSlider defaultStepIndex={1} />;
+};
+
+export const SingleFlowWithWrapping = () => {
+  return <SingleFlowInPlaceSlider wrapping />;
 };
 
 type MultiFlow = 'primary' | 'secondary';
@@ -59,7 +66,10 @@ const multiflows = {
   primary: [MainStep1, MainStep2, FinalStep],
   secondary: [OtherStep1, FinalStep],
 };
-export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
+export const MultiFlowWheelSlider = (props: {
+  defaultStepIndex?: number;
+  tDuration?: number;
+}) => {
   const [flow, setFlow] = useState<MultiFlow>('primary');
   const [newFlow, setNewFlow] = useState<NewFlow<MultiFlow>>();
 
@@ -79,6 +89,7 @@ export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
       newFlow={newFlow}
       changeFlow={onNewFlow}
       defaultStepIndex={props.defaultStepIndex}
+      tDuration={props.tDuration}
     />
   );
 };
@@ -86,9 +97,9 @@ export const MultiFlowWheelSlider = (props: { defaultStepIndex?: number }) => {
 function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-primary1">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         First Step
-      </Text>
+      </H1>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -121,9 +132,9 @@ function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
 function MainStep2({ next, prev, refCallback, changeFlow }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-primary2">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         Second Step
-      </Text>
+      </H1>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -182,9 +193,9 @@ function MainStep2({ next, prev, refCallback, changeFlow }: ViewProps) {
 function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-secondary1">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         Some Other Flow Title
-      </Text>
+      </H1>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -219,9 +230,9 @@ function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
 function FinalStep({ prev, refCallback }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-final">
-      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
+      <H1 mb={3} textAlign="center">
         Done Step
-      </Text>
+      </H1>
       <Text mb={3}>
         Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
         dolore eu fugiat nulla pariatur.
@@ -252,9 +263,7 @@ function Body1({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body1">
-      <Text typography="h2" mb={3}>
-        Step 1
-      </Text>
+      <H2 mb={3}>Step 1</H2>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -292,9 +301,7 @@ function Body2({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body2">
-      <Text typography="h2" mb={3}>
-        Step 2
-      </Text>
+      <H2 mb={3}>Step 2</H2>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -311,21 +318,83 @@ function Body2({
         size="large"
         onClick={e => {
           e.preventDefault();
-          onPrev();
+          onNext();
         }}
       >
-        Back2
+        Next2
       </ButtonPrimary>
       <Box mt={5}>
         <ButtonLink
           onClick={e => {
             e.preventDefault();
-            onNext();
+            onPrev();
           }}
         >
-          Next2
+          Back2
         </ButtonLink>
       </Box>
     </Box>
   );
 }
+
+function Body3({
+  prev: onPrev,
+  next: onNext,
+  refCallback,
+  testProp,
+}: StepComponentProps & { testProp: string }) {
+  return (
+    <Box p={6} ref={refCallback} data-testid="single-body3">
+      <H2 mb={3}>Step 3</H2>
+      <Text mb={3}>
+        Aenean et fringilla orci. Suspendisse ipsum arcu, molestie in quam eu,
+        euismod euismod nibh. Cras scelerisque vulputate mattis. Mauris eget
+        elit imperdiet diam volutpat egestas id non odio. Morbi sit amet
+        malesuada justo.
+      </Text>
+      <Text mb={3}>
+        Proin ipsum orci, imperdiet ac iaculis eget, mattis eu dolor. Maecenas
+        porta porta dolor ac vestibulum.
+      </Text>
+      <Text mb={6}>{testProp}</Text>
+      <ButtonPrimary
+        width="100%"
+        size="large"
+        onClick={e => {
+          e.preventDefault();
+          onNext();
+        }}
+      >
+        Next3
+      </ButtonPrimary>
+      <Box mt={5}>
+        <ButtonLink
+          onClick={e => {
+            e.preventDefault();
+            onPrev();
+          }}
+        >
+          Back3
+        </ButtonLink>
+      </Box>
+    </Box>
+  );
+}
+
+const OnboardCard = styled(Card)<{ center?: boolean }>`
+  width: 600px;
+  padding: ${props => props.theme.space[4]}px;
+  text-align: ${props => (props.center ? 'center' : 'left')};
+  margin: ${props => props.theme.space[3]}px auto
+    ${props => props.theme.space[3]}px auto;
+  overflow-y: auto;
+
+  @media screen and (max-width: 800px) {
+    width: auto;
+    margin: 20px;
+  }
+
+  @media screen and (max-height: 760px) {
+    height: calc(100vh - 250px);
+  }
+`;

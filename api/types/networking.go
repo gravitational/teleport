@@ -107,17 +107,17 @@ type ClusterNetworkingConfig interface {
 	// SetProxyPingInterval sets the proxy ping interval.
 	SetProxyPingInterval(time.Duration)
 
-	// GetAssistCommandExecutionWorkers gets the number of parallel command execution workers for Assist
-	GetAssistCommandExecutionWorkers() int32
-
-	// SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
-	SetAssistCommandExecutionWorkers(n int32)
-
 	// GetCaseInsensitiveRouting gets the case-insensitive routing option.
 	GetCaseInsensitiveRouting() bool
 
 	// SetCaseInsensitiveRouting sets the case-insenstivie routing option.
 	SetCaseInsensitiveRouting(cir bool)
+
+	// GetSSHDialTimeout gets timeout value that should be used for SSH connections.
+	GetSSHDialTimeout() time.Duration
+
+	// SetSSHDialTimeout sets the timeout value that should be used for SSH connections.
+	SetSSHDialTimeout(t time.Duration)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -179,16 +179,6 @@ func (c *ClusterNetworkingConfigV2) Expiry() time.Time {
 // GetMetadata returns object metadata.
 func (c *ClusterNetworkingConfigV2) GetMetadata() Metadata {
 	return c.Metadata
-}
-
-// GetResourceID returns resource ID.
-func (c *ClusterNetworkingConfigV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *ClusterNetworkingConfigV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -378,12 +368,6 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if c.Spec.AssistCommandExecutionWorkers < 0 {
-		return trace.BadParameter("command_execution_workers must be non-negative")
-	} else if c.Spec.AssistCommandExecutionWorkers == 0 {
-		c.Spec.AssistCommandExecutionWorkers = defaults.AssistCommandExecutionWorkers
-	}
-
 	return nil
 }
 
@@ -397,16 +381,6 @@ func (c *ClusterNetworkingConfigV2) SetProxyPingInterval(interval time.Duration)
 	c.Spec.ProxyPingInterval = Duration(interval)
 }
 
-// GetAssistCommandExecutionWorkers gets the number of parallel command execution workers for Assist
-func (c *ClusterNetworkingConfigV2) GetAssistCommandExecutionWorkers() int32 {
-	return c.Spec.AssistCommandExecutionWorkers
-}
-
-// SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
-func (c *ClusterNetworkingConfigV2) SetAssistCommandExecutionWorkers(n int32) {
-	c.Spec.AssistCommandExecutionWorkers = n
-}
-
 // GetCaseInsensitiveRouting gets the case-insensitive routing option.
 func (c *ClusterNetworkingConfigV2) GetCaseInsensitiveRouting() bool {
 	return c.Spec.CaseInsensitiveRouting
@@ -415,6 +389,26 @@ func (c *ClusterNetworkingConfigV2) GetCaseInsensitiveRouting() bool {
 // SetCaseInsensitiveRouting sets the case-insensitive routing option.
 func (c *ClusterNetworkingConfigV2) SetCaseInsensitiveRouting(cir bool) {
 	c.Spec.CaseInsensitiveRouting = cir
+}
+
+// GetSSHDialTimeout returns the timeout to be used for SSH connections.
+// If the value is not set, or was intentionally set to zero or a negative value,
+// [defaults.DefaultIOTimeout] is returned instead. This is because
+// a zero value cannot be distinguished to mean no timeout, or
+// that a value had never been set.
+func (c *ClusterNetworkingConfigV2) GetSSHDialTimeout() time.Duration {
+	if c.Spec.SSHDialTimeout <= 0 {
+		return defaults.DefaultIOTimeout
+	}
+
+	return c.Spec.SSHDialTimeout.Duration()
+}
+
+// SetSSHDialTimeout updates the SSH connection timeout. The value is
+// not validated, but will not be respected if zero or negative. See
+// the docs on [ClusterNetworkingConfigV2.GetSSHDialTimeout] for more details.
+func (c *ClusterNetworkingConfigV2) SetSSHDialTimeout(t time.Duration) {
+	c.Spec.SSHDialTimeout = Duration(t)
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshaled to a string

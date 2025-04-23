@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
 import { DbProtocol } from 'shared/services/databases';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -32,7 +33,10 @@ export enum IamPolicyStatus {
 }
 
 export type Aws = {
-  rds: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets' | 'vpcId'>;
+  rds: Pick<
+    AwsRdsDatabase,
+    'resourceId' | 'region' | 'subnets' | 'vpcId' | 'securityGroups'
+  >;
   iamPolicyStatus: IamPolicyStatus;
 };
 
@@ -45,9 +49,12 @@ export interface Database {
   labels: ResourceLabel[];
   names?: string[];
   users?: string[];
+  roles?: string[];
   hostname: string;
   aws?: Aws;
   requiresRequest?: boolean;
+  supportsInteractive?: boolean;
+  autoUsersEnabled?: boolean;
 }
 
 export type DatabasesResponse = {
@@ -70,6 +77,8 @@ export type CreateDatabaseRequest = {
   labels?: ResourceLabel[];
   awsRds?: AwsRdsDatabase;
   awsRegion?: Regions;
+  awsVpcId?: string;
+  overwrite?: boolean;
 };
 
 export type DatabaseIamPolicyResponse = {
@@ -94,4 +103,15 @@ export type DatabaseServicesResponse = {
   services: DatabaseService[];
   startKey?: string;
   totalCount?: number;
+};
+
+export type DatabaseServer = {
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
+};
+
+export type DatabaseServerResponse = {
+  items: DatabaseServer[];
+  startKey?: string;
 };

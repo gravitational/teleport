@@ -60,6 +60,8 @@ const (
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherOpenSearch is the AWS matcher type for OpenSearch databases.
 	AWSMatcherOpenSearch = "opensearch"
+	// AWSMatcherDocumentDB is the AWS matcher type for DocumentDB databases.
+	AWSMatcherDocumentDB = "docdb"
 )
 
 // SupportedAWSMatchers is list of AWS services currently supported by the
@@ -81,6 +83,7 @@ var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherElastiCache,
 	AWSMatcherMemoryDB,
 	AWSMatcherOpenSearch,
+	AWSMatcherDocumentDB,
 }
 
 // RequireAWSIAMRolesAsUsersMatchers is a list of the AWS databases that
@@ -91,6 +94,7 @@ var SupportedAWSDatabaseMatchers = []string{
 var RequireAWSIAMRolesAsUsersMatchers = []string{
 	AWSMatcherRedshiftServerless,
 	AWSMatcherOpenSearch,
+	AWSMatcherDocumentDB,
 }
 
 // GetTypes gets the types that the matcher can match.
@@ -143,7 +147,16 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
-	if m.Tags == nil || len(m.Tags) == 0 {
+	if m.SetupAccessForARN != "" {
+		if !slices.Contains(m.Types, AWSMatcherEKS) {
+			return trace.BadParameter("discovery service AWS matcher setup_access_for_arn is only supported for eks")
+		}
+		if err := awsapiutils.CheckRoleARN(m.SetupAccessForARN); err != nil {
+			return trace.BadParameter("invalid setup access for ARN: %v", err)
+		}
+	}
+
+	if len(m.Tags) == 0 {
 		m.Tags = map[string]apiutils.Strings{Wildcard: {Wildcard}}
 	}
 
@@ -151,6 +164,24 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		m.Params = &InstallerParams{
 			InstallTeleport: true,
 		}
+	}
+
+	switch m.Params.EnrollMode {
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED:
+		m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT
+		if m.Integration != "" {
+			m.Params.EnrollMode = InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE
+		}
+
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
+		if m.Integration == "" {
+			return trace.BadParameter("integration is required for eice enroll mode")
+		}
+
+	case InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
+
+	default:
+		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
 	}
 
 	switch m.Params.JoinMethod {

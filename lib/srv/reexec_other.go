@@ -1,5 +1,4 @@
 //go:build !linux
-// +build !linux
 
 /*
  * Teleport
@@ -26,6 +25,8 @@ import (
 )
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {}
+
+func parkerCommandOSTweaks(cmd *exec.Cmd) {}
 
 func userCommandOSTweaks(cmd *exec.Cmd) {}
 
