@@ -6,6 +6,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -172,7 +173,7 @@ func (p *provisioner) filterValidMembers(
 			p.accessListSvc,
 			p.locksSvc,
 			p.clock,
-		); membershipKind == accesslists.MembershipOrOwnershipTypeNone {
+		); membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 			log.WarnContext(ctx, "User does not meet Access List requirements")
 			continue
 		}

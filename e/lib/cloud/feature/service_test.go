@@ -208,6 +208,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		CloudAnonymizationKey:   []byte("anonymization-key-1"),
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.K8s:                    {Enabled: true, Limit: 0},
+			entitlements.AccessGraphDemoMode:    {},
 			entitlements.AccessLists:            {},
 			entitlements.AccessMonitoring:       {},
 			entitlements.AccessRequests:         {Enabled: true, Limit: 0},
@@ -260,6 +261,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.App:                    {Enabled: true, Limit: 0},
 			entitlements.K8s:                    {Enabled: false, Limit: 0},
+			entitlements.AccessGraphDemoMode:    {},
 			entitlements.AccessLists:            {},
 			entitlements.AccessMonitoring:       {},
 			entitlements.AccessRequests:         {},
@@ -303,6 +305,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.App:                    {Enabled: true, Limit: 0},
 			entitlements.K8s:                    {Enabled: false, Limit: 0},
+			entitlements.AccessGraphDemoMode:    {},
 			entitlements.AccessLists:            {},
 			entitlements.AccessMonitoring:       {},
 			entitlements.AccessRequests:         {},
@@ -348,6 +351,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		Assist:              false,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.DB:                     {Enabled: true, Limit: 0},
+			entitlements.AccessGraphDemoMode:    {},
 			entitlements.AccessLists:            {Enabled: true, Limit: 1},
 			entitlements.AccessMonitoring:       {},
 			entitlements.AccessRequests:         {},
@@ -391,6 +395,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		AccessControls:      true,
 		Assist:              false,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.AccessGraphDemoMode:    {},
 			entitlements.AccessLists:            {Enabled: true, Limit: 0},
 			entitlements.DB:                     {},
 			entitlements.AccessMonitoring:       {},
@@ -437,6 +442,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 		Assist:              false,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.Desktop:                {Enabled: true, Limit: 0},
+			entitlements.AccessGraphDemoMode:    {},
 			entitlements.AccessLists:            {},
 			entitlements.AccessMonitoring:       {},
 			entitlements.AccessRequests:         {},

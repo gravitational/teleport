@@ -1,3 +1,5 @@
+import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
+
 import { AllUserTraits } from 'teleport/services/user';
 
 // IneligibleStatus describes a member or owner's
@@ -67,6 +69,8 @@ export type AccessList = {
   owners: AccessListOwner[];
   // inheritedMemberGrants is the list of member grants by inheritance from parent access lists.
   inheritedMemberGrants: AccessListGrant;
+  // currentUserAssignments describes the current user's membership and ownership in the access list.
+  currentUserAssignments?: AccessListCurrentUserAssignments;
 };
 
 // A user must match both roles and traits to
@@ -124,6 +128,13 @@ export type AccessListAudit = {
 export type AccessListGrant = {
   roles: string[];
   traits: AllUserTraits;
+};
+
+// AccessListCurrentUserAssignments describes the current user's
+// membership and ownership in a given access list.
+export type AccessListCurrentUserAssignments = {
+  ownershipType: AccessListUserAssignmentType;
+  membershipType: AccessListUserAssignmentType;
 };
 
 export type OwnerRequest = Omit<

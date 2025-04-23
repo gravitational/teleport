@@ -104,14 +104,29 @@ export function OwnersList({
                     disabled={false}
                     title={rest.accessListExists ? title : ''}
                   >
-                    <NestedListLink
-                      title={
-                        rest.accessListExists ? `View list '${title}'` : ''
-                      }
-                      onClick={() => onClickNestedList(name)}
-                      disabled={!rest.accessListExists}
+                    <Flex
+                      flexDirection="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      gap={1}
                     >
-                      {title}
+                      <NestedListLink
+                        title={
+                          rest.accessListExists ? `View list '${title}'` : ''
+                        }
+                        onClick={() => onClickNestedList(name)}
+                        disabled={!rest.accessListExists}
+                        css={`
+                          display: inline-block;
+                          text-overflow: ellipsis;
+                          overflow: hidden;
+                          white-space: nowrap;
+                          max-width: fit-content;
+                          flex-shrink: 1;
+                        `}
+                      >
+                        {title}
+                      </NestedListLink>
                       {!rest.accessListExists && (
                         <IconTooltip
                           kind="warning"
@@ -121,7 +136,7 @@ export function OwnersList({
                           `}
                         />
                       )}
-                    </NestedListLink>
+                    </Flex>
                   </CustomCell>
                 );
               }

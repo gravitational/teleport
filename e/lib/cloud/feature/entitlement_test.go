@@ -13,6 +13,7 @@ import (
 
 func TestGetCloudEntitlements(t *testing.T) {
 	expected := map[entitlements.EntitlementKind]modules.EntitlementInfo{
+		entitlements.AccessGraphDemoMode:    {Enabled: false},
 		entitlements.AccessLists:            {Enabled: true},
 		entitlements.AccessMonitoring:       {Enabled: true, Limit: 1},
 		entitlements.AccessRequests:         {Enabled: false},
@@ -52,6 +53,7 @@ func TestGetCloudEntitlements(t *testing.T) {
 
 func TestGetLicenseEntitlements(t *testing.T) {
 	expected := map[entitlements.EntitlementKind]modules.EntitlementInfo{
+		entitlements.AccessGraphDemoMode:    {Enabled: false},
 		entitlements.AccessLists:            {Enabled: true},
 		entitlements.AccessMonitoring:       {Enabled: true, Limit: 11},
 		entitlements.AccessRequests:         {Enabled: false},

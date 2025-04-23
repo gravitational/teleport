@@ -1,3 +1,5 @@
+import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
+
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 import auth from 'teleport/services/auth/auth';
@@ -5,6 +7,7 @@ import { makeTraits } from 'teleport/services/user/makeUser';
 
 import {
   AccessList,
+  AccessListCurrentUserAssignments,
   AccessListMember,
   AccessListOwner,
   AccessListType,
@@ -224,8 +227,42 @@ function makeAccessList(json: any): AccessList {
       roles: json?.inherited_member_grants?.roles || [],
       traits: makeTraits(json?.inherited_member_grants?.traits),
     },
+    currentUserAssignments: makeAccessListCurrentUserAssignments(
+      json?.current_user_assignments
+    ),
   };
 }
+
+const makeAccessListCurrentUserAssignments = (
+  json: any
+): AccessListCurrentUserAssignments => {
+  if (!json) {
+    return undefined;
+  }
+
+  const { ownership_type, membership_type } = json as {
+      ownership_type: number;
+      membership_type: number;
+    },
+    ownershipType = intToUserAssignmentType(ownership_type),
+    membershipType = intToUserAssignmentType(membership_type);
+
+  return { ownershipType, membershipType };
+};
+
+const intToUserAssignmentType = (
+  type: number
+): AccessListUserAssignmentType => {
+  switch (type) {
+    case 1:
+      return AccessListUserAssignmentType.EXPLICIT;
+    case 2:
+      return AccessListUserAssignmentType.INHERITED;
+    case 0:
+    default:
+      return AccessListUserAssignmentType.UNSPECIFIED;
+  }
+};
 
 export function getIneligibleReason(ineligibleStatus: IneligibleStatus) {
   if (ineligibleStatus === IneligibleStatus.UserNotExist) {

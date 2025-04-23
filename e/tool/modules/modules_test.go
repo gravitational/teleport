@@ -252,6 +252,7 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 		RecoveryCodes:           false,
 		SupportType:             2,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.AccessGraphDemoMode:    {Enabled: false},
 			entitlements.AccessLists:            {Enabled: true, Limit: 222},
 			entitlements.AccessMonitoring:       {Enabled: true, Limit: 222},
 			entitlements.AccessRequests:         {Enabled: true, Limit: 222},

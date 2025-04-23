@@ -321,8 +321,9 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 		}
 
 		for _, result := range results {
-			isMember, err := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead, types.VerbList)
-			isMemberMap[result.GetName()] = isMember
+			currentAssignments, err := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead, types.VerbList)
+			isMemberMap[result.GetName()] = currentAssignments.IsMember()
+			result.Status.CurrentUserAssignments = &currentAssignments
 			if err == nil {
 				filteredResults = append(filteredResults, result)
 			}
@@ -353,35 +354,40 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 
 // userCanReadAccessList will return no error if the user is an owner, a member, or has RBAC access to the access list.
 // True will be returned if the user can only read the access list because they are a member.
-func (s *Service) userCanReadAccessList(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList, verb string, additionalVerbs ...string) (isMember bool, err error) {
+func (s *Service) userCanReadAccessList(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList, verb string, additionalVerbs ...string) (accesslist.CurrentUserAssignments, error) {
 	authErr := s.hasAccessListRBAC(ctx, authCtx, accessList, verb, additionalVerbs...)
+
+	assignments := accesslist.CurrentUserAssignments{
+		OwnershipType:  accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+		MembershipType: accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+	}
 
 	// If access is explicitly denied, we'll not allow owner or membership checks.
 	if services.IsAccessExplicitlyDenied(authErr) {
-		return false, trace.Wrap(authErr)
+		return assignments, trace.Wrap(authErr)
 	}
 
 	// We also can't do owner or membership checks if accessList or authCtx are nil.
 	if authCtx == nil {
-		return false, trace.AccessDenied("access denied")
+		return assignments, trace.AccessDenied("access denied")
 	}
 	if accessList == nil {
-		return false, trace.NotFound("Access List not found")
+		return assignments, trace.NotFound("Access List not found")
 	}
 
 	// Allow the user to access the list if they are an owner or member.
 	if ownershipType, err := accesslists.IsAccessListOwner(ctx, authCtx.User, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
-		if ownershipType != accesslists.MembershipOrOwnershipTypeNone {
-			return false, nil
-		}
+		assignments.OwnershipType = ownershipType
 	}
 	if membershipType, err := accesslists.IsAccessListMember(ctx, authCtx.User, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
-		if membershipType != accesslists.MembershipOrOwnershipTypeNone {
-			return true, nil
-		}
+		assignments.MembershipType = membershipType
 	}
 
-	return false, trace.Wrap(authErr)
+	if assignments.IsOwner() || assignments.IsMember() {
+		return assignments, nil
+	}
+
+	return assignments, trace.Wrap(authErr)
 }
 
 // GetAccessList returns the specified access list resource.
@@ -394,7 +400,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	result, getErr := s.cache.GetAccessList(ctx, req.GetName())
 
 	// If we can get the access list, authorize using it.
-	isMember, err := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead)
+	currentAssignments, err := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -405,7 +411,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 		return nil, trace.Wrap(getErr)
 	}
 
-	s.addMemberCounts(ctx, isMember, result)
+	s.addMemberCounts(ctx, currentAssignments.IsMember(), result)
 
 	// Get a list of all users, to compute eligibility for owners.
 	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
@@ -416,6 +422,8 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 
 	updatedOwners := applyOwnersIneligibleStatus(result, s.clock, userLookup)
 	result.SetOwners(updatedOwners)
+
+	result.Status.CurrentUserAssignments = &currentAssignments
 
 	return conv.ToProto(result), nil
 }
@@ -471,7 +479,7 @@ func (s *Service) GetAccessListsToReview(ctx context.Context, req *accesslistv1.
 // needsReviewBy returns true if the access list should be reviewed by the user.
 func (s *Service) needsReviewBy(ctx context.Context, user types.User, accessList *accesslist.AccessList, now time.Time) bool {
 	if ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
-		if ownershipType != accesslists.MembershipOrOwnershipTypeNone {
+		if ownershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 			return accessList.Spec.Audit.NextAuditDate.Sub(now) <= accessList.Spec.Audit.Notifications.Start
 		}
 	}
@@ -981,7 +989,7 @@ func (s *Service) userTryingToAddThemselves(ctx context.Context, authCtx *authz.
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if memberType != accesslists.MembershipOrOwnershipTypeNone {
+			if memberType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				return trace.AccessDenied("Adding an Access List you are a member of to another Access List is not allowed")
 			}
 		} else if member.GetName() == username {
@@ -1421,7 +1429,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 
 	hasRBAC := authErrOld == nil && authErrNew == nil
 	ownershipType, err := accesslists.IsAccessListOwner(ctx, authCtx.User, newAccessList, s.accessLists, s.lockGetter, s.clock)
-	isOwner := err == nil && ownershipType != accesslists.MembershipOrOwnershipTypeNone
+	isOwner := err == nil && ownershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 
 	// The logic here is as follows:
 	// - If the user has RBAC permissions, anything is permitted.
@@ -1630,7 +1638,7 @@ func (s *Service) isOwnerOfAccessList(ctx context.Context, authCtx *authz.Contex
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if ownershipType == accesslists.MembershipOrOwnershipTypeNone {
+	if ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 		return trace.AccessDenied("access denied")
 	}
 

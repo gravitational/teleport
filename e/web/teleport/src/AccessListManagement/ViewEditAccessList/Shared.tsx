@@ -6,6 +6,7 @@ import { Cell } from 'design/DataTable';
 import { Pencil } from 'design/Icon';
 import Link from 'design/Link';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
 import { Option } from 'shared/components/Select';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
@@ -93,13 +94,19 @@ export type Perms = {
 
 export const getPerms = ({
   accessListAccess,
-  isOwner,
+  accessList,
 }: {
   accessListAccess?: Access;
+  accessList?: AccessList;
   isOwner?: boolean;
 }): Perms => {
+  const isOwner = [
+    AccessListUserAssignmentType.EXPLICIT,
+    AccessListUserAssignmentType.INHERITED,
+  ].includes(accessList?.currentUserAssignments?.ownershipType);
+
   return {
-    isOwner,
+    isOwner: isOwner,
     adminWhoCanRead: accessListAccess?.read && accessListAccess?.list,
     adminWhoCanEdit: accessListAccess?.edit,
     adminWhoCanDelete: accessListAccess?.remove,
@@ -140,13 +147,8 @@ export const modifyAccessList = (
   };
 
   const accessListAccess = ctx.storeUser.getAccessListAccess();
-  const isOwner = isAccessListOwnerRecursive(
-    acl,
-    acls,
-    ctx.storeUser.getUsername()
-  );
 
-  return [modifiedAccessList, getPerms({ accessListAccess, isOwner })];
+  return [modifiedAccessList, getPerms({ accessListAccess, accessList: acl })];
 };
 
 export const getTitlesForNestedListOwnersMembers = (
@@ -170,55 +172,6 @@ export const getTitlesForNestedListOwnersMembers = (
     return { ...o, title: acl?.title || o.name, accessListExists: !!acl };
   }),
 });
-
-export const isAccessListOwnerRecursive = (
-  acl:
-    | (Partial<AccessList> & Pick<AccessList, 'owners' | 'members'>)
-    | undefined,
-  acls: (AccessList | AccessListWithModifiedGrants)[],
-  username: string,
-  depth = 0
-) => {
-  if (!acl || depth > 10) {
-    return false;
-  }
-  if (depth === 0) {
-    for (const owner of acl.owners) {
-      if (owner.name === username) {
-        return true;
-      }
-      if (
-        owner.membershipKind === AccessListMemberKind.List &&
-        isAccessListOwnerRecursive(
-          acls.find(acl => acl.id === owner.name),
-          acls,
-          username,
-          depth + 1
-        )
-      ) {
-        return true;
-      }
-    }
-  } else {
-    for (const member of acl.members) {
-      if (member.name === username) {
-        return true;
-      }
-      if (
-        member.membershipKind === AccessListMemberKind.List &&
-        isAccessListOwnerRecursive(
-          acls.find(acl => acl.id === member.name),
-          acls,
-          username,
-          depth + 1
-        )
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
-};
 
 export const CustomCell: React.FC<
   PropsWithChildren<{ disabled: boolean; title?: string | undefined }>

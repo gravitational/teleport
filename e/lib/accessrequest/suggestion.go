@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport/api/accessrequest"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/accesslists"
@@ -94,7 +95,7 @@ func canModifyAccessList(ctx context.Context, clt modules.RoleGetter, reviewer t
 	// if owner, then can list and modify
 	ownershipType, err := accesslists.IsAccessListOwner(ctx, reviewer, accessList, accessListGetter, nil, clockwork.NewRealClock())
 	// Owner is inherited or explicit
-	if ownershipType != accesslists.MembershipOrOwnershipTypeNone {
+	if ownershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 		return nil
 	}
 	if !trace.IsAccessDenied(err) {
@@ -178,7 +179,7 @@ func (v *suggestionValidator) isValidSuggestion(ctx context.Context, list *acces
 		return false, trace.Wrap(err)
 	}
 	// If the user is not a member, then the access list may be a valid suggestion.
-	if membershipType != accesslists.MembershipOrOwnershipTypeNone {
+	if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 		return false, nil
 	}
 	// Access lists not assignable to the user are irrelevant.

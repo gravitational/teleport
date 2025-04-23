@@ -42,11 +42,13 @@ func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httpro
 		}
 
 		for _, accessList := range page {
-			accessLists = append(accessLists, &ui.AccessList{
-				AccessList:      accessList,
-				MembersCount:    accessList.Status.MemberCount,
-				MemberListCount: accessList.Status.MemberListCount,
-			})
+			uiList := &ui.AccessList{
+				AccessList:             accessList,
+				MembersCount:           accessList.GetStatus().MemberCount,
+				MemberListCount:        accessList.GetStatus().MemberListCount,
+				CurrentUserAssignments: accessList.GetStatus().CurrentUserAssignments,
+			}
+			accessLists = append(accessLists, uiList)
 		}
 
 		if nextKey == "" {
@@ -91,15 +93,18 @@ func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.AccessListResponse{
+	resp := ui.AccessListResponse{
 		AccessList: &ui.AccessList{
-			AccessList:            accessList,
-			Members:               membersSpec,
-			MembersCount:          accessList.Status.MemberCount,
-			MemberListCount:       accessList.Status.MemberListCount,
-			InheritedMemberGrants: *inheritedGrants,
+			AccessList:             accessList,
+			Members:                membersSpec,
+			MembersCount:           accessList.GetStatus().MemberCount,
+			MemberListCount:        accessList.GetStatus().MemberListCount,
+			InheritedMemberGrants:  *inheritedGrants,
+			CurrentUserAssignments: accessList.GetStatus().CurrentUserAssignments,
 		},
-	}, nil
+	}
+
+	return resp, nil
 }
 
 // listAllMembers is a helper function to list all members of an access list.

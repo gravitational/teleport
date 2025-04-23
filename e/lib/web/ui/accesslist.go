@@ -22,6 +22,9 @@ type AccessList struct {
 
 	// InheritedMemberGrants is a list of inherited member grants from nested access lists.
 	InheritedMemberGrants accesslist.Grants `json:"inherited_member_grants"`
+
+	// CurrentUserAssignments describes the current user's ownership and membership status in the access list.
+	CurrentUserAssignments *accesslist.CurrentUserAssignments `json:"current_user_assignments"`
 }
 
 // AccessListResponse is a UI representation of an access list response.

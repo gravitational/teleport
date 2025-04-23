@@ -1,3 +1,5 @@
+import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
+
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
 
@@ -52,6 +54,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
         },
         nextDate: undefined,
       },
+      currentUserAssignments: undefined,
       ownershipRequires: {
         roles: [],
         traits: {},
@@ -81,6 +84,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     members: [],
     membersCount: undefined,
     memberListCount: undefined,
+    currentUserAssignments: undefined,
     membershipRequires: { roles: [], traits: {} },
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
@@ -111,6 +115,10 @@ test('fetch an access list', async () => {
       },
       membersCount: 1234,
       memberListCount: 0,
+      current_user_assignments: {
+        ownership_type: AccessListUserAssignmentType.EXPLICIT,
+        membership_type: AccessListUserAssignmentType.UNSPECIFIED,
+      },
       spec: {
         title: 'some title',
         description: 'some description',
@@ -191,6 +199,10 @@ test('fetch an access list', async () => {
     },
     membersCount: 1234,
     memberListCount: 0,
+    currentUserAssignments: {
+      ownershipType: AccessListUserAssignmentType.EXPLICIT,
+      membershipType: AccessListUserAssignmentType.UNSPECIFIED,
+    },
     members: [
       {
         name: 'george',
@@ -314,7 +326,6 @@ describe('update an access list', () => {
     ],
   };
 
-  // eslint-disable-next-line jest/require-hook
   [
     {
       case: 'empty request should use original',

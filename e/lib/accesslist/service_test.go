@@ -54,6 +54,7 @@ const (
 // cmpOpts are general cmpOpts for all comparisons.
 var cmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	cmpopts.IgnoreFields(accesslist.Status{}, "CurrentUserAssignments"),
 	cmpopts.SortSlices(func(a, b *accesslist.AccessList) bool {
 		return a.GetName() < b.GetName()
 	}),
@@ -3008,8 +3009,9 @@ func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.
 	)
 	require.NoError(t, err)
 	accessList.Status = accesslist.Status{
-		OwnerOf:  []string{},
-		MemberOf: []string{},
+		OwnerOf:                []string{},
+		MemberOf:               []string{},
+		CurrentUserAssignments: &accesslist.CurrentUserAssignments{},
 	}
 
 	return accessList
