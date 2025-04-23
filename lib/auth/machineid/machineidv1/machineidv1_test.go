@@ -422,7 +422,7 @@ func TestCreateBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-success-with-max-ttl",
 					Namespace: defaults.Namespace,
@@ -1422,7 +1422,7 @@ func TestUpsertBot(t *testing.T) {
 			},
 			wantRole: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,

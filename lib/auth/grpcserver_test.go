@@ -5013,6 +5013,21 @@ func TestRoleVersions(t *testing.T) {
 						require.True(t, foundTestRole, "GetRoles result does not include expected role")
 					}
 
+					// Test ListRoles
+					listRoles, err := client.ListRoles(ctx, &proto.ListRolesRequest{})
+					checkErr(err)
+					if !tc.expectError {
+						foundTestRole := false
+						for _, gotRole := range listRoles.Roles {
+							if gotRole.GetName() == tc.inputRole.GetName() {
+								checkRole(gotRole)
+								foundTestRole = true
+								break
+							}
+						}
+						require.True(t, foundTestRole, "ListRoles result does not include expected role")
+					}
+
 					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 					defer cancel()
 
@@ -5341,6 +5356,7 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						// and ignore it in the role diff.
 						if tc.expectDowngraded {
 							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role V8 is only supported")
 						}
 					}
 
