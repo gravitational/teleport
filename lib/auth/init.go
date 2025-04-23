@@ -367,6 +367,9 @@ type InitConfig struct {
 
 	// AuthInfo is a service of auth server information.
 	AuthInfo services.AuthInfoService
+
+	// SkipVersionCheck skips version check during major version upgrade/downgrade.
+	SkipVersionCheck bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -415,7 +418,8 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService, *teleport.SemVersion); err != nil {
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService,
+		*teleport.SemVersion, cfg.SkipVersionCheck); err != nil {
 		return trace.Wrap(err)
 	}
 

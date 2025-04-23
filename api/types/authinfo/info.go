@@ -19,7 +19,7 @@ package authinfo
 import (
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
+	authinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 )

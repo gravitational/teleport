@@ -2157,6 +2157,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auth.InitConfig{
 			Backend:                 b,
 			VersionStorage:          process.storage,
+			SkipVersionCheck:        cfg.SkipVersionCheck,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			AutoUpdateService:       cfg.AutoUpdateService,

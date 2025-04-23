@@ -2205,7 +2205,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
-				t.Setenv(skipVersionUpgradeCheckEnv, "yes")
+				authCfg.SkipVersionCheck = true
 			}
 
 			_, err = Init(ctx, authCfg)

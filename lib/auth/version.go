@@ -48,8 +48,9 @@ func validateAndUpdateTeleportVersion(
 	procStorage VersionStorage,
 	backendStorage services.AuthInfoService,
 	currentVersion semver.Version,
+	skipVersionCheck bool,
 ) (err error) {
-	skip := os.Getenv(skipVersionUpgradeCheckEnv) != ""
+	skip := skipVersionCheck || os.Getenv(skipVersionUpgradeCheckEnv) != ""
 
 	// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
 	// Fallback to local process storage for backward compatibility with previous versions.
