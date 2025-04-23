@@ -1154,6 +1154,22 @@ message CommandLabelV2 {
 message AppAWS {
   // ExternalID is the AWS External ID used when assuming roles in this app.
   string ExternalID = 1 [(gogoproto.jsontag) = "external_id,omitempty"];
+  // RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application.
+  // These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.
+  AppAWSRolesAnywhereProfile RolesAnywhereProfile = 2 [(gogoproto.jsontag) = "roles_anywhere_profile,omitempty"];
+}
+
+// AppAWSRolesAnywhereProfile contains the fields that represent an AWS IAM Roles Anywhere Profile.
+message AppAWSRolesAnywhereProfile {
+  // ProfileARN is the AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.
+  string ProfileARN = 1 [(gogoproto.jsontag) = "profile_arn,omitempty"];
+
+  // Whether this Roles Anywhere Profile accepts a custom role session name.
+  // When not supported, the AWS Session Name will be the X.509 certificate's serial number.
+  // When supported, the AWS Session Name will be the identity's username.
+  // This values comes from:
+  // https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName
+  bool AcceptRoleSessionName = 2 [(gogoproto.jsontag) = "accept_role_session_name"];
 }
 
 // PrivateKeyType is the storage type of a private key.
