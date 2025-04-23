@@ -1,5 +1,14 @@
 # Changelog
 
+## 16.5.4 (04/22/25)
+
+* User Kind is now correctly reported for Bots in the app.session.start audit log event. [#54242](https://github.com/gravitational/teleport/pull/54242)
+* Fix issue that prevent Kubernetes agents from connecting to GKE control plane using the new DNS-based access mechanism. [#54217](https://github.com/gravitational/teleport/pull/54217)
+* Teleport-update: stabilize binary paths in generated tbot config. [#54179](https://github.com/gravitational/teleport/pull/54179)
+* Reduce log spam in discovery service error messaging. [#54150](https://github.com/gravitational/teleport/pull/54150)
+* The web UI now shows role descriptions in the roles table. [#54136](https://github.com/gravitational/teleport/pull/54136)
+* Leaf cluster joining attempts that conflict with an existing cluster registered with the root now generate an error instead of failing silently. [#54133](https://github.com/gravitational/teleport/pull/54133)
+
 ## 16.5.3 (04/17/25)
 
 * Fix a bug in managed updates v1 causing updaters v2 and AWS integrations to never update if weekdays were set in the `cluster_maintenance_config` resource. [#54089](https://github.com/gravitational/teleport/pull/54089)
