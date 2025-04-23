@@ -135,9 +135,6 @@ jobs:
         with:
           name: build-artifacts
 
-      - name: List downloaded contents
-        run: ls -R
-
       - name: Build Debian package
         env:
           ARCH: amd64
@@ -161,6 +158,9 @@ jobs:
           make rpm-unsigned VERSION="$VERSION"
           cp build/*.rpm build/artifacts
 
+      - name: List downloaded contents
+        run: ls -R
+
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
@@ -179,11 +179,6 @@ jobs:
         container:
           - { image: "ubuntu:24.04", package-manager: "apt" }
           - { image: "ubuntu:22.04", package-manager: "apt" }
-          - { image: "ubuntu:20.04", package-manager: "apt" }
-          # ubuntu:18.04 disabled for checkout@v3/node20/glibc compatibility failures
-          #- {image: "ubuntu:18.04", package-manager: "apt"}
-          - { image: "debian:10", package-manager: "apt" }
-          - { image: "debian:11", package-manager: "apt" }
           - { image: "debian:12", package-manager: "apt" }
     container:
       image: ${{ matrix.container.image }}
@@ -226,9 +221,6 @@ jobs:
         container:
           - { image: "registry.access.redhat.com/ubi8:8.7", package-manager: "yum" }
           - { image: "registry.access.redhat.com/ubi9:9.1", package-manager: "yum" }
-
-          # The other tags are too specific so latest is used instead
-          # sles12sp5 disabled for checkout@v3/node20/glibc compatibility failures
           - { image: "registry.suse.com/bci/bci-base:15.5", package-manager: "zypper", is-sles: false }
     container:
       image: ${{ matrix.container.image }}
@@ -250,6 +242,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: test-assets
+
+      - name: List downloaded packages
+        run: ls -R
 
       # sles12 specific setup
       - name: Initialize sle12 package repo

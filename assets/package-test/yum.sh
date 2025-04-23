@@ -75,9 +75,7 @@ function install_package() {
     : "${1:?teleport_version was not provided}"
     local teleport_version="$1"
 
-    local yum_teleport_version
-    yum_teleport_version="$(echo "${teleport_version}" | sed 's/-/_/g')"
-    yum "${YUM_FLAGS[@]}" install -y "teleport-${yum_teleport_version}.$(rpm --eval '%{_arch}').rpm"
+    yum "${YUM_FLAGS[@]}" install -y "teleport-${teleport_version}-1.$(rpm --eval '%{_arch}').rpm"
     verify_teleport "${teleport_version}"
-    echo "successfully installed teleport teleport-${yum_teleport_version}.$(rpm --eval '%{_arch}').rpm"
+    echo "successfully installed teleport teleport-${teleport_version}-1.$(rpm --eval '%{_arch}').rpm"
 }
