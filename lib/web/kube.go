@@ -61,6 +61,7 @@ type podExecHandler struct {
 	teleportCluster     string
 	configTLSServerName string
 	configServerAddr    string
+	publicProxyAddr     string
 	req                 *PodExecRequest
 	sess                session.Session
 	sctx                *SessionContext
@@ -246,7 +247,7 @@ func (p *podExecHandler) handler(r *http.Request) error {
 	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(stream.WSStream, p.sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFACeremony:       newMFACeremony(stream.WSStream, p.sctx.cfg.RootClient.CreateAuthenticateChallenge, p.publicProxyAddr),
 		MFAAgainstRoot:    p.sctx.cfg.RootClusterName == p.teleportCluster,
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.req.KubeCluster},
@@ -518,7 +519,7 @@ func (h *Handler) joinKubernetesSession(
 	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: clt,
 		RootAuthClient:    sctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(stream.WSStream, sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFACeremony:       newMFACeremony(stream.WSStream, sctx.cfg.RootClient.CreateAuthenticateChallenge, h.cfg.PublicProxyAddr),
 		MFAAgainstRoot:    sctx.cfg.RootClusterName == tracker.GetClusterName(),
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: tracker.GetKubeCluster()},
@@ -574,7 +575,7 @@ func (h *Handler) joinKubernetesSession(
 			AuthClient: func(ctx context.Context) (authclient.ClientI, error) {
 				return noopAuthClientCloser{clt}, nil
 			},
-			Ceremony: newMFACeremony(stream.WSStream, nil),
+			Ceremony: newMFACeremony(stream.WSStream, nil, h.cfg.PublicProxyAddr),
 			Stdin:    stream,
 			Stdout:   stream,
 			Stderr:   stderrWriter{stream: stream},

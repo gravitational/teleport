@@ -1,5 +1,21 @@
 # Changelog
 
+## 17.4.5 (04/17/25)
+
+* The Teleport Terraform Provider now supports setting the Managed Updates v2 resources `autoupdate_config` and `autoupdate_version`. [#54109](https://github.com/gravitational/teleport/pull/54109)
+* Fix a bug in managed updates v1 causing updaters v2 and AWS integrations to never update if weekdays were set in the `cluster_maintenance_config` resource. [#54088](https://github.com/gravitational/teleport/pull/54088)
+* Teleport-update: ensure teleport-upgrade is always disabled when teleport-update is used. [#54087](https://github.com/gravitational/teleport/pull/54087)
+* Added an option for users to select database roles when connecting to PostgreSQL databases using WebUI. [#54068](https://github.com/gravitational/teleport/pull/54068)
+* Allow the use of expressions in the Where condition on Role RBAC rules for the Bot resource. [#54065](https://github.com/gravitational/teleport/pull/54065)
+* Machine and Workload Identity: Increase the maximum allowed bot certificate TTL to 7 days, up from 24 hours. Larger values than the default 12 hours must be explicitly requested using the new `--max-session-ttl` flag in `tctl bots add`. [#54063](https://github.com/gravitational/teleport/pull/54063)
+* Teleport-update: Improve defaulting for update groups. [#54050](https://github.com/gravitational/teleport/pull/54050)
+* Fixed VNet on MacOS with hardware keys. [#54037](https://github.com/gravitational/teleport/pull/54037)
+* Added SAML IdP service provider preset for Microsoft Entra External ID. [#54021](https://github.com/gravitational/teleport/pull/54021)
+* Fixed TLS errors when switching between VNet apps on Windows. [#54010](https://github.com/gravitational/teleport/pull/54010)
+
+Enterprise:
+* Added support to Machine & Workload Identity SPIFFE CA for issuing X509-SVIDs using an external PKI hierarchy.
+
 ## 17.4.4 (04/14/25)
 
 * Fixed formatting of Ed25519 SSH keys for PuTTY users. [#53972](https://github.com/gravitational/teleport/pull/53972)

@@ -663,10 +663,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						// Missing all the node/app/database/windows labels here, they should be added
 						Rules: []types.Rule{
 							{
 								Resources: []string{
@@ -749,6 +746,8 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindStaticHostUser, RW()),
 							types.NewRule(types.KindWorkloadIdentity, RW()),
 							types.NewRule(types.KindGitServer, RW()),
+							types.NewRule(types.KindAutoUpdateConfig, RW()),
+							types.NewRule(types.KindAutoUpdateVersion, RW()),
 						},
 					},
 				},

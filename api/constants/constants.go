@@ -515,4 +515,8 @@ const (
 	// joining. The audience tag specifies the optional suffix for the TF_WORKLOAD_IDENTITY_AUDIENCE variable when
 	// specifically using the `terraform` join method.
 	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
+	// EnvVarGitlabIDTokenEnvVar is the environment variable that specifies the name of the environment variable
+	// that contains the GitLab ID token. This can be used to authenticate to multiple Teleport clusters from a single
+	// GitLab CI job.
+	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
 )
