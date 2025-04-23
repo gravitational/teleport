@@ -402,7 +402,8 @@ func Test_evaluateRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := evaluateRules(context.Background(), tt.wid, tt.attrs, OSSSigstorePolicyEvaluator{})
+			err := evaluateRules(context.Background(), tt.wid, tt.attrs,
+				OSSSigstorePolicyEvaluator{}, make(map[string]error))
 			tt.requireErr(t, err)
 		})
 	}
@@ -445,10 +446,11 @@ func Test_decision_sigstore(t *testing.T) {
 	t.Run("failure", func(t *testing.T) {
 		evaluator := newMockSigstorePolicyEvaluator(t)
 
-		for policy, result := range map[string]error{
+		results := map[string]error{
 			"foo": nil,
 			"bar": errors.New("missing artifact signature"),
-		} {
+		}
+		for policy, result := range results {
 			evaluator.On("Evaluate", mock.Anything, []string{policy}, attrs).
 				Return(map[string]error{policy: result}, nil)
 		}
@@ -460,6 +462,7 @@ func Test_decision_sigstore(t *testing.T) {
 			evaluator,
 		)
 		require.False(t, decision.shouldIssue)
+		require.Equal(t, results, decision.sigstorePolicyResults)
 	})
 }
 
