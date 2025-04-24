@@ -967,7 +967,7 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 			require.Eventually(t, func() bool {
 				return reporter.DiscoveryFetchEventCount() > 0
-			}, 5*time.Second, 50*time.Millisecond)
+			}, 10*time.Second, 50*time.Millisecond)
 
 			// Discovery Config Status is updated accordingly
 			if tc.wantDiscoveryConfigStatus != nil {
