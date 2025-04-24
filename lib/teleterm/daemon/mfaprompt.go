@@ -64,7 +64,7 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 	s.mfaMu.Lock()
 	defer s.mfaMu.Unlock()
 
-	return s.tshdEventsClient.PromptMFA(ctx, in)
+	return s.cfg.TshdEventsClient.client.PromptMFA(ctx, in)
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
