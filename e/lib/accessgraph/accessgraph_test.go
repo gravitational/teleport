@@ -23,7 +23,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
@@ -205,6 +207,13 @@ func TestTeleportAccessGraphSync(t *testing.T) {
 
 	svc := initService(t)
 
+	accessGraphSettings, err := clusterconfig.NewAccessGraphSettings(&clusterconfigv1.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigv1.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+	})
+	require.NoError(t, err)
+	_, err = svc.authServer.CreateAccessGraphSettings(ctx, accessGraphSettings)
+	require.NoError(t, err)
+
 	go func() {
 		err := initializeAndWatchAccessGraph(
 			ctx,
@@ -335,9 +344,12 @@ func initService(t *testing.T) testServiceComponents {
 		ClusterName: "localhost",
 	})
 	require.NoError(t, err)
+	clusterConfigService, err := local.NewClusterConfigurationService(backend)
+	require.NoError(t, err)
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                backend,
+		ClusterConfiguration:   clusterConfigService,
 		VersionStorage:         auth.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
@@ -392,6 +404,12 @@ func TestUserSecretsCleanup(t *testing.T) {
 	t.Cleanup(cancel)
 
 	svc := initService(t)
+	accessGraphSettings, err := clusterconfig.NewAccessGraphSettings(&clusterconfigv1.AccessGraphSettingsSpec{
+		SecretsScanConfig: clusterconfigv1.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
+	})
+	require.NoError(t, err)
+	_, err = svc.authServer.CreateAccessGraphSettings(ctx, accessGraphSettings)
+	require.NoError(t, err)
 
 	user, err := types.NewUser("user1")
 	require.NoError(t, err)

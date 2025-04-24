@@ -6,9 +6,16 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 )
 
+// AccessGraphSettingsStatus holds the current status information about the Access Graph service
+type AccessGraphSettingsStatus struct {
+	InitialSyncComplete bool `json:"initial_sync_complete"`
+}
+
 // AccessGraphSettings is the settings for the access graph.
 type AccessGraphSettings struct {
-	EnableSecretsScan bool `json:"enable_secrets_scan"`
+	EnableSecretsScan bool                      `json:"enable_secrets_scan"`
+	EnableDemoMode    bool                      `json:"enable_demo_mode"`
+	Status            AccessGraphSettingsStatus `json:"status"`
 }
 
 // FromProtoAccessGraphSettings converts an AccessGraphSettings proto to AccessGraphSettings.
@@ -17,8 +24,16 @@ func FromProtoAccessGraphSettings(proto *clusterconfigpb.AccessGraphSettings) *A
 	if proto.GetSpec().GetSecretsScanConfig() == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED {
 		enableSecretsScan = true
 	}
+	var enableDemoMode bool
+	if proto.GetStatus() != nil {
+		enableDemoMode = proto.GetSpec().GetDemoMode() == clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED
+	}
 	return &AccessGraphSettings{
 		EnableSecretsScan: enableSecretsScan,
+		Status: AccessGraphSettingsStatus{
+			InitialSyncComplete: proto.GetStatus().GetInitialSyncComplete(),
+		},
+		EnableDemoMode: enableDemoMode,
 	}
 }
 
@@ -36,6 +51,11 @@ func (a AccessGraphSettings) UpdateProto(msg *clusterconfigpb.AccessGraphSetting
 	proto.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED
 	if a.EnableSecretsScan {
 		proto.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+	}
+
+	proto.Spec.DemoMode = clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_DISABLED
+	if a.EnableDemoMode {
+		proto.Spec.DemoMode = clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED
 	}
 
 	return proto

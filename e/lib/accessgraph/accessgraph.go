@@ -17,6 +17,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -198,6 +199,32 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 
 			log.DebugContext(ctx, "Done sending teleport resources to access graph service")
 
+			for attemptsLeft := 3; ; {
+				accessGraphSettings, err := authServer.GetAccessGraphSettings(ctx)
+				if err == nil {
+					if accessGraphSettings.Status == nil {
+						accessGraphSettings.Status = &clusterconfigv1.AccessGraphSettingsStatus{}
+					}
+
+					accessGraphSettings.Status.InitialSyncComplete = true
+					_, err = authServer.UpdateAccessGraphSettings(ctx, accessGraphSettings)
+					if err == nil {
+						break
+					}
+				}
+
+				attemptsLeft--
+				if attemptsLeft == 0 {
+					return trace.Wrap(err)
+				}
+
+				select {
+				case <-time.After(time.Second):
+				case <-ctx.Done():
+					return nil
+				}
+			}
+
 			// Marks as ready and send delayed events.
 			if err := eventWatcherSender.markReady(); err != nil {
 				return trace.Wrap(err)
@@ -268,13 +295,11 @@ const (
 	servicesWatcherKind
 )
 
-var (
-	servicesWatcherOnlyKinds = []string{
-		types.KindAccessGraphSecretAuthorizedKey,
-		types.KindAccessGraphSecretPrivateKey,
-		types.KindDevice,
-	}
-)
+var servicesWatcherOnlyKinds = []string{
+	types.KindAccessGraphSecretAuthorizedKey,
+	types.KindAccessGraphSecretPrivateKey,
+	types.KindDevice,
+}
 
 func supportedKindsToWatcherKinds(supportedKinds []string, wk watcherKind) []types.WatchKind {
 	var observedKinds []types.WatchKind

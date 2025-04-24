@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/roundtrip"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +124,6 @@ func TestGetAccessGraph(t *testing.T) {
 			test.assertQueryError(t, err)
 
 			test.validation(t, s)
-
 		})
 	}
 }
@@ -339,25 +339,61 @@ func TestAccessGraphSettings(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		change       bool
-		initialValue clusterconfigpb.AccessGraphSecretsScanConfig
-		want         accessgraphui.AccessGraphSettings
+		name                string
+		change              bool
+		initialSpec         *clusterconfigpb.AccessGraphSettingsSpec
+		initialSyncComplete bool
+		want                accessgraphui.AccessGraphSettings
 	}{
 		{
-			name:         "enable secrets scan",
-			change:       true,
-			initialValue: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+			name:   "enable secrets scan",
+			change: true,
+			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+				SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
+			},
 			want: accessgraphui.AccessGraphSettings{
 				EnableSecretsScan: true,
 			},
 		},
 		{
-			name:         "disable secrets scan",
-			initialValue: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-			change:       false,
+			name: "disable secrets scan",
+			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+				SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+			},
+			change: false,
 			want: accessgraphui.AccessGraphSettings{
 				EnableSecretsScan: false,
+			},
+		},
+		{
+			name:   "enable demo mode",
+			change: true,
+			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+				DemoMode: clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED,
+			},
+			want: accessgraphui.AccessGraphSettings{
+				EnableSecretsScan: true,
+			},
+		},
+		{
+			name: "disable demo mode",
+			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+				DemoMode: clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_DISABLED,
+			},
+			change: false,
+			want: accessgraphui.AccessGraphSettings{
+				EnableSecretsScan: false,
+			},
+		},
+		{
+			name:                "initial sync complete",
+			initialSpec:         &clusterconfigpb.AccessGraphSettingsSpec{},
+			initialSyncComplete: true,
+			change:              false,
+			want: accessgraphui.AccessGraphSettings{
+				Status: accessgraphui.AccessGraphSettingsStatus{
+					InitialSyncComplete: true,
+				},
 			},
 		},
 	}
@@ -372,8 +408,9 @@ func TestAccessGraphSettings(t *testing.T) {
 				Metadata: &headerv1.Metadata{
 					Name: types.MetaNameAccessGraphSettings,
 				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
-					SecretsScanConfig: tt.initialValue,
+				Spec: tt.initialSpec,
+				Status: &clusterconfigpb.AccessGraphSettingsStatus{
+					InitialSyncComplete: tt.initialSyncComplete,
 				},
 			})
 			require.NoError(t, err)
@@ -389,7 +426,7 @@ func TestAccessGraphSettings(t *testing.T) {
 				assert.NoError(t, err)
 
 				got := unmarshal(t, resp)
-				expectedValue := tt.initialValue == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+				expectedValue := cmp.Equal(tt.initialSpec.SecretsScanConfig, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
 				assert.Equal(t, expectedValue, got.EnableSecretsScan)
 			}, 5*time.Second, 1*time.Second)
 
@@ -407,7 +444,6 @@ func TestAccessGraphSettings(t *testing.T) {
 
 				got = unmarshal(t, resp)
 				assert.Equal(t, tt.want, got)
-
 			}, 5*time.Second, 1*time.Second)
 		})
 	}

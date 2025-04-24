@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
@@ -181,20 +182,28 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 	ctx := process.ExitContext()
 	cfg.Logger.DebugContext(ctx, "Access Graph integration enabled")
 
-	// Register as non-critical service. We don't want to fail the startup if
-	// access graph is not available.
-	process.RegisterFunc("access-graph-service", func() error {
+	registerFunc := func() error {
 		// Need to check this here inside the service function, rather than on process creation,
 		// since Cloud features are loaded dynamically. More detailed explanation in:
 		// https://github.com/gravitational/teleport/blob/3af6d9c1a25836bb160589a27a7d168a19a4992b/lib/service/service.go#L1873
+		accessGraphSettings, err := process.GetAuthServer().GetAccessGraphSettings(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		features := modules.GetModules().Features()
-		if !features.GetEntitlement(entitlements.Policy).Enabled {
-			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
+		demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
+
+		policyEnabled := features.GetEntitlement(entitlements.Policy).Enabled
+		if !policyEnabled && !demoModeEnabled {
+			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy and demo mode not enabled. Access graph sync will not be enabled.")
 			return nil
 		}
-		modules.GetModules().EnableAccessGraph()
-
-		cfg.Logger.InfoContext(ctx, "Starting access graph service")
+		if policyEnabled {
+			modules.GetModules().EnableAccessGraph()
+			cfg.Logger.InfoContext(ctx, "Starting access graph service")
+		} else {
+			cfg.Logger.InfoContext(ctx, "Starting access graph service in demo mode")
+		}
 
 		accessGraphAddr := cfg.AccessGraph.Addr
 		if accessGraphAddr == "" {
@@ -309,9 +318,75 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 				}
 			}
 		}
-	})
+	}
+
+	accessGraphSettings, err := process.GetAuthServer().GetAccessGraphSettings(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	features := modules.GetModules().Features()
+	// demoModeEnabled is true if demo mode is enabled in AccessGraphSettings and they have the demo mode entitlment.
+	demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
+	// if the license has policy enabled, or they've already enabled demo mode, start the access graph service
+	if features.GetEntitlement(entitlements.Policy).Enabled || demoModeEnabled {
+		// Register as non-critical service. We don't want to fail the startup if
+		// access graph is not available.
+		process.RegisterFunc("access-graph-service", registerFunc)
+
+		return nil
+	}
+	// demo mode is only accessible in cloud, so we can skip creating a watcher for everyone else
+	if !features.Cloud {
+		return nil
+	}
+
+	// otherwise, start a watcher that will watch the AccessGraphSettings resource for updates to demo mode
+	go func() error {
+		demoModeWatcher, err := process.GetAuthServer().NewWatcher(ctx, types.Watch{
+			Kinds: []types.WatchKind{{
+				Kind: types.KindAccessGraphSettings,
+			}},
+		})
+		if err != nil {
+			cfg.Logger.ErrorContext(ctx, "Unable to start AccessGraphSettings watcher.", "error", err)
+			return nil
+		}
+		defer demoModeWatcher.Close()
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case event := <-demoModeWatcher.Events():
+				if event.Type != types.OpPut {
+					continue
+				}
+				unwrapper, ok := event.Resource.(types.Resource153UnwrapperT[*clusterconfigv1.AccessGraphSettings])
+				if !ok {
+					cfg.Logger.ErrorContext(ctx, "Received unknown type in AccessGraphSettings watcher", "kind", event.Resource.GetKind())
+					continue
+				}
+				accessGraphSettings := unwrapper.UnwrapT()
+				demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
+
+				// because entitlements can change during the lifetime of the service, we have to check
+				// if they are entitled to use AccessGraphDemoMode before turning demo mode on
+				if !demoModeEnabled {
+					continue
+				}
+
+				process.RegisterFunc("access-graph-service", registerFunc)
+				return nil
+			case <-demoModeWatcher.Done():
+				return demoModeWatcher.Error()
+			}
+		}
+	}()
 
 	return nil
+}
+
+func getDemoModeEnabled(accessGraphSettings *clusterconfigv1.AccessGraphSettings, features modules.Features) bool {
+	return accessGraphSettings.GetSpec().GetDemoMode() == clusterconfigv1.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED && features.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled
 }
 
 func watchAndPushCAs(ctx context.Context, log *slog.Logger, clusterName string, services *auth.Services, client accessgraphv1.AccessGraphServiceClient) error {

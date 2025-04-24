@@ -53,6 +53,8 @@ type AccessGraphConfig struct {
 	Insecure bool
 	// CipherSuites is the list of cipher suites to use for the Access Graph connection.
 	CipherSuites []uint16
+	// DemoMode indicates if Access Graph should run with a limited capacity.
+	DemoMode bool
 }
 
 // Config is a configuration of the web plugin

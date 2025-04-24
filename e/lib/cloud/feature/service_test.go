@@ -340,7 +340,8 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 				Entitlements: map[string]*cloudapi.EntitlementInfo{
 					"DB":          {Enabled: true, Limit: 0},
 					"AccessLists": {Enabled: true, Limit: 1},
-				}}, nil
+				},
+			}, nil
 		},
 	)
 	// check backend for updated features
@@ -386,7 +387,8 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 				ProductType:  cloudapi.ProductType_PRODUCT_TYPE_EUB,
 				Entitlements: map[string]*cloudapi.EntitlementInfo{
 					"AccessLists": {Enabled: true, Limit: 0},
-				}}, nil
+				},
+			}, nil
 		},
 	)
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{
@@ -433,7 +435,8 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 					"Bar":     {Enabled: true, Limit: 0},
 					"Desktop": {Enabled: true, Limit: 0},
 					"baz":     {Enabled: true, Limit: 0},
-				}}, nil
+				},
+			}, nil
 		},
 	)
 	requireFeatures(t, fakeClock, backend, ctx, modules.Features{

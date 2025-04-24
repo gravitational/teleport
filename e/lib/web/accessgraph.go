@@ -23,10 +23,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	accessgraphui "github.com/gravitational/teleport/e/lib/web/ui/access_graph"
+	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -77,6 +79,9 @@ func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
 // queryAccessGraph is a handler for the /v1/accessgraph/query endpoint.
 // It queries the access graph and returns the results.
 func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {
+	if !p.h.GetClusterFeatures().Policy.Enabled {
+		return nil, trace.AccessDenied("not authorized to use access graph")
+	}
 	query := r.URL.Query().Get("query")
 	if query == "" {
 		return nil, trace.BadParameter("query parameter is required")
@@ -110,12 +115,72 @@ func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ http
 	return resp, trace.Wrap(err)
 }
 
+// demoModePaths are paths accessible in TAG with demo mode
+var demoModePaths = map[string]struct{}{
+	"/enterprise/accessgraph/graph/tester/teleport/role/v1": {},
+}
+
+// canUseAccessGraph is used to check and set values if policy and/or demo mode is enabled for requests
+// that access resources in tag. It takes a path which is checked to exist in the valid demo mode paths
+// If Policy is enabled, proceed as usual. Otherwise, check if Demo Mode is enabled and update
+// the Demo Mode state on subsequent requests to skip redundant checks.
+func (p *Plugin) canUseAccessGraph(ctx context.Context, requestedPath string) (bool, error) {
+	policyEnabled := p.h.GetClusterFeatures().Policy.Enabled
+
+	if policyEnabled {
+		return true, nil
+	}
+	// if the path is not a demo path and policy isnt enabled, reject.
+	if _, exists := demoModePaths[requestedPath]; !exists {
+		return false, nil
+	}
+	p.mu.Lock()
+	demoEnabled := p.AccessGraph.DemoMode
+	p.mu.Unlock()
+
+	// if either of these are true, we can shortcut any extra checks
+	if demoEnabled {
+		return true, nil
+	}
+
+	// These endpoints should generally not be reached unless the cluster has Policy or Demo Mode enabled.
+	// Before making API requests, we ensure either is enabled. If not, we can check if the value of policy or demo
+	// have been changed, and set them accordingly.
+	clt, err := p.getAuthClient()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	accessGraphSettings, err := clt.ClusterConfigClient().
+		GetAccessGraphSettings(
+			ctx,
+			&clusterconfigpb.GetAccessGraphSettingsRequest{},
+		)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	p.mu.Lock()
+	p.AccessGraph.DemoMode = accessGraphSettings.GetSpec().GetDemoMode() == clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED
+	demoEnabled = p.AccessGraph.DemoMode
+	p.mu.Unlock()
+	return demoEnabled, nil
+}
+
 // getAccessGraphUsingHTTPWithAuth is a handler for the /v1/accessgraph/:path which
 // requires authentication to access the access graph.
 func (p *Plugin) getAccessGraphUsingHTTPWithAuth(w http.ResponseWriter, r *http.Request, params httprouter.Params, webCtx *web.SessionContext) (any, error) {
 	accessChecker, err := webCtx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	canAccess, err := p.canUseAccessGraph(r.Context(), r.URL.Path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !canAccess {
+		return nil, trace.AccessDenied("not authorized to use access graph")
 	}
 
 	requiredVerb := ""
@@ -285,6 +350,9 @@ func (p *Plugin) submitUsageReport(usageReport *usageeventsv1.TAGExecuteQueryEve
 // listIntegrations is a handler to list all the integrations that are available
 // and enabled for the access graph.
 func (p *Plugin) listIntegrations(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {
+	if !p.h.GetClusterFeatures().Policy.Enabled {
+		return nil, trace.AccessDenied("not authorized to use access graph")
+	}
 	cl, err := webCtx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -365,7 +433,6 @@ func listAllDiscoveryConfigs(ctx context.Context, client authclient.ClientI) ([]
 
 	}
 	return allIntegrations, nil
-
 }
 
 func listAllAccessGraphPlugins(ctx context.Context, client authclient.ClientI) ([]*types.PluginV1, error) {
@@ -401,7 +468,7 @@ func listAllAccessGraphPlugins(ctx context.Context, client authclient.ClientI) (
 
 // getAccessGraphSettings is the handler for GET /v1/enterprise/accessgraphsettings.
 func (p *Plugin) getAccessGraphSettings(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *web.SessionContext) (any, error) {
-	clt, err := ctx.GetClient()
+	clt, err := p.getAuthClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -449,6 +516,13 @@ func (p *Plugin) updateAccessGraphSettings(_ http.ResponseWriter, r *http.Reques
 	accessGraphSettings, err := getAccessGraphSettings()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// if this request is to update access graph demo mode settings and they do not have the entitlement to update access graph demo mode, reject
+	features := modules.GetModules().Features()
+	canEnableDemoMode := features.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled
+	if accessGraphSettings.GetSpec().GetDemoMode() != clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED && req.EnableDemoMode && !canEnableDemoMode {
+		return nil, trace.AccessDenied("You do not have permission to enable Access Graph Demo Mode.")
 	}
 
 	accessGraphSettings, err = clusterConfigClient.UpdateAccessGraphSettings(

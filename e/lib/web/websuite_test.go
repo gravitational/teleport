@@ -101,6 +101,7 @@ type stubTunnel struct {
 }
 
 func (*stubTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error) { return nil, nil }
+
 func (s *stubTunnel) GetSite(n string) (reversetunnelclient.RemoteSite, error) {
 	return s.site, nil
 }
@@ -273,6 +274,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			// Turn on the enterprise features which impact the endpoint registration.
 			Cloud:         true,
 			RecoveryCodes: true,
+			Policy: &proto.PolicyFeature{
+				Enabled: true,
+			},
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, web.SetClock(s.clock))
@@ -520,7 +524,8 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 			},
 			IDP: &types.IdPOptions{
 				SAML: &types.IdPSAMLOptions{
-					Enabled: types.NewBoolOption(true)},
+					Enabled: types.NewBoolOption(true),
+				},
 			},
 		},
 		Allow: types.RoleConditions{
