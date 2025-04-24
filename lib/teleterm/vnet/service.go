@@ -332,7 +332,7 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) isUsageReportingEnabled(ctx context.Context) (bool, error) {
-	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient()
+	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -346,7 +346,7 @@ func (s *Service) isUsageReportingEnabled(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) reportUnexpectedShutdown(ctx context.Context, shutdownErr error) error {
-	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient()
+	tshdEventsClient, err := s.cfg.DaemonService.TshdEventsClient(ctx)
 	if err != nil {
 		return trace.Wrap(err, "obtaining tshd events client")
 	}

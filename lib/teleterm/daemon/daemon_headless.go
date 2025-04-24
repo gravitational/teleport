@@ -276,7 +276,7 @@ func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *typ
 	}
 	defer s.headlessAuthSemaphore.Release()
 
-	_, err := s.tshdEventsClient.SendPendingHeadlessAuthentication(ctx, req)
+	_, err := s.cfg.TshdEventsClient.client.SendPendingHeadlessAuthentication(ctx, req)
 	return trace.Wrap(err)
 }
 
