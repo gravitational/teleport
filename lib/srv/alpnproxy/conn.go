@@ -21,6 +21,7 @@ package alpnproxy
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -99,3 +100,32 @@ func (conn readOnlyConn) RemoteAddr() net.Addr               { return &utils.Net
 func (conn readOnlyConn) SetDeadline(t time.Time) error      { return nil }
 func (conn readOnlyConn) SetReadDeadline(t time.Time) error  { return nil }
 func (conn readOnlyConn) SetWriteDeadline(t time.Time) error { return nil }
+
+type reportingConn struct {
+	net.Conn
+	closeOnce func() error
+}
+
+// newReportingConn returns a net.Conn that wraps the input conn, increments the
+// active connections gauge on creation, and decreases the active connections
+// gauge on close.
+func newReportingConn(conn net.Conn, clientALPN string, connSource string) net.Conn {
+	proxyActiveConnections.WithLabelValues(clientALPN, connSource).Inc()
+	return &reportingConn{
+		Conn: conn,
+		closeOnce: sync.OnceValue(func() error {
+			proxyActiveConnections.WithLabelValues(clientALPN, connSource).Dec()
+			// Do not wrap.
+			return conn.Close()
+		}),
+	}
+}
+
+// NetConn returns the underlying net.Conn.
+func (c *reportingConn) NetConn() net.Conn {
+	return c.Conn
+}
+
+func (c *reportingConn) Close() error {
+	return c.closeOnce()
+}

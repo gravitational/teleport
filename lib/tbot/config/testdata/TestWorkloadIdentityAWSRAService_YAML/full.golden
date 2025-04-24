@@ -9,3 +9,6 @@ trust_anchor_arn: arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000
 region: us-east-1
 session_duration: 59m0s
 session_renewal_interval: 29m0s
+credential_profile_name: my-profile
+artifact_name: my-artifact.toml
+overwrite_credential_file: true

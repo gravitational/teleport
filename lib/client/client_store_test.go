@@ -192,7 +192,10 @@ func TestClientStore(t *testing.T) {
 	// create a test software and hardware key.
 	idx := KeyRingIndex{"test.proxy.com", "test-user", "root"}
 	softKeyRing := a.makeSignedKeyRing(t, idx, false)
-	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{})
+	keyInfo := idx.contextualKeyInfo()
+	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: keyInfo,
+	})
 	require.NoError(t, err)
 	hardKeyRing := NewKeyRing(hwPriv, hwPriv)
 	hardKeyRing.KeyRingIndex = idx
@@ -207,7 +210,7 @@ func TestClientStore(t *testing.T) {
 			t.Parallel()
 
 			testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-				clientStore.hwKeyService = hwks
+				clientStore.HardwareKeyService = hwks
 
 				// Add key should add the key and trusted certs to their respective stores.
 				err := clientStore.AddKeyRing(keyRing)
@@ -219,7 +222,7 @@ func TestClientStore(t *testing.T) {
 				require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
 
 				// Getting the key from the key store should have no trusted certs.
-				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.hwKeyService, WithAllCerts...)
+				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.HardwareKeyService, WithAllCerts...)
 				require.NoError(t, err)
 				expectKeyRing := keyRing.Copy()
 				expectKeyRing.TrustedCerts = nil
@@ -229,6 +232,22 @@ func TestClientStore(t *testing.T) {
 				retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithAllCerts...)
 				require.NoError(t, err)
 				assertEqualKeyRings(t, keyRing, retrievedKeyRing)
+
+				// Get the key, now without cluster name. It should retrieve the key without certs
+				// and without a cluster name in the KeyRingIndex or ContextualKeyInfo (hardware keys).
+				retrievedKeyRing, err = clientStore.GetKeyRing(KeyRingIndex{idx.ProxyHost, idx.Username, ""})
+				require.NoError(t, err)
+				expectKeyRing = keyRing.Copy()
+				expectKeyRing.ClusterName = ""
+				expectKeyRing.Cert = nil
+				expectKeyRing.DBTLSCredentials = make(map[string]TLSCredential)
+				if hwPriv, ok := expectKeyRing.TLSPrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				if hwPriv, ok := expectKeyRing.SSHPrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
 				var profileDir string
 				if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {

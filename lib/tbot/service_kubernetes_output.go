@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -264,7 +266,9 @@ func (s *KubernetesOutputService) render(
 		}
 	} else {
 		executablePath, err := s.executablePath()
-		if err != nil {
+		if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+			s.log.WarnContext(ctx, "Kubernetes template will be rendered with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to prevent instability.")
+		} else if err != nil {
 			return trace.Wrap(err)
 		}
 

@@ -1,4 +1,9 @@
 version: v2
+onboarding:
+  token: my-gitlab-token
+  join_method: gitlab
+  gitlab:
+    token_env_var_name: MY_CUSTOM_ENV_VAR
 storage:
   type: directory
   path: /bot/storage

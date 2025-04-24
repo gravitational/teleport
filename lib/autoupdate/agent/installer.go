@@ -34,7 +34,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -510,7 +509,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcFile,
 			keepFiles []smallFile
 		)
 		for _, l := range revertLinks {
-			err := renameio.Symlink(l.oldname, l.newname)
+			err := atomicSymlink(l.oldname, l.newname)
 			if err != nil {
 				keepLinks = append(keepLinks, l)
 				li.Log.ErrorContext(ctx, "Failed to revert symlink", "oldname", l.oldname, "newname", l.newname, errorKey, err)
@@ -615,7 +614,7 @@ func forceLink(oldname, newname string, force bool) (orig string, err error) {
 	if errors.Is(err, os.ErrInvalid) ||
 		errors.Is(err, syscall.EINVAL) { // workaround missing ErrInvalid wrapper
 		if force {
-			return "", trace.Wrap(renameio.Symlink(oldname, newname))
+			return "", trace.Wrap(atomicSymlink(oldname, newname))
 		}
 		// important: do not attempt to replace a non-linked install of Teleport without force
 		return "", trace.Wrap(ErrFilePresent, "refusing to replace file at %s", newname)
@@ -625,7 +624,7 @@ func forceLink(oldname, newname string, force bool) (orig string, err error) {
 	if orig == oldname {
 		return "", trace.Wrap(os.ErrExist)
 	}
-	err = renameio.Symlink(oldname, newname)
+	err = atomicSymlink(oldname, newname)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -663,15 +662,6 @@ func forceCopy(dst string, srcData []byte, n int64) (orig *smallFile, err error)
 		return nil, trace.Wrap(err)
 	}
 	return orig, nil
-}
-
-// writeFileAtomicWithinDir atomically creates a new file with renameio, while ensuring that temporary
-// files use the same directory as the target file (with format: .[base][randints]).
-// This ensures that SELinux contexts for important files are set correctly.
-func writeFileAtomicWithinDir(filename string, data []byte, perm os.FileMode) error {
-	dir := filepath.Dir(filename)
-	err := renameio.WriteFile(filename, data, perm, renameio.WithTempDir(dir))
-	return trace.Wrap(err)
 }
 
 // readFileAtMost reads a file up to n, or errors if it is too large.

@@ -46,10 +46,12 @@ const promoFlows = {
 };
 
 export function PolicyPlaceholder({
+  canUpdateAccessGraphSettings,
   currentFlow,
   enableDemoMode,
   roleDiffProps,
 }: {
+  canUpdateAccessGraphSettings: boolean;
   currentFlow: 'creating' | 'updating';
   enableDemoMode?: () => void;
   roleDiffProps?: RoleDiffProps;
@@ -74,7 +76,8 @@ export function PolicyPlaceholder({
           </P>
         </Box>
         <Flex flex="0 0 auto" alignItems="start">
-          {!cfg.isPolicyEnabled &&
+          {canUpdateAccessGraphSettings &&
+            !cfg.isPolicyEnabled &&
             cfg.isCloud &&
             enableDemoMode && ( // cloud can enable a demo mode so show that button
               <ButtonPrimary

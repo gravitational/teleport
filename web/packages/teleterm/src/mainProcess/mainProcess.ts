@@ -229,6 +229,9 @@ export default class MainProcess {
       `--add-keys-to-agent=${this.configService.get('sshAgent.addKeysToAgent').value}`,
     ];
 
+    if (this.configService.get('hardwareKeyAgent.enabled').value) {
+      flags.unshift('--hardware-key-agent');
+    }
     if (settings.insecure) {
       flags.unshift('--insecure');
     }

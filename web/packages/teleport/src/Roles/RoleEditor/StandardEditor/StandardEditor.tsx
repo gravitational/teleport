@@ -139,6 +139,7 @@ export const StandardEditor = ({
       <Box mb={3} mx={3}>
         <SlideTabs
           appearance="round"
+          size="medium"
           hideStatusIconOnActiveTab
           tabs={[
             tabSpec(
@@ -193,12 +194,11 @@ export const StandardEditor = ({
           }}
         >
           <MetadataSection
+            isEditing={isEditing}
             value={roleModel.metadata}
             isProcessing={isProcessing}
             validation={validationResult.metadata}
-            onChange={metadata =>
-              dispatch({ type: ActionType.SetMetadata, payload: metadata })
-            }
+            dispatch={dispatch}
           />
         </Box>
         <Box

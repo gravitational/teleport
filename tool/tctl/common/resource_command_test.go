@@ -1465,6 +1465,9 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindHealthCheckConfig,
 			create: testCreateHealthCheckConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: health_check_config")
+			},
 		},
 	}
 

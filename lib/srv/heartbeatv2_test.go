@@ -139,7 +139,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 		Services: []types.SystemRole{types.RoleNode},
 	}
 
-	handle := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	handle, err := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		// we're emulating an inventory.DownstreamCreateFunc here, but those are typically
 		// expected to return an error if no stream can be acquired. we're deliberately going
 		// with a blocking strategy instead here to avoid dealing w/ backoff that could make the
@@ -150,7 +150,8 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 		case stream := <-streamC:
 			return stream, nil
 		}
-	}, hello)
+	}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return hello, nil })
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		handle.Close()

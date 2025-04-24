@@ -487,6 +487,7 @@ func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config pr
 	audienceTag := stringFromConfigOrEnv(config.AudienceTag, constants.EnvVarTerraformCloudJoinAudienceTag, "")
 	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
+	gitlabIDTokenEnvVar := stringFromConfigOrEnv(config.GitlabIDTokenEnvVar, constants.EnvVarGitlabIDTokenEnvVar, "")
 
 	if joinMethod == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
@@ -520,6 +521,9 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			JoinMethod: apitypes.JoinMethod(joinMethod),
 			Terraform: tbotconfig.TerraformOnboardingConfig{
 				AudienceTag: audienceTag,
+			},
+			Gitlab: tbotconfig.GitlabOnboardingConfig{
+				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
 		},
 		CredentialLifetime: tbotconfig.CredentialLifetime{

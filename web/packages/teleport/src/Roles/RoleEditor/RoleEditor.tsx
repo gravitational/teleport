@@ -65,6 +65,9 @@ export type RoleEditorProps = {
   onCancel?(): void;
   onSave?(r: Partial<RoleWithYaml>): Promise<void>;
   onRoleUpdate?(r: Role): void;
+  demoMode?: boolean;
+  minimized?: boolean;
+  onMinimizedChange?(minimized: boolean): void;
 };
 
 /**
@@ -78,9 +81,13 @@ export const RoleEditor = ({
   onCancel,
   onSave,
   onRoleUpdate,
+  demoMode,
+  minimized = false,
+  onMinimizedChange,
 }: RoleEditorProps) => {
   const roleTesterEnabled =
-    cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled();
+    (cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled()) ||
+    demoMode;
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
   // standard/YAML tab switcher and the switched panels.
@@ -91,10 +98,10 @@ export const RoleEditor = ({
 
   useEffect(() => {
     const { roleModel, validationResult } = standardModel;
-    if (roleModel && validationResult?.isValid) {
+    if (roleTesterEnabled && roleModel && validationResult?.isValid) {
       onRoleUpdate?.(roleEditorModelToRole(roleModel));
     }
-  }, [standardModel, onRoleUpdate]);
+  }, [standardModel, onRoleUpdate, roleTesterEnabled, demoMode]);
 
   const [yamlModel, setYamlModel] = useState<YamlEditorModel>({
     content: originalRole?.yaml ?? '',
@@ -259,6 +266,8 @@ export const RoleEditor = ({
                 standardEditorId={standardEditorId}
                 yamlEditorId={yamlEditorId}
                 onClose={confirmExit}
+                minimized={minimized}
+                onMinimizedChange={onMinimizedChange}
               />
               <AttemptAlert attempt={saveAttempt} />
               <AttemptAlert attempt={parseAttempt} />
@@ -266,41 +275,45 @@ export const RoleEditor = ({
               <AttemptAlert attempt={yamlPreviewAttempt} />
               <AttemptAlert attempt={roleDiffAttempt} />
             </Box>
-            {selectedEditorTab === EditorTab.Standard && (
-              <Flex flexDirection="column" flex="1" id={standardEditorId}>
-                <CatchError fallbackFn={StandardEditorRenderingError}>
-                  <StandardEditor
-                    originalRole={originalRole}
-                    onSave={object => handleSave({ object })}
-                    standardEditorModel={standardModel}
+            <ShowHide flexDirection="column" flex="1" hidden={minimized}>
+              {selectedEditorTab === EditorTab.Standard && (
+                <Flex flexDirection="column" flex="1" id={standardEditorId}>
+                  <CatchError fallbackFn={StandardEditorRenderingError}>
+                    <StandardEditor
+                      originalRole={originalRole}
+                      onSave={object => handleSave({ object })}
+                      standardEditorModel={standardModel}
+                      isProcessing={isProcessing}
+                      dispatch={dispatch}
+                    />
+                  </CatchError>
+                </Flex>
+              )}
+              {/* Hiding instead of unmounting the info alert allows us to keep
+                  the dismissed state throughout the lifetime of the role
+                  editor without keeping this state in the editor model. */}
+              <ShowHide hidden={selectedEditorTab !== EditorTab.Yaml}>
+                <Info dismissible mx={3} mb={3} alignItems="flex-start">
+                  Not all YAML edits can be represented in the standard editor.
+                  You may have to revert changes in the YAML if you return to
+                  using the standard editor.
+                </Info>
+              </ShowHide>
+              {selectedEditorTab === EditorTab.Yaml && (
+                <Flex flexDirection="column" flex="1" id={yamlEditorId}>
+                  <YamlEditor
+                    yamlEditorModel={yamlModel}
+                    onChange={setYamlModel}
+                    onSave={async yaml => void (await handleSave({ yaml }))}
                     isProcessing={isProcessing}
-                    dispatch={dispatch}
+                    originalRole={originalRole}
+                    onPreview={
+                      roleTesterEnabled ? handleYamlPreview : undefined
+                    }
                   />
-                </CatchError>
-              </Flex>
-            )}
-            {/* Hiding instead of unmounting the info alert allows us to keep
-                the dismissed state throughout the lifetime of the role editor
-                without keeping this state in the editor model. */}
-            <ShowHide hidden={selectedEditorTab !== EditorTab.Yaml}>
-              <Info dismissible mx={3} mb={3} alignItems="flex-start">
-                Not all YAML edits can be represented in the standard editor.
-                You may have to revert changes in the YAML if you return to
-                using the standard editor.
-              </Info>
+                </Flex>
+              )}
             </ShowHide>
-            {selectedEditorTab === EditorTab.Yaml && (
-              <Flex flexDirection="column" flex="1" id={yamlEditorId}>
-                <YamlEditor
-                  yamlEditorModel={yamlModel}
-                  onChange={setYamlModel}
-                  onSave={async yaml => void (await handleSave({ yaml }))}
-                  isProcessing={isProcessing}
-                  originalRole={originalRole}
-                  onPreview={roleTesterEnabled ? handleYamlPreview : undefined}
-                />
-              </Flex>
-            )}
           </Flex>
         )}
       </Validation>
@@ -366,6 +379,6 @@ const ErrorAlert = ({ error }: { error: Error }) =>
     </Danger>
   );
 
-const ShowHide = styled.div<{ hidden: boolean }>`
+const ShowHide = styled(Flex)<{ hidden: boolean }>`
   display: ${props => (props.hidden ? 'none' : '')};
 `;

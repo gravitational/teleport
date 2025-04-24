@@ -49,8 +49,15 @@ func TestMarshalAndParseKey(t *testing.T) {
 	_, edKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
+	contextualKeyInfo := hardwarekey.ContextualKeyInfo{
+		ProxyHost:   "billy.io",
+		Username:    "Billy@billy.io",
+		ClusterName: "billy.io",
+	}
 	s := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{})
+	hwPriv, err := s.NewPrivateKey(context.TODO(), hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: contextualKeyInfo,
+	})
 	require.NoError(t, err)
 
 	for keyType, key := range map[string]crypto.Signer{
@@ -62,7 +69,7 @@ func TestMarshalAndParseKey(t *testing.T) {
 		t.Run(keyType, func(t *testing.T) {
 			keyPEM, err := keys.MarshalPrivateKey(key)
 			require.NoError(t, err)
-			gotKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s))
+			gotKey, err := keys.ParsePrivateKey(keyPEM, keys.WithHardwareKeyService(s), keys.WithContextualKeyInfo(contextualKeyInfo))
 			require.NoError(t, err)
 			assert.Empty(t, cmp.Diff(key, gotKey.Signer, cmpopts.IgnoreUnexported(hardwarekey.Signer{})), "parsed private key is not equal to the original")
 

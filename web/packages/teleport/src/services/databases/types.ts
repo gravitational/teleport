@@ -54,6 +54,7 @@ export interface Database {
   aws?: Aws;
   requiresRequest?: boolean;
   supportsInteractive?: boolean;
+  autoUsersEnabled?: boolean;
 }
 
 export type DatabasesResponse = {

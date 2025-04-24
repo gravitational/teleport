@@ -1445,43 +1445,6 @@ func TestClusterName(t *testing.T) {
 	require.Empty(t, cmp.Diff(outName, clusterName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-// TestRoles tests caching of roles
-func TestRoles(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForNode)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.Role]{
-		newResource: func(name string) (types.Role, error) {
-			return types.NewRole("role1", types.RoleSpecV6{
-				Options: types.RoleOptions{
-					MaxSessionTTL: types.Duration(time.Hour),
-				},
-				Allow: types.RoleConditions{
-					Logins:     []string{"root", "bob"},
-					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				},
-				Deny: types.RoleConditions{},
-			})
-		},
-		create: func(ctx context.Context, role types.Role) error {
-			_, err := p.accessS.UpsertRole(ctx, role)
-			return err
-		},
-		list:      p.accessS.GetRoles,
-		cacheGet:  p.cache.GetRole,
-		cacheList: p.cache.GetRoles,
-		update: func(ctx context.Context, role types.Role) error {
-			_, err := p.accessS.UpsertRole(ctx, role)
-			return err
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.accessS.DeleteAllRoles(ctx)
-		},
-	})
-}
-
 // TestTunnelConnections tests tunnel connections caching
 func TestTunnelConnections(t *testing.T) {
 	t.Parallel()
@@ -1536,56 +1499,6 @@ func TestNodes(t *testing.T) {
 		update: withKeepalive(p.presenceS.UpsertNode),
 		deleteAll: func(ctx context.Context) error {
 			return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
-		},
-	})
-}
-
-// TestProxies tests proxies cache
-func TestProxies(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.Server]{
-		newResource: func(name string) (types.Server, error) {
-			return suite.NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
-		},
-		create: p.presenceS.UpsertProxy,
-		list: func(_ context.Context) ([]types.Server, error) {
-			return p.presenceS.GetProxies()
-		},
-		cacheList: func(_ context.Context) ([]types.Server, error) {
-			return p.cache.GetProxies()
-		},
-		update: p.presenceS.UpsertProxy,
-		deleteAll: func(_ context.Context) error {
-			return p.presenceS.DeleteAllProxies()
-		},
-	})
-}
-
-// TestAuthServers tests auth servers cache
-func TestAuthServers(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.Server]{
-		newResource: func(name string) (types.Server, error) {
-			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
-		},
-		create: p.presenceS.UpsertAuthServer,
-		list: func(_ context.Context) ([]types.Server, error) {
-			return p.presenceS.GetAuthServers()
-		},
-		cacheList: func(_ context.Context) ([]types.Server, error) {
-			return p.cache.GetAuthServers()
-		},
-		update: p.presenceS.UpsertAuthServer,
-		deleteAll: func(_ context.Context) error {
-			return p.presenceS.DeleteAllAuthServers()
 		},
 	})
 }
