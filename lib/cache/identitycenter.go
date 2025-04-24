@@ -23,48 +23,45 @@ import (
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 type identityCenterAccountGetter interface {
-	GetIdentityCenterAccount(context.Context, services.IdentityCenterAccountID) (services.IdentityCenterAccount, error)
-	ListIdentityCenterAccounts(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error)
+	GetIdentityCenterAccount(context.Context, string) (*identitycenterv1.Account, error)
+	ListIdentityCenterAccounts(context.Context, int, string) ([]*identitycenterv1.Account, string, error)
 }
 
 type identityCenterAccountExecutor struct{}
 
-func (identityCenterAccountExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]services.IdentityCenterAccount, error) {
-	var pageToken pagination.PageRequestToken
-	var resources []services.IdentityCenterAccount
+func (identityCenterAccountExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*identitycenterv1.Account, error) {
+	var pageToken string
+	var resources []*identitycenterv1.Account
 	for {
-		resourcesPage, nextPage, err := cache.IdentityCenter.ListIdentityCenterAccounts(ctx, 0, &pageToken)
+		resourcesPage, nextPage, err := cache.IdentityCenter.ListIdentityCenterAccounts(ctx, 0, pageToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		resources = append(resources, resourcesPage...)
 
-		if nextPage == pagination.EndOfList {
+		pageToken = nextPage
+		if nextPage == "" {
 			break
 		}
-		pageToken.Update(nextPage)
 	}
 	return resources, nil
 }
 
-func (identityCenterAccountExecutor) upsert(ctx context.Context, cache *Cache, resource services.IdentityCenterAccount) error {
+func (identityCenterAccountExecutor) upsert(ctx context.Context, cache *Cache, resource *identitycenterv1.Account) error {
 	_, err := cache.identityCenterCache.UpsertIdentityCenterAccount(ctx, resource)
 	return trace.Wrap(err)
 }
 
 func (identityCenterAccountExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.identityCenterCache.DeleteIdentityCenterAccount(ctx,
-		services.IdentityCenterAccountID(resource.GetName())))
+	return trace.Wrap(cache.identityCenterCache.DeleteIdentityCenterAccount(ctx, resource.GetName()))
 }
 
 func (identityCenterAccountExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
+	err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
 	return trace.Wrap(err)
 }
 
@@ -80,13 +77,13 @@ func (identityCenterAccountExecutor) isSingleton() bool {
 }
 
 var _ executor[
-	services.IdentityCenterAccount,
+	*identitycenterv1.Account,
 	identityCenterAccountGetter,
 ] = identityCenterAccountExecutor{}
 
 type identityCenterPrincipalAssignmentGetter interface {
-	GetPrincipalAssignment(context.Context, services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error)
-	ListPrincipalAssignments(context.Context, int, *pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error)
+	GetPrincipalAssignment(context.Context, string) (*identitycenterv1.PrincipalAssignment, error)
+	ListPrincipalAssignments(context.Context, int, string) ([]*identitycenterv1.PrincipalAssignment, string, error)
 }
 
 type identityCenterPrincipalAssignmentExecutor struct{}
@@ -97,20 +94,20 @@ var _ executor[
 ] = identityCenterPrincipalAssignmentExecutor{}
 
 func (identityCenterPrincipalAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*identitycenterv1.PrincipalAssignment, error) {
-	var pageToken pagination.PageRequestToken
+	var pageToken string
 	var resources []*identitycenterv1.PrincipalAssignment
 	for {
-		resourcesPage, nextPage, err := cache.IdentityCenter.ListPrincipalAssignments(ctx, 0, &pageToken)
+		resourcesPage, nextPage, err := cache.IdentityCenter.ListPrincipalAssignments(ctx, 0, pageToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		resources = append(resources, resourcesPage...)
 
-		if nextPage == pagination.EndOfList {
+		pageToken = nextPage
+		if nextPage == "" {
 			break
 		}
-		pageToken.Update(nextPage)
 	}
 	return resources, nil
 }
@@ -121,12 +118,11 @@ func (identityCenterPrincipalAssignmentExecutor) upsert(ctx context.Context, cac
 }
 
 func (identityCenterPrincipalAssignmentExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.identityCenterCache.DeletePrincipalAssignment(ctx,
-		services.PrincipalAssignmentID(resource.GetName())))
+	return trace.Wrap(cache.identityCenterCache.DeletePrincipalAssignment(ctx, resource.GetName()))
 }
 
 func (identityCenterPrincipalAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllPrincipalAssignments(ctx, &identitycenterv1.DeleteAllPrincipalAssignmentsRequest{})
+	err := cache.identityCenterCache.DeleteAllPrincipalAssignments(ctx, &identitycenterv1.DeleteAllPrincipalAssignmentsRequest{})
 	return trace.Wrap(err)
 }
 
@@ -142,43 +138,42 @@ func (identityCenterPrincipalAssignmentExecutor) isSingleton() bool {
 }
 
 type identityCenterAccountAssignmentGetter interface {
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	GetAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
+	ListAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 }
 
 type identityCenterAccountAssignmentExecutor struct{}
 
-func (identityCenterAccountAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]services.IdentityCenterAccountAssignment, error) {
-	var pageToken pagination.PageRequestToken
-	var resources []services.IdentityCenterAccountAssignment
+func (identityCenterAccountAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*identitycenterv1.AccountAssignment, error) {
+	var pageToken string
+	var resources []*identitycenterv1.AccountAssignment
 	for {
-		resourcesPage, nextPage, err := cache.IdentityCenter.ListAccountAssignments(ctx, 0, &pageToken)
+		resourcesPage, nextPage, err := cache.IdentityCenter.ListAccountAssignments(ctx, 0, pageToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		resources = append(resources, resourcesPage...)
 
-		if nextPage == pagination.EndOfList {
+		pageToken = nextPage
+		if nextPage == "" {
 			break
 		}
-		pageToken.Update(nextPage)
 	}
 	return resources, nil
 }
 
-func (identityCenterAccountAssignmentExecutor) upsert(ctx context.Context, cache *Cache, resource services.IdentityCenterAccountAssignment) error {
+func (identityCenterAccountAssignmentExecutor) upsert(ctx context.Context, cache *Cache, resource *identitycenterv1.AccountAssignment) error {
 	_, err := cache.identityCenterCache.UpsertAccountAssignment(ctx, resource)
 	return trace.Wrap(err)
 }
 
 func (identityCenterAccountAssignmentExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.identityCenterCache.DeleteAccountAssignment(ctx,
-		services.IdentityCenterAccountAssignmentID(resource.GetName())))
+	return trace.Wrap(cache.identityCenterCache.DeleteAccountAssignment(ctx, resource.GetName()))
 }
 
 func (identityCenterAccountAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	_, err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
+	err := cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx, &identitycenterv1.DeleteAllIdentityCenterAccountsRequest{})
 	return trace.Wrap(err)
 }
 
@@ -194,6 +189,6 @@ func (identityCenterAccountAssignmentExecutor) isSingleton() bool {
 }
 
 var _ executor[
-	services.IdentityCenterAccountAssignment,
+	*identitycenterv1.AccountAssignment,
 	identityCenterAccountAssignmentGetter,
 ] = identityCenterAccountAssignmentExecutor{}

@@ -549,7 +549,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
 		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
 		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
-		IdentityCenter:          p.AuthServer.Services.IdentityCenter,
+		IdentityCenter:          p.AuthServer.Services.IdentityCenterInternal,
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,

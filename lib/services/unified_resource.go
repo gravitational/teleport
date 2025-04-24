@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -812,40 +811,40 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 
 func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var key string
 	for {
-		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resultsPage, nextKey, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, key)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
 		for _, a := range resultsPage {
-			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+			accounts = append(accounts, types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: a}))
 		}
 
-		if nextPage == pagination.EndOfList {
+		key = nextKey
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
 	}
 	return accounts, nil
 }
 
 func (c *UnifiedResourceCache) getIdentityCenterAccountAssignments(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var key string
 	for {
-		resultsPage, nextPage, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resultsPage, nextKey, err := c.ListAccountAssignments(ctx, apidefaults.DefaultChunkSize, key)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
 		for _, a := range resultsPage {
-			accounts = append(accounts, types.Resource153ToUnifiedResource(a))
+			accounts = append(accounts, types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: a}))
 		}
 
-		if nextPage == pagination.EndOfList {
+		key = nextKey
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
 	}
 	return accounts, nil
 }
