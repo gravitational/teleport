@@ -1818,7 +1818,7 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) (string, error) {
 	var activeDBs []tlsca.RouteToDatabase
 	if profile, err := cf.ProfileStatus(); err == nil {
-		if dbs, err := profile.DatabasesForCluster(cf.SiteName, cf.clientStore); err == nil {
+		if dbs, err := profile.DatabasesForCluster(cf.SiteName, cf.getClientStore()); err == nil {
 			activeDBs = dbs
 		}
 	}

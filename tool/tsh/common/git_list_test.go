@@ -157,8 +157,7 @@ func mustCreateEmptyProfile(t *testing.T, cf *CLIConf) {
 		cf.HomePath = t.TempDir()
 	}
 
-	cf.initClientStore()
-	err := cf.clientStore.SaveProfile(&profile.Profile{
+	err := cf.getClientStore().SaveProfile(&profile.Profile{
 		SSHProxyAddr: cf.Proxy,
 		WebProxyAddr: cf.Proxy,
 	}, true)

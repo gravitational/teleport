@@ -42,6 +42,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -602,8 +603,11 @@ type CLIConf struct {
 
 	// clientStore is the client identity storage interface. This store must be initialized once
 	// and only once in order to ensure key (and hardware key) storage is synced across the process.
-	clientStore         *client.Store
-	clientStoreInitOnce sync.Once
+	//
+	// Use getClientStore instead of using this directly to ensure the client store is initialized,
+	// instead of performing nil checks.
+	clientStore    *client.Store
+	clientStoreSet int32
 }
 
 // Stdout returns the stdout writer.
@@ -4455,15 +4459,12 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 	}
 
-	if err := cf.initClientStore(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.ClientStore = cf.clientStore
+	c.ClientStore = cf.getClientStore()
 
 	// If the client store was initialized for the identity file, but the wrong (or missing)
 	// proxy address, re-load the identity file for the provided proxy address.
 	if cf.IdentityFileIn != "" && cf.Proxy != proxy {
-		if err = identityfile.LoadIdentityFileIntoClientStore(cf.clientStore, cf.IdentityFileIn, proxy, c.SiteName); err == nil {
+		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName); err == nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4656,44 +4657,62 @@ func setEnvVariables(c *client.Config, options Options) {
 	}
 }
 
+// setClientStore sets the client store. If the client store was already set,
+// it returns an error instead, so this should not be used after initClientStore.
+func (c *CLIConf) setClientStore(store *client.Store) error {
+	if !atomic.CompareAndSwapInt32(&c.clientStoreSet, 0, 1) {
+		return trace.AlreadyExists("setClientStore: client store is already set; this is a bug")
+	}
+	c.clientStore = store
+	return nil
+}
+
+// getClientStore gets the client store, initializing it if needed. This should be
+// preferred over using clientStore directly in cases where it might not be initialized.
+func (c *CLIConf) getClientStore() *client.Store {
+	c.initClientStore()
+	return c.clientStore
+}
+
 // initClientStore initializes the client identity store which will be used by the
-// client to interface with client identity material.
-func (c *CLIConf) initClientStore() error {
-	var err error
-	c.clientStoreInitOnce.Do(func() {
-		var hwks hardwarekey.Service
-		if c.disableHardwareKeyAgentClient {
-			hwks = piv.NewYubiKeyService(nil /*prompt*/)
-		} else {
-			hwks = libhwk.NewService(c.Context, nil /*prompt*/)
+// client to interface with client identity material. After the first call to
+// initClientStore, further calls will be a no-op.
+func (c *CLIConf) initClientStore() {
+	if !atomic.CompareAndSwapInt32(&c.clientStoreSet, 0, 1) {
+		// client store already initialized.
+		return
+	}
+
+	var hwks hardwarekey.Service
+	if c.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(c.Context, nil /*prompt*/)
+	}
+
+	switch {
+	case c.IdentityFileIn != "", c.IdentityFileOut != "", c.AuthConnector == constants.HeadlessConnector:
+		// Store client keys in memory, where they can be exported to non-standard
+		// FS formats (e.g. identity file) or used for a single client call in memory.
+		c.clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
+
+	case c.AddKeysToAgent == client.AddKeysToAgentOnly:
+		// Store client keys in memory, but save trusted certs and profile to disk.
+		c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
+		c.clientStore.KeyStore = client.NewMemKeyStore()
+
+	default:
+		c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
+	}
+
+	// If an identity file is provided, opportunistically try to load it into the keystore. It may
+	// fail if the user did not provide the --proxy flag, but in some cases the proxy, the proxy
+	// address will be provided later on and the client will attempt to load the identity file then.
+	if c.IdentityFileIn != "" {
+		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName); err == nil {
+			slog.DebugContext(c.Context, "failed to load identity file into client store", "err", err)
 		}
-
-		switch {
-		case c.IdentityFileIn != "", c.IdentityFileOut != "", c.AuthConnector == constants.HeadlessConnector:
-			// Store client keys in memory, where they can be exported to non-standard
-			// FS formats (e.g. identity file) or used for a single client call in memory.
-			c.clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
-
-		case c.AddKeysToAgent == client.AddKeysToAgentOnly:
-			// Store client keys in memory, but save trusted certs and profile to disk.
-			c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
-			c.clientStore.KeyStore = client.NewMemKeyStore()
-
-		default:
-			c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
-		}
-
-		// If an identity file is provided, opportunistically try to load it into the keystore. It may
-		// fail if the user did not provide the --proxy flag, but in some cases the proxy, the proxy
-		// address will be provided later on and the client will attempt to load the identity file then.
-		if c.IdentityFileIn != "" {
-			if err = identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName); err == nil {
-				slog.DebugContext(c.Context, "failed to load identity file into client store", "err", err)
-			}
-		}
-	})
-
-	return trace.Wrap(err)
+	}
 }
 
 func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
@@ -4701,11 +4720,7 @@ func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 		return c.profileStatusOverride, nil
 	}
 
-	if err := c.initClientStore(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profile, err := c.clientStore.ReadProfileStatus(c.Proxy)
+	profile, err := c.getClientStore().ReadProfileStatus(c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4713,11 +4728,7 @@ func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 }
 
 func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
-	if err := c.initClientStore(); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	currentProfile, profiles, err := c.clientStore.FullProfileStatus()
+	currentProfile, profiles, err := c.getClientStore().FullProfileStatus()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -4727,18 +4738,14 @@ func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileS
 // ListProfiles returns a list of profiles the current user has
 // credentials for.
 func (c *CLIConf) ListProfiles() ([]*client.ProfileStatus, error) {
-	if err := c.initClientStore(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profileNames, err := c.clientStore.ListProfiles()
+	profileNames, err := c.getClientStore().ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	profiles := make([]*client.ProfileStatus, 0, len(profileNames))
 	for _, profileName := range profileNames {
-		status, err := c.clientStore.ReadProfileStatus(profileName)
+		status, err := c.getClientStore().ReadProfileStatus(profileName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4750,16 +4757,13 @@ func (c *CLIConf) ListProfiles() ([]*client.ProfileStatus, error) {
 
 // GetProfile loads user profile.
 func (c *CLIConf) GetProfile() (*profile.Profile, error) {
-	if err := c.initClientStore(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profileName, err := client.ProfileNameFromProxyAddress(c.clientStore, c.Proxy)
+	clientStore := c.getClientStore()
+	profileName, err := client.ProfileNameFromProxyAddress(clientStore, c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	profile, err := c.clientStore.GetProfile(profileName)
+	profile, err := clientStore.GetProfile(profileName)
 	return profile, trace.Wrap(err)
 }
 
@@ -4897,13 +4901,14 @@ func flattenIdentity(cf *CLIConf) error {
 	// Usually, initializing the client store with an identity file would result in
 	// an in-memory client store with a profile for cf.Proxy pre-loaded. Instead,
 	// initialize an FS client store and load the identity file into it.
-	cf.clientStoreInitOnce.Do(func() {
-		hwks := piv.NewYubiKeyService(nil /*prompt*/)
-		cf.clientStore = client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
-	})
+	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
+	if err := cf.setClientStore(clientStore); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Load the identity file key and partial profile into the client store.
-	if err := identityfile.LoadIdentityFileIntoClientStore(cf.clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName); err != nil {
+	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName); err != nil {
 		return trace.Wrap(err)
 	}
 
