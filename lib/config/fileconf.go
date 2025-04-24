@@ -1453,6 +1453,16 @@ type SSH struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
+
+	// ForceListen enables listening on the configured ListenAddress
+	// when connected to the cluster via a reverse tunnel. If no ListenAddress is
+	// configured, the default address is used.
+	//
+	// This allows the service to be connectable by users with direct network access.
+	// All connections still require a valid user certificate to be presented and will
+	// not permit any additional access. This is intended to provide an optional connection
+	// path to reduce latency if the Proxy is not co-located with the user and service.
+	ForceListen bool `yaml:"force_listen,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -2184,6 +2194,9 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
+	// ProxyProtocolAllowDowngrade controls support for downgrading IPv6 source addresses in PROXY headers to pseudo IPv4
+	// addresses when connecting to an IPv4 destination
+	ProxyProtocolAllowDowngrade *types.BoolOption `yaml:"proxy_protocol_allow_downgrade,omitempty"`
 	// KubeProxy configures kubernetes protocol support of the proxy
 	Kube KubeProxy `yaml:"kubernetes,omitempty"`
 	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a

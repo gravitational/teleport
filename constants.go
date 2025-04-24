@@ -394,6 +394,10 @@ const (
 	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
 	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
 
+	// S3CompleteInitiators is an optional allow list which configures the upload completer
+	// to only complete uploads from the specified set of initiators.
+	S3CompleteInitiators = "complete_initiators"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
@@ -740,6 +744,12 @@ const (
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
+const (
+	// PresetDefaultHealthCheckConfigName is the name of a preset
+	// default health_check_config that enables health checks for all resources.
+	PresetDefaultHealthCheckConfigName = "default"
+)
 
 const (
 	// SystemAccessApproverUserName names a Teleport user that acts as

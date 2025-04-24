@@ -24,9 +24,12 @@ import {
   useState,
 } from 'react';
 
+import { generalInfoPanelWidth } from './const';
+
 type InfoGuidePanelContextState = {
   infoGuideConfig: InfoGuideConfig | null;
   setInfoGuideConfig: (cfg: InfoGuideConfig) => void;
+  panelWidth: number;
 };
 
 export type InfoGuideConfig = {
@@ -37,7 +40,7 @@ export type InfoGuideConfig = {
   /**
    * Optional custom title for the guide panel.
    */
-  title?: string;
+  title?: React.ReactNode;
   /**
    * Optional custom panel width.
    */
@@ -55,15 +58,19 @@ export type InfoGuideConfig = {
 
 const InfoGuidePanelContext = createContext<InfoGuidePanelContextState>(null);
 
-export const InfoGuidePanelProvider: React.FC<PropsWithChildren> = ({
-  children,
-}) => {
+export const InfoGuidePanelProvider: React.FC<
+  PropsWithChildren<{ defaultPanelWidth?: number }>
+> = ({ children, defaultPanelWidth = generalInfoPanelWidth }) => {
   const [infoGuideConfig, setInfoGuideConfig] =
     useState<InfoGuideConfig | null>(null);
 
   return (
     <InfoGuidePanelContext.Provider
-      value={{ infoGuideConfig, setInfoGuideConfig }}
+      value={{
+        infoGuideConfig,
+        setInfoGuideConfig,
+        panelWidth: infoGuideConfig?.panelWidth || defaultPanelWidth,
+      }}
     >
       {children}
     </InfoGuidePanelContext.Provider>
@@ -84,7 +91,7 @@ export const useInfoGuide = () => {
     throw new Error('useInfoGuide must be used within a InfoGuidePanelContext');
   }
 
-  const { infoGuideConfig, setInfoGuideConfig } = context;
+  const { infoGuideConfig, setInfoGuideConfig, panelWidth } = context;
 
   useEffect(() => {
     return () => {
@@ -95,5 +102,6 @@ export const useInfoGuide = () => {
   return {
     infoGuideConfig,
     setInfoGuideConfig,
+    panelWidth,
   };
 };

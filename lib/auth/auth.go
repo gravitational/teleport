@@ -422,6 +422,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Overrides service")
 		}
 	}
+	if cfg.SigstorePolicies == nil {
+		cfg.SigstorePolicies, err = local.NewSigstorePolicyService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SigstorePolicies service")
+		}
+	}
 	if cfg.StableUNIXUsers == nil {
 		cfg.StableUNIXUsers = &local.StableUNIXUsersService{
 			Backend: cfg.Backend,
@@ -537,6 +543,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StableUNIXUsersInternal:         cfg.StableUNIXUsers,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
+		SigstorePolicies:                cfg.SigstorePolicies,
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 	}
 
@@ -772,6 +779,7 @@ type Services struct {
 	services.StableUNIXUsersInternal
 	services.WorkloadIdentityX509Revocations
 	services.WorkloadIdentityX509Overrides
+	services.SigstorePolicies
 	services.HealthCheckConfig
 }
 
@@ -1049,6 +1057,10 @@ type Server struct {
 
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
+
+	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
+	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
+	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
 
 	inventory *inventory.Controller
 
@@ -3818,7 +3830,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.ProxyAddress, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -7193,7 +7205,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRedirectURL string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -7299,7 +7311,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, challengeExtensions); err != nil {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7609,7 +7621,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add TLS keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -7656,6 +7668,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SAMLIdPCATLS
 	case types.SPIFFECA:
 		return cryptosuites.SPIFFECATLS
+	case types.AWSRACA:
+		return cryptosuites.AWSRACATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }
@@ -7830,6 +7844,26 @@ func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Str
 		servers, err := resources.AsServers()
 		return servers, trace.Wrap(err)
 	})
+}
+
+// SetWorkloadIdentityX509CAOverrideGetter sets the underlying
+// [services.WorkloadIdentityX509CAOverrideGetter] used by the auth server for
+// the implementation of [Server.GetWorkloadIdentityX509CAOverride] (provided by
+// enterprise code). Not safe for concurrent access, so it should only be called
+// during setup.
+func (a *Server) SetWorkloadIdentityX509CAOverrideGetter(getter services.WorkloadIdentityX509CAOverrideGetter) {
+	a.workloadIdentityX509CAOverrideGetter = getter
+}
+
+// GetWorkloadIdentityX509CAOverride implements
+// [services.WorkloadIdentityX509CAOverrideGetter] by optionally delegating to
+// an underlying implementation (provided by enterprise code).
+func (a *Server) GetWorkloadIdentityX509CAOverride(ctx context.Context, name string, ca *tlsca.CertAuthority) (*tlsca.CertAuthority, [][]byte, error) {
+	getter := a.workloadIdentityX509CAOverrideGetter
+	if getter == nil {
+		return ca, nil, nil
+	}
+	return getter.GetWorkloadIdentityX509CAOverride(ctx, name, ca)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

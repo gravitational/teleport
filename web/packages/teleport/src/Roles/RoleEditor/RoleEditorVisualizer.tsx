@@ -42,13 +42,11 @@ export function RoleEditorVisualizer({
 }) {
   const ctx = useTeleport();
   const version = ctx.storeUser.state.cluster.authVersion;
+  const canUpdateAccessGraphSettings =
+    ctx.storeUser.state.acl.accessGraphSettings.edit;
   // the demo banner should show every time they load the role editor
   const [demoDismissed, setDemoDismissed] = useState(false);
-  if (
-    roleDiffProps &&
-    (roleDiffProps.roleDiffState === RoleDiffState.DemoReady ||
-      roleDiffProps.roleDiffState === RoleDiffState.PolicyEnabled)
-  ) {
+  if (roleDiffProps && shouldShowRoleDiff(roleDiffProps)) {
     return (
       <Flex
         flex="1"
@@ -95,10 +93,18 @@ export function RoleEditorVisualizer({
   return (
     <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
       <PolicyPlaceholder
+        canUpdateAccessGraphSettings={canUpdateAccessGraphSettings}
         roleDiffProps={roleDiffProps}
         enableDemoMode={roleDiffProps?.enableDemoMode}
         currentFlow={currentFlow}
       />
     </Flex>
+  );
+}
+
+export function shouldShowRoleDiff(rdp: RoleDiffProps) {
+  return (
+    rdp.roleDiffState === RoleDiffState.DemoReady ||
+    rdp.roleDiffState === RoleDiffState.PolicyEnabled
   );
 }

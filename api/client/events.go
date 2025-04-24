@@ -23,6 +23,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -141,6 +142,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentityX509Revocation]:
 		out.Resource = &proto.Event_WorkloadIdentityX509Revocation{
 			WorkloadIdentityX509Revocation: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
+		out.Resource = &proto.Event_HealthCheckConfig{
+			HealthCheckConfig: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -624,6 +629,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetWorkloadIdentityX509Revocation(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetHealthCheckConfig(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

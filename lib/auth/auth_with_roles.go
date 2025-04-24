@@ -3412,6 +3412,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
+
+			BotName: getBotName(user),
+			// Always pass through a bot instance ID if available. Legacy bots
+			// joining without an instance ID may have one generated when
+			// `updateBotInstance()` is called below, and this (empty) value will be
+			// overridden.
+			BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3944,7 +3951,7 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 	return updated, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
 	if err := a.authConnectorAction(types.KindSAML, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3954,11 +3961,10 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	return a.authServer.GetSAMLConnector(ctx, id, withSecrets)
+	return a.authServer.GetSAMLConnectorWithValidationOptions(ctx, id, withSecrets, opts...)
 }
 
-func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
+func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
 	if err := a.authConnectorAction(types.KindSAML, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3970,7 +3976,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.GetSAMLConnectors(ctx, withSecrets)
+	return a.authServer.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets, opts...)
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {

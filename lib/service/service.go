@@ -514,8 +514,8 @@ func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
 	return tlsCert, nil
 }
 
-func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
-	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock)
+func (c *Connector) getPROXYSigner(clock clockwork.Clock, allowDowngrade bool) (multiplexer.PROXYHeaderSigner, error) {
+	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock, allowDowngrade)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
@@ -1240,27 +1240,44 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	hello := proto.UpstreamInventoryHello{
-		ServerID: cfg.HostUUID,
-		Version:  teleport.Version,
-		Services: process.getInstanceRoles(),
-		Hostname: cfg.Hostname,
-	}
-
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
-	hello.ExternalUpgrader = externalUpgrader
-	if upgraderVersion != nil {
-		// The UpstreamInventoryHello message wants versions with the leading "v".
-		hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+
+	getHello := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+		hello := proto.UpstreamInventoryHello{
+			ServerID:         cfg.HostUUID,
+			Version:          teleport.Version,
+			Services:         process.getInstanceRoles(),
+			Hostname:         cfg.Hostname,
+			ExternalUpgrader: externalUpgrader,
+		}
+
+		if upgraderVersion != nil {
+			// The UpstreamInventoryHello message wants versions with the leading "v".
+			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+		}
+
+		if upgraderKind == types.UpgraderKindTeleportUpdate {
+			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
+			if err != nil {
+				// Failing to detect teleport-update info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
+			}
+			hello.UpdaterInfo = info
+		}
+		return hello, nil
 	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(
+	process.inventoryHandle, err = inventory.NewDownstreamHandle(
 		process.makeInventoryControlStreamWhenReady,
-		hello,
+		getHello,
 		inventory.WithDownstreamClock(process.Clock),
 	)
+	if err != nil {
+		return nil, trace.Wrap(err, "building inventory handle")
+	}
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
@@ -1284,23 +1301,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 		switch upgraderKind {
 		case types.UpgraderKindTeleportUpdate:
-			isDefault, err := autoupdate.IsManagedAndDefault()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if !isDefault {
-				// Only write the nop schedule for the default updater.
-				// Suffixed installations of Teleport can coexist with the old upgrader system.
-				break
-			}
-			driver, err := uw.NewSystemdUnitDriver(uw.SystemdUnitDriverConfig{})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := driver.ForceNop(process.ExitContext()); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Unable to disable the teleport-upgrade command provided by the deprecated teleport-ent-updater package.", "error", err)
-				process.logger.WarnContext(process.ExitContext(), "If the deprecated teleport-ent-updater package is installed, please ensure /etc/teleport-upgrade.d/schedule contains 'nop'.")
-			}
+			// Exports are not required for teleport-update
 		case types.UpgraderKindSystemdUnit:
 			process.RegisterFunc("autoupdates.endpoint.export", func() error {
 				conn, err := waitForInstanceConnector(process, process.logger)
@@ -2247,7 +2248,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
@@ -2257,7 +2257,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetAccessRequestCache(accessRequestCache)
 
 	userNotificationCache, err := services.NewUserNotificationCache(services.NotificationCacheConfig{
@@ -2267,7 +2266,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetUserNotificationCache(userNotificationCache)
 
 	globalNotificationCache, err := services.NewGlobalNotificationCache(services.NotificationCacheConfig{
@@ -2277,7 +2275,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	authServer.SetGlobalNotificationCache(globalNotificationCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
@@ -2294,7 +2291,11 @@ func (process *TeleportProcess) initAuthService() error {
 	// a node can abandon an upload before it is competed.
 	// (In async recording modes, auth only ever sees completed uploads, as the node's upload completer
 	// packages up the parts into a single upload before sending to auth)
-	if uploadHandler != nil {
+	disableCompleter, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_AUTH_UPLOAD_COMPLETER"))
+	switch {
+	case disableCompleter:
+		logger.WarnContext(process.ExitContext(), "auth service's upload completer is disabled, abandoned uploads may accumulate in external storage")
+	case uploadHandler != nil:
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
 			Uploader:       uploadHandler,
 			Component:      teleport.ComponentAuth,
@@ -2305,7 +2306,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "starting upload completer")
 		}
 	}
 
@@ -2675,6 +2676,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.IdentityCenter = services.IdentityCenter
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
+	cfg.HealthCheckConfig = services.HealthCheckConfig
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2722,6 +2724,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
+	cfg.HealthCheckConfig = client
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3038,13 +3041,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
+
 		// Provide helpful log message if listen_addr or public_addr are not being
 		// used (tunnel is used to connect to cluster).
 		//
 		// If a tunnel is not being used, set the default here (could not be done in
 		// file configuration because at that time it's not known if server is
 		// joining cluster directly or through a tunnel).
-		if conn.UseTunnel() {
+		if !useLocalListener {
 			if !cfg.SSH.Addr.IsEmpty() {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring listen_addr setting.")
 			}
@@ -3052,7 +3057,7 @@ func (process *TeleportProcess) initSSH() error {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring public_addr setting.")
 			}
 		}
-		if !conn.UseTunnel() && cfg.SSH.Addr.IsEmpty() {
+		if useLocalListener && cfg.SSH.Addr.IsEmpty() {
 			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 		}
 
@@ -3171,7 +3176,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
-		if !conn.UseTunnel() {
+		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3219,7 +3224,9 @@ func (process *TeleportProcess) initSSH() error {
 			if err := s.Start(); err != nil {
 				return trace.Wrap(err)
 			}
+		}
 
+		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
@@ -4479,7 +4486,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	proxySigner, err := conn.getPROXYSigner(process.Clock)
+	proxySigner, err := conn.getPROXYSigner(process.Clock, cfg.Proxy.PROXYAllowDowngrade)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5579,7 +5586,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb, alpncommon.ConnHandlerSourceWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
