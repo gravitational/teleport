@@ -113,7 +113,7 @@ export function OnlineDocumentGateway(props: {
       <CliCommand
         cliCommand={props.gateway.gatewayCliCommand.preview}
         isLoading={isPortOrDbNameProcessing}
-        onButtonClick={props.runCliCommand}
+        button={{ onClick: props.runCliCommand }}
       />
       {$errors}
 

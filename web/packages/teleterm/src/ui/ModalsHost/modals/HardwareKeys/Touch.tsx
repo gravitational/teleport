@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, Flex, Image, P2 } from 'design';
+import { Image, P2, Stack } from 'design';
 import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
-import { CommandContainer } from 'teleterm/ui/components/CliCommand';
+import { CliCommand } from 'teleterm/ui/components/CliCommand';
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
 import { CommonHeader } from './CommonHeader';
@@ -47,25 +47,26 @@ export function Touch(props: {
       />
 
       <DialogContent mb={4}>
-        <P2>
-          Touch your YubiKey to continue
-          {props.req.command && <>{' with command:'}</>}
-        </P2>
-        <CommandContainer mt={2} mr={2} width="100%" bg="bgTerminal">
-          <Box ml={2} mr={2}>{`$`}</Box>
-          <span>{props.req.command}</span>
-        </CommandContainer>
-        <Flex
-          flexDirection="column"
-          gap={4}
-          alignItems="center"
+        <Stack
+          width="100%"
           css={`
             position: relative;
           `}
         >
-          <Image mt={4} mb={4} width="200px" src={svgHardwareKey} />
+          <P2>
+            Touch your YubiKey to continue
+            {props.req.command && <>{' with command:'}</>}
+          </P2>
+          {props.req.command && <CliCommand cliCommand={props.req.command} />}
+          <Image
+            alignSelf="center"
+            mt={4}
+            mb={4}
+            width="200px"
+            src={svgHardwareKey}
+          />
           <LinearProgress />
-        </Flex>
+        </Stack>
       </DialogContent>
     </DialogConfirmation>
   );

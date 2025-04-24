@@ -24,17 +24,14 @@ import { fade } from 'design/theme/utils/colorManipulator';
 
 interface CliCommandProps {
   cliCommand: string;
-  onButtonClick(): void;
-  isLoading: boolean;
-  buttonText?: string;
+  button?: {
+    text?: string;
+    onClick(): void;
+  };
+  isLoading?: boolean;
 }
 
-export function CliCommand({
-  cliCommand,
-  onButtonClick,
-  isLoading,
-  buttonText = 'Run',
-}: CliCommandProps) {
+export function CliCommand({ cliCommand, button, isLoading }: CliCommandProps) {
   const [shouldDisplayIsLoading, setShouldDisplayIsLoading] = useState(false);
 
   useEffect(() => {
@@ -57,7 +54,7 @@ export function CliCommand({
       justifyContent="space-between"
       borderRadius={2}
       bg="bgTerminal"
-      mb={2}
+      width="100%"
     >
       <CommandContainer
         mr="2"
@@ -78,24 +75,26 @@ export function CliCommand({
           />
         )}
       </CommandContainer>
-      <ButtonPrimary
-        onClick={onButtonClick}
-        disabled={shouldDisplayIsLoading}
-        css={`
-          max-width: 48px;
-          width: 100%;
-          padding: 4px 8px;
-          min-height: 10px;
-          font-size: 10px;
-        `}
-      >
-        {buttonText}
-      </ButtonPrimary>
+      {button && (
+        <ButtonPrimary
+          onClick={button.onClick}
+          disabled={shouldDisplayIsLoading}
+          css={`
+            max-width: 48px;
+            width: 100%;
+            padding: 4px 8px;
+            min-height: 10px;
+            font-size: 10px;
+          `}
+        >
+          {button.text || 'Run'}
+        </ButtonPrimary>
+      )}
     </Flex>
   );
 }
 
-export const CommandContainer = styled(Flex)<{
+const CommandContainer = styled(Flex)<{
   shouldDisplayIsLoading?: boolean;
 }>`
   overflow: auto;
