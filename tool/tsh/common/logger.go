@@ -17,6 +17,7 @@
 package common
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -81,4 +82,10 @@ func parseLoggingOptsFromEnvAndArgv(cf *CLIConf) loggingOpts {
 	}
 
 	return opts
+}
+
+func printInitLoggerError(err error) {
+	// If initLogger, logger and slog.Default() are likely not going to output any messages anywhere.
+	// That's why this functions prints directly to stderr instead.
+	fmt.Fprintf(os.Stderr, "WARNING: Could not initialize the logger due to an error, no messages will be logged %s\n\n", trace.DebugReport(err))
 }
