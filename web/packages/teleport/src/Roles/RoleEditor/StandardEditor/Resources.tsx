@@ -355,6 +355,8 @@ export function KubernetesAccessSection({
                 ],
               })
             }
+            size="small"
+            inputAlignment
           >
             <Add disabled={isProcessing} size="small" />
             {value.resources.length > 0

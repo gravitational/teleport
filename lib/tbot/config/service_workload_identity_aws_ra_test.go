@@ -35,6 +35,24 @@ func TestWorkloadIdentityAWSRAService_YAML(t *testing.T) {
 				Selector: WorkloadIdentitySelector{
 					Name: "my-workload-identity",
 				},
+				SessionDuration:         time.Minute * 59,
+				SessionRenewalInterval:  time.Minute * 29,
+				RoleARN:                 "arn:aws:iam::123456789012:role/example-role",
+				TrustAnchorARN:          "arn:aws:rolesanywhere:us-east-1:123456789012:trust-anchor/0000000-0000-0000-0000-000000000000",
+				ProfileARN:              "arn:aws:rolesanywhere:us-east-1:123456789012:profile/0000000-0000-0000-0000-00000000000",
+				Region:                  "us-east-1",
+				CredentialProfileName:   "my-profile",
+				ArtifactName:            "my-artifact.toml",
+				OverwriteCredentialFile: true,
+			},
+		},
+		{
+			name: "simple",
+			in: WorkloadIdentityAWSRAService{
+				Destination: dest,
+				Selector: WorkloadIdentitySelector{
+					Name: "my-workload-identity",
+				},
 				SessionDuration:        time.Minute * 59,
 				SessionRenewalInterval: time.Minute * 29,
 				RoleARN:                "arn:aws:iam::123456789012:role/example-role",
