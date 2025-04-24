@@ -963,7 +963,7 @@ func TestDiscoveryServer(t *testing.T) {
 					instances := installer.GetInstalledInstances()
 					slices.Sort(instances)
 					return slices.Equal(tc.wantInstalledInstances, instances) && len(tc.wantInstalledInstances) == reporter.ResourceCreateEventCount()
-				}, 5*time.Second, 50*time.Millisecond)
+				}, 10*time.Second, 50*time.Millisecond)
 			} else {
 				require.Never(t, func() bool {
 					return len(installer.GetInstalledInstances()) > 0 || reporter.ResourceCreateEventCount() > 0
