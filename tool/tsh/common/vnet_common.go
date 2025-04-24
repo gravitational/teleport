@@ -221,7 +221,7 @@ func (p *vnetAppProvider) newTeleportClient(ctx context.Context, profileName, le
 	cfg := &client.Config{
 		ClientStore: p.clientStore,
 	}
-	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
 	if leafClusterName != "" {
