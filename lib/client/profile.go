@@ -300,6 +300,10 @@ type ProfileStatus struct {
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
@@ -313,6 +317,7 @@ type profileOptions struct {
 	KubeProxyAddr           string
 	IsVirtual               bool
 	SAMLSingleLogoutEnabled bool
+	TLSRoutingEnabled       bool
 }
 
 // profileFromkey returns a ProfileStatus for the given key and options.
@@ -406,6 +411,7 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		IsVirtual:               opts.IsVirtual,
 		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
+		TLSRoutingEnabled:       opts.TLSRoutingEnabled,
 	}, nil
 }
 
@@ -582,7 +588,7 @@ func (p *ProfileStatus) DatabaseServices() (result []string) {
 
 // DatabasesForCluster returns a list of databases for this profile, for the
 // specified cluster name.
-func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteToDatabase, error) {
+func (p *ProfileStatus) DatabasesForCluster(clusterName string, store *Store) ([]tlsca.RouteToDatabase, error) {
 	if clusterName == "" || clusterName == p.Cluster {
 		return p.Databases, nil
 	}
@@ -592,8 +598,8 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
-	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, nil /*hwks*/, WithDBCerts{})
+
+	key, err := store.GetKey(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -602,7 +608,7 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 
 // AppsForCluster returns a list of apps for this profile, for the
 // specified cluster name.
-func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, error) {
+func (p *ProfileStatus) AppsForCluster(clusterName string, store *Store) ([]tlsca.RouteToApp, error) {
 	if clusterName == "" || clusterName == p.Cluster {
 		return p.Apps, nil
 	}
@@ -613,8 +619,7 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 		ClusterName: clusterName,
 	}
 
-	store := NewFSKeyStore(p.Dir)
-	key, err := store.GetKey(idx, nil /*hwks*/, WithAppCerts{})
+	key, err := store.GetKey(idx, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
