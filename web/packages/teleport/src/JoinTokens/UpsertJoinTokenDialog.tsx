@@ -34,7 +34,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
-import Validation from 'shared/components/Validation';
+import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -52,6 +52,7 @@ import {
   JoinTokenIAMForm,
   JoinTokenOracleForm,
 } from './JoinTokenForms';
+import { JoinTokenGithubForm } from './JoinTokenGithubForm';
 
 const maxWidth = '550px';
 
@@ -65,12 +66,15 @@ const joinRoleOptions: OptionJoinRole[] = [
   'Discovery',
 ].map(role => ({ value: role as JoinRole, label: role as JoinRole }));
 
-const availableJoinMethods: OptionJoinMethod[] = ['iam', 'gcp', 'oracle'].map(
-  method => ({
-    value: method as JoinMethod,
-    label: method as JoinMethod,
-  })
-);
+const availableJoinMethods: OptionJoinMethod[] = [
+  'iam',
+  'gcp',
+  'oracle',
+  'github',
+].map(method => ({
+  value: method as JoinMethod,
+  label: method as JoinMethod,
+}));
 
 export type AllowOption = Option<string, string>;
 type OptionJoinMethod = Option<JoinMethod, JoinMethod>;
@@ -86,6 +90,20 @@ type NewJoinTokenOracleState = {
   regions: AllowOption[];
 };
 
+type NewJoinTokenGithubState = {
+  server_host?: string;
+  static_jwks?: string | undefined;
+  enterprise_slug?: string | undefined;
+  rules: {
+    repository?: string;
+    repository_owner?: string | undefined;
+    workflow?: string | undefined;
+    environment?: string | undefined;
+    ref?: string;
+    ref_type?: 'any' | 'branch' | 'tag';
+  }[];
+};
+
 export type NewJoinTokenState = {
   name: string;
   // bot_name is only required when Bot is selected in the roles
@@ -95,6 +113,7 @@ export type NewJoinTokenState = {
   iam: AWSRules[];
   gcp: NewJoinTokenGCPState[];
   oracle: NewJoinTokenOracleState[];
+  github: NewJoinTokenGithubState;
 };
 
 export const defaultNewTokenState: NewJoinTokenState = {
@@ -105,6 +124,13 @@ export const defaultNewTokenState: NewJoinTokenState = {
   iam: [{ aws_account: '', aws_arn: '' }],
   gcp: [{ project_ids: [], service_accounts: [], locations: [] }],
   oracle: [{ tenancy: '', parent_compartments: [], regions: [] }],
+  github: {
+    rules: [
+      {
+        ref_type: 'any',
+      },
+    ],
+  },
 };
 
 function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
@@ -130,7 +156,33 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
       })),
       regions: r.regions?.map(i => ({ value: i, label: i })),
     })),
+    github: token.github
+      ? {
+          server_host: token.github.enterprise_server_host,
+          enterprise_slug: token.github.enterprise_slug,
+          static_jwks: token.github.static_jwks,
+          rules: token.github.allow.map(r => ({
+            repository: r.repository,
+            actor: r.actor,
+            environment: r.environment,
+            ref: r.ref,
+            ref_type: parseGithubRefType(r.ref_type),
+            repository_owner: r.repository_owner,
+            workflow: r.workflow,
+          })),
+        }
+      : undefined,
   };
+}
+
+function parseGithubRefType(refType: string) {
+  if (refType == 'branch') {
+    return 'branch';
+  } else if (refType == 'tag') {
+    return 'tag';
+  } else {
+    return 'any';
+  }
 }
 
 export const UpsertJoinTokenDialog = ({
@@ -157,12 +209,12 @@ export const UpsertJoinTokenDialog = ({
     }
   );
 
-  function reset(validator) {
+  function reset(validator: Validator) {
     validator.reset();
     setNewTokenState(defaultNewTokenState);
   }
 
-  async function save(validator) {
+  async function save(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
@@ -205,6 +257,27 @@ export const UpsertJoinTokenDialog = ({
         })),
       };
       request.oracle = oracle;
+    }
+
+    if (newTokenState.method.value === 'github') {
+      const github: (typeof request)['github'] = {
+        allow: newTokenState.github.rules.map(rule => ({
+          environment: rule.environment,
+          ref: rule.ref,
+          ref_type: rule.ref ? rule.ref_type : undefined,
+          repository: rule.repository,
+          repository_owner: rule.repository_owner,
+          workflow: rule.workflow,
+
+          actor: null, // Unsupported field
+          sub: null, // Unsupported field
+        })),
+        enterprise_server_host: newTokenState.github.server_host,
+        enterprise_slug: newTokenState.github.enterprise_slug,
+        static_jwks: newTokenState.github.static_jwks,
+      };
+
+      request.github = github;
     }
 
     runCreateTokenAttempt(request);
@@ -344,6 +417,12 @@ export const UpsertJoinTokenDialog = ({
                   onUpdateState={newState => setNewTokenState(newState)}
                 />
               )}
+              {newTokenState.method.value === 'github' && (
+                <JoinTokenGithubForm
+                  tokenState={newTokenState}
+                  onUpdateState={setNewTokenState}
+                />
+              )}
               <Flex
                 mt={4}
                 py={4}
@@ -353,7 +432,7 @@ export const UpsertJoinTokenDialog = ({
                   bottom: 0;
                   background: ${({ theme }) => theme.colors.levels.sunken};
                   border-top: 1px solid
-                    ${props => props.theme.colors.spotBackground[1]};
+                    ${({ theme }) => theme.colors.spotBackground[1]};
                 `}
               >
                 <ButtonPrimary

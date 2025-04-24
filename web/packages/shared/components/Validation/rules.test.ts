@@ -18,6 +18,7 @@
 
 import {
   arrayOf,
+  falsyField,
   requiredConfirmedPassword,
   requiredEmailLike,
   requiredField,
@@ -211,4 +212,25 @@ test.each([
   },
 ])('arrayOf: $name', ({ items, expected }) => {
   expect(arrayOf(requiredField('required'))(items)()).toEqual(expected);
+});
+
+describe('falsyField', () => {
+  const errMsg = 'error text';
+  const validator = falsyField(errMsg);
+
+  test.each`
+    input                | expected
+    ${'not empty value'} | ${{ valid: false, message: errMsg }}
+    ${1}                 | ${{ valid: false, message: errMsg }}
+    ${true}              | ${{ valid: false, message: errMsg }}
+    ${{}}                | ${{ valid: false, message: errMsg }}
+    ${[]}                | ${{ valid: false, message: errMsg }}
+    ${''}                | ${{ valid: true, message: undefined }}
+    ${null}              | ${{ valid: true, message: undefined }}
+    ${undefined}         | ${{ valid: true, message: undefined }}
+    ${0}                 | ${{ valid: true, message: undefined }}
+    ${false}             | ${{ valid: true, message: undefined }}
+  `('input with: $input', ({ input, expected }) => {
+    expect(validator(input)()).toEqual(expected);
+  });
 });

@@ -261,6 +261,26 @@ const requiredPort: Rule = port => () => {
 };
 
 /**
+ * falsyField checks the the value is falsy
+ * @param message the message to return if invalid
+ * @returns validaton result
+ */
+const falsyField =
+  <T = string>(message: string): Rule<T> =>
+  value =>
+  () => {
+    if (value) {
+      return {
+        valid: false,
+        message,
+      };
+    }
+    return {
+      valid: true,
+    };
+  };
+
+/**
  * A rule function that combines multiple inner rule functions. All rules must
  * return `valid`, otherwise it returns a comma separated string containing all
  * invalid rule messages.
@@ -379,4 +399,5 @@ export {
   requiredPort,
   arrayOf,
   precomputed,
+  falsyField,
 };
