@@ -26,7 +26,7 @@ or authorization. OAuth authorization was recently added to the specification,
 but as of the time of writing, it is still new and not widely adopted.
 
 With Teleport's support for MCP servers, users can:
-- Host MCP servers on remote machines where transport is secured with TLS
+- Access MCP servers on remote machines where transport is secured with TLS
 - Control access to specific MCP servers and specific tools defined by Teleport roles
 - Track activity through Teleport's audit log
 
@@ -136,7 +136,7 @@ based on the context provided in the error.
 
 There are a few audit events related to MCP server sessions:
 - `mcp.session.start`/`mcp.session.end`: A start event and an end event is
-  expected per session from client.
+  expected per session from the client.
 - `mcp.session.notification`: Notifications that clients send to the server,
   like `notifications/initialized`.
 - `mcp.session.request`: Requests that clients send to the server, like
@@ -169,8 +169,8 @@ Per MCP protocol spec,
 [`stdio`](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
 is the primary transport that MCP uses:
 - the client launches the MCP server as a subprocess.
-- stdin for client to server messages.
-- stdout for server to client messages.
+- stdin for client-to-server messages.
+- stdout for server-to-client messages.
 - stderr for any information or errors that the MCP server wants to log outside
   of communication with the client.
 
@@ -196,16 +196,15 @@ MCP server apps.
 A new role option `mcp_tools` is introduced to apply fine-grained control on
 which tools from the MCP server should be allowed. Similar to
 `kubernetes_resources.name`, entries in `mcp_tools` also support glob and regex
-representations to make whitelisting/blacklisting easier. If `mcp_tools` is not
-specified for a role, all tools are allowed by default.
+representations to make whitelisting or blacklisting easier. If `mcp_tools` is not
+specified for a role, all tools are allowed by default. This new option
+`mcp_tools` will be enforced per JSON-RPC `tool/call` call, which will be
+detailed in the next section.
 
-The procedure to access a MCP server from `tsh` is the same as any other app --
-user has to obtain a user certificate with `route_to_app` for the TLS routing
-handshake, and the backend validates the identity then routes to appropriate app
-service based on this certificate.
-
-Role option `mcp_tools` will be enforced per JSON-RPC `tool/call` call, which
-will be detailed in the next section.
+The procedure to access an MCP server from `tsh` is the same as any other app --
+a user has to obtain a user certificate with `route_to_app` for the TLS routing
+handshake, and the backend validates the identity then routes to the appropriate
+app service based on this certificate.
 
 #### Implementation - MCP server handler with JSON-RPC
 
@@ -221,10 +220,10 @@ stdin and stdout are proxied between the client connection and the launched MCP
 server. Stderr from the launched MCP server will be logged at TRACE level in
 Teleport logs.
 
-Incoming bytes from client do get the following treatment before they are
+Incoming bytes from the client do get the following treatments before they are
 forwarded to the launched MCP server:
-- Parsed into JSON-RPC messages. 
-- If the message is a `tools/call` request, use access checker to confirm
+- Parsed into MCP/JSON-RPC messages. 
+- If the message is a `tools/call` request, use the access-checker to confirm
   whether the identity has access to the requested tool.
   - If the `tools/call` is access denied, make a text result detailing this
     error and send it back to the client connection. Do not forward the request to
@@ -239,10 +238,11 @@ A suite of `tsh mcp` commands are added on the client side:
 - `tsh mcp ls`: lists MCP server apps, with slightly different columns from `tsh
   app ls`.
 - `tsh mcp connect`: command to be called by the AI tool to launch an MCP server
-  through Teleport. stdin and stdout of this process are proxied to Teleport
-  backend. Any local tsh logs are sent to stderr.
+  through Teleport. User cert with `route_to_app` is automatically obtained if
+  the app hasn't been logged in yet. stdin and stdout of this process are
+  proxied to Teleport backend. Any local tsh logs are sent to stderr.
 - `tsh mcp config`: shows a sample JSON configuration that launches the MCP
-  server with `tsh mcp connect` for Claude Desktop. (Most AI tools uses the same
+  server with `tsh mcp connect` for Claude Desktop. (Most AI tools use the same
   JSON format as well.)
 - `tsh mcp db`: command to be called by the AI tool to launch a local MCP server
   that provides a database query tool through Teleport Database access. This
@@ -270,8 +270,10 @@ functionalities and how they align with it:
 
 #### Usage reporting
 
-`mcp.session.start` events will be reported for existing prehog session start
-events, with `mcp` as the session type.
+`mcp.session.start` events will be reported for existing session start events
+(`tp.session.start.v2`), with `mcp` as the session type. MCP sessions will be
+counted as regular `app_sessions` for user activity temporarily until new
+`mcp_sessions` is added on the cloud side.
 
 ### Security
 
@@ -286,10 +288,10 @@ Teleport service to run arbitrary commands.
 
 ### Future improvements
 
-One key improvement can be done is to move MCP servers to a standalone service,
-instead of relying on the App service, to support future expansion. Additional
-enhancements, listed below in no particular order, were not included in the
-initial implementation.
+One key improvement that can be done is to move MCP servers to a standalone
+service, instead of relying on the App service, to support potential future
+expansion. Additional enhancements, listed below in no particular order, were
+not included in the initial implementation.
 
 #### Improvement - environment variable support
 
@@ -345,6 +347,13 @@ request with hint when `tsh` session expires.
 Besides stdio as the transport of choice, MCP spec also outlines [streamable
 HTTP
 transport](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)
-and possibility of custom transports. Support to non-stdio transports can be
+and the possibility of custom transports. Support to non-stdio transports can be
 added to Teleport when they are more widely used, (or when they make more sense
 than stdio which requires launching a new subprocess).
+
+#### Improvement - Machine ID integration
+
+Many AI agent SDKs like
+[OpenAI](https://openai.github.io/openai-agents-python/mcp/) have MCP support,
+so it would be great to have native `tbot` support to connect MCP servers
+through Teleport.
