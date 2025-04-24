@@ -245,7 +245,7 @@ func (c *osConfigurator) getClient(ctx context.Context, profileName, leafCluster
 	clientConfig := &client.Config{
 		ClientStore: c.clientStore,
 	}
-	if err := clientConfig.LoadProfile(c.clientStore, profileName); err != nil {
+	if err := clientConfig.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
 	if leafClusterName != "" {
