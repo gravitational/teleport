@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
@@ -161,6 +162,8 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
+	// Clone creates a copy of the token.
+	Clone() ProvisionToken
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -193,6 +196,10 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 		panic(err)
 	}
 	return t
+}
+
+func (p *ProvisionTokenV2) Clone() ProvisionToken {
+	return utils.CloneProtoMsg(p)
 }
 
 // setStaticFields sets static resource header and metadata fields.

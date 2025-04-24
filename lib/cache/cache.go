@@ -1891,43 +1891,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-// GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetTokens(ctx)
-}
-
-// GetToken finds and returns token by ID
-func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	token, err := rg.reader.GetToken(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
-			return token, nil
-		}
-	}
-	return token, trace.Wrap(err)
-}
-
 type clusterConfigCacheKey struct {
 	kind string
 }

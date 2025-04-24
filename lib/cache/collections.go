@@ -49,6 +49,7 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
+	provisionTokens                  *collection[types.ProvisionToken]
 	staticTokens                     *collection[types.StaticTokens]
 	certAuthorities                  *collection[types.CertAuthority]
 	users                            *collection[types.User]
@@ -82,6 +83,14 @@ func setupCollections(c Config) (*collections, error) {
 		resourceKind := resourceKindFromWatchKind(watch)
 
 		switch watch.Kind {
+		case types.KindToken:
+			collect, err := newProvisionTokensCollection(c.Provisioner, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.provisionTokens = collect
+			out.byKind[resourceKind] = out.provisionTokens
 		case types.KindStaticTokens:
 			collect, err := newStaticTokensCollection(c.ClusterConfig, watch)
 			if err != nil {
