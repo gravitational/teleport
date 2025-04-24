@@ -28,7 +28,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { CommandContainer } from 'teleterm/ui/DocumentGateway/CliCommand';
+import { CommandContainer } from 'teleterm/ui/components/CliCommand';
 
 import { CommonHeader } from './CommonHeader';
 

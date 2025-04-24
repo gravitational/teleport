@@ -21,8 +21,8 @@ import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
+import { CommandContainer } from 'teleterm/ui/components/CliCommand';
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
-import { CommandContainer } from 'teleterm/ui/DocumentGateway/CliCommand';
 
 import { CommonHeader } from './CommonHeader';
 

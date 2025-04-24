@@ -25,8 +25,8 @@ import Validation from 'shared/components/Validation';
 import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
+import { CliCommand } from '../components/CliCommand';
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
-import { CliCommand } from './CliCommand';
 
 export function OnlineDocumentGateway(props: {
   changeDbName: (name: string) => RunFuncReturnValue<void>;
