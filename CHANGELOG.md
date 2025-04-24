@@ -1,5 +1,9 @@
 # Changelog
 
+## 16.5.5 (04/24/25)
+
+* Fixed incompatibility of client tools with servers older than v16.5.4. [#54285](https://github.com/gravitational/teleport/pull/54285)
+
 ## 16.5.4 (04/22/25)
 
 * User Kind is now correctly reported for Bots in the app.session.start audit log event. [#54242](https://github.com/gravitational/teleport/pull/54242)
