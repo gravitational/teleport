@@ -273,6 +273,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		KubeProxyAddr:           profile.KubeProxyAddr,
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		IsVirtual:               !onDisk,
+		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
 }
 

@@ -194,13 +194,13 @@ func TestParseProxyHostString(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	conf := Config{
-		Host:      "localhost",
-		HostLogin: "vincent",
-		HostPort:  22,
-		KeysDir:   t.TempDir(),
-		Username:  "localuser",
-		SiteName:  "site",
-		Tracer:    tracing.NoopProvider().Tracer("test"),
+		Host:        "localhost",
+		HostLogin:   "vincent",
+		HostPort:    22,
+		Username:    "localuser",
+		SiteName:    "site",
+		Tracer:      tracing.NoopProvider().Tracer("test"),
+		ClientStore: NewMemClientStore(),
 	}
 	err := conf.ParseProxyHost("proxy")
 	require.NoError(t, err)
@@ -1134,13 +1134,11 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 }
 
 func TestConnectToProxyCancelledContext(t *testing.T) {
-	cfg := MakeDefaultConfig()
-
+	cfg := &Config{}
 	cfg.Agent = &mockAgent{}
 	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
 	cfg.AddKeysToAgent = AddKeysToAgentNo
 	cfg.WebProxyAddr = "dummy"
-	cfg.KeysDir = t.TempDir()
 	cfg.TLSRoutingEnabled = true
 
 	clt, err := NewClient(cfg)
