@@ -49,7 +49,9 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
-var scheme = runtime.NewScheme()
+var (
+	scheme = runtime.NewScheme()
+)
 
 func init() {
 	utilruntime.Must(appsv1.AddToScheme(scheme))
