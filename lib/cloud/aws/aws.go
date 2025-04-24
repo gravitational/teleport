@@ -133,8 +133,7 @@ func IsRDSInstanceSupported(instance *rdstypes.DBInstance) bool {
 
 	// Min supported MariaDB version that supports IAM is 10.6
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html
-	minIAMSupportedVer := semver.New("10.6.0")
-	return !ver.LessThan(*minIAMSupportedVer)
+	return !ver.LessThan(semver.Version{Major: 10, Minor: 6, Patch: 0})
 }
 
 // IsRDSClusterSupported checks whether the Aurora cluster is supported.

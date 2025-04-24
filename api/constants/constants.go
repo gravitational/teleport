@@ -34,10 +34,6 @@ const (
 	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
-	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
-	// recording feature.
-	EnhancedRecordingMinKernel = "5.8.0"
-
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
 	EnhancedRecordingCommand = "command"

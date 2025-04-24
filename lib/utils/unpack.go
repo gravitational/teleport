@@ -181,7 +181,7 @@ func writeFile(path string, r io.Reader, mode, dirMode os.FileMode) error {
 	err := withDir(path, dirMode, func() error {
 		// Create file only if it does not exist to prevent overwriting existing
 		// files (like session recordings).
-		out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+		out, err := CreateExclusiveFile(path, mode)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}

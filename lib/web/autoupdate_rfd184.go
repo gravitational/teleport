@@ -52,7 +52,7 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to resolve AgentVersion", "error", err)
 		// Defaulting to current version
-		agentVersion = teleport.SemVersion
+		agentVersion = teleport.SemVer()
 	}
 	// If the source of truth is RFD 109 configuration (channels + CMC) we must emulate the
 	// RFD109 agent maintenance window behavior by looking up the CMC and checking if
@@ -67,7 +67,7 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 	toolsVersion, err := getToolsVersion(autoUpdateVersion)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to get tools version", "error", err)
-		toolsVersion = teleport.SemVersion
+		toolsVersion = teleport.SemVer()
 	}
 
 	return webclient.AutoUpdateSettings{
@@ -94,7 +94,7 @@ func getToolsVersion(v *autoupdatepb.AutoUpdateVersion) (*semver.Version, error)
 	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
 	// This ensures we always advertise a version compatible with the cluster.
 	if v.GetSpec().GetTools() == nil {
-		return teleport.SemVersion, nil
+		return teleport.SemVer(), nil
 	}
 	return version.EnsureSemver(v.GetSpec().GetTools().GetTargetVersion())
 }
