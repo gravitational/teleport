@@ -20,9 +20,10 @@ package attrs_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
-	"github.com/stretchr/testify/require"
 )
 
 func TestWorkloadAttrs(t *testing.T) {

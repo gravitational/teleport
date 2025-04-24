@@ -21,8 +21,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"google.golang.org/protobuf/proto"
+
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // WorkloadAttrs wraps the underlying protobuf message to implement slog.LogValuer.
