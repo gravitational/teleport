@@ -6045,7 +6045,13 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
-	conf.IdentityFileIn = identityPath
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
 

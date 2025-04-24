@@ -606,7 +606,10 @@ type CLIConf struct {
 	//
 	// Use getClientStore instead of using this directly to ensure the client store is initialized,
 	// instead of performing nil checks.
-	clientStore    *client.Store
+	clientStore *client.Store
+	// clientStoreSet ensures that the client store is only initialized once. Generally, using an
+	// atomic here is overkill as the CLIConf is generally consumed sequentially. However, occasionally
+	// we need concurrency safety, such as for [forEachProfileParallel].
 	clientStoreSet int32
 }
 
