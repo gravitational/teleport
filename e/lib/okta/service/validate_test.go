@@ -378,3 +378,134 @@ func Test_validateUpdateIntegrationRequest(t *testing.T) {
 		})
 	}
 }
+
+func Test_validatePlugin(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name        string
+		plugin      *types.PluginV1
+		expectedErr string
+	}{
+		{
+			name: "sync settings missing",
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{},
+					},
+				},
+			},
+			expectedErr: "sync settings are missing, this is a bug",
+		},
+		{
+			name: "sync settings missing",
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{},
+						},
+					},
+				},
+			},
+			expectedErr: "SSO connector ID is missing, this is a bug",
+		},
+		{
+			name: "app id missing but sync is not enabled",
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SsoConnectorId: "non-empty-connector-id",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "invalid, app id missing and sync is enabled",
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SsoConnectorId: "non-empty-connector-id",
+								SyncUsers:      true,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "SAML app ID is missing",
+		},
+		{
+			name: "valid with user sync enabled",
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SsoConnectorId: "non-empty-connector-id",
+								SyncUsers:      true,
+								AppId:          "non-empty-app-id",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "access list sync enabled but default owners missing",
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SsoConnectorId:  "non-empty-connector-id",
+								SyncUsers:       true,
+								AppId:           "non-empty-app-id",
+								SyncAccessLists: true,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "Access List sync enabled, but default owners are missing, this is a bug",
+		},
+		{
+			name: "valid with access list sync enabled",
+			plugin: &types.PluginV1{
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							SyncSettings: &types.PluginOktaSyncSettings{
+								SsoConnectorId:  "non-empty-connector-id",
+								SyncUsers:       true,
+								AppId:           "non-empty-app-id",
+								SyncAccessLists: true,
+								DefaultOwners:   []string{"the-default-owner"},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePlugin(tc.plugin)
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter(%+v)", err)
+				require.ErrorContains(t, err, tc.expectedErr)
+			}
+		})
+	}
+}

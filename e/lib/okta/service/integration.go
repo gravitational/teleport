@@ -148,6 +148,10 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 		return nil, trace.Wrap(err)
 	}
 
+	if err := validatePlugin(oktaPlugin); err != nil {
+		return nil, trace.Wrap(err, "failed to gather all the necessary information for the plugin creation")
+	}
+
 	createPluginRequest := &pluginspb.CreatePluginRequest{
 		Plugin:                oktaPlugin,
 		StaticCredentialsList: creds,
@@ -261,6 +265,10 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	}
 	if err := s.updatePluginCredentials(ctx, req, plugin); err != nil {
 		return nil, trace.Wrap(err, "updating plugin credentials")
+	}
+
+	if err := validatePlugin(plugin); err != nil {
+		return nil, trace.Wrap(err, "failed to gather all the necessary information for the plugin update")
 	}
 
 	updatedPlugin, err := s.pluginBackend.UpdatePlugin(ctx, plugin)

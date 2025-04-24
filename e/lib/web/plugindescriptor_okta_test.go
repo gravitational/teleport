@@ -253,6 +253,23 @@ func TestOktaPluginUpdate(t *testing.T) {
 	_, err = pluginsSvc.GetPlugin(s.ctx, types.PluginTypeOkta, false)
 	require.NoError(t, err)
 
+	mockta.
+		On("RoundTrip", requestForPath("GET", "/api/v1/apps")).
+		Return(jsonResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":     oktaAppID,
+				"name":   "Teleport_App_plus_index",
+				"label":  "Teleport App",
+				"status": "ACTIVE",
+				"_links": map[string]any{
+					"metadata": map[string]any{
+						"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
+						"type": "application/xml",
+					},
+				},
+			},
+		}), nil)
+
 	// Expect the Okta credentials test request (list users)
 	mockta.
 		On("RoundTrip", requestForPath(
@@ -298,6 +315,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 
 	expectedOktaSpec = &ui.OktaPluginSpec{
 		OktaOrgURL:           oktaTestOrg,
+		OktaAppID:            oktaAppID,
 		TeleportSSOConnector: common.OktaSSOConnectorName,
 		EnableUserSync:       true,
 		EnableAppGroupSync:   false,
@@ -317,6 +335,7 @@ func TestOktaPluginUpdate(t *testing.T) {
 	expectedSettings := &types.PluginOktaSettings{
 		OrgUrl: oktaTestOrg,
 		SyncSettings: &types.PluginOktaSyncSettings{
+			AppId:                    oktaAppID,
 			SyncUsers:                true,
 			SyncAccessLists:          false,
 			DisableSyncAppGroups:     true,
@@ -596,7 +615,7 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 }
 
 //nolint:bodyclose // The http.Requests created in this function are cleaned up by the request consumers
-func TestOktaPluginInstallFailsWithLegacySAMLConnector(t *testing.T) {
+func TestOktaPluginInstallWorksWithLegacySAMLConnector(t *testing.T) {
 	mockta := &mockRoundTripper{}
 	s, webPack, _ := newTestOktaPluginFixture(t, withRoundTripper(mockta))
 
@@ -624,8 +643,39 @@ func TestOktaPluginInstallFailsWithLegacySAMLConnector(t *testing.T) {
 	_, err := s.testAuthServer.Auth().CreateSAMLConnector(s.ctx, samlConnector)
 	require.NoError(t, err)
 
-	// Given an Okta service that will only expect the credential validation
-	// request ...
+	mockta.
+		On("RoundTrip", requestForPath(
+			"GET", "/api/v1/apps/"+oktaAppID)).
+		Return(jsonResponse(t, http.StatusOK, map[string]any{
+			"id":     oktaAppID,
+			"name":   "Teleport_App_plus_index",
+			"label":  "Teleport App",
+			"status": "ACTIVE",
+			"_links": map[string]any{
+				"metadata": map[string]any{
+					"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
+					"type": "application/xml",
+				},
+			},
+		}), nil)
+
+	mockta.
+		On("RoundTrip", requestForPath("GET", "/api/v1/apps")).
+		Return(jsonResponse(t, http.StatusOK, []map[string]any{
+			{
+				"id":     oktaAppID,
+				"name":   "Teleport_App_plus_index",
+				"label":  "Teleport App",
+				"status": "ACTIVE",
+				"_links": map[string]any{
+					"metadata": map[string]any{
+						"href": fmt.Sprintf("%s/api/v1/apps/%s/sso/saml/metadata", oktaTestOrg, oktaAppID),
+						"type": "application/xml",
+					},
+				},
+			},
+		}), nil)
+
 	mockta.
 		On("RoundTrip", requestForPath(
 			"GET", "/api/v1/users")).
@@ -656,12 +706,12 @@ func TestOktaPluginInstallFailsWithLegacySAMLConnector(t *testing.T) {
 	// Expect that the HTTP round trip succeeded
 	require.NoError(t, err)
 
-	// Expect that the install failed
-	require.Equal(t, http.StatusPreconditionFailed, resp.Code())
+	// Expect that the install went through
+	require.Equal(t, http.StatusOK, resp.Code())
 
-	//  Expect that the plugin was not created
+	//  Expect that the plugin was created
 	_, err = s.authPlugin.PluginsService().GetPlugin(s.ctx, types.PluginTypeOkta, false)
-	require.True(t, trace.IsNotFound(err), "Expected NotFound, got %s", err)
+	require.NoError(t, err)
 }
 
 func requireEqualTo(expected interface{}) require.ValueAssertionFunc {
@@ -1188,6 +1238,6 @@ const testEntityDescriptor = `
 		</ds:KeyInfo>
 	</md:KeyDescriptor>
 	<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-	<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://test-okta-org.example.com/saml/acs/example"/>
+	<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://test-okta-org.example.com/app/okta_app_name_1/random_stuff/sso/saml"/>
 	</md:IDPSSODescriptor>
 </md:EntityDescriptor>`

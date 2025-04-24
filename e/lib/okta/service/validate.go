@@ -113,6 +113,33 @@ func validateUpdateIntegrationRequest(req *oktapb.UpdateIntegrationRequest, plug
 	return nil
 }
 
+// validatePlugin checks Okta plugin invariants that has to be met before storing it in the
+// backend.
+func validatePlugin(plugin *types.PluginV1) error {
+	syncSettings := plugin.Spec.GetOkta().GetSyncSettings()
+	if syncSettings == nil {
+		return trace.BadParameter("sync settings are missing, this is a bug")
+	}
+
+	if syncSettings.SsoConnectorId == "" {
+		return trace.BadParameter("SSO connector ID is missing, this is a bug")
+	}
+
+	if syncSettings.GetEnableUserSync() {
+		if syncSettings.AppId == "" {
+			return trace.BadParameter("SAML app ID is missing, please make sure Okta SAML app is included in the Okta resource set and all the necessary permissions are given to the Okta API services app")
+		}
+	}
+
+	if syncSettings.GetEnableAccessListSync() {
+		if len(syncSettings.DefaultOwners) == 0 {
+			return trace.BadParameter("Access List sync enabled, but default owners are missing, this is a bug")
+		}
+	}
+
+	return nil
+}
+
 // validateSyncSettings validates sync settings in [oktapb.CreateIntegrationRequest] and
 // [oktapb.UpdateIntegrationRequest].
 func validateSyncSettings(req interface {
