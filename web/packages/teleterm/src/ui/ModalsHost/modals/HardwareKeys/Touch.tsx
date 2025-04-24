@@ -21,6 +21,7 @@ import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import { CliCommand } from 'teleterm/ui/components/CliCommand';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 import { CommonHeader } from './CommonHeader';
@@ -48,22 +49,25 @@ export function Touch(props: {
       <DialogContent mb={4}>
         <Flex
           flexDirection="column"
-          gap={4}
-          alignItems="center"
+          gap={2}
           css={`
             position: relative;
           `}
         >
-          <Image mb={4} width="200px" src={svgHardwareKey} />
-          <P2 bold>
+          <P2>
             Touch your YubiKey to continue
-            {props.req.command && (
-              <>
-                {' with command:'}
-                <pre>{props.req.command}</pre>
-              </>
-            )}
+            {props.req.command ? ' with command:' : '.'}
           </P2>
+          {props.req.command && (
+            <CliCommand cliCommand={props.req.command} wrapContent />
+          )}
+          <Image
+            alignSelf="center"
+            mt={4}
+            mb={4}
+            width="200px"
+            src={svgHardwareKey}
+          />
           <LinearProgress />
         </Flex>
       </DialogContent>
