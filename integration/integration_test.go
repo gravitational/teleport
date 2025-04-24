@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,7 +72,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
@@ -2483,28 +2481,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
 	require.NoError(t, err)
 
-	// The known_hosts file should have two certificates, the way bytes.Split
-	// works that means the output will be 3 (2 certs + 1 empty).
-	buffer, err := os.ReadFile(keypaths.KnownHostsPath(tc.KeysDir))
+	trustedCerts, err := tc.ClientStore.GetTrustedCerts(tc.WebProxyHost())
 	require.NoError(t, err)
-	parts := bytes.Split(buffer, []byte("\n"))
-	require.Len(t, parts, 3)
-
-	roots := x509.NewCertPool()
-	werr := filepath.Walk(keypaths.CAsDir(tc.KeysDir, Host), func(path string, info fs.FileInfo, err error) error {
-		require.NoError(t, err)
-		if info.IsDir() {
-			return nil
-		}
-		buffer, err = os.ReadFile(path)
-		require.NoError(t, err)
-		ok := roots.AppendCertsFromPEM(buffer)
-		require.True(t, ok)
-		return nil
-	})
-	require.NoError(t, werr)
-	ok := roots.AppendCertsFromPEM(buffer)
-	require.True(t, ok)
+	require.Len(t, trustedCerts, 2)
 
 	// wait for active tunnel connections to be established
 	helpers.WaitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
