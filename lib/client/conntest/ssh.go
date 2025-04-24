@@ -185,7 +185,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	processStdout := &bytes.Buffer{}
 
-	clientConf := client.MakeDefaultConfig()
+	clientConf := &client.Config{}
 	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
 	clientConf.AuthMethods = []ssh.AuthMethod{keyAuthMethod}
 	clientConf.Host = req.ResourceName
