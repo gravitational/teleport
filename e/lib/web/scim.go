@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/gravitational/trace"
@@ -178,10 +177,7 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
-	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	resourceID := params.ByName("resourceID")
 
 	log := p.Logger.With(
 		teleport.ComponentKey, "scim",
@@ -267,10 +263,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
-	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	resourceID := params.ByName("resourceID")
 
 	log := p.Logger.With(
 		teleport.ComponentKey, "scim",
@@ -316,10 +309,7 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
-	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	resourceID := params.ByName("resourceID")
 
 	log := p.Logger.With(
 		teleport.ComponentKey, "scim",
@@ -331,7 +321,7 @@ func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, para
 	log.InfoContext(r.Context(), "Deleting resource")
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	_, err = scimClient.DeleteSCIMResource(r.Context(), &scimpb.DeleteSCIMResourceRequest{
+	_, err := scimClient.DeleteSCIMResource(r.Context(), &scimpb.DeleteSCIMResourceRequest{
 		Target: &scimpb.RequestTarget{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
@@ -356,10 +346,7 @@ func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, para
 func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
-	resourceID, err := url.QueryUnescape(params.ByName("resourceID"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	resourceID := params.ByName("resourceID")
 
 	p.Logger.InfoContext(r.Context(), "Unexpected PATCH resource request",
 		teleport.ComponentKey, "scim",

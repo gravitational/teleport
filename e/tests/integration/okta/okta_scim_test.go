@@ -70,7 +70,7 @@ func TestSCIMCRUD(t *testing.T) {
 
 func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.Client) {
 	ctx := context.Background()
-	scimUserName := "test-user-001@example.com"
+	scimUserName := "test-user+001@example.com"
 	scimUserExternalID := "test-user-001"
 	t.Run("Create SCIM User", func(t *testing.T) {
 		scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true}
