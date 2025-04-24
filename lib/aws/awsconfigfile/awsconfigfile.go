@@ -17,8 +17,10 @@
 package awsconfigfile
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/trace"
 	ini "gopkg.in/ini.v1"
@@ -41,19 +43,19 @@ func AWSConfigFilePath() (string, error) {
 
 // SetDefaultProfileCredentialProcess sets the credential_process for the default profile.
 // File is created if it does not exist.
-func SetDefaultProfileCredentialProcess(configFilePath string, credentialProcess string) error {
+func SetDefaultProfileCredentialProcess(configFilePath, sectionComment, credentialProcess string) error {
 	const sectionName = "default"
-	return trace.Wrap(addCredentialProcessToSection(configFilePath, sectionName, credentialProcess))
+	return trace.Wrap(addCredentialProcessToSection(configFilePath, sectionName, sectionComment, credentialProcess))
 }
 
 // UpsertProfileCredentialProcess sets the credential_process for the profile with name profileName.
 // File is created if it does not exist.
-func UpsertProfileCredentialProcess(configFilePath string, profileName string, credentialProcess string) error {
+func UpsertProfileCredentialProcess(configFilePath, profileName, sectionComment, credentialProcess string) error {
 	sectionName := "profile " + profileName
-	return trace.Wrap(addCredentialProcessToSection(configFilePath, sectionName, credentialProcess))
+	return trace.Wrap(addCredentialProcessToSection(configFilePath, sectionName, sectionComment, credentialProcess))
 }
 
-func addCredentialProcessToSection(configFilePath string, sectionName string, credentialProcess string) error {
+func addCredentialProcessToSection(configFilePath, sectionName, sectionComment, credentialProcessCommand string) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true, // Allow AWS-like nested values. Docs: http://docs.aws.amazon.com/cli/latest/topic/config-vars.html#nested-values
 		Loose:             true, // Allow non-existing files. ini.SaveTo will create the file if it does not exist.
@@ -67,14 +69,18 @@ func addCredentialProcessToSection(configFilePath string, sectionName string, cr
 	}
 
 	section := iniFile.Section(sectionName)
-	section.Comment = "This section is managed by Teleport. Do not edit."
-	_, err = section.NewKey("credential_process", credentialProcess)
+	if cmp.Or(section.Comment, sectionComment) != sectionComment {
+		return trace.BadParameter("%s: section %q is not managed by teleport, remove the section and try again", configFilePath, sectionName)
+	}
+
+	section.Comment = sectionComment
+	_, err = section.NewKey("credential_process", credentialProcessCommand)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(section.KeyStrings()) > 1 {
-		return trace.BadParameter("default section contains other keys: %v", section.KeyStrings())
+		return trace.BadParameter("%s: section %q contains other keys, remove the section and try again", configFilePath, sectionName)
 	}
 
 	// Create the directory if it does not exist, otherwise ini.SaveTo will fail.
@@ -85,8 +91,8 @@ func addCredentialProcessToSection(configFilePath string, sectionName string, cr
 	return trace.Wrap(iniFile.SaveTo(configFilePath))
 }
 
-// RemoveProfilesUsingCredentialProcess removes all profiles that use the given credential_process.
-func RemoveProfilesUsingCredentialProcess(configFilePath string, credentialProcess string) error {
+// RemoveCredentialProcessByComment removes the credential_process key on sections that have a specific section comment.
+func RemoveCredentialProcessByComment(configFilePath, sectionComment string) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true,  // Allow AWS-like nested values. Docs: http://docs.aws.amazon.com/cli/latest/topic/config-vars.html#nested-values
 		Loose:             false, // If file does not exist, then there's nothing to be removed.
@@ -100,12 +106,26 @@ func RemoveProfilesUsingCredentialProcess(configFilePath string, credentialProce
 		return trace.Wrap(err)
 	}
 
+	if !strings.HasPrefix(sectionComment, "; ") {
+		sectionComment = "; " + sectionComment
+	}
+
 	sectionChanged := false
 	for _, section := range iniFile.Sections() {
-		if section.HasKey("credential_process") && section.Key("credential_process").String() == credentialProcess {
-			sectionChanged = true
-			iniFile.DeleteSection(section.Name())
+		if section.Comment != sectionComment {
+			continue
 		}
+
+		if !section.HasKey("credential_process") {
+			continue
+		}
+
+		section.DeleteKey("credential_process")
+		if len(section.Keys()) > 0 {
+			return trace.BadParameter("%s: section %q contains other keys, remove the section and try again", configFilePath, section.Name())
+		}
+
+		sectionChanged = true
 	}
 
 	// No need to save the file if no sections were changed.
