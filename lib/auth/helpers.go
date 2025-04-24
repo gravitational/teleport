@@ -1232,7 +1232,7 @@ func NewFakeTeleportVersion() *FakeTeleportVersion {
 
 // GetTeleportVersion returns current Teleport version.
 func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
-	return teleport.SemVersion, nil
+	return teleport.SemVer(), nil
 }
 
 // WriteTeleportVersion stub function for writing.

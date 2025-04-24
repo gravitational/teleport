@@ -1,0 +1,11 @@
+version: v2
+
+modules:
+  - path: src/sharedProcess/api/proto
+
+lint:
+  use:
+    - MINIMAL
+  ignore_only:
+    PACKAGE_DEFINED:
+      - src/sharedProcess/api/proto/ptyHostService.proto

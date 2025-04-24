@@ -1240,27 +1240,44 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	hello := proto.UpstreamInventoryHello{
-		ServerID: cfg.HostUUID,
-		Version:  teleport.Version,
-		Services: process.getInstanceRoles(),
-		Hostname: cfg.Hostname,
-	}
-
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
-	hello.ExternalUpgrader = externalUpgrader
-	if upgraderVersion != nil {
-		// The UpstreamInventoryHello message wants versions with the leading "v".
-		hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+
+	getHello := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+		hello := proto.UpstreamInventoryHello{
+			ServerID:         cfg.HostUUID,
+			Version:          teleport.Version,
+			Services:         process.getInstanceRoles(),
+			Hostname:         cfg.Hostname,
+			ExternalUpgrader: externalUpgrader,
+		}
+
+		if upgraderVersion != nil {
+			// The UpstreamInventoryHello message wants versions with the leading "v".
+			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+		}
+
+		if upgraderKind == types.UpgraderKindTeleportUpdate {
+			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
+			if err != nil {
+				// Failing to detect teleport-update info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
+			}
+			hello.UpdaterInfo = info
+		}
+		return hello, nil
 	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(
+	process.inventoryHandle, err = inventory.NewDownstreamHandle(
 		process.makeInventoryControlStreamWhenReady,
-		hello,
+		getHello,
 		inventory.WithDownstreamClock(process.Clock),
 	)
+	if err != nil {
+		return nil, trace.Wrap(err, "building inventory handle")
+	}
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
@@ -1554,7 +1571,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName string, ver
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
 		kind = types.UpgraderKindTeleportUpdate
-		version = teleport.SemVersion
+		version = teleport.SemVer()
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated

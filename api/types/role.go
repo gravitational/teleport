@@ -1899,6 +1899,11 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if len(kubeResource.Verbs) != 1 || kubeResource.Verbs[0] != Wildcard {
 				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V8)
 			}
+			fallthrough
+		case V7:
+			if kubeResource.Group != "" && kubeResource.Group != Wildcard {
+				return trace.BadParameter("Group %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Group, roleVersion, V8)
+			}
 		}
 
 		if len(kubeResource.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
