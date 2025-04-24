@@ -50,6 +50,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -1378,13 +1379,13 @@ func TestProxyGRPCServers(t *testing.T) {
 		},
 		{
 			name:         "insecure client to secure server with insecure skip verify",
-			credentials:  credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}),
+			credentials:  expcredentials.NewTLSWithALPNDisabled(&tls.Config{InsecureSkipVerify: true}),
 			listenerAddr: secureListener.Addr().String(),
 			assertErr:    require.Error,
 		},
 		{
 			name:         "insecure client to secure server",
-			credentials:  credentials.NewTLS(&tls.Config{}),
+			credentials:  expcredentials.NewTLSWithALPNDisabled(&tls.Config{}),
 			listenerAddr: secureListener.Addr().String(),
 			assertErr:    require.Error,
 		},
@@ -1394,7 +1395,7 @@ func TestProxyGRPCServers(t *testing.T) {
 				// Create a new client using the server identity.
 				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
 				require.NoError(t, err)
-				return credentials.NewTLS(creds)
+				return expcredentials.NewTLSWithALPNDisabled(creds)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
 			assertErr:    require.NoError,

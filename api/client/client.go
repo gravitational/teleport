@@ -38,8 +38,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/grpc/keepalive"
 	gmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -514,7 +514,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	// to explicitly provide grpc.WithTransportCredentials(insecure.NewCredentials())
 	// in the client's dial options.
 	if c.tlsConfig != nil {
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConfig)))
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(c.tlsConfig)))
 	}
 	// must come last, otherwise provided opts may get clobbered by defaults above
 	dialOpts = append(dialOpts, c.c.DialOpts...)
