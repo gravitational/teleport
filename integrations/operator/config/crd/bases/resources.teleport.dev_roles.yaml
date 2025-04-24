@@ -270,6 +270,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        group:
+                          description: Group specifies the API group of the resource.
+                            Can be '*' for any, but doesn't support pattern matching.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
@@ -858,6 +862,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        group:
+                          description: Group specifies the API group of the resource.
+                            Can be '*' for any, but doesn't support pattern matching.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
@@ -1743,6 +1751,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        group:
+                          description: Group specifies the API group of the resource.
+                            Can be '*' for any, but doesn't support pattern matching.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
@@ -2331,6 +2343,10 @@ spec:
                       Role grants access to.
                     items:
                       properties:
+                        group:
+                          description: Group specifies the API group of the resource.
+                            Can be '*' for any, but doesn't support pattern matching.
+                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
                           type: string
