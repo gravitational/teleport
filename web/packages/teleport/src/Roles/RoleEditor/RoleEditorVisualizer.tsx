@@ -46,11 +46,7 @@ export function RoleEditorVisualizer({
     ctx.storeUser.state.acl.accessGraphSettings.edit;
   // the demo banner should show every time they load the role editor
   const [demoDismissed, setDemoDismissed] = useState(false);
-  if (
-    roleDiffProps &&
-    (roleDiffProps.roleDiffState === RoleDiffState.DemoReady ||
-      roleDiffProps.roleDiffState === RoleDiffState.PolicyEnabled)
-  ) {
+  if (roleDiffProps && shouldShowRoleDiff(roleDiffProps)) {
     return (
       <Flex
         flex="1"
@@ -103,5 +99,12 @@ export function RoleEditorVisualizer({
         currentFlow={currentFlow}
       />
     </Flex>
+  );
+}
+
+export function shouldShowRoleDiff(rdp: RoleDiffProps) {
+  return (
+    rdp.roleDiffState === RoleDiffState.DemoReady ||
+    rdp.roleDiffState === RoleDiffState.PolicyEnabled
   );
 }

@@ -443,18 +443,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			var errors []error
 			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
 
-			// v13 clients expect this request to also emit the event, so emit here
-			// just for them.
-			switch event.GetType() {
-			// Don't emit really verbose events.
-			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
-			default:
-				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
-				if versionExists && semver.New(clientVersion).Major <= 13 {
-					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
-				}
-			}
-
 			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
@@ -2314,9 +2302,8 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 // related gRPC API endpoints.
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
-
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, challengeReq.ProxyAddress, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
 	}

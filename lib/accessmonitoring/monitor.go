@@ -29,7 +29,6 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -64,13 +63,6 @@ type Config struct {
 	// Events is the event monitor. This interface allows us to monitor access
 	// events.
 	Events types.Events
-
-	// FailFast mode indicates that the access monitor should fail fast instead
-	// of restarting indefinitely. Fail fast mode should only be used within a
-	// plugin environment. See https://github.com/gravitational/teleport/pull/30039
-	// for more details.
-	// TODO(bernardjkim): Investigate if fail fast mode is still required.
-	FailFast bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -123,41 +115,6 @@ func (s *AccessMonitor) AddAccessRequestHandler(handler EventHandler) {
 
 // Run runs the access monitor. Restarts on failure.
 func (s *AccessMonitor) Run(ctx context.Context) error {
-	const retryJitter = 10 * time.Second
-	const retryInterval = 30 * time.Second
-	const lockTTL = time.Minute
-
-	waitWithJitter := retryutils.SeventhJitter(retryJitter)
-	for {
-		err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-			LockConfiguration: backend.LockConfiguration{
-				Backend:            s.cfg.Backend,
-				LockNameComponents: []string{componentName},
-				TTL:                lockTTL,
-				RetryInterval:      retryInterval,
-			},
-		}, s.run)
-		if err != nil {
-			if s.cfg.FailFast {
-				return trace.Wrap(err)
-			}
-			s.cfg.Logger.ErrorContext(
-				ctx,
-				"Encountered a fatal error, it will restart after backoff.",
-				"component", componentName,
-				"error", err,
-				"restart_after", waitWithJitter,
-			)
-		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(waitWithJitter):
-		}
-	}
-}
-
-func (s *AccessMonitor) run(ctx context.Context) error {
 	// AllowPartialSuccess is set to true because previous versions of access
 	// monitoring plugins did not require permissions to read access monitoring rule.
 	// TODO(bernardjkim): Migrate users onto access monitoring rules and disallow

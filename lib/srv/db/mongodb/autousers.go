@@ -223,7 +223,7 @@ func (e *Engine) isShowCustomDataSupported(ctx context.Context, client adminClie
 		e.Log.DebugContext(e.Context, "Failed to get server version. Assuming showCustomData is supported.", "error", err)
 		return false
 	}
-	return serverVersion.Compare(*semver.New("5.2.0")) >= 0
+	return serverVersion.Compare(semver.Version{Major: 5, Minor: 2, Patch: 0}) >= 0
 }
 
 func (e *Engine) getUser(ctx context.Context, sessionCtx *common.Session, client adminClient) (*user, bool, error) {

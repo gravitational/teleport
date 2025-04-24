@@ -164,6 +164,13 @@ func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthor
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "awsra":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.AWSRACA,
+			UnpackPEM:         false,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	case "db":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.DatabaseCA,

@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"log/slog"
 	"net"
 	"os"
 
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/constants"
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -94,12 +96,20 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 			TouchRequired: req.KeyInfo.TouchRequired,
 			PINRequired:   req.KeyInfo.PinRequired,
 		},
+		PINCacheTTL: req.KeyInfo.PinCacheTtl.AsDuration(),
+	}
+
+	// Double check that the client didn't provide some bogus pin cache TTL.
+	if keyRef.PINCacheTTL > constants.MaxPIVPINCacheTTL {
+		return nil, trace.BadParameter("pin_cache_ttl cannot be larger than %s", constants.MaxPIVPINCacheTTL)
 	}
 
 	keyInfo := hardwarekey.ContextualKeyInfo{
 		ProxyHost:   req.KeyInfo.ProxyHost,
 		Username:    req.KeyInfo.Username,
 		ClusterName: req.KeyInfo.ClusterName,
+		AgentKey:    true,
+		Command:     req.Command,
 	}
 
 	var signerOpts crypto.SignerOpts
@@ -123,6 +133,7 @@ func (s *agentService) Sign(ctx context.Context, req *hardwarekeyagentv1.SignReq
 
 	signature, err := s.s.Sign(ctx, keyRef, keyInfo, rand.Reader, req.Digest, signerOpts)
 	if err != nil {
+		slog.DebugContext(ctx, "hardware key agent signature failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 

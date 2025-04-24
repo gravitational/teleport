@@ -642,7 +642,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 					return
 				}
 			}
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
@@ -694,7 +694,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
 			}
 		} else {
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 	})
@@ -1624,7 +1624,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
 		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientVersion,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
@@ -1656,7 +1656,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			Proxy:            *proxyConfig,
 			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
 			ServerVersion:    teleport.Version,
-			MinClientVersion: teleport.MinClientVersion,
+			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
@@ -1691,7 +1691,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
+		MinClientVersion: teleport.MinClientSemVer().String(),
 		ClusterName:      h.auth.clusterName,
 	}
 
@@ -2248,7 +2248,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
-		targetVersion = teleport.SemVersion
+		targetVersion = teleport.SemVer()
 	}
 
 	instTmpl, err := template.New("").Parse(installer.GetScript())
@@ -3861,6 +3861,7 @@ func (h *Handler) podConnect(
 		localCA:             hostCA,
 		configServerAddr:    serverAddr,
 		configTLSServerName: tlsServerName,
+		publicProxyAddr:     h.cfg.PublicProxyAddr,
 	}
 
 	ph.ServeHTTP(w, r)

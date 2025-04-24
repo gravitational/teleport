@@ -21,11 +21,14 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
 	"io"
 	"log/slog"
-	"math"
+	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -119,11 +122,14 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		if saltLength < 0 {
 			return nil, rsa.ErrMessageTooLong
 		}
-
-		if saltLength > math.MaxUint32 {
-			return nil, trace.BadParameter("invalid salt length %d", saltLength)
-		}
 	}
+
+	// Trim leading path (/ or \ on windows) from command for user readability.
+	command := os.Args[0]
+	if i := strings.LastIndexAny(command, "/\\"); i != -1 {
+		command = command[i+1:]
+	}
+	commandString := fmt.Sprintf("%v %v", command, strings.Join(os.Args[1:], " "))
 
 	req := &hardwarekeyagentv1.SignRequest{
 		Digest:     digest,
@@ -137,11 +143,12 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 		KeyInfo: &hardwarekeyagentv1.KeyInfo{
 			TouchRequired: ref.Policy.TouchRequired,
 			PinRequired:   ref.Policy.PINRequired,
+			PinCacheTtl:   durationpb.New(ref.PINCacheTTL),
 			ProxyHost:     keyInfo.ProxyHost,
 			Username:      keyInfo.Username,
 			ClusterName:   keyInfo.ClusterName,
 		},
-		// TODO: Add command to sign request for prompt context.
+		Command: commandString,
 	}
 
 	resp, err := s.agentClient.Sign(ctx, req)
@@ -155,14 +162,4 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 // TODO(Joerger): DELETE IN v19.0.0
 func (s *Service) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	return s.fallbackService.GetFullKeyRef(serialNumber, slotKey)
-}
-
-// SetPrompt for the fallback service.
-func (s *Service) SetPrompt(prompt hardwarekey.Prompt) {
-	s.fallbackService.SetPrompt(prompt)
-}
-
-// GetPrompt for the fallback service.
-func (s *Service) GetPrompt() hardwarekey.Prompt {
-	return s.fallbackService.GetPrompt()
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -255,7 +256,7 @@ func (g *Generator) handleAccessListMembership(ctx context.Context, user types.U
 
 	membershipKind, err := accesslists.IsAccessListMember(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 	// Return early if there was an error or the user isn't a member of the access list.
-	if err != nil || membershipKind == accesslists.MembershipOrOwnershipTypeNone {
+	if err != nil || membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 		// Log any error.
 		if err != nil {
 			g.log.WarnContext(ctx, "checking access list membership", "error", err)
@@ -281,7 +282,7 @@ func (g *Generator) handleAccessListMembership(ctx context.Context, user types.U
 	}
 
 	g.grantRolesAndTraits(accessList.Spec.Grants, state)
-	if membershipKind == accesslists.MembershipOrOwnershipTypeInherited {
+	if membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
 		inheritedRoles = append(inheritedRoles, accessList.Spec.Grants.Roles...)
 		for k, values := range accessList.Spec.Grants.Traits {
 			inheritedTraits[k] = append(inheritedTraits[k], values...)
@@ -300,7 +301,7 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 
 	ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 	// Return early if there was an error or the user isn't an owner of the access list.
-	if err != nil || ownershipType == accesslists.MembershipOrOwnershipTypeNone {
+	if err != nil || ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 		// Log any error.
 		if err != nil {
 			g.log.WarnContext(ctx, "checking access list ownership", "error", err)
@@ -326,7 +327,7 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 	}
 
 	g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state)
-	if ownershipType == accesslists.MembershipOrOwnershipTypeInherited {
+	if ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
 		inheritedRoles = append(inheritedRoles, accessList.Spec.OwnerGrants.Roles...)
 		for k, values := range accessList.Spec.OwnerGrants.Traits {
 			inheritedTraits[k] = append(inheritedTraits[k], values...)
@@ -337,7 +338,7 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 }
 
 // grantRolesAndTraits will append the roles and traits from the provided Grants to the UserLoginState,
-// returning inherited roles and traits if membershipOrOwnershipType is inherited.
+// returning inherited roles and traits if AccessListUserAssignmentType is inherited.
 func (g *Generator) grantRolesAndTraits(grants accesslist.Grants, state *userloginstate.UserLoginState) {
 	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
 

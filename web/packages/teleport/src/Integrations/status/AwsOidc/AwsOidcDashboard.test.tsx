@@ -20,6 +20,7 @@ import { within } from '@testing-library/react';
 import { addHours } from 'date-fns';
 
 import { render, screen } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
@@ -81,7 +82,9 @@ test('renders header and stats cards', () => {
       }}
       path=""
     >
-      <AwsOidcDashboard />
+      <InfoGuidePanelProvider>
+        <AwsOidcDashboard />
+      </InfoGuidePanelProvider>
     </MockAwsOidcStatusProvider>
   );
 
@@ -183,7 +186,9 @@ test('renders enroll cards', () => {
       }}
       path=""
     >
-      <AwsOidcDashboard />
+      <InfoGuidePanelProvider>
+        <AwsOidcDashboard />
+      </InfoGuidePanelProvider>
     </MockAwsOidcStatusProvider>
   );
 
