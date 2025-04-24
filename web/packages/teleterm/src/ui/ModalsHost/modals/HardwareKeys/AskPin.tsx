@@ -18,7 +18,7 @@
 
 import { useState } from 'react';
 
-import { ButtonPrimary, Flex, P2 } from 'design';
+import { Box, ButtonPrimary, Flex, P2 } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
@@ -27,6 +27,8 @@ import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import { CommandContainer } from 'teleterm/ui/DocumentGateway/CliCommand';
 
 import { CommonHeader } from './CommonHeader';
 
@@ -62,20 +64,19 @@ export function AskPin(props: {
             />
 
             <DialogContent mb={4}>
+              <P2>
+                Enter your YubiKey PIV PIN to continue
+                {props.req.command && <>{' with command:'}</>}
+              </P2>
+              <CommandContainer mt={2} mr={2} width="100%" bg="bgTerminal">
+                <Box ml={2} mr={2}>{`$`}</Box>
+                <span>{props.req.command}</span>
+              </CommandContainer>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
                 <P2 color="text.slightlyMuted">
-                  Enter your YubiKey PIV PIN to continue
-                  {props.req.command && (
-                    <>
-                      {' with command:'}
-                      <pre>{props.req.command}</pre>
-                    </>
-                  )}
-                  <br />
                   {props.req.pinOptional &&
                     'To change the default PIN, leave the field blank.'}
                 </P2>
-
                 <FieldInput
                   flex="1"
                   autoFocus

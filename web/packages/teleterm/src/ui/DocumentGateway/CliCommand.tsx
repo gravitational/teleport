@@ -95,7 +95,9 @@ export function CliCommand({
   );
 }
 
-const CommandContainer = styled(Flex)<{ shouldDisplayIsLoading?: boolean }>`
+export const CommandContainer = styled(Flex)<{
+  shouldDisplayIsLoading?: boolean;
+}>`
   overflow: auto;
   white-space: pre;
   word-break: break-all;
