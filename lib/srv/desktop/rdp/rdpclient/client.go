@@ -87,7 +87,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime/cgo"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -200,9 +199,9 @@ func New(cfg Config) (*Client, error) {
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
-	if c.cfg.Local {
-		return c.runLocal(ctx)
-	}
+	//if c.cfg.Local {
+	//	return c.runLocal(ctx)
+	//}
 	// Create a handle to the client to pass to Rust.
 	// The handle is used to call back into this Client from Rust.
 	// Since the handle is created and deleted here, methods which
@@ -522,7 +521,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 	var res C.CGOResult
-	if strings.Contains(c.cfg.Addr, "somenodename.cluster.local") {
+	if c.cfg.Local {
 		res = C.local_client_run(
 			C.uintptr_t(c.handle),
 			C.CGOConnectParams{

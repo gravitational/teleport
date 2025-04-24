@@ -39,7 +39,8 @@ use x11rb::errors::{ConnectError, ConnectionError, ReplyError, ReplyOrIdError};
 use x11rb::image::Image;
 use x11rb::protocol::damage::{ConnectionExt, DamageWrapper, ReportLevel};
 use x11rb::protocol::randr::{ConnectionExt as _, ModeInfo, Rotation};
-use x11rb::protocol::xfixes::{ConnectionExt as _, SelectionEventMask};
+use x11rb::protocol::xfixes;
+use x11rb::protocol::xfixes::{ConnectionExt as _, RegionWrapper, SelectionEventMask};
 use x11rb::protocol::xproto::{ConnectionExt as _, CreateWindowAux, EventMask, WindowClass};
 use x11rb::protocol::xtest::ConnectionExt as _;
 use x11rb::protocol::Event::{DamageNotify, SelectionNotify, XfixesSelectionNotify};
@@ -225,6 +226,7 @@ unsafe fn run(
     )?;
     let mut screen =
         vec![0u8; (params.screen_width as usize) * (params.screen_height as usize) * 4];
+    let region = RegionWrapper::create_region(&x11, &[])?;
     loop {
         match x11.poll_for_event()? {
             Some(SelectionNotify(event)) => {
@@ -238,56 +240,7 @@ unsafe fn run(
                 info!("got xfixes selection notify {:?}", event);
                 x11.convert_selection(win, event.selection, utf8_string, xsel_data, CURRENT_TIME)?;
             }
-            Some(DamageNotify(event)) => {
-                x11.damage_subtract(event.damage, 0u32, 0u32)?;
-                let area = event.area;
-                let (image, _) =
-                    Image::get(&x11, root.root, area.x, area.y, area.width, area.height)?;
-                let width = area.width as usize;
-                let height = area.height as usize;
-                let sw = params.screen_width as usize;
-                let x = area.x as usize;
-                let y = area.y as usize;
-                let mut diff = Vec::with_capacity(width * height * 4);
-                let mut rows = 0;
-                let mut start = None;
-                for (i, data) in image.data().chunks_exact(4 * width).enumerate() {
-                    let mut row =
-                        &mut screen[((i + y) * sw + x) * 4..((i + y) * sw + x + width) * 4];
-                    if row != data {
-                        diff.extend_from_slice(data);
-                        row.copy_from_slice(data);
-                        rows += 1u16;
-                        if start.is_none() {
-                            start = Some(y + i);
-                        }
-                    } else if let Some(start_row) = start {
-                        let mut encoded = Vec::with_capacity(4 * size_of::<u16>() + diff.len());
-                        encoded.extend_from_slice(&area.x.to_be_bytes());
-                        encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
-                        encoded.extend_from_slice(&area.width.to_be_bytes());
-                        encoded.extend_from_slice(&rows.to_be_bytes());
-                        encode(&mut encoded, &diff);
-                        cgo_handle_x11_update(
-                            cgo_handle,
-                            encoded.as_mut_ptr(),
-                            encoded.len() as u32,
-                        );
-                        diff = Vec::with_capacity(width * height * 4);
-                        start = None;
-                        rows = 0;
-                    }
-                }
-                if let Some(start_row) = start {
-                    let mut encoded = Vec::with_capacity(4 * size_of::<u16>() + diff.len());
-                    encoded.extend_from_slice(&area.x.to_be_bytes());
-                    encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
-                    encoded.extend_from_slice(&area.width.to_be_bytes());
-                    encoded.extend_from_slice(&rows.to_be_bytes());
-                    encode(&mut encoded, &diff);
-                    cgo_handle_x11_update(cgo_handle, encoded.as_mut_ptr(), encoded.len() as u32);
-                }
-            }
+            Some(DamageNotify(event)) => {}
             None => {
                 if let Some(cf) = TOKIO_RT.block_on(function_receiver.try_recv()) {
                     match cf {
@@ -338,8 +291,61 @@ unsafe fn run(
                         }
                     }
                 }
-                sleep(Duration::from_millis(10));
-                Image::get(&x11, root.root, 0, 0, 1, 1)?;
+                sleep(Duration::from_millis(40));
+                x11.damage_subtract(damage.damage(), 0u32, region.region())?;
+                let rects = xfixes::fetch_region(&x11, region.region())?.reply()?;
+                for area in rects.rectangles {
+                    let (image, _) =
+                        Image::get(&x11, root.root, area.x, area.y, area.width, area.height)?;
+                    let width = area.width as usize;
+                    let height = area.height as usize;
+                    let sw = params.screen_width as usize;
+                    let x = area.x as usize;
+                    let y = area.y as usize;
+                    let mut diff = Vec::with_capacity(width * height * 4);
+                    let mut rows = 0;
+                    let mut start = None;
+                    for (i, data) in image.data().chunks_exact(4 * width).enumerate() {
+                        let mut row =
+                            &mut screen[((i + y) * sw + x) * 4..((i + y) * sw + x + width) * 4];
+                        if row != data {
+                            diff.extend_from_slice(data);
+                            row.copy_from_slice(data);
+                            rows += 1u16;
+                            if start.is_none() {
+                                start = Some(y + i);
+                            }
+                        } else if let Some(start_row) = start {
+                            let mut encoded = Vec::with_capacity(4 * size_of::<u16>() + diff.len());
+                            encoded.extend_from_slice(&area.x.to_be_bytes());
+                            encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
+                            encoded.extend_from_slice(&area.width.to_be_bytes());
+                            encoded.extend_from_slice(&rows.to_be_bytes());
+                            encode(&mut encoded, &diff);
+                            cgo_handle_x11_update(
+                                cgo_handle,
+                                encoded.as_mut_ptr(),
+                                encoded.len() as u32,
+                            );
+                            diff = Vec::with_capacity(width * height * 4);
+                            start = None;
+                            rows = 0;
+                        }
+                    }
+                    if let Some(start_row) = start {
+                        let mut encoded = Vec::with_capacity(4 * size_of::<u16>() + diff.len());
+                        encoded.extend_from_slice(&area.x.to_be_bytes());
+                        encoded.extend_from_slice(&(start_row as u16).to_be_bytes());
+                        encoded.extend_from_slice(&area.width.to_be_bytes());
+                        encoded.extend_from_slice(&rows.to_be_bytes());
+                        encode(&mut encoded, &diff);
+                        cgo_handle_x11_update(
+                            cgo_handle,
+                            encoded.as_mut_ptr(),
+                            encoded.len() as u32,
+                        );
+                    }
+                }
             }
             event => {
                 info!("unknown event {:?}", event);
