@@ -280,6 +280,17 @@ func (c *Client) runLocal(ctx context.Context) error {
 	}
 	display := fmt.Sprintf(":%s", string(buf[:n-1]))
 	c.cfg.Logger.DebugContext(ctx, "Started Xvfb", "display", display)
+
+	cmd := xSessionCommand(display, c.username)
+	xsession := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
+	if err := xsession.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		xsession.Process.Kill()
+		xsession.Process.Wait()
+	}()
+
 	dial, setup, err := c.connectToDisplay(ctx, display)
 	if err != nil {
 		return trace.Wrap(err)
@@ -289,7 +300,8 @@ func (c *Client) runLocal(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	root := xproto.Drawable(setup.Roots[0].Root)
+	window := setup.Roots[0].Root
+	root := xproto.Drawable(window)
 	if err := damage.CreateChecked(dial, dmg, root, damage.ReportLevelDeltaRectangles).Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,7 +358,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 		}
 	})
 	group.Go(func() error {
-		return c.handleInputLocal(ctx, display)
+		return c.handleInputLocal(ctx, dial, window)
 	})
 	err = group.Wait()
 	return err
@@ -391,12 +403,7 @@ func (c *Client) connectToDisplay(ctx context.Context, display string) (*xgb.Con
 	return dial, setup, nil
 }
 
-func (c *Client) handleInputLocal(ctx context.Context, display string) error {
-	dial, setup, err := c.connectToDisplay(ctx, display)
-	root := setup.Roots[0].Root
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xproto.Window) error {
 	for {
 		select {
 		case <-ctx.Done():
