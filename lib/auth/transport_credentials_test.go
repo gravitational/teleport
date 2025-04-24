@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -72,7 +73,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("parameter UserGetter required"))
 			},
-			conf:                TransportCredentialsConfig{TransportCredentials: credentials.NewTLS(tlsConf.Clone())},
+			conf:                TransportCredentialsConfig{TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone())},
 			credentialAssertion: require.Nil,
 		},
 		{
@@ -81,7 +82,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 				require.ErrorIs(t, err, trace.BadParameter("both a UserGetter and an Authorizer are required to enforce connection limits with an Enforcer"))
 			},
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{},
 				Enforcer:             &fakeEnforcer{},
 			},
@@ -91,7 +92,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 			name:         "valid configuration: without connection limiter or authorizer",
 			errAssertion: require.NoError,
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{},
 			},
 			credentialAssertion: require.NotNil,
@@ -100,7 +101,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 			name:         "valid configuration: without connection limiter",
 			errAssertion: require.NoError,
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{},
 				Authorizer:           &fakeAuthorizer{},
 			},
@@ -110,7 +111,7 @@ func TestTransportCredentials_Check(t *testing.T) {
 			name:         "valid configuration",
 			errAssertion: require.NoError,
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{},
 				Authorizer:           &fakeAuthorizer{},
 			},
@@ -151,7 +152,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 		{
 			name: "valid connection without session control",
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{ClusterName: "test"},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: true},
@@ -170,7 +171,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 		{
 			name: "valid connection with authorization but no connection limiting",
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{},
 			},
@@ -187,7 +188,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 		{
 			name: "valid connection with full session control",
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer: &fakeAuthorizer{
 					checker: &fakeChecker{maxConnections: 1},
@@ -207,7 +208,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 		{
 			name: "not authorized",
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{authorizeError: unauthorized},
 			},
@@ -223,7 +224,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 		{
 			name: "connection limits exceeded",
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{ClusterName: "test"},
 				Authorizer:           &fakeAuthorizer{checker: &fakeChecker{maxConnections: 1}},
 				Enforcer:             &fakeEnforcer{err: tooManyConnections},
@@ -240,7 +241,7 @@ func TestTransportCredentials_ServerHandshake(t *testing.T) {
 		{
 			name: "tls handshake failure",
 			conf: TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(tlsConf.Clone()),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf.Clone()),
 				UserGetter:           &Middleware{ClusterName: "test"},
 			},
 			clientTLSConf:      &tls.Config{InsecureSkipVerify: false},
@@ -384,7 +385,7 @@ func TestTransportCredentialsDisconnection(t *testing.T) {
 			}
 
 			creds, err := NewTransportCredentials(TransportCredentialsConfig{
-				TransportCredentials: credentials.NewTLS(&tls.Config{}),
+				TransportCredentials: expcredentials.NewTLSWithALPNDisabled(&tls.Config{}),
 				Authorizer:           &fakeAuthorizer{checker: &fakeChecker{}, identity: identity.I},
 				UserGetter: fakeUserGetter{
 					identity: identity.I,

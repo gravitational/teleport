@@ -33,7 +33,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -89,7 +89,7 @@ func NewClient(cfg Config) (otlptrace.Client, error) {
 
 	if cfg.TLSConfig != nil {
 		httpOptions = append(httpOptions, otlptracehttp.WithTLSClientConfig(cfg.TLSConfig.Clone()))
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(cfg.TLSConfig.Clone())))
+		grpcOptions = append(grpcOptions, otlptracegrpc.WithTLSCredentials(expcredentials.NewTLSWithALPNDisabled(cfg.TLSConfig.Clone())))
 	} else {
 		httpOptions = append(httpOptions, otlptracehttp.WithInsecure())
 		grpcOptions = append(grpcOptions, otlptracegrpc.WithInsecure())

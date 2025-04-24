@@ -58,7 +58,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -7982,7 +7982,7 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 			grpc.WithContextDialer(apiclient.GRPCContextDialer(dialer)),
 			grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 			grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+			grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 		)
 		require.NoError(t, err)
 		joinServiceClient := apiclient.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
@@ -8742,7 +8742,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			conn, err := grpc.DialContext(
 				ctx,
 				tc.SSHProxyAddr,
-				grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+				grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 				grpc.WithBlock(),
 			)
 			require.NoError(t, err)
