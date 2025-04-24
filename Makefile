@@ -1281,7 +1281,7 @@ update-version: version test-helm-update-snapshots
 version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
-$(VERSRC): Makefile
+$(VERSRC) &: Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
 # Pushes GITTAG and api/GITTAG to GitHub.
