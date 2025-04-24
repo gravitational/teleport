@@ -65,8 +65,8 @@ func parseLoggingOptsFromEnv() loggingOpts {
 }
 
 // parseLoggingOptsFromEnvAndArgv calculates logging opts taking into account env vars and argv.
-// It should be called only after calling kingpin.Application.Parse, so that
-// kingpin.FlagCause.IsSetByUser is processed by kingpin.
+// Before calling this function, make sure that argv has been processed by kingpin (by calling
+// kingpin.Application.Parse) so that cf fields set from argv are up-to-date.
 //
 // CLI flags take precedence over env vars.
 func parseLoggingOptsFromEnvAndArgv(cf *CLIConf) loggingOpts {
