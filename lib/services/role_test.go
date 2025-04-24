@@ -1111,7 +1111,7 @@ func TestValidateRole(t *testing.T) {
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Version: types.V7,
+				Version: types.V8,
 				Spec:    tc.spec,
 			}, withWarningReporter(func(err error) {
 				warning = err
