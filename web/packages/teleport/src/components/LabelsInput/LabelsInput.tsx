@@ -252,6 +252,8 @@ export function LabelsInput({
         }}
         disabled={disableBtns}
         gap={1}
+        size="small"
+        inputAlignment
       >
         <Icons.Add className="icon-add" disabled={disableBtns} size="small" />
         {labels.length > 0 ? `Add another ${adjective}` : `Add a ${adjective}`}
