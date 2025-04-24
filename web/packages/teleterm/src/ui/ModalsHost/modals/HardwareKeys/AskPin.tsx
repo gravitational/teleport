@@ -70,7 +70,7 @@ export function AskPin(props: {
                   {props.req.command && <>{' with command:'}</>}
                 </P2>
                 {props.req.command && (
-                  <CliCommand cliCommand={props.req.command} />
+                  <CliCommand cliCommand={props.req.command} wrapContent />
                 )}
                 <FieldInput
                   mt={3}

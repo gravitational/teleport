@@ -29,9 +29,15 @@ interface CliCommandProps {
     onClick(): void;
   };
   isLoading?: boolean;
+  wrapContent?: boolean;
 }
 
-export function CliCommand({ cliCommand, button, isLoading }: CliCommandProps) {
+export function CliCommand({
+  cliCommand,
+  button,
+  isLoading,
+  wrapContent,
+}: CliCommandProps) {
   const [shouldDisplayIsLoading, setShouldDisplayIsLoading] = useState(false);
 
   useEffect(() => {
@@ -60,6 +66,7 @@ export function CliCommand({ cliCommand, button, isLoading }: CliCommandProps) {
         mr="2"
         width="100%"
         shouldDisplayIsLoading={shouldDisplayIsLoading}
+        wrapContent={wrapContent}
       >
         <Box mr="1">{`$`}</Box>
         <span>{cliCommand}</span>
@@ -96,9 +103,10 @@ export function CliCommand({ cliCommand, button, isLoading }: CliCommandProps) {
 
 const CommandContainer = styled(Flex)<{
   shouldDisplayIsLoading?: boolean;
+  wrapContent?: boolean;
 }>`
   overflow: auto;
-  white-space: pre;
+  white-space: ${props => (props.wrapContent ? 'wrap' : 'pre')};
   word-break: break-all;
   font-size: 12px;
   color: ${props => {

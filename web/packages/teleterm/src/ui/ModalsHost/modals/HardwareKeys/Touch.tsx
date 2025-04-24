@@ -57,7 +57,9 @@ export function Touch(props: {
             Touch your YubiKey to continue
             {props.req.command && <>{' with command:'}</>}
           </P2>
-          {props.req.command && <CliCommand cliCommand={props.req.command} />}
+          {props.req.command && (
+            <CliCommand cliCommand={props.req.command} wrapContent />
+          )}
           <Image
             alignSelf="center"
             mt={4}
