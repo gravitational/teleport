@@ -26,8 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestCollect(t *testing.T) {
@@ -155,17 +153,14 @@ func (s *mockBackendLister) List(ctx context.Context, pageSize int, pageToken st
 	return items, "", nil
 }
 
-func (s *mockBackendLister) ListWithPagination(ctx context.Context, pageSize int, page *pagination.PageRequestToken) ([]int, pagination.NextPageToken, error) {
+func (s *mockBackendLister) ListWithPagination(ctx context.Context, pageSize int, pageToken string) ([]int, string, error) {
 	if pageSize == 0 {
 		pageSize = 1
 	}
-	pageToken, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+
 	resp, nextPage, err := s.List(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resp, pagination.NextPageToken(nextPage), nil
+	return resp, nextPage, nil
 }

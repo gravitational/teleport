@@ -349,7 +349,7 @@ type InitConfig struct {
 
 	// IdentityCenter is the Identity Center state storage service to use in
 	// this node.
-	IdentityCenter services.IdentityCenter
+	IdentityCenter services.IdentityCenterInternal
 
 	// Plugins is a service that manages plugin resources for integrations.
 	Plugins *local.PluginsService

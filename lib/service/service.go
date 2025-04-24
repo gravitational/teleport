@@ -2673,7 +2673,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
 	cfg.AutoUpdateService = services.AutoUpdateService
 	cfg.ProvisioningStates = services.ProvisioningStates
-	cfg.IdentityCenter = services.IdentityCenter
+	cfg.IdentityCenter = services.IdentityCenterInternal
 	cfg.PluginStaticCredentials = services.PluginStaticCredentials
 	cfg.GitServers = services.GitServers
 	cfg.HealthCheckConfig = services.HealthCheckConfig

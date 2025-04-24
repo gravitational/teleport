@@ -144,7 +144,7 @@ type testPack struct {
 	staticHostUsers         services.StaticHostUser
 	autoUpdateService       services.AutoUpdateService
 	provisioningStates      services.ProvisioningStates
-	identityCenter          services.IdentityCenter
+	identityCenter          services.IdentityCenterInternal
 	pluginStaticCredentials *local.PluginStaticCredentialsService
 	gitServers              services.GitServers
 	workloadIdentity        *local.WorkloadIdentityService

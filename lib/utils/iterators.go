@@ -23,8 +23,6 @@ import (
 	"errors"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // ErrStopIteration is value that signals to stop iteration from the caller injected function.
@@ -88,18 +86,16 @@ func ForEachResource[T any](ctx context.Context, listFn TokenLister[T], fn func(
 }
 
 // ListerWithPageToken is a function that lists resources with a page token.
-type ListerWithPageToken[T any] func(context.Context, int, *pagination.PageRequestToken) ([]T, pagination.NextPageToken, error)
+type ListerWithPageToken[T any] func(context.Context, int, string) ([]T, string, error)
 
 // AdaptPageTokenLister adapts a listener with page token to a lister.
 func AdaptPageTokenLister[T any](listFn ListerWithPageToken[T]) TokenLister[T] {
 	return func(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
-		var pageRequestToken pagination.PageRequestToken
-		pageRequestToken.Update(pagination.NextPageToken(pageToken))
-		resources, nextPageToken, err := listFn(ctx, pageSize, &pageRequestToken)
+		resources, nextPageToken, err := listFn(ctx, pageSize, pageToken)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		return resources, string(nextPageToken), nil
+		return resources, nextPageToken, nil
 	}
 }
 

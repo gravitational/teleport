@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -45,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -1206,10 +1206,10 @@ type Cache interface {
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+	GetAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	ListAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)

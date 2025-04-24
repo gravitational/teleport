@@ -535,7 +535,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SPIFFEFederations:               cfg.SPIFFEFederations,
 		StaticHostUser:                  cfg.StaticHostUsers,
 		ProvisioningStates:              cfg.ProvisioningStates,
-		IdentityCenter:                  cfg.IdentityCenter,
+		IdentityCenterInternal:          cfg.IdentityCenter,
 		Plugins:                         cfg.Plugins,
 		PluginStaticCredentials:         cfg.PluginStaticCredentials,
 		GitServers:                      cfg.GitServers,
@@ -771,7 +771,7 @@ type Services struct {
 	services.StaticHostUser
 	services.AutoUpdateService
 	services.ProvisioningStates
-	services.IdentityCenter
+	services.IdentityCenterInternal
 	services.Plugins
 	services.PluginStaticCredentials
 	services.GitServers
@@ -5391,8 +5391,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
 		// be able to see their assigned permission sets.
-		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
-		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		asmt, err := a.Services.IdentityCenterInternal.GetAccountAssignment(ctx, resource.Name)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
 		}

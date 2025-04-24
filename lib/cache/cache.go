@@ -42,6 +42,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -64,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 var (
@@ -3452,13 +3452,13 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	return rg.reader.GetProvisioningState(ctx, downstream, id)
 }
 
-func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+func (c *Cache) GetAccountAssignment(ctx context.Context, id string) (*identitycenterv1.AccountAssignment, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
 	defer span.End()
 
 	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.identityCenterAccountAssignments)
 	if err != nil {
-		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
@@ -3466,7 +3466,7 @@ func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCe
 }
 
 // ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
-func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
+func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.AccountAssignment, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccountAssignments")
 	defer span.End()
 

@@ -60,7 +60,6 @@ import (
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -5609,14 +5608,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
-
-	identityCenterService, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: cfg.AuthServer.bk,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identitycenterv1.RegisterIdentityCenterServiceServer(server, identityCenterService)
 
 	provisioningStateService, err := local.NewProvisioningStateService(cfg.AuthServer.bk)
 	if err != nil {
