@@ -55,7 +55,7 @@ export function Touch(props: {
         >
           <P2>
             Touch your YubiKey to continue
-            {props.req.command && <>{' with command:'}</>}
+            {props.req.command ? ' with command:' : '.'}
           </P2>
           {props.req.command && (
             <CliCommand cliCommand={props.req.command} wrapContent />
