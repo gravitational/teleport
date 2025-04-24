@@ -43,6 +43,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -2094,33 +2095,33 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 		},
 		{
 			name:            "old-version-upgrade",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-1),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-1),
 			expectedVersion: teleport.Version,
 			expectError:     false,
 		},
 		{
 			name:            "major-upgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-2),
 			expectError:     true,
 		},
 		{
 			name:            "major-upgrade-with-dev-skip-check",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-2),
 			expectError:     false,
 			skipCheck:       true,
 		},
 		{
 			name:            "major-downgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor+2),
 			expectError:     true,
 		},
 		{
 			name:            "major-downgrade-with-dev-skip-check",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor+2),
 			expectError:     false,
 			skipCheck:       true,
 		},

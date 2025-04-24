@@ -39,7 +39,7 @@ const (
 // CDNBaseURL returns the URL of the CDN that can be used to download Teleport
 // binary assets.
 func CDNBaseURL() string {
-	return cdnBaseURL(*teleport.SemVersion)
+	return cdnBaseURL(*teleport.SemVer())
 }
 
 // cdnBaseURL returns the base URL of the CDN that can be used to download
@@ -56,7 +56,7 @@ func cdnBaseURL(version semver.Version) string {
 // the pre-release CDN while Teleport pre-release builds can download both form
 // the production and pre-release CDN.
 func CDNBaseURLForVersion(artifactVersion *semver.Version) string {
-	return cdnBaseURLForVersion(artifactVersion, teleport.SemVersion)
+	return cdnBaseURLForVersion(artifactVersion, teleport.SemVer())
 }
 
 func cdnBaseURLForVersion(artifactVersion, teleportVersion *semver.Version) string {
