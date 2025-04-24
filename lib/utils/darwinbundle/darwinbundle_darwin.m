@@ -19,6 +19,8 @@
 
 #include <string.h>
 
+// CopyNSString converts and copies an Obj-C string to a C string which can be used with cgo.
+// The caller is expected to free the returned pointer.
 char *CopyNSString(NSString *val) {
   if (val) {
     return strdup([val UTF8String]);
@@ -27,6 +29,12 @@ char *CopyNSString(NSString *val) {
 }
 
 const char *BundleIdentifier(const char *bundlePath) {
+  // Obj-C automatically marks objects for release, but it expects the program to mark points where
+  // those objects can be released. Many Apple frameworks handle that automatically, but since this
+  // code is not executed within a context of a framework, it must create those points.
+  // BundleIdentifier is called from Go code, so it's a good candidate to be wrapped in
+  // @autoreleasepool, which makes the compiler automatically insert such points and release Obj-C
+  // objects that are no longer needed (such as bundleIdentifier).
   @autoreleasepool {
     NSString *bundleIdentifier = TELBundleIdentifier(@(bundlePath));
     return CopyNSString(bundleIdentifier);
