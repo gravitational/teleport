@@ -15,7 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::client::{
-    global, ClientError, ClientFunction, ClientHandle, ClientResult, FunctionReceiver,
+    global, ClientError, ClientFunction, ClientHandle, ClientResult, FunctionReceiver, TOKIO_RT,
 };
 use crate::qoim::encode;
 use crate::util::from_c_string;
@@ -289,7 +289,7 @@ unsafe fn run(
                 }
             }
             None => {
-                if let Some(cf) = global::TOKIO_RT.block_on(function_receiver.try_recv()) {
+                if let Some(cf) = TOKIO_RT.block_on(function_receiver.try_recv()) {
                     match cf {
                         ClientFunction::WriteRdpPointer(ev) => {
                             if ev.wheel != CGOPointerWheel::PointerWheelNone {

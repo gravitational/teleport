@@ -104,7 +104,7 @@ pub struct Client {
 }
 
 /// A global, static tokio runtime for use by `Client`.
-static TOKIO_RT: LazyLock<tokio::runtime::Runtime> =
+pub(crate) static TOKIO_RT: LazyLock<tokio::runtime::Runtime> =
     LazyLock::new(|| tokio::runtime::Runtime::new().unwrap());
 
 impl Client {

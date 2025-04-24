@@ -71,15 +71,16 @@ import "C"
 
 import (
 	"bytes"
-	"codeberg.org/gruf/go-xgb"
-	"codeberg.org/gruf/go-xgb/damage"
-	"codeberg.org/gruf/go-xgb/randr"
-	"codeberg.org/gruf/go-xgb/xfixes"
-	"codeberg.org/gruf/go-xgb/xproto"
-	"codeberg.org/gruf/go-xgb/xtest"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/damage"
+	"github.com/jezek/xgb/randr"
+	"github.com/jezek/xgb/xfixes"
+	"github.com/jezek/xgb/xproto"
+	"github.com/jezek/xgb/xtest"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"log/slog"
 	"math"
@@ -275,86 +276,171 @@ func (c *Client) runLocal(ctx context.Context) error {
 	buf := make([]byte, 64)
 	n, err := r.Read(buf)
 	if err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	display := fmt.Sprintf(":%s", string(buf[:n-1]))
 	c.cfg.Logger.DebugContext(ctx, "Started Xvfb", "display", display)
-	dial, buf, err := xgb.Dial(display)
+	dial, setup, err := c.connectToDisplay(ctx, display)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	setup, err := xproto.Setup(dial, buf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := randr.Register(dial); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := xtest.Register(dial); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := damage.Register(dial); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := xfixes.Register(dial); err != nil {
 		return trace.Wrap(err)
 	}
 
-	xfixesVersion, err := xfixes.QueryVersion(dial, 5, 0)
+	dmg, err := damage.NewDamageId(dial)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	c.cfg.Logger.DebugContext(ctx, "Xfixes version", "major", xfixesVersion.MajorVersion, "minor", xfixesVersion.MinorVersion)
-
-	damageVersion, err := damage.QueryVersion(dial, 1, 1)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	c.cfg.Logger.DebugContext(ctx, "Damage version", "major", damageVersion.MajorVersion, "minor", damageVersion.MinorVersion)
-	dmg := damage.NewDamageID(dial)
 	root := xproto.Drawable(setup.Roots[0].Root)
-	if err := damage.Create(dial, dmg, root, damage.ReportLevelDeltaRectangles); err != nil {
+	if err := damage.CreateChecked(dial, dmg, root, damage.ReportLevelDeltaRectangles).Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	for {
-		parts := xfixes.NewRegionID(dial)
-		if err := xfixes.CreateRegion(dial, parts, nil); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := damage.Subtract(dial, dmg, xfixes.RegionNone, parts); err != nil {
-			return trace.Wrap(err)
-		}
-		res, err := xfixes.FetchRegion(dial, parts)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, rect := range res.Rectangles {
-			replay, err := xproto.GetImage(dial, xproto.ImageFormatZPixmap, root, rect.X, rect.Y, rect.Width, rect.Height, math.MaxUint32)
+	parts, err := xfixes.NewRegionId(dial)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := xfixes.CreateRegionChecked(dial, parts, nil).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ticker := time.NewTicker(40 * time.Millisecond)
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		for {
+			if err := damage.SubtractChecked(dial, dmg, xfixes.RegionNone, parts).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+			res, err := xfixes.FetchRegion(dial, parts).Reply()
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			var buf bytes.Buffer
-			if err := binary.Write(&buf, binary.BigEndian, rect.X); err != nil {
-				return trace.Wrap(err)
+			for _, rect := range res.Rectangles {
+				replay, err := xproto.GetImage(dial, xproto.ImageFormatZPixmap, root, rect.X, rect.Y, rect.Width, rect.Height, math.MaxUint32).Reply()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				var buf bytes.Buffer
+				buf.Grow(len(replay.Data) / 4)
+				if err := binary.Write(&buf, binary.BigEndian, rect.X); err != nil {
+					return trace.Wrap(err)
+				}
+				if err := binary.Write(&buf, binary.BigEndian, rect.Y); err != nil {
+					return trace.Wrap(err)
+				}
+				if err := binary.Write(&buf, binary.BigEndian, rect.Width); err != nil {
+					return trace.Wrap(err)
+				}
+				if err := binary.Write(&buf, binary.BigEndian, rect.Height); err != nil {
+					return trace.Wrap(err)
+				}
+				encode(replay.Data, &buf)
+				if buf.Len() > 0 {
+					if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
+						return trace.Wrap(err)
+					}
+				}
 			}
-			if err := binary.Write(&buf, binary.BigEndian, rect.Y); err != nil {
-				return trace.Wrap(err)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
 			}
-			if err := binary.Write(&buf, binary.BigEndian, rect.Width); err != nil {
-				return trace.Wrap(err)
-			}
-			if err := binary.Write(&buf, binary.BigEndian, rect.Height); err != nil {
-				return trace.Wrap(err)
-			}
-			encode(replay.Data, &buf)
-			if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
-				return trace.Wrap(err)
-			}
-
 		}
-		time.Sleep(40 * time.Millisecond)
+	})
+	group.Go(func() error {
+		return c.handleInputLocal(ctx, display)
+	})
+	err = group.Wait()
+	return err
+}
+
+func (c *Client) connectToDisplay(ctx context.Context, display string) (*xgb.Conn, *xproto.SetupInfo, error) {
+	dial, err := xgb.NewConnDisplay(display)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
-	return nil
+	setup := xproto.Setup(dial)
+	if err := randr.Init(dial); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if err := xtest.Init(dial); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if err := damage.Init(dial); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if err := xfixes.Init(dial); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	xfixesVersion, err := xfixes.QueryVersion(dial, 5, 0).Reply()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	c.cfg.Logger.DebugContext(ctx, "Xfixes version", "major", xfixesVersion.MajorVersion, "minor", xfixesVersion.MinorVersion)
+
+	damageVersion, err := damage.QueryVersion(dial, 1, 1).Reply()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	c.cfg.Logger.DebugContext(ctx, "Damage version", "major", damageVersion.MajorVersion, "minor", damageVersion.MinorVersion)
+
+	xtestVersion, err := xfixes.QueryVersion(dial, 5, 0).Reply()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	c.cfg.Logger.DebugContext(ctx, "Xtest version", "major", xtestVersion.MajorVersion, "minor", xtestVersion.MinorVersion)
+	return dial, setup, nil
+}
+
+func (c *Client) handleInputLocal(ctx context.Context, display string) error {
+	dial, setup, err := c.connectToDisplay(ctx, display)
+	root := setup.Roots[0].Root
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+		msg, err := c.cfg.Conn.ReadMessage()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		switch msg := msg.(type) {
+		case tdp.MouseMove:
+			if err := xtest.FakeInputChecked(dial, 6, 0, xproto.TimeCurrentTime, root, int16(msg.X), int16(msg.Y), 0).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+		case tdp.MouseButton:
+			eventType := 5
+			if msg.State == tdp.ButtonPressed {
+				eventType = 4
+			}
+			if err := xtest.FakeInputChecked(dial, byte(eventType), byte(msg.Button+1), xproto.TimeCurrentTime, root, 0, 0, 0).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+		case tdp.MouseWheel:
+			detail := 5
+			if msg.Delta > 0 {
+				detail = 4
+			}
+			if err := xtest.FakeInputChecked(dial, 4, byte(detail), xproto.TimeCurrentTime, root, 0, 0, 0).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := xtest.FakeInputChecked(dial, 5, byte(detail), xproto.TimeCurrentTime, root, 0, 0, 0).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+		case tdp.KeyboardButton:
+			eventType := 3
+			if msg.State == tdp.ButtonPressed {
+				eventType = 2
+			}
+			if err := xtest.FakeInputChecked(dial, byte(eventType), byte(msg.KeyCode+8), xproto.TimeCurrentTime, root, 0, 0, 0).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
 }
 
 func (c *Client) GetClientUsername() string {

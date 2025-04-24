@@ -256,6 +256,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.5.0
 )
 
+require github.com/jezek/xgb v1.1.1
+
 require (
 	cel.dev/expr v0.19.2 // indirect
 	cloud.google.com/go v0.120.0 // indirect
@@ -264,8 +266,7 @@ require (
 	cloud.google.com/go/longrunning v0.6.6 // indirect
 	cloud.google.com/go/monitoring v1.24.1 // indirect
 	cloud.google.com/go/pubsub v1.47.0 // indirect
-	codeberg.org/gruf/go-byteutil v1.1.2 // indirect
-	codeberg.org/gruf/go-xgb v1.2.2 // indirect
+	codeberg.org/gruf/go-byteutil v1.3.0 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
