@@ -50,8 +50,12 @@ type Config struct {
 	OSLogSubsystem string
 }
 
-// LogOutputOSLog represents os_log, the unified logging system on macOS, as the destination for logs.
-const LogOutputOSLog = "os_log"
+const (
+	// LogOutputSyslog represents syslog as the destination for logs.
+	LogOutputSyslog = "syslog"
+	// LogOutputOSLog represents os_log, the unified logging system on macOS, as the destination for logs.
+	LogOutputOSLog = "os_log"
+)
 
 // Initialize configures the default global logger based on the
 // provided configuration. The [slog.Logger] and [slog.LevelVar]
@@ -74,7 +78,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 		w = os.Stderr
 	case "stdout", "out", "1":
 		w = os.Stdout
-	case teleport.Syslog:
+	case LogOutputSyslog:
 		var err error
 		w, err = NewSyslogWriter()
 		if err != nil {
