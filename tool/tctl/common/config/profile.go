@@ -76,15 +76,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		"user", profile.Username,
 	)
 
-	// TODO: we shouldn't need to re-retrieve profile. The profile status above
-	// should embed the profile, or profile status should be removed altogether.
-	p, err := clientStore.GetProfile(proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	webProxyHost, _ := p.WebProxyHostPort()
-	idx := client.KeyRingIndex{ProxyHost: webProxyHost, Username: p.Username, ClusterName: profile.Cluster}
+	idx := client.KeyRingIndex{ProxyHost: profile.Name, Username: profile.Username, ClusterName: profile.Cluster}
 	keyRing, err := clientStore.GetKeyRing(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -112,7 +104,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 	// Do not override auth servers from command line
 	if len(ccf.AuthServerAddr) == 0 {
-		webProxyAddr, err := utils.ParseAddr(p.WebProxyAddr)
+		webProxyAddr, err := utils.ParseAddr(profile.ProxyURL.Host)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -123,7 +115,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	authConfig.Log = cfg.Logger
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
-	if p.TLSRoutingEnabled {
+	if profile.TLSRoutingEnabled {
 		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	}
 

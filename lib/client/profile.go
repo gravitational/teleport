@@ -302,6 +302,10 @@ type ProfileStatus struct {
 
 	// GitHubIdentity is the GitHub identity attached to the user.
 	GitHubIdentity *GitHubIdentity
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
 }
 
 // GitHubIdentity is the GitHub identity attached to the user.
@@ -324,6 +328,7 @@ type profileOptions struct {
 	IsVirtual               bool
 	SAMLSingleLogoutEnabled bool
 	SSOHost                 string
+	TLSRoutingEnabled       bool
 }
 
 // profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
@@ -428,6 +433,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 		SSOHost:                 opts.SSOHost,
 		GitHubIdentity:          gitHubIdentity,
+		TLSRoutingEnabled:       opts.TLSRoutingEnabled,
 	}, nil
 }
 
