@@ -656,7 +656,7 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string, store *Store) ([
 		ClusterName: clusterName,
 	}
 
-	keyRing, err := store.GetKeyRing(idx, nil /*hwks*/, WithDBCerts{})
+	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -676,7 +676,7 @@ func (p *ProfileStatus) AppsForCluster(clusterName string, store *Store) ([]tlsc
 		ClusterName: clusterName,
 	}
 
-	keyRing, err := store.GetKeyRing(idx, nil /*hwks*/, WithAppCerts{})
+	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
