@@ -45,11 +45,6 @@ type CRD struct {
 	items      []runtime.RawExtension
 }
 
-// RoleKind returns the kind string as expected in a Role object for kubernetes_resources.
-func (c CRD) RoleKind() string {
-	return path.Join(c.group, c.version, c.plural)
-}
-
 // Copy the CRD.
 func (c CRD) Copy() *CRD {
 	cpy := c

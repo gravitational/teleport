@@ -245,6 +245,9 @@ const (
 	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
 	KindKubeReplicaSet = "replicaset"
 
+	// KindKubeReplicationController is a Kubernetes ReplicationController resource type.
+	KindKubeReplicationController = "replicationcontroller"
+
 	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
 	KindKubeStatefulset = "statefulset"
 

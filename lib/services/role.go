@@ -539,6 +539,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 						Namespace: namespace,
 						Name:      name,
 						Verbs:     verbs,
+						Group:     rec.Group,
 					})
 				}
 			}

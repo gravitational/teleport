@@ -59,9 +59,6 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 	resourceKind := ""
 	if isLocalKubeCluster {
 		resourceKind, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
-		if resourceKind == utils.KubeCustomResource {
-			resourceKind = path.Join(sess.apiResource.apiGroup, sess.apiResource.apiGroupVersion, sess.apiResource.resourceKind)
-		}
 	}
 
 	// status holds the returned response code.
@@ -76,49 +73,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 	} else {
 		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
 
-		details, err := f.findKubeDetailsByClusterName(sess.kubeClusterName)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to find kube details by cluster name %q", sess.kubeClusterName)
-		}
-		makeKind := func(resources []types.KubernetesResource) []types.KubernetesResource {
-			var out []types.KubernetesResource // Not pre-allocating as we don't know the final size. Likely 0 if no CRD resource defined.
-		loop:
-			for _, r := range resources {
-				tmp := strings.Split(r.Kind, "/")
-				if len(tmp) < 3 { // Expect <group>/<version>/<kind>. If not, skip.
-					continue
-				}
-				group, version, kind := tmp[0], tmp[1], strings.Join(tmp[2:], "/")
-
-				// Look for the resource in the supported list from it's fqdn.
-				if r2 := details.gvkSupportedResources[gvkSupportedResourcesKey{
-					name: kind, apiGroup: group, version: version,
-				}]; r2 != nil {
-					// If found, append the resource with it's Kind.
-					r3 := r
-					r3.Kind = path.Join(group, version, r2.Kind)
-					out = append(out, r3)
-					continue loop
-				}
-				// If not found, look up the resource from it's Kind.
-				for k, v := range details.gvkSupportedResources {
-					if k.apiGroup == group && k.version == version && v.Kind == kind && !strings.Contains(k.name, "/") {
-						// If found, append the resource with it's plural.
-						r3 := r
-						r3.Kind = path.Join(group, version, k.name)
-						out = append(out, r3)
-						continue loop
-					}
-				}
-				// If we reach this point, there is no match for the resource. Probably a typo in the resource Kind.
-				// Not erroring out as a typo would break access for everyone.
-			}
-			return out
-		}
-		allowedResources = append(allowedResources, makeKind(allowedResources)...)
-		deniedResources = append(deniedResources, makeKind(deniedResources)...)
-
-		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, allowedResources, deniedResources)
+		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, sess.apiResource.apiGroup, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -173,7 +128,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(resourceKind, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
+		newResourceFilterer(resourceKind, sess.apiResource.apiGroup, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -190,12 +145,14 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 // has no access and present then a more user-friendly error message instead of returning
 // an empty list.
 // This function is not responsible for enforcing access rules.
-func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
+func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind, resourceGroup string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
 	resource := types.KubernetesResource{
 		Kind:      resourceKind,
 		Namespace: sess.apiResource.namespace,
 		Verbs:     []string{sess.requestVerb},
+		Group:     resourceGroup,
 	}
+
 	result, err := utils.KubeResourceCouldMatchRules(resource, deniedResources, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -232,6 +189,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 		negotiator,
 		newResourceFilterer(
 			resourceKind,
+			sess.apiResource.apiGroup,
 			verb,
 			sess.codecFactory,
 			allowedResources,

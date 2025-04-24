@@ -477,8 +477,15 @@ func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 // and append the other supported resources - KubernetesResourcesKinds - for Role v7.
 func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V7, V8:
+	case V8:
 		return resources
+	case V7:
+		v7resources := slices.Clone(resources)
+		for i, r := range v7resources {
+			r.Group = Wildcard
+			v7resources[i] = r
+		}
+		return v7resources
 	// Teleport does not support role versions < v3.
 	case V6, V5, V4, V3:
 		switch {
@@ -491,7 +498,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 			// This check ignores the Kind field because `validateKubeResources` ensures
 			// that for older roles, the Kind field can only be pod.
 		case len(resources) == 1 && resources[0].Name == Wildcard && resources[0].Namespace == Wildcard:
-			return []KubernetesResource{{Kind: Wildcard, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}}}
+			return []KubernetesResource{{Kind: Wildcard, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}, Group: Wildcard}}
 		default:
 			for _, resource := range KubernetesResourcesKinds {
 				// Ignore Pod resources for older roles because Pods were already supported
@@ -501,7 +508,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 				if resource == KindKubePod || resource == KindNamespace {
 					continue
 				}
-				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}})
+				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}, Group: Wildcard})
 			}
 			return resources
 		}
@@ -1170,6 +1177,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Kind:      KindKubePod,
 					Namespace: Wildcard,
 					Name:      Wildcard,
+					Group:     Wildcard,
 				},
 			}
 		}
@@ -1186,7 +1194,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	// TODO(@creack,@flyinghermit): Create a dedicate validation path for V8 once we have logic changes.
 	case V7, V8:
-		// Kubernetes resources default to {kind:*, name:*, namespace:*} for v7 roles.
+		// Kubernetes resources default to {kind:*, name:*, namespace:*, group:*} for v7 and v8 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				{
@@ -1194,6 +1202,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					Group:     Wildcard,
 				},
 			}
 		}

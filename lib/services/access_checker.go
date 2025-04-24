@@ -512,11 +512,12 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				namespace = splitted[0]
 				name = splitted[1]
 			}
-
 			r := types.KubernetesResource{
 				Kind:      r.Kind,
 				Namespace: namespace,
 				Name:      name,
+				// TODO(@creack): Add support for Groups in AccessRequests.
+				Group: types.Wildcard,
 			}
 			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
 			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
@@ -533,7 +534,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 			return rolesAllowed, rolesDenied
 		}
 	}
-	return
+	return allowed, denied
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any

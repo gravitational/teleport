@@ -296,6 +296,7 @@ func TestRoleParse(t *testing.T) {
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
 								Verbs:     []string{types.Wildcard},
+								Group:     types.Wildcard,
 							},
 						},
 					},
@@ -555,6 +556,7 @@ func TestRoleParse(t *testing.T) {
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
 								Verbs:     []string{types.Wildcard},
+								Group:     types.Wildcard,
 							},
 						},
 						Namespaces: []string{"default"},
@@ -664,6 +666,7 @@ func TestRoleParse(t *testing.T) {
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
 								Verbs:     []string{types.Wildcard},
+								Group:     types.Wildcard,
 							},
 						},
 						Rules: []types.Rule{
@@ -754,6 +757,7 @@ func TestRoleParse(t *testing.T) {
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
 								Verbs:     []string{types.Wildcard},
+								Group:     types.Wildcard,
 							},
 						},
 						NodeLabels: types.Labels{

@@ -99,6 +99,7 @@ func TestListPodRBAC(t *testing.T) {
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 				})
 			},
@@ -122,6 +123,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							Group:     types.Wildcard,
 						},
 					})
 			},
@@ -147,6 +149,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: "{{external.namespaces}}",
 							Verbs:     []string{types.Wildcard},
+							Group:     types.Wildcard,
 						},
 					})
 			},
@@ -171,6 +174,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							Group:     types.Wildcard,
 						},
 					},
 				)
@@ -195,6 +199,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      "*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{"get"},
+							Group:     types.Wildcard,
 						},
 					},
 				)
@@ -220,6 +225,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: types.Wildcard,
 							Verbs:     []string{types.Wildcard},
+							Group:     types.Wildcard,
 						},
 					},
 				)
@@ -230,6 +236,7 @@ func TestListPodRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							Group:     types.Wildcard,
 						},
 					},
 				)
@@ -630,7 +637,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator(&globalKubeCodecs)
-			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
+			filterWrapper := newResourceFilterer(types.KindKubePod, "", types.KubeVerbWatch, &globalKubeCodecs, tt.args.allowed, tt.args.denied, utils.NewSlogLoggerForTests())
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -866,6 +873,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 				})
 			},
@@ -889,6 +897,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							Group:     types.Wildcard,
 						},
 					})
 			},
@@ -913,6 +922,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
 							Verbs:     []string{types.Wildcard},
+							Group:     types.Wildcard,
 						},
 					},
 				)
@@ -1054,6 +1064,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 						Kind:  types.KindKubeClusterRole,
 						Name:  types.Wildcard,
 						Verbs: []string{types.Wildcard},
+						Group: types.Wildcard,
 					},
 				})
 			},
@@ -1077,6 +1088,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 							Kind:  types.KindKubeClusterRole,
 							Name:  "nginx-*",
 							Verbs: []string{types.Wildcard},
+							Group: types.Wildcard,
 						},
 					},
 				)
@@ -1244,6 +1256,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 						Kind:  types.KindKubeNamespace,
 						Name:  types.Wildcard,
 						Verbs: []string{types.Wildcard},
+						Group: types.Wildcard,
 					},
 				})
 			},
@@ -1266,6 +1279,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 							Kind:  types.KindKubeNamespace,
 							Name:  "dev",
 							Verbs: []string{types.Wildcard},
+							Group: types.Wildcard,
 						},
 					},
 				)
@@ -1286,10 +1300,11 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind:      "resources.teleport.dev/v6/teleportroles",
+							Kind:      "TeleportRole",
 							Name:      types.Wildcard,
 							Namespace: "dev",
 							Verbs:     []string{types.Wildcard},
+							Group:     "resources.teleport.dev",
 						},
 					},
 				)
@@ -1547,13 +1562,13 @@ func newTestKubeCRDMock(t *testing.T, opts ...tkm.Option) (*runtime.Scheme, *Tes
 //     name: *, ns dev, { pod name *, pod ns * }
 //     name: *, ns dev, staging
 func TestSpecificCustomResourcesRBAC(t *testing.T) {
-	telerolev7 := tkm.NewCRD("resources.teleport.dev", "v7", "teleportroles", "TeleportRole", "TeleportRoleList", true)
+	telerolev8 := tkm.NewCRD("resources.teleport.dev", "v8", "teleportroles", "TeleportRole", "TeleportRoleList", true)
 	teleswagv1 := tkm.NewCRD("swag.teleport.dev", "v1", "teleswags", "TeleportSwag", "TeleportSwagList", true)
 	clusterswagv0 := tkm.NewCRD("resources.teleport.dev", "v0", "clusterswags", "ClusterSwag", "ClusterSwagList", false)
 
 	kubeScheme, testCtx := newTestKubeCRDMock(t,
 		tkm.WithTeleportRoleCRD,
-		tkm.WithCRD(telerolev7,
+		tkm.WithCRD(telerolev8,
 			tkm.NewObject("default", "telerole-1"),
 			tkm.NewObject("default", "telerole-2"),
 			tkm.NewObject("default", "telerole-test"),
@@ -1603,19 +1618,21 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 			args: args{
 				user: newUser("dev_access_two_versions", []types.KubernetesResource{
 					{
-						Kind:      tkm.NewTeleportRoleCRD().RoleKind(),
+						Kind:      tkm.NewTeleportRoleCRD().GetKind(),
 						Name:      types.Wildcard,
 						Namespace: "dev",
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
-						Kind:      telerolev7.RoleKind(),
+						Kind:      telerolev8.GetKind(),
 						Name:      types.Wildcard,
 						Namespace: "dev",
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 				}),
-				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev7.Copy()},
+				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev8.Copy()},
 			},
 			want: want{
 				listTeleportRolesResult: [][]string{
@@ -1635,19 +1652,21 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 			args: args{
 				user: newUser("no_swag_access", []types.KubernetesResource{
 					{
-						Kind:      tkm.NewTeleportRoleCRD().RoleKind(),
+						Kind:      tkm.NewTeleportRoleCRD().GetKind(),
 						Name:      types.Wildcard,
 						Namespace: "dev",
 						Verbs:     []string{types.Wildcard},
+						Group:     "badgroup",
 					},
 					{
-						Kind:      telerolev7.RoleKind(),
+						Kind:      telerolev8.GetKind(),
 						Name:      types.Wildcard,
 						Namespace: "dev",
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 				}),
-				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev7.Copy(), teleswagv1.Copy()},
+				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev8.Copy(), teleswagv1.Copy()},
 			},
 			want: want{
 				listTeleportRolesResult: [][]string{
@@ -1665,17 +1684,25 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "different valid kind format",
+			name: "valid kind format",
 			args: args{
 				user: newUser("diff_fmt_ok", []types.KubernetesResource{
 					{
-						Kind:      "resources.teleport.dev/v7/TeleportRole",
+						Kind:      "TeleportRole",
 						Name:      types.Wildcard,
 						Namespace: "dev",
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
+					},
+					{
+						Kind:      "TeleportRole",
+						Name:      types.Wildcard,
+						Namespace: "dev",
+						Verbs:     []string{types.Wildcard},
+						Group:     "resources.teleport.dev",
 					},
 				}),
-				crds: []*tkm.CRD{telerolev7},
+				crds: []*tkm.CRD{telerolev8},
 			},
 			want: want{
 				listTeleportRolesResult: [][]string{
@@ -1692,61 +1719,63 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 			args: args{
 				user: newUser("diff_fmt_ko", []types.KubernetesResource{
 					{
-						Kind:      "TeleportRole",
-						Name:      types.Wildcard,
-						Namespace: types.Wildcard,
-						Verbs:     []string{types.Wildcard},
-					},
-					{
 						Kind:      "teleportrole",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
 						Kind:      "*/teleportrole",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
-						Kind:      "resources.teleport.dev/v7/teleportrole",
+						Kind:      "resources.teleport.dev/v8/teleportrole",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
-						Kind:      "resources.teleport.dev/v7/*",
+						Kind:      "resources.teleport.dev/v8/*",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
-						Kind:      "resources.teleport.dev/v7/",
+						Kind:      "resources.teleport.dev/v8/",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
-						Kind:      "resources.teleport.dev/v7",
+						Kind:      "resources.teleport.dev/v8",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
 						Kind:      "resources.teleport.dev/",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 					{
 						Kind:      "resources.teleport.dev",
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 				}),
-				crds: []*tkm.CRD{telerolev7},
+				crds: []*tkm.CRD{telerolev8},
 			},
 			want: want{
 				wantListErr: []bool{true},
@@ -1757,10 +1786,11 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 			args: args{
 				user: newUser("cluster_crd_ok", []types.KubernetesResource{
 					{
-						Kind:      clusterswagv0.RoleKind(),
+						Kind:      clusterswagv0.GetKind(),
 						Name:      "clusterswag-*",
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 				}),
 				crds: []*tkm.CRD{clusterswagv0},
@@ -1780,10 +1810,11 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 			args: args{
 				user: newUser("cluster_crd_ko", []types.KubernetesResource{
 					{
-						Kind:      telerolev7.RoleKind(),
+						Kind:      telerolev8.GetKind(),
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Verbs:     []string{types.Wildcard},
+						Group:     types.Wildcard,
 					},
 				}),
 				crds: []*tkm.CRD{clusterswagv0},

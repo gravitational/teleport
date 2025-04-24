@@ -137,8 +137,8 @@ func TestGetKubeCreds(t *testing.T) {
 	targetAddr := kubeMock.Address
 
 	rbacSupportedTypes := maps.Clone(defaultRBACResources)
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = "TeleportRole"
+	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = "TeleportRole"
 
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"

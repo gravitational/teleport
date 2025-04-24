@@ -102,120 +102,120 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/apps/v1/", want: nil},
 		{path: "/api/v1/pods", want: nil},
 		{path: "/api/v1/watch/pods", want: nil},
-		{path: "/api/v1/namespaces/kube-system", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "kube-system", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/kube-system", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "kube-system", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/kube-system", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "kube-system", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/kube-system", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "kube-system", Verbs: []string{"watch"}, Group: "core"}},
 		{path: "/api/v1/namespaces/kube-system/pods", want: nil},
 		{path: "/api/v1/watch/namespaces/kube-system/pods", want: nil},
-		{path: "/api/v1/namespaces/kube-system/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/kube-system/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/kube-system/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/kube-system/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
 		{path: "/apis/apiregistration.k8s.io/v1/apiservices/foo/status", want: nil},
 
 		// core
 		// Pods
 		{path: "/api/v1/pods", want: nil},
 		{path: "/api/v1/namespaces/default/pods", want: nil},
-		{path: "/api/v1/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
-		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}}},
-		{path: "/api/v1/namespaces/kube-system/pods/foo/attach", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}}},
-		{path: "/api/v1/namespaces/kube-system/pods/foo/portforward", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"portforward"}}},
-		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
-		{path: "/api/v1/namespaces/default/pods", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
+		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, Group: "core"}},
+		{path: "/api/v1/namespaces/kube-system/pods/foo/attach", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, Group: "core"}},
+		{path: "/api/v1/namespaces/kube-system/pods/foo/portforward", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"portforward"}, Group: "core"}},
+		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
+		{path: "/api/v1/namespaces/default/pods", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
 
 		// Secrets
 		{path: "/api/v1/secrets", want: nil},
 		{path: "/api/v1/namespaces/default/secrets", want: nil},
-		{path: "/api/v1/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
-		{path: "/api/v1/namespaces/default/secrets", body: bodyFunc("Secret", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
-		{path: "/api/v1/namespaces/default/secrets", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
+		{path: "/api/v1/namespaces/default/secrets", body: bodyFunc("Secret", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
+		{path: "/api/v1/namespaces/default/secrets", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
 
 		// Configmaps
 		{path: "/api/v1/configmaps", want: nil},
 		{path: "/api/v1/namespaces/default/configmaps", want: nil},
-		{path: "/api/v1/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
-		{path: "/api/v1/namespaces/default/configmaps", body: bodyFunc("ConfigMap", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
-		{path: "/api/v1/namespaces/default/configmaps", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
+		{path: "/api/v1/namespaces/default/configmaps", body: bodyFunc("ConfigMap", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
+		{path: "/api/v1/namespaces/default/configmaps", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
 
 		// Namespaces
 		{path: "/api/v1/namespaces", want: nil},
-		{path: "/api/v1/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"watch"}}},
-		{path: "/api/v1/namespaces", body: bodyFunc("Namespace", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "foo-create", Verbs: []string{"create"}}},
-		{path: "/api/v1/namespaces", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"watch"}, Group: "core"}},
+		{path: "/api/v1/namespaces", body: bodyFunc("Namespace", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
+		{path: "/api/v1/namespaces", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
 
 		// Nodes
 		{path: "/api/v1/nodes", want: nil},
-		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: types.KindKubeNode, Name: "foo", Verbs: []string{"get"}}},
+		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: types.KindKubeNode, Name: "foo", Verbs: []string{"get"}, Group: "core"}},
 		// Services
 		{path: "/api/v1/services", want: nil},
 		{path: "/api/v1/namespaces/default/services", want: nil},
-		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
-		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
+		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "core"}},
 
 		// ServiceAccounts
 		{path: "/api/v1/serviceaccounts", want: nil},
 		{path: "/api/v1/namespaces/default/serviceaccounts", want: nil},
-		{path: "/api/v1/namespaces/default/serviceaccounts/foo", want: &types.KubernetesResource{Kind: types.KindKubeServiceAccount, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default/serviceaccounts/foo", want: &types.KubernetesResource{Kind: types.KindKubeServiceAccount, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/default/serviceaccounts/foo", want: &types.KubernetesResource{Kind: types.KindKubeServiceAccount, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default/serviceaccounts/foo", want: &types.KubernetesResource{Kind: types.KindKubeServiceAccount, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
 		// PersistentVolumes
 		{path: "/api/v1/persistentvolumes", want: nil},
 		{path: "/api/v1/namespaces/default/persistentvolumes", want: nil},
-		{path: "/api/v1/namespaces/default/persistentvolumes/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolume, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default/persistentvolumes/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolume, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/default/persistentvolumes/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolume, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default/persistentvolumes/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolume, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
 		// PersistentVolumeClaims
 		{path: "/api/v1/persistentvolumeclaims", want: nil},
 		{path: "/api/v1/namespaces/default/persistentvolumeclaims", want: nil},
-		{path: "/api/v1/namespaces/default/persistentvolumeclaims/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolumeClaim, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/api/v1/watch/namespaces/default/persistentvolumeclaims/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolumeClaim, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/default/persistentvolumeclaims/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolumeClaim, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "core"}},
+		{path: "/api/v1/watch/namespaces/default/persistentvolumeclaims/foo", want: &types.KubernetesResource{Kind: types.KindKubePersistentVolumeClaim, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "core"}},
 
 		// apis/apps
 		// Deployments
 		{path: "/apis/apps/v1/deployments", want: nil},
 		{path: "/apis/apps/v1/namespaces/default/deployments", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/apis/apps/v1/watch/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
-		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
-		{path: "/apis/apps/v1beta2/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1beta2"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
-		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/apis/apps/v1/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "apps"}},
+		{path: "/apis/apps/v1/watch/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "apps"}},
+		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "apps"}},
+		{path: "/apis/apps/v1beta2/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1beta2"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "apps"}},
+		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, Group: "apps"}},
 
 		// Statefulsets
 		{path: "/apis/apps/v1/statefulsets", want: nil},
 		{path: "/apis/apps/v1/namespaces/default/statefulsets", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/statefulsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeStatefulset, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/apis/apps/v1/watch/namespaces/default/statefulsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeStatefulset, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/apis/apps/v1/namespaces/default/statefulsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeStatefulset, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "apps"}},
+		{path: "/apis/apps/v1/watch/namespaces/default/statefulsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeStatefulset, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "apps"}},
 		// Replicasets
 		{path: "/apis/apps/v1/replicasets", want: nil},
 		{path: "/apis/apps/v1/namespaces/default/replicasets", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/replicasets/foo", want: &types.KubernetesResource{Kind: types.KindKubeReplicaSet, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/apis/apps/v1/watch/namespaces/default/replicasets/foo", want: &types.KubernetesResource{Kind: types.KindKubeReplicaSet, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/apis/apps/v1/namespaces/default/replicasets/foo", want: &types.KubernetesResource{Kind: types.KindKubeReplicaSet, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "apps"}},
+		{path: "/apis/apps/v1/watch/namespaces/default/replicasets/foo", want: &types.KubernetesResource{Kind: types.KindKubeReplicaSet, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "apps"}},
 		// Daemonsets
 		{path: "/apis/apps/v1/daemonsets", want: nil},
 		{path: "/apis/apps/v1/namespaces/default/daemonsets", want: nil},
-		{path: "/apis/apps/v1/namespaces/default/daemonsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeDaemonSet, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/apis/apps/v1/watch/namespaces/default/daemonsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeDaemonSet, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/apis/apps/v1/namespaces/default/daemonsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeDaemonSet, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "apps"}},
+		{path: "/apis/apps/v1/watch/namespaces/default/daemonsets/foo", want: &types.KubernetesResource{Kind: types.KindKubeDaemonSet, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "apps"}},
 
 		// apis/batch
 		// Job
 		{path: "/apis/batch/v1/jobs", want: nil},
 		{path: "/apis/batch/v1/namespaces/default/jobs", want: nil},
-		{path: "/apis/batch/v1/namespaces/default/jobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeJob, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/apis/batch/v1/watch/namespaces/default/jobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeJob, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/apis/batch/v1/namespaces/default/jobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeJob, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "batch"}},
+		{path: "/apis/batch/v1/watch/namespaces/default/jobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeJob, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "batch"}},
 		// CronJob
 		{path: "/apis/batch/v1/cronjobs", want: nil},
 		{path: "/apis/batch/v1/namespaces/default/cronjobs", want: nil},
-		{path: "/apis/batch/v1/namespaces/default/cronjobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeCronjob, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
-		{path: "/apis/batch/v1/watch/namespaces/default/cronjobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeCronjob, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/apis/batch/v1/namespaces/default/cronjobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeCronjob, Namespace: "default", Name: "foo", Verbs: []string{"get"}, Group: "batch"}},
+		{path: "/apis/batch/v1/watch/namespaces/default/cronjobs/foo", want: &types.KubernetesResource{Kind: types.KindKubeCronjob, Namespace: "default", Name: "foo", Verbs: []string{"watch"}, Group: "batch"}},
 
 		// apis/certificates.k8s.io
 		{path: "/apis/certificates.k8s.io/v1/certificatesigningrequests", want: nil},
-		{path: "/apis/certificates.k8s.io/v1/certificatesigningrequests/foo", want: &types.KubernetesResource{Kind: types.KindKubeCertificateSigningRequest, Name: "foo", Verbs: []string{"get"}}},
+		{path: "/apis/certificates.k8s.io/v1/certificatesigningrequests/foo", want: &types.KubernetesResource{Kind: types.KindKubeCertificateSigningRequest, Name: "foo", Verbs: []string{"get"}, Group: "certificates.k8s.io"}},
 
 		// apis/networking.k8s.io
 		{path: "/apis/networking.k8s.io/v1/ingresses", want: nil},
-		{path: "/apis/networking.k8s.io/v1/ingresses/foo", want: &types.KubernetesResource{Kind: types.KindKubeIngress, Name: "foo", Verbs: []string{"get"}}},
+		{path: "/apis/networking.k8s.io/v1/ingresses/foo", want: &types.KubernetesResource{Kind: types.KindKubeIngress, Name: "foo", Verbs: []string{"get"}, Group: "networking.k8s.io"}},
 	}
 
 	for _, tt := range tests {

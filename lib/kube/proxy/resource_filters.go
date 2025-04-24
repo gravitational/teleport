@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
-	"path"
 
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
@@ -43,7 +42,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -53,7 +51,7 @@ import (
 // - deniedResources: excluded if (namespace,name) matches an entry even if it matches
 // the allowedResources's list.
 // - allowedResources: excluded if (namespace,name) not match a single entry.
-func newResourceFilterer(kind, verb string, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
+func newResourceFilterer(kind, group, verb string, codecs *serializer.CodecFactory, allowedResources, deniedResources []types.KubernetesResource, log *slog.Logger) responsewriters.FilterWrapper {
 	// If the list of allowed resources contains a wildcard and no deniedResources, then we
 	// don't need to filter anything.
 	if containsWildcard(allowedResources) && len(deniedResources) == 0 {
@@ -75,6 +73,7 @@ func newResourceFilterer(kind, verb string, codecs *serializer.CodecFactory, all
 			deniedResources:  deniedResources,
 			log:              log,
 			kind:             kind,
+			group:            group,
 			verb:             verb,
 		}, nil
 	}
@@ -119,6 +118,8 @@ type resourceFilterer struct {
 	log *slog.Logger
 	// kind is the type of the resource.
 	kind string
+	// group is the api group of the resource.
+	group string
 	// verb is the kube API verb based on HTTP verb.
 	verb string
 }
@@ -168,7 +169,7 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 		// should be forwarded to the user.
 		return true, false, nil
 	case *corev1.Pod:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -177,12 +178,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.PodList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Secret:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -191,12 +192,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.SecretList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.ConfigMap:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -205,12 +206,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.ConfigMapList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Namespace:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -219,12 +220,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.NamespaceList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Service:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -233,12 +234,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.ServiceList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Endpoints:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -247,12 +248,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.EndpointsList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.ServiceAccount:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -261,12 +262,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.ServiceAccountList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Node:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -275,12 +276,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.NodeList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.PersistentVolume:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -289,12 +290,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.PersistentVolumeList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.PersistentVolumeClaim:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -303,13 +304,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *corev1.PersistentVolumeClaimList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *appsv1.Deployment:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -318,13 +319,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.DeploymentList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *appsv1.ReplicaSet:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -333,12 +334,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.ReplicaSetList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *appsv1.StatefulSet:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -347,13 +348,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.StatefulSetList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *appsv1.DaemonSet:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -362,12 +363,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *appsv1.DaemonSetList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *authv1.ClusterRole:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -376,12 +377,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.ClusterRoleList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *authv1.Role:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -390,13 +391,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.RoleList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *authv1.ClusterRoleBinding:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -405,13 +406,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.ClusterRoleBindingList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *authv1.RoleBinding:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -420,13 +421,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *authv1.RoleBindingList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *batchv1.CronJob:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -435,13 +436,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *batchv1.CronJobList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *batchv1.Job:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -450,13 +451,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *batchv1.JobList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *certificatesv1.CertificateSigningRequest:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -465,12 +466,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *certificatesv1.CertificateSigningRequestList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *networkingv1.Ingress:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -479,12 +480,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *networkingv1.IngressList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 	case *extensionsv1beta1.Ingress:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -493,13 +494,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.IngressList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *extensionsv1beta1.DaemonSet:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -508,13 +509,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.DaemonSetList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *extensionsv1beta1.Deployment:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -523,13 +524,13 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.DeploymentList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *extensionsv1beta1.ReplicaSet:
-		result, err := filterResource(d.kind, d.verb, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
 			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
 		}
@@ -538,18 +539,19 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 	case *extensionsv1beta1.ReplicaSetList:
 		o.Items = slices.FromPointers(
 			filterResourceList(
-				d.kind, d.verb,
+				d.kind, d.group, d.verb,
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
 
 	case *unstructured.Unstructured:
 		if o.IsList() {
-			hasElemts := filterUnstructuredList(d.verb, o, d.allowedResources, d.deniedResources)
+			hasElemts := filterUnstructuredList(d.verb, o, d.allowedResources, d.deniedResources, d.log)
 			return hasElemts, true, nil
 		}
 
-		r := getKubeResource(utils.KubeCustomResource, d.verb, o)
+		// TODO(@creack): This was hardcoded to CustomResource before, see if that breaks something.
+		r := getKubeResource(d.kind, d.group, d.verb, o)
 		result, err := matchKubernetesResource(
 			r,
 			d.allowedResources, d.deniedResources,
@@ -618,10 +620,10 @@ func (d *resourceFilterer) encode(obj runtime.Object, w io.Writer) error {
 }
 
 // filterResourceList excludes resources the user should not have access to.
-func filterResourceList[T kubeObjectInterface](kind, verb string, originalList []T, allowed, denied []types.KubernetesResource, log *slog.Logger) []T {
+func filterResourceList[T kubeObjectInterface](kind, group, verb string, originalList []T, allowed, denied []types.KubernetesResource, log *slog.Logger) []T {
 	filteredList := make([]T, 0, len(originalList))
 	for _, resource := range originalList {
-		if result, err := filterResource(kind, verb, resource, allowed, denied); err == nil && result {
+		if result, err := filterResource(kind, group, verb, resource, allowed, denied); err == nil && result {
 			filteredList = append(filteredList, resource)
 		} else if err != nil {
 			slog.WarnContext(context.Background(), "Unable to compile regex expressions within kubernetes_resources", "error", err)
@@ -639,20 +641,21 @@ type kubeObjectInterface interface {
 }
 
 // filterResource validates if the user should access the current resource.
-func filterResource(kind, verb string, resource kubeObjectInterface, allowed, denied []types.KubernetesResource) (bool, error) {
+func filterResource(kind, group, verb string, resource kubeObjectInterface, allowed, denied []types.KubernetesResource) (bool, error) {
 	result, err := matchKubernetesResource(
-		getKubeResource(kind, verb, resource),
+		getKubeResource(kind, group, verb, resource),
 		allowed, denied,
 	)
 	return result, trace.Wrap(err)
 }
 
-func getKubeResource(kind, verb string, obj kubeObjectInterface) types.KubernetesResource {
+func getKubeResource(kind, group, verb string, obj kubeObjectInterface) types.KubernetesResource {
 	return types.KubernetesResource{
 		Kind:      kind,
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
 		Verbs:     []string{verb},
+		Group:     group,
 	}
 }
 
@@ -665,7 +668,7 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 		if err := d.decodePartialObjectMetadata(row); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		resource, err := getKubeResourcePartialMetadataObject(d.kind, d.verb, row.Object.Object)
+		resource, err := getKubeResourcePartialMetadataObject(d.kind, d.group, d.verb, row.Object.Object)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -681,7 +684,7 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 
 // getKubeResourcePartialMetadataObject checks if obj satisfies namespaceNamer or namer interfaces
 // otherwise returns an error.
-func getKubeResourcePartialMetadataObject(kind, verb string, obj runtime.Object) (types.KubernetesResource, error) {
+func getKubeResourcePartialMetadataObject(kind, group, verb string, obj runtime.Object) (types.KubernetesResource, error) {
 	type namer interface {
 		GetName() string
 	}
@@ -696,12 +699,14 @@ func getKubeResourcePartialMetadataObject(kind, verb string, obj runtime.Object)
 			Name:      o.GetName(),
 			Kind:      kind,
 			Verbs:     []string{verb},
+			Group:     group,
 		}, nil
 	case namer:
 		return types.KubernetesResource{
 			Name:  o.GetName(),
 			Kind:  kind,
 			Verbs: []string{verb},
+			Group: group,
 		}, nil
 	default:
 		return types.KubernetesResource{}, trace.BadParameter("unexpected %T type", obj)
@@ -785,7 +790,7 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 // filterUnstructuredList filters the unstructured list object to exclude resources
 // that the user must not have access to.
 // The filtered list is re-assigned to `obj.Object["items"]`.
-func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource) (hasElems bool) {
+func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed, denied []types.KubernetesResource, log *slog.Logger) (hasElems bool) {
 	const (
 		itemsKey = "items"
 	)
@@ -801,8 +806,8 @@ func filterUnstructuredList(verb string, obj *unstructured.Unstructured, allowed
 
 	filteredList := make([]any, 0, len(objList.Items))
 	for _, resource := range objList.Items {
-		kind := path.Join(resource.GetAPIVersion(), resource.GetKind())
-		r := getKubeResource(kind, verb, &resource)
+		gvk := resource.GroupVersionKind()
+		r := getKubeResource(gvk.Kind, gvk.Group, verb, &resource)
 		if result, err := matchKubernetesResource(
 			r,
 			allowed, denied,
