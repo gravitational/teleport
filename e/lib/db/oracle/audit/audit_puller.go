@@ -93,7 +93,11 @@ func (a *Puller) Init(serviceName string, sessionID string) error {
 		return trace.Wrap(err)
 	}
 	a.audSID = audSID
-	a.cfg.Logger.DebugContext(context.Background(), "Initialize Active Audit Fetcher", "audit_session_id", audSID, "session_id", sessionID)
+	a.cfg.Logger.DebugContext(context.Background(), "Initialize Active Audit Fetcher",
+		"audit_session_id", audSID,
+		"session_id", sessionID,
+		"service_name", serviceName,
+	)
 	return nil
 }
 

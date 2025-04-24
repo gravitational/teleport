@@ -144,6 +144,7 @@ func TestOracleEngine(t *testing.T) {
 			serviceName, err := connectPacket.GetServiceName()
 			require.NoError(t, err)
 			require.Equal(t, "XE", serviceName)
+			require.Equal(t, "XE", engine.serviceName)
 		}
 	})
 

@@ -36,8 +36,11 @@ type Engine struct {
 	// session is a client session
 	session *common.Session
 
+	// serviceName read from CONNECT packet, validated.
+	serviceName string
+
 	// startAuditPuller should be called if it is non-nil and serviceName and sessionID are known.
-	startAuditPuller func(serviceName string, sessionID string) error
+	startAuditPuller func(sessionID string) error
 
 	// onConnectPacketRead is a callback used in tests.
 	onConnectPacketRead func(connect *protocol.ConnectPacket)
@@ -87,8 +90,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 		defer auditPuller.Close()
 
-		e.startAuditPuller = func(serviceName string, sessionID string) error {
-			if err := auditPuller.Init(serviceName, sessionID); err != nil {
+		e.startAuditPuller = func(sessionID string) error {
+			if err := auditPuller.Init(e.serviceName, sessionID); err != nil {
 				return trace.Wrap(err)
 			}
 			go func() {
@@ -161,12 +164,11 @@ func (e *Engine) tryStartAuditPuller(dataPacket *protocol.DataPacket, dataPacket
 
 	params := result.ToDictionary()
 
-	serviceName := params[protocol.AuthSCServiceNameKey]
 	sessionID := params[protocol.AuthSessionIDKey]
 
 	// advise to increase SDU
 	if result.IsPartial {
-		if sessionID == "" || serviceName == "" {
+		if sessionID == "" {
 			e.Log.WarnContext(e.Context, "Unable to find session ID in partial auth parameters received from server. Consider increasing SDU in client configuration.")
 		}
 	}
@@ -175,18 +177,9 @@ func (e *Engine) tryStartAuditPuller(dataPacket *protocol.DataPacket, dataPacket
 		return trace.BadParameter("session ID parameter is missing or empty")
 	}
 
-	if serviceName == "" {
-		return trace.BadParameter("service name parameter is missing or empty")
-	}
+	e.Log.DebugContext(e.Context, "Starting audit puller", "session_id", sessionID, "quota", dataPacketQuota)
 
-	err = e.checkExpectedServiceName(serviceName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	e.Log.DebugContext(e.Context, "Starting audit puller", "service_name", serviceName, "session_id", sessionID, "quota", dataPacketQuota)
-
-	err = e.startAuditPuller(serviceName, sessionID)
+	err = e.startAuditPuller(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}

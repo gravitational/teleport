@@ -49,6 +49,8 @@ func (e *Engine) readConnect(clientConn *connection.OracleConn) (*protocol.Conne
 		return nil, trace.Wrap(err)
 	}
 
+	e.serviceName = serviceName
+
 	if e.onConnectPacketRead != nil {
 		e.onConnectPacketRead(connect)
 	}

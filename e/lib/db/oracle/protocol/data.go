@@ -87,8 +87,6 @@ func (d DataID) String() string {
 const (
 	// AuthSessionIDKey is the server params key used to obtain a unique Oracle user session ID.
 	AuthSessionIDKey = "AUTH_SESSION_ID"
-	// AuthSCServiceNameKey is the server param key use to obtain the Oracle Service Name.
-	AuthSCServiceNameKey = "AUTH_SC_SERVICE_NAME"
 )
 
 // DataPacket defines TNS data oracle packet that is used a generic transport unit in oracle wire protocol.
