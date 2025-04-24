@@ -236,7 +236,6 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                tc.KeysDir,
 		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
