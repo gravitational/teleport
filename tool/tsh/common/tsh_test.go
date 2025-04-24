@@ -7237,7 +7237,7 @@ func TestSetEnvVariables(t *testing.T) {
 	}
 }
 
-func TestDebugOpts(t *testing.T) {
+func TestLoggingOpts(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
 	tests := []struct {
@@ -7417,12 +7417,12 @@ func TestDebugOpts(t *testing.T) {
 				}
 			}
 
-			mustReadDebugOpts, setDebugOptsFromCLIConf := prepareCLIOptionForReadingDebugOpts()
+			mustReadLoggingOpts, setLoggingOptsFromCLIConf := prepareCLIOptionForReadingLoggingOpts()
 			err := Run(t.Context(), append([]string{"version"}, flags...),
-				setHomePath(tmpHomePath), setDebugOptsFromCLIConf)
+				setHomePath(tmpHomePath), setLoggingOptsFromCLIConf)
 			require.NoError(t, err)
 
-			opts := mustReadDebugOpts(t)
+			opts := mustReadLoggingOpts(t)
 			tt.wantDebug(t, opts.debug, "unexpected cf.Debug value")
 			tt.wantOSLog(t, opts.osLog, "unexpected cf.OSLog value")
 		})
@@ -7433,26 +7433,26 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
-func prepareCLIOptionForReadingDebugOpts() (func(t *testing.T) debugOpts, CliOption) {
+func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, CliOption) {
 	var cf *CLIConf
 
-	setDebugOptsFromCLIConf := func(cliConfFromRun *CLIConf) error {
+	setLoggingOptsFromCLIConf := func(cliConfFromRun *CLIConf) error {
 		cf = cliConfFromRun
 		return nil
 	}
 
-	mustReadDebugOpts := func(t *testing.T) debugOpts {
+	mustReadLoggingOpts := func(t *testing.T) loggingOpts {
 		t.Helper()
 
 		if cf == nil {
-			t.Fatalf("mustReadDebugOpts was called before setDebugOptsFromCLIConf was executed")
+			t.Fatalf("mustReadLoggingOpts was called before setLoggingOptsFromCLIConf was executed")
 		}
 
-		return debugOpts{
+		return loggingOpts{
 			debug: cf.Debug,
 			osLog: cf.OSLog,
 		}
 	}
 
-	return mustReadDebugOpts, setDebugOptsFromCLIConf
+	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
 }

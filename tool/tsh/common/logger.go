@@ -37,40 +37,40 @@ const (
 // It is called twice, first soon after launching tsh before argv is parsed and then again after
 // kingpin parses argv. This makes it possible to debug early startup functionality, particularly
 // command aliases.
-func initLogger(cf *CLIConf, opts debugOpts) error {
+func initLogger(cf *CLIConf, opts loggingOpts) error {
 	cf.OSLog = opts.osLog
 	cf.Debug = opts.debug || opts.osLog
 
-	loggerOpts := getPlatformInitLoggerOpts(cf)
+	initLoggerOpts := getPlatformInitLoggerOpts(cf)
 
 	level := slog.LevelWarn
 	if cf.Debug {
 		level = slog.LevelDebug
 	}
 
-	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, loggerOpts...))
+	return trace.Wrap(utils.InitLogger(utils.LoggingForCLI, level, initLoggerOpts...))
 }
 
-type debugOpts struct {
+type loggingOpts struct {
 	debug bool
 	osLog bool
 }
 
-// parseDebugOptsFromEnv calculates debug opts taking into account only env vars.
-func parseDebugOptsFromEnv() debugOpts {
-	var opts debugOpts
+// parseLoggingOptsFromEnv calculates logging opts taking into account only env vars.
+func parseLoggingOptsFromEnv() loggingOpts {
+	var opts loggingOpts
 	opts.debug, _ = strconv.ParseBool(os.Getenv(debugEnvVar))
 	opts.osLog, _ = strconv.ParseBool(os.Getenv(osLogEnvVar))
 	return opts
 }
 
-// parseDebugFromEnvAndArgv calculates debug opts taking into account env vars and argv.
+// parseLoggingOptsFromEnvAndArgv calculates logging opts taking into account env vars and argv.
 // It should be called only after calling kingpin.Application.Parse, so that
 // kingpin.FlagCause.IsSetByUser is processed by kingpin.
 //
 // CLI flags take precedence over env vars.
-func parseDebugOptsFromEnvAndArgv(cf *CLIConf) debugOpts {
-	opts := parseDebugOptsFromEnv()
+func parseLoggingOptsFromEnvAndArgv(cf *CLIConf) loggingOpts {
+	opts := parseLoggingOptsFromEnv()
 
 	if cf.DebugSet {
 		opts.debug = cf.Debug
