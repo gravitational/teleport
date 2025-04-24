@@ -79,7 +79,7 @@ type printDatabaseTableConfig struct {
 	rows                []databaseTableRow
 	showProxyAndCluster bool
 	verbose             bool
-	// includeColumns specifies a white list of columns to include. verbose and
+	// includeColumns specifies a whitelist of columns to include. verbose and
 	// showProxyAndCluster are ignored when includeColumns is provided.
 	includeColumns []string
 }

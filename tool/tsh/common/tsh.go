@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -716,7 +717,6 @@ const (
 	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 	noResumeEnvVar           = "TELEPORT_NO_RESUME"
 	requestModeEnvVar        = "TELEPORT_REQUEST_MODE"
-	parallelJobsEnvVar       = "TELEPORT_PARALLEL_JOBS"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -1061,7 +1061,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbExec.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
 	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
-	dbExec.Flag("parallel", "Run commands on target databases in parallel. Defaults to 1, and maximum allowed is 10.").Envar(parallelJobsEnvVar).Default("1").IntVar(&cf.ParallelJobs)
+	dbExec.Flag("parallel", "Run commands on target databases in parallel. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.ParallelJobs)
 	dbExec.Flag("output-dir", "Directory to store command output per target database service. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
 	dbExec.Flag("dbs", "List of comma separated target database services. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
 	dbExec.Flag("confirm", "Confirm selected database services before executing command.").Default("true").BoolVar(&cf.Confirm)
@@ -5902,4 +5902,15 @@ func tryLockMemory(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unexpected value for --mlock, expected one of (%v)", strings.Join(mlockModes, ", "))
 	}
+}
+
+// stringFlagToStrings parses a comma-separated string from a CLIConf flag into
+// a slice of strings. It trims whitespace from each value and removes
+// duplicates.
+func stringFlagToStrings(value string) []string {
+	values := strings.Split(value, ",")
+	for i := range values {
+		values[i] = strings.TrimSpace(values[i])
+	}
+	return apiutils.Deduplicate(values)
 }

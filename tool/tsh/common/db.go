@@ -966,27 +966,9 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		return nil
 	}
 
-	checker := d.checker
-	if checker == nil {
-		var clusterClient *client.ClusterClient
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			clusterClient, err = tc.ConnectToCluster(cf.Context)
-			return trace.Wrap(err)
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer clusterClient.Close()
-
-		profile, err := tc.ProfileStatus()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		checker, err = services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	checker, err := d.getChecker(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if needDBUser {
@@ -1006,6 +988,30 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		d.Database = dbName
 	}
 	return nil
+}
+
+func (d *databaseInfo) getChecker(ctx context.Context, tc *client.TeleportClient) (services.AccessChecker, error) {
+	if d.checker != nil {
+		return d.checker, nil
+	}
+	var clusterClient *client.ClusterClient
+	var err error
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err = tc.ConnectToCluster(ctx)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	checker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	return checker, trace.Wrap(err)
 }
 
 // databaseInfo wraps a RouteToDatabase and the corresponding database.

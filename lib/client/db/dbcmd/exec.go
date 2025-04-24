@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// GetExecCommand returns a command that execute the provided query on target
-// database using an appropriate CLI database client.
+// GetExecCommand returns a command that executes the provided query on the
+// target database using an appropriate CLI database client.
 func (c *CLICommandBuilder) GetExecCommand(_ context.Context, query string) (*exec.Cmd, error) {
 	if !c.options.noTLS || c.options.localProxyHost == "" {
 		return nil, trace.BadParameter("query execution is only supported when using an authenticated local proxy")
@@ -40,7 +40,7 @@ func (c *CLICommandBuilder) GetExecCommand(_ context.Context, query string) (*ex
 	case defaults.ProtocolMySQL:
 		return c.getMySQLExecCommand(query)
 	default:
-		return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
+		return nil, trace.BadParameter("%s databases not supported for exec command", c.db.Protocol)
 	}
 }
 

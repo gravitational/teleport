@@ -28,7 +28,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/services"
@@ -150,17 +148,8 @@ func checkDatabaseExecInputFlags(cf *CLIConf) error {
 	// backend. The limit can be overwritten with the "TELEPORT_PARALLEL_JOBS"
 	// env var.
 	const maxParallelJobs = 10
-	if maxStr := os.Getenv(parallelJobsEnvVar); maxStr != "" {
-		if maxValue, err := strconv.Atoi(maxStr); err != nil || maxValue <= 0 {
-			return trace.BadParameter("environment variable %s must be a positive integer", parallelJobsEnvVar)
-		} else {
-			cf.ParallelJobs = maxValue
-		}
-	} else if cf.ParallelJobs < 1 || cf.ParallelJobs > maxParallelJobs {
-		return trace.BadParameter(`--parallel must be between 1 and %v.
-
-You may use TELEPORT_PARALLEL_JOBS to bypass limit. However, setting a very high
-value may overload your Teleport cluster. `, maxParallelJobs)
+	if cf.ParallelJobs < 1 || cf.ParallelJobs > maxParallelJobs {
+		return trace.BadParameter(`--parallel must be between 1 and %v`, maxParallelJobs)
 	}
 
 	// Selection flags.
@@ -197,11 +186,7 @@ func (c *databaseExecCommand) getDatabasesByNames() ([]types.Database, error) {
 	fmt.Fprintln(c.cf.Stdout(), "Fetching databases by name ...")
 
 	// Trim spaces.
-	names := strings.Split(c.cf.DatabaseServices, ",")
-	for i := range names {
-		names[i] = strings.TrimSpace(names[i])
-	}
-	names = apiutils.Deduplicate(names)
+	names := stringFlagToStrings(c.cf.DatabaseServices)
 
 	var dbs []types.Database
 	for page := range slices.Chunk(names, 100) {
@@ -240,17 +225,17 @@ func (c *databaseExecCommand) searchDatabases() (databases []types.Database, err
 	logger.DebugContext(c.cf.Context, "Fetched databases with search filter",
 		"databases", logutils.IterAttr(types.ResourceNames(dbs)),
 	)
-	return dbs, trace.Wrap(c.printResultAndConfirm(dbs))
+	return dbs, trace.Wrap(c.printSearchResultAndConfirm(dbs))
 }
 
-func (c *databaseExecCommand) printResultAndConfirm(dbs []types.Database) error {
+func (c *databaseExecCommand) printSearchResultAndConfirm(dbs []types.Database) error {
 	if len(dbs) == 0 {
 		return trace.NotFound("no databases found")
 	}
 
 	fmt.Fprintf(c.cf.Stdout(), "Found %d database(s):\n\n", len(dbs))
 	printTableForDatabaseExec(c.cf.Stdout(), dbs)
-	question := fmt.Sprintf("Do you want to proceed with %d databases?", len(dbs))
+	question := fmt.Sprintf("Do you want to proceed with %d database(s)?", len(dbs))
 	if err := c.cf.PromptConfirmation(question); err != nil {
 		return trace.Wrap(err)
 	}
@@ -613,9 +598,6 @@ func (s *databaseExecSummary) printAndSave(w io.Writer, outputDir string) {
 }
 
 func (s *databaseExecSummary) save(w io.Writer, outputDir string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	summaryPath := filepath.Join(outputDir, "summary.json")
 	summaryPath, err := utils.EnsureLocalPath(summaryPath, "", "")
 	if err != nil {
@@ -633,7 +615,7 @@ func (s *databaseExecSummary) save(w io.Writer, outputDir string) error {
 	}
 	defer summaryFile.Close()
 
-	summaryData, err := json.MarshalIndent(s, "", "  ")
+	summaryData, err := s.makeSummaryJSONData()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -644,4 +626,12 @@ func (s *databaseExecSummary) save(w io.Writer, outputDir string) error {
 
 	fmt.Fprintf(w, "Summary is saved at %q.\n", summaryPath)
 	return nil
+}
+
+func (s *databaseExecSummary) makeSummaryJSONData() ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	summaryData, err := json.MarshalIndent(s, "", "  ")
+	return summaryData, trace.Wrap(err)
 }
