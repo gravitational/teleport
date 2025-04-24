@@ -362,14 +362,14 @@ type CLIConf struct {
 
 	// Debug sets log level to debug and sends logs to stdout.
 	Debug bool
-	// DebugSet specifies whether the flag was set by the user.
-	DebugSet bool
+	// DebugSetByUser specifies whether the flag was set by the user.
+	DebugSetByUser bool
 
 	// OSLog sends logs to the unified log system on macOS.
 	OSLog bool
-	// OSLogSet specifies whether the flag was set by the user or not. This makes it possible to enable
-	// OSLog through env var and then disable it selectively with --no-os-log.
-	OSLogSet bool
+	// OSLogSetByUser specifies whether the flag was set by the user or not. This makes it possible to
+	// enable OSLog through env var and then disable it selectively with --no-os-log.
+	OSLogSetByUser bool
 
 	// Browser can be used to pass the name of a browser to override the system default
 	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
@@ -825,11 +825,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// we don't want to add `.Envar(debugEnvVar)` here:
 	// - we already process TELEPORT_DEBUG with initLogger(), so we don't need to do it second time
 	// - Kingpin is strict about syntax, so TELEPORT_DEBUG=rubbish will crash a program; we don't want such behavior for this variable.
-	app.Flag("debug", "Verbose logging to stdout.").Short('d').IsSetByUser(&cf.DebugSet).BoolVar(&cf.Debug)
+	app.Flag("debug", "Verbose logging to stdout.").Short('d').IsSetByUser(&cf.DebugSetByUser).BoolVar(&cf.Debug)
 	osLogFlag := app.Flag("os-log",
 		fmt.Sprintf("Verbose logging to the unified logging system. This flag implies --debug. Also available through the %s env var. https://developer.apple.com/documentation/os/viewing-log-messages",
 			osLogEnvVar)).
-		IsSetByUser(&cf.OSLogSet)
+		IsSetByUser(&cf.OSLogSetByUser)
 	if runtime.GOOS != constants.DarwinOS {
 		osLogFlag.Hidden()
 	}

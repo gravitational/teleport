@@ -72,11 +72,11 @@ func parseLoggingOptsFromEnv() loggingOpts {
 func parseLoggingOptsFromEnvAndArgv(cf *CLIConf) loggingOpts {
 	opts := parseLoggingOptsFromEnv()
 
-	if cf.DebugSet {
+	if cf.DebugSetByUser {
 		opts.debug = cf.Debug
 	}
 
-	if cf.OSLogSet {
+	if cf.OSLogSetByUser {
 		opts.osLog = cf.OSLog
 	}
 
