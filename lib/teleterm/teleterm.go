@@ -62,7 +62,6 @@ func Serve(ctx context.Context, cfg Config) error {
 	hwks := piv.NewYubiKeyService(tshdEventsClient.NewHardwareKeyPrompt())
 
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                cfg.HomeDir,
 		Clock:              clock,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		AddKeysToAgent:     cfg.AddKeysToAgent,
