@@ -16,13 +16,17 @@ package transportv1
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 
+	"github.com/gravitational/teleport/api/constants"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
@@ -54,6 +58,98 @@ func (c *Client) ClusterDetails(ctx context.Context) (*transportv1pb.ClusterDeta
 	}
 
 	return resp.Details, nil
+}
+
+const (
+	// DesktopSNISuffix is the server name suffix used during SNI to specify the
+	// target desktop to connect to. The client will use SNI
+	// like "${UUID}.desktop.teleport.cluster.local" to pass the UUID of the
+	// desktop.
+	// This is a copy of the same constant in `lib/srv/desktop/desktop.go` to
+	// prevent depending on `lib/srv` in `api/client`.
+	DesktopSNISuffix = ".desktop." + constants.APIDomain
+)
+
+// ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
+// The caller is required to pass a valid desktop certificate.
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, desktopCert tls.Certificate, rootCAs *x509.CertPool) (net.Conn, error) {
+	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+
+	stream, err := c.clt.ProxyWindowsDesktopSession(connCtx)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err, "unable to establish desktop session")
+	}
+
+	err = stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{
+		DialTarget: &transportv1pb.TargetWindowsDesktop{
+			DesktopName: desktopName,
+			Cluster:     cluster,
+		},
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err, "unable to send dial target request")
+	}
+
+	// Empty message indicating successful connection to the service.
+	_, err = stream.Recv()
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err, "unable to establish desktop session")
+	}
+
+	desktopReadWriter, err := streamutils.NewReadWriter(desktopStream{stream: stream, cancel: cancel})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err, "unable to create stream reader")
+	}
+
+	conn := streamutils.NewConn(desktopReadWriter, nil, nil)
+	tlsConfig := &tls.Config{
+		ServerName:   desktopName + DesktopSNISuffix,
+		Certificates: []tls.Certificate{desktopCert},
+		RootCAs:      rootCAs,
+	}
+	tlsConn := tls.Client(conn, tlsConfig)
+	if err = tlsConn.HandshakeContext(ctx); err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	return tlsConn, nil
+}
+
+// desktopStream implements the [streamutils.Source] interface
+// for a [transportv1pb.TransportService_ProxyWindowsDesktopSessionClient].
+type desktopStream struct {
+	stream grpc.BidiStreamingClient[transportv1pb.ProxyWindowsDesktopSessionRequest, transportv1pb.ProxyWindowsDesktopSessionResponse]
+	cancel context.CancelFunc
+}
+
+func (d desktopStream) Send(p []byte) error {
+	return trace.Wrap(d.stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{Data: p}))
+}
+
+func (d desktopStream) Recv() ([]byte, error) {
+	msg, err := d.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	data := msg.GetData()
+	if data == nil {
+		return nil, trace.BadParameter("received invalid message")
+	}
+
+	return data, nil
+}
+
+func (d desktopStream) Close() error {
+	if d.cancel != nil {
+		d.cancel()
+	}
+	return nil
 }
 
 // DialCluster establishes a connection to the provided cluster. The provided
