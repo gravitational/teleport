@@ -65,6 +65,8 @@ export interface EnterpriseComponentProps {
   addNotification: (severity: NotificationSeverity, content: string) => void;
 }
 
+// Layout identifiers gotten from:
+// https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
 const layouts = {
   0: 'System',
   0x00000401: 'Arabic (101)',

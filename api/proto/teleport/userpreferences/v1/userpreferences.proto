@@ -47,6 +47,8 @@ message UserPreferences {
   // discover_resource_preferences are user preferences saved for the discover resource web UI.
   DiscoverResourcePreferences discover_resource_preferences = 8;
   // keyboard_layout is the layout used by the user in Windows Desktop sessions
+  // keyboard layout identifiers can be found here:
+  // https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
   int32 keyboard_layout = 9;
 }
 
