@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/secreports"
 	"github.com/gravitational/teleport/e/lib/secreports/limiter"
 	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
+	"github.com/gravitational/teleport/e/lib/sigstore"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
@@ -402,6 +403,18 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			return trace.Wrap(err, "creating workload identity X509 overrides service")
 		}
 		workloadidentityv1pb.RegisterX509OverridesServiceServer(gRPCServer, srv)
+	}
+	{
+		srv, err := sigstore.NewPolicyResourceService(sigstore.PolicyResourceServiceConfig{
+			Backend:    p.authServer.AuthServer,
+			Authorizer: p.authServer.Authorizer,
+			Emitter:    p.authServer.Emitter,
+			Logger:     logger,
+		})
+		if err != nil {
+			return trace.Wrap(err, "creating Sigstore policy service")
+		}
+		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(gRPCServer, srv)
 	}
 
 	return nil
