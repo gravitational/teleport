@@ -318,6 +318,8 @@ func (c *Client) runLocal(ctx context.Context) error {
 		i := int64(0)
 		totalDuration := 0 * time.Millisecond
 		for {
+			for e, er := dial.PollForEvent(); e != nil || er != nil; e, er = dial.PollForEvent() {
+			}
 			if err := damage.SubtractChecked(dial, dmg, xfixes.RegionNone, parts).Check(); err != nil {
 				return trace.Wrap(err)
 			}
