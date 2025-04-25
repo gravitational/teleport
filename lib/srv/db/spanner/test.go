@@ -34,8 +34,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -88,7 +88,7 @@ func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		transportOpt = grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))
+		transportOpt = grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsCfg))
 	} else {
 		transportOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
@@ -190,7 +190,7 @@ func NewTestServer(config common.TestServerConfig) (tsrv *TestServer, err error)
 	checker := credentialChecker{expectToken: "Bearer " + config.AuthToken}
 	testServer := &TestServer{
 		srv: grpc.NewServer(
-			grpc.Creds(credentials.NewTLS(tlsConfig)),
+			grpc.Creds(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 			grpc.ChainUnaryInterceptor(unaryAuthInterceptor(checker)),
 			grpc.ChainStreamInterceptor(streamingAuthInterceptor(checker)),
 		),

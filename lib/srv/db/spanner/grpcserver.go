@@ -33,7 +33,7 @@ import (
 	"google.golang.org/api/option"
 	gtransport "google.golang.org/api/transport/grpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/grpc/stats"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -323,7 +323,7 @@ func (e *Engine) getClientLocked(ctx context.Context) (spannerpb.SpannerClient, 
 	// Therefore use the client connection context rather than the RPC context.
 	cc, err := gtransport.DialPool(e.clientConnContext,
 		append(spannerapi.DefaultClientOptions(),
-			option.WithGRPCDialOption(grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))),
+			option.WithGRPCDialOption(grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsCfg))),
 			option.WithGRPCDialOption(grpc.WithStatsHandler(&messageStatsHandler{
 				messagesReceived: common.GetMessagesFromServerMetric(e.sessionCtx.Database),
 			})),
