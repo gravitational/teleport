@@ -1282,7 +1282,7 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid
-// certs to disk. clusters.Storage can then be pointed to tc.KeysDir and daemon.Service can act as
+// certs to disk. clusters.Storage can then be pointed to tc.ClientStore and daemon.Service can act as
 // if the user was successfully logged in.
 //
 // This is faster than going through the actual process, but keep in mind that it might skip some
