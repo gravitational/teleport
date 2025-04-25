@@ -144,8 +144,7 @@ func (a *SigstoreAttestor) Attest(ctx context.Context, ctr Container) (*workload
 	)
 	logger.InfoContext(ctx, "Starting Sigstore workload attestation")
 
-	cached, hit := a.getCached(ctr.GetImageDigest())
-	if hit {
+	if cached := a.getCached(ctr.GetImageDigest()); cached != nil {
 		logger.DebugContext(ctx, "Sigstore attestor cache hit")
 		return cached, nil
 	}
@@ -197,10 +196,10 @@ func (a *SigstoreAttestor) MarkFailed(ctx context.Context, ctr Container) {
 	}
 }
 
-func (a *SigstoreAttestor) getCached(imageDigest string) (*workloadidentityv1.WorkloadAttrsSigstore, bool) {
+func (a *SigstoreAttestor) getCached(imageDigest string) *workloadidentityv1.WorkloadAttrsSigstore {
 	cached, ok := a.cache.Get(imageDigest)
 	if !ok {
-		return nil, false
+		return nil
 	}
 
 	a.failuresMu.Lock()
@@ -208,9 +207,9 @@ func (a *SigstoreAttestor) getCached(imageDigest string) (*workloadidentityv1.Wo
 
 	failedAt, failed := a.failures[imageDigest]
 	if !failed || time.Since(failedAt) < a.maxRefreshInterval {
-		return cached, true
+		return cached
 	}
-	return nil, false
+	return nil
 }
 
 func (a *SigstoreAttestor) onCacheEviction(imageDigest string, attrs *workloadidentityv1.WorkloadAttrsSigstore) {
