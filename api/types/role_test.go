@@ -183,10 +183,10 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      "invalid resource",
 					Namespace: "test",
 					Name:      "test",
+					Group:     Wildcard,
 				},
 			},
-			// TODO(@creack): Find a way to validate the resource kind. For now as we support
-			//                arbitrary CRDs, we can't validate it.
+
 			assertErrorCreation: require.NoError,
 		},
 		{
@@ -208,6 +208,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					Group:     Wildcard,
 				},
 			},
 		},
@@ -230,6 +231,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					Group:     Wildcard,
 				},
 			},
 		},
@@ -277,6 +279,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					Group:     Wildcard,
 				},
 			},
 		},
@@ -318,6 +321,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
+					Group:     Wildcard,
 				},
 			},
 		},
@@ -575,6 +579,7 @@ func appendV7KubeResources() []KubernetesResource {
 			Namespace: Wildcard,
 			Name:      Wildcard,
 			Verbs:     []string{Wildcard},
+			Group:     Wildcard,
 		},
 		)
 	}
