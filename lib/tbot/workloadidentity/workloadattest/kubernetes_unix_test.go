@@ -77,7 +77,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 					Status: v1.PodStatus{
 						ContainerStatuses: []v1.ContainerStatus{
 							{
-								ContainerID: mockContainerID,
+								ContainerID: "docker://" + mockContainerID,
 								Name:        "container-1",
 								Image:       "my.registry.io/my-app:v1",
 								ImageID:     "docker-pullable://my.registry.io/my-app@sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",

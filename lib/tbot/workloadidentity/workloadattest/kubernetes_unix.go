@@ -34,6 +34,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -103,7 +104,8 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 
 	var ctr *workloadidentityv1pb.WorkloadAttrsKubernetesContainer
 	for _, status := range pod.Status.ContainerStatuses {
-		if status.ContainerID != container.ID {
+		// Kubelet returns the container ID prefixed by `<type>://`.
+		if _, id, _ := strings.Cut(status.ContainerID, "://"); id != container.ID {
 			continue
 		}
 		ctr = &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
