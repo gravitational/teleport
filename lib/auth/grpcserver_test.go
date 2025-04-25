@@ -1770,7 +1770,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				advanceTime:   defaults.WebauthnChallengeTimeout + time.Second,
 				authnHandler:  registered.webAuthHandler,
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
-					require.True(t, services.IsExpiredReusableMFAResponseError(err), err)
+					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
 				},
 			},
 		},

@@ -40,7 +40,6 @@ import (
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -481,7 +480,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
 						// This is the fake reusable MFA response passed in the first call.
 						if req.MFAResponse != nil && req.MFAResponse.Response == nil {
-							return nil, services.NewExpiredReusableMFAResponseError("not found")
+							return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
 						}
 						// The second call should continue here.
 						return defaultGenerateUserCerts(ctx, req)

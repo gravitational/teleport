@@ -605,10 +605,12 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		params.ExistingCreds = keyRing
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		switch {
-		case services.IsExpiredReusableMFAResponseError(err):
-			// If reusable MFA response is expired, break the switch to perform
-			// ceremony again.
+		case errors.Is(err, &mfa.ErrExpiredReusableMFAResponse):
+			// If the reusable MFA response is expired, break the switch to
+			// perform the ceremony again.
 			fmt.Fprintln(c.tc.Stderr, "Current MFA session has expired.")
+		case err != nil:
+			return nil, trace.Wrap(err)
 		default:
 			return &IssueUserCertsWithMFAResult{
 				KeyRing:     keyRing,
