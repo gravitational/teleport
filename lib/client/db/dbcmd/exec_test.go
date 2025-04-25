@@ -40,7 +40,7 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 	}
 
 	conf := &client.Config{
-		HomePath:     t.TempDir(),
+		ClientStore:  client.NewFSClientStore(t.TempDir()),
 		Host:         "localhost",
 		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",

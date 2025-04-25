@@ -302,6 +302,10 @@ type ProfileStatus struct {
 
 	// GitHubIdentity is the GitHub identity attached to the user.
 	GitHubIdentity *GitHubIdentity
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
 }
 
 // GitHubIdentity is the GitHub identity attached to the user.
@@ -324,6 +328,7 @@ type profileOptions struct {
 	IsVirtual               bool
 	SAMLSingleLogoutEnabled bool
 	SSOHost                 string
+	TLSRoutingEnabled       bool
 }
 
 // profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
@@ -428,6 +433,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
 		SSOHost:                 opts.SSOHost,
 		GitHubIdentity:          gitHubIdentity,
+		TLSRoutingEnabled:       opts.TLSRoutingEnabled,
 	}, nil
 }
 
@@ -639,7 +645,7 @@ func (p *ProfileStatus) DatabaseServices() (result []string) {
 
 // DatabasesForCluster returns a list of databases for this profile, for the
 // specified cluster name.
-func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteToDatabase, error) {
+func (p *ProfileStatus) DatabasesForCluster(clusterName string, store *Store) ([]tlsca.RouteToDatabase, error) {
 	if clusterName == "" || clusterName == p.Cluster {
 		return p.Databases, nil
 	}
@@ -649,8 +655,8 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
-	store := NewFSKeyStore(p.Dir)
-	keyRing, err := store.GetKeyRing(idx, nil /*hwks*/, WithDBCerts{})
+
+	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -659,7 +665,7 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string) ([]tlsca.RouteTo
 
 // AppsForCluster returns a list of apps for this profile, for the
 // specified cluster name.
-func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, error) {
+func (p *ProfileStatus) AppsForCluster(clusterName string, store *Store) ([]tlsca.RouteToApp, error) {
 	if clusterName == "" || clusterName == p.Cluster {
 		return p.Apps, nil
 	}
@@ -670,8 +676,7 @@ func (p *ProfileStatus) AppsForCluster(clusterName string) ([]tlsca.RouteToApp, 
 		ClusterName: clusterName,
 	}
 
-	store := NewFSKeyStore(p.Dir)
-	keyRing, err := store.GetKeyRing(idx, nil /*hwks*/, WithAppCerts{})
+	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
