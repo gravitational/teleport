@@ -21,7 +21,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -68,6 +71,10 @@ type collections struct {
 	userGroups                       *collection[types.UserGroup]
 	identityCenterAccounts           *collection[*identitycenterv1.Account]
 	identityCenterAccountAssignments *collection[*identitycenterv1.AccountAssignment]
+	healthCheckConfig                *collection[*healthcheckconfigv1.HealthCheckConfig]
+	reverseTunnels                   *collection[types.ReverseTunnel]
+	spiffeFederations                *collection[*machineidv1.SPIFFEFederation]
+	workloadIdentity                 *collection[*workloadidentityv1.WorkloadIdentity]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -234,6 +241,38 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.identityCenterAccountAssignments = collect
 			out.byKind[resourceKind] = out.identityCenterAccountAssignments
+		case types.KindHealthCheckConfig:
+			collect, err := newHealthCheckConfigCollection(c.HealthCheckConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.healthCheckConfig = collect
+			out.byKind[resourceKind] = out.healthCheckConfig
+		case types.KindReverseTunnel:
+			collect, err := newReverseTunnelCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.reverseTunnels = collect
+			out.byKind[resourceKind] = out.reverseTunnels
+		case types.KindSPIFFEFederation:
+			collect, err := newSPIFFEFederationCollection(c.SPIFFEFederations, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.spiffeFederations = collect
+			out.byKind[resourceKind] = out.spiffeFederations
+		case types.KindWorkloadIdentity:
+			collect, err := newWorkloadIdentityCollection(c.WorkloadIdentity, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadIdentity = collect
+			out.byKind[resourceKind] = out.workloadIdentity
 		}
 	}
 
