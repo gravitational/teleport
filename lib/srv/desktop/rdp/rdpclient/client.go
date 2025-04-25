@@ -199,9 +199,9 @@ func New(cfg Config) (*Client, error) {
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
 func (c *Client) Run(ctx context.Context) error {
-	//if c.cfg.Local {
-	//	return c.runLocal(ctx)
-	//}
+	if c.cfg.Local {
+		return c.runLocal(ctx)
+	}
 	// Create a handle to the client to pass to Rust.
 	// The handle is used to call back into this Client from Rust.
 	// Since the handle is created and deleted here, methods which
