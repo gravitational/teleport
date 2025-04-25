@@ -1283,7 +1283,7 @@ type HardwareKey struct {
 	// serial number validation, including whether it is enabled.
 	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
 
-	// PIVPINCacheTTL specifies how long to cache the user's PIV PIN.
+	// PINCacheTTL specifies how long to cache the user's PIV PIN.
 	PINCacheTTL time.Duration `yaml:"pin_cache_ttl,omitempty"`
 }
 
