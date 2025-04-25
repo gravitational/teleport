@@ -152,7 +152,7 @@ LOOP:
 		pod, containerStatus, err = a.tryGetPodAndContainerStatus(ctx, podID, containerID)
 		switch {
 		case err != nil:
-			log.WarnContext(ctx, "Failed to get pod and container status from kubelet", "error", err)
+			return nil, nil, err
 		case containerStatus == nil:
 			// It's possible for a workload container to start and request a SVID
 			// before the kubelet has updated its state, in which case we might
