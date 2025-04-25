@@ -127,6 +127,11 @@ export const JoinTokenIAMForm = ({
   );
 };
 
+/**
+ * `checkIAMYAMLData` determines if the provided value contains item/s that are not supported by the edit form.
+ * @param data a value representing the iam-specific config for a token
+ * @returns a boolean indicating if the provided value contains unsupported items
+ */
 export const checkIAMYAMLData = (data: unknown) => {
   const keys = collectKeys(data);
   return (
@@ -249,6 +254,11 @@ export const JoinTokenGCPForm = ({
   );
 };
 
+/**
+ * `checkGCPYAMLData` determines if the provided value contains item/s that are not supported by the edit form.
+ * @param data a value representing the gcp-specific config for a token
+ * @returns a boolean indicating if the provided value contains unsupported items
+ */
 export const checkGCPYAMLData = (data: unknown) => {
   const keys = collectKeys(data);
   return (
