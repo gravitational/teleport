@@ -5,7 +5,7 @@ description: How to configure custom DNS zones for VNet
 
 VNet automatically proxies connections made to TCP applications available under the public address
 of a Proxy Service. This guide explains how to configure VNet to support apps with [custom public
-addresses](connecting-apps.mdx#customize-public-address).
+addresses](../enroll-resources/application-access/guides/connecting-apps.mdx).
 
 ## How it works
 
@@ -31,7 +31,7 @@ to first update the VNet config in the Auth Service to include a matching DNS zo
 - A domain name under your control.
 
 {/* vale messaging.protocol-products = NO */}
-In this guide, we'll use the example app from [TCP Application Access guide](tcp.mdx) and make it
+In this guide, we'll use the example app from [TCP Application Access guide](../enroll-resources/application-access/guides/tcp.mdx) and make it
 available through VNet at <Var name="public_addr" initial="tcp-app.company.test"/> with
 <Var name="suffix" initial="company.test" /> as the custom DNS zone.
 {/* vale messaging.protocol-products = YES */}
@@ -84,7 +84,7 @@ app_service:
 
 ## Step 3/3. Connect
 
-Once you [start VNet](../../../connect-your-client/vnet.mdx), you should be able to connect to the
+Once you [start VNet](../connect-your-client/vnet.mdx), you should be able to connect to the
 application over the custom `public_addr` using the application client you would normally use to
 connect to it. You might need to restart VNet if it was already running while you were making
 changes to the cluster.
@@ -131,7 +131,7 @@ an address for the TUN device from a range offered by one of those clusters.
 
 ### Configuring leaf cluster apps
 
-To make a [leaf cluster](../../../admin-guides/management/admin/trustedclusters.mdx) app accessible over a custom
+To make a [leaf cluster](management/admin/trustedclusters.mdx) app accessible over a custom
 `public_addr`, you need to follow the same steps while being logged in directly to the leaf cluster.
 
 ```code
@@ -140,8 +140,8 @@ $ tsh login --proxy=leaf.example.com --user=email@example.com
 
 ### Accessing web apps through VNet
 
-VNet does not officially support [web apps](connecting-apps.mdx) yet. However, technically any web
-app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. You'll need to change
+VNet does not officially support [web apps](../enroll-resources/application-access/guides/connecting-apps.mdx) yet. However, technically any web
+app is [a TCP app](../enroll-resources/application-access/guides/tcp.mdx), so they can be made available over VNet as well. You'll need to change
 `uri` of your application in the Application Service configuration file to use `tcp://` instead of
 `http://`. There's also a couple of caveats:
 
@@ -150,11 +150,11 @@ app is [a TCP app](tcp.mdx), so they can be made available over VNet as well. Yo
   application will not be accessible in browsers over plain HTTP, even with VNet running. It's
   possible to work around this by setting a custom `public_addr` as explained above in this guide.
 - If the application needs to be accessible over HTTPS, it must handle TLS connections and return [a valid
-  cert](connecting-apps.mdx#step-23-optional-configure-tls-and-dns-for-your-web-applications) for the domain it is served on.
-- [JWT Token](../jwt/introduction.mdx), [redirect](connecting-apps.mdx#rewrite-redirect) and
-  [header rewrites](connecting-apps.mdx#headers-passthrough) are not available for TCP apps.
+  cert](../enroll-resources/application-access/guides/connecting-apps.mdx) for the domain it is served on.
+- [JWT Token](../enroll-resources/application-access/jwt/introduction.mdx), [redirect](../enroll-resources/application-access/guides/connecting-apps.mdx) and
+  [header rewrites](../enroll-resources/application-access/guides/connecting-apps.mdx) are not available for TCP apps.
 - Teleport records the start and the end of a session for TCP apps in the audit log, but [session
-  chunks](../../../reference/architecture/session-recording.mdx) are not captured.
+  chunks](../reference/architecture/session-recording.mdx) are not captured.
 
 When accessing an HTTP API through VNet, the same caveats apply as above, with one main exception.
 Since API clients don't need to respect HSTS, the API itself does not need to be served over HTTPS.
@@ -165,6 +165,6 @@ used depends solely on the app itself and its clients.
 
 ### Further reading
 
-- Read our VNet usage [guide](../../../connect-your-client/vnet.mdx) for end-users
+- Read our VNet usage [guide](../connect-your-client/vnet.mdx) for end-users
   accessing your applications with VNet.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.

@@ -6,7 +6,7 @@ description: Reference documentation for Teleport resources
 
 This reference guide lists dynamic resources you can manage with Teleport. For
 more information on dynamic resources, see our guide to [Using Dynamic
-Resources](../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx).
+Resources](../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx).
 
 Examples of applying dynamic resources with `tctl`:
 
@@ -51,11 +51,11 @@ Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 | - | - |
 | [user](#user) | A user record in the internal Teleport user DB. |
 | [role](#role) | A role assumed by interactive and non-interactive users. |
-| connector | Authentication connectors for [Single Sign-On](../admin-guides/access-controls/sso/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
+| connector | Authentication connectors for [Single Sign-On](../zero-trust-access/access-controls/sso/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls`. |
 | windows_desktop | A registered Windows desktop. |
-| cluster | A trusted cluster. See [here](../admin-guides/management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
-| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../admin-guides/access-controls/login-rules/login-rules.mdx) for more info. |
+| cluster | A trusted cluster. See [here](../zero-trust-access/management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
+| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../zero-trust-access/access-controls/login-rules/login-rules.mdx) for more info. |
 | [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../identity-governance/device-trust/guide.mdx) for more info. |
 | [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service. |
 | [vnet_config](#vnet-config) | Configuration for the cluster's VNet options. |
@@ -195,7 +195,7 @@ Global configuration options for the Web UI served by the Proxy Service. This re
 
 Cluster-specific options VNet should use when setting up connections to resources from this cluster.
 
-See [VNet](../enroll-resources/application-access/guides/vnet.mdx) for more details.
+See [VNet](../zero-trust-access/vnet.mdx) for more details.
 
 ```yaml
 kind: vnet_config
