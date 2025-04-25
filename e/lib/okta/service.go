@@ -19,11 +19,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -127,6 +129,9 @@ type Config struct {
 
 	// AuthProvider is the auth provider for the Okta service.
 	AuthProvider oktaapi.AuthProvider
+
+	// AssignmentsService is the service for managing Okta assignments.
+	AssignmentsService oktacommon.OktaAssignmentService
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -179,6 +184,13 @@ func (c *Config) CheckAndSetDefaults() error {
 		// Default to running 5 backend tasks per second.
 		c.BackendTasksPerSecond = 5
 	}
+	if c.AssignmentsService == nil {
+		return trace.BadParameter("AssignmentsService is missing")
+	}
+	if _, ok := c.AssignmentsService.(*cache.Cache); ok {
+		return trace.BadParameter("AssignmentsService must not be a cache; A non-cached service is required to fetch up-to-date assignments state")
+	}
+
 	if c.SyncSettings.SyncUsers {
 		if c.SyncSettings.SsoConnectorId == "" {
 			return trace.BadParameter("user sync is enabled, but Okta SSO Connector is missing")
@@ -553,6 +565,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 			SynchronizerSuccess: &s.synchronizerSuccess,
 			SynchronizingMu:     &s.synchronizingMu,
 			StopChannel:         s.stopCh,
+			AssignmentsService:  config.AssignmentsService,
 		})
 		if err != nil {
 			s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)

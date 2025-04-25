@@ -109,6 +109,11 @@ type accessListSyncConfig struct {
 
 	// ServiceStatus is the sink for detailed status information
 	ServiceStatus serviceStatusUpdater
+
+	// AssignmentsService is the service to use for assignments.
+	// It MUST NOT be a cache, otherwise we will risk privileges escalation of short-term Access Requests turning into long-term.
+	// https://github.com/gravitational/teleport-private/issues/1944.
+	AssignmentsService common.OktaAssignmentService
 }
 
 func (a *accessListSyncConfig) CheckAndSetDefaults() error {
@@ -174,6 +179,10 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 
 	if a.ServiceStatus == nil {
 		return trace.BadParameter("missing service status")
+	}
+
+	if a.AssignmentsService == nil {
+		return trace.BadParameter("missing assignments service")
 	}
 
 	return nil
@@ -251,7 +260,8 @@ type accessListSync struct {
 	synchronizingMu     *sync.RWMutex
 	stopCh              chan struct{}
 
-	serviceStatus serviceStatusUpdater
+	serviceStatus      serviceStatusUpdater
+	assignmentsService common.OktaAssignmentService
 }
 
 // newAccessListSync will create a new access list synchronizer.
@@ -287,6 +297,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 		synchronizingMu:     cfg.SynchronizingMu,
 		stopCh:              cfg.StopChannel,
 		serviceStatus:       cfg.ServiceStatus,
+		assignmentsService:  cfg.AssignmentsService,
 	}
 
 	// Create the reconcilers we need.
@@ -340,11 +351,11 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	alErr := a.accessListReconciler.Reconcile(ctx)
 
-	existingMembers := a.importAccessListMembers.Clone()
-	newMembers := a.newImportAccessListMembers.Clone()
+	teleportMembers := a.importAccessListMembers.Clone()
+	oktaMembers := a.newImportAccessListMembers.Clone()
 
-	for key, existing := range existingMembers {
-		if new, ok := newMembers[key]; ok {
+	for key, existing := range teleportMembers {
+		if new, ok := oktaMembers[key]; ok {
 			if !existing.Spec.Expires.IsZero() {
 				new.Spec.Expires = existing.Spec.Expires
 			}
@@ -355,9 +366,25 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 		}
 	}
 
+	// Exclude Okta members who were assigned via an ongoing Access Request.
+	// These temporary assignments should not be treated as long-term members
+	// during the sync process, to avoid syncing back assignments created by short-term
+	// access requests as long-term Access List (ACL) memberships in Teleport.
+	//
+	// Note: If the access request was promoted (`RequestState_PROMOTED`), then the Okta assignment
+	// originating from the access request is not created. Instead, the Access Request promotion
+	// results in a new Okta assignment based on the ACL membership.
+	ongoingAccessRequestFilter := common.OngoingAccessRequestMembershipFilter{
+		AssignmentsService: a.assignmentsService,
+	}
+	filtered, err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, teleportMembers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	a.logger.InfoContext(ctx, "Reconciling new memberships against existing memberships",
-		"new_member_count", len(newMembers), "exiting_member_count", len(existingMembers))
-	memberErr := a.accessListMemberReconciler.Reconcile(ctx, newMembers, existingMembers)
+		"new_member_count", len(filtered), "exiting_member_count", len(teleportMembers))
+	memberErr := a.accessListMemberReconciler.Reconcile(ctx, filtered, teleportMembers)
 
 	roleErr := a.roleReconciler.Reconcile(ctx)
 

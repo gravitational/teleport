@@ -241,6 +241,7 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 			SyncAccessLists: true,
 			DefaultOwners:   []string{"the-owner"},
 		},
+		AssignmentsService: ap,
 	}
 	for _, opt := range options {
 		opt(&serviceConfig)

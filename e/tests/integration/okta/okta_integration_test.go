@@ -426,11 +426,10 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 			approveRequest(t, sut, createdRequestApp.GetName(), reviewer.login())
 
 			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
-			// assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
+			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
 
 			err = auth.DeleteAccessRequest(t.Context(), createdRequestApp.GetName())
 			require.NoError(t, err)
-			todoRemoveAfterFixingAccessRequestACLSyncRace(t)
 			oktaInfra.assertUsersIsNotAssignedToOktaApp(t, requester.Id, appID)
 			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
 		})
@@ -442,7 +441,6 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 			approveRequest(t, sut, createdRequestApp.GetName(), reviewer.login())
 
 			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
-			todoRemoveAfterFixingAccessRequestACLSyncRace(t)
 			assertUserIsNotAccessListMember(t, sut, app.GetName(), requester.login())
 
 			mustAddAccessListMember(t, sut, app.GetName(), requester.login())
@@ -475,7 +473,6 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 			err = auth.DeleteAccessRequest(t.Context(), createdRequest.GetName())
 			require.NoError(t, err)
 
-			todoRemoveAfterFixingAccessRequestACLSyncRace(t)
 			oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
 			assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
 		})
@@ -489,11 +486,6 @@ func selectUserGroupByName(groups []types.UserGroup, name string) types.UserGrou
 		}
 	}
 	return nil
-}
-
-// TODO(smallinksy) Remove when the https://github.com/gravitational/teleport-private/issues/1944 is fixed.
-func todoRemoveAfterFixingAccessRequestACLSyncRace(t *testing.T) {
-	t.Skip("Test Skipped due to know race condition between access request and ACL sync")
 }
 
 func mustAddAccessListMember(t *testing.T, sut *common.SUT, aclName, memberName string) {
