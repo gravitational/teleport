@@ -38,7 +38,11 @@ const populateRuleFieldTest =
     const onUpdate = jest.fn();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={onUpdate} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={onUpdate}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -74,7 +78,11 @@ const populateFieldTest =
     const onUpdate = jest.fn();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={onUpdate} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={onUpdate}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -96,7 +104,11 @@ describe('GithubJoinTokenForm', () => {
     const onUpdate = jest.fn();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={onUpdate} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={onUpdate}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -121,7 +133,11 @@ describe('GithubJoinTokenForm', () => {
     const state = baseState();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={jest.fn()} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={jest.fn()}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -134,7 +150,11 @@ describe('GithubJoinTokenForm', () => {
     });
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={jest.fn()} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={jest.fn()}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -148,7 +168,11 @@ describe('GithubJoinTokenForm', () => {
     const onUpdate = jest.fn();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={onUpdate} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={onUpdate}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -185,7 +209,11 @@ describe('GithubJoinTokenForm', () => {
     });
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={jest.fn()} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={jest.fn()}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -198,7 +226,11 @@ describe('GithubJoinTokenForm', () => {
     const state = baseState();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={jest.fn()} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={jest.fn()}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -225,7 +257,11 @@ describe('GithubJoinTokenForm', () => {
     });
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={jest.fn()} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={jest.fn()}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -238,7 +274,11 @@ describe('GithubJoinTokenForm', () => {
     const state = baseState();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={jest.fn()} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={jest.fn()}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -271,7 +311,11 @@ describe('GithubJoinTokenForm', () => {
     const state = baseState();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={jest.fn()} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={jest.fn()}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
@@ -290,7 +334,11 @@ describe('GithubJoinTokenForm', () => {
     const onUpdate = jest.fn();
 
     render(
-      <JoinTokenGithubForm tokenState={state} onUpdateState={onUpdate} />,
+      <JoinTokenGithubForm
+        tokenState={state}
+        onUpdateState={onUpdate}
+        readonly={false}
+      />,
       { wrapper: Wrapper }
     );
 
