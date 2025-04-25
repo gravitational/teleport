@@ -36,6 +36,7 @@ type decision struct {
 	templatedWorkloadIdentity *workloadidentityv1pb.WorkloadIdentity
 	shouldIssue               bool
 	reason                    error
+	sigstorePolicyResults     map[string]error
 }
 
 func decide(
@@ -46,10 +47,12 @@ func decide(
 ) *decision {
 	d := &decision{
 		templatedWorkloadIdentity: proto.Clone(wi).(*workloadidentityv1pb.WorkloadIdentity),
+		sigstorePolicyResults:     make(map[string]error),
 	}
 
 	// First, evaluate the rules.
-	if err := evaluateRules(ctx, wi, attrs, sigstore); err != nil {
+	err := evaluateRules(ctx, wi, attrs, sigstore, d.sigstorePolicyResults)
+	if err != nil {
 		d.reason = trace.Wrap(err, "attributes did not pass rule evaluation")
 		return d
 	}
@@ -187,13 +190,12 @@ func evaluateRules(
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	attrs *workloadidentityv1pb.Attrs,
 	sigstore SigstorePolicyEvaluator,
+	sigstorePolicyResults map[string]error,
 ) error {
 	if len(wi.GetSpec().GetRules().GetAllow()) == 0 {
 		return nil
 	}
 
-	// TODO(boxofrad): bubble the results up to the audit log.
-	sigstorePolicyResults := make(map[string]error)
 	sigstoreEvaluator := expression.SigstorePolicyEvaluatorFunc(func(policyNames []string) (bool, error) {
 		// Evaluate policies we haven't already evaluated.
 		var unevaluated []string
