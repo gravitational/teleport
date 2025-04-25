@@ -4810,6 +4810,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.UpsellAlert):            {Enabled: false},
 			string(entitlements.UsageReporting):         {Enabled: false},
 			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+			string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -4995,6 +4996,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.UpsellAlert):            {Enabled: false},
 			string(entitlements.UsageReporting):         {Enabled: false},
 			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+			string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -9209,12 +9211,16 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	})
 	require.NoError(t, err)
 
-	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, clientproto.UpstreamInventoryHello{
-		ServerID: hostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{role},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(ctx context.Context) (clientproto.UpstreamInventoryHello, error) {
+			return clientproto.UpstreamInventoryHello{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{role},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
@@ -10981,6 +10987,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
 					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: true, Limit: 99},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -11043,6 +11050,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
 					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: true, Limit: 99},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: true, Limit: 99},
 				},
 			},
 		},
@@ -11144,6 +11152,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: false},
 					string(entitlements.UsageReporting):         {Enabled: false},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11272,6 +11281,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.OIDC):                   {Enabled: true},
 					string(entitlements.Policy):                 {Enabled: true},
 					string(entitlements.SAML):                   {Enabled: true},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
 					string(entitlements.AccessMonitoring):  {Enabled: true, Limit: 88},
@@ -11381,6 +11391,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: false},
 					string(entitlements.UsageReporting):         {Enabled: false},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 				},
 			},
 		},

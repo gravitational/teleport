@@ -653,7 +653,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			name: "terraform provider (bugfix of the missing resources)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,
@@ -664,10 +664,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+						// Missing all the node/app/database/windows labels here, they should be added
 						Rules: []types.Rule{
 							{
 								Resources: []string{
@@ -702,7 +699,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Kind:    types.KindRole,
-				Version: types.V7,
+				Version: types.V8,
 				Metadata: types.Metadata{
 					Name:        teleport.PresetTerraformProviderRoleName,
 					Namespace:   apidefaults.Namespace,

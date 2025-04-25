@@ -355,6 +355,55 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 	}
 }
 
+func TestApplicationGetAWSRolesAnywhereProfile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                          string
+		appAWS                        *AppAWS
+		expectedProfileARN            string
+		expectedAcceptRoleSessionName bool
+	}{
+		{
+			name: "app aws not configured",
+		},
+		{
+			name: "roles anywhere profile not configured",
+			appAWS: &AppAWS{
+				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{},
+			},
+			expectedProfileARN:            "",
+			expectedAcceptRoleSessionName: false,
+		},
+		{
+			name: "configured",
+			appAWS: &AppAWS{
+				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{
+					ProfileARN:            "profile1",
+					AcceptRoleSessionName: true,
+				},
+			},
+			expectedProfileARN:            "profile1",
+			expectedAcceptRoleSessionName: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "aws",
+			}, AppSpecV3{
+				URI: constants.AWSConsoleURL,
+				AWS: test.appAWS,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, test.expectedProfileARN, app.GetAWSRolesAnywhereProfileARN())
+			require.Equal(t, test.expectedAcceptRoleSessionName, app.GetAWSRolesAnywhereAcceptRoleSessionName())
+		})
+	}
+}
+
 func TestAppIsAzureCloud(t *testing.T) {
 	tests := []struct {
 		name     string

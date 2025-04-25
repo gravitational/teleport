@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 )
 
 // WorkloadIdentityLogValue returns a slog.Value for a given
@@ -82,7 +83,7 @@ func IssueX509WorkloadIdentity(
 	clt authClient,
 	workloadIdentity config.WorkloadIdentitySelector,
 	ttl time.Duration,
-	attest *workloadidentityv1pb.WorkloadAttrs,
+	attest *attrs.WorkloadAttrs,
 ) ([]*workloadidentityv1pb.Credential, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -119,7 +120,7 @@ func IssueX509WorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {
@@ -148,7 +149,7 @@ func IssueX509WorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {
@@ -185,7 +186,7 @@ func IssueJWTWorkloadIdentity(
 	workloadIdentity config.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,
-	attest *workloadidentityv1pb.WorkloadAttrs,
+	attest *attrs.WorkloadAttrs,
 ) ([]*workloadidentityv1pb.Credential, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -215,7 +216,7 @@ func IssueJWTWorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {
@@ -243,7 +244,7 @@ func IssueJWTWorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest,
+				WorkloadAttrs: attest.GetAttrs(),
 			},
 		)
 		if err != nil {

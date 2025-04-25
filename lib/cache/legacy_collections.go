@@ -124,7 +124,6 @@ type legacyCollections struct {
 	appSessions                        collectionReader[appSessionGetter]
 	appServers                         collectionReader[appServerGetter]
 	authPreferences                    collectionReader[authPreferenceGetter]
-	authServers                        collectionReader[authServerGetter]
 	clusterAuditConfigs                collectionReader[clusterAuditConfigGetter]
 	clusterNames                       collectionReader[clusterNameGetter]
 	clusterNetworkingConfigs           collectionReader[clusterNetworkingConfigGetter]
@@ -147,7 +146,6 @@ type legacyCollections struct {
 	proxies                            collectionReader[services.ProxyGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
 	reverseTunnels                     collectionReader[reverseTunnelGetter]
-	roles                              collectionReader[roleGetter]
 	samlIdPServiceProviders            collectionReader[samlIdPServiceProviderGetter]
 	samlIdPSessions                    collectionReader[samlIdPSessionGetter]
 	sessionRecordingConfigs            collectionReader[sessionRecordingConfigGetter]
@@ -259,15 +257,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.uiConfigs
-		case types.KindRole:
-			if c.Access == nil {
-				return nil, trace.BadParameter("missing parameter Access")
-			}
-			collections.roles = &genericCollection[types.Role, roleGetter, roleExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.roles
 		case types.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -277,24 +266,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.nodes
-		case types.KindProxy:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.proxies = &genericCollection[types.Server, services.ProxyGetter, proxyExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.proxies
-		case types.KindAuthServer:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.authServers = &genericCollection[types.Server, authServerGetter, authServerExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.authServers
 		case types.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -948,68 +919,6 @@ type remoteClusterGetter interface {
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
 
-type proxyExecutor struct{}
-
-func (proxyExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetProxies()
-}
-
-func (proxyExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertProxy(ctx, resource)
-}
-
-func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllProxies()
-}
-
-func (proxyExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteProxy(ctx, resource.GetName())
-}
-
-func (proxyExecutor) isSingleton() bool { return false }
-
-func (proxyExecutor) getReader(cache *Cache, cacheOK bool) services.ProxyGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-var _ executor[types.Server, services.ProxyGetter] = proxyExecutor{}
-
-type authServerExecutor struct{}
-
-func (authServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetAuthServers()
-}
-
-func (authServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertAuthServer(ctx, resource)
-}
-
-func (authServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllAuthServers()
-}
-
-func (authServerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteAuthServer(resource.GetName())
-}
-
-func (authServerExecutor) isSingleton() bool { return false }
-
-func (authServerExecutor) getReader(cache *Cache, cacheOK bool) authServerGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type authServerGetter interface {
-	GetAuthServers() ([]types.Server, error)
-}
-
-var _ executor[types.Server, authServerGetter] = authServerExecutor{}
-
 type nodeExecutor struct{}
 
 func (nodeExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
@@ -1253,42 +1162,6 @@ type userGetter interface {
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}
-
-type roleExecutor struct{}
-
-func (roleExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Role, error) {
-	return cache.Access.GetRoles(ctx)
-}
-
-func (roleExecutor) upsert(ctx context.Context, cache *Cache, resource types.Role) error {
-	_, err := cache.accessCache.UpsertRole(ctx, resource)
-	return err
-}
-
-func (roleExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessCache.DeleteAllRoles(ctx)
-}
-
-func (roleExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessCache.DeleteRole(ctx, resource.GetName())
-}
-
-func (roleExecutor) isSingleton() bool { return false }
-
-func (roleExecutor) getReader(cache *Cache, cacheOK bool) roleGetter {
-	if cacheOK {
-		return cache.accessCache
-	}
-	return cache.Config.Access
-}
-
-type roleGetter interface {
-	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetRole(ctx context.Context, name string) (types.Role, error)
-	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
-}
-
-var _ executor[types.Role, roleGetter] = roleExecutor{}
 
 type databaseServerExecutor struct{}
 
