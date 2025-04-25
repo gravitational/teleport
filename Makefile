@@ -269,7 +269,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-VERSRC = version.go gitref.go api/version.go
+VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -1312,7 +1312,6 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
-		-ignore 'version.go' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'web/packages/shared/libs/ironrdp/**' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
@@ -1349,7 +1348,7 @@ update-version: version test-helm-update-snapshots
 version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
-$(VERSRC): Makefile
+$(VERSRC) &: Makefile version.mk
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
 # Pushes GITTAG and api/GITTAG to GitHub.

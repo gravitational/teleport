@@ -4419,6 +4419,8 @@ message IntegrationMetadata {
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
   // GitHub contains metadata for GitHub integrations.
   GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
+  // AWSRA contains metadata for AWS IAM Roles Anywhere integrations.
+  AWSRAIntegrationMetadata AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4444,6 +4446,12 @@ message AzureOIDCIntegrationMetadata {
 message GitHubIntegrationMetadata {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+}
+
+// AWSRAIntegrationMetadata contains metadata for AWS IAM Roles Anywhere integrations.
+message AWSRAIntegrationMetadata {
+  // TrustAnchorARN contains the IAM Roles Anywhere Trust Anchor ARN used to set up the Integration.
+  string TrustAnchorARN = 1 [(gogoproto.jsontag) = "trust_anchor_arn,omitempty"];
 }
 
 // PluginCreate is emitted when a plugin resource is created.

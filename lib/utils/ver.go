@@ -84,7 +84,7 @@ func VersionBeforeAlpha(version string) string {
 }
 
 // VersionWithoutPreRelease removes the prerelease suffix. Useful when showing
-// teleport.MinClientSemVersion, which by default comes with the -aa prerelease.
+// teleport.MinClientSemVer(), which by default comes with the -aa prerelease.
 func VersionWithoutPreRelease(version string) (string, error) {
 	semver, err := versionStringToSemver(version)
 	if err != nil {

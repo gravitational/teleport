@@ -1571,7 +1571,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName string, ver
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
 		kind = types.UpgraderKindTeleportUpdate
-		version = teleport.SemVersion
+		version = teleport.SemVer()
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
