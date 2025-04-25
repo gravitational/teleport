@@ -285,6 +285,11 @@ const supportedFields = new Set([
   '.allow.ref_type',
 ]);
 
+/**
+ * `checkGithubYAMLData` determines if the provided value contains item/s that are not supported by the edit form.
+ * @param data a value representing the github-specific config for a token
+ * @returns a boolean indicating if the provided value contains unsupported items
+ */
 export const checkGithubYAMLData = (data: unknown) => {
   const keys = collectKeys(data);
   return !keys || new Set(keys).isSubsetOf(supportedFields);
