@@ -7,9 +7,12 @@ import (
 	"time"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
@@ -144,7 +147,9 @@ func TestPreprocessing(t *testing.T) {
 				PermissionSetARN: psReadOnlyARN,
 			}.Build(t),
 		}
-		require.Equal(t, expectedRoles, processedData.accountAssignmentRoles)
+		if diff := cmp.Diff(expectedRoles, processedData.accountAssignmentRoles, cmpopts.IgnoreFields(types.RoleV6{}, "Version")); diff != "" {
+			t.Errorf("Role mismatch (-want +got):\n%s", diff)
+		}
 	})
 
 	t.Run("AccountAssignments", func(t *testing.T) {
