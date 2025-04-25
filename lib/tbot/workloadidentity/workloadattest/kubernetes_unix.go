@@ -38,9 +38,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	v1 "k8s.io/api/core/v1"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/container"
 )
 
@@ -69,6 +71,7 @@ type KubernetesAttestor struct {
 	log           *slog.Logger
 	// rootPath specifies the location of `/`. This allows overriding for tests.
 	rootPath string
+	clock    clockwork.Clock
 }
 
 // NewKubernetesAttestor creates a new KubernetesAttestor.
@@ -77,6 +80,7 @@ func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *Kube
 	return &KubernetesAttestor{
 		kubeletClient: kubeletClient,
 		log:           log,
+		clock:         clockwork.NewRealClock(),
 	}
 }
 
@@ -96,22 +100,18 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 		"container_id", container.ID,
 	)
 
-	pod, err := a.getPodForID(ctx, container.PodID)
+	pod, containerStatus, err := a.getPodAndContainerStatus(ctx, container.PodID, container.ID)
 	if err != nil {
 		return nil, trace.Wrap(err, "finding pod by ID")
 	}
 	a.log.DebugContext(ctx, "Found pod", "pod_name", pod.Name)
 
 	var ctr *workloadidentityv1pb.WorkloadAttrsKubernetesContainer
-	for _, status := range pod.Status.ContainerStatuses {
-		// Kubelet returns the container ID prefixed by `<type>://`.
-		if _, id, _ := strings.Cut(status.ContainerID, "://"); id != container.ID {
-			continue
-		}
+	if containerStatus != nil {
 		ctr = &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
-			Name:        status.Name,
-			Image:       status.Image,
-			ImageDigest: imageDigestRegex.FindString(status.ImageID),
+			Name:        containerStatus.Name,
+			Image:       containerStatus.Image,
+			ImageDigest: imageDigestRegex.FindString(containerStatus.ImageID),
 		}
 	}
 
@@ -128,19 +128,80 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 	return att, nil
 }
 
-// getPodForID retrieves the pod information for the provided pod ID.
-// https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/server/server.go#L371
-func (a *KubernetesAttestor) getPodForID(ctx context.Context, podID string) (*v1.Pod, error) {
-	pods, err := a.kubeletClient.ListAllPods(ctx)
+func (a *KubernetesAttestor) getPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *v1.ContainerStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	log := a.log.With("pod_id", podID, "container_id", containerID)
+
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(100 * time.Millisecond),
+		Max:    2 * time.Second,
+		Clock:  a.clock,
+	})
 	if err != nil {
-		return nil, trace.Wrap(err, "listing all pods")
+		return nil, nil, trace.Wrap(err, "creating retrier")
 	}
-	for _, pod := range pods.Items {
-		if string(pod.UID) == podID {
-			return &pod, nil
+
+	var (
+		pod             *v1.Pod
+		containerStatus *v1.ContainerStatus
+	)
+LOOP:
+	for {
+		pod, containerStatus, err = a.tryGetPodAndContainerStatus(ctx, podID, containerID)
+		switch {
+		case err != nil:
+			log.WarnContext(ctx, "Failed to get pod and container status from kubelet", "error", err)
+		case containerStatus == nil:
+			// It's possible for a workload container to start and request a SVID
+			// before the kubelet has updated its state, in which case we might
+			// get back no container status at all, or in the case of a restart,
+			// the previous run's status.
+			log.DebugContext(ctx, "Kubelet did not return expected container status; its state might be stale")
+		default:
+			break LOOP
+		}
+
+		select {
+		case <-ctx.Done():
+			break LOOP
+		case <-retry.After():
 		}
 	}
-	return nil, trace.NotFound("pod %q not found", podID)
+
+	if pod != nil {
+		return pod, containerStatus, nil
+	}
+	return nil, nil, err
+}
+
+func (a *KubernetesAttestor) tryGetPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *v1.ContainerStatus, error) {
+	pods, err := a.kubeletClient.ListAllPods(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "listing all pods")
+	}
+
+	var pod *v1.Pod
+	for _, p := range pods.Items {
+		if string(p.UID) == podID {
+			pod = &p
+			break
+		}
+	}
+	if pod == nil {
+		return nil, nil, trace.NotFound("pod %q not found", podID)
+	}
+
+	var containerStatus *v1.ContainerStatus
+	for _, status := range pod.Status.ContainerStatuses {
+		// Kubelet returns the container ID prefixed by `<type>://`.
+		if _, id, _ := strings.Cut(status.ContainerID, "://"); id == containerID {
+			containerStatus = &status
+			break
+		}
+	}
+	return pod, containerStatus, nil
 }
 
 // kubeletClient is a HTTP client for the Kubelet API
