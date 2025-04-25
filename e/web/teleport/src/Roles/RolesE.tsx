@@ -7,8 +7,10 @@ import { accessGraphService } from 'e-teleport/services/accessgraph';
 import cfg from 'teleport/config';
 import { RolesContainer as Roles } from 'teleport/Roles';
 import { unableToUpdatePreviewMessage } from 'teleport/Roles/RoleEditor/Shared';
+import { RoleDiffProps } from 'teleport/Roles/Roles';
 import { Role } from 'teleport/services/resources';
-import { storageService } from 'teleport/services/storageService';
+
+import { usePolicyDemo } from './usePolicyDemo';
 
 const emptyDiff: AccessPathDiff = {
   base: { nodes: [], edges: [] },
@@ -17,12 +19,9 @@ const emptyDiff: AccessPathDiff = {
 };
 
 export const RolesE = () => {
-  const roleTesterEnabled =
-    cfg.isPolicyEnabled &&
-    cfg.isPolicyRoleVisualizerEnabled &&
-    storageService.getAccessGraphRoleTesterEnabled();
-
   const abortControllerRef = useRef(new AbortController());
+  const { isCloud, roleTesterEnabled, enableDemoMode, state, errorMessage } =
+    usePolicyDemo(cfg);
 
   const [roleDiffAttempt, updateRoleDiff, updateAttempt] = useAsync(
     useCallback(async (role: Role) => {
@@ -43,8 +42,8 @@ export const RolesE = () => {
     updateAttempt(makeEmptyAttempt());
   }, [updateAttempt]);
 
-  const roleDiffProps = useMemo(() => {
-    if (!roleTesterEnabled) {
+  const roleDiffProps: RoleDiffProps = useMemo(() => {
+    if (!roleTesterEnabled && !isCloud) {
       return undefined;
     }
     return {
@@ -54,12 +53,19 @@ export const RolesE = () => {
           loading={roleDiffAttempt.status === 'processing'}
         />
       ),
+      enableDemoMode,
       roleDiffAttempt,
+      roleDiffState: state,
+      roleDiffErrorMessage: errorMessage,
       updateRoleDiff,
       clearRoleDiffAttempt,
     };
   }, [
+    enableDemoMode,
+    isCloud,
+    state,
     roleDiffAttempt,
+    errorMessage,
     roleTesterEnabled,
     updateRoleDiff,
     clearRoleDiffAttempt,
