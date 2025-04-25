@@ -52,13 +52,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
@@ -387,7 +387,7 @@ func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
 	svidRequests []config.SVIDRequestWithRules,
-	att *workloadidentityv1pb.WorkloadAttrs,
+	att *attrs.WorkloadAttrs,
 ) []config.SVIDRequest {
 	var filtered []config.SVIDRequest
 	for _, req := range svidRequests {
@@ -513,7 +513,7 @@ func filterSVIDRequests(
 
 func (s *SPIFFEWorkloadAPIService) authenticateClient(
 	ctx context.Context,
-) (*slog.Logger, *workloadidentityv1pb.WorkloadAttrs, error) {
+) (*slog.Logger, *attrs.WorkloadAttrs, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, nil, trace.BadParameter("peer not found in context")
@@ -557,9 +557,7 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 		)
 		return log, nil, nil
 	}
-	log = log.With(
-		"workload", att,
-	)
+	log = log.With("workload", att)
 
 	return log, att, nil
 }
@@ -595,6 +593,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	//   reconnect with another call to the FetchX509SVID RPC after a backoff.
 	if len(svidReqs) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, creds)
 		return status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",
@@ -721,6 +720,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	// > server SHOULD respond with the "PermissionDenied" gRPC status code.
 	if len(svidReqs) == 0 {
 		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		s.attestor.Failed(ctx, creds)
 		return nil, status.Error(
 			codes.PermissionDenied,
 			"workload did not pass attestation for any SVIDs",
