@@ -366,6 +366,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		CertAuthorityGetter: p.authServer.AuthServer,
 		JWTSignerGetter:     p.authServer.AuthServer.GetKeyStore(),
 		Logger:              logger,
+		AssignmentService:   p.authServer.AuthServer.Services.Okta,
 		HTTPClient: &http.Client{
 			Transport: p.HTTPTransport,
 		},

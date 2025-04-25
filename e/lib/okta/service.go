@@ -185,7 +185,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.BackendTasksPerSecond = 5
 	}
 	if c.AssignmentsService == nil {
-		return trace.BadParameter("AssignmentsService is missing")
+		return trace.BadParameter("OktaAssignmentService is missing")
 	}
 	if _, ok := c.AssignmentsService.(*cache.Cache); ok {
 		return trace.BadParameter("AssignmentsService must not be a cache; A non-cached service is required to fetch up-to-date assignments state")
@@ -548,24 +548,24 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	if accessListSyncEnabled {
 		config.Logger.InfoContext(ctx, "Access List sync is enabled", "bidirectional", bidirectionalSyncEnabled)
 		s.accessListSync, err = newAccessListSync(accessListSyncConfig{
-			Logger:              s.logger,
-			Clock:               s.clock,
-			ClusterName:         s.clusterName,
-			Client:              s.client,
-			Emitter:             config.Emitter,
-			Access:              config.Access,
-			AccessLists:         config.AccessLists,
-			OrgURL:              s.orgURL,
-			Owners:              config.SyncSettings.DefaultOwners,
-			AppsGetter:          s.apps.Clone,
-			GroupsGetter:        s.groups.Clone,
-			AppFilters:          config.accessListSyncAppFilters,
-			GroupFilters:        config.accessListSyncGroupFilters,
-			ServiceStatus:       &s.serviceStatus,
-			SynchronizerSuccess: &s.synchronizerSuccess,
-			SynchronizingMu:     &s.synchronizingMu,
-			StopChannel:         s.stopCh,
-			AssignmentsService:  config.AssignmentsService,
+			Logger:                s.logger,
+			Clock:                 s.clock,
+			ClusterName:           s.clusterName,
+			Client:                s.client,
+			Emitter:               config.Emitter,
+			Access:                config.Access,
+			AccessLists:           config.AccessLists,
+			OrgURL:                s.orgURL,
+			Owners:                config.SyncSettings.DefaultOwners,
+			AppsGetter:            s.apps.Clone,
+			GroupsGetter:          s.groups.Clone,
+			AppFilters:            config.accessListSyncAppFilters,
+			GroupFilters:          config.accessListSyncGroupFilters,
+			ServiceStatus:         &s.serviceStatus,
+			SynchronizerSuccess:   &s.synchronizerSuccess,
+			SynchronizingMu:       &s.synchronizingMu,
+			StopChannel:           s.stopCh,
+			OktaAssignmentService: config.AssignmentsService,
 		})
 		if err != nil {
 			s.serviceStatus.UpdateAppGroupSync(ctx, config.Clock.Now(), 0, 0, err)

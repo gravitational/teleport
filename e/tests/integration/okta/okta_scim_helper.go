@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -89,6 +90,7 @@ func createSCIMClient(t *testing.T, sut *common.SUT, scimToken string) scimsdk.C
 type scimIntegrationOptions struct {
 	ApiCredentials     *oktav1.OktaAPICredentials
 	AccessListSettings *oktav1.AccessListSettings
+	EnableFullSync     bool
 }
 
 type oktaIntegrationOption func(*scimIntegrationOptions)
@@ -96,6 +98,17 @@ type oktaIntegrationOption func(*scimIntegrationOptions)
 func withAccessListDisabled() oktaIntegrationOption {
 	return func(opts *scimIntegrationOptions) {
 		opts.AccessListSettings = nil
+	}
+}
+
+func witAccessListSettings(config *oktav1.AccessListSettings) oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.AccessListSettings = config
+	}
+}
+func withEnableFullSync() oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.EnableFullSync = true
 	}
 }
 
@@ -111,14 +124,30 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, mockClient *
 	}
 	scimToken := uuid.NewString()
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
-	_ = createOktaSAMLAPP(t, t.Context(), mockClient, "trial-1234567_teleportsamlconnectorapp_1")
-	_, err := oktaClient.CreateIntegration(t.Context(), &oktav1.CreateIntegrationRequest{
+
+	samlApp := createOktaSAMLAPP(t, t.Context(), mockClient, "trial-1234567_teleportsamlconnectorapp_1")
+	users, _, err := mockClient.ListUsers(t.Context(), nil)
+	require.NoError(t, err)
+	for _, u := range users {
+		_, _, err := mockClient.AssignUserToApplication(t.Context(), samlApp.Id, okta.AppUser{Id: u.Id})
+		require.NoError(t, err)
+	}
+
+	req := &oktav1.CreateIntegrationRequest{
 		OktaOrganizationUrl: "https://trial-1234567.okta.com",
 		ScimToken:           scimToken,
 		ApiCredentials:      opts.ApiCredentials,
 		AccessListSettings:  opts.AccessListSettings,
 		ReuseConnector:      "okta-pre-created-test",
-	})
+	}
+	if opts.EnableFullSync {
+		req.EnableBidirectionalSync = true
+		req.EnableAppGroupSync = true
+		req.EnableUserSync = true
+		req.EnableAccessListSync = true
+	}
+
+	_, err = oktaClient.CreateIntegration(t.Context(), req)
 	require.NoError(t, err)
 	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {

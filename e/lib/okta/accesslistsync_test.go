@@ -157,11 +157,11 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 		GroupsGetter: func() map[string]types.UserGroup {
 			return alsCtx.groups
 		},
-		SynchronizerSuccess: &atomic.Bool{},
-		SynchronizingMu:     &sync.RWMutex{},
-		StopChannel:         stopCh,
-		ServiceStatus:       nullStatusUpdate{},
-		AssignmentsService:  ap,
+		SynchronizerSuccess:   &atomic.Bool{},
+		SynchronizingMu:       &sync.RWMutex{},
+		StopChannel:           stopCh,
+		ServiceStatus:         nullStatusUpdate{},
+		OktaAssignmentService: ap,
 	})
 	require.NoError(t, err)
 

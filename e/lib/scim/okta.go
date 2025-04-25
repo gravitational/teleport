@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -47,6 +48,7 @@ type oktaShim struct {
 	logger              *slog.Logger
 	identity            IdentityService
 	httpClient          *http.Client
+	assignmentsService  oktacommon.OktaAssignmentService
 }
 
 // Static assertion that the oktaShim implements the `shim` interface
@@ -79,6 +81,7 @@ func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (pr
 		plugin:              p,
 		logger:              log,
 		httpClient:          service.httpClient,
+		assignmentsService:  service.assignmentService,
 	}, nil
 }
 

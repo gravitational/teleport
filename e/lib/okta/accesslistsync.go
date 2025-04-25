@@ -111,9 +111,9 @@ type accessListSyncConfig struct {
 	ServiceStatus serviceStatusUpdater
 
 	// AssignmentsService is the service to use for assignments.
-	// It MUST NOT be a cache, otherwise we will risk privileges escalation of short-term Access Requests turning into long-term.
+	// It MUST NOT be a cache, otherwise we will risk privileges escalation of short-term Access Requests turning into long-t erm.
 	// https://github.com/gravitational/teleport-private/issues/1944.
-	AssignmentsService common.OktaAssignmentService
+	OktaAssignmentService common.OktaAssignmentService
 }
 
 func (a *accessListSyncConfig) CheckAndSetDefaults() error {
@@ -181,7 +181,7 @@ func (a *accessListSyncConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing service status")
 	}
 
-	if a.AssignmentsService == nil {
+	if a.OktaAssignmentService == nil {
 		return trace.BadParameter("missing assignments service")
 	}
 
@@ -297,7 +297,7 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 		synchronizingMu:     cfg.SynchronizingMu,
 		stopCh:              cfg.StopChannel,
 		serviceStatus:       cfg.ServiceStatus,
-		assignmentsService:  cfg.AssignmentsService,
+		assignmentsService:  cfg.OktaAssignmentService,
 	}
 
 	// Create the reconcilers we need.
@@ -351,10 +351,10 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	alErr := a.accessListReconciler.Reconcile(ctx)
 
-	teleportMembers := a.importAccessListMembers.Clone()
+	existingMembers := a.importAccessListMembers.Clone()
 	oktaMembers := a.newImportAccessListMembers.Clone()
 
-	for key, existing := range teleportMembers {
+	for key, existing := range existingMembers {
 		if new, ok := oktaMembers[key]; ok {
 			if !existing.Spec.Expires.IsZero() {
 				new.Spec.Expires = existing.Spec.Expires
@@ -377,14 +377,13 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	ongoingAccessRequestFilter := common.OngoingAccessRequestMembershipFilter{
 		AssignmentsService: a.assignmentsService,
 	}
-	filtered, err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, teleportMembers)
+	filtered, err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, existingMembers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	a.logger.InfoContext(ctx, "Reconciling new memberships against existing memberships",
-		"new_member_count", len(filtered), "exiting_member_count", len(teleportMembers))
-	memberErr := a.accessListMemberReconciler.Reconcile(ctx, filtered, teleportMembers)
+		"new_member_count", len(filtered), "exiting_member_count", len(existingMembers))
+	memberErr := a.accessListMemberReconciler.Reconcile(ctx, filtered, existingMembers)
 
 	roleErr := a.roleReconciler.Reconcile(ctx)
 

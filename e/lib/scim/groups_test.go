@@ -612,11 +612,19 @@ func TestGroupUpdate(t *testing.T) {
 				Return(resourceToAccessList(tt.resourceID, clock)).
 				Maybe()
 
+			fix.assignments.
+				On("ListOktaAssignments", anyContext, 0, "").
+				Return([]types.OktaAssignment{}, "", nil).Maybe()
+
 			// Configure the AccessList service to return what we want it to
 			// (either an existing access list or a NotFound error)
 			fix.accesslists.
 				On("GetAccessList", anyContext, tt.resourceID).
 				Return(tt.getACLResult...)
+
+			fix.accesslists.
+				On("ListAccessListMembers", anyContext, mock.Anything, 0, "").
+				Return([]*accesslist.AccessListMember{}, "", nil).Maybe()
 
 			for name, user := range tt.expectedUserLookups {
 				fix.users.

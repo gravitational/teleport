@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -27,11 +28,12 @@ const (
 )
 
 type groupHandler struct {
-	accessLists AccessListsService
-	roles       RolesService
-	users       UsersService
-	clock       clockwork.Clock
-	logger      *slog.Logger
+	accessLists       AccessListsService
+	roles             RolesService
+	users             UsersService
+	clock             clockwork.Clock
+	logger            *slog.Logger
+	assignmentService common.OktaAssignmentService
 }
 
 // static assertion that groupHandler implements the resourceHandler interface
@@ -494,9 +496,9 @@ func (gh *groupHandler) get(ctx context.Context, shim providerShim, id string) (
 }
 
 func (gh *groupHandler) update(ctx context.Context, shim providerShim, r *scimpb.Resource) (*scimpb.Resource, error) {
-	oldACL, err := gh.loadAccessList(ctx, shim, r.Id)
+	oldACL, oldMembers, err := gh.loadAccessListWithMembers(ctx, shim, r.Id)
 	if err != nil {
-		return nil, trace.Wrap(err, "loading existing access list")
+		return nil, trace.Wrap(err, "loading existing access list members")
 	}
 
 	newACL, newMembers, err := gh.resourceToAccessList(r, shim)
@@ -514,7 +516,24 @@ func (gh *groupHandler) update(ctx context.Context, shim providerShim, r *scimpb
 	// that, rather than try to make the new ACL match the old one
 	oldACL.Spec.Title = newACL.Spec.Title
 
-	finalACL, finalMembers, err := gh.accessLists.UpsertAccessListWithMembers(ctx, oldACL, newMembers)
+	oldMembersMap := utils.FromSlice(oldMembers, common.MemberKey)
+	oktaMemberMap := utils.FromSlice(newMembers, common.MemberKey)
+
+	// Exclude Okta members who were assigned via an ongoing Access Request.
+	// These temporary assignments should not be treated as long-term membership.
+	f := common.OngoingAccessRequestMembershipFilter{AssignmentsService: gh.assignmentService}
+	filteredMembersMap, err := f.Filter(ctx, oktaMemberMap, oldMembersMap)
+	if err != nil {
+		return nil, trace.Wrap(err, "filtering members with an ongoing Access Request")
+	}
+	var filteredMembers []*accesslist.AccessListMember
+	for _, m := range newMembers {
+		if _, ok := filteredMembersMap[common.MemberKey(m)]; ok {
+			filteredMembers = append(filteredMembers, m)
+		}
+	}
+
+	finalACL, finalMembers, err := gh.accessLists.UpsertAccessListWithMembers(ctx, oldACL, filteredMembers)
 	if err != nil {
 		return nil, trace.Wrap(err, "upserting access list")
 	}

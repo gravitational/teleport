@@ -39,6 +39,7 @@ type testFixture struct {
 	clock           clocki.FakeClock
 	userCtx         context.Context
 	identityService mockIdentityService
+	assignments     mockAssignmentsService
 }
 
 func (tf *testFixture) AssertExpectations(t *testing.T) {
@@ -86,6 +87,7 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*Service, *testFixture)
 		CredentialsService:  &fix.creds,
 		Clock:               fix.clock,
 		IdentityService:     &fix.identityService,
+		AssignmentService:   &fix.assignments,
 	})
 	require.NoError(t, err, "creating test harness")
 

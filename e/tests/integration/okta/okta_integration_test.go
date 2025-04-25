@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
@@ -553,4 +554,74 @@ func approveRequest(t *testing.T, sut *common.SUT, requestID string, user string
 		_, err := auth.GetOktaAssignment(t.Context(), r.GetName())
 		assert.NoError(c, err)
 	}, time.Second, time.Millisecond*100)
+}
+
+// TestOktaAccessRequestWithSCIMOktaSync tests access requests when SCIM Okta sync is enabled.
+// When an access request is approved, the user should be added to the corresponding Okta group.
+// However, the user should not be synced back as an access list member via SCIM Group update,
+// as this would escalate // their privileges to long-term access.
+// Even after the access request expires, the user would
+// still remain a member of the access list.
+func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
+	ctx := context.Background()
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 1, 7))
+	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
+
+	reviewer := oktaInfra.Users[5]
+	requester := oktaInfra.Users[4]
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+
+	start := time.Now()
+	scimToken := createAndWaitForOktaIntegration(t, sut, oktaApiClient, witAccessListSettings(&oktav1.AccessListSettings{
+		GroupFilters: []string{"group-*"},
+		AppFilters:   []string{"app-*"},
+		DefaultOwner: []string{reviewer.login()},
+	}), withEnableFullSync())
+	scimClient := createSCIMClient(t, sut, scimToken)
+
+	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		s, err := sut.Teleport.Process.GetAuthServer().GetUserLoginState(t.Context(), reviewer.login())
+		assert.NoError(collect, err)
+		assert.Len(collect, s.GetRoles(), 2) // okta-requester + 2 ACL reviewer roles
+	}, time.Second, time.Millisecond*100)
+
+	auth := sut.Teleport.Process.GetAuthServer()
+	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, userGroups)
+	group := selectUserGroupByName(userGroups, oktaInfra.Groups[0].Id)
+	require.NotNil(t, group)
+	groupID := group.GetName()
+
+	accessRequest := createAccessRequest(groupID, types.KindUserGroup, mustGetClusterName(t, sut), requester.login())
+	createdRequest, err := auth.CreateAccessRequestV2(t.Context(), accessRequest, tlsca.Identity{})
+	require.NoError(t, err)
+
+	assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
+	approveRequest(t, sut, createdRequest.GetName(), reviewer.login())
+
+	g, err := scimClient.GetGroup(ctx, oktaInfra.Groups[0].Id)
+	require.NoError(t, err)
+	g.Members = append(g.Members, &scimsdk.GroupMember{
+		ExternalID: requester.login(),
+	})
+	_, err = scimClient.UpdateGroup(t.Context(), g)
+	require.NoError(t, err)
+
+	oktaInfra.assertUserWasAssignedToOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
+	assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
+
+	err = auth.DeleteAccessRequest(t.Context(), createdRequest.GetName())
+	require.NoError(t, err)
+
+	oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
+	assertUserIsNotAccessListMember(t, sut, groupID, requester.login())
 }

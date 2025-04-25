@@ -355,6 +355,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 		LocksService:        &mockLocksService{},
 		IdentityService:     &mockIdentityService{},
 		Clock:               clock,
+		AssignmentService:   &mockAssignmentsService{},
 	})
 	require.NoError(t, err)
 

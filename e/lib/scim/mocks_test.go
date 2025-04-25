@@ -332,3 +332,12 @@ func (m *mockJwtSigner) GetJWTSigner(ctx context.Context, ca types.CertAuthority
 	result := m.Called(ctx, ca)
 	return getResultAs[crypto.Signer](result, 0), result.Error(1)
 }
+
+type mockAssignmentsService struct {
+	mock.Mock
+}
+
+func (m *mockAssignmentsService) ListOktaAssignments(ctx context.Context, page int, nextToken string) ([]types.OktaAssignment, string, error) {
+	result := m.Called(ctx, page, nextToken)
+	return getResultAs[[]types.OktaAssignment](result, 0), result.String(1), result.Error(2)
+}

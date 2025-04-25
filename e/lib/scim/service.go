@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -50,6 +51,7 @@ type Service struct {
 	clock               clockwork.Clock
 	identity            IdentityService
 	httpClient          *http.Client
+	assignmentService   oktacommon.OktaAssignmentService
 }
 
 // defaultShimFactoryMap is the default set of known compatibility shims
@@ -75,6 +77,7 @@ type Config struct {
 	Clock               clockwork.Clock
 	IdentityService     IdentityService
 	HTTPClient          *http.Client
+	AssignmentService   oktacommon.OktaAssignmentService
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -138,6 +141,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.HTTPClient = httpClient
 	}
 
+	if cfg.AssignmentService == nil {
+		return trace.BadParameter("missing assignment service")
+	}
+
 	return nil
 }
 
@@ -166,7 +173,7 @@ func NewService(cfg *Config) (*Service, error) {
 		logger:              logger,
 		clock:               cfg.Clock,
 		httpClient:          cfg.HTTPClient,
-
+		assignmentService:   cfg.AssignmentService,
 		resourceTypes: map[string]resourceTypeHandler{
 			"Users": {
 				name:     "User",
@@ -184,11 +191,12 @@ func NewService(cfg *Config) (*Service, error) {
 				schema:   schema.CoreGroupSchema(),
 				logger:   groupsLogger,
 				handler: &groupHandler{
-					accessLists: cfg.AccessListsService,
-					roles:       cfg.RolesService,
-					users:       cfg.UsersService,
-					clock:       cfg.Clock,
-					logger:      groupsLogger,
+					accessLists:       cfg.AccessListsService,
+					roles:             cfg.RolesService,
+					users:             cfg.UsersService,
+					clock:             cfg.Clock,
+					logger:            groupsLogger,
+					assignmentService: cfg.AssignmentService,
 				},
 			},
 		},
