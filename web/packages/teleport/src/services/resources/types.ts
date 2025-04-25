@@ -125,7 +125,6 @@ export type KubernetesResource = {
  * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
  */
 export type KubernetesResourceKind =
-  | string
   | '*'
   | 'pod'
   | 'secret'
