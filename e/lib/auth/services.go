@@ -6,9 +6,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/e/lib/auth/accessrequest"
 	"github.com/gravitational/teleport/e/lib/okta"
 	eservices "github.com/gravitational/teleport/e/lib/services"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -51,6 +54,20 @@ func StartServices(ctx context.Context, plugin *Plugin) (func(), error) {
 	}
 	plugin.authServer.AuthServer.SetWorkloadIdentityX509CAOverrideGetter(overrideCache)
 	go overrideCache.RunWatcher(ctx)
+
+	if modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
+		accessRequestMonitoring, err := accessrequest.NewMonitoringService(accessrequest.Config{
+			Logger: plugin.logger.With(
+				teleport.ComponentKey,
+				teleport.Component(teleport.ComponentAuth, "access_request_monitoring_service")),
+			Backend: plugin.authServer.GetBackend(),
+			Client:  plugin.authServer.AuthServer,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		go accessRequestMonitoring.Run(ctx)
+	}
 
 	return cleanup, nil
 }
