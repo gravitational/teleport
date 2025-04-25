@@ -658,7 +658,7 @@ type CertOption interface {
 }
 
 // WithAllCerts lists all known CertOptions.
-var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}}
+var WithAllCerts = []CertOption{WithSSHCerts{}, WithKubeCerts{}, WithDBCerts{}, WithAppCerts{}, WithDesktopCerts{}}
 
 // WithSSHCerts is a CertOption for handling SSH certificates.
 type WithSSHCerts struct{}
@@ -772,6 +772,38 @@ func (o WithAppCerts) deleteFromKeyRing(keyRing *KeyRing) {
 	keyRing.AppTLSCredentials = make(map[string]TLSCredential)
 }
 
+// WithDesktopCerts is a CertOption for handling Windows desktop access certificates.
+type WithDesktopCerts struct {
+	desktopName string
+}
+
+func (o WithDesktopCerts) updateKeyRing(keyDir string, idx KeyRingIndex, keyRing *KeyRing, opts ...keys.ParsePrivateKeyOpt) error {
+	credentialDir := keypaths.WindowsDesktopCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+	credsByName, err := getCredentialsByName(credentialDir, opts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	keyRing.WindowsDesktopTLSCredentials = credsByName
+	return nil
+}
+
+func (o WithDesktopCerts) pathsToDelete(keyDir string, idx KeyRingIndex) []string {
+	if idx.ClusterName == "" {
+		return []string{keypaths.WindowsDesktopDir(keyDir, idx.ProxyHost, idx.Username)}
+	}
+	if o.desktopName == "" {
+		return []string{keypaths.WindowsDesktopCredentialDir(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName)}
+	}
+	return []string{
+		keypaths.WindowsDesktopCertPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.desktopName),
+		keypaths.WindowsDesktopKeyPath(keyDir, idx.ProxyHost, idx.Username, idx.ClusterName, o.desktopName),
+	}
+}
+
+func (o WithDesktopCerts) deleteFromKeyRing(keyRing *KeyRing) {
+	keyRing.WindowsDesktopTLSCredentials = make(map[string]TLSCredential)
+}
+
 type MemKeyStore struct {
 	// keyRings is a three-dimensional map indexed by [proxyHost][username][clusterName]
 	keyRings keyRingMap
@@ -850,6 +882,8 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 			retKeyRing.DBTLSCredentials = keyRing.DBTLSCredentials
 		case WithAppCerts:
 			retKeyRing.AppTLSCredentials = keyRing.AppTLSCredentials
+		case WithDesktopCerts:
+			retKeyRing.WindowsDesktopTLSCredentials = keyRing.WindowsDesktopTLSCredentials
 		}
 	}
 
