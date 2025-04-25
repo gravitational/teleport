@@ -51,6 +51,8 @@ const (
 	AccessGraphService_NetIQEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
 	AccessGraphService_GitHubAuditLogStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitHubAuditLogStream"
 	AccessGraphService_GitHubEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GitHubEventsStream"
+	AccessGraphService_OktaAuditLogStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/OktaAuditLogStream"
+	AccessGraphService_OktaEventsStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/OktaEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -146,6 +148,10 @@ type AccessGraphServiceClient interface {
 	GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error)
 	// GitHubEventsStream
 	GitHubEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse], error)
+	// OktaAuditLogStream ...
+	OktaAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse], error)
+	// OktaEventsStream
+	OktaEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse], error)
 }
 
 type accessGraphServiceClient struct {
@@ -339,6 +345,32 @@ func (c *accessGraphServiceClient) GitHubEventsStream(ctx context.Context, opts 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_GitHubEventsStreamClient = grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse]
 
+func (c *accessGraphServiceClient) OktaAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[11], AccessGraphService_OktaAuditLogStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaAuditLogStreamClient = grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]
+
+func (c *accessGraphServiceClient) OktaEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[12], AccessGraphService_OktaEventsStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[OktaEventsStreamRequest, OktaEventsStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaEventsStreamClient = grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse]
+
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
 // for forward compatibility.
@@ -432,6 +464,10 @@ type AccessGraphServiceServer interface {
 	GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error
 	// GitHubEventsStream
 	GitHubEventsStream(grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]) error
+	// OktaAuditLogStream ...
+	OktaAuditLogStream(grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]) error
+	// OktaEventsStream
+	OktaEventsStream(grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -486,6 +522,12 @@ func (UnimplementedAccessGraphServiceServer) GitHubAuditLogStream(grpc.BidiStrea
 }
 func (UnimplementedAccessGraphServiceServer) GitHubEventsStream(grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method GitHubEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) OktaAuditLogStream(grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method OktaAuditLogStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) OktaEventsStream(grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method OktaEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 func (UnimplementedAccessGraphServiceServer) testEmbeddedByValue()                            {}
@@ -657,6 +699,20 @@ func _AccessGraphService_GitHubEventsStream_Handler(srv interface{}, stream grpc
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_GitHubEventsStreamServer = grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]
 
+func _AccessGraphService_OktaAuditLogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).OktaAuditLogStream(&grpc.GenericServerStream[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaAuditLogStreamServer = grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]
+
+func _AccessGraphService_OktaEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).OktaEventsStream(&grpc.GenericServerStream[OktaEventsStreamRequest, OktaEventsStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaEventsStreamServer = grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -743,6 +799,18 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GitHubEventsStream",
 			Handler:       _AccessGraphService_GitHubEventsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "OktaAuditLogStream",
+			Handler:       _AccessGraphService_OktaAuditLogStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "OktaEventsStream",
+			Handler:       _AccessGraphService_OktaEventsStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

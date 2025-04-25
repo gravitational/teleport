@@ -28,6 +28,7 @@ import "accessgraph/v1alpha/github.proto";
 import "accessgraph/v1alpha/gitlab.proto";
 import "accessgraph/v1alpha/graph.proto";
 import "accessgraph/v1alpha/netiq.proto";
+import "accessgraph/v1alpha/okta.proto";
 import "accessgraph/v1alpha/resources.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
@@ -146,6 +147,11 @@ service AccessGraphService {
   rpc GitHubAuditLogStream(stream GitHubAuditLogStreamRequest) returns (stream GitHubAuditLogStreamResponse);
   // GitHubEventsStream
   rpc GitHubEventsStream(stream GitHubEventsStreamRequest) returns (stream GitHubEventsStreamResponse);
+
+  // OktaAuditLogStream ...
+  rpc OktaAuditLogStream(stream OktaAuditLogStreamRequest) returns (stream OktaAuditLogStreamResponse);
+  // OktaEventsStream
+  rpc OktaEventsStream(stream OktaEventsStreamRequest) returns (stream OktaEventsStreamResponse);
 }
 
 // QueryRequest is a request to query the access graph.
@@ -669,3 +675,34 @@ message GitHubEventsStreamRequest {
 
 // GitHubEventsStreamResponse...
 message GitHubEventsStreamResponse {}
+
+// GitHubStreamRequest ..
+message OktaAuditLogStreamRequest {
+  oneof operation {
+    // config holds the config for Okta connector.
+    OktaConfigV1 config = 1;
+    // audit_log holds the events
+    OktaAuditLogV1 audit_log = 2;
+  }
+}
+
+// GitHubStreamResponse is sent from the server to the client.
+message OktaAuditLogStreamResponse {
+  oneof state {
+    OktaConfigV1 config = 1; // Effective, negotiated configuration.
+    OktaAuditLogV1Cursor audit_log_resume_state = 2; // Complete resume state for 'search' mode.
+  }
+}
+
+// EventsStreamV2Request is a request to send commands to the access graph.
+message OktaEventsStreamRequest {
+  // operation contains the desired operation
+  oneof operation {
+    OktaResourceList upsert = 1;
+    OktaResourceList delete = 2;
+    OktaSync sync = 3;
+  }
+}
+
+// GitHubEventsStreamResponse...
+message OktaEventsStreamResponse {}

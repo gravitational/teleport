@@ -25,8 +25,41 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
 
+// OktaEventV1 ...
+message OktaEventV1 {
+  OktaIdentityV1 identity = 1;
+  OktaLocationV1 location = 2;
+  string event_type = 3;
+  google.protobuf.Timestamp published = 4;
+  string result = 5;
+  repeated OktaTargetV1 targets = 6;
+  string origin = 7;
+  google.protobuf.Struct event_data = 8;
+}
+
+// OktaIdentityV1
+message OktaIdentityV1 {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+  string token = 4;
+  string user_agent = 5;
+}
+
+// OktaLocationV1
+message OktaLocationV1 {
+  string ip = 1;
+}
+
+// OktaTargetV1
+message OktaTargetV1 {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+}
+
 // GitHubAuditLogV1Cursor holds the cursor values for Github Audit log.
-message GitHubAuditLogV1Cursor {
+message OktaAuditLogV1Cursor {
   // token is next cursor to use in subsequent requests.
   string token = 1;
   // last_event_id is the last event id received from github.
@@ -36,78 +69,58 @@ message GitHubAuditLogV1Cursor {
 }
 
 //GitHubAuditLogV1 holds the events shared between the client and the server.
-message GitHubAuditLogV1 {
-  repeated google.protobuf.Struct events = 1;
-  GitHubAuditLogV1Cursor cursor = 2;
+message OktaAuditLogV1 {
+  repeated OktaEventV1 events = 1;
+  OktaAuditLogV1Cursor cursor = 2;
 }
 
 // GitHubConfigV1 ..
-message GitHubConfigV1 {
+message OktaConfigV1 {
   google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
 }
 
 // GithubTokenV1 is the token v1
-message GithubTokenV1 {
+message OktaTokenV1 {
   // id is the token id.
-  int64 id = 1;
+  string id = 1;
   // name is the token alias.
   string name = 2;
   // owner is the token owner
   string owner = 3;
   // expires is the token expiration time.
   google.protobuf.Timestamp expires = 4;
-  // permissions are the token permissions.
-  repeated GithubTokenV1Permission permissions = 5;
   string organization = 6;
-}
-
-// GithubTokenV1Permission...
-message GithubTokenV1Permission {
-  // domain is the domain.
-  string domain = 1;
-  // verb is the verb.
-  string verb = 2;
-  // object is the object.
-  string object = 3;
-  string organization = 4;
+  google.protobuf.Timestamp created = 8;
+  google.protobuf.Timestamp updated = 9;
 }
 
 // GithubTokenV1RoleAssignment...
-message GithubRoleAssignmentV1 {
-  int64 role_id = 1;
-  bool owner = 2;
-  string user = 3;
+message OktaRoleAssignmentV1 {
+  string role_id = 1;
+  string user_id = 3;
   string organization = 4;
 }
 
 // GithubTokenV1Role...
-message GithubRoleV1 {
-  int64 role_id = 1;
-  string name = 2;
-  string organization = 3;
-}
-
-// GithubTokenV1Role...
-message GithubRepositoryV1 {
-  string name = 1;
-  repeated string collaborators = 2;
+message OktaRoleV1 {
+  string role_id = 1;
+  string type = 2;
   string organization = 3;
 }
 
 // GithubSync...
-message GithubSync {}
+message OktaSync {}
 
 // GithubResourceList...
-message GithubResourceList {
-  repeated GithubResource resources = 1;
+message OktaResourceList {
+  repeated OktaResource resources = 1;
 }
 
 // GithubResource...
-message GithubResource {
+message OktaResource {
   oneof resource {
-    GithubTokenV1 token = 1;
-    GithubRoleAssignmentV1 role_assignment = 2;
-    GithubRoleV1 role = 3;
-    GithubRepositoryV1 repository = 4;
+    OktaTokenV1 token = 1;
+    OktaRoleAssignmentV1 role_assignment = 2;
+    OktaRoleV1 role = 3;
   }
 }

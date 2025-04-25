@@ -6692,6 +6692,8 @@ message PluginOktaSettings {
 
   // CredentialsInfo contains information about the Okta credentials.
   PluginOktaCredentialsInfo credentials_info = 5;
+
+  bool enable_siem_integration = 6;
 }
 
 // PluginOktaCredentialsInfo contains information about the Okta credentials.
