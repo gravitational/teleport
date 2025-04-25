@@ -208,7 +208,7 @@ credential_process = credential_process
 	})
 }
 
-func TestRemoveProfilesUsingCredentialProcess(t *testing.T) {
+func TestRemoveCredentialProcessByComment(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		commentSection   string
@@ -278,7 +278,6 @@ func TestRemoveProfilesUsingCredentialProcess(t *testing.T) {
 }
 
 func TestUpdateRemoveCycle(t *testing.T) {
-	t.SkipNow()
 	initialContents := "[profile baz]\nregion = us-east-1\n\n[default]\nregion = us-west-2\n"
 	configFilePath := filepath.Join(t.TempDir(), "config")
 	err := os.WriteFile(configFilePath, []byte(initialContents), 0600)

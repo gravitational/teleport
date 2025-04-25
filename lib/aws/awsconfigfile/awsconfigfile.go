@@ -124,6 +124,7 @@ func RemoveCredentialProcessByComment(configFilePath, sectionComment string) err
 		if len(section.Keys()) > 0 {
 			return trace.BadParameter("%s: section %q contains other keys, remove the section and try again", configFilePath, section.Name())
 		}
+		iniFile.DeleteSection(section.Name())
 
 		sectionChanged = true
 	}
