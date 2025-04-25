@@ -20,8 +20,25 @@
 
 package rdpclient
 
-import "fmt"
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
 
 func xSessionCommand(display string, userName string) []string {
-	return []string{"su", "-c", fmt.Sprintf("env DISPLAY=%s startxfce4", display), "-", userName}
+	command := "startxfce4"
+	if file, err := os.Open("/usr/share/xsessions/teleport.desktop"); err == nil {
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "Exec=") {
+				command = strings.TrimPrefix(line, "Exec=")
+			}
+		}
+	}
+	return []string{"su", "-c", fmt.Sprintf("env DISPLAY=%s %s", display, command), "-", userName}
 }
