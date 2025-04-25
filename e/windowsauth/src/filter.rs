@@ -6,7 +6,7 @@ use windows::{
     Win32::System::Com::*, Win32::UI::Shell::*,
 };
 
-use crate::crypto::CryptContext;
+use crate::crypto::{CryptContext, LicenseType};
 use crate::CLSID;
 
 #[implement(ICredentialProviderFilter)]
@@ -61,6 +61,15 @@ impl ICredentialProviderFilter_Impl for Filter_Impl {
                 E_FAIL
             })? {
                 debug!("AD request, skipping redirection to Teleport Authentication Package");
+                *pcpcsout = *pcpcsin;
+                return Err(E_FAIL.into());
+            }
+            let license = ctx.get_license().map_err(|e| {
+                error!("Could not determine license type: {:?}", e);
+                E_FAIL
+            })?;
+            if license == LicenseType::Unknown {
+                debug!("Unknown license, skipping redirection to Teleport Authentication Package");
                 *pcpcsout = *pcpcsin;
                 return Err(E_FAIL.into());
             }
