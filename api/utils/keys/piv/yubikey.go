@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -58,6 +59,8 @@ type YubiKey struct {
 	serialNumber uint32
 	// version is the YubiKey's version.
 	version piv.Version
+	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
+	pinCache *pinCache
 }
 
 // FindYubiKey finds a YubiKey PIV card by serial number. If the provided
@@ -111,6 +114,7 @@ func findYubiKeyCards() ([]string, error) {
 
 func newYubiKey(card string) (*YubiKey, error) {
 	y := &YubiKey{
+		pinCache: newPINCache(),
 		conn: &sharedPIVConnection{
 			card: card,
 		},
@@ -234,8 +238,8 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := prompt.AskPIN(ctx, hardwarekey.PINRequired, keyInfo)
-		return pass, trace.Wrap(err)
+		pin, err := y.pinCache.PromptOrGetPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
+		return pin, trace.Wrap(err)
 	}
 
 	pinPolicy := piv.PINPolicyNever
@@ -334,7 +338,7 @@ func (y *YubiKey) Reset() error {
 }
 
 // generatePrivateKey generates a new private key in the given PIV slot.
-func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	touchPolicy := piv.TouchPolicyNever
 	if policy.TouchRequired {
 		touchPolicy = piv.TouchPolicyCached
@@ -378,7 +382,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		return nil, trace.Wrap(err)
 	}
 
-	return y.getKeyRef(slot)
+	return y.getKeyRef(slot, pinCacheTTL)
 }
 
 // SetMetadataCertificate creates a self signed certificate and stores it in the YubiKey's
@@ -422,7 +426,7 @@ func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert 
 	return slotCert, attCert, att, nil
 }
 
-func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) getKeyRef(slot piv.Slot, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	slotCert, attCert, att, err := y.attestKey(slot)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -444,6 +448,7 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 				},
 			},
 		},
+		PINCacheTTL: pinCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {
@@ -457,6 +462,30 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	err := y.conn.setPIN(oldPin, newPin)
 	return trace.Wrap(err)
+}
+
+// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
+// If the user provides the default PIN, they will be prompted to set a
+// non-default PIN and PUK before continuing.
+func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) error {
+	pin, err := y.pinCache.PromptOrGetPIN(ctx, prompt, hardwarekey.PINOptional, keyInfo, pinCacheTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch pin {
+	case piv.DefaultPIN:
+		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
+		fallthrough
+	case "":
+		pin, err = y.setPINAndPUKFromDefault(ctx, prompt, keyInfo)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		y.pinCache.setPIN(pin, pinCacheTTL)
+	}
+
+	return trace.Wrap(y.verifyPIN(pin))
 }
 
 func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {

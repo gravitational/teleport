@@ -18,6 +18,8 @@ syntax = "proto3";
 
 package teleport.hardwarekeyagent.v1;
 
+import "google/protobuf/duration.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1";
 
 // HardwareKeyAgentService provides an agent service for hardware key (PIV) signatures.
@@ -104,6 +106,9 @@ message KeyInfo {
   // ClusterName is a Teleport cluster name that the key is associated with.
   // May be used to add context to PIN/touch prompts.
   string cluster_name = 5;
+  // PinCacheTtl is the amount of time that the PIN should be cached for
+  // PIN prompts associated with this key. A TTL of 0 means no PIN caching.
+  google.protobuf.Duration pin_cache_ttl = 6;
 }
 
 // PIVSlotKey is the key reference for a specific PIV slot.
