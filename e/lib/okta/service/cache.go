@@ -8,17 +8,16 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	"github.com/gravitational/teleport/api/types"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsRequest) ([]*oktaResourceItem, error) {
-	params := createOktaClientParams{
-		requestCreds: req.GetApiCredentials(),
-		orgUrl:       req.GetOktaOrganizationUrl(),
-	}
-	oktaClient, err := s.createOktaClient(ctx, params)
+	oktaClient, err := s.createOktaClientForCache(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating Okta client")
 	}
 	fetchFn := func(ctx context.Context) ([]*oktaResourceItem, error) {
 		var groups []*oktaResourceItem
@@ -44,13 +43,9 @@ func (s *Service) fetchAllOktaGroups(ctx context.Context, req *oktapb.GetGroupsR
 }
 
 func (s *Service) fetchAllOktaApps(ctx context.Context, req *oktapb.GetAppsRequest) ([]*oktaResourceItem, error) {
-	params := createOktaClientParams{
-		requestCreds: req.GetApiCredentials(),
-		orgUrl:       req.GetOktaOrganizationUrl(),
-	}
-	oktaClient, err := s.createOktaClient(ctx, params)
+	oktaClient, err := s.createOktaClientForCache(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating Okta client")
 	}
 	fetchFn := func(ctx context.Context) ([]*oktaResourceItem, error) {
 		var apps []*oktaResourceItem
@@ -77,4 +72,27 @@ func (s *Service) fetchAllOktaApps(ctx context.Context, req *oktapb.GetAppsReque
 		return nil, trace.Wrap(err)
 	}
 	return apps, nil
+}
+
+// createOktaPluginForCache create Okta plugin specific for fetchAllOkta* methods.
+func (s *Service) createOktaClientForCache(ctx context.Context, req requestWithCredentials) (oktaapi.Interface, error) {
+	orgUrl := req.GetOktaOrganizationUrl()
+	var staticCredsRef *types.PluginStaticCredentialsRef
+	if req.GetApiCredentials() == nil {
+		plugin, err := oktaplugin.Get(ctx, s.pluginBackend, true /* withSecrets */)
+		if trace.IsNotFound(err) {
+			return nil, trace.BadParameter("Okta API credentials not provided in the request and Okta plugin does not exist")
+		} else if err != nil {
+			return nil, trace.Wrap(err, "getting Okta plugin")
+		}
+		orgUrl = plugin.Spec.GetOkta().OrgUrl
+		staticCredsRef = plugin.GetCredentials().GetStaticCredentialsRef()
+	}
+	params := createOktaClientParams{
+		requestCreds:         req.GetApiCredentials(),
+		orgUrl:               orgUrl,
+		pluginStaticCredsRef: staticCredsRef,
+	}
+	oktaClient, err := s.createOktaClient(ctx, params)
+	return oktaClient, trace.Wrap(err)
 }

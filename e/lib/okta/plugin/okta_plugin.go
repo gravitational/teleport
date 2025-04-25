@@ -15,7 +15,7 @@ import (
 func Get(ctx context.Context, plugins services.Plugins, withSecrets bool) (*types.PluginV1, error) {
 	plugin, err := plugins.GetPlugin(ctx, types.PluginTypeOkta, withSecrets)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting Okta plugin")
+		return nil, trace.Wrap(err)
 	}
 	pluginV1, ok := plugin.(*types.PluginV1)
 	if !ok {
