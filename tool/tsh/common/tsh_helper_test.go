@@ -140,6 +140,15 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 			KubernetesLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+					Group:     types.Wildcard,
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
