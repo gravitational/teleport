@@ -315,6 +315,8 @@ func (c *Client) runLocal(ctx context.Context) error {
 	ticker := time.NewTicker(40 * time.Millisecond)
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
+		i := int64(0)
+		totalDuration := 0 * time.Millisecond
 		for {
 			if err := damage.SubtractChecked(dial, dmg, xfixes.RegionNone, parts).Check(); err != nil {
 				return trace.Wrap(err)
@@ -350,6 +352,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 					}
 				}
 				duration := time.Now().Sub(start)
+				totalDuration += duration
 				if duration > 10*time.Millisecond {
 					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration)
 				}
@@ -358,6 +361,10 @@ func (c *Client) runLocal(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			case <-ticker.C:
+			}
+			i++
+			if i%25 == 0 {
+				c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms", totalDuration.Milliseconds()/i))
 			}
 		}
 	})
