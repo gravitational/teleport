@@ -6114,14 +6114,14 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	flushCache(t, srv.Auth())
 
 	var resp *proto.ListUnifiedResourcesResponse
-	inlineEventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		require.NoError(t, err)
-		require.Empty(t, resp.NextKey)
-		return len(resp.Resources) == 6
+		assert.NoError(t, err)
+		assert.Empty(t, resp.NextKey)
+		assert.Len(t, resp.Resources, 6)
 	}, 3*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
@@ -6145,12 +6145,13 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that an error is returned when no kinds are requested.
-	inlineEventually(t, func() bool {
-		_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		return trace.IsAccessDenied(err)
+		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
+		assert.Nil(t, resp)
 	}, 3*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
