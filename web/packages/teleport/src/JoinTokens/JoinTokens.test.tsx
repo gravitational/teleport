@@ -141,7 +141,7 @@ describe('JoinTokens', () => {
             join_method: 'iam',
             allow: [
               {
-                unsupportedField: true,
+                unsupported_field: true,
               },
             ],
           },
@@ -174,7 +174,7 @@ describe('JoinTokens', () => {
             gcp: {
               allow: [
                 {
-                  unsupportedField: true,
+                  unsupported_field: true,
                 },
               ],
             },
@@ -206,7 +206,7 @@ describe('JoinTokens', () => {
           spec: {
             join_method: 'github',
             github: {
-              unsupportedField: true,
+              unsupported_field: true,
             },
           },
         };
