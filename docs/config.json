@@ -339,6 +339,226 @@
       "source": "/enroll-resources/application-access/okta/",
       "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/access-lists/",
+      "destination": "/identity-governance/access-lists/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/guide/",
+      "destination": "/identity-governance/access-lists/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-lists/nested-access-lists/",
+      "destination": "/identity-governance/access-lists/nested-access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/access-request-plugins/",
+      "destination": "/identity-governance/access-request-plugins/access-request-plugins/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/datadog-hosted/",
+      "destination": "/identity-governance/access-request-plugins/datadog-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/notification-routing-rules/",
+      "destination": "/identity-governance/access-request-plugins/notification-routing-rules/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/opsgenie/",
+      "destination": "/identity-governance/access-request-plugins/opsgenie/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/servicenow/",
+      "destination": "/identity-governance/access-request-plugins/servicenow/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-discord/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-discord/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-email/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-email/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-jira/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-jira/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-mattermost/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-mattermost/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-msteams/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-msteams/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-pagerduty/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-request-plugins/ssh-approval-slack/",
+      "destination": "/identity-governance/access-request-plugins/ssh-approval-slack/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/access-request-configuration/",
+      "destination": "/identity-governance/access-requests/access-request-configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/access-requests/",
+      "destination": "/identity-governance/access-requests/access-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/oss-role-requests/",
+      "destination": "/identity-governance/access-requests/oss-role-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/resource-requests/",
+      "destination": "/identity-governance/access-requests/resource-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-requests/role-requests/",
+      "destination": "/identity-governance/access-requests/role-requests/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/device-management/",
+      "destination": "/identity-governance/device-trust/device-management/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/device-trust/",
+      "destination": "/identity-governance/device-trust/device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/enforcing-device-trust/",
+      "destination": "/identity-governance/device-trust/enforcing-device-trust/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/guide/",
+      "destination": "/identity-governance/device-trust/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/device-trust/jamf-integration/",
+      "destination": "/identity-governance/device-trust/jamf-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/app-and-group-sync/",
+      "destination": "/identity-governance/okta/app-and-group-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/guided-sso/",
+      "destination": "/identity-governance/okta/guided-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/okta/",
+      "destination": "/identity-governance/okta/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/scim-integration/",
+      "destination": "/identity-governance/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/okta/user-sync/",
+      "destination": "/identity-governance/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/access-graph/",
+      "destination": "/identity-security/access-graph/access-graph/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted-helm/",
+      "destination": "/identity-security/access-graph/self-hosted-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/access-graph/self-hosted/",
+      "destination": "/identity-security/access-graph/self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/crown-jewels/",
+      "destination": "/identity-security/crown-jewels/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/aws-sync/",
+      "destination": "/identity-security/integrations/aws-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/azure-sync/",
+      "destination": "/identity-security/integrations/azure-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/entra-id/",
+      "destination": "/identity-security/integrations/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/gitlab/",
+      "destination": "/identity-security/integrations/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/integrations/",
+      "destination": "/identity-security/integrations/integrations/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/netiq/",
+      "destination": "/identity-security/integrations/netiq/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/integrations/ssh-keys-scan/",
+      "destination": "/identity-security/integrations/ssh-keys-scan/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-connections/",
+      "destination": "/identity-security/policy-connections/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/policy-how-to-use/",
+      "destination": "/identity-security/policy-how-to-use/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/teleport-policy/teleport-policy/",
+      "destination": "/identity-security/teleport-policy/",
+      "permanent": true
     }
   ]
 }
