@@ -82,6 +82,15 @@ func (s *Store) Iter(fn func(UpstreamHandle)) {
 	}
 }
 
+// IterWithDuplicates iterates across all handles registered with this
+// store. If multiple handles are registered for a given server,
+// all of them will be observed.
+func (s *Store) IterWithDuplicates(fn func(UpstreamHandle)) {
+	for _, shard := range s.shards {
+		shard.iterWithDuplicates(fn)
+	}
+}
+
 // Len returns the count of currently registered servers (servers with
 // multiple handles registered still only count as one).
 func (s *Store) Len() int {
@@ -142,6 +151,16 @@ func (s *shard) iter(fn func(UpstreamHandle)) {
 		idx := entry.ct.Add(1) % uint64(len(entry.handles))
 		handle := entry.handles[int(idx)]
 		fn(handle)
+	}
+}
+
+func (s *shard) iterWithDuplicates(fn func(UpstreamHandle)) {
+	s.rw.RLock()
+	defer s.rw.RUnlock()
+	for _, entry := range s.m {
+		for _, handle := range entry.handles {
+			fn(handle)
+		}
 	}
 }
 

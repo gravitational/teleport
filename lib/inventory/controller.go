@@ -367,6 +367,13 @@ func (c *Controller) Iter(fn func(UpstreamHandle)) {
 	c.store.Iter(fn)
 }
 
+// IterWithDuplicates iterates across all handles registered with this
+// controller. If multiple handles are registered for a given server,
+// all of them will be observed.
+func (c *Controller) IterWithDuplicates(fn func(UpstreamHandle)) {
+	c.store.IterWithDuplicates(fn)
+}
+
 // ConnectedInstances gets the total number of connected instances. Note that this is the total number of
 // *handles*, not the number of unique instances by id.
 func (c *Controller) ConnectedInstances() int {
