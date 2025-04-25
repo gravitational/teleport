@@ -1245,6 +1245,9 @@ type HardwareKey struct {
 	// SerialNumberValidation contains optional settings for hardware key
 	// serial number validation, including whether it is enabled.
 	SerialNumberValidation *HardwareKeySerialNumberValidation `yaml:"serial_number_validation,omitempty"`
+
+	// PINCacheTTL specifies how long to cache the user's PIV PIN.
+	PINCacheTTL time.Duration `yaml:"pin_cache_ttl,omitempty"`
 }
 
 func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
@@ -1254,7 +1257,10 @@ func (h *HardwareKey) Parse() (*types.HardwareKey, error) {
 		}
 	}
 
-	hk := &types.HardwareKey{PIVSlot: string(h.PIVSlot)}
+	hk := &types.HardwareKey{
+		PIVSlot:     string(h.PIVSlot),
+		PinCacheTTL: types.Duration(h.PINCacheTTL),
+	}
 
 	if h.SerialNumberValidation != nil {
 		var err error
