@@ -60,6 +60,25 @@ type KeyStorer interface {
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
+// SigstorePolicyEvaluator implements the actual Sigstore verification logic.
+type SigstorePolicyEvaluator interface {
+	// Evaluate the Sigstore policies against the given workload attributes.
+	Evaluate(ctx context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error)
+}
+
+// OSSSigstorePolicyEvaluator is the Community Edition implementation of the
+// SigstorePolicyEvaluator interface. It simply returns a licensing error if
+// any policy names or sigstore payloads are given.
+type OSSSigstorePolicyEvaluator struct{}
+
+// Evaluate satisfies the SigstorePolicyEvaluator interface.
+func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error) {
+	if len(policyNames) != 0 || len(attrs.GetWorkload().GetSigstore().GetPayloads()) != 0 {
+		return nil, trace.AccessDenied("Sigstore workload attestation is only available with an enterprise license")
+	}
+	return make(map[string]error), nil
+}
+
 type issuerCache interface {
 	workloadIdentityReader
 	GetProxies() ([]types.Server, error)
@@ -68,13 +87,14 @@ type issuerCache interface {
 
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
 type IssuanceServiceConfig struct {
-	Authorizer     authz.Authorizer
-	Cache          issuerCache
-	Clock          clockwork.Clock
-	Emitter        apievents.Emitter
-	Logger         *slog.Logger
-	KeyStore       KeyStorer
-	OverrideGetter services.WorkloadIdentityX509CAOverrideGetter
+	Authorizer                 authz.Authorizer
+	Cache                      issuerCache
+	Clock                      clockwork.Clock
+	Emitter                    apievents.Emitter
+	Logger                     *slog.Logger
+	KeyStore                   KeyStorer
+	OverrideGetter             services.WorkloadIdentityX509CAOverrideGetter
+	GetSigstorePolicyEvaluator func() SigstorePolicyEvaluator
 
 	ClusterName string
 }
@@ -84,13 +104,14 @@ type IssuanceServiceConfig struct {
 type IssuanceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityIssuanceServiceServer
 
-	authorizer     authz.Authorizer
-	cache          issuerCache
-	clock          clockwork.Clock
-	emitter        apievents.Emitter
-	logger         *slog.Logger
-	keyStore       KeyStorer
-	overrideGetter services.WorkloadIdentityX509CAOverrideGetter
+	authorizer                 authz.Authorizer
+	cache                      issuerCache
+	clock                      clockwork.Clock
+	emitter                    apievents.Emitter
+	logger                     *slog.Logger
+	keyStore                   KeyStorer
+	overrideGetter             services.WorkloadIdentityX509CAOverrideGetter
+	getSigstorePolicyEvaluator func() SigstorePolicyEvaluator
 
 	clusterName string
 }
@@ -111,6 +132,8 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
+	case cfg.GetSigstorePolicyEvaluator == nil:
+		return nil, trace.BadParameter("sigstore policy evaluator is required")
 	}
 
 	if cfg.Logger == nil {
@@ -120,13 +143,14 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &IssuanceService{
-		authorizer:     cfg.Authorizer,
-		cache:          cfg.Cache,
-		clock:          cfg.Clock,
-		emitter:        cfg.Emitter,
-		logger:         cfg.Logger,
-		keyStore:       cfg.KeyStore,
-		overrideGetter: cfg.OverrideGetter,
+		authorizer:                 cfg.Authorizer,
+		cache:                      cfg.Cache,
+		clock:                      cfg.Clock,
+		emitter:                    cfg.Emitter,
+		logger:                     cfg.Logger,
+		keyStore:                   cfg.KeyStore,
+		overrideGetter:             cfg.OverrideGetter,
+		getSigstorePolicyEvaluator: cfg.GetSigstorePolicyEvaluator,
 
 		clusterName: cfg.ClusterName,
 	}, nil
@@ -202,7 +226,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	decision := decide(ctx, wi, attrs)
+	decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
 	if !decision.shouldIssue {
 		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
 	}
@@ -296,7 +320,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	// that should not be issued.
 	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
 	for _, wi := range workloadIdentities {
-		decision := decide(ctx, wi, attrs)
+		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
 		if decision.shouldIssue {
 			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
 		}
