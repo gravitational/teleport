@@ -185,7 +185,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, result.MFARequired)
-				require.Nil(t, result.MFAResponse)
+				require.Nil(t, result.ReusableMFAResponse)
 				require.NotNil(t, result.KeyRing)
 				require.NotEmpty(t, result.KeyRing.Cert)
 			},
@@ -198,7 +198,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
-				require.NotNil(t, result.MFAResponse)
+				require.Nil(t, result.ReusableMFAResponse)
 				require.NotNil(t, result.KeyRing)
 				require.NotEmpty(t, result.KeyRing.Cert)
 			},
@@ -303,7 +303,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
-				require.NotNil(t, result.MFAResponse)
+				require.Nil(t, result.ReusableMFAResponse)
 				require.NotNil(t, result.KeyRing)
 				cred := keyRing.DBTLSCredentials["test"]
 				require.NotEmpty(t, cred)
@@ -422,7 +422,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_NO, result.MFARequired)
-				require.Nil(t, result.MFAResponse)
+				require.Nil(t, result.ReusableMFAResponse)
 				require.NotNil(t, result.KeyRing)
 			},
 		},
@@ -440,7 +440,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
-				require.NotNil(t, result.MFAResponse) // new MFA response
+				require.NotNil(t, result.ReusableMFAResponse) // new MFA response
 				require.NotNil(t, result.KeyRing)
 			},
 		},
@@ -460,7 +460,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
-				require.Nil(t, result.MFAResponse) // no new MFA response
+				require.Nil(t, result.ReusableMFAResponse) // no new MFA response
 				require.NotNil(t, result.KeyRing)
 			},
 		},
@@ -492,7 +492,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
-				require.NotNil(t, result.MFAResponse) // new MFA response
+				require.NotNil(t, result.ReusableMFAResponse) // new MFA response
 				require.NotNil(t, result.KeyRing)
 			},
 		},

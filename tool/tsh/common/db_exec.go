@@ -460,8 +460,8 @@ func (c *sharedDatabaseExecClient) issueCert(ctx context.Context, dbInfo *databa
 	}
 
 	// Save the reusable MFA response.
-	if result.MFAResponse != nil {
-		c.reusableMFAResponse = result.MFAResponse
+	if result.ReusableMFAResponse != nil {
+		c.reusableMFAResponse = result.ReusableMFAResponse
 	}
 
 	dbCert, err := result.KeyRing.DBTLSCert(dbInfo.RouteToDatabase.ServiceName)

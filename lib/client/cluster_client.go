@@ -482,9 +482,9 @@ type IssueUserCertsWithMFAResult struct {
 	// MFARequired is the MFA requirement of the resource. This may be returned
 	// if MFA requirement check is successful but ceremony fails.
 	MFARequired proto.MFARequired
-	// MFAResponse is the response of the MFA challenge, if a ceremony is
-	// performed.
-	MFAResponse *proto.MFAAuthenticateResponse
+	// ReusableMFAResponse is the response of the MFA challenge, if a ceremony is
+	// performed and AllowReuse is requested.
+	ReusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
@@ -601,7 +601,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	}
 
 	if params.ReusableMFAResponse != nil {
-		log.DebugContext(ctx, "MFA is required but reusable MFA response is provided")
+		log.DebugContext(ctx, "MFA is required, using reusable MFA response")
 		params.ExistingCreds = keyRing
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		switch {
@@ -627,9 +627,9 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 
 	log.DebugContext(ctx, "Issued single-use user certificate after an MFA check")
 	return &IssueUserCertsWithMFAResult{
-		KeyRing:     keyRing,
-		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
-		MFAResponse: result.MFAResponse,
+		KeyRing:             keyRing,
+		MFARequired:         proto.MFARequired_MFA_REQUIRED_YES,
+		ReusableMFAResponse: result.ReusableMFAResponse,
 	}, nil
 }
 
@@ -686,8 +686,8 @@ type PerformSessionMFACeremonyResult struct {
 	KeyRing *KeyRing
 	// NewCerts are newly issued certificates.
 	NewCerts *proto.Certs
-	// MFAResponse is the response of the MFA challenge.
-	MFAResponse *proto.MFAAuthenticateResponse
+	// ReusableMFAResponse is the response of the MFA challenge, if AllowReuse is requested.
+	ReusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 // PerformSessionMFACeremony issues single-use certificates via GenerateUserCerts,
@@ -767,12 +767,16 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	}
 
 	keyRing := params.KeyRing
+	var reusableMFAResponse *proto.MFAAuthenticateResponse
+	if allowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		reusableMFAResponse = mfaResp
+	}
 
 	// Nothing more to do.
 	if keyRing == nil {
 		return &PerformSessionMFACeremonyResult{
-			NewCerts:    newCerts,
-			MFAResponse: mfaResp,
+			NewCerts:            newCerts,
+			ReusableMFAResponse: reusableMFAResponse,
 		}, nil
 	}
 
@@ -816,8 +820,8 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	keyRing.ClusterName = certsReq.RouteToCluster
 
 	return &PerformSessionMFACeremonyResult{
-		KeyRing:     keyRing,
-		NewCerts:    newCerts,
-		MFAResponse: mfaResp,
+		KeyRing:             keyRing,
+		NewCerts:            newCerts,
+		ReusableMFAResponse: reusableMFAResponse,
 	}, nil
 }
