@@ -42,16 +42,12 @@ type Repository struct {
 }
 
 // NewRepository creates a new Repository with the given reference.
-func NewRepository(ref string, logger *slog.Logger, keychain authn.Keychain) (*Repository, error) {
-	r, err := name.ParseReference(ref)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing reference")
-	}
+func NewRepository(repo name.Repository, logger *slog.Logger, keychain authn.Keychain) (*Repository, error) {
 	if keychain == nil {
 		keychain = authn.DefaultKeychain
 	}
 	return &Repository{
-		repo:     r.Context(),
+		repo:     repo,
 		logger:   logger,
 		keychain: keychain,
 	}, nil
