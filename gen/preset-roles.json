@@ -127,7 +127,8 @@
             "name": "*",
             "verbs": [
               "*"
-            ]
+            ],
+            "group": "*"
           }
         ],
         "gcp_service_accounts": [
