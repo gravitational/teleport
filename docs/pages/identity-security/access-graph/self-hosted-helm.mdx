@@ -11,7 +11,7 @@ to collect information about resources and access.
 This guide will help you set up the Access Graph service in a Kubernetes cluster using a Helm Chart,
 and enable the Access Graph feature in your Teleport cluster.
 
-The full listing of supported parameters can be found in the [Helm chart reference](../../../reference/helm-reference/teleport-access-graph.mdx).
+The full listing of supported parameters can be found in the [Helm chart reference](../../reference/helm-reference/teleport-access-graph.mdx).
 
 Access Graph is a feature of the [Identity Security](https://goteleport.com/platform/policy/) product that is only available
 to Teleport Enterprise customers.
@@ -22,7 +22,7 @@ to Teleport Enterprise customers.
 - Helm >= (=helm.version=)
 - A running Teleport Enterprise cluster v18.0.0 or later.
   - For the purposes of this guide, we assume that the Teleport cluster is set up
-    [using the `teleport-cluster` Helm chart](../helm-deployments/helm-deployments.mdx)
+    [using the `teleport-cluster` Helm chart](../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx)
     in the same Kubernetes cluster that will be used to deploy Access Graph.
 - An updated Teleport Enterprise license file with Teleport Identity Security enabled.
 - A PostgreSQL database server v14 or later.
@@ -152,7 +152,7 @@ the Auth Service configuration needs to be updated with:
 - The path to the CA which issued the Access Graph service TLS certificate.
   - This path must refer to a volume containing the CA, mounted on the Teleport pods.
   - Specifying the CA certificate file can be skipped if you are using a CA that is already trusted by the Teleport cluster
-    (e.g. via the [`tls.existingCASecretName` option](../../../reference/helm-reference/teleport-cluster.mdx)),
+    (e.g. via the [`tls.existingCASecretName` option](../../reference/helm-reference/teleport-cluster.mdx)),
     or if the certificate was issued by a CA included in the [Mozilla CA Certificate List](https://wiki.mozilla.org/CA/Included_Certificates).
 
 Create a ConfigMap containing the CA certificate as follows:
@@ -208,7 +208,7 @@ $ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment
 ## Step 4/4. View the Access Graph in the Web UI
 
 You can find the Access Graph in the "Access Management" tab in the Web UI.
-![Access Management menu item](../../../../img/access-graph/menu-item.png)
+![Access Management menu item](../../../img/access-graph/menu-item.png)
 
 To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:
 
