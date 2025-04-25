@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -27,6 +27,7 @@ import {
   ButtonSecondary,
   ButtonText,
   Flex,
+  Indicator,
   Text,
 } from 'design';
 import { Cross } from 'design/Icon';
@@ -46,13 +47,25 @@ import {
   JoinRole,
   JoinToken,
 } from 'teleport/services/joinToken';
+import { yamlService } from 'teleport/services/yaml';
+
+import 'teleport/services/resources';
+
+import { Info } from 'design/Alert/Alert';
+
+import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import {
+  checkGCPYAMLData,
+  checkIAMYAMLData,
   JoinTokenGCPForm,
   JoinTokenIAMForm,
   JoinTokenOracleForm,
 } from './JoinTokenForms';
-import { JoinTokenGithubForm } from './JoinTokenGithubForm';
+import {
+  checkGithubYAMLData,
+  JoinTokenGithubForm,
+} from './JoinTokenGithubForm';
 
 const maxWidth = '550px';
 
@@ -209,6 +222,52 @@ export const UpsertJoinTokenDialog = ({
     }
   );
 
+  const [parseYAMLAttempt, parseYAML] = useAsync(
+    async (yaml: string): Promise<unknown | null> => {
+      return {
+        yaml,
+        object: await ctx.yamlService.parse<unknown>(
+          YamlSupportedResourceKind.ProvisionToken,
+          {
+            yaml,
+          }
+        ),
+      };
+    }
+  );
+
+  // Convert the resource YAML to an object for compatibility checking
+  useEffect(() => {
+    if (editToken) {
+      parseYAML(editToken.content);
+    }
+    // parseYAML is not stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editToken]);
+
+  const hasUnsupportedFields = useMemo(() => {
+    if (!editToken) {
+      return false;
+    }
+
+    const { data } = parseYAMLAttempt;
+
+    if (!checkYAMLData(data)) {
+      return true;
+    }
+
+    switch (data.object.spec.join_method) {
+      case 'iam':
+        return !checkIAMYAMLData(data.object.spec.allow);
+      case 'gcp':
+        return !checkGCPYAMLData(data.object.spec.gcp);
+      case 'github':
+        return !checkGithubYAMLData(data.object.spec.github);
+    }
+
+    return false;
+  }, [editToken, parseYAMLAttempt]);
+
   function reset(validator: Validator) {
     validator.reset();
     setNewTokenState(defaultNewTokenState);
@@ -307,162 +366,252 @@ export const UpsertJoinTokenDialog = ({
   }
 
   return (
-    <Flex width="500px">
-      <Box
-        css={`
-          overflow: auto;
-          width: 100%;
-          min-height: 50vh;
-          padding-bottom: 0;
-        `}
-      >
-        <Flex
-          alignItems="center"
-          mb={3}
-          justifyContent="space-between"
-          maxWidth={maxWidth}
-        >
-          <Flex alignItems="center" mr={3}>
-            <HoverTooltip tipContent="Back to Join Tokens">
-              <ButtonIcon onClick={onClose} mr={2}>
-                <Cross size="medium" />
-              </ButtonIcon>
-            </HoverTooltip>
-            <Text typography="h3" fontWeight={400}>
-              {editToken ? `Edit Token` : 'Create a New Join Token'}
-            </Text>
-          </Flex>
-          {editToken && (
-            <ButtonText
-              p={2}
-              onClick={() => {
-                onClose();
-                editTokenWithYAML(editToken.id);
-              }}
-            >
-              <Text color="buttons.link.default">Use YAML editor</Text>
-            </ButtonText>
-          )}
+    <>
+      {parseYAMLAttempt.status === 'processing' && (
+        <Flex justifyContent="center">
+          <Indicator />
         </Flex>
-        <Validation>
-          {({ validator }) => (
-            <Box maxWidth={maxWidth}>
-              {createTokenAttempt.status === 'error' && (
-                <Alert kind="danger">{createTokenAttempt.statusText}</Alert>
-              )}
-              {!editToken && ( // We only want to change the method when creating a new token
-                <FieldSelect
-                  label="Method"
-                  rule={requiredField<Option>('Select a join method')}
-                  isSearchable
-                  isClearable={false}
-                  value={newTokenState.method}
-                  onChange={setTokenMethod}
-                  options={availableJoinMethods}
-                />
-              )}
-              {newTokenState.method.value !== 'token' && ( // if the method is token, we generate the name for them on the backend
-                <FieldInput
-                  label="Token name"
-                  data-testid="name_field"
-                  toolTipContent={
-                    editToken ? 'Editing token names is not supported.' : ''
-                  }
-                  rule={requiredField('Token name is required')}
-                  placeholder={`${newTokenState.method.value}-token-name`}
-                  autoFocus
-                  value={newTokenState.name}
-                  onChange={e => setTokenField('name', e.target.value)}
-                  readonly={!!editToken}
-                />
-              )}
-              <FieldSelect
-                label="Join Roles"
-                inputId="role_select"
-                rule={requiredField('At least one role is required')}
-                placeholder="Click to select roles"
-                isSearchable
-                isMulti
-                mb={5}
-                isClearable={false}
-                value={newTokenState.roles}
-                onChange={setTokenRoles}
-                options={joinRoleOptions}
-              />
-              {newTokenState.roles.some(i => i.value === 'Bot') && ( // if Bot is included, we must get a bot name as well
-                <FieldInput
-                  label="Bot name"
-                  toolTipContent="Bot names are required when the Bot role is selected"
-                  rule={requiredField('Bot name is required')}
-                  placeholder="Enter bot name"
-                  value={newTokenState.bot_name}
-                  onChange={e => setTokenField('bot_name', e.target.value)}
-                />
-              )}
-              {newTokenState.method.value === 'iam' && (
-                <JoinTokenIAMForm
-                  tokenState={newTokenState}
-                  onUpdateState={newState => setNewTokenState(newState)}
-                />
-              )}
-              {newTokenState.method.value === 'gcp' && (
-                <JoinTokenGCPForm
-                  tokenState={newTokenState}
-                  onUpdateState={newState => setNewTokenState(newState)}
-                />
-              )}
-              {newTokenState.method.value === 'oracle' && (
-                <JoinTokenOracleForm
-                  tokenState={newTokenState}
-                  onUpdateState={newState => setNewTokenState(newState)}
-                />
-              )}
-              {newTokenState.method.value === 'github' && (
-                <JoinTokenGithubForm
-                  tokenState={newTokenState}
-                  onUpdateState={setNewTokenState}
-                />
-              )}
-              <Flex
-                mt={4}
-                py={4}
-                gap={2}
-                css={`
-                  position: sticky;
-                  bottom: 0;
-                  background: ${({ theme }) => theme.colors.levels.sunken};
-                  border-top: 1px solid
-                    ${({ theme }) => theme.colors.spotBackground[1]};
-                `}
-              >
-                <ButtonPrimary
-                  width="100%"
-                  size="large"
-                  textTransform="none"
-                  onClick={() => save(validator)}
-                  disabled={createTokenAttempt.status === 'processing'}
-                >
-                  {editToken ? 'Edit' : 'Create'} Join Token
-                </ButtonPrimary>
-                <ButtonSecondary
-                  width="100%"
-                  textTransform="none"
-                  size="large"
-                  onClick={() => {
-                    reset(validator);
-                    onClose();
-                  }}
-                  disabled={false}
-                >
-                  Cancel
-                </ButtonSecondary>
+      )}
+
+      {parseYAMLAttempt.status === 'error' && (
+        <Alert kind="danger">{parseYAMLAttempt.statusText}</Alert>
+      )}
+
+      {parseYAMLAttempt.status !== 'error' ? (
+        <Flex width="500px">
+          <Box
+            css={`
+              overflow: auto;
+              width: 100%;
+              min-height: 50vh;
+              padding-bottom: 0;
+            `}
+          >
+            <Flex
+              alignItems="center"
+              mb={3}
+              justifyContent="space-between"
+              maxWidth={maxWidth}
+            >
+              <Flex alignItems="center" mr={3}>
+                <HoverTooltip tipContent="Back to Join Tokens">
+                  <ButtonIcon onClick={onClose} mr={2}>
+                    <Cross size="medium" />
+                  </ButtonIcon>
+                </HoverTooltip>
+                <Text typography="h3" fontWeight={400}>
+                  {editToken ? `Edit Token` : 'Create a New Join Token'}
+                </Text>
               </Flex>
-            </Box>
-          )}
-        </Validation>
-      </Box>
-    </Flex>
+
+              {editToken && !hasUnsupportedFields && (
+                <ButtonText
+                  p={2}
+                  onClick={() => {
+                    onClose();
+                    editTokenWithYAML(editToken.id);
+                  }}
+                >
+                  <Text color="buttons.link.default">Use YAML editor</Text>
+                </ButtonText>
+              )}
+            </Flex>
+
+            {hasUnsupportedFields ? (
+              <Info alignItems="flex-start">
+                <Text>
+                  This token has configuration that is not visible. To edit this
+                  token please use the YAML editor.
+                </Text>
+                <ButtonSecondary
+                  size="large"
+                  my={2}
+                  onClick={() => {
+                    onClose();
+                    editTokenWithYAML(editToken.id);
+                  }}
+                >
+                  Use YAML editor
+                </ButtonSecondary>
+              </Info>
+            ) : undefined}
+
+            <Validation>
+              {({ validator }) => (
+                <Box maxWidth={maxWidth}>
+                  {createTokenAttempt.status === 'error' && (
+                    <Alert kind="danger">{createTokenAttempt.statusText}</Alert>
+                  )}
+                  {!editToken && ( // We only want to change the method when creating a new token
+                    <FieldSelect
+                      label="Method"
+                      rule={requiredField<Option>('Select a join method')}
+                      isSearchable
+                      isClearable={false}
+                      value={newTokenState.method}
+                      onChange={setTokenMethod}
+                      options={availableJoinMethods}
+                    />
+                  )}
+                  {newTokenState.method.value !== 'token' && ( // if the method is token, we generate the name for them on the backend
+                    <FieldInput
+                      label="Token name"
+                      data-testid="name_field"
+                      toolTipContent={
+                        editToken ? 'Editing token names is not supported.' : ''
+                      }
+                      rule={requiredField('Token name is required')}
+                      placeholder={`${newTokenState.method.value}-token-name`}
+                      autoFocus
+                      value={newTokenState.name}
+                      onChange={e => setTokenField('name', e.target.value)}
+                      readonly={!!editToken}
+                    />
+                  )}
+                  <FieldSelect
+                    label="Join Roles"
+                    inputId="role_select"
+                    rule={requiredField('At least one role is required')}
+                    placeholder="Click to select roles"
+                    isSearchable
+                    isMulti
+                    mb={5}
+                    isClearable={false}
+                    value={newTokenState.roles}
+                    onChange={setTokenRoles}
+                    options={joinRoleOptions}
+                    isDisabled={hasUnsupportedFields}
+                  />
+                  {newTokenState.roles.some(i => i.value === 'Bot') && ( // if Bot is included, we must get a bot name as well
+                    <FieldInput
+                      label="Bot name"
+                      toolTipContent="Bot names are required when the Bot role is selected"
+                      rule={requiredField('Bot name is required')}
+                      placeholder="Enter bot name"
+                      value={newTokenState.bot_name}
+                      onChange={e => setTokenField('bot_name', e.target.value)}
+                      readonly={hasUnsupportedFields}
+                    />
+                  )}
+                  {newTokenState.method.value === 'iam' && (
+                    <JoinTokenIAMForm
+                      tokenState={newTokenState}
+                      onUpdateState={newState => setNewTokenState(newState)}
+                      readonly={hasUnsupportedFields}
+                    />
+                  )}
+                  {newTokenState.method.value === 'gcp' && (
+                    <JoinTokenGCPForm
+                      tokenState={newTokenState}
+                      onUpdateState={newState => setNewTokenState(newState)}
+                      readonly={hasUnsupportedFields}
+                    />
+                  )}
+                  {newTokenState.method.value === 'oracle' && (
+                    <JoinTokenOracleForm
+                      tokenState={newTokenState}
+                      onUpdateState={newState => setNewTokenState(newState)}
+                      readonly={hasUnsupportedFields}
+                    />
+                  )}
+                  {newTokenState.method.value === 'github' && (
+                    <JoinTokenGithubForm
+                      tokenState={newTokenState}
+                      onUpdateState={setNewTokenState}
+                      readonly={hasUnsupportedFields}
+                    />
+                  )}
+                  <Flex
+                    mt={4}
+                    py={4}
+                    gap={2}
+                    css={`
+                      position: sticky;
+                      bottom: 0;
+                      background: ${({ theme }) => theme.colors.levels.sunken};
+                      border-top: 1px solid
+                        ${({ theme }) => theme.colors.spotBackground[1]};
+                    `}
+                  >
+                    <ButtonPrimary
+                      width="100%"
+                      size="large"
+                      textTransform="none"
+                      onClick={() => save(validator)}
+                      disabled={
+                        createTokenAttempt.status === 'processing' ||
+                        hasUnsupportedFields
+                      }
+                    >
+                      {editToken ? 'Edit' : 'Create'} Join Token
+                    </ButtonPrimary>
+                    <ButtonSecondary
+                      width="100%"
+                      textTransform="none"
+                      size="large"
+                      onClick={() => {
+                        reset(validator);
+                        onClose();
+                      }}
+                      disabled={false}
+                    >
+                      Cancel
+                    </ButtonSecondary>
+                  </Flex>
+                </Box>
+              )}
+            </Validation>
+          </Box>
+        </Flex>
+      ) : undefined}
+    </>
   );
+};
+
+const checkYAMLData = (
+  data: unknown
+): data is {
+  object: {
+    spec: {
+      join_method: string;
+      allow: unknown;
+      gcp: unknown;
+      github: unknown;
+    };
+  };
+} => {
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    data === null ||
+    !('object' in data)
+  ) {
+    return false;
+  }
+
+  const { object } = data;
+
+  if (
+    !object ||
+    typeof object !== 'object' ||
+    object === null ||
+    !('spec' in object)
+  ) {
+    return false;
+  }
+
+  const { spec } = object;
+
+  if (
+    !spec ||
+    typeof spec !== 'object' ||
+    spec === null ||
+    !('join_method' in spec)
+  ) {
+    return false;
+  }
+
+  return typeof spec.join_method === 'string';
 };
 
 export const RuleBox = styled(Box)`

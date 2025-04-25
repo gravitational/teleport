@@ -22,6 +22,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
 
+import { collectKeys } from './collectKeys';
 import {
   AllowOption,
   NewJoinTokenState,
@@ -31,9 +32,11 @@ import {
 export const JoinTokenIAMForm = ({
   tokenState,
   onUpdateState,
+  readonly,
 }: {
   tokenState: NewJoinTokenState;
   onUpdateState: (newToken: NewJoinTokenState) => void;
+  readonly: boolean;
 }) => {
   const rules = tokenState.iam;
 
@@ -104,6 +107,7 @@ export const JoinTokenIAMForm = ({
             onChange={e =>
               setTokenRulesField(index, 'aws_account', e.target.value)
             }
+            readonly={readonly}
           />
           <FieldInput
             label="ARN"
@@ -111,6 +115,7 @@ export const JoinTokenIAMForm = ({
             placeholder="arn:aws:iam::account-id:role/*"
             value={rule.aws_arn}
             onChange={e => setTokenRulesField(index, 'aws_arn', e.target.value)}
+            readonly={readonly}
           />
         </RuleBox>
       ))}
@@ -122,12 +127,21 @@ export const JoinTokenIAMForm = ({
   );
 };
 
+export const checkIAMYAMLData = (data: unknown) => {
+  const keys = collectKeys(data);
+  return (
+    !keys || new Set(keys).isSubsetOf(new Set(['.aws_account', '.aws_arn']))
+  );
+};
+
 export const JoinTokenGCPForm = ({
   tokenState,
   onUpdateState,
+  readonly,
 }: {
   tokenState: NewJoinTokenState;
   onUpdateState: (newToken: NewJoinTokenState) => void;
+  readonly: boolean;
 }) => {
   const rules = tokenState.gcp;
   function removeRule(index: number) {
@@ -198,6 +212,7 @@ export const JoinTokenGCPForm = ({
             value={rule.project_ids}
             label="Add Project ID(s)"
             rule={requiredField('At least 1 Project ID required')}
+            isDisabled={readonly}
           />
           <FieldSelectCreatable
             placeholder="us-west1, us-east1-a"
@@ -210,6 +225,7 @@ export const JoinTokenGCPForm = ({
             value={rule.locations}
             label="Add Locations"
             helperText="Allows regions and/or zones."
+            isDisabled={readonly}
           />
           <FieldSelectCreatable
             placeholder="PROJECT_compute@developer.gserviceaccount.com"
@@ -221,6 +237,7 @@ export const JoinTokenGCPForm = ({
             }
             value={rule.service_accounts}
             label="Add Service Account Emails"
+            isDisabled={readonly}
           />
         </RuleBox>
       ))}
@@ -232,12 +249,28 @@ export const JoinTokenGCPForm = ({
   );
 };
 
+export const checkGCPYAMLData = (data: unknown) => {
+  const keys = collectKeys(data);
+  return (
+    !keys ||
+    new Set(keys).isSubsetOf(
+      new Set([
+        '.allow.project_ids',
+        '.allow.locations',
+        '.allow.service_accounts',
+      ])
+    )
+  );
+};
+
 export const JoinTokenOracleForm = ({
   tokenState,
   onUpdateState,
+  readonly,
 }: {
   tokenState: NewJoinTokenState;
   onUpdateState: (newToken: NewJoinTokenState) => void;
+  readonly: boolean;
 }) => {
   const rules = tokenState.oracle;
   function removeRule(index: number) {
@@ -301,6 +334,7 @@ export const JoinTokenOracleForm = ({
             placeholder="ocid1.tenancy.oc1..<unique ID>"
             value={rule.tenancy}
             onChange={e => updateRuleField(index, 'tenancy', e.target.value)}
+            readonly={readonly}
           />
           <FieldSelectCreatable
             placeholder="ocid1.compartment.oc1..<unique ID>"
@@ -317,6 +351,7 @@ export const JoinTokenOracleForm = ({
             value={rule.parent_compartments}
             label="Add Compartments"
             helperText="Direct parent compartments only, no nested compartments."
+            isDisabled={readonly}
           />
           <FieldSelectCreatable
             placeholder="us-ashburn-1, phx"
@@ -328,6 +363,7 @@ export const JoinTokenOracleForm = ({
             }
             value={rule.regions}
             label="Add Regions"
+            isDisabled={readonly}
           />
         </RuleBox>
       ))}

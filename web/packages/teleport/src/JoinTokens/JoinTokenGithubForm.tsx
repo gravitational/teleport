@@ -29,14 +29,17 @@ import FieldInput from 'shared/components/FieldInput/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import { falsyField, requiredField } from 'shared/components/Validation/rules';
 
+import { collectKeys } from './collectKeys';
 import { NewJoinTokenState } from './UpsertJoinTokenDialog';
 
 export const JoinTokenGithubForm = ({
   tokenState,
   onUpdateState,
+  readonly,
 }: {
   tokenState: NewJoinTokenState;
   onUpdateState: (newToken: NewJoinTokenState) => void;
+  readonly: boolean;
 }) => {
   const { github } = tokenState;
   const { rules } = github;
@@ -121,6 +124,7 @@ export const JoinTokenGithubForm = ({
                 : requiredField('Either repository name or owner is required')
             }
             disabled={!!rule.repository_owner}
+            readonly={readonly}
           />
 
           <Text fontWeight="regular" textAlign="center">
@@ -143,6 +147,7 @@ export const JoinTokenGithubForm = ({
                 : requiredField('Either repository owner or name is required')
             }
             disabled={!!rule.repository}
+            readonly={readonly}
           />
 
           <FieldInput
@@ -150,6 +155,7 @@ export const JoinTokenGithubForm = ({
             placeholder="my-workflow"
             value={rule.workflow}
             onChange={e => updateRuleField(index, 'workflow', e.target.value)}
+            readonly={readonly}
           />
 
           <FieldInput
@@ -159,6 +165,7 @@ export const JoinTokenGithubForm = ({
             onChange={e =>
               updateRuleField(index, 'environment', e.target.value)
             }
+            readonly={readonly}
           />
 
           <Flex fullWidth gap={2}>
@@ -168,6 +175,7 @@ export const JoinTokenGithubForm = ({
               placeholder="ref/heads/main"
               value={rule.ref}
               onChange={e => updateRuleField(index, 'ref', e.target.value)}
+              readonly={readonly}
             />
 
             <FieldSelect
@@ -176,7 +184,7 @@ export const JoinTokenGithubForm = ({
               options={refTypeOptions}
               value={refTypeOptions.find(o => o.value === rule.ref_type)}
               onChange={opts => updateRuleField(index, 'ref_type', opts.value)}
-              isDisabled={!rule.ref}
+              isDisabled={!rule.ref || readonly}
               data-testid="ref-type-select"
             />
           </Flex>
@@ -209,6 +217,7 @@ export const JoinTokenGithubForm = ({
             },
           })
         }
+        readonly={readonly}
       />
 
       <FieldInput
@@ -224,6 +233,7 @@ export const JoinTokenGithubForm = ({
             },
           })
         }
+        readonly={readonly}
       />
 
       <FieldInput
@@ -240,6 +250,7 @@ export const JoinTokenGithubForm = ({
             },
           })
         }
+        readonly={readonly}
       />
     </>
   );
@@ -261,3 +272,20 @@ const RuleBox = styled(Box)`
 
   padding: ${props => props.theme.space[3]}px;
 `;
+
+const supportedFields = new Set([
+  '.enterprise_server_host',
+  '.static_jwks',
+  '.enterprise_slug',
+  '.allow.repository',
+  '.allow.repository_owner',
+  '.allow.workflow',
+  '.allow.environment',
+  '.allow.ref',
+  '.allow.ref_type',
+]);
+
+export const checkGithubYAMLData = (data: unknown) => {
+  const keys = collectKeys(data);
+  return !keys || new Set(keys).isSubsetOf(supportedFields);
+};
