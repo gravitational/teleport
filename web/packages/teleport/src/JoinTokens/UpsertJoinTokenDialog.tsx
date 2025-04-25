@@ -47,7 +47,6 @@ import {
   JoinRole,
   JoinToken,
 } from 'teleport/services/joinToken';
-import { yamlService } from 'teleport/services/yaml';
 
 import 'teleport/services/resources';
 
