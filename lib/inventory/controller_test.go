@@ -1163,13 +1163,21 @@ func TestGoodbye(t *testing.T) {
 	tests := []struct {
 		name            string
 		supportsGoodbye bool
+		deleteResources bool
+		softReload      bool
 	}{
 		{
 			name: "no goodbye",
 		},
 		{
-			name:            "goodbye",
+			name:            "goodbye termination",
+			deleteResources: true,
 			supportsGoodbye: true,
+		},
+		{
+			name:            "goodbye soft-reload",
+			supportsGoodbye: true,
+			softReload:      true,
 		},
 	}
 
@@ -1235,8 +1243,7 @@ func TestGoodbye(t *testing.T) {
 			go func() {
 				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				const deleteResources = true
-				handle.SendGoodbye(ctx, deleteResources)
+				handle.SendGoodbye(ctx, test.deleteResources, test.softReload)
 
 				// After calling the goodbye, we do a little hack by sending a pong
 				// This will allow us to know that this routine is done on the other side of the test
@@ -1281,6 +1288,8 @@ func TestGoodbye(t *testing.T) {
 			// Test validation pt.1: Check if we received a pong
 			if test.supportsGoodbye {
 				require.NotNil(t, receivedGoodbye)
+				require.Equal(t, test.deleteResources, receivedGoodbye.DeleteResources)
+				require.Equal(t, test.softReload, receivedGoodbye.SoftReload)
 			} else {
 				require.Nil(t, receivedGoodbye)
 			}

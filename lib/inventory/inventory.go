@@ -70,12 +70,13 @@ type DownstreamHandle interface {
 	CloseContext() context.Context
 	// Close closes the downstream handle.
 	Close() error
-	// SendGoodbye indicates the downstream half of the connection is terminating. This
-	// has no impact on the health of the inventory control stream, nor does it perform
-	// any clean up of the connection. A Goodbye is merely information so that the
-	// upstream half of the connection may take different actions when the downstream
-	// half of the connection is shutting down for good vs. restarting.
-	SendGoodbye(context.Context, bool) error
+	// SendGoodbye indicates the downstream half of the connection is starting the
+	// termination process. This has no impact on the health of the inventory control
+	// stream, nor does it perform any clean up of the connection.
+	// In case of soft-reloads, the termination process can take up to 30 hours.
+	// The Goodbye message may indicate the reason for the connection termination
+	// (shutdown versus soft-reload).
+	SendGoodbye(context.Context, bool, bool) error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
@@ -433,8 +434,8 @@ func (h *downstreamHandle) Close() error {
 
 // SendGoodbye crafts a goodbye message, save it, waits for a working stream and sends it to the auth.
 // If the downstreamHandle were to reconnect later, the h.autoEmitGoodbye routine would re-emit it.
-func (h *downstreamHandle) SendGoodbye(ctx context.Context, deleteResources bool) error {
-	goodbye := &proto.UpstreamInventoryGoodbye{DeleteResources: deleteResources}
+func (h *downstreamHandle) SendGoodbye(ctx context.Context, deleteResources bool, softReload bool) error {
+	goodbye := &proto.UpstreamInventoryGoodbye{DeleteResources: deleteResources, SoftReload: softReload}
 	h.goodbye.Store(goodbye)
 
 	// Wait for an available stream

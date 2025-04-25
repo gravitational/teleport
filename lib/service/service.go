@@ -6377,7 +6377,7 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	hasChildren := process.forkedTeleportCount.Load() > 0
 	if process.inventoryHandle != nil {
 		deleteResources := !hasChildren
-		if err := process.inventoryHandle.SendGoodbye(ctx, deleteResources); err != nil {
+		if err := process.inventoryHandle.SendGoodbye(ctx, deleteResources, hasChildren); err != nil {
 			process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
 		}
 	}
