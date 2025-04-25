@@ -1,0 +1,138 @@
+---
+title: Configure Automatic Reviews
+description: Describes how to configure Access Monitoring Rules for Automatic Reviews.
+---
+
+Teleport supports automatic reviews of Access Requests for Teleport Roles. This
+feature enables teams to enforce a zero standing privilege policy, while
+still allowing users to receive temporary access without manual approval.
+
+Automatic reviews are configured using Access Monitoring Rules, which can be used
+to evaluate user traits and requested roles to determine if access can be granted
+automatically.
+
+## How it works
+
+Automatic reviews are triggered by Access Monitoring Rules. These rules instruct
+Teleport to monitor specific Access Requests and submit an Access Request Review
+when certain conditions are met. The conditions can be configured based on the
+requested roles, and based on the requesting user's Teleport traits.
+
+Example:
+An Access Monitoring Rule can configure automatic Access Request approval when a
+user with the Teleport traits `team: demo` requests access to the `access` role.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+## Step 1/4. Create Requester Role and User
+
+In this example, we'll first create:
+- A role named `demo-access-request`, which allows requesting access to the
+`access` role.
+- A user named `demo-access-requester`, assigned the above role.
+
+### Role Definition
+
+Create a role configuration file named `demo-role.yaml`:
+```yaml
+# demo-role.yaml
+kind: role
+version: v7
+metadata:
+  name: demo-access-request
+spec:
+  allow:
+    request:
+      roles:
+      - access
+      search_as_roles:
+      - access
+```
+
+Create the role with:
+```sh
+$ tctl create demo-role.yaml
+```
+
+### Create the User
+
+Use the following command to create the user and assign the role:
+```sh
+$ tctl users add --roles=demo-access-request demo-access-requester
+```
+
+Alternatively, you can assign the role after creating the user:
+
+  (!docs/pages/includes/add-role-to-user.mdx role="demo-access-request" user="\`demo-access-requester\`"!)
+
+## Step 2/4. Assign User Traits
+
+To allow automatic review rules to evaluate the requesting user, assign them
+traits via the Teleport Web UI.
+
+1. Go to **Zero Trust Access** -> **Users**
+2. Next to `demo-access-requester`, click **Options** -> **Edit...**
+3. Click **Add user trait**, and set:
+    - Key: `team`
+    - Value: `demo`
+4. Click **Save**
+5. Verify that the user has been updated with the desired trait.
+
+![Edit User Traits](../../../../img/access-controls/automatic-reviews/users-edit.png)
+
+## Step 3/4. Create Access Monitoring Rule
+
+Next, define the automatic review rule via the Teleport Web UI.
+
+1. Go to **Identity Governance** -> **Access Requests** -> **View Access Monitoring Rules**
+2. Click **Create Access Monitoring Rule** -> **Automatic Review Rule**
+3. Configure the rule and set:
+    - **Name of roles to match**: `access`
+    - **User Traits**: `team: demo`
+    - **Review decision**: `APPROVED`
+4. Click **Create Rule**
+
+![Create Automatic Review Rule Editor](../../../../img/access-controls/automatic-reviews/create-automatic-review-rule.png)
+
+This Access Monitoring Rule will ensure that Access Requests for the `access`
+role will be automatically reviewed for approval if the Teleport user traits
+requirements are satisfied. In this case, any user with the traits `team: demo`
+will satisfy the requirement.
+
+## Step 4/4. Verify Automatic Review Rule
+
+To verify the new Access Monitoring Rule, create an Access Request via the Teleport
+Web UI.
+1. Log in as `demo-access-requester`
+2. Go to **Access Requests** and click **New Access Request**
+3. Change the request type from **Resources** to **Roles**
+4. Add the `access` role to the Access Request
+5. Click **Proceed to Request**, then **Submit Request**
+
+![Create Access Request](../../../../img/access-controls/automatic-reviews/create-access-request.png)
+
+At this point, the new Access Request should have been created, automatically
+reviewed, and transitioned into an `APPROVED` state. Navigate **Back to Listings**
+and verify the Access Request status. It might take a second for the review to
+process, so you may have to refresh the page.
+
+![View Access Requests](../../../../img/access-controls/automatic-reviews/view-access-requests.png)
+
+## Troubleshooting
+
+### Conflicting automatic review rules
+
+Automatic review rules can automatically approve or deny access requests based
+on the selected review decision. If an access request meets the conditions for
+both an approval rule and a denial rule, neither rule will be applied.
+
+If you suspect this issue, review your access monitoring rules in the Teleport
+Web UI or by running `tctl get access_monitoring_rules`.
+
+### Resource access requests
+
+Automatic review rules are not currently supported for resource access requests.
+These rules will not be applied to any access requests that include a resource
+other than a role.
