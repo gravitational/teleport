@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 
@@ -300,10 +301,16 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 		return nil, stats, trace.Wrap(err)
 	}
 
+	// group the servers by target health and sort each group, such that
+	// healthy servers are tried before "less healthy" servers.
+	serverGroups := types.GroupByTargetHealth(params.Servers)
+	for _, group := range serverGroups {
+		params.ShuffleFunc(group)
+	}
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
-	for _, server := range params.ShuffleFunc(params.Servers) {
+	for _, server := range slices.Concat(serverGroups...) {
 		stats.attemptedServers++
 		params.Logger.DebugContext(ctx, "Dialing to database service.", "server", server)
 		tlsConfig, err := GetServerTLSConfig(ctx, ServerTLSConfigParams{

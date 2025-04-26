@@ -16,6 +16,12 @@ limitations under the License.
 
 package types
 
+import (
+	"github.com/gravitational/teleport/api/types/compare"
+)
+
+var _ compare.IsEqual[*TargetHealth] = (*TargetHealth)(nil)
+
 // TargetHealthProtocol is the network protocol for a health checker.
 type TargetHealthProtocol string
 
@@ -53,3 +59,31 @@ const (
 	// encountered an internal error (this is a bug).
 	TargetHealthTransitionReasonInternalError TargetHealthTransitionReason = "internal_error"
 )
+
+// IsEqual determines if two target health resources are equivalent to one another.
+func (t *TargetHealth) IsEqual(other *TargetHealth) bool {
+	return deriveTeleportEqualTargetHealth(t, other)
+}
+
+type targetHealthGetter interface {
+	GetTargetHealth() TargetHealth
+}
+
+// GroupByTargetHealth groups the given resources by target health and returns
+// the groups ordered by connection priority.
+func GroupByTargetHealth[T targetHealthGetter](resources []T) [][]T {
+	var (
+		healthy, unhealthy, unknown []T
+	)
+	for _, r := range resources {
+		switch TargetHealthStatus(r.GetTargetHealth().Status) {
+		case TargetHealthStatusHealthy:
+			healthy = append(healthy, r)
+		case TargetHealthStatusUnhealthy:
+			unhealthy = append(unhealthy, r)
+		default:
+			unknown = append(unknown, r)
+		}
+	}
+	return [][]T{healthy, unknown, unhealthy}
+}

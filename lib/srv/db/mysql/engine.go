@@ -34,6 +34,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -495,13 +497,21 @@ func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 		// by creating a TLS connection to the Cloud Proxy port overriding the
 		// MySQL client's connection. MySQL on the default port does not trust
 		// the ephemeral certificate's CA but Cloud Proxy does.
-		host, port, err := net.SplitHostPort(address)
-		if err == nil && port == gcpSQLListenPort {
-			address = net.JoinHostPort(host, gcpSQLProxyListenPort)
-		}
+		address = getGCPTLSAddress(address)
 		tlsDialer := tls.Dialer{Config: tlsConfig}
 		return tlsDialer.DialContext(ctx, network, address)
 	}
+}
+
+// getGCPTLSAddress returns the appropriate address for a Cloud SQL MySQL
+// instance, possibly overriding the default port to instead use the Cloud Proxy
+// port.
+func getGCPTLSAddress(address string) string {
+	host, port, err := net.SplitHostPort(address)
+	if err == nil && port == gcpSQLListenPort {
+		return net.JoinHostPort(host, gcpSQLProxyListenPort)
+	}
+	return address
 }
 
 // FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
@@ -525,3 +535,38 @@ const (
 	// gcpSQLProxyListenPort is the port used by Cloud Proxy for MySQL instances.
 	gcpSQLProxyListenPort = "3307"
 )
+
+// ResolverClients are API clients needed to resolve MySQL endpoints.
+type ResolverClients interface {
+	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+}
+
+// NewEndpointsResolverFunc returns a health check target endpoint resolver.
+func NewEndpointsResolverFunc(ctx context.Context, db types.Database, clients ResolverClients) healthcheck.EndpointsResolverFunc {
+	switch {
+	case db.IsCloudSQL():
+		return newCloudSQLEndpointResolver(db, clients)
+	default:
+		return func(ctx context.Context) ([]string, error) {
+			return []string{db.GetURI()}, nil
+		}
+	}
+}
+
+func newCloudSQLEndpointResolver(db types.Database, clients ResolverClients) healthcheck.EndpointsResolverFunc {
+	return func(ctx context.Context) ([]string, error) {
+		clt, err := clients.GetGCPSQLAdminClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, db, clt)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		if requireSSL {
+			return []string{getGCPTLSAddress(db.GetURI())}, nil
+		}
+		return []string{db.GetURI()}, nil
+	}
+}
