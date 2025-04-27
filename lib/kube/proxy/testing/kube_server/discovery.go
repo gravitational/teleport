@@ -19,6 +19,7 @@
 package kubeserver
 
 import (
+	"cmp"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -67,15 +68,7 @@ func apisDiscovery(crds map[GVP]*CRD) []byte {
 		byGroup[crd.group] = append(byGroup[crd.group], crd)
 	}
 	for _, crds := range byGroup {
-		slices.SortFunc(crds, func(a, b *CRD) int {
-			if a.version < b.version {
-				return -1
-			}
-			if a.version == b.version {
-				return 0
-			}
-			return 1
-		})
+		slices.SortFunc(crds, func(a, b *CRD) int { return cmp.Compare(a.version, b.version) })
 	}
 
 	type (
@@ -122,7 +115,7 @@ func apisDiscovery(crds map[GVP]*CRD) []byte {
 
 func crdDiscovery(crd *CRD) httplib.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-		out := fmt.Sprintf(`{
+		_, err := fmt.Fprintf(w, `{
 			"kind": "APIResourceList",
 			"apiVersion": "v1",
 			"groupVersion": "%s/%s",
@@ -159,7 +152,6 @@ func crdDiscovery(crd *CRD) httplib.HandlerFunc {
 		      }`,
 			crd.group, crd.version, crd.plural, strings.ToLower(crd.kind), crd.namespaced, crd.kind, crd.plural, crd.namespaced, crd.kind,
 		)
-		w.Write([]byte(out))
-		return nil, nil
+		return nil, err
 	}
 }

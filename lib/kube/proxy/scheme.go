@@ -161,7 +161,7 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 
 		// Skip well-known Kubernetes API groups because they are already registered
 		// in the scheme.
-		// TODO(@creack): Remove this. It prevents resources like replicationcontroller from behing registered.
+		// TODO(@creack): Remove this. It prevents resources like replicationcontroller from being registered.
 		// There is more to it though as even when registering here, it doesn't get handlded by the RBAC filters.
 		if _, ok := knownKubernetesGroups[group]; ok {
 			continue

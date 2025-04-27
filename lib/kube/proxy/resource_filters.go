@@ -550,7 +550,6 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 			return hasElemts, true, nil
 		}
 
-		// TODO(@creack): This was hardcoded to CustomResource before, see if that breaks something.
 		r := getKubeResource(d.kind, d.group, d.verb, o)
 		result, err := matchKubernetesResource(
 			r,
