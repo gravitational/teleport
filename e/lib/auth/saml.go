@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
@@ -796,9 +796,9 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	}
 	if len(sshPubKey) > 0 || len(tlsPubKey) > 0 {
 		sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-			keys.AttestationStatementFromProto(request.AttestationStatement), //nolint:staticcheck // SA1019. Check deprecated field that may be set by older clients.
-			keys.AttestationStatementFromProto(request.SshAttestationStatement),
-			keys.AttestationStatementFromProto(request.TlsAttestationStatement),
+			hardwarekey.AttestationStatementFromProto(request.AttestationStatement), //nolint:staticcheck // SA1019. Check deprecated field that may be set by older clients.
+			hardwarekey.AttestationStatementFromProto(request.SshAttestationStatement),
+			hardwarekey.AttestationStatementFromProto(request.TlsAttestationStatement),
 		)
 		sshCert, tlsCert, err := sas.auth.CreateSessionCerts(ctx, &auth.SessionCertsRequest{
 			UserState:               userState,

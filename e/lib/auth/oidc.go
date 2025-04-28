@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -712,9 +712,9 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	}
 	if len(sshPubKey) > 0 || len(tlsPubKey) > 0 {
 		sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-			keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-			keys.AttestationStatementFromProto(req.SshAttestationStatement),
-			keys.AttestationStatementFromProto(req.TlsAttestationStatement),
+			hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+			hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
+			hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
 		)
 		sshCert, tlsCert, err := oas.auth.CreateSessionCerts(ctx, &auth.SessionCertsRequest{
 			UserState:               userState,

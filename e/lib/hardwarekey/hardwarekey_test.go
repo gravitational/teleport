@@ -18,6 +18,7 @@ import (
 
 	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 type mockAttestationServer struct {
@@ -112,9 +113,9 @@ func TestAttestHardwareKey(t *testing.T) {
 
 			// If fake attestation data is provided, provide an empty yubikey attestation statement
 			// to force "attestYubikey" to be called.
-			var attestationStatement *keys.AttestationStatement
+			var attestationStatement *hardwarekey.AttestationStatement
 			if tt.attestationData != nil {
-				attestationStatement = &keys.AttestationStatement{
+				attestationStatement = &hardwarekey.AttestationStatement{
 					AttestationStatement: &attestation.AttestationStatement_YubikeyAttestationStatement{},
 				}
 			}

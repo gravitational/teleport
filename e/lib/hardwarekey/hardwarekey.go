@@ -35,7 +35,31 @@ func attestYubikey(att *attestation.YubiKeyAttestationStatement) (*keys.Attestat
 
 	return &keys.AttestationData{
 		PublicKeyDER:     pubDER,
-		PrivateKeyPolicy: keys.GetPrivateKeyPolicyFromAttestation(attestation),
+		PrivateKeyPolicy: getPrivateKeyPolicyFromAttestation(attestation),
 		SerialNumber:     attestation.Serial,
 	}, nil
+}
+
+// getPrivateKeyPolicyFromAttestation returns the PrivateKeyPolicy satisfied by the given hardware key attestation.
+func getPrivateKeyPolicyFromAttestation(att *piv.Attestation) keys.PrivateKeyPolicy {
+	if att == nil {
+		return keys.PrivateKeyPolicyNone
+	}
+
+	isTouchPolicy := att.TouchPolicy == piv.TouchPolicyCached ||
+		att.TouchPolicy == piv.TouchPolicyAlways
+
+	isPINPolicy := att.PINPolicy == piv.PINPolicyOnce ||
+		att.PINPolicy == piv.PINPolicyAlways
+
+	switch {
+	case isPINPolicy && isTouchPolicy:
+		return keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
+	case isPINPolicy:
+		return keys.PrivateKeyPolicyHardwareKeyPIN
+	case isTouchPolicy:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyHardwareKey
+	}
 }

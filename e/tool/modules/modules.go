@@ -17,10 +17,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
-	"github.com/gravitational/teleport/e/lib/hardwarekey"
+	ehardwarekey "github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -196,14 +197,14 @@ func (p *enterpriseModules) IsBoringBinary() bool {
 
 // AttestHardwareKey attests a hardware key, either with the given statement or
 // previously stored attestation data matching the given public key.
-func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI interface{}, att *keys.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
+func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI interface{}, att *hardwarekey.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
 	// serverI is passed as a plain interface{} to make it more cryptic,
 	// and therefore difficult for OSS users to implement themselves 😈
-	server, ok := serverI.(hardwarekey.AttestationServer)
+	server, ok := serverI.(ehardwarekey.AttestationServer)
 	if !ok {
 		return nil, trace.BadParameter("Received unexpected server interface of type %T", serverI)
 	}
-	return hardwarekey.AttestHardwareKey(ctx, server, att, pub, sessionTTL)
+	return ehardwarekey.AttestHardwareKey(ctx, server, att, pub, sessionTTL)
 }
 
 func (p *enterpriseModules) GenerateAccessRequestPromotions(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessRequest types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {

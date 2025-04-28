@@ -11,6 +11,7 @@ import (
 
 	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 )
 
 // AttestationServer is used to store and retrieve attestation data in the backend.
@@ -23,7 +24,7 @@ type AttestationServer interface {
 
 // AttestHardwareKey attests a hardware key, either with the given statement or a
 // previously stored attestation data matching the given public key.
-func AttestHardwareKey(ctx context.Context, server AttestationServer, attestation *keys.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
+func AttestHardwareKey(ctx context.Context, server AttestationServer, attestation *hardwarekey.AttestationStatement, pub crypto.PublicKey, sessionTTL time.Duration) (*keys.AttestationData, error) {
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -61,7 +62,7 @@ func AttestHardwareKey(ctx context.Context, server AttestationServer, attestatio
 
 // attestHardwareKey performs attestation using the given attestation statement,
 // and returns verified attestation data.
-func attestHardwareKey(att *keys.AttestationStatement) (*keys.AttestationData, error) {
+func attestHardwareKey(att *hardwarekey.AttestationStatement) (*keys.AttestationData, error) {
 	protoReq := att.ToProto()
 	switch protoReq.GetAttestationStatement().(type) {
 	case *attestation.AttestationStatement_YubikeyAttestationStatement:
