@@ -141,6 +141,9 @@ additional is performed by the custom task, it would appear merely referencing
 the service connection is sufficient. We would need to publish a custom task in
 order to leverage this functionality.
 
+The type of the service connection appears to impact the type of ID token that
+is returned.
+
 When using a Service Connection of the Generic type, we instead get the
 following claims:
 
