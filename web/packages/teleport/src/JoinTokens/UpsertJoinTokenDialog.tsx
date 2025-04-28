@@ -214,8 +214,10 @@ export const UpsertJoinTokenDialog = ({
   );
 
   const [createTokenAttempt, runCreateTokenAttempt] = useAsync(
-    async (req: CreateJoinTokenRequest) => {
-      const token = await ctx.joinTokenService.createJoinToken(req);
+    async (req: CreateJoinTokenRequest, isEdit: boolean) => {
+      const token = isEdit
+        ? await ctx.joinTokenService.upsertJoinToken(req, editToken.id)
+        : await ctx.joinTokenService.createJoinToken(req);
       updateTokenList(token);
       onClose();
     }
@@ -338,7 +340,7 @@ export const UpsertJoinTokenDialog = ({
       request.github = github;
     }
 
-    runCreateTokenAttempt(request);
+    runCreateTokenAttempt(request, !!editToken);
   }
 
   function setTokenRoles(roles: OptionJoinRole[]) {

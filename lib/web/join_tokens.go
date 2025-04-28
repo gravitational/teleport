@@ -184,29 +184,43 @@ type upsertTokenHandleRequest struct {
 	Name string `json:"name"`
 }
 
-func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	// if using the PUT route, tokenId will be present
-	// in the X-Teleport-TokenName header
-	editing := r.Method == "PUT"
-	tokenId := r.Header.Get(HeaderTokenName)
-	if editing && tokenId == "" {
-		return nil, trace.BadParameter("requires a token name to edit")
-	}
-
+func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	var req upsertTokenHandleRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if editing && tokenId != req.Name {
-		return nil, trace.BadParameter("renaming tokens is not supported")
+	var tokenId string
+	if r.Method == "PUT" {
+		// if using the PUT route, tokenId will be present
+		// in the X-Teleport-TokenName header
+		tokenId = r.Header.Get(HeaderTokenName)
+
+		if tokenId != "" && tokenId != req.Name {
+			return nil, trace.BadParameter("renaming tokens is not supported")
+		}
+	} else {
+		tokenId = req.Name
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var existingToken types.ProvisionToken
+	if tokenId != "" {
+		existingToken, err = clt.GetToken(r.Context(), tokenId)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	var expires time.Time
 	switch req.JoinMethod {
-	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle:
-		// IAM, GCP, and Oracle tokens should never expire.
-		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+		// IAM, GCP, Oracle and GitHub tokens should never expire.
+		expires = time.Time{}
 	default:
 		// Set expires time to default node join token TTL.
 		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
@@ -226,9 +240,9 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If this is an edit, then overwrite the metadata to retain the existing fields
+	if existingToken != nil {
+		token.SetMetadata(existingToken.GetMetadata())
 	}
 
 	err = clt.UpsertToken(r.Context(), token)
@@ -246,7 +260,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 // createTokenForDiscoveryHandle creates tokens used during guided discover flows.
 // V2 endpoint processes "suggestedLabels" field.
-func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -288,9 +302,18 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 		}
 
 		// IAM tokens should 'never' expire
-		expires = time.Now().UTC().AddDate(1000, 0, 0)
+		expires = time.Time{}
+	case types.JoinMethodGitHub:
+		// GitHub tokens should 'never' expire
+		expires = time.Time{}
+	case types.JoinMethodOracle:
+		// Oracle tokens should 'never' expire
+		expires = time.Time{}
+	case types.JoinMethodGCP:
+		// GCP tokens should 'never' expire
+		expires = time.Time{}
 	case types.JoinMethodAzure:
-		tokenName, err := generateAzureTokenName(req.Azure.Allow)
+		tokenName, err = generateAzureTokenName(req.Azure.Allow)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -317,11 +340,14 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 			}, nil
 		}
 	default:
+		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+	}
+
+	if tokenName == "" {
 		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
 	// If using the automatic method to add a Node, the `install.sh` will add the token's suggested labels

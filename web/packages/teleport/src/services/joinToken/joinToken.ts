@@ -22,7 +22,12 @@ import api from 'teleport/services/api';
 import { makeLabelMapOfStrArrs } from '../agents/make';
 import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import makeJoinToken from './makeJoinToken';
-import { JoinRule, JoinToken, JoinTokenRequest } from './types';
+import {
+  CreateJoinTokenRequest,
+  JoinRule,
+  JoinToken,
+  JoinTokenRequest,
+} from './types';
 
 const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
@@ -93,8 +98,16 @@ class JoinTokenService {
       .then(makeJoinToken);
   }
 
-  createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
+  async createJoinToken(req: CreateJoinTokenRequest) {
     return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
+  }
+
+  async upsertJoinToken(req: CreateJoinTokenRequest, tokenName: string) {
+    const json = await api.putWithHeaders(cfg.getJoinTokensUrl(), req, {
+      [TeleportTokenNameHeader]: tokenName,
+      'Content-Type': 'application/json',
+    });
+    return makeJoinToken(json);
   }
 
   fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
