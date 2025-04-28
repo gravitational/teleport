@@ -417,6 +417,186 @@ func TestDeleteToken(t *testing.T) {
 	require.Empty(t, cmp.Diff(resp.Items, []ui.JoinToken{staticUIToken}, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 }
 
+func TestEditToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	username := "test-user@example.com"
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, nil /* roles */)
+
+	// Setup an existing token
+	spec := types.ProvisionTokenSpecV2{
+		Roles:      types.SystemRoles{types.RoleBot},
+		BotName:    "test-bot",
+		JoinMethod: types.JoinMethodGitHub,
+
+		GitHub: &types.ProvisionTokenSpecV2GitHub{
+			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+				{
+					Repository: "gravitational/teleport",
+				},
+			},
+		},
+	}
+	token, err := types.NewProvisionTokenFromSpec("github-test-token", time.Time{}, spec)
+	require.NoError(t, err)
+	token.SetLabels(map[string]string{
+		"test-key": "test-value",
+	})
+	err = env.server.Auth().CreateToken(ctx, token)
+	require.NoError(t, err)
+
+	// Make a simple edit
+	spec.BotName = "test-bot_EDITED"
+	data := struct {
+		types.ProvisionTokenSpecV2
+		Name string `json:"name"`
+	}{
+		ProvisionTokenSpecV2: spec,
+		Name:                 "github-test-token",
+	}
+	endpointV1 := pack.clt.Endpoint("v1", "webapi", "tokens")
+	_, err = pack.clt.PostJSON(ctx, endpointV1, data)
+	require.NoError(t, err)
+
+	// Fetch the token and compare
+	editedToken, err := env.server.Auth().GetToken(ctx, "github-test-token")
+	require.NoError(t, err)
+	require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
+	require.Equal(t, map[string]string{
+		"test-key": "test-value",
+	}, editedToken.GetMetadata().Labels)
+}
+
+func TestCreateTokenExpiry(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	username := "test-user@example.com"
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, nil /* roles */)
+
+	for _, method := range types.JoinMethods {
+		t.Run(string(method), func(t *testing.T) {
+			// Skip enterprise-only methods
+			if method == types.JoinMethodTPM || method == types.JoinMethodSpacelift {
+				t.Skipf("Skipping %s, as it's enterprise-only", method)
+			}
+
+			spec := types.ProvisionTokenSpecV2{
+				Roles:      []types.SystemRole{types.RoleNode},
+				JoinMethod: method,
+			}
+			setMinimalConfigForMethod(&spec, method)
+
+			var expectedExpiry time.Time
+			switch method {
+			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+				expectedExpiry = time.Time{}
+			default:
+				expectedExpiry = time.Now().UTC().Add(4 * time.Hour)
+			}
+
+			endpointV1 := pack.clt.Endpoint("v1", "webapi", "tokens")
+			re, err := pack.clt.PostJSON(ctx, endpointV1, spec)
+			require.NoError(t, err)
+
+			resp := nodeJoinToken{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.Equal(t, method, resp.Method)
+			require.WithinDuration(t, expectedExpiry, resp.Expiry, 100*time.Millisecond)
+		})
+	}
+}
+
+func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.JoinMethod) {
+	switch method {
+	case types.JoinMethodIAM, types.JoinMethodEC2:
+		spec.Allow = []*types.TokenRule{
+			{
+				AWSAccount: "test-account",
+			},
+		}
+	case types.JoinMethodAzure:
+		spec.Azure = &types.ProvisionTokenSpecV2Azure{
+			Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "test-sub",
+				},
+			},
+		}
+	case types.JoinMethodBitbucket:
+		spec.Bitbucket = &types.ProvisionTokenSpecV2Bitbucket{
+			Audience:            "test-audience",
+			IdentityProviderURL: "test-identity-provider-url",
+			Allow: []*types.ProvisionTokenSpecV2Bitbucket_Rule{
+				{
+					WorkspaceUUID: "test-workspace-uuid",
+				},
+			},
+		}
+	case types.JoinMethodOracle:
+		spec.Oracle = &types.ProvisionTokenSpecV2Oracle{
+			Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+				{
+					Tenancy: "ocid1.tenancy.oc1..test",
+				},
+			},
+		}
+	case types.JoinMethodTerraformCloud:
+		spec.TerraformCloud = &types.ProvisionTokenSpecV2TerraformCloud{
+			Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+				{
+					OrganizationID: "test-org-id",
+					ProjectID:      "test-proj-id",
+				},
+			},
+		}
+	case types.JoinMethodKubernetes:
+		spec.Kubernetes = &types.ProvisionTokenSpecV2Kubernetes{
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{
+					ServiceAccount: "test:service-account",
+				},
+			},
+		}
+	case types.JoinMethodGitLab:
+		spec.GitLab = &types.ProvisionTokenSpecV2GitLab{
+			Allow: []*types.ProvisionTokenSpecV2GitLab_Rule{
+				{
+					Sub: "test-sub",
+				},
+			},
+		}
+	case types.JoinMethodGitHub:
+		spec.GitHub = &types.ProvisionTokenSpecV2GitHub{
+			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+				{
+					Sub: "test-sub",
+				},
+			},
+		}
+	case types.JoinMethodGCP:
+		spec.GCP = &types.ProvisionTokenSpecV2GCP{
+			Allow: []*types.ProvisionTokenSpecV2GCP_Rule{
+				{
+					ProjectIDs: []string{"test-project-id"},
+				},
+			},
+		}
+	case types.JoinMethodCircleCI:
+		spec.CircleCI = &types.ProvisionTokenSpecV2CircleCI{
+			Allow: []*types.ProvisionTokenSpecV2CircleCI_Rule{
+				{
+					ProjectID: "test-project-id",
+				},
+			},
+			OrganizationID: "test-org-id",
+		}
+	}
+}
+
 func TestCreateTokenForDiscovery(t *testing.T) {
 	ctx := context.Background()
 	username := "test-user@example.com"
