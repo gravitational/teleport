@@ -103,6 +103,10 @@ export interface TdpTransport {
 
 type RemoveListenerFn = () => void;
 
+// WASM IronRDP code can only be initialized once; repeated attempts will cause an error.
+// To prevent multiple initializations, we track the initialization status in a global variable.
+let wasmReady: Promise<void> | undefined;
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
@@ -113,7 +117,6 @@ export class TdpClient extends EventEmitter {
   private transportAbortController: AbortController | undefined;
   private sdManager: SharedDirectoryManager;
   private fastPathProcessor: FastPathProcessor | undefined;
-  private wasmReady: Promise<void> | undefined;
 
   private logger = Logger.create('TDPClient');
 
@@ -135,10 +138,10 @@ export class TdpClient extends EventEmitter {
    */
   async connect(spec?: ClientScreenSpec) {
     this.transportAbortController = new AbortController();
-    if (!this.wasmReady) {
-      this.wasmReady = this.initWasm();
+    if (!wasmReady) {
+      wasmReady = this.initWasm();
     }
-    await this.wasmReady;
+    await wasmReady;
 
     try {
       this.transport = await this.getTransport(
