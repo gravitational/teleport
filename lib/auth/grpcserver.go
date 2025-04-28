@@ -432,18 +432,6 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 			var errors []error
 			errors = append(errors, eventStream.RecordEvent(stream.Context(), preparedEvent))
 
-			// v13 clients expect this request to also emit the event, so emit here
-			// just for them.
-			switch event.GetType() {
-			// Don't emit really verbose events.
-			case events.ResizeEvent, events.SessionDiskEvent, events.SessionPrintEvent, events.AppSessionRequestEvent, "":
-			default:
-				clientVersion, versionExists := metadata.ClientVersionFromContext(stream.Context())
-				if versionExists && semver.New(clientVersion).Major <= 13 {
-					errors = append(errors, auth.EmitAuditEvent(stream.Context(), event))
-				}
-			}
-
 			err = trace.NewAggregate(errors...)
 			if err != nil {
 				switch {
@@ -3279,7 +3267,7 @@ func (g *GRPCServer) GetSAMLConnector(ctx context.Context, req *types.ResourceWi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets)
+	sc, err := auth.ServerWithRoles.GetSAMLConnector(ctx, req.Name, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3296,7 +3284,7 @@ func (g *GRPCServer) GetSAMLConnectors(ctx context.Context, req *types.Resources
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets)
+	scs, err := auth.ServerWithRoles.GetSAMLConnectors(ctx, req.WithSecrets, types.SAMLConnectorValidationFollowURLs(!req.SAMLValidationNoFollowURLs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5108,6 +5096,18 @@ func (g *GRPCServer) DeleteUIConfig(ctx context.Context, _ *emptypb.Empty) (*emp
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) defaultInstaller(ctx context.Context) (*types.InstallerV1, error) {
+	_, err := g.AuthServer.GetAutoUpdateAgentRollout(ctx)
+	switch {
+	case trace.IsNotFound(err):
+		return installers.LegacyDefaultInstaller, nil
+	case err != nil:
+		return nil, trace.Wrap(err, "failed to get query autoupdate state to build installer")
+	default:
+		return installers.NewDefaultInstaller, nil
+	}
+}
+
 // GetInstaller retrieves the installer script resource
 func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceRequest) (*types.InstallerV1, error) {
 	auth, err := g.authenticate(ctx)
@@ -5119,7 +5119,7 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 		if trace.IsNotFound(err) {
 			switch req.Name {
 			case installers.InstallerScriptName:
-				return installers.DefaultInstaller, nil
+				return g.defaultInstaller(ctx)
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
 			}
@@ -5144,8 +5144,14 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 		return nil, trace.Wrap(err)
 	}
 	var installersV1 []*types.InstallerV1
+
+	defaultInstaller, err := g.defaultInstaller(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	defaultInstallers := map[string]*types.InstallerV1{
-		installers.InstallerScriptName:          installers.DefaultInstaller,
+		types.DefaultInstallerScriptName:        defaultInstaller,
 		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
 	}
 

@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/protoadapt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -55,6 +56,11 @@ type MarshalConfig struct {
 
 	// Expires is an optional expiry time
 	Expires time.Time
+
+	// DisallowUnknown will, for resources stored in protojson, disallow unknown
+	// fields when unmarshaling. This is useful if a resource is being parsed
+	// from user-specified data rather than persistent cluster state storage.
+	DisallowUnknown bool
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -120,6 +126,16 @@ func WithVersion(v string) MarshalOption {
 		default:
 			return trace.BadParameter("version '%v' is not supported", v)
 		}
+	}
+}
+
+// DisallowUnknown will, for resources stored in protojson, disallow unknown
+// fields when unmarshaling. This is useful if a resource is being parsed
+// from user-specified data rather than persistent cluster state storage.
+func DisallowUnknown() MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.DisallowUnknown = true
+		return nil
 	}
 }
 
@@ -254,6 +270,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateConfig, nil
 	case types.KindAutoUpdateVersion:
 		return types.KindAutoUpdateVersion, nil
+	case types.KindAutoUpdateAgentRollout:
+		return types.KindAutoUpdateAgentRollout, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -666,11 +684,37 @@ func init() {
 		return ap, nil
 	})
 	RegisterResourceUnmarshaler(types.KindBot, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
 		b := &machineidv1pb.Bot{}
-		if err := protojson.Unmarshal(bytes, b); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, b); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(b), nil
+	})
+	RegisterResourceUnmarshaler(types.KindAutoUpdateConfig, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
+		c := &autoupdatev1pb.AutoUpdateConfig{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, c); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(c), nil
+	})
+	RegisterResourceUnmarshaler(types.KindAutoUpdateVersion, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
+		cfg, err := CollectOptions(option)
+		if err != nil {
+			return nil, err
+		}
+		v := &autoupdatev1pb.AutoUpdateVersion{}
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(v), nil
 	})
 }
 
@@ -686,31 +730,6 @@ func CheckAndSetDefaults(r any) error {
 	}
 
 	return nil
-}
-
-// MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
-// if no marshaler has been registered.
-//
-// NOTE: This function only supports the subset of resources which may be imported/exported
-// by users (e.g. via `tctl get`).
-func MarshalResource(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
-	marshal, ok := getResourceMarshaler(resource.GetKind())
-	if !ok {
-		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())
-	}
-	// Handle the case where `resource` was never fully unmarshaled.
-	if r, ok := resource.(*UnknownResource); ok {
-		u, err := UnmarshalResource(r.GetKind(), r.Raw, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resource = u
-	}
-	m, err := marshal(resource, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return m, nil
 }
 
 // UnmarshalResource attempts to unmarshal a resource dynamically, returning NotImplementedError
@@ -730,22 +749,26 @@ func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (types.Re
 	return u, nil
 }
 
+type MetadataWithRawID struct {
+	ID json.RawMessage `json:"id,omitempty"`
+	types.Metadata
+}
+
 // UnknownResource is used to detect resources
 type UnknownResource struct {
-	types.ResourceHeader
+	Kind              string `json:"kind,omitempty"`
+	MetadataWithRawID `json:"metadata,omitempty"`
 	// Raw is raw representation of the resource
-	Raw []byte
+	Raw []byte `json:"-"`
 }
 
 // UnmarshalJSON unmarshals header and captures raw state
 func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
-	var h types.ResourceHeader
-	if err := json.Unmarshal(raw, &h); err != nil {
+	type rawUnknownResource UnknownResource
+	if err := json.Unmarshal(raw, (*rawUnknownResource)(u)); err != nil {
 		return trace.Wrap(err)
 	}
-	u.Raw = make([]byte, len(raw))
-	u.ResourceHeader = h
-	copy(u.Raw, raw)
+	u.Raw = append([]byte(nil), raw...)
 	return nil
 }
 
@@ -847,7 +870,7 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		return nil, trace.Wrap(err)
 	}
 	var resource T = new(U)
-	err = protojson.Unmarshal(data, resource)
+	err = protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}.Unmarshal(data, resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

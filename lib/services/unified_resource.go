@@ -37,9 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds []string = []string{types.KindNode, types.KindKubeServer, types.KindDatabaseServer, types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindWindowsDesktop}
-
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a
@@ -190,7 +187,6 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 	default:
 		return nil, trace.NotImplemented("sorting by %v is not supported in unified resources", sortField)
 	}
-
 }
 
 func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Key, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
@@ -464,7 +460,6 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
-
 }
 
 // getNodes will get all nodes
@@ -556,7 +551,6 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 
 	for {
 		resp, nextKey, err := c.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
-
 		if err != nil {
 			return nil, trace.Wrap(err, "getting SAML apps for unified resource watcher")
 		}
@@ -671,12 +665,14 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 
 // resourceKinds returns a list of resources to be watched.
 func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
-	watchKinds := make([]types.WatchKind, 0, len(UnifiedResourceKinds))
-	for _, kind := range UnifiedResourceKinds {
-		watchKinds = append(watchKinds, types.WatchKind{Kind: kind})
+	return []types.WatchKind{
+		{Kind: types.KindNode},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindSAMLIdPServiceProvider},
 	}
-
-	return watchKinds
 }
 
 func (c *UnifiedResourceCache) defineCollectorAsInitialized() {
@@ -692,23 +688,9 @@ func (i *item) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
 	case *item:
 		return i.Key.Compare(other.Key) < 0
-	case *prefixItem:
-		return !iother.Less(i)
 	default:
 		return false
 	}
-}
-
-// prefixItem is used for prefix matches on a B-Tree
-type prefixItem struct {
-	// prefix is a prefix to match
-	prefix backend.Key
-}
-
-// Less is used for Btree operations
-func (p *prefixItem) Less(iother btree.Item) bool {
-	other := iother.(*item)
-	return !other.Key.HasPrefix(p.prefix)
 }
 
 type resource interface {
@@ -821,7 +803,8 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 								AppServer: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			case *types.SAMLIdPServiceProviderV1:
 				protoResource = &proto.PaginatedResource{
 					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
@@ -830,7 +813,8 @@ func MakePaginatedResources(requestType string, resources []types.ResourceWithLa
 								SAMLIdPServiceProvider: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			default:
 				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}

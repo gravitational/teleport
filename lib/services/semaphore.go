@@ -100,11 +100,11 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 //	 defer cancel()
 //	 ... do work with newCtx ...
 type SemaphoreLock struct {
-	// ctx is the parent context for the lease keepalive operation.
+	// Context is the parent context for the lease keepalive operation.
 	// it's used to propagate deadline cancellations from the parent
 	// context and to carry values for the context interface.
-	ctx       context.Context
-	cancelCtx context.CancelFunc
+	context.Context
+	cancelCtx context.CancelCauseFunc
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
 	retry     retryutils.Retry
@@ -128,31 +128,6 @@ func (l *SemaphoreLock) finish(err error) {
 	l.cond.Broadcast()
 }
 
-// Done signals that lease keepalive operations
-// have stopped.
-// If the parent context is canceled, the lease
-// will be released and done will be closed.
-func (l *SemaphoreLock) Done() <-chan struct{} {
-	return l.ctx.Done()
-}
-
-// Deadline returns the deadline of the parent context if it exists.
-func (l *SemaphoreLock) Deadline() (time.Time, bool) {
-	return l.ctx.Deadline()
-}
-
-// Value returns the value associated with the key in the parent context.
-func (l *SemaphoreLock) Value(key interface{}) interface{} {
-	return l.ctx.Value(key)
-}
-
-// Error returns the final error value.
-func (l *SemaphoreLock) Err() error {
-	l.cond.L.Lock()
-	defer l.cond.L.Unlock()
-	return l.err
-}
-
 // Wait blocks until the final result is available.  Note that
 // this method may block longer than desired since cancellation of
 // the parent context triggers the *start* of the release operation.
@@ -169,7 +144,7 @@ func (l *SemaphoreLock) Wait() error {
 func (l *SemaphoreLock) Stop() {
 	l.closeOnce.Do(func() {
 		l.ticker.Stop()
-		l.cancelCtx()
+		l.cancelCtx(nil)
 	})
 }
 
@@ -179,12 +154,12 @@ func (l *SemaphoreLock) Renewed() <-chan struct{} {
 	return l.renewalC
 }
 
-func (l *SemaphoreLock) keepAlive(ctx context.Context) {
+func (l *SemaphoreLock) keepAlive() {
 	var nodrop bool
 	var err error
 	lease := l.lease0
 	defer func() {
-		l.cancelCtx()
+		l.cancelCtx(err)
 		l.Stop()
 		defer l.finish(err)
 		if nodrop {
@@ -210,7 +185,7 @@ Outer:
 	for {
 		select {
 		case tick := <-l.ticker.Chan():
-			leaseContext, leaseCancel := context.WithDeadline(ctx, lease.Expires)
+			leaseContext, leaseCancel := context.WithDeadline(l.Context, lease.Expires)
 			nextLease := lease
 			nextLease.Expires = tick.Add(l.cfg.Expiry)
 			for {
@@ -253,8 +228,6 @@ Outer:
 					return
 				}
 			}
-		case <-ctx.Done():
-			return
 		case <-l.Done():
 			return
 		}
@@ -308,9 +281,9 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 	lock := &SemaphoreLock{
-		ctx:       ctx,
+		Context:   ctx,
 		cancelCtx: cancel,
 		cfg:       cfg,
 		lease0:    *lease,
@@ -319,7 +292,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 		renewalC:  make(chan struct{}),
 		cond:      sync.NewCond(&sync.Mutex{}),
 	}
-	go lock.keepAlive(ctx)
+	go lock.keepAlive()
 	return lock, nil
 }
 

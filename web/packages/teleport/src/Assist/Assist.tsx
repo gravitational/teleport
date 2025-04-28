@@ -187,10 +187,10 @@ const Container = styled.div<{ docked: boolean }>`
   ${p =>
     p.docked
       ? `top: ${p.theme.topBarHeight[0]}px;
-  @media screen and (min-width: ${p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p.theme.breakpoints.small}) {
     top: ${p.theme.topBarHeight[1]}px;
   }
-  @media screen and (min-width: ${p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p.theme.breakpoints.large}) {
     top: ${p.theme.topBarHeight[2]}px;
   }
   `
@@ -228,10 +228,10 @@ const AssistContainer = styled.div<{ docked: boolean }>`
   ${p =>
     p.docked
       ? `height: calc(100vh - ${p.theme.topBarHeight[0]}px);
-  @media screen and (min-width: ${p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p.theme.breakpoints.small}) {
     height: calc(100vh - ${p.theme.topBarHeight[1]}px);
   }
-  @media screen and (min-width: ${p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p.theme.breakpoints.large}) {
     height: calc(100vh - ${p.theme.topBarHeight[2]}px);
   }
   `

@@ -30,6 +30,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,7 +53,7 @@ func TestMarshalAndParsePrivateKey(t *testing.T) {
 			require.NoError(t, err)
 			gotKey, err := ParsePrivateKey(keyPEM)
 			require.NoError(t, err)
-			require.Equal(t, key, gotKey.Signer)
+			require.Empty(t, cmp.Diff(key, gotKey.Signer), "parsed private key is not equal to the original")
 		})
 	}
 }
@@ -87,7 +89,7 @@ func TestX509KeyPair(t *testing.T) {
 			tlsCert, err := X509KeyPair(tc.certPEM, tc.keyPEM)
 			require.NoError(t, err)
 
-			require.Equal(t, expectCert, tlsCert)
+			require.Empty(t, cmp.Diff(expectCert, tlsCert, cmpopts.IgnoreFields(tls.Certificate{}, "Leaf")))
 		})
 	}
 }

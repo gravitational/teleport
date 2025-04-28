@@ -22,6 +22,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"k8s.io/client-go/rest"
@@ -56,4 +58,38 @@ func (a *AKSMock) ClusterCredentials(ctx context.Context, cfg azure.ClusterCrede
 		}
 	}
 	return nil, time.Now(), trace.NotFound("cluster not found")
+}
+
+// AzureVM generates Azure VM resource.
+func AzureVM(identities []string) armcompute.VirtualMachine {
+	identitiesMap := make(map[string]*armcompute.UserAssignedIdentitiesValue)
+	for _, identity := range identities {
+		identitiesMap[identity] = &armcompute.UserAssignedIdentitiesValue{}
+	}
+
+	return armcompute.VirtualMachine{
+		ID:   to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm"),
+		Name: to.Ptr("vm"),
+		Identity: &armcompute.VirtualMachineIdentity{
+			PrincipalID:            to.Ptr("00000000-0000-0000-0000-000000000000"),
+			UserAssignedIdentities: identitiesMap,
+		},
+	}
+}
+
+// AzureScaleSetVM generates Azure scale set VM resource.
+func AzureScaleSetVM(identities []string) armcompute.VirtualMachineScaleSetVM {
+	identitiesMap := make(map[string]*armcompute.UserAssignedIdentitiesValue)
+	for _, identity := range identities {
+		identitiesMap[identity] = &armcompute.UserAssignedIdentitiesValue{}
+	}
+
+	return armcompute.VirtualMachineScaleSetVM{
+		ID:   to.Ptr("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/vmss/virtualMachines/0"),
+		Name: to.Ptr("vm"),
+		Identity: &armcompute.VirtualMachineIdentity{
+			PrincipalID:            to.Ptr("00000000-0000-0000-0000-000000000000"),
+			UserAssignedIdentities: identitiesMap,
+		},
+	}
 }

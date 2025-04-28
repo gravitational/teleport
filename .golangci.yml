@@ -25,7 +25,6 @@ issues:
       text: "suite-thelper: suite helper method must start with"
       path: 'integrations/.+'
       # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
-    # lib/utils/aws/ subpackages are allowed to use AWS SDK constructors.
     - path: lib/utils/aws/iamutils/iam.go
       linters: [forbidigo]
       text: 'iam.NewFromConfig'
@@ -41,6 +40,46 @@ issues:
     - path: lib/utils/aws/stsutils/stscreds_v1.go
       linters: [forbidigo]
       text: 'stscreds.NewCredentials'
+    # TODO(marco): Remove once we move to grpc.NewClient.
+    - linters: [staticcheck]
+      text: "grpc.Dial is deprecated"
+    - linters: [staticcheck]
+      text: "grpc.DialContext is deprecated"
+    # Deprecated gRPC dial options. Related to grpc.NewClient.
+    - path: (client/client.go|client/proxy/client_test.go) # api/
+      linters: [staticcheck]
+      # grpc.FailOnNonTempDialError
+      # grpc.WithReturnConnectionError
+      text: "this DialOption is not supported by NewClient"
+    - path: lib/kube/grpc/grpc_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: lib/observability/tracing/client.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: integrations/lib/config.go
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
+    - path: lib/service/service_test.go
+      linters: [staticcheck]
+      # grpc.WithReturnConnectionError
+      # grpc.FailOnNonTempDialError
+      text: "this DialOption is not supported by NewClient"
+    - path: integration/client_test.go
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
+    - path: integration/integration_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: lib/multiplexer/multiplexer_test.go
+      linters: [staticcheck]
+      text: "grpc.WithBlock is deprecated"
+    - path: provider/provider.go # integrations/terraform
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
+    - path: integrations/lib/testing/integration/integration.go
+      linters: [staticcheck]
+      text: "grpc.WithReturnConnectionError is deprecated"
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -177,6 +216,10 @@ linters-settings:
         msg: 'Use stsutils.NewV1'
       - p: '^stscreds\.NewCredentials$'
         msg: 'Use stsutils.NewCredentials'
+      - p: '^protojson\.Unmarshal$'
+        msg: "use protojson.UnmarshalOptions and consider enabling DiscardUnknown"
+      - p: '^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$'
+        msg: "use jsonpb.Unmarshaler and consider enabling AllowUnknownFields"
 
 run:
   go: '1.23'

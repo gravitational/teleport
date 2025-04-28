@@ -3,11 +3,12 @@
 To allow IAM Role `{{role1}}` to assume IAM Role `{{role2}}`, the following is
 generally required:
 
-<Details title="1. Configure Trust Relationships on {{role2}}">
+<details>
+<summary>1. Configure Trust Relationships on {{role2}}</summary>
 `{{role1}}` or its AWS account should be set as `Principal` in `{{role2}}`'s trust
 policy.
 <Tabs>
-<TabsItem label="Role as principal">
+<TabItem label="Role as principal">
 ```json
 {
   "Version": "2012-10-17",
@@ -22,8 +23,8 @@ policy.
   ]
 }
 ```
-</TabsItem>
-<TabsItem label="Account as principal">
+</TabItem>
+<TabItem label="Account as principal">
 ```json
 {
   "Version": "2012-10-17",
@@ -38,8 +39,8 @@ policy.
   ]
 }
 ```
-</TabsItem>
-<TabsItem label="Cross-account with external-id">
+</TabItem>
+<TabItem label="Cross-account with external-id">
 ```json
 {
   "Version": "2012-10-17",
@@ -59,12 +60,13 @@ policy.
   ]
 }
 ```
-</TabsItem>
+</TabItem>
 
 </Tabs>
-</Details>
+</details>
 
-<Details title="2. Configure Permissions Policies on {{role1}}">
+<details>
+<summary>2. Configure Permissions Policies on {{role1}}</summary>
 `{{role1}}` requires `sts:AssumeRole` permissions, for example:
 ```json
 {
@@ -83,9 +85,10 @@ Note that this policy can be omitted when `{{role1}}` and `{{role2}}` are in the
 AWS account and `{{role1}}`'s full ARN is configured as Principal in `{{role2}}`'s
 trust policy.
 
-</Details>
+</details>
 
-<Details title="3. Configure Permissions Boundary on {{role1}}">
+<details>
+<summary>3. Configure Permissions Boundary on {{role1}}</summary>
 `{{role1}}` also requires `sts:AssumeRole` permissions in its boundary policy, for
 example:
 
@@ -103,4 +106,4 @@ example:
 ```
 
 Note that this is only required when a boundary policy is attached to `{{role1}}`.
-</Details>
+</details>

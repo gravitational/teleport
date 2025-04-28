@@ -70,12 +70,12 @@ a demo cluster using:
    directory so the Terraform provider can access it. Name the file
    `terraform-identity`.
    
-   <Notice type="warning">
+   <Admonition type="warning">
    
    If you don't have an identity file available, make sure you have followed the
    [prerequisites for this guide](#prerequisites).
    
-   </Notice>
+   </Admonition>
 
 1. Fetch the Teleport code repository and copy the example Terraform
    configuration for this project into your current working directory. Copy
@@ -223,11 +223,11 @@ Edit the `module "teleport"` block in `main.tf` as follows:
 1. Assign `proxy_service_address` to the host and HTTPS port of your Teleport
    Proxy Service, e.g., `mytenant.teleport.sh:443`.
 
-   <Notice type="tip">
+   <Admonition type="tip">
    
    Make sure to include the port.
    
-   </Notice>
+   </Admonition>
 
 1. Make sure `teleport_edition` matches your Teleport edition. Assign this to
    `oss`, `cloud`, or `enterprise`. The default is `oss`.

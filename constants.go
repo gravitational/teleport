@@ -290,7 +290,13 @@ const (
 	// ComponentAssist represents Teleport Assist
 	ComponentAssist = "assist"
 
-	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
+	// ComponentUpdater represents the teleport-update binary.
+	ComponentUpdater = "updater"
+
+	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
+	ComponentRolloutController = "rollout-controller"
+
+	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
 	// IterationsEnvVar sets tests iterations to run
@@ -382,6 +388,10 @@ const (
 
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
+
+	// S3CompleteInitiators is an optional allow list which configures the upload completer
+	// to only complete uploads from the specified set of initiators.
+	S3CompleteInitiators = "complete_initiators"
 
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"

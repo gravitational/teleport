@@ -334,7 +334,7 @@ func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName
 		_ = conn.Close(ctx)
 	})
 	return &pgConn{
-		logger: utils.NewSlogLoggerForTests(),
+		logger: utils.NewSlogLoggerForTests().With("test_name", t.Name()),
 		Conn:   conn,
 	}
 }

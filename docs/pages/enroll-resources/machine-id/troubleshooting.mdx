@@ -271,7 +271,7 @@ $ nano db-role.yaml
 $ tctl create -f db-role.yaml
 ```
 
-<Notice type="note">
+<Admonition type="note">
 By default, outputs (like `/opt/machine-id`) are granted all roles provided
 to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
 subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
@@ -279,7 +279,7 @@ subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
 If permissions are unexpectedly missing, ensure `tbot.yaml` requests your
 database role, either by relying on default behavior or adding the role to the
 `roles: ...` list.
-</Notice>
+</Admonition>
 
 Once fixed, restart or reload the `tbot` clients for the updated role to take
 effect.

@@ -65,7 +65,7 @@ import (
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
@@ -3458,6 +3458,7 @@ func TestTokenGeneration(t *testing.T) {
 
 func TestInstallDatabaseScriptGeneration(t *testing.T) {
 	const username = "test-user@example.com"
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildCommunity})
 
 	// Users should be able to create Tokens even if they can't update them
 	roleTokenCRD, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
@@ -7864,7 +7865,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	}
 
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
-		TransportCredentials: credentials.NewTLS(tlscfg),
+		TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlscfg),
 		UserGetter: &auth.Middleware{
 			ClusterName: authServer.ClusterName(),
 		},
@@ -8009,9 +8010,9 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		},
 	)
 	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
+	handler.handler.cfg.PublicProxyAddr = webServer.Listener.Addr().String()
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
-	handler.handler.cfg.PublicProxyAddr = url.String()
 
 	return &testProxy{
 		clock:   clock,
@@ -8894,7 +8895,7 @@ func TestForwardingTraces(t *testing.T) {
 				require.Len(t, spans, 1)
 
 				var data tracepb.TracesData
-				require.NoError(t, protojson.Unmarshal([]byte(rawSpan), &data))
+				require.NoError(t, protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal([]byte(rawSpan), &data))
 
 				// compare the spans, but ignore the ids since we know that the rawSpan
 				// has hex encoded ids and protojson.Unmarshal will give us an invalid value
@@ -9056,7 +9057,7 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 
 	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName)
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
-		TransportCredentials: credentials.NewTLS(tlsConf),
+		TransportCredentials: expcredentials.NewTLSWithALPNDisabled(tlsConf),
 		UserGetter:           authMiddleware,
 	})
 	require.NoError(t, err)
@@ -10033,4 +10034,89 @@ func TestUnstartedServerShutdown(t *testing.T) {
 
 	// Shutdown the server before starting it shouldn't panic.
 	require.NoError(t, srv.Shutdown(context.Background()))
+}
+
+// TestPingWithSAMLURL asserts that /webapi/ping and other endpoints necessary
+// for local user login return successfully even when a SAML connector is
+// configured with an entity descriptor URL that hangs when requested.
+func TestPingWithSAMLURL(t *testing.T) {
+	t.Parallel()
+
+	const entityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+                  entityID="https://test-idp.example.com/metadata">
+  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+        <KeyName>test-signing-key</KeyName>
+        <X509Data>
+          <X509Certificate></X509Certificate>
+        </X509Data>
+      </KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService
+        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+        Location="https://test-idp.example.com/sso"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>`
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start an HTTP server to serve the SAML entity descriptor. At first it
+	// needs to not hang and return a valid response so that the test can upsert
+	// the SAML connector.
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	requestShouldHang := false
+	httpServer := &http.Server{
+		Addr: l.Addr().String(),
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if requestShouldHang {
+				<-r.Context().Done()
+			}
+			w.Write([]byte(entityDescriptor))
+		}),
+	}
+	serverErr := make(chan error)
+	go func() {
+		if err := httpServer.Serve(l); !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+		serverErr <- nil
+	}()
+	t.Cleanup(func() {
+		httpServer.Close()
+		assert.NoError(t, <-serverErr, "HTTP server exited with error during test cleanup")
+	})
+
+	// Upsert the test SAML connector.
+	connector, err := types.NewSAMLConnector("test-idp", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "test-idp.example.com/acs",
+		EntityDescriptorURL:      "http://" + l.Addr().String() + "/metadata",
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "roles", Value: "^(.*)$", Roles: []string{"$1"}},
+		},
+	})
+	require.NoError(t, err)
+	pack := newWebPack(t, 1)
+	_, err = pack.server.Auth().CreateSAMLConnector(ctx, connector)
+	require.NoError(t, err)
+
+	// Set the HTTP server to start hanging requests for the entity descriptor.
+	requestShouldHang = true
+	clt := pack.proxies[0].newClient(t)
+	for _, endpoint := range []string{
+		clt.Endpoint("webapi", "ping"),
+		clt.Endpoint("webapi", "ping", connector.GetName()),
+		clt.Endpoint("web", "config.js"),
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			// Requests for the URL should succeed quickly.
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			_, err := clt.Get(ctx, endpoint, nil)
+			assert.NoError(t, err)
+		})
+	}
 }

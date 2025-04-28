@@ -25,7 +25,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
@@ -83,7 +83,7 @@ func NewConnection(
 		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)),
 	)
 	return conn, trace.Wrap(err)
 }

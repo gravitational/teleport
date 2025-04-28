@@ -108,6 +108,16 @@ func TestConfig_SetFromURL(t *testing.T) {
 				require.Equal(t, types.ClusterAuditConfigSpecV2_FIPS_DISABLED, config.UseFIPSEndpoint)
 			},
 		},
+		{
+			name: "complete initiators",
+			url:  "s3://path/bucket/audit?complete_initiators=dev-usw2-role/tenant-foo&complete_initiators=dev-usw2-role/tenant-bar",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.ElementsMatch(t, config.CompleteInitiators, []string{
+					"dev-usw2-role/tenant-foo",
+					"dev-usw2-role/tenant-bar",
+				})
+			},
+		},
 	}
 
 	for _, tt := range cases {

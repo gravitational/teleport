@@ -51,6 +51,7 @@ type testHostUserBackend struct {
 
 	setUserGroupsCalls       int
 	createHomeDirectoryCalls int
+	groupDatabaseErr         error
 }
 
 func newTestUserMgmt() *testHostUserBackend {
@@ -94,6 +95,10 @@ func (tm *testHostUserBackend) LookupGroup(groupname string) (*user.Group, error
 }
 
 func (tm *testHostUserBackend) LookupGroupByID(gid string) (*user.Group, error) {
+	if tm.groupDatabaseErr != nil {
+		return nil, tm.groupDatabaseErr
+	}
+
 	for groupName, groupGid := range tm.groups {
 		if groupGid == gid {
 			return &user.Group{
@@ -922,4 +927,37 @@ func TestHostUsersResolveGroups(t *testing.T) {
 			}
 		})
 	}
+}
+
+// errors fetching groups related to a user should not cause panics during UpsertUser
+func TestRegressionGroupErrorDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	allGroups := []string{"foo", "bar", "baz"}
+	backend := newTestUserMgmt()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	pres := local.NewPresenceService(bk)
+	users := HostUserManagement{
+		backend: backend,
+		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
+	}
+
+	userinfo := services.HostUsersInfo{
+		Groups: slices.Clone(allGroups[:2]),
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+	}
+
+	// Create user
+	closer, err := users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, append(userinfo.Groups, types.TeleportKeepGroup), backend.users["alice"])
+	assert.NotContains(t, backend.users["alice"], types.TeleportDropGroup)
+
+	backend.groupDatabaseErr = errors.New("could not find group")
+	_, err = users.UpsertUser("alice", userinfo)
+	require.Error(t, err)
 }

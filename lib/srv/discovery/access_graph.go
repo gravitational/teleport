@@ -30,9 +30,10 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -394,7 +395,7 @@ func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.Di
 		InsecureSkipVerify: config.Insecure,
 		RootCAs:            pool,
 	}
-	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
+	return grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)), nil
 }
 
 func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error {
@@ -424,7 +425,7 @@ func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error
 				}
 				// reset the currentTAGResources to force a full sync
 				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
-					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy. Access graph sync will not be enabled.")
+					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
 					s.Log.WarnContext(ctx, "Error initializing and watching access graph", "error", err)
@@ -490,6 +491,11 @@ func (s *Server) updateDiscoveryConfigStatus(fetchers []aws_sync.AWSSync, pushEr
 			// If this is a pre-run, the status is syncing.
 			status.State = discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String()
 		}
+
+		// Ensure the error message is truncated to the maximum allowed size.
+		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
+		status.ErrorMessage = truncateErrorMessage(status)
+
 		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 		defer cancel()
 		_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, fetcher.DiscoveryConfigName(), status)
@@ -500,6 +506,20 @@ func (s *Server) updateDiscoveryConfigStatus(fetchers []aws_sync.AWSSync, pushEr
 			s.Log.InfoContext(s.ctx, "Error updating discovery config status", "discovery_config_name", fetcher.DiscoveryConfigName(), "error", err)
 		}
 	}
+}
+
+func truncateErrorMessage(discoveryConfigStatus discoveryconfig.Status) *string {
+	if discoveryConfigStatus.ErrorMessage == nil {
+		return nil
+	}
+
+	if len(*discoveryConfigStatus.ErrorMessage) <= defaults.DefaultMaxErrorMessageSize {
+		return discoveryConfigStatus.ErrorMessage
+	}
+
+	newErrorMessage := (*discoveryConfigStatus.ErrorMessage)[:defaults.DefaultMaxErrorMessageSize]
+
+	return &newErrorMessage
 }
 
 func buildFetcherStatus(fetcher aws_sync.AWSSync, pushErr error, lastUpdate time.Time) discoveryconfig.Status {

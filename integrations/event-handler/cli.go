@@ -146,7 +146,7 @@ type IngestConfig struct {
 	Timeout time.Duration `help:"Polling timeout" default:"5s" env:"FDFWD_TIMEOUT"`
 
 	// DryRun is the flag which simulates execution without sending events to fluentd
-	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate stroage is used. Debug flag."`
+	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate storage is used. Debug flag."`
 
 	// ExitOnLastEvent exit when last event is processed
 	ExitOnLastEvent bool `help:"Exit when last event is processed"`

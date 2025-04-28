@@ -166,9 +166,9 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
-			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
+			rootClusters, err := s.root.GetAuthServer().UnifiedResourceCache.GetKubernetesServers(ctx)
 			require.NoError(t, err)
-			leafClusters, err := s.leaf.GetAuthServer().GetKubernetesServers(ctx)
+			leafClusters, err := s.leaf.GetAuthServer().UnifiedResourceCache.GetKubernetesServers(ctx)
 			require.NoError(t, err)
 			return len(rootClusters) >= 2 && len(leafClusters) >= 1
 		}),

@@ -36,6 +36,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,27 +50,38 @@ const ErrMsgHowToFixMissingPrivateKey = "You must either specify the singing key
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
-func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
+func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.SAMLConnectorValidationOption) error {
+	var options types.SAMLConnectorValidationOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	if err := CheckAndSetDefaults(sc); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if sc.GetEntityDescriptorURL() != "" {
-		resp, err := http.Get(sc.GetEntityDescriptorURL())
+	if url := sc.GetEntityDescriptorURL(); url != "" && !options.NoFollowURLs {
+		ctx, cancel := context.WithTimeout(context.TODO(), defaults.DefaultIOTimeout)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
-			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+			return trace.Wrap(err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", url, sc.GetName())
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
+			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, url, sc.GetName())
 		}
 		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		sc.SetEntityDescriptor(string(body))
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
+		log.Debugf("[SAML] Successfully fetched entity descriptor from %v for connector %v", url, sc.GetName())
 	}
 
 	if sc.GetEntityDescriptor() != "" {
@@ -289,6 +301,11 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 
 // UnmarshalSAMLConnector unmarshals the SAMLConnector resource from JSON.
 func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConnector, error) {
+	return UnmarshalSAMLConnectorWithValidationOptions(bytes, nil, opts...)
+}
+
+// UnmarshalSAMLConnectorWithValidationOptions unmarshals the SAMLConnector resource from JSON.
+func UnmarshalSAMLConnectorWithValidationOptions(bytes []byte, validationOpts []types.SAMLConnectorValidationOption, opts ...MarshalOption) (types.SAMLConnector, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -305,7 +322,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.BadParameter(err.Error())
 		}
 
-		if err := ValidateSAMLConnector(&c, nil); err != nil {
+		if err := ValidateSAMLConnector(&c, nil, validationOpts...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

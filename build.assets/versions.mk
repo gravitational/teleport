@@ -3,10 +3,11 @@
 # Keep versions in sync with devbox.json, when applicable.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.23.6
-GOLANGCI_LINT_VERSION ?= v1.64.5
+GOLANG_VERSION ?= go1.23.8
+GOLANGCI_LINT_VERSION ?= v1.64.7
 
-NODE_VERSION ?= 20.18.0
+# NOTE: Remember to update engines.node in package.json to match the major version.
+NODE_VERSION ?= 22.14.0
 
 # Run lint-rust check locally before merging code after you bump this.
 RUST_VERSION ?= 1.81.0
@@ -17,7 +18,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 DEVTOOLSET ?= devtoolset-12
 
 # Protogen related versions.
-BUF_VERSION ?= v1.48.0
+BUF_VERSION ?= v1.50.1
 # Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4

@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
@@ -135,7 +135,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 	reporter := newReporter(metrics)
 
 	server := grpc.NewServer(
-		grpc.Creds(newServerCredentials(credentials.NewTLS(config.TLSConfig))),
+		grpc.Creds(newServerCredentials(expcredentials.NewTLSWithALPNDisabled(config.TLSConfig))),
 		grpc.StatsHandler(newStatsHandler(reporter)),
 		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, interceptors.GRPCServerStreamErrorInterceptor),
 		grpc.KeepaliveParams(keepalive.ServerParameters{

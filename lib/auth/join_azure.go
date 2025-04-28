@@ -257,6 +257,8 @@ func verifyVMIdentity(ctx context.Context, cfg *azureRegisterConfig, accessToken
 
 	// If the token is from the system-assigned managed identity, the resource ID
 	// is for the VM itself and we can use it to look up the VM.
+	// This will also match scale set VMs (VMSS), the vmClient is responsible
+	// for properly retrieving their information.
 	if slices.Contains(resourceID.ResourceType.Types, "virtualMachines") {
 		vm, err = vmClient.Get(ctx, tokenClaims.ResourceID)
 		if err != nil {

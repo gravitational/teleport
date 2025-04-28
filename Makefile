@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.4.29
+VERSION=15.4.33
 
 DOCKER_IMAGE ?= teleport
 
@@ -48,9 +48,12 @@ GO_LDFLAGS ?= -w -s $(KUBECTL_SETVERSION)
 ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l"
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
+# teleport-update builds with disabled cgo, buildmode=pie is not required.
+BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath
 endif
 
 GO_ENV_OS := $(shell go env GOOS)
@@ -214,7 +217,8 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINS_default = teleport tctl tsh tbot fdpass-teleport
+BINS_default = teleport tctl tsh tbot fdpass-teleport teleport-update
+BINS_darwin = teleport tctl tsh tbot fdpass-teleport
 BINS_windows = tsh
 BINS = $(or $(BINS_$(OS)),$(BINS_default))
 BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
@@ -240,7 +244,7 @@ ifeq ("$(REPRODUCIBLE)","yes")
 TAR_FLAGS = --sort=name --owner=root:0 --group=root:0 --mtime='UTC 2015-03-02' --format=gnu
 endif
 
-VERSRC = version.go gitref.go api/version.go
+VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
@@ -284,6 +288,8 @@ endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie
 BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
+# teleport-update builds with disabled cgo, buildmode=pie is not required.
+BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 ifeq ("$(OS)","darwin")
@@ -324,14 +330,6 @@ all: version
 binaries:
 	$(MAKE) $(BINARIES)
 
-# Appending new conditional settings for community build type for tools.
-ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
-# TELEPORT_LDFLAGS and TOOLS_LDFLAGS if appended will overwrite the previous LDFLAGS set in the BUILDFLAGS.
-# This is done here to prevent any changes to the (BUI)LDFLAGS passed to the other binaries
-TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
-TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
-endif
-
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
 # several problems:
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
@@ -342,7 +340,7 @@ $(BUILDDIR)/tctl:
 	@if [[ -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tctl without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
@@ -362,15 +360,20 @@ $(BUILDDIR)/tsh:
 	@if [[ -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
-$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG))
+# We force cgo to be disabled, else the compiler might decide to enable it.
+$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG),CGO_ENABLED=0)
 # Build mode pie requires CGO
-$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
+$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(findstring CGO_ENABLED=1,$(TBOT_CGO_FLAGS)), -buildmode=pie)
 $(BUILDDIR)/tbot:
-	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
+
+.PHONY: $(BUILDDIR)/teleport-update
+$(BUILDDIR)/teleport-update:
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) ./tool/teleport-update
 
 .PHONY: $(BUILDDIR)/fdpass-teleport
 $(BUILDDIR)/fdpass-teleport:
@@ -464,7 +467,7 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 	# Clean up wasm-pack build artifacts
-	rm -rf web/packages/teleport/src/ironrdp/pkg/
+	rm -rf web/packages/shared/libs/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
@@ -1186,10 +1189,10 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
-		-ignore 'version.go' \
 		-ignore 'webassets/**' \
 		-ignore '**/node_modules/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
+		-ignore 'web/packages/shared/libs/ironrdp/**' \
 		-ignore '**/.terraform.lock.hcl' \
 		-ignore 'ignoreme'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
@@ -1224,7 +1227,7 @@ update-version: version test-helm-update-snapshots
 version: $(VERSRC)
 
 # This rule triggers re-generation of version files specified if Makefile changes.
-$(VERSRC): Makefile
+$(VERSRC) &: Makefile version.mk
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver
 
 # Pushes GITTAG and api/GITTAG to GitHub.
@@ -1507,10 +1510,11 @@ goinstall:
 .PHONY: install
 install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
-	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
-	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
-	cp -f $(BUILDDIR)/tbot      $(BINDIR)/
-	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
+	cp -f $(BUILDDIR)/tctl             $(BINDIR)/
+	cp -f $(BUILDDIR)/tsh              $(BINDIR)/
+	cp -f $(BUILDDIR)/tbot             $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport         $(BINDIR)/
+	cp -f $(BUILDDIR)/teleport-update  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
 # Docker image build. Always build the binaries themselves within docker (see

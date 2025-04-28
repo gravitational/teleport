@@ -104,7 +104,8 @@ specified in the `host_sudoers` field. In this case, the new user receives
 permission to restart the Nginx service as root.
 
 {/*TODO (ptgott): We should move the information below into a reference guide*/}
-<Details title="Customizing host user creation">
+<details>
+<summary>Customizing host user creation</summary>
 
 Each value of the `logins` field must conform to the username requirements of
 the Linux distribution being used. See [User/Group Name
@@ -155,7 +156,7 @@ deleted user, which would give the new user access to all of the old user's
 files if they are not deleted. Use `keep` mode unless you really need users to
 be removed.
 
-</Details>
+</details>
 
 Create the role:
 

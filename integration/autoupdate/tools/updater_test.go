@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/autoupdate/tools/updater"
-	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -238,7 +237,7 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	err := updater.Update(ctx, testVersions[0])
 	require.NoError(t, err)
 
-	// Verify that requested update is ignored by OSS build and version wasn't updated.
+	// Verify that requested update is not ignored by OSS build type and version is updated.
 	cmd := exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
 	cmd.Env = append(
 		os.Environ(),
@@ -248,20 +247,6 @@ func TestUpdateForOSSBuild(t *testing.T) {
 	require.NoError(t, err)
 
 	matches := pattern.FindStringSubmatch(string(out))
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[0], matches[1])
-
-	// Next update is set with the base URL env variable, must download new version.
-	t.Setenv(autoupdate.BaseURLEnvVar, baseURL)
-	cmd = exec.CommandContext(ctx, filepath.Join(toolsDir, "tsh"), "version")
-	cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
-	)
-	out, err = cmd.Output()
-	require.NoError(t, err)
-
-	matches = pattern.FindStringSubmatch(string(out))
 	require.Len(t, matches, 2)
 	require.Equal(t, testVersions[1], matches[1])
 }

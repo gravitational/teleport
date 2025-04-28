@@ -94,8 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/kubernetestoken"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
@@ -553,10 +552,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.tpmValidator = tpm.Validate
 	}
 	if as.k8sTokenReviewValidator == nil {
-		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
+		as.k8sTokenReviewValidator = &kubetoken.TokenReviewValidator{}
 	}
 	if as.k8sJWKSValidator == nil {
-		as.k8sJWKSValidator = kubernetestoken.ValidateTokenWithJWKS
+		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -1192,6 +1191,7 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 	agentWindow, _ := cmc.GetAgentUpgradeWindow()
 
 	agentWindow.UTCStartHour = uint32(startHour)
+	agentWindow.Weekdays = []string{"Mon", "Tue", "Wed", "Thu"}
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
@@ -2948,8 +2948,28 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// If the certificate is targeting a trusted Teleport cluster, it is the
 	// responsibility of the cluster to ensure its existence.
 	if req.routeToCluster == clusterName && req.kubernetesCluster != "" {
-		if err := kubeutils.CheckKubeCluster(a.closeCtx, a, req.kubernetesCluster); err != nil {
+		found, _, err := a.UnifiedResourceCache.IterateUnifiedResources(a.closeCtx, func(rwl types.ResourceWithLabels) (bool, error) {
+			if rwl.GetKind() != types.KindKubeServer {
+				return false, nil
+			}
+
+			ks, ok := rwl.(types.KubeServer)
+			if !ok {
+				return false, nil
+			}
+
+			return ks.GetCluster().GetName() == req.kubernetesCluster, nil
+		}, &proto.ListUnifiedResourcesRequest{
+			Kinds:  []string{types.KindKubeServer},
+			SortBy: types.SortBy{Field: services.SortByName},
+			Limit:  1,
+		})
+		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if len(found) == 0 {
+			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", req.kubernetesCluster)
 		}
 	}
 
@@ -5952,7 +5972,7 @@ func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgra
 	}
 
 	switch req.UpgraderKind {
-	case "":
+	case "", types.UpgraderKindTeleportUpdate:
 		rsp.CanonicalSchedule = cached.CanonicalSchedule.Clone()
 	case types.UpgraderKindKubeController:
 		rsp.KubeControllerSchedule = cached.KubeControllerSchedule

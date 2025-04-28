@@ -536,7 +536,6 @@ type eventResult struct {
 // effective, this strategy still suffers from a "head of line blocking"-esque issue since event order
 // must be preserved.
 func (b *EtcdBackend) watchEvents(ctx context.Context) error {
-
 	// etcd watch client relies on context cancellation for cleanup,
 	// so create a new subscope for this function.
 	ctx, cancel := context.WithCancel(ctx)
@@ -657,7 +656,11 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey))}
+	// etcd's range query includes the start point and excludes the end point,
+	// but Backend.GetRange is supposed to be inclusive at both ends, so we
+	// query until the very next key in lexicographic order (i.e., the same key
+	// followed by a 0 byte)
+	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey) + "\x00")}
 	if limit > 0 {
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
