@@ -16,12 +16,110 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useMemo, useState } from 'react';
+
+import { ACL } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { DesktopSession } from 'shared/components/DesktopSession';
+import {
+  Attempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
+import { TdpClient } from 'shared/libs/tdp';
+import { TdpTransport } from 'shared/libs/tdp/client';
+
+import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import * as types from 'teleterm/ui/services/workspacesService';
+import { routing, WindowsDesktopUri } from 'teleterm/ui/uri';
+
+// The check for another active session is disabled in Connect:
+// 1. This protection was added to the Web UI to prevent a situation where a user could be tricked
+// into clicking a link that would DOS another user's active session.
+// https://github.com/gravitational/webapps/pull/1297
+// 2. Supporting this in Connect would require changes to the Auth Server;
+// otherwise, we could only get session trackers the user has access to.
+const noOtherSession = () => Promise.resolve(false);
 
 export function DocumentDesktopSession(props: {
   visible: boolean;
   doc: types.DocumentDesktopSession;
 }) {
-  return <Document visible={props.visible} />;
+  const { desktopUri, login, origin } = props.doc;
+  const appCtx = useAppContext();
+  const loggedInUser = useWorkspaceLoggedInUser();
+  const acl = useMemo<Attempt<ACL>>(() => {
+    if (!loggedInUser) {
+      return makeProcessingAttempt();
+    }
+    return makeSuccessAttempt(loggedInUser.acl);
+  }, [loggedInUser]);
+
+  const [client] = useState(
+    () =>
+      new TdpClient(async abortSignal => {
+        const stream = appCtx.tshd.connectToDesktop({
+          abort: cloneAbortSignal(abortSignal),
+        });
+        appCtx.usageService.captureProtocolUse({
+          uri: desktopUri,
+          protocol: 'desktop',
+          origin,
+          accessThrough: 'proxy_service',
+        });
+        return adaptGRPCStreamToTdpTransport(stream, { desktopUri, login });
+      })
+  );
+
+  return (
+    <Document visible={props.visible}>
+      <DesktopSession
+        hasAnotherSession={noOtherSession}
+        desktop={
+          routing.parseWindowsDesktopUri(desktopUri).params?.windowsDesktopId
+        }
+        client={client}
+        username={login}
+        aclAttempt={acl}
+      />
+    </Document>
+  );
+}
+
+async function adaptGRPCStreamToTdpTransport(
+  stream: ReturnType<TshdClient['connectToDesktop']>,
+  targetDesktop: {
+    desktopUri: WindowsDesktopUri;
+    login: string;
+  }
+): Promise<TdpTransport> {
+  await stream.requests.send({
+    targetDesktop,
+    data: new Uint8Array(),
+  });
+
+  return {
+    onMessage: callback =>
+      stream.responses.onMessage(message => {
+        callback(
+          message.data.buffer.slice(
+            message.data.byteOffset,
+            message.data.byteOffset + message.data.byteLength
+          )
+        );
+      }),
+    onError: (...args) => stream.responses.onError(...args),
+    onComplete: (...args) => stream.responses.onComplete(...args),
+    send: data => {
+      // Strings are sent only in the session player.
+      if (typeof data === 'string') {
+        return;
+      }
+      return stream.requests.send({
+        data: new Uint8Array(data),
+      });
+    },
+  };
 }

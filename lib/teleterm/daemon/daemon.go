@@ -217,12 +217,15 @@ func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectTo
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	cachedClient, err := s.GetCachedClient(ctx, cluster.URI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, proxyClient, desktopName, login))
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, cachedClient.ProxyClient, desktopName, login))
+	})
+	return trace.Wrap(err)
 }
 
 // RemoveCluster removes cluster
