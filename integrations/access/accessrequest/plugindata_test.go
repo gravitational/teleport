@@ -29,7 +29,7 @@ import (
 )
 
 func getSamplePluginData(t *testing.T) PluginData {
-	maxDuration, err := time.Parse(time.RFC3339,"2006-01-02T15:04:05Z")
+	maxDuration, err := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
 	require.NoError(t, err)
 	return PluginData{
 		AccessRequestData: plugindata.AccessRequestData{
