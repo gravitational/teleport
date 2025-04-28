@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment, PropsWithChildren, useEffect, useState } from 'react';
+import { Fragment, PropsWithChildren, useEffect, useId, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box, { BoxProps } from 'design/Box';
@@ -26,6 +26,7 @@ import { Check, ChevronDown, Trash, WarningCircle } from 'design/Icon';
 import Text, { H3 } from 'design/Text';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import { useResizeObserver } from 'design/utils/useResizeObserver';
+import { HelperTextLine } from 'shared/components/FieldInput/FieldInput';
 import { useValidation } from 'shared/components/Validation';
 import { ValidationResult } from 'shared/components/Validation/rules';
 
@@ -97,6 +98,7 @@ export const SectionBox = ({
     expansionState === ExpansionState.Collapsed ? 'Collapse' : 'Expand';
   const validator = useValidation();
   const [contentHeight, setContentHeight] = useState(0);
+  const helperTextId = useId();
 
   // Points to the content element whose height will be observed for setting
   // target height of the expand animation.
@@ -151,6 +153,7 @@ export const SectionBox = ({
       }
       borderRadius={3}
       role="group"
+      aria-describedby={helperTextId}
     >
       <Summary
         height="56px"
@@ -250,6 +253,21 @@ export const SectionBox = ({
             children. */}
         <Box px={sectionBoxPadding} pb={sectionBoxPadding} ref={contentRef}>
           {children}
+          <Box
+            mt={
+              validator.state.validating &&
+              !validation.valid &&
+              validation.message
+                ? 2
+                : 0
+            }
+          >
+            <HelperTextLine
+              hasError={validator.state.validating && !validation.valid}
+              errorMessage={validation.message}
+              helperTextId={helperTextId}
+            />
+          </Box>
         </Box>
       </ContentExpander>
     </Box>
