@@ -184,29 +184,43 @@ type upsertTokenHandleRequest struct {
 	Name string `json:"name"`
 }
 
-func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	// if using the PUT route, tokenId will be present
-	// in the X-Teleport-TokenName header
-	editing := r.Method == "PUT"
-	tokenId := r.Header.Get(HeaderTokenName)
-	if editing && tokenId == "" {
-		return nil, trace.BadParameter("requires a token name to edit")
-	}
-
+func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	var req upsertTokenHandleRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if editing && tokenId != req.Name {
-		return nil, trace.BadParameter("renaming tokens is not supported")
+	var tokenId string
+	if r.Method == "PUT" {
+		// if using the PUT route, tokenId will be present
+		// in the X-Teleport-TokenName header
+		tokenId = r.Header.Get(HeaderTokenName)
+
+		if tokenId != "" && tokenId != req.Name {
+			return nil, trace.BadParameter("renaming tokens is not supported")
+		}
+	} else {
+		tokenId = req.Name
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var existingToken types.ProvisionToken
+	if tokenId != "" {
+		existingToken, err = clt.GetToken(r.Context(), tokenId)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	var expires time.Time
 	switch req.JoinMethod {
-	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle:
-		// IAM, GCP, and Oracle tokens should never expire.
-		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+		// IAM, GCP, Oracle and GitHub tokens should never expire.
+		expires = time.Time{}
 	default:
 		// Set expires time to default node join token TTL.
 		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
@@ -226,9 +240,9 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// If this is an edit, then overwrite the metadata to retain the existing fields
+	if existingToken != nil {
+		token.SetMetadata(existingToken.GetMetadata())
 	}
 
 	err = clt.UpsertToken(r.Context(), token)
