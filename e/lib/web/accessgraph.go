@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -519,8 +518,11 @@ func (p *Plugin) updateAccessGraphSettings(_ http.ResponseWriter, r *http.Reques
 	}
 
 	// if this request is to update access graph demo mode settings and they do not have the entitlement to update access graph demo mode, reject
-	features := modules.GetModules().Features()
-	canEnableDemoMode := features.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled
+	canEnableDemoMode := false
+	demoMode, ok := p.h.GetClusterFeatures().Entitlements[string(entitlements.AccessGraphDemoMode)]
+	if ok && demoMode.Enabled {
+		canEnableDemoMode = true
+	}
 	if accessGraphSettings.GetSpec().GetDemoMode() != clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED && req.EnableDemoMode && !canEnableDemoMode {
 		return nil, trace.AccessDenied("You do not have permission to enable Access Graph Demo Mode.")
 	}
