@@ -21,6 +21,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -220,7 +222,18 @@ func (s *windowsService) run(ctx context.Context, args []string) error {
 }
 
 func setupServiceLogger() (func() error, error) {
-	handler, close, err := logutils.NewSlogEventLogHandler("vnet", slog.LevelDebug)
+	level := slog.LevelInfo
+	if envVar := os.Getenv(teleport.VerboseLogsEnvVar); envVar != "" {
+		isDebug, err := strconv.ParseBool(envVar)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing %s", teleport.VerboseLogsEnvVar)
+		}
+		if isDebug {
+			level = slog.LevelDebug
+		}
+	}
+
+	handler, close, err := logutils.NewSlogEventLogHandler("vnet", level)
 	if err != nil {
 		return nil, trace.Wrap(err, "initializing log handler")
 	}
