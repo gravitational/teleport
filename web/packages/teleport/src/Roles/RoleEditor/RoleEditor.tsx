@@ -95,6 +95,7 @@ export const RoleEditor = ({
   const yamlEditorId = `${idPrefix}-yaml`;
 
   const [standardModel, dispatch] = useStandardModel(originalRole?.object);
+  const standardModelValid = standardModel.validationResult?.isValid ?? true;
 
   useEffect(() => {
     const { roleModel, validationResult } = standardModel;
@@ -174,6 +175,17 @@ export const RoleEditor = ({
 
   const [confirmingExit, setConfirmingExit] = useState(false);
 
+  const validate = useCallback(
+    (validator: Validator) => {
+      // Show validation errors on newly added sections.
+      dispatch({ type: ActionType.EnableValidation });
+      // Enable instant validation messages and make sure that neither the
+      // standard model validation nor the validator itself are complaining.
+      return validator.validate() && standardModelValid;
+    },
+    [dispatch, standardModelValid]
+  );
+
   const isProcessing =
     parseAttempt.status === 'processing' ||
     yamlifyAttempt.status === 'processing' ||
@@ -191,9 +203,10 @@ export const RoleEditor = ({
     if (
       standardModel.roleModel !== undefined &&
       !standardModel.roleModel?.requiresReset &&
-      !validator.validate()
-    )
+      !validate(validator)
+    ) {
       return;
+    }
     validator.reset();
 
     switch (activeIndex) {
