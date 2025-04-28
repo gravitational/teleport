@@ -25,6 +25,7 @@ import init, {
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 import Logger from 'shared/libs/logger';
+import { isAbortError } from 'shared/utils/abortError';
 
 import Codec, {
   FileType,
@@ -87,7 +88,7 @@ export interface TdpTransport {
   /** Sends a message down the stream. */
   send(data: string | ArrayBufferLike): void;
   /** Adds a callback for every new message. */
-  onMessage(callback: (data: ArrayBuffer) => void): RemoveListenerFn;
+  onMessage(callback: (data: ArrayBufferLike) => void): RemoveListenerFn;
   /**
    * Adds a callback for errors.
    * The stream is closed when this callback is called.
@@ -184,7 +185,7 @@ export class TdpClient extends EventEmitter {
     // 'Processing' errors are the most important.
     if (processingError) {
       this.emit(TdpClientEvent.ERROR, processingError);
-    } else if (connectionError) {
+    } else if (connectionError && !isAbortError(connectionError)) {
       this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
       this.emit(TdpClientEvent.TRANSPORT_CLOSE);
@@ -285,7 +286,7 @@ export class TdpClient extends EventEmitter {
 
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
-  async processMessage(buffer: ArrayBuffer): Promise<void> {
+  async processMessage(buffer: ArrayBufferLike): Promise<void> {
     const messageType = this.codec.decodeMessageType(buffer);
     switch (messageType) {
       case MessageType.PNG_FRAME:
@@ -357,7 +358,7 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  handleClientScreenSpec(buffer: ArrayBuffer) {
+  handleClientScreenSpec(buffer: ArrayBufferLike) {
     this.logger.warn(
       `received unsupported message type ${this.codec.decodeMessageType(
         buffer
@@ -365,7 +366,7 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleMouseButton(buffer: ArrayBuffer) {
+  handleMouseButton(buffer: ArrayBufferLike) {
     this.logger.warn(
       `received unsupported message type ${this.codec.decodeMessageType(
         buffer
@@ -373,7 +374,7 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleMouseMove(buffer: ArrayBuffer) {
+  handleMouseMove(buffer: ArrayBufferLike) {
     this.logger.warn(
       `received unsupported message type ${this.codec.decodeMessageType(
         buffer
@@ -381,14 +382,14 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleClipboardData(buffer: ArrayBuffer) {
+  handleClipboardData(buffer: ArrayBufferLike) {
     this.emit(
       TdpClientEvent.TDP_CLIPBOARD_DATA,
       this.codec.decodeClipboardData(buffer)
     );
   }
 
-  handleTdpAlert(buffer: ArrayBuffer) {
+  handleTdpAlert(buffer: ArrayBufferLike) {
     const alert = this.codec.decodeAlert(buffer);
     // TODO(zmb3): info and warning should use the same handler
     if (alert.severity === Severity.Error) {
@@ -402,19 +403,19 @@ export class TdpClient extends EventEmitter {
 
   // Assuming we have a message of type PNG_FRAME, extract its
   // bounds and png bitmap and emit a render event.
-  handlePngFrame(buffer: ArrayBuffer) {
+  handlePngFrame(buffer: ArrayBufferLike) {
     this.codec.decodePngFrame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
     );
   }
 
-  handlePng2Frame(buffer: ArrayBuffer) {
+  handlePng2Frame(buffer: ArrayBufferLike) {
     this.codec.decodePng2Frame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
     );
   }
 
-  handleRdpConnectionActivated(buffer: ArrayBuffer) {
+  handleRdpConnectionActivated(buffer: ArrayBufferLike) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } =
       this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
@@ -432,7 +433,7 @@ export class TdpClient extends EventEmitter {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  handleRdpFastPathPDU(buffer: ArrayBuffer) {
+  handleRdpFastPathPDU(buffer: ArrayBufferLike) {
     let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
@@ -455,7 +456,7 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  handleMfaChallenge(buffer: ArrayBuffer) {
+  handleMfaChallenge(buffer: ArrayBufferLike) {
     const mfaJson = this.codec.decodeMfaJson(buffer);
     if (mfaJson.mfaType == 'n') {
       // TermEvent.MFA_CHALLENGE
@@ -471,7 +472,7 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  handleSharedDirectoryAcknowledge(buffer: ArrayBuffer) {
+  handleSharedDirectoryAcknowledge(buffer: ArrayBufferLike) {
     const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
     if (ack.errCode !== SharedDirectoryErrCode.Nil) {
       // A failure in the acknowledge message means the directory
@@ -488,7 +489,7 @@ export class TdpClient extends EventEmitter {
     this.logger.info('Started sharing directory: ' + this.sdManager.getName());
   }
 
-  async handleSharedDirectoryInfoRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryInfoRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryInfoRequest(buffer);
     const path = req.path;
     try {
@@ -517,7 +518,7 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  async handleSharedDirectoryCreateRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryCreateRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryCreateRequest(buffer);
 
     try {
@@ -544,7 +545,7 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  async handleSharedDirectoryDeleteRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryDeleteRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryDeleteRequest(buffer);
 
     try {
@@ -562,7 +563,7 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  async handleSharedDirectoryReadRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryReadRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryReadRequest(buffer);
     const readData = await this.sdManager.readFile(
       req.path,
@@ -577,7 +578,7 @@ export class TdpClient extends EventEmitter {
     });
   }
 
-  async handleSharedDirectoryWriteRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryWriteRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryWriteRequest(buffer);
     const bytesWritten = await this.sdManager.writeFile(
       req.path,
@@ -592,7 +593,7 @@ export class TdpClient extends EventEmitter {
     });
   }
 
-  handleSharedDirectoryMoveRequest(buffer: ArrayBuffer) {
+  handleSharedDirectoryMoveRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryMoveRequest(buffer);
     // Always send back Failed for now, see https://github.com/gravitational/webapps/issues/1064
     this.sendSharedDirectoryMoveResponse({
@@ -606,7 +607,7 @@ export class TdpClient extends EventEmitter {
     );
   }
 
-  async handleSharedDirectoryListRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryListRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryListRequest(buffer);
     const path = req.path;
 
@@ -620,7 +621,7 @@ export class TdpClient extends EventEmitter {
     });
   }
 
-  async handleSharedDirectoryTruncateRequest(buffer: ArrayBuffer) {
+  async handleSharedDirectoryTruncateRequest(buffer: ArrayBufferLike) {
     const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
     await this.sdManager.truncateFile(req.path, req.endOfFile);
     this.sendSharedDirectoryTruncateResponse({
@@ -761,7 +762,7 @@ export class TdpClient extends EventEmitter {
     this.sendClientScreenSpec(spec);
   };
 
-  sendRdpResponsePDU(responseFrame: ArrayBuffer) {
+  sendRdpResponsePDU(responseFrame: ArrayBufferLike) {
     this.send(this.codec.encodeRdpResponsePDU(responseFrame));
   }
 
