@@ -6,6 +6,6 @@ const Version = "16.5.5"
 
 const VersionMajor = 16
 const VersionMinor = 5
-const VersionPatch = 4
+const VersionPatch = 5
 const VersionPreRelease = ""
 const VersionMetadata = ""
