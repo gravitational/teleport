@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -745,6 +746,31 @@ type heartBeatInfo[T any] struct {
 	// keepAliveErrs is a counter used to track the number of failed keepalives
 	// with the above lease. too many failures clears the lease.
 	keepAliveErrs int
+	// heartbeatLimiter rate limits heartbeats. Nil if rate limiting is disabled.
+	heartbeatLimiter *rate.Limiter
+	// heartbeatReservation is a heartbeat rate limit reservation to ensure an
+	// eventual heartbeat upsert attempt.
+	heartbeatReservation *rate.Reservation
+}
+
+// delayUpsertFrom returns the non-negative duration of time before the next
+// upsert is allowed by the heartbeat upsert rate limiter.
+func (h *heartBeatInfo[_]) delayUpsertFrom(now time.Time) time.Duration {
+	if h.heartbeatLimiter == nil {
+		return 0
+	}
+	if h.heartbeatReservation == nil {
+		// NOTE: heartbeatReservation.OK() will always return true because we
+		// use a non-zero refill rate and non-zero burst limit, so we *will* get
+		// a token within a finite duration of time.
+		h.heartbeatReservation = h.heartbeatLimiter.ReserveN(now, 1)
+	}
+	delay := h.heartbeatReservation.DelayFrom(now)
+	if delay == 0 {
+		// rate limit allows the upsert, blank the reservation now.
+		h.heartbeatReservation = nil
+	}
+	return delay
 }
 
 func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello, now time.Time) *upstreamHandle {

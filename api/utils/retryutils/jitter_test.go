@@ -54,6 +54,12 @@ func TestNewJitter(t *testing.T) {
 			expectFloor:   baseDuration - baseDuration/7,
 			expectCeiling: baseDuration - 1,
 		},
+		{
+			desc:          "AdditiveSeventhJitter",
+			jitter:        AdditiveSeventhJitter,
+			expectFloor:   baseDuration,
+			expectCeiling: baseDuration + baseDuration/7 - 1,
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()

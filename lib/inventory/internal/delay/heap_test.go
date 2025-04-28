@@ -24,6 +24,7 @@ import (
 )
 
 func TestHeapBasics(t *testing.T) {
+	t.Parallel()
 	heap := heap[entry[int]]{
 		Less: entryLess[int],
 	}
@@ -54,13 +55,18 @@ func TestHeapBasics(t *testing.T) {
 	require.NotNil(t, newRoot)
 	require.Equal(t, 1, newRoot.key)
 
+	// 43ms -> 22ms replacement should be sifted up
+	heap.Slice[42].tick = now.Add(22 * time.Millisecond)
+	heap.Fix(42)
+	// 14ms -> 33ms replacement should be sifted down
+	heap.Slice[13].tick = now.Add(33 * time.Millisecond)
+	heap.Fix(13)
 	var prev *entry[int]
-	for i := range 100 {
+	for range 100 {
 		next := heap.Pop()
 		if prev != nil {
-			require.True(t, prev.tick.Before(next.tick), "prev: %v, next: %v", prev, next)
+			require.False(t, next.tick.Before(prev.tick), "prev: %v, next: %v", prev, next)
 		}
-		require.Equal(t, (i+1)%100, next.key)
 		prev = &next
 	}
 

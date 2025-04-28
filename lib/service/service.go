@@ -1316,6 +1316,9 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
+			Capabilities: &proto.UpstreamInventoryHello_SupportedCapabilities{
+				DatabaseHeartbeatGracefulStop: true,
+			},
 		}
 
 		if upgraderVersion != nil {

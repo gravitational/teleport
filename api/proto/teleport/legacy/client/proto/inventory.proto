@@ -99,6 +99,17 @@ message UpstreamInventoryHello {
   string ExternalUpgraderVersion = 6;
   // UpdaterInfo is used by Teleport to send information about how the Teleport updater is doing.
   types.UpdaterV2Info UpdaterInfo = 8;
+
+  // SupportedCapabilities indicate which features of the ICS that
+  // the connected instance supports. This allows the auth server to determine
+  // how it should interact with the instance to maintain compatibility.
+  message SupportedCapabilities {
+    // DatabaseHeartbeatGracefulStop indicates the instance supports stopping an individual database heartbeat.
+    bool database_heartbeat_graceful_stop = 1;
+  }
+
+  // SupportedCapabilities advertises the supported features of the instance.
+  SupportedCapabilities capabilities = 9;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
