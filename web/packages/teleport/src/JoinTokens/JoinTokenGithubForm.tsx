@@ -18,16 +18,22 @@
 
 import styled from 'styled-components';
 
+import { Info } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import { ButtonText } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
+import { ChevronDown } from 'design/Icon/Icons/ChevronDown';
 import { Plus } from 'design/Icon/Icons/Plus';
 import { Trash } from 'design/Icon/Icons/Trash';
+import Link from 'design/Link/Link';
 import Text from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import cfg from 'teleport/config';
+import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 
 import { collectKeys } from './collectKeys';
 import { NewJoinTokenState } from './UpsertJoinTokenDialog';
@@ -181,67 +187,90 @@ export const JoinTokenGithubForm = ({
         </RuleBox>
       ))}
 
-      <ButtonText onClick={addNewRule} compact>
+      <ButtonText onClick={addNewRule} compact mb={4}>
         <Plus size={16} mr={2} />
         Add another GitHub rule
       </ButtonText>
 
-      <Text fontWeight={700} mt={5}>
-        GHES configuration
-      </Text>
+      {/* TODO(nickmarais): Make SectionBox a component instead of reusing it from Roles */}
+      <SectionBox
+        titleSegments={['GitHub Enterprise Server']}
+        initiallyCollapsed={[
+          'server_host',
+          'enterprise_slug',
+          'static_jwks',
+        ].every(k => !github[k])}
+        validation={{
+          valid: true,
+        }}
+      >
+        <Text fontWeight="regular" mb={3}>
+          Additional settings for configuring GHES.
+        </Text>
 
-      <Text fontWeight="regular" mb={2}>
-        Additional settings for configuring GitHub Enterprise Server.
-      </Text>
+        {cfg.edition !== 'ent' ? (
+          <Info alignItems="flex-start">
+            GitHub Enterprise Server configuration requires Teleport Enterprise.
+            Please use a repository hosted at github.com or{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/signup/enterprise/"
+            >
+              contact us
+            </Link>
+            .
+          </Info>
+        ) : undefined}
 
-      <FieldInput
-        label="Server host"
-        placeholder="github.example.com"
-        value={github.server_host}
-        onChange={e =>
-          onUpdateState({
-            ...tokenState,
-            github: {
-              ...tokenState.github,
-              server_host: e.target.value,
-            },
-          })
-        }
-        readonly={readonly}
-      />
+        <FieldInput
+          label="Server host"
+          placeholder="github.example.com"
+          value={github.server_host}
+          onChange={e =>
+            onUpdateState({
+              ...tokenState,
+              github: {
+                ...tokenState.github,
+                server_host: e.target.value,
+              },
+            })
+          }
+          readonly={readonly}
+        />
 
-      <FieldInput
-        label="Slug"
-        placeholder="octo-enterprise"
-        value={github.enterprise_slug}
-        onChange={e =>
-          onUpdateState({
-            ...tokenState,
-            github: {
-              ...tokenState.github,
-              enterprise_slug: e.target.value,
-            },
-          })
-        }
-        readonly={readonly}
-      />
+        <FieldInput
+          label="Slug"
+          placeholder="octo-enterprise"
+          value={github.enterprise_slug}
+          onChange={e =>
+            onUpdateState({
+              ...tokenState,
+              github: {
+                ...tokenState.github,
+                enterprise_slug: e.target.value,
+              },
+            })
+          }
+          readonly={readonly}
+        />
 
-      <FieldInput
-        label="Static JWKS"
-        placeholder='{"keys":[--snip--]}'
-        toolTipContent="JSON Web Key Set used to verify the token issued by GitHub Actions"
-        value={github.static_jwks}
-        onChange={e =>
-          onUpdateState({
-            ...tokenState,
-            github: {
-              ...tokenState.github,
-              static_jwks: e.target.value,
-            },
-          })
-        }
-        readonly={readonly}
-      />
+        <FieldInput
+          label="Static JWKS"
+          placeholder='{"keys":[--snip--]}'
+          toolTipContent="JSON Web Key Set used to verify the token issued by GitHub Actions"
+          value={github.static_jwks}
+          onChange={e =>
+            onUpdateState({
+              ...tokenState,
+              github: {
+                ...tokenState.github,
+                static_jwks: e.target.value,
+              },
+            })
+          }
+          readonly={readonly}
+        />
+      </SectionBox>
     </>
   );
 };
