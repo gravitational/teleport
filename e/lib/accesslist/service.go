@@ -553,7 +553,7 @@ func (s *Service) updateOrUpsertAccessList(ctx context.Context, accessList *acce
 	updated := oldAccessList != nil
 	resp, upsertErr := funcOpts(ctx, authCtx, newAccessList)
 
-	s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, upsertErr)
+	s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, newAccessList.Spec.Title, upsertErr)
 
 	if upsertErr == nil {
 		s.emitUpsertAccessListUsageEvent(ctx, updated, accessListName)
@@ -616,7 +616,7 @@ func (s *Service) updateAccessList(ctx context.Context, authCtx *authz.Context, 
 }
 
 // emitUpsertAccessListEvent will emit the create/update event for the access list.
-func (s *Service) emitUpsertAccessListEvent(ctx context.Context, username string, updated bool, accessListName string, upsertErr error) {
+func (s *Service) emitUpsertAccessListEvent(ctx context.Context, username string, updated bool, accessListName string, accessListTitle string, upsertErr error) {
 	var errorMsg string
 	if upsertErr != nil {
 		errorMsg = upsertErr.Error()
@@ -639,6 +639,7 @@ func (s *Service) emitUpsertAccessListEvent(ctx context.Context, username string
 			},
 			ResourceMetadata: resourceMetadata,
 			Status:           status,
+			AccessListTitle:  accessListTitle,
 		}
 		if upsertErr != nil {
 			event.SetCode(events.AccessListUpdateFailureCode)
@@ -651,6 +652,7 @@ func (s *Service) emitUpsertAccessListEvent(ctx context.Context, username string
 			},
 			ResourceMetadata: resourceMetadata,
 			Status:           status,
+			AccessListTitle:  accessListTitle,
 		}
 		if upsertErr != nil {
 			event.SetCode(events.AccessListCreateFailureCode)
@@ -702,9 +704,17 @@ func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.Delete
 		return nil, trace.Wrap(err)
 	}
 
-	resp, deleteErr := s.deleteAccessList(ctx, authCtx, req)
+	accessList, err := s.cache.GetAccessList(ctx, req.Name)
 
-	s.emitDeleteAccessListEvent(ctx, authCtx, req.Name, deleteErr)
+	if err != nil && !trace.IsNotFound(err) {
+		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
+	}
+	resp, deleteErr := s.deleteAccessList(ctx, authCtx, req, accessList)
+	var accessListTitle string
+	if accessList != nil {
+		accessListTitle = accessList.Spec.Title
+	}
+	s.emitDeleteAccessListEvent(ctx, authCtx, req.Name, accessListTitle, deleteErr)
 
 	if deleteErr == nil {
 		s.emitDeleteAccessListUsageEvent(ctx, req.Name)
@@ -714,10 +724,7 @@ func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.Delete
 }
 
 // deleteAccessList is a helper for deleting the access list that returns the response and an error.
-func (s *Service) deleteAccessList(ctx context.Context, authCtx *authz.Context, req *accesslistv1.DeleteAccessListRequest) (*emptypb.Empty, error) {
-	// ignore errors, we just want the access list if it exists for rbac purposes.
-	accessList, _ := s.accessLists.GetAccessList(ctx, req.GetName())
-
+func (s *Service) deleteAccessList(ctx context.Context, authCtx *authz.Context, req *accesslistv1.DeleteAccessListRequest, accessList *accesslist.AccessList) (*emptypb.Empty, error) {
 	authErr := s.hasAccessListRBAC(ctx, authCtx, accessList, types.VerbDelete)
 	if authErr != nil {
 		return nil, trace.Wrap(authErr)
@@ -736,14 +743,13 @@ func (s *Service) deleteAccessList(ctx context.Context, authCtx *authz.Context, 
 }
 
 // emitDeleteAccessListEvent will emit the delete event for the access list.
-func (s *Service) emitDeleteAccessListEvent(ctx context.Context, authCtx *authz.Context, accessListName string, deleteErr error) {
+func (s *Service) emitDeleteAccessListEvent(ctx context.Context, authCtx *authz.Context, accessListName string, accessListTitle string, deleteErr error) {
 	var errorMsg string
 	eventCode := events.AccessListDeleteSuccessCode
 	if deleteErr != nil {
 		eventCode = events.AccessListDeleteFailureCode
 		errorMsg = deleteErr.Error()
 	}
-
 	event := &apievents.AccessListDelete{
 		Metadata: apievents.Metadata{
 			Type: events.AccessListDeleteEvent,
@@ -757,6 +763,7 @@ func (s *Service) emitDeleteAccessListEvent(ctx context.Context, authCtx *authz.
 			Success: deleteErr == nil,
 			Error:   errorMsg,
 		},
+		AccessListTitle: accessListTitle,
 	}
 
 	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
@@ -1051,7 +1058,16 @@ func (s *Service) emitUpsertAccessListMemberEvent(ctx context.Context, username 
 		Error:   errorMsg,
 	}
 
-	for _, batch := range batchAccessListMemberMetadata(accessListName, members) {
+	accessList, err := s.cache.GetAccessList(ctx, accessListName)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
+	}
+
+	var accessListTitle string
+	if accessList != nil {
+		accessListTitle = accessList.Spec.Title
+	}
+	for _, batch := range batchAccessListMemberMetadata(accessListName, accessListTitle, members) {
 		var event apievents.AuditEvent
 		if updated {
 			event = &apievents.AccessListMemberUpdate{
@@ -1180,7 +1196,15 @@ func (s *Service) emitDeleteAccessListMemberEvent(ctx context.Context, username 
 		errorMsg = deleteErr.Error()
 	}
 
-	for _, batch := range batchAccessListMemberMetadata(accessListName, members) {
+	accessList, err := s.cache.GetAccessList(ctx, accessListName)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
+	}
+	var accessListTitle string
+	if accessList != nil {
+		accessListTitle = accessList.Spec.Title
+	}
+	for _, batch := range batchAccessListMemberMetadata(accessListName, accessListTitle, members) {
 		event := &apievents.AccessListMemberDelete{
 			Metadata: apievents.Metadata{
 				Type: events.AccessListMemberDeleteEvent,
@@ -1272,6 +1296,10 @@ func (s *Service) emitDeleteAllAccessListMembersForAccessListEvent(ctx context.C
 		errorMsg = deleteErr.Error()
 	}
 
+	accessList, err := s.cache.GetAccessList(ctx, accessListName)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
+	}
 	event := &apievents.AccessListMemberDeleteAllForAccessList{
 		Metadata: apievents.Metadata{
 			Type: events.AccessListMemberDeleteAllForAccessListEvent,
@@ -1281,7 +1309,8 @@ func (s *Service) emitDeleteAllAccessListMembersForAccessListEvent(ctx context.C
 			UpdatedBy: username,
 		},
 		AccessListMemberMetadata: apievents.AccessListMemberMetadata{
-			AccessListName: accessListName,
+			AccessListName:  accessListName,
+			AccessListTitle: accessList.Spec.Title,
 		},
 		Status: apievents.Status{
 			Success: deleteErr == nil,
@@ -1318,11 +1347,14 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 	resp, updated, accessListModified, modifiedMembers, upsertErr := s.upsertAccessListWithMembers(ctx, authCtx, req)
 
 	var accessListName string
+	var title string
 	if resp != nil {
-		accessListName = resp.AccessList.GetHeader().Metadata.Name
+		accessListName = resp.AccessList.GetHeader().GetMetadata().GetName()
+		title = resp.AccessList.GetSpec().GetTitle()
 	}
 	if accessListModified {
-		s.emitUpsertAccessListEvent(ctx, username, updated, accessListName, upsertErr)
+		s.emitUpsertAccessListEvent(ctx, username, updated, accessListName,
+			title, upsertErr)
 
 		if upsertErr == nil {
 			s.emitUpsertAccessListUsageEvent(ctx, updated, accessListName)
@@ -1854,6 +1886,10 @@ func (s *Service) emitCreateAccessListReview(ctx context.Context, username strin
 		}
 	}
 
+	accessList, err := s.cache.GetAccessList(ctx, review.Spec.AccessList)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
+	}
 	event := &apievents.AccessListReview{
 		Metadata: apievents.Metadata{
 			Type: events.AccessListReviewEvent,
@@ -1870,6 +1906,7 @@ func (s *Service) emitCreateAccessListReview(ctx context.Context, username strin
 			ReviewFrequencyChanged:        review.Spec.Changes.ReviewFrequencyChanged.String(),
 			ReviewDayOfMonthChanged:       review.Spec.Changes.ReviewDayOfMonthChanged.String(),
 			RemovedMembers:                review.Spec.Changes.RemovedMembers,
+			AccessListTitle:               accessList.Spec.Title,
 		},
 		Status: apievents.Status{
 			Success: createErr == nil,
@@ -2263,7 +2300,7 @@ func accessListMembersForEvent(joinTime, removeTime time.Time, members ...*membe
 }
 
 // batchAccessListMemberMetadata will create batches of access list member metadata objects for emitting events in batches.
-func batchAccessListMemberMetadata(accessListName string, members []*apievents.AccessListMember) []apievents.AccessListMemberMetadata {
+func batchAccessListMemberMetadata(accessListName string, accessListTitle string, members []*apievents.AccessListMember) []apievents.AccessListMemberMetadata {
 	numMembers := len(members)
 	numBatches := int(math.Ceil(float64(numMembers) / float64(eventMemberBatches)))
 	batches := make([]apievents.AccessListMemberMetadata, numBatches)
@@ -2275,8 +2312,9 @@ func batchAccessListMemberMetadata(accessListName string, members []*apievents.A
 			endIndex = numMembers
 		}
 		batches[i] = apievents.AccessListMemberMetadata{
-			AccessListName: accessListName,
-			Members:        members[startIndex:endIndex],
+			AccessListName:  accessListName,
+			Members:         members[startIndex:endIndex],
+			AccessListTitle: accessListTitle,
 		}
 	}
 

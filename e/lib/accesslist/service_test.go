@@ -2210,7 +2210,7 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 				}
 			}
 
-			batches := batchAccessListMemberMetadata("test-access-list", members)
+			batches := batchAccessListMemberMetadata("test-access-list", "test-access-list", members)
 			require.Len(t, batches, test.expectedBatches)
 
 			for i := 0; i < test.expectedBatches; i++ {
