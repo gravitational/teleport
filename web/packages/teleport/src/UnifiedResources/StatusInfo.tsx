@@ -17,7 +17,7 @@
  */
 
 import {
-  SharedDatabaseServer,
+  DatabaseServer,
   SharedResourceServer,
   UnifiedResourceDefinition,
   useResourceServersFetch,
@@ -54,7 +54,7 @@ export function StatusInfo({
           },
           signal,
         });
-        const servers: SharedDatabaseServer[] = resp.agents.map(d => ({
+        const servers: DatabaseServer[] = resp.agents.map(d => ({
           kind: 'db_server',
           ...d,
         }));

@@ -24,8 +24,8 @@ import { resourceStatusPanelWidth } from 'shared/components/SlidingSidePanel/Inf
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
+  DatabaseServer,
   ResourceStatus,
-  SharedDatabaseServer,
   SharedResourceServer,
   UnifiedResourceDefinition,
 } from '../types';
@@ -132,7 +132,7 @@ const loremTxt =
   quas reiciendis fugiat molestias delectus perspiciatis vero \
   similique minima mollitia accusantium eligendi impedit.';
 
-const fewDbServers: SharedDatabaseServer[] = [
+const fewDbServers: DatabaseServer[] = [
   {
     kind: 'db_server',
     hostId: 'host-id-1',
@@ -155,7 +155,7 @@ const fewDbServers: SharedDatabaseServer[] = [
   },
 ];
 
-const manyDbServers: SharedDatabaseServer[] = [
+const manyDbServers: DatabaseServer[] = [
   ...fewDbServers,
   ...fewDbServers,
   ...fewDbServers,
