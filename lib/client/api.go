@@ -565,6 +565,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
 	}
 
+	c.Namespace = types.ProcessNamespace(c.Namespace)
+
 	// set defaults
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
