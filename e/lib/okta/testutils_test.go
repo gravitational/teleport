@@ -169,6 +169,39 @@ func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 	return client
 }
 
+func createStubSAMLConnector(ctx context.Context, t *testing.T, name string, ap *testAccessPoint) (conn types.SAMLConnector, err error) {
+	connType, err := types.NewSAMLConnector(name, types.SAMLConnectorSpecV2{
+		SSO:                      "test",
+		AssertionConsumerService: "test",
+		EntityDescriptor: `<?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
+      <md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:KeyDescriptor use="signing">
+          <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+              <ds:X509Certificate></ds:X509Certificate>
+            </ds:X509Data>
+          </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
+      </md:IDPSSODescriptor>
+    </md:EntityDescriptor>`,
+		AttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "test",
+				Roles: []string{"test"},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ap.CreateSAMLConnector(ctx, connType)
+}
+
 type testProxyGetter struct{}
 
 func (t *testProxyGetter) GetProxyIDs() []string {
@@ -245,6 +278,13 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 	}
 	for _, opt := range options {
 		opt(&serviceConfig)
+	}
+
+	if serviceConfig.SyncSettings.SsoConnectorId != "" {
+		if conn, err := ap.GetSAMLConnector(ctx, serviceConfig.SyncSettings.SsoConnectorId, false); err != nil || conn == nil {
+			_, err := createStubSAMLConnector(ctx, t, serviceConfig.SyncSettings.SsoConnectorId, ap)
+			require.NoError(t, err)
+		}
 	}
 
 	svc, err := newWithClientCreator(ctx, serviceConfig, oktaapi.CreatorFromTestClient(client))

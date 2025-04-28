@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/integrations/access/common"
 )
 
@@ -135,16 +136,32 @@ func ReportPluginStatus(ctx context.Context, log *slog.Logger, pluginStatusSink 
 }
 
 type PluginOktaStatusParams struct {
+	SsoConnector types.SAMLConnector
 	SyncSettings types.PluginOktaSyncSettings
 	ScimEnabled  bool
 }
 
 func NewPluginOktaStatus(params PluginOktaStatusParams) *types.PluginOktaStatusV1 {
+	var mappedRoleNames []string
+
+	// We want to find any role names applied to the 'everyone' group for
+	// the integration's SAML connector, and provide those to the frontend
+	// for use on the Status page.
+	if params.SsoConnector != nil && len(params.SsoConnector.GetAttributesToRoles()) > 0 {
+		for _, mapping := range params.SsoConnector.GetAttributesToRoles() {
+			if mapping.Value == oktaapi.OktaGroupEveryone {
+				mappedRoleNames = append(mappedRoleNames, mapping.Roles...)
+				break
+			}
+		}
+	}
+
 	return &types.PluginOktaStatusV1{
 		SsoDetails: &types.PluginOktaStatusDetailsSSO{
-			Enabled: true,
-			AppId:   params.SyncSettings.AppId,
-			AppName: params.SyncSettings.AppName,
+			Enabled:                      true,
+			AppId:                        params.SyncSettings.AppId,
+			AppName:                      params.SyncSettings.AppName,
+			OktaGroupEveryoneMappedRoles: mappedRoleNames,
 		},
 		AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
 			Enabled: params.SyncSettings.GetEnableAppGroupSync(),

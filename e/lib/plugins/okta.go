@@ -43,7 +43,13 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		oktaAuthProvider = oktaapi.NewSSWSAuthProvider(selectedOktaCreds.ApiToken)
 	default:
 		return func() error {
+			authServer := deps.parentProcess.GetAuthServer()
+			connectorInfo, err := authServer.GetSAMLConnector(ctx, oktaSpec.SyncSettings.SsoConnectorId, false)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
+				SsoConnector: connectorInfo,
 				SyncSettings: *oktaSpec.GetSyncSettings(),
 				ScimEnabled:  false,
 			})

@@ -227,6 +227,7 @@ const StubPluginSSOSetUp = {
         appName: undefined,
         appId: 'a94a8fe5c-cb19ba61c',
         enabled: true,
+        oktaGroupEveryoneMappedRoles: ['some-role'],
       },
     },
   },

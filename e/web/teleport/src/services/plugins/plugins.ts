@@ -8,7 +8,10 @@ import {
   PluginNameToSpec,
   PluginStatus,
 } from 'teleport/services/integrations';
-import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
+import {
+  DefaultSystemOktaRequesterRoleName,
+  PluginStatusOkta,
+} from 'teleport/services/integrations/oktaStatusTypes';
 import { CtaEvent } from 'teleport/services/userEvent';
 import { isPathNotFoundError } from 'teleport/services/version/unsupported';
 
@@ -180,11 +183,15 @@ function makeOktaPluginStatus(rawOktaDetails): PluginStatusOkta {
   let status: PluginStatusOkta = {};
 
   if (sso_details) {
-    const { enabled, app_id, app_name } = sso_details;
+    const { enabled, app_id, app_name, okta_group_everyone_mapped_roles } =
+      sso_details;
     status.ssoDetails = {
       enabled: enabled,
       appId: app_id || '',
       appName: app_name || '',
+      oktaGroupEveryoneMappedRoles: okta_group_everyone_mapped_roles || [
+        DefaultSystemOktaRequesterRoleName,
+      ],
     };
   }
 

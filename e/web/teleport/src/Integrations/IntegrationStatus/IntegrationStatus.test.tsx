@@ -161,6 +161,7 @@ const stubOktaPluginOnlySSO = {
         enabled: true,
         appName: undefined,
         appId: 'some-app-id',
+        oktaGroupEveryoneMappedRoles: ['some-role'],
       },
     },
   },

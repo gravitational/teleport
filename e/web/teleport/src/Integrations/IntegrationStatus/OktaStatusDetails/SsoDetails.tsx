@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { useHistory } from 'react-router-dom';
 
 import { Link as ExternalLink, Flex, Mark, Text } from 'design';
@@ -5,7 +6,10 @@ import { NewTab, PlugsConnected } from 'design/Icon';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'teleport/config';
-import { OktaSsoDetails } from 'teleport/services/integrations/oktaStatusTypes';
+import {
+  DefaultSystemOktaRequesterRoleName,
+  OktaSsoDetails,
+} from 'teleport/services/integrations/oktaStatusTypes';
 
 import { generateOktaSamlAppUrl } from './generateOktaAdminLink';
 import { Panel, PanelTitle, StatusAndOptions } from './Shared';
@@ -14,7 +18,10 @@ export const SsoDetails = ({
   spec,
   orgUrl,
 }: {
-  spec?: Pick<OktaSsoDetails, 'appId' | 'appName' | 'enabled'>;
+  spec?: Pick<
+    OktaSsoDetails,
+    'appId' | 'appName' | 'enabled' | 'oktaGroupEveryoneMappedRoles'
+  >;
   orgUrl?: string;
 }) => {
   const ctx = useTeleportE();
@@ -67,7 +74,7 @@ export const SsoDetails = ({
             >
               {orgUrl}
             </ExternalLink>{' '}
-            the default Teleport role of <Mark>requester</Mark>.
+            {formatMappedRoles(spec.oktaGroupEveryoneMappedRoles)}
           </span>
         </Text>
         <Flex flexDirection="column" gap={1}>
@@ -84,5 +91,24 @@ export const SsoDetails = ({
         </Flex>
       </Flex>
     </Panel>
+  );
+};
+
+const formatMappedRoles = (roles: string[]) => {
+  const isDefaultSystemRequesterRole =
+    roles.length === 1 && roles[0] === DefaultSystemOktaRequesterRoleName;
+
+  return (
+    <>
+      {`the ${isDefaultSystemRequesterRole ? 'default' : ''} Teleport role${roles.length > 1 ? 's' : ''} of`}{' '}
+      {roles.map((role, idx) => (
+        <Fragment key={role}>
+          <Mark>{role}</Mark>
+          {idx < roles.length - 1 && ', '}
+          {idx === roles.length - 2 && 'and '}
+        </Fragment>
+      ))}
+      .
+    </>
   );
 };

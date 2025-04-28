@@ -54,6 +54,7 @@ const basePluginResp = {
           app_id: 'some-app-id-george-washington-long-app-id',
           app_name:
             'some-app-name-george-washington-testing-long-app-name-lorem-ipsum',
+          okta_group_everyone_mapped_roles: ['some-role'],
         },
         app_group_sync_details: {
           last_successful: new Date(Date.now() - 1000 * 60),
@@ -185,8 +186,9 @@ export const WithSyncErrors = {
                 okta: {
                   sso_details: {
                     enabled: false,
-                    appId: 'banana',
-                    appName: 'banana',
+                    app_id: 'banana',
+                    app_name: 'banana',
+                    okta_group_everyone_mapped_roles: ['banana'],
                   },
                   app_group_sync_details: {
                     status_code: PluginOktaSyncStatusCode.Error,

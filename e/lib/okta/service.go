@@ -366,7 +366,18 @@ func New(ctx context.Context, config Config) (*Service, error) {
 
 // newWithClientCreator will create a new Okta service with the given oktaClient.
 func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.OktaClientFn) (service *Service, err error) {
+	var connectorInfo types.SAMLConnector
+
+	// Fetch related SAML connector for status
+	if config.SyncSettings.SsoConnectorId != "" {
+		var err error
+		if connectorInfo, err = config.ConnectorService.GetSAMLConnector(ctx, config.SyncSettings.SsoConnectorId, false); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	oktaStatus := NewPluginOktaStatus(PluginOktaStatusParams{
+		SsoConnector: connectorInfo,
 		SyncSettings: config.SyncSettings,
 		ScimEnabled:  config.SCIMEnabled,
 	})
