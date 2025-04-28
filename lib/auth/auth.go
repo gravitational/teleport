@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -5293,6 +5294,19 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
 
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName:      req.GetUser(),
+		ResourceKinds: apiutils.Deduplicate(resources),
+	})
+
 	// Create a notification.
 	var notificationText string
 	// If this is a resource request.
@@ -5629,7 +5643,33 @@ func (a *Server) submitAccessReview(
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName:      params.Review.Author,
+		ResourceKinds: apiutils.Deduplicate(resources),
+		IsBotReviewed: (params.Review.Author == teleport.SystemAccessApproverUserName),
+		ProposedState: prehogProposedStateFromRequestState(params.Review.ProposedState),
+	})
+
 	return req, nil
+}
+
+func prehogProposedStateFromRequestState(state types.RequestState) prehogv1a.AccessRequestReviewEvent_ProposedState {
+	switch state {
+	case types.RequestState_APPROVED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_APPROVED
+	case types.RequestState_DENIED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_DENIED
+	default:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_UNSPECIFIED
+	}
 }
 
 // generateAccessRequestReviewedNotification returns the notification object for a notification notifying a user of their
