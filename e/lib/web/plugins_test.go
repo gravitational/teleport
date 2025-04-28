@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -403,6 +405,71 @@ func TestCreateStaticAuthPluginHandle(t *testing.T) {
 				_, err := webPack.clt.Delete(s.ctx, endpoint)
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestOAuthPluginStart(t *testing.T) {
+	t.Parallel()
+
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {}))
+	defer func() { testServer.Close() }()
+
+	var testCases = []struct {
+		name    string
+		request url.Values
+		wantErr bool
+		assert  func(t *testing.T, re *roundtrip.Response, err error)
+	}{
+		{
+			name: "Slack",
+			request: url.Values{
+				"type":             {"slack"},
+				"name":             {"test"},
+				"fallback_channel": {"test_fallback_channel"},
+			},
+			assert: func(t *testing.T, re *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.True(t, true, cookieExist(re.Cookies(), "__Host-plugin-params"))
+				resp := ui.OAuthPluginStartResponse{}
+				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+				require.True(t, strings.HasPrefix(resp.RedirectURL, "https://slack.com/oauth/v2/authorize"))
+			},
+		},
+		{
+			name: "incorrect plugin subType",
+			request: url.Values{
+				"type":        {"unknown"},
+				"apiEndpoint": {"https://testserver.com"},
+			},
+			assert: func(t *testing.T, re *roundtrip.Response, err error) {
+				require.True(t, trace.IsBadParameter(err))
+				require.False(t, false, cookieExist(re.Cookies(), "__Host-plugin-params"))
+				require.Contains(t, string(re.Bytes()), "unknown plugin type")
+			},
+		},
+		{
+			name: "non oauth plugin type",
+			request: url.Values{
+				"type":         {"opsgenie"},
+				"apiEndpoint":  {testServer.URL},
+				"apiKey":       {"some-api-key"},
+				"scheduleName": {"some-schedule-name"},
+			},
+			assert: func(t *testing.T, re *roundtrip.Response, err error) {
+				require.False(t, false, cookieExist(re.Cookies(), "__Host-plugin-params"))
+				require.True(t, trace.IsNotImplemented(err))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			re, err := webPack.clt.PostWithFormData(s.ctx, webPack.clt.Endpoint("enterprise", "plugins", "oauth", "start"), tc.request)
+			tc.assert(t, re, err)
 		})
 	}
 }

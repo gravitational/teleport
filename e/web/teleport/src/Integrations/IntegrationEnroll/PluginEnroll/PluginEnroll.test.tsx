@@ -86,6 +86,23 @@ describe('slack PluginEnroll.tsx', () => {
       },
     });
   });
+
+  test('create', async () => {
+    jest.spyOn(pluginsService, 'redirectForPluginOAuth').mockResolvedValue();
+
+    await renderPluginEnroll('slack');
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/access-requests/i),
+      'some-channel'
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /connect slack/i })
+    );
+
+    expect(pluginsService.redirectForPluginOAuth).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('okta PluginEnroll.tsx', () => {

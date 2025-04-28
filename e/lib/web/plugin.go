@@ -303,12 +303,44 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	//		OAuth provider for OAuth registration. OAuth plugins are created after successful callback from
 	// 		OAuth provider with pluginCallbackHandle.
 	//  -	For non-OAuth plugins: it creates plugin and responds with plugin status.
+	//
+	// TODO(kimlisa): DELETE IN v19.0 (csrf)
+	// replaced by "/enterprise/plugins/staticauth" and "/enterprise/plugins/oauth/start".
+	// Delete same endpoint in "e/web/teleport/src/config.ts".
 	h.POST("/enterprise/plugin", h.WithAuthCookieAndCSRF(p.createPluginHandle))
 	// Handles plugins that does not require OAuth.
 	h.POST("/enterprise/plugins/staticauth", h.WithAuth(p.installPluginWithStaticAuthCredsHandle))
 	h.PUT("/enterprise/plugin", h.WithAuth(p.updatePluginHandler))
-	// pluginCallbackHandle handles OAuth callback and creates plugin.
+
+	// The flow to create plugins that require OAuth (eg: slack) is completed in 2 steps:
+	//
+	// Step 1: endpoint "enterprise/plugins/oauth/start"
+	// - Middleware validates request with session cookie and bearer token.
+	// - Set a plugin cookie that stores insenstive plugin metadata and a "state" field
+	//   that is just a randomly generated string:
+	//   https://github.com/gravitational/teleport.e/blob/7476cafa19d26dc3046b771c5a585ac9d4fc7d19/lib/web/plugins.go#L80
+	// - Construct and return as response, a redirect URL where we set the same "state" value as a query param
+	// - The web UI will redirect for the user to this URL (windows.location.replace)
+	//
+	// Redirect URL format:
+	// https://slack.com/oauth/v2/authorize?
+	//   client_id=<client_id>
+	//   &redirect_uri=<teleport cluster or plugins.teleportinfra.build>
+	//   &scope=chat%3Awrite%2Cusers%3Aread%2Cusers%3Aread.email
+	//   &state=<the-randomly-generated-string>
+	//
+	// Once slack page is loaded, and user confirms to "allow teleport access to this slack workspace",
+	// user will be redirected back to teleport which brings us to:
+	//
+	// Step 2: endpoint "enterprise/plugins/callback"
+	// - The middleware used to validate request only validates session cookie, but not a bearer token.
+	//   To ensure that the request were made by the same user we check that the "state" field
+	//   in the plugin cookie (set in step 1), is same as the state field set as a query param.
+	// - Once validated, plugin cookie is deleted, and a plugin resource is created in the backend
+	//   which completes the flow.
+	h.POST("/enterprise/plugins/oauth/start", h.WithAuth(p.startPluginOAuthHandle))
 	h.GET("/enterprise/plugins/callback/:type", h.WithSession(p.pluginCallbackHandle))
+
 	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
 	// get enrolled plugins
 	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))

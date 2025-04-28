@@ -61,6 +61,12 @@ func (netIQPluginDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *plugi
 	return trace.NotImplemented("TranslateCallbackCookie")
 }
 
+// HandleOAuthStart implements PluginDescriptor for netIQPluginDescriptor, always
+// returning "Not Implemented".
+func (netIQPluginDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
+	return nil, trace.NotImplemented("HandleOAuthStart")
+}
+
 // installNetIQPluginArgs contains all of the options for installing the NetIQ
 // plugin
 type installNetIQPluginArgs struct {

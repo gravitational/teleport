@@ -76,6 +76,20 @@ export const pluginsService = {
     }
   },
 
+  /**
+   * Replaces browser URL with the fetched redirect URL.
+   */
+  async redirectForPluginOAuth(formData: FormData) {
+    const webauthnResponse =
+      await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return api
+      .postFormData(cfg.api.plugin.oAuthStart, formData, webauthnResponse)
+      .then(resp => {
+        window.location.replace(resp.redirectUrl);
+      });
+  },
+
   validatePlugin(formData: FormData) {
     return api.postFormData(cfg.getPluginValidateUrl(), formData);
   },

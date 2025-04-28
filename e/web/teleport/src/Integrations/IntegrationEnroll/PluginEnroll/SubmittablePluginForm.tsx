@@ -26,12 +26,23 @@ import {
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
+import { isPathNotFoundError } from 'teleport/services/version/unsupported';
 
 import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue';
 
-// SubmittablePluginForm is a form that will use the default form submission event
-// if the plugin is an `OAuth` plugin. Otherwise it will send off a conventional
-// fetch request.
+/**
+ * SubmittablePluginForm will make a fetch request with form data.
+ *
+ * Historically, for OAuth required plugins (e.g slack) we used the
+ * browser default form submission which then the backend initiated
+ * a meta redirect (to the auth providers URL). Now, the backend
+ * returns the URL and the client does the redirecting.
+ *
+ * TODO:
+ * Form data was initially used to avoid creating a type for each of
+ * the various plugins we have, but we should refactor so that
+ * each plugin has an explicit type to avoid type errors.
+ */
 export function SubmittablePluginForm({
   plugin,
   eventId,
@@ -58,15 +69,17 @@ export function SubmittablePluginForm({
   const [showCleanUpModal, setShowCleanUpModal] = useState(false);
 
   async function onSubmit(validator: Validator, e: FormEvent<HTMLFormElement>) {
+    // Prevent browser from reloading the page from the form submission event.
+    e.preventDefault();
+
     if (!validator.validate()) {
-      e.preventDefault();
       return;
     }
 
-    if (!plugin.isOAuth) {
-      // Prevent browser from reloading the page from the form submission event.
-      e.preventDefault();
+    setAttempt({ status: 'processing' });
+    let formData = new FormData(e.currentTarget as HTMLFormElement);
 
+    if (!plugin.isOAuth) {
       // Success states will not be set because it's not required
       // to trigger a re-render (by setting the attempt to "success").
       // After setting plugin response, the outer component
@@ -107,9 +120,25 @@ export function SubmittablePluginForm({
         const msg = getErrMessage(e);
         setAttempt({ status: 'failed', statusText: msg });
       }
+    } else {
+      // Handle OAuth required plugins (eg: slack)
+      try {
+        await pluginsService.redirectForPluginOAuth(formData);
+      } catch (err) {
+        // TODO(kimlisa): DELETE IN v19.0 (csrf)
+        // Retry request with deprecated behavior, which is to
+        // use browser default form submission event
+        if (isPathNotFoundError(err)) {
+          const form = e.target as HTMLFormElement;
+          // HTMLFormElement.submit() does not run the forms "onsubmit" handler
+          // https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/submit
+          form.submit();
+          return;
+        }
+        setAttempt({ status: 'failed', statusText: getErrMessage(err) });
+      }
+      return;
     }
-
-    // Else let the default form submission event occur (eg: slack)
   }
 
   const pluginRequiresPermission =

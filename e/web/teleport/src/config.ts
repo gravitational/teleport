@@ -109,8 +109,9 @@ const cfg = {
       delete: '/v1/enterprise/plugin/:name',
       update: '/v1/enterprise/plugin',
       createStaticAuth: '/v1/enterprise/plugins/staticauth',
+      oAuthStart: '/v1/enterprise/plugins/oauth/start',
       // TODO(kimlisa): DELETE IN v19.0 (csrf)
-      // replaced by 'createStaticAuth'
+      // replaced by 'createStaticAuth' and 'oAuthStart'
       createDeprecated: '/v1/enterprise/plugin',
     },
     pluginValidatePath: '/v1/enterprise/plugins/validate',

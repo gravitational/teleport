@@ -187,6 +187,12 @@ func (entraIDPluginDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *plu
 	return trace.NotImplemented("TranslateCallbackCookie is not implemented for Entra ID")
 }
 
+// HandleOAuthStart implements PluginDescriptor for entraIDPluginDescriptor, always
+// returning "Not Implemented".
+func (entraIDPluginDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
+	return nil, trace.NotImplemented("HandleOAuthStart")
+}
+
 type entraIDPluginInputs struct {
 	name              string
 	authConnectorName string

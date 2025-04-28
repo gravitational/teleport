@@ -203,6 +203,18 @@ func (p *Plugin) installPluginWithStaticAuthCredsHandle(w http.ResponseWriter, r
 	return pd.HandleInstallRequest(r.Context(), sessCtx, w, r, p)
 }
 
+// startPluginOAuthHandle expects HTML form request, sets required cookie and returns a redirect URL will start a
+// OAuth2 code grant flow for authorizing access to plugin.
+func (p *Plugin) startPluginOAuthHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
+	pluginType := r.FormValue("type")
+	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
+	if !ok {
+		return nil, trace.BadParameter("unknown plugin type: %q", pluginType)
+	}
+
+	return pd.HandleOAuthStart(r.Context(), sessCtx, w, r, p)
+}
+
 func (p *Plugin) updatePluginHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
 	var req ui.PluginUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -166,6 +166,12 @@ func (awsICPluginDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *plugi
 	return trace.NotImplemented("TranslateCallbackCookie is not implemented for AWS IC")
 }
 
+// HandleOAuthStart implements PluginDescriptor for awsICPluginDescriptor, always
+// returning "Not Implemented".
+func (awsICPluginDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
+	return nil, trace.NotImplemented("HandleOAuthStart")
+}
+
 type awsICPluginFormData struct {
 	name                        string
 	region                      string

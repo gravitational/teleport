@@ -48,11 +48,14 @@ type pluginDescriptor interface {
 	HandleValidateConfigRequest(context.Context, *web.SessionContext, url.Values, *Plugin) error
 
 	// HandleInstallRequest handles the http request that asks Teleport to
-	// install a plugin into itself. For integrations with complex
-	// installation requirements, it can kick off the appropriate redirect
-	// chain. For simpler plugins (e.g. with static auth credentials),
-	// implementations can just do the work and return `OK`.
+	// install a plugin into itself.
+	// For plugins that don't require OAuth (eg: slack).
 	HandleInstallRequest(context.Context, *web.SessionContext, http.ResponseWriter, *http.Request, *Plugin) (*ui.Plugin, error)
+
+	// HandleOAuthStart handles the requirements required to begin an
+	// OAuth2 grant flow (setting required cookie and returning the
+	// OAuth URL to be redirected to) for OAuth plugins.
+	HandleOAuthStart(context.Context, *web.SessionContext, http.ResponseWriter, *http.Request, *Plugin) (*ui.OAuthPluginStartResponse, error)
 
 	// TranslateCallbackCookie translates cookie data set in an onboarding
 	// workflow into plugin settings for a given plugin implementation.
@@ -74,6 +77,12 @@ func (fn pluginInstallerFn) HandleInstallRequest(ctx context.Context, sessCtx *w
 // returning "Not Implemented".
 func (fn pluginInstallerFn) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
 	return trace.NotImplemented("HandleTestConfigRequest")
+}
+
+// HandleOAuthStart implements PluginDescriptor for pluginInstallerFn, always
+// returning "Not Implemented".
+func (pluginInstallerFn) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
+	return nil, trace.NotImplemented("HandleOAuthStart")
 }
 
 // TranslateCallbackCookie implements PluginDescriptor for pluginInstallerFn, always
@@ -971,19 +980,12 @@ func (slackDescriptor) HandleValidateConfigRequest(context.Context, *web.Session
 
 // HandleInstallRequest kicks off a OAuth2 Code Grant Flow for authorizing
 // access to a slack App.
+//
+// TODO(kimlisa): DELETE IN v19.0 (csrf)
+// We can't delete this function as it's a part of a interface,
+// instead we need to replace code block with "return trace.NotImplemented("HandleInstallRequest")"
 func (sd slackDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
-	// Set cookie info
-	cookie := pluginOnboardingCookie{}
-	cookie.Name = r.FormValue("name")
-	cookie.Slack = &pluginOnboardingParamsSlack{
-		FallbackChannel: r.FormValue("fallback_channel"),
-	}
-	cookie.EventID = r.FormValue("event_id")
-	if err := setPluginOnboardingCookie(&cookie, w); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	url, err := sd.getAuthURL(ctx, sessCtx, r, types.PluginTypeSlack, cookie.State, p)
+	url, err := sd.setCookieAndCreateAuthnURL(ctx, sessCtx, w, r, p)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -994,6 +996,17 @@ func (sd slackDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web
 		return nil, trace.Wrap(err)
 	}
 	return nil, nil
+}
+
+// HandleOAuthStart sets required cookie and returns a redirect URL that will start a
+// OAuth2 code grant flow for authorizing access to a slack App.
+func (sd slackDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
+	url, err := sd.setCookieAndCreateAuthnURL(ctx, sessCtx, w, r, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.OAuthPluginStartResponse{RedirectURL: url}, nil
 }
 
 // TranslateCallbackCookie translates data from the onboarding cookie,
@@ -1009,4 +1022,28 @@ func (slackDescriptor) TranslateCallbackCookie(pluginSpec *types.PluginSpecV1, c
 		},
 	}
 	return nil
+}
+
+// setCookieAndCreateAuthnURL sets a cookie with insensitive plugin information
+// and a state field. Returns the auth providers URL (that starts the OAuth grant flow)
+// with the same state field set as a URL query param.
+// The state parameter will be used later by TranslateCallbackCookie to validate the request.
+func (sd slackDescriptor) setCookieAndCreateAuthnURL(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (string, error) {
+	// Set cookie info
+	cookie := pluginOnboardingCookie{}
+	cookie.Name = r.FormValue("name")
+	cookie.Slack = &pluginOnboardingParamsSlack{
+		FallbackChannel: r.FormValue("fallback_channel"),
+	}
+	cookie.EventID = r.FormValue("event_id")
+	if err := setPluginOnboardingCookie(&cookie, w); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	url, err := sd.getAuthURL(ctx, sessCtx, r, types.PluginTypeSlack, cookie.State, p)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return url, nil
 }

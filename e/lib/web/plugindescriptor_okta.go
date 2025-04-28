@@ -128,6 +128,12 @@ func (oktaPluginDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 	return trace.NotImplemented("TranslateCallbackCookie")
 }
 
+// HandleOAuthStart implements PluginDescriptor for oktaPluginDescriptor, always
+// returning "Not Implemented".
+func (oktaPluginDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
+	return nil, trace.NotImplemented("HandleOAuthStart")
+}
+
 // installOktaPluginArgs contains all of the options for installing the Okta
 // plugin
 type installOktaPluginArgs struct {

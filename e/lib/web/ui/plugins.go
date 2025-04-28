@@ -109,6 +109,12 @@ type Plugin struct {
 	Status *PluginStatusV1 `json:"status,omitempty"`
 }
 
+// OAuthPluginStartResponse contains field related to starting
+// an OAuth2 grant flow.
+type OAuthPluginStartResponse struct {
+	RedirectURL string `json:"redirectUrl"`
+}
+
 // PluginStatusV1 holds information about the status of a plugin
 type PluginStatusV1 struct {
 	// Code is the status code of the plugin
