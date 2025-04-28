@@ -3598,3 +3598,29 @@ func (c *Cache) ListAccountAssignments(ctx context.Context, pageSize int, pageTo
 
 	return rg.reader.ListAccountAssignments(ctx, pageSize, pageToken)
 }
+
+func (c *Cache) GetIdentityCenterAccount(ctx context.Context, name services.IdentityCenterAccountID) (services.IdentityCenterAccount, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterAccount")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return services.IdentityCenterAccount{}, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.GetIdentityCenterAccount(ctx, name)
+}
+
+func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, token *pagination.PageRequestToken) ([]services.IdentityCenterAccount, pagination.NextPageToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	return rg.reader.ListIdentityCenterAccounts(ctx, pageSize, token)
+}
