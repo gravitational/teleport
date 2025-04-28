@@ -23,7 +23,8 @@ import { Add, Trash } from 'design/Icon';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredAll, requiredField } from 'shared/components/Validation/rules';
-import { Attempt } from 'shared/hooks/useAttemptNext';
+
+import { AllUserTraits } from 'teleport/services/user';
 
 /**
  * traitsPreset is a list of system defined traits in Teleport.
@@ -47,12 +48,12 @@ const traitsPreset = [
 
 /**
  * TraitsEditor supports add, edit or remove traits functionality.
- * @param attempt attempt is Attempt status.
+ * @param isLoading if true, it disables all the inputs in the editor.
  * @param configuredTraits holds traits configured for user in current editor.
  * @param setConfiguredTraits sets user traits in current editor.
  */
 export function TraitsEditor({
-  attempt,
+  isLoading,
   configuredTraits,
   setConfiguredTraits,
 }: TraitEditorProps) {
@@ -131,7 +132,7 @@ export function TraitsEditor({
                       });
                     }}
                     createOptionPosition="last"
-                    isDisabled={attempt.status === 'processing'}
+                    isDisabled={isLoading}
                   />
                 </Box>
                 <Box width="400px" ml={3}>
@@ -159,7 +160,7 @@ export function TraitsEditor({
                     formatCreateLabel={(i: string) =>
                       'Trait value: ' + `"${i}"`
                     }
-                    isDisabled={attempt.status === 'processing'}
+                    isDisabled={isLoading}
                   />
                 </Box>
                 <ButtonIcon
@@ -175,7 +176,7 @@ export function TraitsEditor({
                       pointer-events: none;
                     }
                   `}
-                  disabled={attempt.status === 'processing'}
+                  disabled={isLoading}
                 >
                   <Trash size="medium" />
                 </ButtonIcon>
@@ -197,7 +198,7 @@ export function TraitsEditor({
               pointer-events: none;
             }
           `}
-          disabled={attempt.status === 'processing'}
+          disabled={isLoading}
         >
           <Add
             className="icon-add"
@@ -252,5 +253,27 @@ export type TraitsOption = { traitKey: Option; traitValues: Option[] };
 export type TraitEditorProps = {
   setConfiguredTraits: Dispatch<SetStateAction<TraitsOption[]>>;
   configuredTraits: TraitsOption[];
-  attempt: Attempt;
+  isLoading: boolean;
 };
+
+export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
+  const newTrait = [];
+  for (let trait in allTraits) {
+    if (!allTraits[trait]) {
+      continue;
+    }
+    if (allTraits[trait].length === 1 && !allTraits[trait][0]) {
+      continue;
+    }
+    if (allTraits[trait].length > 0) {
+      newTrait.push({
+        traitKey: { value: trait, label: trait },
+        traitValues: allTraits[trait].map(t => ({
+          value: t,
+          label: t,
+        })),
+      });
+    }
+  }
+  return newTrait;
+}
