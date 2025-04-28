@@ -159,6 +159,21 @@ following claims:
 }
 ```
 
+Example config:
+
+```yaml
+- task: AuthenticatedBash@1  
+  inputs:
+    serviceConnection: 'test-generic-sc'
+    targetType: 'inline'
+    script: |
+      OIDC_REQUEST_URL="${SYSTEM_OIDCREQUESTURI}?api-version=7.1&serviceConnectionId=f0cda5b5-1aff-46ac-a80b-054d5c4f9b8a"
+      echo $OIDC_REQUEST_URL
+      echo $(System.AccessToken) | base64
+      curl -s -H "Content-Length: 0" -H "Content-Type: application/json" -H "Authorization: Bearer $(System.AccessToken)" -X POST $OIDC_REQUEST_URL | base64
+  displayName: 'Generic Service Connection w/ ID'
+```
+
 When using a Service Connection of the ARM Workload Identity Federation type, 
 we instead get the following claims:
 
