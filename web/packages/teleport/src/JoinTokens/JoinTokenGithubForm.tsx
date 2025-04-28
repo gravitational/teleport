@@ -235,7 +235,7 @@ export const JoinTokenGithubForm = ({
               },
             })
           }
-          readonly={readonly}
+          readonly={readonly || cfg.edition !== 'ent'}
         />
 
         <FieldInput
@@ -251,7 +251,7 @@ export const JoinTokenGithubForm = ({
               },
             })
           }
-          readonly={readonly}
+          readonly={readonly || cfg.edition !== 'ent'}
         />
 
         <FieldInput
@@ -268,7 +268,7 @@ export const JoinTokenGithubForm = ({
               },
             })
           }
-          readonly={readonly}
+          readonly={readonly || cfg.edition !== 'ent'}
         />
       </SectionBox>
     </>
