@@ -229,6 +229,8 @@ linters-settings:
         msg: "use protojson.UnmarshalOptions and consider enabling DiscardUnknown"
       - p: '^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$'
         msg: "use jsonpb.Unmarshaler and consider enabling AllowUnknownFields"
+      - p: '^credentials.NewTLS$'
+        msg: "use experimental/credentials.NewTLSWithALPNDisabled for v16 and older"
 
 run:
   go: '1.23'

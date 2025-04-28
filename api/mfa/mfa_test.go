@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -75,7 +75,7 @@ func TestMFAPerRPCCredentials(t *testing.T) {
 
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
-		grpc.Creds(credentials.NewTLS(mtlsConfig.ServerTLS)),
+		grpc.Creds(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ServerTLS)),
 	)
 	proto.RegisterAuthServiceServer(server, &mfaService{})
 	go func() {
@@ -85,7 +85,7 @@ func TestMFAPerRPCCredentials(t *testing.T) {
 
 	conn, err := grpc.Dial(
 		listener.Addr().String(),
-		grpc.WithTransportCredentials(credentials.NewTLS(mtlsConfig.ClientTLS)),
+		grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(mtlsConfig.ClientTLS)),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 	)
 	require.NoError(t, err)

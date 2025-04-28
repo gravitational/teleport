@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -428,7 +428,7 @@ func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.Di
 		InsecureSkipVerify: config.Insecure,
 		RootCAs:            pool,
 	}
-	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
+	return grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsConfig)), nil
 }
 
 func (s *Server) initAccessGraphWatchers(ctx context.Context, cfg *Config) error {
