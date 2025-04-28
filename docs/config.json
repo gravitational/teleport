@@ -739,6 +739,16 @@
       "source": "/enroll-resources/workload-identity/",
       "destination": "/mwi/workload-identity/",
       "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/access-monitoring/",
+      "destination": "/identity-governance/access-monitoring/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/access-controls/guides/locking/",
+      "destination": "/identity-governance/locking/",
+      "permanent": true
     }
   ]
 }
