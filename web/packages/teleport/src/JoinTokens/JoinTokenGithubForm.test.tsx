@@ -199,29 +199,6 @@ describe('GithubJoinTokenForm', () => {
     )
   );
 
-  it('repository field is disabled when a repository owner is populated', async () => {
-    const state = baseState({
-      rules: [
-        {
-          repository_owner: 'something',
-        },
-      ],
-    });
-
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={jest.fn()}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
-
-    const field = screen.getByPlaceholderText('gravitational/teleport');
-
-    expect(field).toBeDisabled();
-  });
-
   it('repository field shows a validation message', async () => {
     const state = baseState();
 
@@ -246,29 +223,6 @@ describe('GithubJoinTokenForm', () => {
     'repository owner field can be populated',
     populateRuleFieldTest('repository_owner', 'gravitational', 'gravitational')
   );
-
-  it('repository owner field is disabled when a repository name is populated', async () => {
-    const state = baseState({
-      rules: [
-        {
-          repository: 'something',
-        },
-      ],
-    });
-
-    render(
-      <JoinTokenGithubForm
-        tokenState={state}
-        onUpdateState={jest.fn()}
-        readonly={false}
-      />,
-      { wrapper: Wrapper }
-    );
-
-    const field = screen.getByPlaceholderText('gravitational');
-
-    expect(field).toBeDisabled();
-  });
 
   it('repository owner field shows a validation message', async () => {
     const state = baseState();

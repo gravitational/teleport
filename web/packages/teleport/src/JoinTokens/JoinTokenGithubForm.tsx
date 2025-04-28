@@ -27,7 +27,7 @@ import { Trash } from 'design/Icon/Icons/Trash';
 import Text from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
-import { falsyField, requiredField } from 'shared/components/Validation/rules';
+import { requiredField } from 'shared/components/Validation/rules';
 
 import { collectKeys } from './collectKeys';
 import { NewJoinTokenState } from './UpsertJoinTokenDialog';
@@ -118,18 +118,11 @@ export const JoinTokenGithubForm = ({
             onChange={e => updateRuleField(index, 'repository', e.target.value)}
             rule={
               rule.repository_owner
-                ? falsyField(
-                    'Repository name cannot be provided with repository owner'
-                  )
+                ? undefined
                 : requiredField('Either repository name or owner is required')
             }
-            disabled={!!rule.repository_owner}
             readonly={readonly}
           />
-
-          <Text fontWeight="regular" textAlign="center">
-            - or -
-          </Text>
 
           <FieldInput
             label="Repository owner"
@@ -141,12 +134,9 @@ export const JoinTokenGithubForm = ({
             }
             rule={
               rule.repository
-                ? falsyField(
-                    'Repository owner cannot be provided with repository name'
-                  )
+                ? undefined
                 : requiredField('Either repository owner or name is required')
             }
-            disabled={!!rule.repository}
             readonly={readonly}
           />
 
