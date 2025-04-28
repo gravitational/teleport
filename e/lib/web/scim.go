@@ -11,8 +11,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
-	"github.com/gravitational/teleport/e/lib/scim"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -136,7 +136,7 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 		// validate the filter syntax is correct and supported. No point in
 		// sending the whole request over to auth only for it to be rejected
 		// straight away.
-		if _, err := scim.ParseFilter(filter); err != nil {
+		if _, err := scimfilter.ParseFilter(filter); err != nil {
 			return trace.BadParameter("unsupported filter syntax")
 		}
 	}

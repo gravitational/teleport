@@ -1,4 +1,4 @@
-package scim
+package test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/elimity-com/scim/schema"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -18,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -458,7 +460,7 @@ func TestGroupCreate(t *testing.T) {
 
 			if tt.expectCreatingAccessListEvent {
 				fix.shim.
-					On("onCreatingAccessList", anyContext, anyAccessList).
+					On("OnCreatingAccessList", anyContext, anyAccessList).
 					Run(func(args mock.Arguments) {
 						acl := getResultAs[*accesslist.AccessList](args, 1)
 						require.Empty(t, acl.GetName())
@@ -489,11 +491,11 @@ func TestGroupCreate(t *testing.T) {
 					Return(u, nil)
 
 				fix.shim.
-					On("userPredicate", anyContext, u).
+					On("UserPredicate", anyContext, u).
 					Return(isTestPluginUser)
 
 				fix.shim.
-					On("onCreatingAccessListMember", anyContext, isAccessListMember(tt.expectedAccessListID, u.GetName())).
+					On("OnCreatingAccessListMember", anyContext, isAccessListMember(tt.expectedAccessListID, u.GetName())).
 					Return(setAccessListMemberMetadata)
 			}
 
@@ -608,7 +610,7 @@ func TestGroupUpdate(t *testing.T) {
 
 			// Configure the shim to convert Group into an access list
 			fix.shim.
-				On("resourceToAccessList", anyContext, anyResource).
+				On("ResourceToAccessList", anyContext, anyResource).
 				Return(resourceToAccessList(tt.resourceID, clock)).
 				Maybe()
 
@@ -638,13 +640,13 @@ func TestGroupUpdate(t *testing.T) {
 
 				if user != nil {
 					fix.shim.
-						On("userPredicate", anyContext, isUserNamed(name)).
+						On("UserPredicate", anyContext, isUserNamed(name)).
 						Return(isTestPluginUser)
 				}
 
 				if isTestPluginUser(context.Background(), user) {
 					fix.shim.
-						On("onCreatingAccessListMember", anyContext, isAccessListMember(tt.resourceID, name)).
+						On("OnCreatingAccessListMember", anyContext, isAccessListMember(tt.resourceID, name)).
 						Return(setAccessListMemberMetadata)
 				}
 			}
@@ -821,20 +823,39 @@ func mkGroupMembers(n int) []map[string]any {
 	return members
 }
 
+func rigFixtureSetupForSCIMAuth(fix *testFixture) {
+	labels := map[string]string{"plugin": "some-string-unique-to-the-plugin"}
+	fix.creds.On("GetPluginStaticCredentialsByLabels", anyContext, labels).
+		Return([]types.PluginStaticCredentials{
+			&types.PluginStaticCredentialsV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+						Labels: map[string]string{
+							oktacommon.CredPurposeLabel: oktacommon.CredPurposeSCIMToken,
+						},
+					},
+				},
+				Spec: &types.PluginStaticCredentialsSpecV1{
+					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+						APIToken: hashedTokenSecret,
+					},
+				},
+			},
+		}, nil).Maybe()
+}
+
 // rigFixtureForGroupTest configures the fixture mocks for use with all of the
 // group tests
 func rigFixtureForGroupTest(fix *testFixture) {
-	// Configure shim to authorize any request
+	rigFixtureSetupForSCIMAuth(fix)
+
 	fix.shim.
-		On("authorizeRequest", anyContext, testAuthHeader).
-		Return(nil)
-	// Configure shim to find our test access lists
-	fix.shim.
-		On("accessListPredicate", anyContext, anyAccessList).
+		On("AccessListPredicate", anyContext, anyAccessList).
 		Return(isTestPluginAccessList).
 		Maybe()
 	fix.shim.
-		On("getResourceLabels").
+		On("GetResourceLabels").
 		Return(map[string]string{
 			types.OriginLabel: types.OriginConfigFile,
 			testUserLabel:     testUserLabelValue,
@@ -1115,4 +1136,26 @@ func passThroughAccessListWithMembers(_ context.Context, acl *accesslist.AccessL
 
 func getName(u *types.UserV2) string {
 	return u.GetName()
+}
+
+// member holds a SCIM group membership record as per RFC 7643 Section 4.2
+type member struct {
+	Value   string `mapstructure:"value"`
+	Display string `mapstructure:"display"`
+}
+
+// groupResource uses holds a parsed representation of a SCIM group resource,
+// as per RFC 7643 Section 4.2
+type groupResource struct {
+	DisplayName string   `mapstructure:"displayName"`
+	Members     []member `mapstructure:"members"`
+}
+
+// decodeGroupResource parses a SCIM group resource using `mapstructure`
+func decodeGroupResource(attributes map[string]any) (groupResource, error) {
+	var group groupResource
+	if err := mapstructure.Decode(attributes, &group); err != nil {
+		return groupResource{}, trace.Wrap(err)
+	}
+	return group, nil
 }

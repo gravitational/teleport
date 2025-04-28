@@ -1,4 +1,4 @@
-package scim
+package filter
 
 import (
 	"strings"
@@ -64,7 +64,9 @@ func validateAttributePath(attr filter.AttributePath) error {
 	return nil
 }
 
-func evaluateFilter(exp filter.Expression, attribs map[string]string) error {
+// EvaluateFilter evaluates a SCIM filter expression against a set of
+// attributes.
+func EvaluateFilter(exp filter.Expression, attribs map[string]string) error {
 	if exp == nil {
 		return nil
 	}

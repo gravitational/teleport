@@ -1,4 +1,4 @@
-package scim
+package filter
 
 import (
 	"fmt"
@@ -125,7 +125,7 @@ func TestFilterEval(t *testing.T) {
 			"userName": "scooby@mystery-machine.org",
 		}
 
-		err = evaluateFilter(f, attributes)
+		err = EvaluateFilter(f, attributes)
 		require.NoError(t, err)
 	})
 
@@ -134,7 +134,7 @@ func TestFilterEval(t *testing.T) {
 			"userName": "shaggy@mystery-machine.org",
 		}
 
-		err = evaluateFilter(f, attributes)
+		err = EvaluateFilter(f, attributes)
 		require.Error(t, err)
 	})
 

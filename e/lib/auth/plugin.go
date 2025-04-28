@@ -44,7 +44,8 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/resourceusage/resourceusagev1"
-	"github.com/gravitational/teleport/e/lib/scim"
+	scimservice "github.com/gravitational/teleport/e/lib/scim/service"
+	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/secreports"
 	"github.com/gravitational/teleport/e/lib/secreports/limiter"
 	"github.com/gravitational/teleport/e/lib/secreports/query/athena"
@@ -354,7 +355,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}
 	userMonitor.Start(ctx)
 
-	err = p.registerSCIMService(ctx, gRPCServer, &scim.Config{
+	err = p.registerSCIMService(ctx, gRPCServer, &common.Config{
 		IdentityService:     p.authServer.AuthServer,
 		Authorizer:          p.authServer.Authorizer,
 		UsersService:        p.authServer.AuthServer,
@@ -363,6 +364,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		CredentialsService:  p.pluginCreds,
 		LocksService:        p.authServer.AuthServer.Services,
 		AccessListsService:  p.authServer.AuthServer.Services,
+		AccessListGetter:    p.authServer.AuthServer.AccessLists,
 		CertAuthorityGetter: p.authServer.AuthServer,
 		JWTSignerGetter:     p.authServer.AuthServer.GetKeyStore(),
 		Logger:              logger,
@@ -421,7 +423,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	return nil
 }
 
-func (p *Plugin) registerSCIMService(ctx context.Context, registrar grpc.ServiceRegistrar, cfg *scim.Config) error {
+func (p *Plugin) registerSCIMService(ctx context.Context, registrar grpc.ServiceRegistrar, cfg *common.Config) error {
 	logger.InfoContext(ctx, "Registering SCIM service")
 
 	if !p.Config.HostedPlugins.Enabled {
@@ -431,7 +433,7 @@ func (p *Plugin) registerSCIMService(ctx context.Context, registrar grpc.Service
 	}
 
 	logger.DebugContext(ctx, "Creating SCIM service")
-	scimService, err := scim.NewService(cfg)
+	scimService, err := scimservice.NewService(cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}

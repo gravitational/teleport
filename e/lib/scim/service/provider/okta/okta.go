@@ -1,14 +1,12 @@
-package scim
+package okta
 
 import (
 	"context"
 	"log/slog"
 	"math"
-	"net/http"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
 	oktasdk "github.com/okta/okta-sdk-golang/v2/okta"
 	oktaquery "github.com/okta/okta-sdk-golang/v2/okta/query"
@@ -22,10 +20,11 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/okta"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
-	"github.com/gravitational/teleport/e/lib/okta/common"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
+	"github.com/gravitational/teleport/e/lib/scim/service/common"
+	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
@@ -37,52 +36,37 @@ const (
 // and resource handlers. A new shim will be created for every request requiring
 // Okta-specific behavior.
 type oktaShim struct {
-	creds               CredentialsService
-	locks               LocksService
-	users               UsersService
-	roles               RolesService
-	certAuthorityGetter certAuthorityGetter
-	jwtSignerGetter     jwtSignerGetter
-	plugin              *types.PluginV1
-	clock               clockwork.Clock
-	logger              *slog.Logger
-	identity            IdentityService
-	httpClient          *http.Client
-	assignmentsService  oktacommon.OktaAssignmentService
+	common.Config
+	plugin *types.PluginV1
 }
 
-// Static assertion that the oktaShim implements the `shim` interface
-var _ providerShim = (*oktaShim)(nil)
-
-// newOktaShim is a factory function for creating Okta shim values from an Okta
-// plugin resource
-func newOktaShim(ctx context.Context, plugin types.Plugin, service *Service) (providerShim, error) {
-	p, ok := plugin.(*types.PluginV1)
-	if !ok {
-		return nil, trace.BadParameter("unsupported plugin resource")
-	}
-
-	oktaSettings := p.Spec.GetOkta()
+// New creates a new Okta handled for the given resource type.
+func New(config common.Config, pluginV1 *types.PluginV1, resourceType string) (common.ResourceHandler, error) {
+	oktaSettings := pluginV1.Spec.GetOkta()
 	if oktaSettings == nil {
 		return nil, trace.BadParameter("missing okta settings")
 	}
-
-	log := slog.With(teleport.ComponentKey, teleport.Component(ComponentName, eteleport.ComponentOkta))
-
-	return &oktaShim{
-		creds:               service.creds,
-		locks:               service.locks,
-		clock:               service.clock,
-		users:               service.users,
-		roles:               service.roles,
-		identity:            service.identity,
-		certAuthorityGetter: service.certAuthorityGetter,
-		jwtSignerGetter:     service.jwtSignerGetter,
-		plugin:              p,
-		logger:              log,
-		httpClient:          service.httpClient,
-		assignmentsService:  service.assignmentService,
-	}, nil
+	config.Logger = slog.With(teleport.ComponentKey, teleport.Component("scim", eteleport.ComponentOkta))
+	switch resourceType {
+	case "Users":
+		return &resourcehandler.UserHandler{
+			Config: config,
+			ProviderUser: &oktaShim{
+				Config: config,
+				plugin: pluginV1,
+			},
+		}, nil
+	case "Groups":
+		return &resourcehandler.GroupHandler{
+			Config: config,
+			ProviderGroup: &oktaShim{
+				Config: config,
+				plugin: pluginV1,
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter("unsupported resource type %q", resourceType)
+	}
 }
 
 func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
@@ -94,33 +78,13 @@ func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
 	return oktaSettings.SyncSettings
 }
 
-// authorizeRequest grants or denies access based on a bearer
-func (s *oktaShim) authorizeRequest(ctx context.Context, authHeader string) error {
-	creds, err := oktaplugin.GetStaticCredentials(ctx, s.creds, s.plugin.GetCredentials().GetStaticCredentialsRef())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	scimTokenHash, ok, err := oktaplugin.SelectSCIMTokenHash(creds)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !ok {
-		return trace.AccessDenied("no token set")
-	}
-
-	if err := checkBearerToken(scimTokenHash, authHeader); err != nil {
-		return trace.AccessDenied("invalid token")
-	}
-
-	return nil
-}
-
-func (s *oktaShim) accessListPredicate(_ context.Context, accessList *accesslist.AccessList) bool {
+// AccessListPredicate checks if the access list is "owned" by this okta.
+func (s *oktaShim) AccessListPredicate(_ context.Context, accessList *accesslist.AccessList) bool {
 	return okta.MatchByLabels[*accesslist.AccessList](s.plugin.Spec.GetOkta().OrgUrl)(accessList)
 }
 
-func (s *oktaShim) userPredicate(ctx context.Context, user types.User) bool {
+// UserPredicate checks if the user is "owned" by this okta.
+func (s *oktaShim) UserPredicate(ctx context.Context, user types.User) bool {
 	if ok := s.userCreatedByOktaConnector(user); ok {
 		// User was created by the same connector.
 		// This can happen when SCIM user provisioning is enabled but a SAML transient user still exists in
@@ -143,7 +107,8 @@ func (s *oktaShim) userCreatedByOktaConnector(user types.User) bool {
 	return userConnector.ID == pluginConnectorID
 }
 
-func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.Resource, error) {
+// UserToResource converts a Teleport user to an Okta SCIM resource. The
+func (s *oktaShim) UserToResource(_ context.Context, user types.User) (*scimpb.Resource, error) {
 	resource := scimpb.Resource{
 		Id:         user.GetName(),
 		ExternalId: getOktaUserExternalID(user),
@@ -153,7 +118,7 @@ func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.R
 		},
 	}
 
-	attribs := scimsdk.AttributeSet{usernameAttribute: user.GetName()}
+	attribs := scimsdk.AttributeSet{common.UsernameAttribute: user.GetName()}
 	for k, v := range user.GetTraits() {
 		if !strings.HasPrefix(k, eteleport.OktaTraitPrefix) {
 			continue
@@ -177,7 +142,8 @@ func (s *oktaShim) userToResource(_ context.Context, user types.User) (*scimpb.R
 	return &resource, nil
 }
 
-func (s *oktaShim) resourceToUser(ctx context.Context, res *scimpb.Resource) (types.User, error) {
+// ResourceToUser converts an Okta SCIM resource to a Teleport user
+func (s *oktaShim) ResourceToUser(ctx context.Context, res *scimpb.Resource) (types.User, error) {
 	if !s.plugin.Spec.GetOkta().SyncSettings.SyncUsers {
 		// Note: User traits can differ between SCIM user and user created
 		// by Okta sync service due to different okta user/app user attributes
@@ -195,7 +161,7 @@ func (s *oktaShim) resourceToUser(ctx context.Context, res *scimpb.Resource) (ty
 		return nil, trace.Wrap(err)
 	}
 
-	s.logger.InfoContext(ctx, "Attempting to fetch user", "external_id", res.ExternalId, "username", oktaUser.UserName)
+	s.Logger.InfoContext(ctx, "Attempting to fetch user", "external_id", res.ExternalId, "username", oktaUser.UserName)
 
 	teleportUser, err := s.getOktaUser(ctx, res.ExternalId, s.plugin.Spec.GetOkta())
 	if err != nil {
@@ -205,7 +171,9 @@ func (s *oktaShim) resourceToUser(ctx context.Context, res *scimpb.Resource) (ty
 	return teleportUser, nil
 }
 
-func (s *oktaShim) onCreatingAccessList(ctx context.Context, acl *accesslist.AccessList) error {
+// OnCreatingAccessList is called by the access list handler immediately
+// after the access list is created
+func (s *oktaShim) OnCreatingAccessList(ctx context.Context, acl *accesslist.AccessList) error {
 	// The group ID should be unset on the initial ACL creation. In order to
 	// maintain compatibility with the Okta Sync service, we reach out via the
 	// Okta API to find out what the Okta ID for the group is.
@@ -224,7 +192,8 @@ func (s *oktaShim) onCreatingAccessList(ctx context.Context, acl *accesslist.Acc
 	return nil
 }
 
-func (s *oktaShim) getResourceLabels() map[string]string {
+// GetResourceLabels returns the labels that should be set on all resources
+func (s *oktaShim) GetResourceLabels() map[string]string {
 	return map[string]string{
 		types.OriginLabel:                  types.OriginOkta,
 		types.TeleportInternalResourceType: types.SystemResource,
@@ -232,12 +201,15 @@ func (s *oktaShim) getResourceLabels() map[string]string {
 	}
 }
 
-func (s *oktaShim) onCreatingAccessListMember(_ context.Context, m *accesslist.AccessListMember) error {
+// OnCreatingAccessListMember is called by the access list handler
+func (s *oktaShim) OnCreatingAccessListMember(_ context.Context, m *accesslist.AccessListMember) error {
 	m.Spec.AddedBy = okta.ImporterName
 	return nil
 }
 
-func (s *oktaShim) onCreatingUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
+// OnCreatingUser is called by the user handler immediately before the Teleport
+// user is created in the cluster.
+func (s *oktaShim) OnCreatingUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
 	return nil
 }
 
@@ -267,24 +239,24 @@ func (s *oktaShim) evaluateSAMLConnector(ctx context.Context, user types.User) e
 		groupsList = append(groupsList, v.Profile.Name)
 	}
 	connectorID := s.plugin.Spec.GetOkta().SyncSettings.SsoConnectorId
-	connector, err := s.identity.GetSAMLConnector(ctx, connectorID, false)
+	connector, err := s.IdentityService.GetSAMLConnector(ctx, connectorID, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	common.SetUserRolesAndTraits(user, groupsList, connector)
+	oktacommon.SetUserRolesAndTraits(user, groupsList, connector)
 	return nil
 }
 
-// onCreatedUser is called by the user handler immediately after the Teleport
+// OnCreatedUser is called by the user handler immediately after the Teleport
 // user is created in the cluster. Our implementation ensures that there are no
 // outstanding SCIM locks on that user
-func (s *oktaShim) onCreatedUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
+func (s *oktaShim) OnCreatedUser(ctx context.Context, createdUser types.User, res *scimpb.Resource) error {
 	oktaSettings := s.plugin.Spec.GetOkta()
-	log := s.logger.With("user", createdUser.GetName())
+	log := s.Logger.With("user", createdUser.GetName())
 	log.InfoContext(ctx, "Ensuring newly-created user has no SCIM locks")
 
 	err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated},
-		oktaSettings.OrgUrl, s.locks)
+		oktaSettings.OrgUrl, s.LocksService)
 	if err != nil {
 		// This is probably not enough of a reason to fail the provisioning, but
 		// it should be logged
@@ -299,11 +271,11 @@ type oktaUserResource struct {
 	Active   *bool  `mapstructure:"active"`
 }
 
-// onUpdatingUser handles a user update request. Okta piggybacks user activation
+// OnUpdatingUser handles a user update request. Okta piggybacks user activation
 // and deactivation into "update" messages
-func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (types.User, bool, error) {
+func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (types.User, bool, error) {
 	oktaSettings := s.plugin.Spec.GetOkta()
-	log := s.logger.With("user", teleportUser.GetName())
+	log := s.Logger.With("user", teleportUser.GetName())
 
 	var oktaUser oktaUserResource
 	if err := mapstructure.Decode(res.Attributes.AsMap(), &oktaUser); err != nil {
@@ -324,7 +296,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 		if (*oktaUser.Active) == true {
 			log.DebugContext(ctx, "Okta activating user - unlocking")
 			err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated},
-				oktaSettings.OrgUrl, s.locks)
+				oktaSettings.OrgUrl, s.LocksService)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
@@ -339,14 +311,14 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 			Reason:   okta.LockReasonDeactivated,
 			Message:  "User deactivated by Okta",
 			OrgURL:   oktaSettings.OrgUrl,
-			Clock:    s.clock,
-			LocksSvc: s.locks,
-			Logger:   s.logger,
+			Clock:    s.Clock,
+			LocksSvc: s.LocksService,
+			Logger:   s.Logger,
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
-		if err := s.users.DeleteUser(ctx, teleportUser.GetName()); err != nil {
+		if err := s.UsersService.DeleteUser(ctx, teleportUser.GetName()); err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, false, trace.Wrap(err)
 			}
@@ -376,7 +348,7 @@ func (s *oktaShim) onUpdatingUser(ctx context.Context, teleportUser types.User, 
 	// the Okta API for the target user's data as a flat list of attributes and
 	// update as per the Okta sync service
 
-	newUser, err := s.resourceToUser(ctx, res)
+	newUser, err := s.ResourceToUser(ctx, res)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -420,7 +392,7 @@ func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resou
 		User: types.UserRef{
 			Name: teleport.UserSystem,
 		},
-		Time: s.clock.Now(),
+		Time: s.Clock.Now(),
 		Connector: &types.ConnectorRef{
 			ID:       pluginSettings.SsoConnectorId,
 			Type:     constants.SAML,
@@ -462,7 +434,7 @@ func (s *oktaShim) getOktaUser(ctx context.Context, userID string, oktaSettings 
 		return nil, trace.Wrap(err)
 	}
 
-	newUser, err := okta.ConvertAppUser(appUser, s.clock,
+	newUser, err := okta.ConvertAppUser(appUser, s.Clock,
 		oktaSettings.SyncSettings.SsoConnectorId,
 		oktaSettings.OrgUrl)
 	if err != nil {
@@ -491,7 +463,7 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 	//  * Okta performs a "starts-with" search, so we may get multiple results.
 	//  * Exact matches are sorted first in the returned list
 
-	s.logger.DebugContext(ctx, "Looking up group", "group_name", displayName)
+	s.Logger.DebugContext(ctx, "Looking up group", "group_name", displayName)
 	groups, _, err := c.Group.ListGroups(ctx, &oktaquery.Params{Q: displayName, Limit: oktaGroupLimit})
 	if err != nil {
 		return "", trace.Wrap(err, "listing groups")
@@ -501,7 +473,7 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 
 	// Okta performs a "starts-with" search, so we may get multiple results.
 	for _, candidate := range groups {
-		log := s.logger.With("candidate", candidate.Id)
+		log := s.Logger.With("candidate", candidate.Id)
 
 		if candidate.Profile == nil {
 			log.InfoContext(ctx, "Candidate has no profile")
@@ -537,7 +509,7 @@ func (s *oktaShim) lookupGroup(ctx context.Context, displayName string) (string,
 // oktaClient creates an Okta client or returns NotFound if the credentials for the Okta client are
 // not present.
 func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
-	staticCreds, err := oktaplugin.GetStaticCredentials(ctx, s.creds, s.plugin.Credentials.GetStaticCredentialsRef())
+	staticCreds, err := oktaplugin.GetStaticCredentials(ctx, s.CredentialsService, s.plugin.Credentials.GetStaticCredentialsRef())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -550,9 +522,9 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 	case selectedOktaCreds.OauthClientId != "":
 		oktaAuthProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
 			OAuthClientID: selectedOktaCreds.OauthClientId,
-			AuthService:   s.certAuthorityGetter,
-			CAKeyStore:    s.jwtSignerGetter,
-			Clock:         s.clock,
+			AuthService:   s.CertAuthorityGetter,
+			CAKeyStore:    s.JWTSignerGetter,
+			Clock:         s.Clock,
 		})
 	case selectedOktaCreds.ApiToken != "":
 		oktaAuthProvider = oktaapi.NewSSWSAuthProvider(selectedOktaCreds.ApiToken)
@@ -573,7 +545,7 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 		oktasdk.WithRequestTimeout(okta.RequestTimeoutSeconds),
 		oktasdk.WithRateLimitMaxRetries(math.MaxInt32),
 		oktasdk.WithScopes(oktaAPIScopes),
-		oktasdk.WithHttpClientPtr(s.httpClient),
+		oktasdk.WithHttpClientPtr(s.HTTPClient),
 	)
 
 	_, apiClient, err := oktasdk.NewClient(ctx, oktaOpts...)

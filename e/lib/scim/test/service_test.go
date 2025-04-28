@@ -1,4 +1,4 @@
-package scim
+package test
 
 import (
 	"context"
@@ -15,6 +15,8 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta/common"
+	"github.com/gravitational/teleport/e/lib/scim/service"
+	scimcommon "github.com/gravitational/teleport/e/lib/scim/service/common"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
@@ -160,20 +162,27 @@ const (
 	testPluginName          = "test"
 	testPluginOrgUrl        = "https://mystery-machine.mockta.com"
 	testSSOConnectorID      = "test-okta-integration"
-	testAppID               = "okta-app-id"
 	testPluginID            = "some-string-unique-to-the-plugin"
-	testAuthHeader          = "some sort of bearer token"
+	testTokenSecret         = "somesortofbearertoken"
+	testAuthHeader          = "Bearer " + testTokenSecret
 	withSecrets             = true
 	withoutSecrets          = false
 	testUserExternalIDlabel = "mock-extrenal-id"
 	testUserLabel           = "favouriteFruit"
 	testUserLabelValue      = "nectarine"
-
-	// doesn't really matter what this value is, as long as it matches the
-	// plugin value created by mkTestPlugin() and is unlikely to be something
-	// that will have a SCIM integration
-	testPluginType = types.PluginTypeJira
 )
+
+var (
+	hashedTokenSecret string
+)
+
+func init() {
+	scimTokenHash, err := bcrypt.GenerateFromPassword([]byte(testTokenSecret), bcrypt.MinCost)
+	if err != nil {
+		panic(err)
+	}
+	hashedTokenSecret = string(scimTokenHash)
+}
 
 func mkTestPlugin() types.Plugin {
 	return &types.PluginV1{
@@ -243,7 +252,7 @@ func (p pluginMock) GetPlugin(ctx context.Context, name string, withSecrets bool
 }
 
 type userMock struct {
-	UsersService
+	scimcommon.UsersService
 	users []*types.UserV2
 }
 
@@ -254,7 +263,7 @@ func (u *userMock) ListUsers(ctx context.Context, req *userspb.ListUsersRequest)
 }
 
 type credMock struct {
-	CredentialsService
+	scimcommon.CredentialsService
 	creds []types.PluginStaticCredentials
 }
 
@@ -287,9 +296,6 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 		},
 	}
 
-	scimTokenEnc, err := bcrypt.GenerateFromPassword([]byte("scim_token"), bcrypt.DefaultCost)
-	require.NoError(t, err)
-
 	pluginCreds := []types.PluginStaticCredentials{
 		&types.PluginStaticCredentialsV1{
 			ResourceHeader: types.ResourceHeader{
@@ -301,7 +307,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 			},
 			Spec: &types.PluginStaticCredentialsSpecV1{
 				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: string(scimTokenEnc),
+					APIToken: hashedTokenSecret,
 				},
 			},
 		},
@@ -342,7 +348,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
-	sut, err := NewService(&Config{
+	sut, err := service.NewService(&scimcommon.Config{
 		Authorizer:          &authMock{},
 		Logger:              utils.NewSlogLoggerForTests(),
 		UsersService:        &userMock{users: users},
@@ -368,7 +374,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 		// if SAML from the user object and okta SCIM settings are the same.
 		resp, err := sut.ListSCIMResources(ctx, &scimpb.ListSCIMResourcesRequest{
 			Target: &scimpb.RequestTarget{
-				Authorization: "Bearer scim_token",
+				Authorization: testAuthHeader,
 				PluginId:      "okta",
 				ResourceType:  "Users",
 			},
@@ -387,7 +393,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 	t.Run("list SCIM resource should return SCIM and SAML originated users", func(t *testing.T) {
 		resp, err := sut.ListSCIMResources(ctx, &scimpb.ListSCIMResourcesRequest{
 			Target: &scimpb.RequestTarget{
-				Authorization: "Bearer scim_token",
+				Authorization: testAuthHeader,
 				PluginId:      "okta",
 				ResourceType:  "Users",
 			},

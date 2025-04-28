@@ -1,4 +1,4 @@
-package scim
+package test
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/lib/scim/service/common"
+	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
 	"github.com/gravitational/teleport/lib/authz"
 )
 
@@ -39,7 +41,7 @@ type mockUserService struct {
 	mock.Mock
 }
 
-var _ UsersService = (*mockUserService)(nil)
+var _ common.UsersService = (*mockUserService)(nil)
 
 func (m *mockUserService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	result := m.Called(ctx, req)
@@ -85,7 +87,7 @@ type mockLocksService struct {
 	mock.Mock
 }
 
-var _ LocksService = (*mockLocksService)(nil)
+var _ common.LocksService = (*mockLocksService)(nil)
 
 func (m *mockLocksService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
 	result := m.Called(ctx, inForceOnly, targets)
@@ -106,7 +108,7 @@ type mockPluginsService struct {
 	mock.Mock
 }
 
-var _ PluginsService = (*mockPluginsService)(nil)
+var _ common.PluginsService = (*mockPluginsService)(nil)
 
 func (m *mockPluginsService) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
 	result := m.Called(ctx, name, withSecrets)
@@ -126,10 +128,10 @@ type mockProviderShim struct {
 	mock.Mock
 }
 
-var _ providerShim = (*mockProviderShim)(nil)
+var _ resourcehandler.Shim = (*mockProviderShim)(nil)
 
-// accessListPredicate checks if the access list is "owned" by this provider
-func (m *mockProviderShim) accessListPredicate(ctx context.Context, acl *accesslist.AccessList) bool {
+// AccessListPredicate checks if the access list is "owned" by this provider
+func (m *mockProviderShim) AccessListPredicate(ctx context.Context, acl *accesslist.AccessList) bool {
 	result := m.Called(ctx, acl)
 
 	if fn, isDelegate := result.Get(0).(func(context.Context, *accesslist.AccessList) bool); isDelegate {
@@ -139,7 +141,7 @@ func (m *mockProviderShim) accessListPredicate(ctx context.Context, acl *accessl
 	return result.Bool(0)
 }
 
-func (m *mockProviderShim) userPredicate(ctx context.Context, u types.User) bool {
+func (m *mockProviderShim) UserPredicate(ctx context.Context, u types.User) bool {
 	// Mock doesn't give us an easy way to execute an arbitrary function and
 	// return that function's result as the mocked call's result. We emulate
 	// that behavior by passing a delegate function through the Result() method
@@ -153,7 +155,7 @@ func (m *mockProviderShim) userPredicate(ctx context.Context, u types.User) bool
 	return result.Bool(0)
 }
 
-func (m *mockProviderShim) userToResource(ctx context.Context, user types.User) (*scimpb.Resource, error) {
+func (m *mockProviderShim) UserToResource(ctx context.Context, user types.User) (*scimpb.Resource, error) {
 	result := m.Called(ctx, user)
 
 	if fn, isDelegate := result.Get(0).(func(context.Context, types.User) (*scimpb.Resource, error)); isDelegate {
@@ -163,7 +165,7 @@ func (m *mockProviderShim) userToResource(ctx context.Context, user types.User) 
 	return getResultAs[*scimpb.Resource](result, 0), result.Error(1)
 }
 
-func (m *mockProviderShim) resourceToUser(ctx context.Context, r *scimpb.Resource) (types.User, error) {
+func (m *mockProviderShim) ResourceToUser(ctx context.Context, r *scimpb.Resource) (types.User, error) {
 	result := m.Called(ctx, r)
 
 	if fn, isDelegate := result.Get(0).(func(context.Context, *scimpb.Resource) (types.User, error)); isDelegate {
@@ -173,17 +175,12 @@ func (m *mockProviderShim) resourceToUser(ctx context.Context, r *scimpb.Resourc
 	return getResultAs[types.User](result, 0), result.Error(1)
 }
 
-func (m *mockProviderShim) authorizeRequest(ctx context.Context, hdr string) error {
-	result := m.Called(ctx, hdr)
-	return result.Error(0)
-}
-
-func (m *mockProviderShim) onCreatingAccessList(ctx context.Context, accessList *accesslist.AccessList) error {
+func (m *mockProviderShim) OnCreatingAccessList(ctx context.Context, accessList *accesslist.AccessList) error {
 	result := m.Called(ctx, accessList)
 	return result.Error(0)
 }
 
-func (m *mockProviderShim) onCreatingAccessListMember(ctx context.Context, member *accesslist.AccessListMember) error {
+func (m *mockProviderShim) OnCreatingAccessListMember(ctx context.Context, member *accesslist.AccessListMember) error {
 	result := m.Called(ctx, member)
 	if fn, isDelegate := result.Get(0).(func(context.Context, *accesslist.AccessListMember) error); isDelegate {
 		return fn(ctx, member)
@@ -191,17 +188,17 @@ func (m *mockProviderShim) onCreatingAccessListMember(ctx context.Context, membe
 	return result.Error(0)
 }
 
-func (m *mockProviderShim) onCreatingUser(ctx context.Context, u types.User, r *scimpb.Resource) error {
+func (m *mockProviderShim) OnCreatingUser(ctx context.Context, u types.User, r *scimpb.Resource) error {
 	result := m.Called(ctx, u, r)
 	return result.Error(0)
 }
 
-func (m *mockProviderShim) onCreatedUser(ctx context.Context, u types.User, r *scimpb.Resource) error {
+func (m *mockProviderShim) OnCreatedUser(ctx context.Context, u types.User, r *scimpb.Resource) error {
 	result := m.Called(ctx, u, r)
 	return result.Error(0)
 }
 
-func (m *mockProviderShim) onUpdatingUser(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, bool, error) {
+func (m *mockProviderShim) OnUpdatingUser(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, bool, error) {
 	result := m.Called(ctx, u, r)
 	fn, isDelegate := result.Get(0).(func(context.Context, types.User, *scimpb.Resource) (types.User, bool, error))
 	if isDelegate {
@@ -210,7 +207,7 @@ func (m *mockProviderShim) onUpdatingUser(ctx context.Context, u types.User, r *
 	return getResultAs[types.User](result, 0), result.Bool(1), result.Error(2)
 }
 
-func (m *mockProviderShim) getResourceLabels() map[string]string {
+func (m *mockProviderShim) GetResourceLabels() map[string]string {
 	result := m.Called()
 	return getResultAs[map[string]string](result, 0)
 }

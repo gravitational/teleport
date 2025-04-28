@@ -1,4 +1,4 @@
-package scim
+package test
 
 import (
 	"context"
@@ -90,14 +90,12 @@ func TestUserList(t *testing.T) {
 			// users belonging to a provide, and some not...
 			uut, fix := newTestService(t)
 
+			rigFixtureSetupForSCIMAuth(fix)
 			fix.shim.
-				On("authorizeRequest", anyContext, testAuthHeader).
-				Return(nil)
-			fix.shim.
-				On("userPredicate", anyContext, anyUser).
+				On("UserPredicate", anyContext, anyUser).
 				Return(isTestPluginUser)
 			fix.shim.
-				On("userToResource", anyContext, anyUser).
+				On("UserToResource", anyContext, anyUser).
 				Maybe().
 				Return(testUserToResource)
 
@@ -135,15 +133,12 @@ func TestUsersListHandlesPagedUsers(t *testing.T) {
 	uut, fix := newTestService(t)
 	defer fix.AssertExpectations(t)
 
-	// configure the provider shim with a basic implementation
+	rigFixtureSetupForSCIMAuth(fix)
 	fix.shim.
-		On("authorizeRequest", anyContext, testAuthHeader).
-		Return(nil)
-	fix.shim.
-		On("userPredicate", anyContext, anyUser).
+		On("UserPredicate", anyContext, anyUser).
 		Return(isTestPluginUser)
 	fix.shim.
-		On("userToResource", anyContext, anyUser).
+		On("UserToResource", anyContext, anyUser).
 		Return(testUserToResource)
 
 	fix.plugins.
@@ -290,15 +285,13 @@ func TestUserGet(t *testing.T) {
 			uut, fix := newTestService(t)
 			defer fix.AssertExpectations(t)
 
+			rigFixtureSetupForSCIMAuth(fix)
 			fix.shim.
-				On("authorizeRequest", anyContext, testAuthHeader).
-				Return(nil)
-			fix.shim.
-				On("userPredicate", anyContext, anyUser).
+				On("UserPredicate", anyContext, anyUser).
 				Maybe().
 				Return(isTestPluginUser)
 			fix.shim.
-				On("userToResource", anyContext, anyUser).
+				On("UserToResource", anyContext, anyUser).
 				Maybe().
 				Return(testUserToResource)
 
@@ -404,24 +397,19 @@ func TestUserCreate(t *testing.T) {
 				})),
 			}
 
+			rigFixtureSetupForSCIMAuth(fix)
+
 			fix.shim.
-				On("authorizeRequest", anyContext, testAuthHeader).
-				Return(nil)
-			fix.shim.
-				On("resourceToUser", anyContext, anyResource).
+				On("ResourceToUser", anyContext, anyResource).
 				Return(resourceToTestUser)
-			fix.shim.
-				On("onCreatingUser", anyContext, anyUser, anyResource).
-				Once().
-				Return(nil)
 
 			if tt.expectCreatedEvent {
 				fix.shim.
-					On("onCreatedUser", anyContext, anyUser, anyResource).
+					On("OnCreatedUser", anyContext, anyUser, anyResource).
 					Once().
 					Return(nil)
 				fix.shim.
-					On("userToResource", anyContext, anyUser).
+					On("UserToResource", anyContext, anyUser).
 					Once().
 					Return(testUserToResource)
 			}
@@ -474,14 +462,12 @@ func TestUserUpdate(t *testing.T) {
 		})),
 	}
 
+	rigFixtureSetupForSCIMAuth(fix)
 	fix.shim.
-		On("authorizeRequest", anyContext, testAuthHeader).
-		Return(nil)
-	fix.shim.
-		On("userToResource", anyContext, anyUser).
+		On("UserToResource", anyContext, anyUser).
 		Return(testUserToResource)
 	fix.shim.
-		On("onUpdatingUser", anyContext, anyUser, anyResource).
+		On("OnUpdatingUser", anyContext, anyUser, anyResource).
 		Return(func(ctx context.Context, u types.User, r *scimpb.Resource) (types.User, bool, error) {
 			user, err := resourceToTestUser(ctx, r)
 			return user, true, err

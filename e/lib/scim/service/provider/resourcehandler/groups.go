@@ -1,13 +1,11 @@
-package scim
+package resourcehandler
 
 import (
 	"context"
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/mitchellh/mapstructure"
-	"github.com/scim2/filter-parser/v2"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
@@ -15,7 +13,9 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/gravitational/teleport/e/lib/okta/common"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
+	"github.com/gravitational/teleport/e/lib/scim/service/common"
+	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -27,40 +27,41 @@ const (
 	logFieldGroupId           = "group_id"
 )
 
-type groupHandler struct {
-	accessLists       AccessListsService
-	roles             RolesService
-	users             UsersService
-	clock             clockwork.Clock
-	logger            *slog.Logger
-	assignmentService common.OktaAssignmentService
+type ProviderGroup interface {
+	AccessListPredicate(context.Context, *accesslist.AccessList) bool
+	UserPredicate(context.Context, types.User) bool
+	OnCreatingAccessList(context.Context, *accesslist.AccessList) error
+	OnCreatingAccessListMember(context.Context, *accesslist.AccessListMember) error
+	GetResourceLabels() map[string]string
 }
 
-// static assertion that groupHandler implements the resourceHandler interface
-var _ resourceHandler = (*groupHandler)(nil)
+type GroupHandler struct {
+	common.Config
+	ProviderGroup
+}
 
-// create handles the "create group" request from the SCIM client. If an
+// CreateResource handles the "create group" request from the SCIM client. If an
 // appropriate AccessList already exists (e.g. if to was created by the Okta
 // Sync Service prior to enabling SCIM provisioning), this method will link the
 // existing ACL supplied group.
 //
 // If no such AccessList exists, this method will create the access list, along
 // with a default roles grant and other prerequisite resources.
-func (gh *groupHandler) create(ctx context.Context, shim providerShim, r *scimpb.Resource) (*scimpb.Resource, error) {
+func (h *GroupHandler) CreateResource(ctx context.Context, req *scimpb.CreateSCIMResourceRequest) (*scimpb.Resource, error) {
 	// We should not trust any ID given to us from the client, as it can be
 	// crafted by an attacker to overwrite existing Access Lists and Roles.
-	if r.Id != "" {
-		// Offering us an ID to use when creating a new Access Lists is actually
+	if req.GetResource().GetId() != "" {
+		// Offering us an ID to use when creating new Access Lists is actually
 		// suspicious enough behavior to reject the request outright.
 		return nil, trace.BadParameter("ID must not be set in creation request")
 	}
 
-	newACL, newMembers, err := gh.resourceToAccessList(r, shim)
+	newACL, newMembers, err := h.resourceToAccessList(req.GetResource())
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing group resource")
 	}
 
-	acl, err := gh.getOrCreateAccessList(ctx, shim, newACL)
+	acl, err := h.getOrCreateAccessList(ctx, newACL)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating ACL record")
 	}
@@ -69,12 +70,12 @@ func (gh *groupHandler) create(ctx context.Context, shim providerShim, r *scimpb
 		m.Spec.AccessList = acl.GetName()
 	}
 
-	newMembers, err = gh.validateMemberList(ctx, shim, acl, newMembers)
+	newMembers, err = h.validateMemberList(ctx, acl, newMembers)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating member list")
 	}
 
-	finalACL, finalMembers, err := gh.accessLists.UpsertAccessListWithMembers(ctx, acl, newMembers)
+	finalACL, finalMembers, err := h.AccessListsService.UpsertAccessListWithMembers(ctx, acl, newMembers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,6 +88,181 @@ func (gh *groupHandler) create(ctx context.Context, shim providerShim, r *scimpb
 	return resource, nil
 }
 
+func (h *GroupHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMResourcesRequest) (*scimpb.ResourceList, error) {
+	filter, err := scimfilter.ParseFilter(req.GetFilter())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing filter")
+	}
+
+	const pageSize = 100
+	var outputResources []*scimpb.Resource
+	index := 0
+	totalCount := 0
+	nextToken := ""
+
+	for {
+		var srcPage []*accesslist.AccessList
+		var err error
+		srcPage, nextToken, err = h.AccessListsService.ListAccessLists(ctx, pageSize, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed enumerating AccessLists")
+		}
+
+		for _, accessList := range srcPage {
+			if !h.AccessListPredicate(ctx, accessList) {
+				continue
+			}
+
+			filterAttribs := map[string]string{
+				groupNameAttribute:        accessList.GetName(),
+				groupDisplayNameAttribute: accessList.Spec.Title,
+			}
+			if err := scimfilter.EvaluateFilter(filter, filterAttribs); err != nil {
+				continue
+			}
+
+			index++
+			if index < int(req.GetPage().GetStartIndex()) {
+				continue
+			}
+
+			if len(outputResources) < int(req.GetPage().GetCount()) {
+				groupResource, err := accessListToResource(accessList, nil)
+				if err != nil {
+					h.Logger.ErrorContext(ctx, "converting access list to SCIM group resource",
+						"error", err,
+						logFieldGroupId, accessList.GetName(),
+					)
+					continue
+				}
+
+				outputResources = append(outputResources, groupResource)
+			}
+
+			totalCount++
+		}
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	output := &scimpb.ResourceList{
+		TotalResults: int32(totalCount),
+		StartIndex:   int32(req.GetPage().GetStartIndex()),
+		ItemsPerPage: int32(req.GetPage().GetCount()),
+		Resources:    outputResources,
+	}
+
+	return output, nil
+}
+
+func (h *GroupHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResourceRequest) (*scimpb.Resource, error) {
+	accessList, members, err := h.loadAccessListWithMembers(ctx, req.GetTarget().GetResourceId())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resource, err := accessListToResource(accessList, members)
+	if err != nil {
+		return nil, trace.Wrap(err, "formatting response")
+	}
+
+	return resource, nil
+}
+
+func (h *GroupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIMResourceRequest) (*scimpb.Resource, error) {
+	oldACL, oldMembers, err := h.loadAccessListWithMembers(ctx, req.GetResource().GetId())
+	if err != nil {
+		return nil, trace.Wrap(err, "loading existing access list")
+	}
+
+	newACL, newMembers, err := h.resourceToAccessList(req.GetResource())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing new access list")
+	}
+
+	newMembers, err = h.validateMemberList(ctx, newACL, newMembers)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating new access list")
+	}
+
+	// The only access-list level thing that the SCIM resource has the data to
+	// change here is the display name, so lets just update the old ACL with
+	// that, rather than try to make the new ACL match the old one
+	oldACL.Spec.Title = newACL.Spec.Title
+
+	oldMembersMap := utils.FromSlice(oldMembers, oktacommon.MemberKey)
+	oktaMemberMap := utils.FromSlice(newMembers, oktacommon.MemberKey)
+
+	// Exclude Okta members who were assigned via an ongoing Access Request.
+	// These temporary assignments should not be treated as long-term membership.
+	f := oktacommon.OngoingAccessRequestMembershipFilter{AssignmentsService: h.AssignmentService}
+
+	filteredMembersMap, err := f.Filter(ctx, oktaMemberMap, oldMembersMap)
+	if err != nil {
+		return nil, trace.Wrap(err, "filtering members with an ongoing Access Request")
+	}
+	var filteredMembers []*accesslist.AccessListMember
+	for _, m := range newMembers {
+		if _, ok := filteredMembersMap[oktacommon.MemberKey(m)]; ok {
+			filteredMembers = append(filteredMembers, m)
+		}
+	}
+
+	finalACL, finalMembers, err := h.AccessListsService.UpsertAccessListWithMembers(ctx, oldACL, filteredMembers)
+	if err != nil {
+		return nil, trace.Wrap(err, "upserting access list")
+	}
+
+	resource, err := accessListToResource(finalACL, finalMembers)
+	if err != nil {
+		return nil, trace.Wrap(err, "formatting response")
+	}
+
+	return resource, nil
+}
+
+func (h *GroupHandler) DeleteResource(ctx context.Context, req *scimpb.DeleteSCIMResourceRequest) error {
+	id := req.GetTarget().GetResourceId()
+	logger := h.Logger.With(logFieldGroupId, id)
+
+	// Check that the target Access List exists and belongs to this provider
+	logger.DebugContext(ctx, "Checking Access List existence and provenance")
+	acl, err := h.loadAccessList(ctx, id)
+	if err != nil {
+		return trace.Wrap(err, "loading existing access list")
+	}
+
+	logger.DebugContext(ctx, "Deleting AccessList")
+	if err := h.AccessListsService.DeleteAccessList(ctx, id); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete the owner- and member-granted roles associated with the ACL. Teleport
+	// prevents users from modifying Okta-derived Access Lists to add other
+	// roles, so it should be safe to delete these. They can't be anything other
+	// than the roles that were created along with the Access List itself.
+	//
+	// WARNING: This is a reasonable assumption while Okta is the only IdP using
+	//          this SCIM service - it may need revisiting when we add more IdPs
+	//          that may have different ACL modification rules.
+	//
+	roles := append(acl.Spec.Grants.Roles, acl.Spec.OwnerGrants.Roles...)
+	for _, roleName := range roles {
+		// make a best-effort attempt to delete the associated roles. Okta sync
+		// will clean up any leftovers on its next synchronization pass
+		if err := h.RolesService.DeleteRole(ctx, roleName); err != nil {
+			logger.ErrorContext(ctx, "Access List Role deletion failed",
+				"role_name", roleName,
+				"error", err,
+			)
+		}
+	}
+
+	return nil
+}
+
 // resourceToAccessList constructs an un-validated, in-memory Teleport access
 // list from the supplied SCIM resource. Note that the AccessList and
 // AccessListMembers may not be fully filled-out and valid resources ready for
@@ -96,18 +272,18 @@ func (gh *groupHandler) create(ctx context.Context, shim providerShim, r *scimpb
 // The IdP shim `onCreatingXXXX` callbacks give IdPs an opportunity to fill out
 // the missing details before the resources are presented to the AccessList
 // service
-func (gh *groupHandler) resourceToAccessList(r *scimpb.Resource, shim providerShim) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+func (h *GroupHandler) resourceToAccessList(r *scimpb.Resource) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	group, err := decodeGroupResource(r.Attributes.AsMap())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	var roles []string
-	if r.Id != "" {
-		roles = []string{r.Id}
+	if r.GetId() != "" {
+		roles = []string{r.GetId()}
 	}
 
-	labels := shim.getResourceLabels()
+	labels := h.GetResourceLabels()
 
 	// We may not have enough information to create a fully valid AccessList
 	// that would be accepted by the AccessList service here - especially if
@@ -145,7 +321,7 @@ func (gh *groupHandler) resourceToAccessList(r *scimpb.Resource, shim providerSh
 			Spec: accesslist.AccessListMemberSpec{
 				AccessList: acl.GetName(),
 				Name:       m.Value,
-				Joined:     gh.clock.Now(),
+				Joined:     h.Clock.Now(),
 			},
 		}
 		members[i] = newMember
@@ -154,12 +330,12 @@ func (gh *groupHandler) resourceToAccessList(r *scimpb.Resource, shim providerSh
 }
 
 // createNewAccessList creates a new AccessList amd adds it to the cluster backend.
-func (gh *groupHandler) createNewAccessList(ctx context.Context, shim providerShim, acl *accesslist.AccessList) (*accesslist.AccessList, error) {
-	if err := shim.onCreatingAccessList(ctx, acl); err != nil {
+func (h *GroupHandler) createNewAccessList(ctx context.Context, acl *accesslist.AccessList) (*accesslist.AccessList, error) {
+	if err := h.OnCreatingAccessList(ctx, acl); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessRole, reviewerRole, err := gh.createACLRoles(ctx, shim, acl)
+	accessRole, reviewerRole, err := h.createACLRoles(ctx, acl)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,8 +343,8 @@ func (gh *groupHandler) createNewAccessList(ctx context.Context, shim providerSh
 	acl.Spec.OwnerGrants.Roles = []string{reviewerRole.GetName()}
 	acl.Spec.Grants.Roles = []string{accessRole.GetName()}
 
-	gh.logger.DebugContext(ctx, "Upserting access list", "access_list", acl.GetName())
-	upsertedACL, err := gh.accessLists.UpsertAccessList(ctx, acl)
+	h.Logger.DebugContext(ctx, "Upserting access list", "access_list", acl.GetName())
+	upsertedACL, err := h.AccessListsService.UpsertAccessList(ctx, acl)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating accesslist")
 	}
@@ -176,9 +352,9 @@ func (gh *groupHandler) createNewAccessList(ctx context.Context, shim providerSh
 	return upsertedACL, nil
 }
 
-func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, acl *accesslist.AccessList) (types.Role, types.Role, error) {
-	accessRoleName := common.CreateOktaAccessRoleFriendlyName(acl.Spec.Title, acl.GetName())
-	reviewerRoleName := common.CreateOktaReviewerRoleFriendlyName(acl.Spec.Title, acl.GetName())
+func (h *GroupHandler) createACLRoles(ctx context.Context, acl *accesslist.AccessList) (types.Role, types.Role, error) {
+	accessRoleName := oktacommon.CreateOktaAccessRoleFriendlyName(acl.Spec.Title, acl.GetName())
+	reviewerRoleName := oktacommon.CreateOktaReviewerRoleFriendlyName(acl.Spec.Title, acl.GetName())
 
 	accessRole, err := types.NewRole(accessRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -193,7 +369,7 @@ func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, a
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessRole.SetStaticLabels(shim.getResourceLabels())
+	accessRole.SetStaticLabels(h.GetResourceLabels())
 
 	reviewerRole, err := types.NewRole(reviewerRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -205,25 +381,25 @@ func (gh *groupHandler) createACLRoles(ctx context.Context, shim providerShim, a
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	labelsCpy := shim.getResourceLabels()
+	labelsCpy := h.GetResourceLabels()
 	labelsCpy[eteleport.OktaACLReviewerRoleLabel] = "true"
 	reviewerRole.SetStaticLabels(labelsCpy)
 
-	gh.logger.DebugContext(ctx, "Creating access role", "role", accessRole.GetName())
-	if _, err := gh.roles.CreateRole(ctx, accessRole); err != nil {
+	h.Logger.DebugContext(ctx, "Creating access role", "role", accessRole.GetName())
+	if _, err := h.RolesService.CreateRole(ctx, accessRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating access role %q", accessRole.GetName())
 	}
 
-	gh.logger.DebugContext(ctx, "Creating reviewer role", "role", reviewerRole.GetName())
-	if _, err := gh.roles.CreateRole(ctx, reviewerRole); err != nil {
+	h.Logger.DebugContext(ctx, "Creating reviewer role", "role", reviewerRole.GetName())
+	if _, err := h.RolesService.CreateRole(ctx, reviewerRole); err != nil {
 		return nil, nil, trace.Wrap(err, "creating reviewer role %q", reviewerRole.GetName())
 	}
 
 	return accessRole, reviewerRole, nil
 }
 
-func (gh *groupHandler) validateMemberList(ctx context.Context, shim providerShim, acl *accesslist.AccessList, members []*accesslist.AccessListMember) ([]*accesslist.AccessListMember, error) {
-	log := gh.logger.With(logFieldGroupId, acl.GetName())
+func (h *GroupHandler) validateMemberList(ctx context.Context, acl *accesslist.AccessList, members []*accesslist.AccessListMember) ([]*accesslist.AccessListMember, error) {
+	log := h.Logger.With(logFieldGroupId, acl.GetName())
 
 	validatedUsers := make([]*accesslist.AccessListMember, 0, len(members))
 	for _, m := range members {
@@ -231,19 +407,19 @@ func (gh *groupHandler) validateMemberList(ctx context.Context, shim providerShi
 
 		memberLogger.DebugContext(ctx, "Processing Group Member")
 
-		user, err := gh.users.GetUser(ctx, m.Spec.Name, false)
+		user, err := h.UsersService.GetUser(ctx, m.Spec.Name, false)
 		if err != nil {
 			memberLogger.ErrorContext(ctx, "Failed fetching user", "error", err)
 			continue
 		}
 
-		if !shim.userPredicate(ctx, user) {
+		if !h.UserPredicate(ctx, user) {
 			memberLogger.DebugContext(ctx, "User does not belong to IdP")
 			continue
 		}
 
 		// Give the IdP an opportunity to customize the AccessListMember record
-		if err := shim.onCreatingAccessListMember(ctx, m); err != nil {
+		if err := h.OnCreatingAccessListMember(ctx, m); err != nil {
 			memberLogger.ErrorContext(ctx, "Omitting member after failing to customize member record", "error", err)
 			continue
 		}
@@ -262,71 +438,6 @@ func (gh *groupHandler) validateMemberList(ctx context.Context, shim providerShi
 	return validatedUsers, nil
 }
 
-// list handles a bulk listing query from the client
-func (gh *groupHandler) list(ctx context.Context, shim providerShim, filter filter.Expression, requestedPage *scimpb.Page) (*scimpb.ResourceList, error) {
-	const pageSize = 100
-	var outputResources []*scimpb.Resource
-	index := 0
-	totalCount := 0
-	nextToken := ""
-
-	for {
-		var srcPage []*accesslist.AccessList
-		var err error
-		srcPage, nextToken, err = gh.accessLists.ListAccessLists(ctx, pageSize, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed enumerating AccessLists")
-		}
-
-		for _, accessList := range srcPage {
-			if !shim.accessListPredicate(ctx, accessList) {
-				continue
-			}
-
-			filterAttribs := map[string]string{
-				groupNameAttribute:        accessList.GetName(),
-				groupDisplayNameAttribute: accessList.Spec.Title,
-			}
-			if err := evaluateFilter(filter, filterAttribs); err != nil {
-				continue
-			}
-
-			index++
-			if index < int(requestedPage.StartIndex) {
-				continue
-			}
-
-			if len(outputResources) < int(requestedPage.Count) {
-				groupResource, err := accessListToResource(accessList, nil)
-				if err != nil {
-					gh.logger.ErrorContext(ctx, "converting access list to SCIM group resource",
-						"error", err,
-						logFieldGroupId, accessList.GetName(),
-					)
-					continue
-				}
-
-				outputResources = append(outputResources, groupResource)
-			}
-
-			totalCount++
-		}
-
-		if nextToken == "" {
-			break
-		}
-	}
-
-	output := &scimpb.ResourceList{
-		TotalResults: int32(totalCount),
-		StartIndex:   int32(requestedPage.StartIndex),
-		ItemsPerPage: int32(requestedPage.Count),
-		Resources:    outputResources,
-	}
-
-	return output, nil
-}
-
 // getOrCreateAccessList attempts to match a new Group with an existing
 // AccessList, creating a new AccessList if no such candidate exists.
 //
@@ -335,10 +446,10 @@ func (gh *groupHandler) list(ctx context.Context, shim providerShim, filter filt
 // the SCIM resource to adopt to the already-existing AccessList rather than
 // create a new one, and getOrCreateAccessList implements this "adoption"
 // process.
-func (gh *groupHandler) getOrCreateAccessList(ctx context.Context, shim providerShim, acl *accesslist.AccessList) (*accesslist.AccessList, error) {
-	oldACL, err := gh.findAccessListByDisplayName(ctx, shim, acl.Spec.Title)
+func (h *GroupHandler) getOrCreateAccessList(ctx context.Context, acl *accesslist.AccessList) (*accesslist.AccessList, error) {
+	oldACL, err := h.findAccessListByDisplayName(ctx, acl.Spec.Title)
 	if trace.IsNotFound(err) {
-		newACL, err := gh.createNewAccessList(ctx, shim, acl)
+		newACL, err := h.createNewAccessList(ctx, acl)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating new access list")
 		}
@@ -352,8 +463,8 @@ func (gh *groupHandler) getOrCreateAccessList(ctx context.Context, shim provider
 	return oldACL, nil
 }
 
-func (gh *groupHandler) findAccessListByDisplayName(ctx context.Context, shim providerShim, displayName string) (*accesslist.AccessList, error) {
-	gh.logger.DebugContext(ctx, "Looking for ACL with display name", "display_name", displayName)
+func (h *GroupHandler) findAccessListByDisplayName(ctx context.Context, displayName string) (*accesslist.AccessList, error) {
+	h.Logger.DebugContext(ctx, "Looking for ACL with display name", "display_name", displayName)
 
 	var candidate *accesslist.AccessList
 	var nextToken string
@@ -361,25 +472,25 @@ func (gh *groupHandler) findAccessListByDisplayName(ctx context.Context, shim pr
 	var err error
 
 	for {
-		page, nextToken, err = gh.accessLists.ListAccessLists(ctx, 0, nextToken)
+		page, nextToken, err = h.AccessListsService.ListAccessLists(ctx, 0, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err, "enumerating access lists")
 		}
 
 		for _, acl := range page {
-			gh.logger.DebugContext(ctx, "Examining ACL",
+			h.Logger.DebugContext(ctx, "Examining ACL",
 				slog.Group("acl",
 					"name", acl.GetName(),
 					"title", acl.Spec.Title),
 			)
 
 			if acl.Spec.Title != displayName {
-				gh.logger.DebugContext(ctx, "Title mismatch", "existing_title", acl.Spec.Title, "requested_title", displayName)
+				h.Logger.DebugContext(ctx, "Title mismatch", "existing_title", acl.Spec.Title, "requested_title", displayName)
 				continue
 			}
 
-			if !shim.accessListPredicate(ctx, acl) {
-				gh.logger.DebugContext(ctx, "Failed access list predicate", "labels", acl.GetMetadata().Labels)
+			if !h.AccessListPredicate(ctx, acl) {
+				h.Logger.DebugContext(ctx, "Failed access list predicate", "labels", acl.GetMetadata().Labels)
 				continue
 			}
 
@@ -405,13 +516,13 @@ func (gh *groupHandler) findAccessListByDisplayName(ctx context.Context, shim pr
 // loadAccessListWithMembers fetches an AccessList and its associated member
 // list. An AccessList not "owned" by the supplied shim will be considered
 // "not found".
-func (gh *groupHandler) loadAccessListWithMembers(ctx context.Context, shim providerShim, id string) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-	acl, err := gh.loadAccessList(ctx, shim, id)
+func (h *GroupHandler) loadAccessListWithMembers(ctx context.Context, id string) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	acl, err := h.loadAccessList(ctx, id)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "loading access list %q", id)
 	}
 
-	members, err := gh.loadAccessListMembers(ctx, acl)
+	members, err := h.loadAccessListMembers(ctx, acl)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "loading access list members")
 	}
@@ -419,35 +530,35 @@ func (gh *groupHandler) loadAccessListWithMembers(ctx context.Context, shim prov
 	return acl, members, nil
 }
 
-func (gh *groupHandler) loadAccessList(ctx context.Context, shim providerShim, id string) (*accesslist.AccessList, error) {
-	acl, err := gh.accessLists.GetAccessList(ctx, id)
+func (h *GroupHandler) loadAccessList(ctx context.Context, id string) (*accesslist.AccessList, error) {
+	acl, err := h.AccessListGetter.GetAccessList(ctx, id)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading access list")
 	}
 
-	if !shim.accessListPredicate(ctx, acl) {
+	if !h.AccessListPredicate(ctx, acl) {
 		return nil, trace.NotFound("%s", id)
 	}
 
 	return acl, nil
 }
 
-func (gh *groupHandler) loadAccessListMembers(ctx context.Context, acl *accesslist.AccessList) ([]*accesslist.AccessListMember, error) {
-	return gh.loadAccessListMembersRecurse(ctx, acl.GetName(), 0)
+func (h *GroupHandler) loadAccessListMembers(ctx context.Context, acl *accesslist.AccessList) ([]*accesslist.AccessListMember, error) {
+	return h.loadAccessListMembersRecurse(ctx, acl.GetName(), 0)
 }
 
-func (gh *groupHandler) loadAccessListMembersRecurse(ctx context.Context, accessListName string, depth int32) ([]*accesslist.AccessListMember, error) {
+func (h *GroupHandler) loadAccessListMembersRecurse(ctx context.Context, accessListName string, depth int32) ([]*accesslist.AccessListMember, error) {
 	if depth > accesslist.MaxAllowedDepth {
 		return nil, nil
 	}
 
 	nextPage := ""
 	var err error
-	members := []*accesslist.AccessListMember{}
+	var members []*accesslist.AccessListMember
 
 	for {
 		var page []*accesslist.AccessListMember
-		page, nextPage, err = gh.accessLists.ListAccessListMembers(ctx, accessListName, 0, nextPage)
+		page, nextPage, err = h.AccessListGetter.ListAccessListMembers(ctx, accessListName, 0, nextPage)
 		if err != nil {
 			return nil, trace.Wrap(err, "enumerating access list members")
 		}
@@ -455,11 +566,11 @@ func (gh *groupHandler) loadAccessListMembersRecurse(ctx context.Context, access
 		for _, member := range page {
 			// recursively fetch members if the member is of type list
 			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				nestedList, err := gh.accessLists.GetAccessList(ctx, member.GetName())
+				nestedList, err := h.AccessListGetter.GetAccessList(ctx, member.GetName())
 				if err != nil {
 					return nil, trace.Wrap(err, "loading nested list")
 				}
-				nestedMembers, err := gh.loadAccessListMembersRecurse(ctx, nestedList.GetName(), depth+1)
+				nestedMembers, err := h.loadAccessListMembersRecurse(ctx, nestedList.GetName(), depth+1)
 				if err != nil {
 					return nil, trace.Wrap(err, "loading members of nested list")
 				}
@@ -478,112 +589,6 @@ func (gh *groupHandler) loadAccessListMembersRecurse(ctx context.Context, access
 	}
 
 	return members, nil
-}
-
-// get handles a request for a single group resource
-func (gh *groupHandler) get(ctx context.Context, shim providerShim, id string) (*scimpb.Resource, error) {
-	accessList, members, err := gh.loadAccessListWithMembers(ctx, shim, id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resource, err := accessListToResource(accessList, members)
-	if err != nil {
-		return nil, trace.Wrap(err, "formatting response")
-	}
-
-	return resource, nil
-}
-
-func (gh *groupHandler) update(ctx context.Context, shim providerShim, r *scimpb.Resource) (*scimpb.Resource, error) {
-	oldACL, oldMembers, err := gh.loadAccessListWithMembers(ctx, shim, r.Id)
-	if err != nil {
-		return nil, trace.Wrap(err, "loading existing access list members")
-	}
-
-	newACL, newMembers, err := gh.resourceToAccessList(r, shim)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing new access list")
-	}
-
-	newMembers, err = gh.validateMemberList(ctx, shim, newACL, newMembers)
-	if err != nil {
-		return nil, trace.Wrap(err, "validating new access list")
-	}
-
-	// The only access-list level thing that the SCIM resource has the data to
-	// change here is the display name, so lets just update the old ACL with
-	// that, rather than try to make the new ACL match the old one
-	oldACL.Spec.Title = newACL.Spec.Title
-
-	oldMembersMap := utils.FromSlice(oldMembers, common.MemberKey)
-	oktaMemberMap := utils.FromSlice(newMembers, common.MemberKey)
-
-	// Exclude Okta members who were assigned via an ongoing Access Request.
-	// These temporary assignments should not be treated as long-term membership.
-	f := common.OngoingAccessRequestMembershipFilter{AssignmentsService: gh.assignmentService}
-	filteredMembersMap, err := f.Filter(ctx, oktaMemberMap, oldMembersMap)
-	if err != nil {
-		return nil, trace.Wrap(err, "filtering members with an ongoing Access Request")
-	}
-	var filteredMembers []*accesslist.AccessListMember
-	for _, m := range newMembers {
-		if _, ok := filteredMembersMap[common.MemberKey(m)]; ok {
-			filteredMembers = append(filteredMembers, m)
-		}
-	}
-
-	finalACL, finalMembers, err := gh.accessLists.UpsertAccessListWithMembers(ctx, oldACL, filteredMembers)
-	if err != nil {
-		return nil, trace.Wrap(err, "upserting access list")
-	}
-
-	resource, err := accessListToResource(finalACL, finalMembers)
-	if err != nil {
-		return nil, trace.Wrap(err, "formatting response")
-	}
-
-	return resource, nil
-}
-
-// delete handles a request to delete a group resource
-func (gh *groupHandler) delete(ctx context.Context, shim providerShim, id string) error {
-	logger := gh.logger.With(logFieldGroupId, id)
-
-	// Check that the target Access List exists and belongs to this provider
-	logger.DebugContext(ctx, "Checking Access List existence and provenance")
-	acl, err := gh.loadAccessList(ctx, shim, id)
-	if err != nil {
-		return trace.Wrap(err, "loading existing access list")
-	}
-
-	logger.DebugContext(ctx, "Deleting AccessList")
-	if err := gh.accessLists.DeleteAccessList(ctx, id); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Delete the owner- and member-granted roles associated with the ACL. Teleport
-	// prevents users from modifying Okta-derived Access Lists to add other
-	// roles, so it should be safe to delete these. They can't be anything other
-	// than the roles that were created along with the Access List itself.
-	//
-	// WARNING: This is a reasonable assumption while Okta is the only IdP using
-	//          this SCIM service - it may need revisiting when we add more IdPs
-	//          that may have different ACL modification rules.
-	//
-	roles := append(acl.Spec.Grants.Roles, acl.Spec.OwnerGrants.Roles...)
-	for _, roleName := range roles {
-		// make a best-effort attempt to delete the associated roles. Okta sync
-		// will clean up any leftovers on its next synchronization pass
-		if err := gh.roles.DeleteRole(ctx, roleName); err != nil {
-			logger.ErrorContext(ctx, "Access List Role deletion failed",
-				"role_name", roleName,
-				"error", err,
-			)
-		}
-	}
-
-	return nil
 }
 
 // member holds a SCIM group membership record as per RFC 7643 Section 4.2
@@ -634,7 +639,7 @@ func accessListToResource(accessList *accesslist.AccessList, members []*accessli
 	resource := &scimpb.Resource{
 		Id: accessList.GetName(),
 		Meta: &scimpb.Meta{
-			ResourceType: resourceTypeGroup,
+			ResourceType: common.ResourceTypeGroup,
 			Version:      accessList.GetRevision(),
 		},
 		Attributes: attrs,

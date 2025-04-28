@@ -1,4 +1,4 @@
-package scim
+package test
 
 import (
 	"context"
@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/scim/service"
+	"github.com/gravitational/teleport/e/lib/scim/service/common"
+	"github.com/gravitational/teleport/e/lib/scim/service/provider/resourcehandler"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -51,6 +54,7 @@ func (tf *testFixture) AssertExpectations(t *testing.T) {
 	tf.creds.AssertExpectations(t)
 	tf.shim.AssertExpectations(t)
 	tf.identityService.AssertExpectations(t)
+	tf.assignments.AssertExpectations(t)
 }
 
 func (tf *testFixture) CheckAndSetDefaults(t *testing.T) {
@@ -72,10 +76,10 @@ func (tf *testFixture) CheckAndSetDefaults(t *testing.T) {
 	}
 }
 
-func newTestServiceWith(t *testing.T, fix *testFixture) (*Service, *testFixture) {
+func newTestServiceWith(t *testing.T, fix *testFixture) (*service.Service, *testFixture) {
 	fix.CheckAndSetDefaults(t)
 
-	scimSvc, err := NewService(&Config{
+	scimSvc, err := service.NewService(&common.Config{
 		Authorizer:          builtinRoleAuthorizer{},
 		UsersService:        &fix.users,
 		AccessListsService:  &fix.accesslists,
@@ -102,14 +106,25 @@ func newTestServiceWith(t *testing.T, fix *testFixture) (*Service, *testFixture)
 		fix.AssertExpectations(t)
 	})
 
-	scimSvc.shimFactories[testPluginType] = func(context.Context, types.Plugin, *Service) (providerShim, error) {
-		return fix.shim, nil
+	scimSvc.CreateHandlerForPlugin = func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error) {
+		switch resourceType {
+		case "Users":
+			return &resourcehandler.UserHandler{
+				Config:       config,
+				ProviderUser: fix.shim,
+			}, nil
+		case "Groups":
+			return &resourcehandler.GroupHandler{
+				Config:        config,
+				ProviderGroup: fix.shim,
+			}, nil
+		default:
+			return nil, trace.BadParameter("unsupported resource type %q", resourceType)
+		}
 	}
-	t.Cleanup(func() { delete(scimSvc.shimFactories, testPluginType) })
-
 	return scimSvc, fix
 }
 
-func newTestService(t *testing.T) (*Service, *testFixture) {
+func newTestService(t *testing.T) (*service.Service, *testFixture) {
 	return newTestServiceWith(t, &testFixture{})
 }
