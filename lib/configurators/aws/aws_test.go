@@ -1364,6 +1364,12 @@ func TestAWSPoliciesTarget(t *testing.T) {
 	}
 }
 
+func identityFromArn(t *testing.T, arn string) awslib.Identity {
+	identity, err := awslib.IdentityFromArn(arn)
+	require.NoError(t, err)
+	return identity
+}
+
 func TestAWSDocumentConfigurator(t *testing.T) {
 	var err error
 	ctx := context.Background()
@@ -1388,7 +1394,7 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 	config := ConfiguratorConfig{
 		awsCfg:    &aws.Config{},
 		iamClient: &iamMock{},
-		stsClient: &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		Identity:  identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
 		ssmClients: map[string]ssmClient{
 			"eu-central-1": &ssmMock{
 				t: t,
@@ -1429,7 +1435,7 @@ func TestAWSConfigurator(t *testing.T) {
 	config := ConfiguratorConfig{
 		awsCfg:        &aws.Config{},
 		iamClient:     &iamMock{},
-		stsClient:     &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		Identity:      identityFromArn(t, "arn:aws:iam::1234567:role/example-role"),
 		ssmClients:    map[string]ssmClient{"eu-central-1": &ssmMock{}},
 		ServiceConfig: &servicecfg.Config{},
 		Flags: configurators.BootstrapFlags{
