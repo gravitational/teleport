@@ -36,6 +36,7 @@ import Document from 'teleterm/ui/Document';
 import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests';
 import { DocumentAuthorizeWebSession } from 'teleterm/ui/DocumentAuthorizeWebSession';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
+import { DocumentDesktopSession } from 'teleterm/ui/DocumentDesktopSession';
 import { DocumentGateway } from 'teleterm/ui/DocumentGateway';
 import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
@@ -177,6 +178,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentVnetDiagReport doc={doc} visible={visible} />;
       case 'doc.vnet_info':
         return <DocumentVnetInfo doc={doc} visible={visible} />;
+      case 'doc.desktop_session':
+        return <DocumentDesktopSession doc={doc} visible={visible} />;
       default:
         doc satisfies types.DocumentBlank;
         return (

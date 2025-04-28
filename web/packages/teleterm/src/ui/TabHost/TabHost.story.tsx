@@ -29,6 +29,7 @@ import {
   makeDocumentAuthorizeWebSession,
   makeDocumentCluster,
   makeDocumentConnectMyComputer,
+  makeDocumentDesktopSession,
   makeDocumentGatewayApp,
   makeDocumentGatewayCliClient,
   makeDocumentGatewayDatabase,
@@ -62,6 +63,7 @@ const allDocuments = [
   makeDocumentAuthorizeWebSession(),
   makeDocumentVnetDiagReport(),
   makeDocumentVnetInfo(),
+  makeDocumentDesktopSession(),
 ];
 
 const cluster = makeRootCluster();
