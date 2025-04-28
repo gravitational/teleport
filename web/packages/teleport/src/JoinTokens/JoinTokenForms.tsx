@@ -127,6 +127,8 @@ export const JoinTokenIAMForm = ({
   );
 };
 
+const supportedFieldsIam = new Set(['.aws_account', '.aws_arn']);
+
 /**
  * `checkIAMYAMLData` determines if the provided value contains item/s that are not supported by the edit form.
  * @param data a value representing the iam-specific config for a token
@@ -134,9 +136,7 @@ export const JoinTokenIAMForm = ({
  */
 export const checkIAMYAMLData = (data: unknown) => {
   const keys = collectKeys(data);
-  return (
-    !keys || new Set(keys).isSubsetOf(new Set(['.aws_account', '.aws_arn']))
-  );
+  return !keys || new Set(keys).isSubsetOf(supportedFieldsIam);
 };
 
 export const JoinTokenGCPForm = ({
@@ -254,6 +254,12 @@ export const JoinTokenGCPForm = ({
   );
 };
 
+const supportedFieldsGcp = new Set([
+  '.allow.project_ids',
+  '.allow.locations',
+  '.allow.service_accounts',
+]);
+
 /**
  * `checkGCPYAMLData` determines if the provided value contains item/s that are not supported by the edit form.
  * @param data a value representing the gcp-specific config for a token
@@ -261,16 +267,7 @@ export const JoinTokenGCPForm = ({
  */
 export const checkGCPYAMLData = (data: unknown) => {
   const keys = collectKeys(data);
-  return (
-    !keys ||
-    new Set(keys).isSubsetOf(
-      new Set([
-        '.allow.project_ids',
-        '.allow.locations',
-        '.allow.service_accounts',
-      ])
-    )
-  );
+  return !keys || new Set(keys).isSubsetOf(supportedFieldsGcp);
 };
 
 export const JoinTokenOracleForm = ({
