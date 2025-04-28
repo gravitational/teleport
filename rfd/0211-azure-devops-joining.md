@@ -39,13 +39,29 @@ Goals:
 
 #### Service Connections
 
-##### Research
+### Research
 
-https://learn.microsoft.com/en-us/azure/devops/release-notes/2024/sprint-240-update#pipelines-and-tasks-populate-variables-to-customize-workload-identity-federation-authentication
+#### Requesting OIDC ID Tokens from Azure DevOps
 
-```json
-https://dev.azure.com/noahstride0304/271ef6f7-5998-4b0f-86fb-4b54d9129990/_apis/distributedtask/hubs/build/plans/c738a23e-2307-4a6c-a406-f1f0f729387c/jobs/12f1170f-54f2-53f3-20dd-22fc7dff55f9/oidctoken?api-version=7.1&serviceConnectionId=test-generic-sc
+Sources:
+
+- Notes from release of Workload Identity Federation: https://learn.microsoft.com/en-us/azure/devops/release-notes/2024/sprint-240-update#pipelines-and-tasks-populate-variables-to-customize-workload-identity-federation-authentication
+- API reference: https://learn.microsoft.com/en-us/rest/api/azure/devops/distributedtask/oidctoken/create?view=azure-devops-rest-7.2&preserve-view=true
+
+Similar to other join methods, we can fetch an ID Token from Azure DevOps 
+using a special API:
+
 ```
+OIDC_REQUEST_URL="${SYSTEM_OIDCREQUESTURI}?api-version=7.1"
+echo $OIDC_REQUEST_URL
+curl -s -H "Content-Length: 0" -H "Content-Type: application/json" -H "Authorization: Bearer $(System.AccessToken)" -X POST $OIDC_REQUEST_URL
+```
+
+The SYSTEM_OIDCREQUESTURI is an automagic environment variable provided by Azure
+DevOps.
+
+This yields a token with the following claims:
+
 ```json
 {
   "jti": "90b75b0a-61b6-4b71-ba6f-11107d95f4c5",
@@ -106,13 +122,28 @@ curl https://vstoken.dev.azure.com/0ca3ddd9-f0b0-4635-a98c-5866526961b6/.well-kn
 From the OpenID configuration document, we can determine the following URL 
 for validating the signature on the JWT: https://vstoken.dev.azure.com/.well-known/jwks
 
-You can also provide a `serviceConnectionId` parameter to the `oidtoken`
-endpoint. This takes the UUID of a service connection. This service connection
-MUST be referenced by an input of the step (which requires a custom action and
-cannot be done purely with Bash/Powershell) or it will return a Not Found error.
+#### OIDC ID Tokens linked to Service Connections
+
+You can also provide a `serviceConnectionId` parameter to the `oidctoken`
+endpoint. This takes the UUID of a service connection. It produces a different
+ID Token that references this service connection.
+
+In order for this parameter to be usable, the step must have an input that
+references this service connection. If there is no input that references this
+service connection, then it will return a Not Found error. You cannot just
+provide the service connection UUID.
+
+It is not easy to provide an input without creating a custom task. For the
+purposes of my testing, I leveraged 
+https://marketplace.visualstudio.com/items?itemName=cloudpup.authenticated-scripts
+to ensure an input referencing the service connection was present. Nothing
+additional is performed by the custom task, it would appear merely referencing 
+the service connection is sufficient. We would need to publish a custom task in
+order to leverage this functionality.
 
 When using a Service Connection of the Generic type, we instead get the
 following claims:
+
 ```json
 {
   "jti": "53042db8-a477-44c2-aca4-720bab67ad33",
@@ -150,4 +181,5 @@ we instead get the following claims:
 }
 ```
 
-The format of these claims appears to have been recently modified: https://learn.microsoft.com/en-us/azure/devops/release-notes/2025/sprint-253-update#workload-identity-federation-uses-entra-issuer
+The format of these claims appears to have been recently modified:
+https://learn.microsoft.com/en-us/azure/devops/release-notes/2025/sprint-253-update#workload-identity-federation-uses-entra-issuer
