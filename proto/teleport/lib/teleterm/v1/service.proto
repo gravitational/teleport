@@ -182,6 +182,9 @@ service TerminalService {
   // GetApp returns details of an app resource. It does not include information about AWS roles and
   // FQDN.
   rpc GetApp(GetAppRequest) returns (GetAppResponse);
+
+  // ConnectToDesktop is a bidirectional stream for the desktop connection.
+  rpc ConnectToDesktop(stream ConnectToDesktopRequest) returns (stream ConnectToDesktopResponse);
 }
 
 message EmptyResponse {}
@@ -673,4 +676,26 @@ message GetAppRequest {
 
 message GetAppResponse {
   App app = 1;
+}
+
+// TargetDesktop contains information about the destination desktop.
+message TargetDesktop {
+  // URI of the desktop to connect to.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+}
+
+// Request for ConnectToDesktop.
+message ConnectToDesktopRequest {
+  // A chunk of data from the connection. Can be nonempty even in the first message, but it's also legal for it to be empty.
+  bytes data = 1;
+  // Target desktop and login. Must be set in the first message and unset in subsequent messages.
+  TargetDesktop target_desktop = 2;
+}
+
+// Response for ConnectToDesktop.
+message ConnectToDesktopResponse {
+  // A chunk of data from the connection.
+  bytes data = 1;
 }
