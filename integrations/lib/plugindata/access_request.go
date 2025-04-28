@@ -69,8 +69,7 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 		var maxDuration time.Time
 		maxDuration, err = time.Parse(time.RFC3339, str)
 		if err != nil {
-			err = trace.Wrap(err)
-			return
+			return trace.Wrap(err)
 		}
 		data.MaxDuration = &maxDuration
 	}
