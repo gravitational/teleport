@@ -17,7 +17,11 @@
 package handler
 
 import (
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/ui"
 )
@@ -33,4 +37,24 @@ func newAPIWindowsDesktop(clusterDesktop clusters.WindowsDesktop) *api.WindowsDe
 		Logins: clusterDesktop.Logins,
 		Labels: apiLabels,
 	}
+}
+
+// ConnectToDesktop establishes a desktop connection.
+func (s *Handler) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse]) error {
+	msg, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if msg.TargetDesktop == nil {
+		return trace.Wrap(trace.BadParameter("first message must contain a target desktop"))
+	}
+
+	parsed, err := uri.Parse(msg.TargetDesktop.DesktopUri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.DaemonService.ConnectToDesktop(stream, parsed.GetClusterURI(), parsed.GetWindowsDesktopName(), msg.TargetDesktop.Login)
+	return trace.Wrap(err)
 }

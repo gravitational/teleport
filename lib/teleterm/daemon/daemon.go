@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/desktop"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -204,6 +206,23 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 	}
 
 	return cluster, nil
+}
+
+// ConnectToDesktop establishes a desktop connection.
+func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], uri uri.ResourceURI, desktopName, login string) error {
+	ctx := stream.Context()
+
+	cluster, clusterClient, err := s.ResolveClusterURI(uri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, proxyClient, desktopName, login))
 }
 
 // RemoveCluster removes cluster
