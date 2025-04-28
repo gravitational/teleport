@@ -30,9 +30,11 @@ import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { RoleDiffProps, RoleDiffState } from '../Roles';
 import { RoleEditorVisualizer } from './RoleEditorVisualizer';
 
+const defaultDemoMode = cfg.entitlements.AccessGraphDemoMode;
 const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
 const defaultIsCloud = cfg.isCloud;
 afterEach(() => {
+  cfg.entitlements.AccessGraphDemoMode = defaultDemoMode;
   cfg.isPolicyEnabled = defaultIsPolicyEnabled;
   cfg.isCloud = defaultIsCloud;
 });
@@ -68,8 +70,23 @@ test('Preview Identity Security button does not show for non-cloud', async () =>
   ).not.toBeInTheDocument();
 });
 
-test('Preview Identity Security button displays for cloud users', async () => {
+test('Preview Identity Security button does not show if entitlement not enabled', async () => {
   cfg.isCloud = true;
+  render(
+    getComponent(
+      makeRoleDiffProps({
+        roleDiffState: RoleDiffState.Disabled,
+      })
+    )
+  );
+  expect(
+    screen.queryByText('Preview Identity Security')
+  ).not.toBeInTheDocument();
+});
+
+test('Preview Identity Security button displays for cloud users with entitlement', async () => {
+  cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
   render(
     getComponent(
       makeRoleDiffProps({
@@ -82,6 +99,7 @@ test('Preview Identity Security button displays for cloud users', async () => {
 
 test('Preview Identity Security button does not show if user does not have update ACL', async () => {
   cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
   const ctx = createTeleportContext({
     customAcl: { ...getAcl(), accessGraphSettings: noAccess },
   });
@@ -135,6 +153,7 @@ test('ERROR displays policy placeholder with error', async () => {
 
 test('LOADING_SETTINGS displays policy placeholder with a preview button in a loading state', async () => {
   cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
   render(
     getComponent(
       makeRoleDiffProps({ roleDiffState: RoleDiffState.LoadingSettings })
@@ -145,6 +164,7 @@ test('LOADING_SETTINGS displays policy placeholder with a preview button in a lo
 
 test('WAITING_FOR_SYNC displays policy placeholder with a preview button in a loading state', async () => {
   cfg.isCloud = true;
+  cfg.entitlements.AccessGraphDemoMode = { enabled: true, limit: 0 };
   render(
     getComponent(
       makeRoleDiffProps({ roleDiffState: RoleDiffState.WaitingForSync })
