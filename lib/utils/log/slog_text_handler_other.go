@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !(darwin && cgo)
 
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
@@ -25,5 +25,5 @@ import (
 
 //nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
 func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, error) {
-	return nil, trace.NotImplemented("os_log is supported on macOS")
+	return nil, trace.NotImplemented("os_log is not supported on this platform")
 }
