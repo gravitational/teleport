@@ -29,7 +29,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
@@ -42,10 +41,10 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/configurators"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -303,8 +302,6 @@ type ConfiguratorConfig struct {
 
 	// awsCfg is the configuration used for AWS service clients.
 	awsCfg *aws.Config
-	// stsClient is an AWS STS client.
-	stsClient stsClient
 	// iamClient is an AWS IAM client.
 	iamClient iamClient
 	// ssmClients is a mapping of region -> AWS SSM client
@@ -358,16 +355,17 @@ To avoid seeing this warning, please provide a region in your AWS config or thro
 	return "us-east-1"
 }
 
+func getSTSClient(cfg aws.Config) *sts.Client {
+	return stsutils.NewFromConfig(cfg, func(o *sts.Options) {
+		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+	})
+}
+
 // CheckAndSetDefaults checks and set configuration default values.
 func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 	ctx := context.Background()
 	if c.ServiceConfig == nil {
 		return trace.BadParameter("config file is required")
-	}
-
-	useFIPSEndpoint := aws.FIPSEndpointStateUnset
-	if modules.GetModules().IsBoringBinary() {
-		useFIPSEndpoint = aws.FIPSEndpointStateEnabled
 	}
 
 	// When running the command in manual mode, we want to have zero dependency
@@ -378,32 +376,28 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		var err error
 
 		if c.awsCfg == nil {
-			cfg, err := config.LoadDefaultConfig(ctx,
-				config.WithUseFIPSEndpoint(useFIPSEndpoint),
-			)
+			opts := []awsconfig.OptionsFn{
+				awsconfig.WithSTSClientProvider(func(cfg aws.Config) awsconfig.STSClient {
+					return getSTSClient(cfg)
+				}),
+			}
+			if c.Flags.AssumeRole != "" {
+				opts = append(opts, awsconfig.WithAssumeRole(c.Flags.AssumeRole, c.Flags.ExternalID))
+			}
+			cfg, err := awsconfig.GetConfig(ctx, getFallbackRegion(ctx, os.Stdout, nil), opts...)
 			if err != nil {
 				return trace.Wrap(err)
-			}
-
-			if cfg.Region == "" {
-				cfg.Region = getFallbackRegion(ctx, os.Stdout, nil)
 			}
 			c.awsCfg = &cfg
 		}
 
-		if c.stsClient == nil {
-			c.stsClient = stsutils.NewFromConfig(*c.awsCfg, func(o *sts.Options) {
-				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-			})
-
-		}
 		if c.iamClient == nil {
 			c.iamClient = iamutils.NewFromConfig(*c.awsCfg, func(o *iam.Options) {
 				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 			})
 		}
 		if c.Identity == nil {
-			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.stsClient)
+			c.Identity, err = awslib.GetIdentityWithClient(ctx, getSTSClient(*c.awsCfg))
 			if err != nil {
 				return trace.Wrap(err)
 			}

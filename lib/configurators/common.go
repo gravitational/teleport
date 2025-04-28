@@ -107,6 +107,10 @@ type BootstrapFlags struct {
 	Proxy string
 	// ForceAssumesRoles forces the presence of additional external AWS IAM roles to assume.
 	ForceAssumesRoles string
+
+	AssumeRole string
+
+	ExternalID string
 }
 
 // ConfiguratorActionContext context passed across configurator actions. It is
