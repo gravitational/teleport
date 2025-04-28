@@ -364,14 +364,14 @@ func (c *Controller) GetControlStream(serverID string) (handle UpstreamHandle, o
 // note: if multiple handles are registered for a given server, only
 // one handle is selected pseudorandomly to be observed.
 func (c *Controller) Iter(fn func(UpstreamHandle)) {
-	c.store.Iter(fn)
+	c.store.UniqueHandles(fn)
 }
 
 // IterWithDuplicates iterates across all handles registered with this
 // controller. If multiple handles are registered for a given server,
 // all of them will be observed.
 func (c *Controller) IterWithDuplicates(fn func(UpstreamHandle)) {
-	c.store.IterWithDuplicates(fn)
+	c.store.AllHandles(fn)
 }
 
 // ConnectedInstances gets the total number of connected instances. Note that this is the total number of

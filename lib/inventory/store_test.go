@@ -73,7 +73,7 @@ func BenchmarkStore(b *testing.B) {
 					go func() {
 						defer wg.Done()
 						var foundServer bool
-						store.Iter(func(h UpstreamHandle) {
+						store.UniqueHandles(func(h UpstreamHandle) {
 							if h.Hello().ServerID == serverID {
 								foundServer = true
 							}
@@ -126,7 +126,7 @@ func TestStoreAccess(t *testing.T) {
 
 	// ensure that all handles are visited if we iterate many times
 	for i := 0; i < 1_000; i++ {
-		store.Iter(func(h UpstreamHandle) {
+		store.UniqueHandles(func(h UpstreamHandle) {
 			ptr := h.(*upstreamHandle)
 			n, ok := handles[ptr]
 			require.True(t, ok)
@@ -142,16 +142,16 @@ func TestStoreAccess(t *testing.T) {
 
 	// verify that all handles were removed
 	var count int
-	store.Iter(func(h UpstreamHandle) {
+	store.UniqueHandles(func(h UpstreamHandle) {
 		count++
 	})
 	require.Zero(t, count)
 }
 
-// TestIterWithDuplicates verifies that IterWithDuplicates allows us to visit
+// TestAllHandles verifies that AllHandles allows us to visit
 // every handle in the store, even when multiple handles are registered with
 // the same server ID.
-func TestIterWithDuplicates(t *testing.T) {
+func TestAllHandles(t *testing.T) {
 	store := NewStore()
 
 	// we keep a record of all handles inserted into the store
@@ -172,7 +172,7 @@ func TestIterWithDuplicates(t *testing.T) {
 	}
 
 	// ensure that all handles are visited
-	store.IterWithDuplicates(func(h UpstreamHandle) {
+	store.AllHandles(func(h UpstreamHandle) {
 		ptr := h.(*upstreamHandle)
 		n, ok := handles[ptr]
 		require.True(t, ok)
@@ -187,7 +187,7 @@ func TestIterWithDuplicates(t *testing.T) {
 
 	// verify that all handles were removed
 	var count int
-	store.Iter(func(h UpstreamHandle) {
+	store.UniqueHandles(func(h UpstreamHandle) {
 		count++
 	})
 	require.Zero(t, count)
