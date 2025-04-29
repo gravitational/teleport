@@ -628,8 +628,6 @@ type CLIConf struct {
 
 	forkSignalFd uint64
 
-	forkPayload string
-
 	originalArgs []string
 }
 
@@ -908,7 +906,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked").Hidden().Uint64Var(&cf.forkSignalFd)
-	ssh.Flag("fork-payload", "Extra JSON data to pass when forked").Hidden().StringVar(&cf.forkPayload)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4059,12 +4056,12 @@ func onSSH(cf *CLIConf) error {
 
 	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
 		cmd, signalFd, err := client.BuildForkAuthenticateCommand(cf.Context, client.BuildForkAuthenticateCommandParams{
-			GetArgs: func(signalFd uintptr) []string {
+			GetArgs: func(signalFd uint64) []string {
 				args := make([]string, 0, len(cf.originalArgs)+2)
 				for i, arg := range cf.originalArgs {
 					args = append(args, arg)
 					if arg == "ssh" {
-						args = append(args, "--fork-signal-fd", strconv.FormatUint(uint64(signalFd), 10))
+						args = append(args, "--fork-signal-fd", strconv.FormatUint(signalFd, 10))
 						args = append(args, cf.originalArgs[i+1:]...)
 						return args
 					}
@@ -4089,7 +4086,7 @@ func onSSH(cf *CLIConf) error {
 			}
 
 			if cf.forkSignalFd != 0 {
-				opts = append(opts, client.WithForkHandler(func() error {
+				opts = append(opts, client.WithForkAfterAuthentication(func() error {
 					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
 					if stdin, ok := tc.Stdin.(io.ReadCloser); ok {
 						stdin.Close()

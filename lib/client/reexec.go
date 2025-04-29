@@ -13,7 +13,7 @@ import (
 )
 
 type BuildForkAuthenticateCommandParams struct {
-	GetArgs func(signalFd uintptr) []string
+	GetArgs func(signalFd uint64) []string
 	Stdin   io.Reader
 	Stdout  io.Writer
 	Stderr  io.Writer

@@ -1901,9 +1901,8 @@ type SSHOptions struct {
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
 
-	GetForkArgs func([]string) []string
-
-	OnAuthenticate func() error
+	ForkAfterAuthentication bool
+	OnAuthenticate          func() error
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1922,14 +1921,9 @@ func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOp
 	}
 }
 
-func ForkAfterAuthentication(f func(extraArgs []string) []string) func(*SSHOptions) {
+func WithForkAfterAuthentication(onAuthenticate func() error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
-		opt.GetForkArgs = f
-	}
-}
-
-func WithForkHandler(onAuthenticate func() error) func(*SSHOptions) {
-	return func(opt *SSHOptions) {
+		opt.ForkAfterAuthentication = true
 		opt.OnAuthenticate = onAuthenticate
 	}
 }
@@ -1955,6 +1949,10 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 		opt(&options)
 	}
 
+	if options.ForkAfterAuthentication && len(command) == 0 {
+		return trace.BadParameter("fork after authentication not allowed for interactive sessions")
+	}
+
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
@@ -1976,7 +1974,10 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	}
 
 	if len(nodeAddrs) > 1 {
-		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command, options)
+		if options.ForkAfterAuthentication {
+			return trace.BadParameter("fork after authentication not supported for commands on multiple nodes")
+		}
+		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)
 	}
 	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options)
 }
@@ -2197,10 +2198,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
-		NodeDetails{
-			Addr:    nodeAddr,
-			Cluster: cluster,
-		},
+		NodeDetails{Addr: nodeAddr, Cluster: cluster},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2259,7 +2257,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
 }
 
-func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string, options SSHOptions) error {
+func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
 	cluster := clt.ClusterName()
 	nodeAddrs := make([]string, 0, len(nodes))
 	for _, node := range nodes {
@@ -2284,7 +2282,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, options)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, SSHOptions{})
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {

@@ -7,9 +7,7 @@ import (
 	"os/exec"
 )
 
-const signalFd = 3
-
-func addSignalFdToChild(cmd *exec.Cmd, signal *os.File) uintptr {
-	cmd.ExtraFiles = []*os.File{signal}
-	return signalFd
+func addSignalFdToChild(cmd *exec.Cmd, signal *os.File) uint64 {
+	cmd.ExtraFiles = append(cmd.ExtraFiles, signal)
+	return uint64(len(cmd.ExtraFiles) + 3)
 }
