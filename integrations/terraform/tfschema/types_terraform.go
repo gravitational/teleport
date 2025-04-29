@@ -1267,7 +1267,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"must_join_before": {
-									Description: "MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. Users may be modified after creation if necessary to allow the initial registration to take place.",
+									Description: "MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. This  may be modified after creation if necessary to allow the initial registration to take place.",
 									Optional:    true,
 									Type:        UseRFC3339Time(),
 								},

@@ -1919,7 +1919,7 @@ message ProvisionTokenSpecV2BoundKeypair {
 
     // MustJoinBefore is an optional time before which initial secret joining
     // may be used. Attempts to register using an initial join secret after this
-    // timestamp will not be allowed. Users may be modified after creation if
+    // timestamp will not be allowed. This  may be modified after creation if
     // necessary to allow the initial registration to take place.
     google.protobuf.Timestamp MustJoinBefore = 3 [
       (gogoproto.stdtime) = true,

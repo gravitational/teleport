@@ -6179,7 +6179,7 @@ type ProvisionTokenSpecV2BoundKeypair_OnboardingSpec struct {
 	InitialJoinSecret string `protobuf:"bytes,2,opt,name=InitialJoinSecret,proto3" json:"initial_join_secret,omitempty"`
 	// MustJoinBefore is an optional time before which initial secret joining
 	// may be used. Attempts to register using an initial join secret after this
-	// timestamp will not be allowed. Users may be modified after creation if
+	// timestamp will not be allowed. This  may be modified after creation if
 	// necessary to allow the initial registration to take place.
 	MustJoinBefore       *time.Time `protobuf:"bytes,3,opt,name=MustJoinBefore,proto3,stdtime" json:"must_join_before,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`

@@ -157,7 +157,7 @@ Optional:
 
 - `initial_join_secret` (String) InitialJoinSecret is an initial join secret joining clients may use to register their public key on first join. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`; if unset, a random secure value will be generated server-side to populate the status field.
 - `initial_public_key` (String) InitialPublicKey is an initial, static public key that will be used to immediately populate `.status.bound_keypair.bound_public_key`. If set, `initial_join_secret` and `must_join_before` are ignored, and `.status.bound_keypair.initial_join_secret` will not be generated. This value is written in SSH public key format, including algorithm.
-- `must_join_before` (String) MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. Users may be modified after creation if necessary to allow the initial registration to take place.
+- `must_join_before` (String) MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. This  may be modified after creation if necessary to allow the initial registration to take place.
 
 
 
