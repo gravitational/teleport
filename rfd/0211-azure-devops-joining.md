@@ -35,9 +35,180 @@ Goals:
   pipeline. 
 - Mitigate common attacks such as token reuse.
 
-### Background on Azure DevOps & Azure authentication
+This RFD will make reference to and rely on prior art from other OIDC join
+methods e.g `github`, `gitlab`.
 
-#### Service Connections
+### Overview
+
+The Azure DevOps join method will be named `azure-devops` and will be a 
+delegated, non-renewable join method.
+
+The Azure DevOps join method will leverage the OpenID Connect (OIDC) token that
+is available to pipelines via a special internal API. A public OpenID
+configuration document and JWKS are available to support validating these
+tokens.
+
+The ID Token JWT issued to the pipeline contains the following claims:
+
+```json
+{
+  "jti": "90b75b0a-61b6-4b71-ba6f-11107d95f4c5",
+  "sub": "p://noahstride0304/testing-azure-devops-join/strideynet.azure-devops-testing",
+  "aud": "api://AzureADTokenExchange",
+  "org_id": "0ca3ddd9-f0b0-4635-a98c-5866526961b6",
+  "prj_id": "271ef6f7-5998-4b0f-86fb-4b54d9129990",
+  "def_id": "1",
+  "rpo_id": "strideynet/azure-devops-testing",
+  "rpo_uri": "https://github.com/strideynet/azure-devops-testing.git",
+  "rpo_ver": "c291ea713801eb300054d353d279e7b02331f671",
+  "rpo_ref": "refs/heads/main",
+  "run_id": "5",
+  "iss": "https://vstoken.dev.azure.com/0ca3ddd9-f0b0-4635-a98c-5866526961b6",
+  "nbf": 1745839609,
+  "exp": 1745840508,
+  "iat": 1745840209
+}
+```
+
+Of note:
+
+- `sub` identifies the organization, project and pipeline by user-facing name.
+- `org_id` and `prj_id` contains the UUIDs of the organization and project
+  included within `sub`.
+- `iss` is specific to the AZDO organization.
+- The token is issued with a 5 minute TTL.
+- The `aud` claim cannot be modified and contains a fixed string. This makes our
+  typical re-use mitigation with a nonce-including `aud` infeasible.
+- The `jti` claim is present and appears to be unique as per specification. 
+
+### ID Token Source
+
+Before joining, the Agent or TBot will need to fetch the OIDC ID Token from
+Azure DevOps.
+
+This is done by making a POST request to the `oidctoken` endpoint. The location
+of this endpoint is exposed to the task via the `SYSTEM_OIDCREQUESTURI`
+environment variable or the `System.OidcRequestUri` variable. This POST request
+must be authenticated with a bearer token, which is available in the
+`System.AccessToken` pipeline variable.
+
+The `System.AccessToken` variable is not made available to the environment by
+default, it must be explicitly mapped in, e.g
+
+```yaml
+steps:
+- env:
+    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+  script: |
+    OIDC_REQUEST_URL="${SYSTEM_OIDCREQUESTURI}?api-version=7.1"
+    curl -s -H "Content-Length: 0" -H "Content-Type: application/json" -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" -X POST $OIDC_REQUEST_URL
+```
+
+**Therefore, we will require the user to explicitly map this environment variable
+in to steps that invoke the `tbot` binary.**
+
+Sample endpoint response:
+
+```json
+{"oidcToken":"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI
+6Imt6UFh2cVJPMEN1UzRqU296REc4d21EM1RmcyIsImtpZCI6IjkzMzNE
+N0JFQTQ0RUQwMkI5MkUyMzRBOENDMzFCQ0MyNjBGNzRERkIifQ.eyJqdG
+kiOiIwNGM2ODQ4Ni1kY2ViLTQ3M2EtYTMxMC1mODMwMmZjY2FiODEiLCJ
+zdWIiOiJwOi8vbm9haHN0cmlkZTAzMDQvdGVzdGluZy1henVyZS1kZXZv
+cHMtam9pbi9zdHJpZGV5bmV0LmF6dXJlLWRldm9wcy10ZXN0aW5nIiwiY
+XVkIjoiYXBpOi8vQXp1cmVBRFRva2VuRXhjaGFuZ2UiLCJvcmdfaWQiOi
+IwY2EzZGRkOS1mMGIwLTQ2MzUtYTk4Yy01ODY2NTI2OTYxYjYiLCJwcmp
+faWQiOiIyNzFlZjZmNy01OTk4LTRiMGYtODZmYi00YjU0ZDkxMjk5OTAi
+LCJkZWZfaWQiOiIxIiwicnBvX2lkIjoic3RyaWRleW5ldC9henVyZS1kZ
+XZvcHMtdGVzdGluZyIsInJwb191cmkiOiJodHRwczovL2dpdGh1Yi5jb2
+0vc3RyaWRleW5ldC9henVyZS1kZXZvcHMtdGVzdGluZy5naXQiLCJycG9
+fdmVyIjoiZTZiOWViMjlhMjg4YjI3YTNhODJjYzE5YzQ4YjlkOTRiODBh
+ZmYzNiIsInJwb19yZWYiOiJyZWZzL2hlYWRzL21haW4iLCJydW5faWQiO
+iIxNyIsImlzcyI6Imh0dHBzOi8vdnN0b2tlbi5kZXYuYXp1cmUuY29tLz
+BjYTNkZGQ5LWYwYjAtNDYzNS1hOThjLTU4NjY1MjY5NjFiNiIsIm5iZiI
+6MTc0NTg1MTAzOCwiZXhwIjoxNzQ1ODUxOTM4LCJpYXQiOjE3NDU4NTE2
+Mzh9.xgH3aeRgs482lNlh2kQn_Dda_pvpyFhQ6pbZLMR81ozp7_7PIFOA
+DiEJlqfHryt7bVQj03zdvikAzJLGkvUW_5WusGQSJtwy_Y2cdou0mMReI
+SNNHpPS2Jvn93VjA3YFaw2vBo3Vjay_w7WElRU8WwEtKaQZmu915Zejb4
+IMK5zVF-jdILhng2RV_t0xm5pUUBN0gt7u-QKJ2px9iBdzYBJEtdR5Q-F
+ExwM7WDTZp4w2wDVslkaExAd_K3IoN4tqZk6FhKhsB3IRNMdsm9hGxwjt
+Jg3QkTETr8PZN2IUAKP6p7lXD1sXZOtV8exLh1VzTMqUHMqbWlVsG0rUX
+1WF7g"}
+```
+
+### ID Token Validation
+
+The ID Token is issued from an organization-specific issuer (e.g contains an
+`iss` claim that is specific to the organization).
+
+The OpenID configuration document available at the well-known URL for this `iss`
+is as follows:
+
+```json
+{
+  "issuer": "https://vstoken.dev.azure.com/0ca3ddd9-f0b0-4635-a98c-5866526961b6",
+  "jwks_uri": "https://vstoken.dev.azure.com/.well-known/jwks",
+  "subject_types_supported": [
+    "public",
+    "pairwise"
+  ],
+  "response_types_supported": [
+    "id_token"
+  ],
+  "claims_supported": [
+    "sub",
+    "aud",
+    "exp",
+    "iat",
+    "iss",
+    "nbf"
+  ],
+  "id_token_signing_alg_values_supported": [
+    "RS256"
+  ],
+  "scopes_supported": [
+    "openid"
+  ]
+}
+```
+
+Of note is the fact that the JWKS URI is not specific to each organization,
+this has a few ramifications:
+
+- The JWKS values could be cached across join token resources.
+- We must not assume that because an ID Token passes validation for a specific
+  well-known.
+
+Notably, the issued JWTs include the `kid` header and this `kid` field is also
+present within the JWKS. This allows the correct JWK to be selected from the 
+JWKS for validation.
+
+In order to be able to fetch the correct OIDC configuration document, we will
+require knowledge ahead of time of the organization UUID. **The user will
+configure this as part of the ProvisionToken specification**.
+
+For validation, we will leverage the `github.com/coreos/go-oidc/v3/oidc` package
+as is used for other OIDC join methods (e.g `bitbucket`).
+
+### Provision Token
+
+#### Infrastructure as Code
+
+### Join RPCs
+
+### Security Considerations
+
+#### Token Reuse
+
+#### `aud` Confused Deputy
+
+#### Audit Logging
+
+### Alternatives and Out of Scope
+
+#### Publish a Teleport Task
+
+#### Use Service Connection JWTs rather than Pipeline JWTs
 
 ### Research
 
@@ -117,6 +288,7 @@ curl https://vstoken.dev.azure.com/0ca3ddd9-f0b0-4635-a98c-5866526961b6/.well-kn
   "scopes_supported": [
     "openid"
   ]
+ }
 ```
 
 From the OpenID configuration document, we can determine the following URL 
@@ -140,6 +312,12 @@ to ensure an input referencing the service connection was present. Nothing
 additional is performed by the custom task, it would appear merely referencing 
 the service connection is sufficient. We would need to publish a custom task in
 order to leverage this functionality.
+
+```
+OIDC_REQUEST_URL="${SYSTEM_OIDCREQUESTURI}?api-version=7.1&serviceConnectionId=abcd2db8-aaaa-bbbb-cccc-720bab6abcd"
+echo $OIDC_REQUEST_URL
+curl -s -H "Content-Length: 0" -H "Content-Type: application/json" -H "Authorization: Bearer $(System.AccessToken)" -X POST $OIDC_REQUEST_URL
+```
 
 The type of the service connection appears to impact the type of ID token that
 is returned.
