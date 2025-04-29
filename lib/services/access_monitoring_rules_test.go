@@ -117,6 +117,13 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 				require.ErrorContains(t, err, "accessMonitoringRule condition is invalid")
 			},
 		},
+		{
+			description: "allow desired_state to be empty",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.DesiredState = ""
+			},
+			assertErr: require.NoError,
+		},
 	}
 
 	validAMR := &accessmonitoringrulesv1.AccessMonitoringRule{

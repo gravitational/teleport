@@ -119,7 +119,7 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 
 		desiredState := accessMonitoringRule.GetSpec().GetDesiredState()
 		switch desiredState {
-		case types.AccessMonitoringRuleStateReviewed:
+		case "", types.AccessMonitoringRuleStateReviewed:
 		default:
 			return trace.BadParameter("accessMonitoringRule desired_state %q is not supported", desiredState)
 		}
