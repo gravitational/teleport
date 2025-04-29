@@ -200,7 +200,7 @@ func NewUnboundClientState(ctx context.Context, getSuite cryptosuites.GetSuiteFu
 
 	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
 
-	pk, err := keys.NewPrivateKey(key, privateKeyBytes)
+	pk, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
