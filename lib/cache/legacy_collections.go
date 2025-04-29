@@ -33,7 +33,6 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -143,9 +142,7 @@ type legacyCollections struct {
 	webSessions                        collectionReader[webSessionGetter]
 	webTokens                          collectionReader[webTokenGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
-	userNotifications                  collectionReader[notificationGetter]
 	accessGraphSettings                collectionReader[accessGraphSettingsGetter]
-	globalNotifications                collectionReader[notificationGetter]
 	accessMonitoringRules              collectionReader[accessMonitoringRuleGetter]
 	autoUpdateConfigs                  collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions                 collectionReader[autoUpdateVersionGetter]
@@ -467,24 +464,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.staticHostUsers
-		case types.KindNotification:
-			if c.Notifications == nil {
-				return nil, trace.BadParameter("missing parameter Notifications")
-			}
-			collections.userNotifications = &genericCollection[*notificationsv1.Notification, notificationGetter, userNotificationExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.userNotifications
-		case types.KindGlobalNotification:
-			if c.Notifications == nil {
-				return nil, trace.BadParameter("missing parameter Notifications")
-			}
-			collections.globalNotifications = &genericCollection[*notificationsv1.GlobalNotification, notificationGetter, globalNotificationExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.globalNotifications
 		case types.KindAccessMonitoringRule:
 			if c.AccessMonitoringRules == nil {
 				return nil, trace.BadParameter("missing parameter AccessMonitoringRule")
@@ -2415,126 +2394,6 @@ func (accessListReviewExecutor) getReader(cache *Cache, cacheOK bool) accessList
 type accessListReviewsGetter interface {
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
 }
-
-type notificationGetter interface {
-	ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error)
-	ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error)
-}
-
-type userNotificationExecutor struct{}
-
-func (userNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.Notification, error) {
-	var notifications []*notificationsv1.Notification
-	var startKey string
-	for {
-		notifs, nextKey, err := cache.notificationsCache.ListUserNotifications(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		notifications = append(notifications, notifs...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-
-	return notifications, nil
-}
-
-func (userNotificationExecutor) upsert(ctx context.Context, cache *Cache, notification *notificationsv1.Notification) error {
-	_, err := cache.notificationsCache.UpsertUserNotification(ctx, notification)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (userNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.notificationsCache.DeleteAllUserNotifications(ctx)
-}
-
-func (userNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	r, ok := resource.(types.Resource153UnwrapperT[*notificationsv1.Notification])
-	if !ok {
-		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
-	}
-	notification := r.UnwrapT()
-	username := notification.GetSpec().GetUsername()
-	notificationId := notification.GetMetadata().GetName()
-
-	err := cache.notificationsCache.DeleteUserNotification(ctx, username, notificationId)
-	return trace.Wrap(err)
-}
-
-func (userNotificationExecutor) isSingleton() bool { return false }
-
-func (userNotificationExecutor) getReader(cache *Cache, cacheOK bool) notificationGetter {
-	if cacheOK {
-		return cache.notificationsCache
-	}
-	return cache.Config.Notifications
-}
-
-var _ executor[*notificationsv1.Notification, notificationGetter] = userNotificationExecutor{}
-
-type globalNotificationExecutor struct{}
-
-func (globalNotificationExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*notificationsv1.GlobalNotification, error) {
-	var notifications []*notificationsv1.GlobalNotification
-	var startKey string
-	for {
-		notifs, nextKey, err := cache.notificationsCache.ListGlobalNotifications(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		notifications = append(notifications, notifs...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-
-	return notifications, nil
-}
-
-func (globalNotificationExecutor) upsert(ctx context.Context, cache *Cache, notification *notificationsv1.GlobalNotification) error {
-	if _, err := cache.notificationsCache.UpsertGlobalNotification(ctx, notification); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (globalNotificationExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.notificationsCache.DeleteAllGlobalNotifications(ctx)
-}
-
-func (globalNotificationExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	r, ok := resource.(types.Resource153UnwrapperT[*notificationsv1.GlobalNotification])
-	if !ok {
-		return trace.BadParameter("unknown resource type, expected types.Resource153Unwrapper, got %T", resource)
-	}
-	globalNotification := r.UnwrapT()
-	notificationId := globalNotification.GetMetadata().GetName()
-
-	err := cache.notificationsCache.DeleteGlobalNotification(ctx, notificationId)
-	return trace.Wrap(err)
-}
-
-func (globalNotificationExecutor) isSingleton() bool { return false }
-
-func (globalNotificationExecutor) getReader(cache *Cache, cacheOK bool) notificationGetter {
-	if cacheOK {
-		return cache.notificationsCache
-	}
-	return cache.Config.Notifications
-}
-
-var _ executor[*notificationsv1.GlobalNotification, notificationGetter] = globalNotificationExecutor{}
 
 type accessMonitoringRulesExecutor struct{}
 

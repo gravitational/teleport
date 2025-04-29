@@ -24,6 +24,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -75,6 +76,8 @@ type collections struct {
 	reverseTunnels                   *collection[types.ReverseTunnel]
 	spiffeFederations                *collection[*machineidv1.SPIFFEFederation]
 	workloadIdentity                 *collection[*workloadidentityv1.WorkloadIdentity]
+	userNotifications                *collection[*notificationsv1.Notification]
+	globalNotifications              *collection[*notificationsv1.GlobalNotification]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -273,6 +276,22 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.workloadIdentity = collect
 			out.byKind[resourceKind] = out.workloadIdentity
+		case types.KindNotification:
+			collect, err := newUserNotificationCollection(c.Notifications, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userNotifications = collect
+			out.byKind[resourceKind] = out.userNotifications
+		case types.KindGlobalNotification:
+			collect, err := newGlobalNotificationCollection(c.Notifications, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.globalNotifications = collect
+			out.byKind[resourceKind] = out.globalNotifications
 		}
 	}
 
