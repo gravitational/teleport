@@ -1872,7 +1872,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		v := vc.Normalize(handle.Hello().Version)
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
@@ -1921,7 +1921,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
@@ -1977,11 +1977,6 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 		return
 	}
 
-	// randomize the order to optimize for multiple auth servers running in parallel
-	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
-		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
-	})
-
 	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
 	updateLimit := remoteClusterRefreshLimit
 	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
@@ -1991,7 +1986,8 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	}
 
 	var updateCount int
-	for _, remoteCluster := range remoteClusters {
+	// randomize the order to optimize for multiple auth servers running in parallel
+	for _, remoteCluster := range utils.ShuffleVisit(remoteClusters) {
 		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
 			a.logger.ErrorContext(ctx, "Failed to perform remote cluster status refresh", "error", err)
 		} else if updated {
@@ -4931,7 +4927,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 	var rsp proto.InventoryStatusSummary
 	if req.Connected {
-		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
 		})
 
