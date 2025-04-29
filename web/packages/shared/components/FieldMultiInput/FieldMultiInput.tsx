@@ -161,6 +161,8 @@ export function FieldMultiInput({
         ))}
         <ButtonSecondary
           alignSelf="start"
+          size="small"
+          inputAlignment
           onClick={() => insertItem(value.length)}
         >
           <Icon.Plus size="small" mr={2} />
