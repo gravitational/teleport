@@ -1,16 +1,16 @@
 # Changelog
 
-## 15.5.0 (Upcoming)
+## 15.5.0 (04/28/25)
 
 ### Automatic Updates
 
-16.5 introduces a new automatic update mechanism for system administrators to control which Teleport version their
+15.5 introduces a new automatic update mechanism for system administrators to control which Teleport version their
 agents are running. You can now configure the agent update schedule and desired agent version via the `autoupdate_config`
 and `autoupdate_version` resources.
 
 Updates are performed by the new `teleport-update` binary.
 This new system is package manager-agnostic and opt-in. Existing agents won't be automatically enrolled, you can enroll
-existing 17.3+ agents by running `teleport-update enable`.
+existing 15.5+ agents by running `teleport-update enable`.
 
 `teleport-update` will become the new standard way of installing Teleport as it always picks the appropriate Teleport
 edition (Community vs Enterprise), the cluster's desired version, and the correct Teleport variant (e.g. FIPS-compliant
@@ -20,12 +20,35 @@ You can find more information about the feature in [our documentation]().
 
 ### Package layout changes
 
-Starting with 16.5.0, the Teleport DEB and RPM packages, notably used by the `apt`, `yum`, `dnf` and `zypper` package
+Starting with 15.5.0, the Teleport DEB and RPM packages, notably used by the `apt`, `yum`, `dnf` and `zypper` package
 managers, will place the Teleport binaries in `/opt/teleport` instead of `/usr/local/bin`.
 
 The binaries will be symlinked to their previous location, no change should be required in your scripts or systemd units.
 
 This change allows us to do automatic updates without conflicting with the package manager.
+
+### Readiness endpoint changes
+
+The Auth Service readiness now reflects the connectivity from the instance to
+the backend storage, and the Proxy Service readiness reflects the connectivity
+to the Auth Service API. In case of Auth or backend storage failure, the
+instances will now turn unready. This change ensures that control plane
+components can be excluded from their relevant load-balancing pools. If you want
+to preserve the old behaviour (the Auth Service or Proxy Service instance stays
+ready and runs in degraded mode) in the `teleport-cluster` Helm chart, you can
+now tune the readiness setting to have the pods become unready after a high
+number of failed probes.
+
+### Other fixes and improvements
+
+* Increased the email access plugin timeout for sending e-mails from 5 to 15 seconds. [#54379](https://github.com/gravitational/teleport/pull/54379)
+* The `teleport-cluster` Helm chart now supports tuning the pod readiness. [#54351](https://github.com/gravitational/teleport/pull/54351)
+* Fixed a potential panic during Auth Server startup when the backend returns an error. [#54325](https://github.com/gravitational/teleport/pull/54325)
+* Fix issue that prevent Kubernetes agents from connecting to GKE control plane using the new DNS-based access mechanism. [#54218](https://github.com/gravitational/teleport/pull/54218)
+* Teleport-update: stabilize binary paths in generated tbot config. [#54193](https://github.com/gravitational/teleport/pull/54193)
+* Reduce log spam in discovery service error messaging. [#54151](https://github.com/gravitational/teleport/pull/54151)
+* The web UI now shows role descriptions in the roles table. [#54135](https://github.com/gravitational/teleport/pull/54135)
+* Leaf cluster joining attempts that conflict with an existing cluster registered with the root now generate an error instead of failing silently. [#54132](https://github.com/gravitational/teleport/pull/54132)
 
 ## 15.4.33 (04/17/25)
 
