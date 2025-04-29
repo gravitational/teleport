@@ -58,6 +58,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -5271,6 +5273,32 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.expected, rsp, protocmp.Transform()))
 		})
 	}
+}
+
+func TestGetVnetConfig(t *testing.T) {
+	server := newTestTLSServer(t)
+	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
+	require.NoError(t, err)
+
+	// Create newConfig.
+	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
+		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{&vnetv1pb.CustomDNSZone{Suffix: "example.com"}},
+	})
+	require.NoError(t, err)
+	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
+	require.NoError(t, err)
+
+	// Verify that a regular user is able to fetch the config.
+	identity := authz.LocalUser{
+		Username: user.GetName(),
+	}
+	client, err := server.NewClient(TestIdentity{I: identity})
+	require.NoError(t, err)
+	actualConfig, err := client.GetVnetConfig(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(createdConfig, actualConfig, protocmp.Transform()))
 }
 
 func TestCreateAuditStreamLimit(t *testing.T) {
