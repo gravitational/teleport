@@ -149,6 +149,7 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	isRedirectFlow := values.Get("required-apps") != ""
 	clusterName := p.ByName("clusterName")
 
+	h.logger.Info("getAppDetails fqdnHint", "fqdnHint", p.ByName("fqdnHint"))
 	req := GetAppDetailsRequest{
 		FQDNHint:    p.ByName("fqdnHint"),
 		ClusterName: clusterName,
@@ -161,6 +162,7 @@ func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
+	h.logger.Info("getAppDetails resolved app", "name", result.App.GetName(), "fqdn", result.FQDN)
 
 	resp := &GetAppDetailsResponse{
 		FQDN: result.FQDN,

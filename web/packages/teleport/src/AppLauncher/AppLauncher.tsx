@@ -75,6 +75,9 @@ export function AppLauncher() {
       // redirect to the public address with an arbitrary port. But because
       // the attacker can't control what domain is redirected to this has
       // a low risk factor.
+      const resolvedAppFQDN = prepareFqdn(resolvedApp.fqdn);
+      const paramsFQDN = prepareFqdn(params.fqdn);
+      alert(JSON.stringify({ resolvedAppFQDN, paramsFQDN }));
       if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
         throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
       }
