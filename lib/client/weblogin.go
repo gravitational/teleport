@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -260,13 +260,13 @@ type UserPublicKeys struct {
 	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
 	// TODO(nklaassen): DELETE IN 18.0.0 when all clients should be using
 	// separate keys.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
-	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
-	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -315,13 +315,13 @@ type SSOUserPublicKeys struct {
 	// AttestationStatement is an attestation statement associated with the given public key.
 	//
 	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
-	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
-	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -418,9 +418,9 @@ type SSHLogin struct {
 	// credentials to.
 	KubernetesCluster string
 	// SSHAttestationStatement is an attestation statement for SSHPubKey.
-	SSHAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
 	// TLSAttestationStatement is an attestation statement for TLSPubKey.
-	TLSAttestationStatement *keys.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
 	ExtraHeaders map[string]string
 }

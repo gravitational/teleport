@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -713,8 +714,8 @@ type SessionCertsRequest struct {
 	SessionTTL              time.Duration
 	SSHPubKey               []byte
 	TLSPubKey               []byte
-	SSHAttestationStatement *keys.AttestationStatement
-	TLSAttestationStatement *keys.AttestationStatement
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	Compatibility           string
 	RouteToCluster          string
 	KubernetesCluster       string

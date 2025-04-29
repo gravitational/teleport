@@ -2117,7 +2117,7 @@ func kubeJoin(ctx context.Context, kubeConfig kube.ProxyConfig, tc *client.Telep
 			KubeProxyAddr:                 tc.Config.KubeProxyAddr,
 			WebProxyAddr:                  tc.Config.WebProxyAddr,
 			TLSRoutingConnUpgradeRequired: tc.Config.TLSRoutingConnUpgradeRequired,
-			EnableEscapeSequences:         tc.Config.EnableEscapeSequences,
+			EnableEscapeSequences:         !tc.Config.DisableEscapeSequences,
 			Tracker:                       meta,
 			TLSConfig:                     tlsConfig,
 			Mode:                          mode,

@@ -1532,7 +1532,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	privateKey, err := keys.NewPrivateKey(key)
 	require.NoError(t, err)
 	// Identity files only support a single key for SSH/TLS
 	keyRing := client.NewKeyRing(privateKey, privateKey)

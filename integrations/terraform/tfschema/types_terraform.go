@@ -1393,6 +1393,11 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				}),
 				"hardware_key": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"pin_cache_ttl": {
+							Description: "PinCacheTTL is the amount of time in nanoseconds that Teleport clients will cache the user's PIV PIN when hardware key PIN policy is enabled.",
+							Optional:    true,
+							Type:        DurationType{},
+						},
 						"piv_slot": {
 							Description: "PIVSlot is a PIV slot that Teleport clients should use instead of the default based on private key policy. For example, \"9a\" or \"9e\".",
 							Optional:    true,
@@ -15005,6 +15010,23 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["pin_cache_ttl"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL"})
+										} else {
+											v, ok := a.(DurationValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", "DurationValue"})
+											} else {
+												var t github_com_gravitational_teleport_api_types.Duration
+												if !v.Null && !v.Unknown {
+													t = github_com_gravitational_teleport_api_types.Duration(v.Value)
+												}
+												obj.PinCacheTTL = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -16288,6 +16310,28 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 												v.Unknown = false
 												tf.Attrs["serial_number_validation"] = v
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["pin_cache_ttl"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL"})
+										} else {
+											v, ok := tf.Attrs["pin_cache_ttl"].(DurationValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", err})
+												}
+												v, ok = i.(DurationValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Spec.HardwareKey.PinCacheTTL", "DurationValue"})
+												}
+												v.Null = false
+											}
+											v.Value = time.Duration(obj.PinCacheTTL)
+											v.Unknown = false
+											tf.Attrs["pin_cache_ttl"] = v
 										}
 									}
 								}
