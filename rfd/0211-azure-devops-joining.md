@@ -195,6 +195,8 @@ as is used for other OIDC join methods (e.g `bitbucket`).
 
 ### Join RPC
 
+
+
 ### UX
 
 #### Provision Token
@@ -291,7 +293,36 @@ join method will be included without any additional work.
 
 #### Token Reuse
 
+One challenge with all OIDC join methods is the potential for token reuse.
+
+In other join methods, we leverage a challenge-response flow with a nonce within
+the `aud` claim to ensure that a token is only valid for a single join. However,
+the `aud` claim in the ID Token issued by Azure DevOps is not configurable.
+
+The Tokens do include a `jti` claim, containing a unique identifier for each
+token, which we could use to reject the reuse of a token that has already been
+used to join that particular Teleport Cluster, however, this does not mitigate
+attacks where the token was used against a third-party service
+(see Confused Deputy).
+
+To some extent, this risk is mitigated by the unusually short (5m) TTL of the 
+ID Token issued by Azure DevOps.
+
 #### `aud` Confused Deputy
+
+One challenge with the ID Tokens issued by Azure DevOps is that we cannot
+specify a custom `aud` claim for inclusion in the ID Token.
+
+This presents the risk of an ID Token intended for another service (or another
+Teleport Cluster) being reused against our Teleport Cluster if that other
+service has been compromised.
+
+To some extent, this risk is mitigated by the unusually short (5m) TTL of the 
+ID Token issued by Azure DevOps.
+
+This risk would be mitigated by the use of a Service Connection ID Token (see
+Alternatives: Use Service Connection JWTs rather than Pipeline JWTs) as users
+could be encouraged to create a Service Connection per Teleport Cluster.
 
 #### Audit Logging
 
@@ -313,7 +344,11 @@ be extended to include the following information extracted from the ID token:
 
 #### Publish a Teleport Task
 
+TODO
+
 #### Use Service Connection JWTs rather than Pipeline JWTs
+
+TODO
 
 ### Research
 
