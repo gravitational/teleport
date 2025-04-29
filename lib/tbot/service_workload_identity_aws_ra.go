@@ -257,6 +257,11 @@ func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
 	)
 	defer span.End()
 
+	expiresAt, err := time.Parse(time.RFC3339, creds.Expiration)
+	if err != nil {
+		return fmt.Errorf("parsing expiration time: %w", err)
+	}
+
 	artifactName := cmp.Or(s.cfg.ArtifactName, "aws_credentials")
 
 	f := ini.Empty()
@@ -277,9 +282,12 @@ func (s *WorkloadIdentityAWSRAService) renderAWSCreds(
 	sec.Key("aws_secret_access_key").SetValue(creds.SecretAccessKey)
 	sec.Key("aws_access_key_id").SetValue(creds.AccessKeyId)
 	sec.Key("aws_session_token").SetValue(creds.SessionToken)
+	sec.Key("expiration").SetValue(
+		fmt.Sprintf("%d", expiresAt.UnixMilli()),
+	)
 
 	b := &bytes.Buffer{}
-	_, err := f.WriteTo(b)
+	_, err = f.WriteTo(b)
 	if err != nil {
 		return trace.Wrap(err, "writing credentials to buffer")
 	}
