@@ -23,9 +23,23 @@ package rdpclient
 import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
+	"image"
+	"image/png"
+	"os"
 	"slices"
 	"testing"
 )
+
+func TestTime(t *testing.T) {
+	f, err := os.Open("/Users/hesperus/work/gg.png")
+	assert.NoError(t, err)
+	img, err := png.Decode(f)
+	rgba := img.(*image.NRGBA)
+	var buf bytes.Buffer
+	buf.Grow(len(rgba.Pix) / 4)
+	encode(rgba.Pix, &buf)
+	assert.NoError(t, err)
+}
 
 func TestEncode(t *testing.T) {
 	data := slices.Repeat([]byte{0, 0, 0, 0}, 62)
