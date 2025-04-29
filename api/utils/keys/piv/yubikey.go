@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"os"
 	"strings"
@@ -230,6 +231,15 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 		}()
 	}
 
+	pinPolicy := piv.PINPolicyNever
+	if ref.Policy.PINRequired {
+		pinPolicy = piv.PINPolicyOnce
+	}
+
+	auth := piv.KeyAuth{
+		PINPolicy: pinPolicy,
+	}
+
 	promptPIN := func() (string, error) {
 		// touch prompt delay is disrupted by pin prompts. To prevent misfired
 		// touch prompts, pause the timer for the duration of the pin prompt.
@@ -238,19 +248,18 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
+
 		pin, err := y.pinCache.PromptOrGetPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
-		return pin, trace.Wrap(err)
-	}
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 
-	pinPolicy := piv.PINPolicyNever
-	if ref.Policy.PINRequired {
-		pinPolicy = piv.PINPolicyOnce
-	}
+		// Set the PIN in the KeyAuth so that the user is not prompted again on signature retries.
+		auth.PIN = pin
 
-	auth := piv.KeyAuth{
-		PINPrompt: promptPIN,
-		PINPolicy: pinPolicy,
+		return pin, nil
 	}
+	auth.PINPrompt = promptPIN
 
 	// YubiKeys with firmware version 5.3.1 have a bug where insVerify(0x20, 0x00, 0x80, nil)
 	// clears the PIN cache instead of performing a non-mutable check. This causes the signature
@@ -259,7 +268,7 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 	// the signature fails.
 	manualRetryWithPIN := false
 	fw531 := piv.Version{Major: 5, Minor: 3, Patch: 1}
-	if auth.PINPolicy == piv.PINPolicyOnce && y.conn.conn.Version() == fw531 {
+	if ref.Policy.PINRequired && y.version == fw531 {
 		// Set the keys PIN policy to never to skip the insVerify check. If PIN was provided in
 		// a previous recent call, the signature will succeed as expected of the "once" policy.
 		auth.PINPolicy = piv.PINPolicyNever
@@ -276,24 +285,32 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 		return nil, trace.BadParameter("private key type %T does not implement crypto.Signer", privateKey)
 	}
 
-	// For generic auth errors, such as when PIN is not provided, the smart card returns the error code 0x6982.
-	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
-	const pivGenericAuthErrCodeString = "6982"
-
 	signature, err := abandonableSign(ctx, signer, rand, digest, opts)
 	switch {
 	case err == nil:
 		return signature, nil
-	case manualRetryWithPIN && strings.Contains(err.Error(), pivGenericAuthErrCodeString):
+
+	case manualRetryWithPIN && isPIVErrorCode(err, pivErrCodeSecurityStatusNotSatisfied):
+		slog.DebugContext(ctx, "PIV auth error, retrying with manual PIN prompt", "error", err)
+
 		pin, err := promptPIN()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		if err := y.conn.verifyPIN(pin); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		signature, err := abandonableSign(ctx, signer, rand, digest, opts)
 		return signature, trace.Wrap(err)
+
+	case auth.PIN != "" && isPCSCError(err, pcscErrMsgResetCard):
+		slog.DebugContext(ctx, "YubiKey disconnected before PIN prompt was completed, retrying with provided PIN", "error", err)
+
+		signature, err := abandonableSign(ctx, signer, rand, digest, opts)
+		return signature, trace.Wrap(err)
+
 	default:
 		return nil, trace.Wrap(err)
 	}
