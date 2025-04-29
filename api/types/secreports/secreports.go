@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Report is security report.
@@ -80,6 +81,13 @@ func (a *AuditQuery) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Clone returns a copy of the query.
+func (a *AuditQuery) Clone() *AuditQuery {
+	var copy *AuditQuery
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
+}
+
 // NewAuditQuery creates a new audit query.
 func NewAuditQuery(metadata header.Metadata, spec AuditQuerySpec) (*AuditQuery, error) {
 	secReport := &AuditQuery{
@@ -113,6 +121,13 @@ func (a *Report) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// Clone returns a copy of the report.
+func (a *Report) Clone() *Report {
+	var copy *Report
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
@@ -170,6 +185,13 @@ func (a *ReportState) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// Clone returns a copy of the report state.
+func (a *ReportState) Clone() *ReportState {
+	var copy *ReportState
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
 }
 
 // NewReportState creates a new security report state.
