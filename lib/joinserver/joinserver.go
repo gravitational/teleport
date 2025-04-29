@@ -55,6 +55,11 @@ type joinServiceClient interface {
 		tokenReq *types.RegisterUsingTokenRequest,
 		challengeResponse client.RegisterOracleChallengeResponseFunc,
 	) (*proto.Certs, error)
+	RegisterUsingBoundKeypairMethod(
+		ctx context.Context,
+		req *proto.RegisterUsingBoundKeypairInitialRequest,
+		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
+	) (*proto.Certs, error)
 	RegisterUsingToken(
 		ctx context.Context,
 		req *types.RegisterUsingTokenRequest,
@@ -365,6 +370,99 @@ func (s *JoinServiceGRPCServer) registerUsingOracleMethod(srv proto.JoinService_
 	return trace.Wrap(srv.Send(&proto.RegisterUsingOracleMethodResponse{
 		Response: &proto.RegisterUsingOracleMethodResponse_Certs{
 			Certs: certs,
+		},
+	}))
+}
+
+// RegisterUsingBoundKeypairMethod registers the client using the bound-keypair
+// join method, and if successful, returns a signed cert bundle for
+// authenticated cluster access.
+func (s *JoinServiceGRPCServer) RegisterUsingBoundKeypairMethod(
+	srv proto.JoinService_RegisterUsingBoundKeypairMethodServer,
+) error {
+	slog.DebugContext(srv.Context(), "RegisterUsingBoundKeypairMethod()")
+
+	return trace.Wrap(s.handleStreamingRegistration(srv.Context(), types.JoinMethodBoundKeypair, func() error {
+		return trace.Wrap(s.registerUsingBoundKeypair(srv))
+	}))
+}
+
+func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_RegisterUsingBoundKeypairMethodServer) error {
+	ctx := srv.Context()
+
+	slog.DebugContext(srv.Context(), "registerUsingBoundKeypair()")
+
+	// Get initial payload from the client
+	req, err := srv.Recv()
+	if err != nil {
+		return trace.Wrap(err, "receiving initial payload")
+	}
+	initReq := req.GetInit()
+	if initReq == nil {
+		return trace.BadParameter("expected non-nil Init payload")
+	}
+
+	if initReq.InitialJoinSecret != "" {
+		// TODO: not supported yet.
+		return trace.NotImplemented("initial join secrets are not yet supported")
+	}
+
+	if initReq.JoinRequest == nil {
+		return trace.BadParameter(
+			"expected JoinRequest in RegisterUsingBoundKeypairInitialRequest, got nil",
+		)
+	}
+	if err := setClientRemoteAddr(ctx, initReq.JoinRequest); err != nil {
+		return trace.Wrap(err, "setting client address")
+	}
+
+	slog.DebugContext(srv.Context(), "registerUsingBoundKeypair(): preflight complete, attempting to relay challenges")
+
+	setBotParameters(ctx, initReq.JoinRequest)
+
+	certs, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(publicKey string, challenge string) (*proto.RegisterUsingBoundKeypairChallengeResponse, error) {
+		// First, forward the challenge from Auth to the client.
+		err := srv.Send(&proto.RegisterUsingBoundKeypairMethodResponse{
+			Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
+				Challenge: &proto.RegisterUsingBoundKeypairChallenge{
+					PublicKey: publicKey,
+					Challenge: challenge,
+				},
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(
+				err, "forwarding challenge to client",
+			)
+		}
+		// Get response from Client
+		req, err := srv.Recv()
+		if err != nil {
+			return nil, trace.Wrap(
+				err, "receiving challenge solution from client",
+			)
+		}
+		challengeResponse := req.GetChallengeResponse()
+		if challengeResponse == nil {
+			return nil, trace.BadParameter(
+				"expected non-nil ChallengeResponse payload",
+			)
+		}
+
+		return challengeResponse, nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	slog.DebugContext(srv.Context(), "registerUsingBoundKeypair(): challenge ceremony complete, sending cert bundle")
+
+	// finally, send the certs on the response stream
+	return trace.Wrap(srv.Send(&proto.RegisterUsingBoundKeypairMethodResponse{
+		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Certs{
+			Certs: &proto.RegisterUsingBoundKeypairCertificates{
+				Certs: certs,
+			},
 		},
 	}))
 }

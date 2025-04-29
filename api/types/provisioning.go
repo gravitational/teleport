@@ -80,6 +80,9 @@ const (
 	// JoinMethodOracle indicates that the node will join using the Oracle join
 	// method.
 	JoinMethodOracle JoinMethod = "oracle"
+	// JoinMethodBoundKeypair indicates the node will join using the Bound
+	// Keypair join method. See lib/boundkeypair for more.
+	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 )
 
 var JoinMethods = []JoinMethod{
@@ -97,6 +100,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
+	JoinMethodBoundKeypair,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -400,6 +404,18 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.oracle: failed validation")
+		}
+	case JoinMethodBoundKeypair:
+		providerCfg := p.Spec.BoundKeypair
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.bound_keypair: must be configured for the join method %q",
+				JoinMethodBoundKeypair,
+			)
+		}
+
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -949,5 +965,18 @@ func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 			)
 		}
 	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
+	if a.Onboarding == nil {
+		return trace.BadParameter("spec.bound_keypair.onboarding is required")
+	}
+
+	if a.Onboarding.InitialJoinSecret == "" && a.Onboarding.InitialPublicKey == "" {
+		return trace.BadParameter("at least one of [initial_join_secret, " +
+			"initial_public_key] is required in spec.bound_keypair.onboarding")
+	}
+
 	return nil
 }
