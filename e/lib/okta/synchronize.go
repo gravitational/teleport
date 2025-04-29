@@ -164,7 +164,7 @@ func (s *Service) synchronize(ctx context.Context) error {
 	case s.userReconciler == nil:
 		s.logger.InfoContext(ctx, "User sync is disabled")
 	default:
-		s.logger.InfoContext(ctx, "Synchronizing users")
+		s.logger.InfoContext(ctx, "Synchronizing users", "user_sync_source", sanitizeUserSyncSource(s.userSyncSource, s.oktaSAMLAppID))
 		if err := s.syncUsers(ctx); err != nil {
 			return trace.Wrap(err)
 		}
