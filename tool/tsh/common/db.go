@@ -95,7 +95,7 @@ func onListDatabases(cf *CLIConf) error {
 		logger.DebugContext(cf.Context, "Failed to fetch user roles", "error", err)
 	}
 
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -251,7 +251,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -367,7 +367,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName)
+	activeRoutes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -447,7 +447,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -509,7 +509,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -754,7 +754,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1086,7 +1086,10 @@ func chooseOneDatabase(cf *CLIConf, databases types.Databases) (types.Database, 
 			"%v not found, use '%v' to see registered databases", selectors,
 			formatDatabaseListCommand(cf.SiteName))
 	}
-	errMsg := formatAmbiguousDB(cf, selectors, databases)
+	errMsg, err := formatAmbiguousDB(cf, selectors, databases)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return nil, trace.BadParameter("%s", errMsg)
 }
 
@@ -1357,7 +1360,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.Rou
 		}
 	}
 	found := false
-	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
+	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -1812,10 +1815,10 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 
 // formatAmbiguousDB is a helper func that formats an ambiguous database error
 // message.
-func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) string {
+func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs types.Databases) (string, error) {
 	var activeDBs []tlsca.RouteToDatabase
 	if profile, err := cf.ProfileStatus(); err == nil {
-		if dbs, err := profile.DatabasesForCluster(cf.SiteName); err == nil {
+		if dbs, err := profile.DatabasesForCluster(cf.SiteName, cf.getClientStore()); err == nil {
 			activeDBs = dbs
 		}
 	}
@@ -1828,7 +1831,7 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
 	fullNameExample := matchedDBs[0].GetName()
-	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample)
+	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample), nil
 }
 
 // resourceSelectors is a helper struct for gathering up the selectors for a
