@@ -105,7 +105,7 @@ func (p *PluginsCommand) InstallGithub(ctx context.Context, args installPluginAr
 		return trace.Wrap(err, "failed to create Github plugin")
 	}
 
-	creds := buildPrvKeyCredentials(settings.privateKeyData)
+	creds := buildPrvKeyCredentials(settings.orgName, settings.privateKeyData)
 
 	createPluginRequest := &pluginspb.CreatePluginRequest{
 		Plugin:                plugin,
@@ -124,11 +124,11 @@ func (p *PluginsCommand) InstallGithub(ctx context.Context, args installPluginAr
 	return nil
 }
 
-func buildPrvKeyCredentials(privateKey []byte) *types.PluginStaticCredentialsV1 {
+func buildPrvKeyCredentials(orgName string, privateKey []byte) *types.PluginStaticCredentialsV1 {
 	return &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name:   types.PluginTypeGithub + "-private-key",
+				Name:   types.PluginTypeGithub + "-" + orgName + "-private-key",
 				Labels: map[string]string{},
 			},
 		},
@@ -147,7 +147,7 @@ func createGithubPlugin(params *githubSettings) (*types.PluginV1, error) {
 			Labels: map[string]string{
 				types.TeleportNamespace + "/hosted-plugin": "true",
 			},
-			Name: types.PluginTypeGithub,
+			Name: params.orgName,
 		},
 		Spec: types.PluginSpecV1{
 			Settings: &types.PluginSpecV1_Github{
