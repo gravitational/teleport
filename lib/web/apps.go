@@ -364,6 +364,8 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	if server.GetApp().GetUseAnyProxyPublicAddr() {
 		proxyDNSName = utils.FindMatchingProxyDNS(params.FQDNHint, h.proxyDNSNames())
 	}
+	h.logger.Info("all of proxyDNSNames", "names", h.proxyDNSNames())
+	h.logger.Info("proxyDNSName", "name", proxyDNSName)
 	fqdn := utils.AssembleAppFQDN(h.auth.clusterName, proxyDNSName, appClusterName, server.GetApp())
 
 	return &resolveAppResult{
