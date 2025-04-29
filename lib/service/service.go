@@ -3194,13 +3194,13 @@ func (process *TeleportProcess) initUploaderService() error {
 // promHTTPLogAdapter adapts a slog.Logger into a promhttp.Logger.
 type promHTTPLogAdapter struct {
 	ctx context.Context
-	*slog.Logger
+	*logrus.Entry
 }
 
 // Println implements the promhttp.Logger interface.
 func (l promHTTPLogAdapter) Println(v ...interface{}) {
 	//nolint:sloglint // msg cannot be constant
-	l.ErrorContext(l.ctx, fmt.Sprint(v...))
+	l.Error(v...)
 }
 
 // initMetricsService starts the metrics service currently serving metrics for
@@ -3314,8 +3314,10 @@ func (process *TeleportProcess) newMetricsHandler() http.Handler {
 			// conflicts in tests.
 			ErrorHandling: promhttp.ContinueOnError,
 			ErrorLog: promHTTPLogAdapter{
-				ctx:    process.ExitContext(),
-				Logger: process.logger.With(teleport.ComponentKey, teleport.ComponentMetrics),
+				ctx: process.ExitContext(),
+				Entry: process.log.WithFields(logrus.Fields{
+					trace.Component: teleport.ComponentMetrics,
+				}),
 			},
 		}),
 	)
