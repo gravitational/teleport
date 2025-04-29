@@ -260,7 +260,7 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 // createTokenForDiscoveryHandle creates tokens used during guided discover flows.
 // V2 endpoint processes "suggestedLabels" field.
-func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -302,18 +302,9 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 		}
 
 		// IAM tokens should 'never' expire
-		expires = time.Time{}
-	case types.JoinMethodGitHub:
-		// GitHub tokens should 'never' expire
-		expires = time.Time{}
-	case types.JoinMethodOracle:
-		// Oracle tokens should 'never' expire
-		expires = time.Time{}
-	case types.JoinMethodGCP:
-		// GCP tokens should 'never' expire
-		expires = time.Time{}
+		expires = time.Now().UTC().AddDate(1000, 0, 0)
 	case types.JoinMethodAzure:
-		tokenName, err = generateAzureTokenName(req.Azure.Allow)
+		tokenName, err := generateAzureTokenName(req.Azure.Allow)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -340,14 +331,11 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 			}, nil
 		}
 	default:
-		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
-	}
-
-	if tokenName == "" {
 		tokenName, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
 	// If using the automatic method to add a Node, the `install.sh` will add the token's suggested labels
