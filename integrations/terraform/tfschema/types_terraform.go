@@ -1281,7 +1281,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 					}),
-					Description: "",
+					Description: "BoundKeypair allows the configuration of options specific to the \"bound-keypair\" join method.",
 					Optional:    true,
 				},
 				"circleci": {

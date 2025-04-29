@@ -141,6 +141,8 @@ spec:
                   to, if any
                 type: string
               bound_keypair:
+                description: BoundKeypair allows the configuration of options specific
+                  to the "bound-keypair" join method.
                 nullable: true
                 properties:
                   joining:
