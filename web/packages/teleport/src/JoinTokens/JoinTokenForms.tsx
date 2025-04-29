@@ -130,11 +130,11 @@ export const JoinTokenIAMForm = ({
 const supportedFieldsIam = new Set(['.aws_account', '.aws_arn']);
 
 /**
- * `checkIAMYAMLData` determines if the provided value contains item/s that are not supported by the edit form.
+ * `checkIamYamlData` determines if the provided value contains item/s that are not supported by the edit form.
  * @param data a value representing the iam-specific config for a token
  * @returns a boolean indicating if the provided value contains unsupported items
  */
-export const checkIAMYAMLData = (data: unknown) => {
+export const checkIamYamlData = (data: unknown) => {
   const keys = collectKeys(data);
   return !keys || new Set(keys).isSubsetOf(supportedFieldsIam);
 };
@@ -261,11 +261,11 @@ const supportedFieldsGcp = new Set([
 ]);
 
 /**
- * `checkGCPYAMLData` determines if the provided value contains item/s that are not supported by the edit form.
+ * `checkGcpYamlData` determines if the provided value contains item/s that are not supported by the edit form.
  * @param data a value representing the gcp-specific config for a token
  * @returns a boolean indicating if the provided value contains unsupported items
  */
-export const checkGCPYAMLData = (data: unknown) => {
+export const checkGcpYamlData = (data: unknown) => {
   const keys = collectKeys(data);
   return !keys || new Set(keys).isSubsetOf(supportedFieldsGcp);
 };

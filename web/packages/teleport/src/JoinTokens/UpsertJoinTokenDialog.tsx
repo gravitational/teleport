@@ -55,14 +55,14 @@ import { Info } from 'design/Alert/Alert';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import {
-  checkGCPYAMLData,
-  checkIAMYAMLData,
+  checkGcpYamlData,
+  checkIamYamlData,
   JoinTokenGCPForm,
   JoinTokenIAMForm,
   JoinTokenOracleForm,
 } from './JoinTokenForms';
 import {
-  checkGithubYAMLData,
+  checkGithubYamlData,
   JoinTokenGithubForm,
 } from './JoinTokenGithubForm';
 
@@ -259,11 +259,11 @@ export const UpsertJoinTokenDialog = ({
 
     switch (data.object.spec.join_method) {
       case 'iam':
-        return !checkIAMYAMLData(data.object.spec.allow);
+        return !checkIamYamlData(data.object.spec.allow);
       case 'gcp':
-        return !checkGCPYAMLData(data.object.spec.gcp);
+        return !checkGcpYamlData(data.object.spec.gcp);
       case 'github':
-        return !checkGithubYAMLData(data.object.spec.github);
+        return !checkGithubYamlData(data.object.spec.github);
     }
 
     return false;
