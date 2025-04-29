@@ -113,7 +113,7 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 		return nil, trace.Wrap(err, "unable to create stream reader")
 	}
 
-	conn := streamutils.NewConn(desktopReadWriter, nil, nil)
+	conn := streamutils.NewConn(desktopReadWriter, &net.TCPAddr{}, &net.TCPAddr{})
 	tlsConfig := &tls.Config{
 		ServerName:   desktopName + DesktopSNISuffix,
 		Certificates: []tls.Certificate{desktopCert},
