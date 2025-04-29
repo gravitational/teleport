@@ -50,6 +50,7 @@ type ConnectionConfig struct {
 // DesktopsGetter is responsible for getting desktops and desktop services.
 type DesktopsGetter interface {
 	// GetWindowsDesktops returns windows desktop hosts.
+	// TODO(gzdunek): Use ListWindowsDesktops that supports pagination.
 	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 	// GetWindowsDesktopService returns a registered Windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
