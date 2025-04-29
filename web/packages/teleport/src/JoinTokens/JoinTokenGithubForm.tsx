@@ -23,7 +23,6 @@ import Box from 'design/Box/Box';
 import { ButtonText } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
-import { ChevronDown } from 'design/Icon/Icons/ChevronDown';
 import { Plus } from 'design/Icon/Icons/Plus';
 import { Trash } from 'design/Icon/Icons/Trash';
 import Link from 'design/Link/Link';
