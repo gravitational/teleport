@@ -18,8 +18,8 @@
 
 import { useTheme } from 'styled-components';
 
-import { Box, Flex } from 'design';
-import { ButtonSecondary } from 'design/Button';
+import { Alert, Box, Flex } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { FeatureName } from 'design/constants';
 import { ChevronLeft, ChevronRight } from 'design/Icon';
 import Image from 'design/Image';
@@ -32,6 +32,7 @@ import cfg from 'teleport/config';
 
 import accessGraphPromoDark from './access-graph-promo-dark.png';
 import accessGraphPromoLight from './access-graph-promo-light.png';
+import { RoleDiffProps, RoleDiffState } from './Roles';
 
 const promoImageWidth = 782;
 const promoImages: Record<Theme['type'], string> = {
@@ -45,13 +46,26 @@ const promoFlows = {
 };
 
 export function PolicyPlaceholder({
+  canUpdateAccessGraphSettings,
   currentFlow,
+  enableDemoMode,
+  roleDiffProps,
 }: {
+  canUpdateAccessGraphSettings: boolean;
   currentFlow: 'creating' | 'updating';
+  enableDemoMode?: () => void;
+  roleDiffProps?: RoleDiffProps;
 }) {
   const theme = useTheme();
+  const loading =
+    roleDiffProps?.roleDiffState === RoleDiffState.LoadingSettings ||
+    roleDiffProps?.roleDiffState === RoleDiffState.WaitingForSync;
+
   return (
     <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
+      {roleDiffProps?.roleDiffErrorMessage && (
+        <Alert>{roleDiffProps.roleDiffErrorMessage}</Alert>
+      )}
       <H1 mb={2}>{FeatureName.IdentitySecurity} saves you from mistakes.</H1>
       <Flex mb={4} gap={6} flexWrap="wrap" justifyContent="space-between">
         <Box flex="1" minWidth="30ch">
@@ -62,21 +76,36 @@ export function PolicyPlaceholder({
           </P>
         </Box>
         <Flex flex="0 0 auto" alignItems="start">
-          {!cfg.isPolicyEnabled && (
-            <>
-              <ButtonLockedFeature noIcon py={0} width={undefined}>
-                Contact Sales
-              </ButtonLockedFeature>
-              <ButtonSecondary
-                as="a"
-                href="https://goteleport.com/platform/policy/"
-                target="_blank"
-                ml={2}
+          {canUpdateAccessGraphSettings &&
+            !cfg.isPolicyEnabled &&
+            cfg.isCloud &&
+            enableDemoMode && ( // cloud can enable a demo mode so show that button
+              <ButtonPrimary
+                onClick={enableDemoMode}
+                py="12px"
+                width="100%"
+                disabled={loading}
+                style={{ textTransform: 'none' }}
               >
-                Learn More
-              </ButtonSecondary>
-            </>
-          )}
+                {loading ? 'Creating graph…' : 'Preview Identity Security'}
+              </ButtonPrimary>
+            )}
+          {!cfg.isPolicyEnabled &&
+            !cfg.isCloud && ( // non-cloud must contact sales
+              <>
+                <ButtonLockedFeature noIcon py={0} width={undefined}>
+                  Contact Sales
+                </ButtonLockedFeature>
+                <ButtonSecondary
+                  as="a"
+                  href="https://goteleport.com/platform/policy/"
+                  target="_blank"
+                  ml={2}
+                >
+                  Learn More
+                </ButtonSecondary>
+              </>
+            )}
         </Flex>
       </Flex>
       <Flex
