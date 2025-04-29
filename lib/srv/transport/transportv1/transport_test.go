@@ -718,6 +718,8 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 					require.NoError(t, err)
 				}
 
+				resp, err := stream.Recv()
+				require.Nil(t, resp)
 				switch {
 				// The server will attempt to get the authz context prior to receiving the first
 				// message from the client which may terminate the stream and result in an EOF.
