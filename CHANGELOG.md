@@ -1,5 +1,18 @@
 # Changelog
 
+## 17.4.7 (04/29/25)
+
+* AWS Roles Anywhere output now includes the expiration time as milliseconds since unix epoch. [#54386](https://github.com/gravitational/teleport/pull/54386)
+* Increased the email access plugin timeout for sending e-mails from 5 to 15 seconds. [#54381](https://github.com/gravitational/teleport/pull/54381)
+* Fixed a potential panic during Auth Server startup when the backend returns an error. [#54327](https://github.com/gravitational/teleport/pull/54327)
+* Added a Hardware Key Agent to Teleport Connect along with other significant UX improvements for Hardware Key support. With the agent enabled, Teleport Connect will handle prompts on behalf of other Teleport Clients (`tsh`, `tctl`), with an additional option to cache the PIN between client calls (New cluster option:`cap.hardware_key.pin_cache_ttl`). [#54297](https://github.com/gravitational/teleport/pull/54297)
+* More customizability options for the AWS Roles Anywhere MWI service. [#54260](https://github.com/gravitational/teleport/pull/54260)
+
+Enterprise:
+* Okta integration: Fixed fetching Okta apps and groups preview when enrolling Access List sync. [#6411](https://github.com/gravitational/teleport.e/pull/6411)
+* Fixed the Oracle audit puller breaking connection in some configurations due to expected service name mismatch. [#6399](https://github.com/gravitational/teleport.e/pull/6399)
+* Web UI now correctly displays inherited Access List ownership and membership. [#6395](https://github.com/gravitational/teleport.e/pull/6395)
+
 ## 17.4.6 (04/22/25)
 
 * User Kind is now correctly reported for Bots in the `app.session.start` audit log event. [#54241](https://github.com/gravitational/teleport/pull/54241)
