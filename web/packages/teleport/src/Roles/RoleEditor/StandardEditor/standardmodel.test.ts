@@ -647,7 +647,6 @@ describe('roleToRoleEditorModel', () => {
           allowUnknown: 123,
           kubernetes_resources: [
             { kind: 'job', resUnknown: 123 } as KubernetesResource,
-            { kind: 'illegal' } as unknown as KubernetesResource,
             {
               kind: '*',
               verbs: ['illegal', 'get'],
@@ -710,8 +709,7 @@ describe('roleToRoleEditorModel', () => {
         {
           type: ConversionErrorType.UnsupportedValue,
           errors: simpleConversionErrors(ConversionErrorType.UnsupportedValue, [
-            'spec.allow.kubernetes_resources[1]',
-            'spec.allow.kubernetes_resources[2].verbs[0]',
+            'spec.allow.kubernetes_resources[1].verbs[0]',
             'spec.allow.rules[1].verbs[1]',
             'spec.allow.rules[2].verbs[1]',
             'spec.options.ssh_port_forwarding',
@@ -842,6 +840,38 @@ describe('roleToRoleEditorModel', () => {
         },
       ],
     } as RoleEditorModel);
+  });
+
+  test('support custom resource', () => {
+    expect(
+      roleToRoleEditorModel({
+        ...minRole,
+        spec: {
+          ...minRole.spec,
+          allow: {
+            ...minRole.spec.allow,
+            kubernetes_resources: [
+              { kind: 'unknown', group: 'group.example.com' },
+              { kind: 'job', group: '*' },
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      ...roleModelWithReset,
+      requiresReset: false,
+      resources: [
+        {
+          ...newKubeClusterResourceAccess(),
+          resources: [
+            expect.objectContaining({
+              kind: { value: 'unknown', label: 'Custom' },
+            }),
+            expect.objectContaining({ kind: { value: 'job', label: 'Job' } }),
+          ],
+        },
+      ],
+    });
   });
 
   it('revision change requires reset', () => {

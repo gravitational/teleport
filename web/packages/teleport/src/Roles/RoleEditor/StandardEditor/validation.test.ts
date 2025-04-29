@@ -74,6 +74,7 @@ describe('validateRoleEditorModel', () => {
             name: 'res-name',
             namespace: 'dummy-namespace',
             verbs: [],
+            group: '*',
             roleVersion: defaultRoleVersion,
           },
         ],

@@ -158,9 +158,12 @@ describe('KubernetesAccessSection', () => {
     expect(
       reactSelectValueContainer(screen.getByLabelText('Kind'))
     ).toHaveTextContent('Any kind');
+    expect(screen.getByLabelText('Group *')).toHaveValue('*');
     expect(screen.getByLabelText('Name *')).toHaveValue('*');
     expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
     await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
+    await user.clear(screen.getByLabelText('Group *'));
+    await user.type(screen.getByLabelText('Group *'), 'group-name');
     await user.clear(screen.getByLabelText('Name *'));
     await user.type(screen.getByLabelText('Name *'), 'job-name');
     await user.clear(screen.getByLabelText('Namespace *'));
@@ -188,6 +191,7 @@ describe('KubernetesAccessSection', () => {
             expect.objectContaining({ value: 'create' }),
             expect.objectContaining({ value: 'delete' }),
           ],
+          group: 'group-name',
           roleVersion: 'v8',
         },
       ],

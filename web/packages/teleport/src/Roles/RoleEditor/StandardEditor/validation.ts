@@ -36,6 +36,7 @@ import {
   KubernetesVerbOption,
   MetadataModel,
   ResourceAccess,
+  resourceKindOptions,
   RoleEditorModel,
   RuleModel,
   VerbModel,
@@ -195,12 +196,16 @@ const validKubernetesResource = (res: KubernetesResourceModel) => () => {
         res.namespace
       )();
   const verbs = validKubernetesVerbs(res.verbs);
+  const group = validKubernetesGroup(res.group, res.roleVersion);
+
   return {
-    valid: kind.valid && name.valid && namespace.valid && verbs.valid,
+    valid:
+      kind.valid && name.valid && namespace.valid && verbs.valid && group.valid,
     kind,
     name,
     namespace,
     verbs,
+    group,
   };
 };
 export type KubernetesResourceValidationResult = {
@@ -208,6 +213,7 @@ export type KubernetesResourceValidationResult = {
   name: ValidationResult;
   namespace: ValidationResult;
   verbs: ValidationResult;
+  group: ValidationResult;
 };
 
 /**
@@ -233,8 +239,58 @@ const validKubernetesKind = (
       };
 
     case RoleVersion.V7:
+      const v7valid = resourceKindOptions
+        .filter(elem => elem.label !== 'Custom')
+        .map(elem => elem.value)
+        .includes(kind);
+
+      return {
+        valid: v7valid,
+        message: v7valid
+          ? undefined
+          : `Only core predefined kinds are allowed for role version ${ver}`,
+      };
+
     case RoleVersion.V8:
       return { valid: true };
+
+    default:
+      ver satisfies never;
+      return { valid: true };
+  }
+};
+
+/**
+ * Validates a `group` field of a `KubernetesResourceModel`. In roles with
+ * version prior to v8, the auth server only accepts empty string or "*".
+ */
+const validKubernetesGroup = (
+  group: string,
+  ver: RoleVersion
+): ValidationResult => {
+  switch (ver) {
+    case RoleVersion.V3:
+    case RoleVersion.V4:
+    case RoleVersion.V5:
+    case RoleVersion.V6:
+    case RoleVersion.V7:
+      const v7valid = group === '' || group === '*';
+
+      return {
+        valid: v7valid,
+        message: v7valid
+          ? undefined
+          : `Only empty string or "*" are allowed for role version ${ver}`,
+      };
+
+    case RoleVersion.V8:
+      const v8valid = !!group;
+      return {
+        valid: v8valid,
+        message: v8valid
+          ? undefined
+          : `Group required for role version ${ver}. Use "*" for any group.`,
+      };
 
     default:
       ver satisfies never;

@@ -178,7 +178,7 @@ export type KubernetesResourceModel = {
   name: string;
   namespace: string;
   verbs: readonly KubernetesVerbOption[];
-
+  group?: string;
   /**
    * Version of the role that owns this section. Required in order to support
    * version-specific validation rules. It's the responsibility of
@@ -195,8 +195,9 @@ type KubernetesResourceKindOption = Option<KubernetesResourceKind, string>;
  * sync with `KubernetesResourcesKinds` in `api/types/constants.go.
  */
 export const kubernetesResourceKindOptions: KubernetesResourceKindOption[] = [
-  // The "any kind" option goes first.
+  // The "any kind" and "CustomResource" options goes first.
   { value: '*', label: 'Any kind' },
+  { value: '', label: 'Custom' }, // Fake kind, pass-through without validation.
 
   // The rest is sorted by label.
   ...(
@@ -572,6 +573,16 @@ export function newResourceAccess(
   }
 }
 
+export function supportsKubernetesCustomResources(roleVersion: RoleVersion) {
+  return ![
+    RoleVersion.V3,
+    RoleVersion.V4,
+    RoleVersion.V5,
+    RoleVersion.V6,
+    RoleVersion.V7,
+  ].includes(roleVersion);
+}
+
 export function newKubernetesResourceModel(
   roleVersion: RoleVersion
 ): KubernetesResourceModel {
@@ -581,6 +592,7 @@ export function newKubernetesResourceModel(
     name: '*',
     namespace: '*',
     verbs: [],
+    group: supportsKubernetesCustomResources(roleVersion) ? '*' : '',
     roleVersion,
   };
 }
@@ -908,17 +920,21 @@ function kubernetesResourceToModel(
   model?: KubernetesResourceModel;
   conversionErrors: ConversionError[];
 } {
-  const { kind, name, namespace = '', verbs = [], ...unsupported } = res;
+  const { kind, name, namespace = '', verbs = [], group, ...unsupported } = res;
   const conversionErrors = unsupportedFieldErrorsFromObject(
     pathPrefix,
     unsupported
   );
 
-  const kindOption = kubernetesResourceKindOptionsMap.get(kind);
-  if (kindOption === undefined) {
+  const kindOption = kubernetesResourceKindOptionsMap.get(kind) || {
+    value: kind,
+    label: 'Custom',
+  };
+  const supportsCRDs = supportsKubernetesCustomResources(roleVersion);
+  if (!supportsCRDs && kindOption.label === 'Custom') {
     conversionErrors.push({
       type: ConversionErrorType.UnsupportedValue,
-      path: pathPrefix,
+      path: `${pathPrefix}.kind`,
     });
   }
 
@@ -945,6 +961,7 @@ function kubernetesResourceToModel(
             namespace,
             verbs: knownVerbOptions,
             roleVersion,
+            group,
           }
         : undefined,
     conversionErrors,
@@ -1379,11 +1396,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.kubernetes_groups = optionsToStrings(res.groups);
         role.spec.allow.kubernetes_labels = labelsModelToLabels(res.labels);
         role.spec.allow.kubernetes_resources = res.resources.map(
-          ({ kind, name, namespace, verbs }) => ({
+          ({ kind, name, namespace, verbs, group }) => ({
             kind: kind.value,
             name,
             namespace,
             verbs: optionsToStrings(verbs),
+            group,
           })
         );
         role.spec.allow.kubernetes_users = optionsToStrings(res.users);

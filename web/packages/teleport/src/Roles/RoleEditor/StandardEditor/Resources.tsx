@@ -37,6 +37,7 @@ import { precomputed } from 'shared/components/Validation/rules';
 import { ValidationSuspender } from 'shared/components/Validation/Validation';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
+import { RoleVersion } from 'teleport/services/resources';
 
 import {
   SectionBox,
@@ -56,6 +57,7 @@ import {
   ResourceAccess,
   ResourceAccessKind,
   ServerAccess,
+  supportsKubernetesCustomResources,
   WindowsDesktopAccess,
 } from './standardmodel';
 import { ActionType } from './useStandardModel';
@@ -369,6 +371,64 @@ export function KubernetesAccessSection({
   );
 }
 
+function KubernetesResourceKindView({
+  value,
+  validation,
+  isProcessing,
+  onChange,
+  roleVersion,
+}: {
+  value: KubernetesResourceModel;
+  validation: KubernetesResourceValidationResult['kind'];
+  isProcessing: boolean;
+  onChange?(m: KubernetesResourceModel): void;
+  roleVersion: RoleVersion;
+}) {
+  const supportsCRDs = supportsKubernetesCustomResources(roleVersion);
+  const selectField = (
+    <FieldSelect
+      label="Kind"
+      isDisabled={isProcessing}
+      options={kubernetesResourceKindOptions.filter(
+        elem => supportsCRDs || elem.label !== 'Custom'
+      )}
+      value={value.kind}
+      rule={precomputed(validation)}
+      onChange={k => onChange?.({ ...value, kind: k })}
+    />
+  );
+
+  // If we are on version <8, we don't support custom resources. Only show the selectField.
+  if (!supportsKubernetesCustomResources(value.roleVersion)) {
+    return selectField;
+  }
+
+  if (value.kind.label !== 'Custom') {
+    // If we are not dealing with a custom resource, return the select field.
+    return selectField;
+  }
+
+  // If we are dealing with a custom resource, show an input field.
+  return (
+    <>
+      {selectField}
+      <FieldInput
+        label="Custom Kind"
+        disabled={isProcessing}
+        value={value.kind.value}
+        placeholder='e.g. "CronTab"'
+        rule={precomputed(validation)}
+        onChange={e =>
+          onChange?.({
+            ...value,
+            kind: { ...value.kind, value: e.target.value },
+          })
+        }
+      />
+    </>
+  );
+}
+
 function KubernetesResourceView({
   value,
   validation,
@@ -382,8 +442,9 @@ function KubernetesResourceView({
   onChange(m: KubernetesResourceModel): void;
   onRemove(): void;
 }) {
-  const { kind, name, namespace, verbs } = value;
+  const { kind, name, namespace, verbs, group } = value;
   const theme = useTheme();
+  const supportsCRDs = supportsKubernetesCustomResources(value.roleVersion);
   return (
     <Box
       border={1}
@@ -406,15 +467,29 @@ function KubernetesResourceView({
           />
         </ButtonIcon>
       </Flex>
-      <FieldSelect
-        label="Kind"
-        isDisabled={isProcessing}
-        options={kubernetesResourceKindOptions}
-        value={kind}
-        rule={precomputed(validation.kind)}
-        onChange={k => onChange?.({ ...value, kind: k })}
-        menuPosition="fixed"
+      <KubernetesResourceKindView
+        value={value}
+        validation={validation.kind}
+        isProcessing={isProcessing}
+        onChange={k => onChange?.({ ...value, ...k })}
+        roleVersion={value.roleVersion}
       />
+      <Box hidden={(!group || group === '*') && !supportsCRDs}>
+        <FieldInput
+          label="Group"
+          required
+          toolTipContent={
+            <>
+              Resource API Group. Special value <MarkInverse>*</MarkInverse>{' '}
+              means any group.
+            </>
+          }
+          disabled={isProcessing}
+          value={!supportsCRDs && group === '*' ? '' : group}
+          rule={precomputed(validation.group)}
+          onChange={e => onChange?.({ ...value, group: e.target.value })}
+        />
+      </Box>
       <FieldInput
         label="Name"
         required
