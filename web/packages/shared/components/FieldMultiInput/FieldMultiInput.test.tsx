@@ -68,6 +68,12 @@ test('adding, editing, and removing items', async () => {
 
   await user.click(screen.getAllByRole('button', { name: 'Remove Item' })[0]);
   expect(onChange).toHaveBeenLastCalledWith([]);
+
+  await user.type(screen.getByRole('textbox'), 'bananas');
+  expect(onChange).toHaveBeenLastCalledWith(['bananas']);
+
+  await user.clear(screen.getByRole('textbox'));
+  expect(onChange).toHaveBeenLastCalledWith([]);
 });
 
 test('keyboard handling', async () => {

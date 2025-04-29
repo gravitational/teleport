@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 const (
@@ -521,3 +522,8 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
 	}.String()
 }
+
+// IsKnownRegion returns true if provided region is one of the "well-known" AWS
+// regions.
+// TODO(greedy52): DELETE once e is updated to use the package directly.
+var IsKnownRegion = awsregion.IsKnownRegion

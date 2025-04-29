@@ -25,14 +25,11 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/client"
 )
 
 // Config is the cluster service config
 type Config struct {
-	// Dir is the directory to store cluster profiles
-	Dir string
 	// Clock is a clock for time-related operations
 	Clock clockwork.Clock
 	// InsecureSkipVerify is an option to skip TLS cert check
@@ -44,15 +41,14 @@ type Config struct {
 	WebauthnLogin client.WebauthnLoginFunc
 	// AddKeysToAgent is passed to [client.Config].
 	AddKeysToAgent string
-	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
-	// for a hardware key PIN, touch, etc.
-	CustomHardwareKeyPrompt hardwarekey.Prompt
+	// ClientStore stores client data.
+	ClientStore *client.Store
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Dir == "" {
-		return trace.BadParameter("missing working directory")
+	if c.ClientStore == nil {
+		return trace.BadParameter("missing client store")
 	}
 
 	if c.Clock == nil {

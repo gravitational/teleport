@@ -230,7 +230,7 @@ func Test_Channel_GetVersion(t *testing.T) {
 		{
 			name:            "version too high",
 			targetVersion:   "v99.1.1",
-			expectedVersion: teleport.SemVersion,
+			expectedVersion: teleport.SemVer(),
 			assertErr:       require.NoError,
 		},
 		{

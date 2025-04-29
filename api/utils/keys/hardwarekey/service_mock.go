@@ -17,8 +17,11 @@ package hardwarekey
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"io"
 	"sync"
 	"time"
@@ -90,7 +93,20 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 		return nil, trace.Wrap(err)
 	}
 
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	var priv crypto.Signer
+	switch config.Algorithm {
+	// Use ECDSA key by default.
+	case SignatureAlgorithmEC256, 0:
+		priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case SignatureAlgorithmEd25519:
+		_, priv, err = ed25519.GenerateKey(rand.Reader)
+	case SignatureAlgorithmRSA2048:
+		//nolint:forbidigo // Allow /api to generate RSA key without importing Teleport.
+		priv, err = rsa.GenerateKey(rand.Reader, 2048)
+	default:
+		return nil, trace.BadParameter("unknown algorithm option %v", config.Algorithm)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,12 +114,13 @@ func (s *MockHardwareKeyService) NewPrivateKey(ctx context.Context, config Priva
 	ref := &PrivateKeyRef{
 		SerialNumber: serialNumber,
 		SlotKey:      slotKey,
-		PublicKey:    pub,
+		PublicKey:    priv.Public(),
 		Policy:       config.Policy,
 		// Since this is only used in tests, we will ignore the attestation statement in the end.
 		// We just need it to be non-nil so that it goes through the test modules implementation
 		// of Attest
 		AttestationStatement: &AttestationStatement{},
+		PINCacheTTL:          config.PINCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {
@@ -129,7 +146,7 @@ func (s *MockHardwareKeyService) Sign(ctx context.Context, ref *PrivateKeyRef, k
 		slot:         ref.SlotKey,
 	}]
 	if !ok {
-		return nil, trace.NotFound("key not found in slot %d", ref.SlotKey)
+		return nil, trace.NotFound("key not found in slot 0x%x", ref.SlotKey)
 	}
 
 	if err := s.tryPrompt(ctx, ref.Policy, keyInfo); err != nil {
@@ -186,7 +203,7 @@ func (s *MockHardwareKeyService) GetFullKeyRef(serialNumber uint32, slotKey PIVS
 		slot:         slotKey,
 	}]
 	if !ok {
-		return nil, trace.NotFound("key not found in slot %d", slotKey)
+		return nil, trace.NotFound("key not found in slot 0x%x", slotKey)
 	}
 
 	return priv.ref, nil
@@ -194,4 +211,10 @@ func (s *MockHardwareKeyService) GetFullKeyRef(serialNumber uint32, slotKey PIVS
 
 func (s *MockHardwareKeyService) MockTouch() {
 	s.mockTouch <- struct{}{}
+}
+
+func (s *MockHardwareKeyService) Reset() {
+	s.fakeHardwarePrivateKeysMux.Lock()
+	defer s.fakeHardwarePrivateKeysMux.Unlock()
+	s.fakeHardwarePrivateKeys = map[hardwareKeySlot]*fakeHardwarePrivateKey{}
 }

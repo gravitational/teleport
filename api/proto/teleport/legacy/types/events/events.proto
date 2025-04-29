@@ -279,6 +279,9 @@ message AccessListMemberMetadata {
 
   // Members are all members affected by the access list membership change.
   repeated AccessListMember Members = 2 [(gogoproto.jsontag) = "members,omitempty"];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -336,6 +339,9 @@ message AccessListReviewMetadata {
 
   // RemovedMembers are the members that were removed as part of the review.
   repeated string RemovedMembers = 6 [(gogoproto.jsontag) = "removed_members,omitempty"];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 7 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // LockMetadata contains common metadata for lock resource events.
@@ -4413,6 +4419,8 @@ message IntegrationMetadata {
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
   // GitHub contains metadata for GitHub integrations.
   GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
+  // AWSRA contains metadata for AWS IAM Roles Anywhere integrations.
+  AWSRAIntegrationMetadata AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4438,6 +4446,12 @@ message AzureOIDCIntegrationMetadata {
 message GitHubIntegrationMetadata {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+}
+
+// AWSRAIntegrationMetadata contains metadata for AWS IAM Roles Anywhere integrations.
+message AWSRAIntegrationMetadata {
+  // TrustAnchorARN contains the IAM Roles Anywhere Trust Anchor ARN used to set up the Integration.
+  string TrustAnchorARN = 1 [(gogoproto.jsontag) = "trust_anchor_arn,omitempty"];
 }
 
 // PluginCreate is emitted when a plugin resource is created.
@@ -6342,6 +6356,9 @@ message AccessListCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListUpdate is emitted when an access list is updated.
@@ -6366,6 +6383,9 @@ message AccessListUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListDelete is emitted when an access list is deleted.
@@ -6390,6 +6410,9 @@ message AccessListDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AccessListTitle is the access list's title.
+  string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
 }
 
 // AccessListMemberCreate is emitted when an access list member is created.
