@@ -718,8 +718,6 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 					require.NoError(t, err)
 				}
 
-				resp, err := stream.Recv()
-				require.Nil(t, resp)
 				switch {
 				// The server will attempt to get the authz context prior to receiving the first
 				// message from the client which may terminate the stream and result in an EOF.
@@ -745,16 +743,11 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 					Cluster:     "test",
 				}}))
 
-				// Empty message indicating successful connection to the service.
-				resp, err := stream.Recv()
-				require.NoError(t, err)
-				require.Nil(t, resp.Data)
-
 				require.NoError(t, conn.Close())
 				msg := []byte("hello")
 				require.NoError(t, stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{Data: msg}))
 
-				resp, err = stream.Recv()
+				resp, err := stream.Recv()
 				require.Error(t, err)
 				require.ErrorIs(t, err, io.EOF)
 				require.Nil(t, resp)
@@ -793,12 +786,7 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 				err := stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{Data: msg})
 				require.NoError(t, err)
 
-				// Empty message indicating successful connection to the service.
 				resp, err := stream.Recv()
-				require.NoError(t, err)
-				require.Nil(t, resp.Data)
-
-				resp, err = stream.Recv()
 				require.NoError(t, err)
 				// The mocked server implementation echoes the message.
 				require.Equal(t, msg, resp.Data)

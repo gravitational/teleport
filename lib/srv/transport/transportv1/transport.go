@@ -463,11 +463,6 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 		return trace.Wrap(err, "failed constructing desktop streamer")
 	}
 
-	// Send an empty response to confirm the connection is established.
-	if err := stream.Send(&transportv1pb.ProxyWindowsDesktopSessionResponse{}); err != nil {
-		return trace.Wrap(err, "failed to send response confirming desktop session connection")
-	}
-
 	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
 }
 

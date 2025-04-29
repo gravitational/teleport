@@ -18,6 +18,8 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"io"
 	"net"
 	"sync"
 
@@ -102,12 +104,6 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 		return nil, trace.Wrap(err, "unable to send dial target request")
 	}
 
-	// Empty message indicating successful connection to the service.
-	_, err = stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to establish desktop session")
-	}
-
 	desktopReadWriter, err := streamutils.NewReadWriter(desktopStream{stream: stream, cancel: cancel})
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to create stream reader")
@@ -121,6 +117,12 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 	}
 	tlsConn := tls.Client(conn, tlsConfig)
 	if err = tlsConn.HandshakeContext(ctx); err != nil {
+		if errors.Is(err, io.EOF) || trace.IsConnectionProblem(err) {
+			// We failed to establish the connection to the desktop service,
+			// read the error from stream.
+			_, err := stream.Recv()
+			return nil, trace.Wrap(err)
+		}
 		return nil, trace.Wrap(err)
 	}
 
