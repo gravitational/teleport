@@ -40,7 +40,7 @@ methods e.g `github`, `gitlab`.
 
 ### Overview
 
-The Azure DevOps join method will be named `azure-devops` and will be a 
+The Azure DevOps join method will be named `azure_devops` and will be a 
 delegated, non-renewable join method.
 
 The Azure DevOps join method will leverage the OpenID Connect (OIDC) token that
@@ -187,14 +187,104 @@ In order to be able to fetch the correct OIDC configuration document, we will
 require knowledge ahead of time of the organization UUID. **The user will
 configure this as part of the ProvisionToken specification**.
 
+During validation, we will expect the `aud` claim to be
+`api://AzureADTokenExchange`.
+
 For validation, we will leverage the `github.com/coreos/go-oidc/v3/oidc` package
 as is used for other OIDC join methods (e.g `bitbucket`).
 
-### Provision Token
+### Join RPC
+
+### UX
+
+#### Provision Token
+
+The ProvisionToken resource will be extended with new fields to support the 
+configuration of the Azure Devops join method.
+
+Like other join methods, a `spec.azure_devops` field will be introduced to hold
+configuration specific to the Azure DevOps join method. This field will include:
+
+- Configuration necessary to validate the ID Token:
+  - The UUID of the organization.
+- The allow rules that control which pipelines are permitted to authenticate.
+
+```protobuf
+// ProvisionTokenSpecV2AzureDevops contains the Azure Devops-specific
+// configuration. 
+message ProvisionTokenSpecV2AzureDevops {
+  message Rule {
+    // Sub also known as Subject is a string that roughly uniquely identifies
+    // the workload. Example:
+    // p://my-organization/my-project/my-pipeline
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    // The name of the AZDO project. Example:
+    // `my-project`.
+    // Mapped out of the `sub` claim.
+    string ProjectName = 2 [(gogoproto.jsontag) = "project_name,omitempty"];
+    // The name of the AZDO pipeline. Example:
+    // `my-pipeline`.
+    // Mapped out of the `sub` claim.
+    string PipelineName = 3 [(gogoproto.jsontag) = "pipeline_name,omitempty"];
+    // The ID of the AZDO pipeline. Example:
+    // `271ef6f7-0000-0000-0000-4b54d9129990`
+    // Mapped from the `prj_id` claim.
+    string ProjectID = 4 [(gogoproto.jsontag) = "project_id,omitempty"];
+    // The ID of the AZDO pipeline definition. Example:
+    // `1`
+    // Mapped from the `def_id` claim.
+    string DefinitionID = 5 [(gogoproto.jsontag) = "definition_id,omitempty"];
+    // The URI of the repository the pipeline is using. Example:
+    // `https://github.com/gravitational/teleport.git`.
+    // Mapped from the `rpo_uri` claim.
+    string RepositoryURI = 6 [(gogoproto.jsontag) = "repository_uri,omitempty"];
+    // The individual commit of the repository the pipeline is using. Example:
+    // `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`.
+    // Mapped from the `rpo_ver` claim.
+    string RepositoryVersion = 7 [(gogoproto.jsontag) = "repository_version,omitempty"];
+    // The reference of the repository the pipeline is using. Example:
+    // `refs/heads/main`.
+    // Mapped from the `rpo_ref` claim.
+    string RepositoryRef = 8 [(gogoproto.jsontag) = "repository_ref,omitempty"];
+
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // OrganizationID specifies the UUID of the Azure DevOps organization that
+  // this join token will grant access to. This is used to identify the correct
+  // issuer verification of the ID token.
+  // This is a required field.
+  string OrganizationID = 2 [(gogoproto.jsontag) = "organization_id"];
+}
+```
+
+The Join Token Create/Edit UI should be extended to support this new join
+method.
+
+#### `tbot` configuration
+
+Within `tbot` itself, no further configuration is required or will be added 
+beyond:
+
+- The user must specify the `azure_devops` join method
+- The user must specify the name of the ProvisionToken to use.
+
+However, when using `tbot` within a pipeline step, the user will need to map
+the `System.AccessToken` variable into the environment, e.g:
+
+```yaml
+steps:
+- env:
+    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+  script: tbot start -c ./my-config.yaml
+```
 
 #### Infrastructure as Code
 
-### Join RPCs
+The ProvisionToken resource is already generated for the Terraform provider and
+the Kubernetes Operator, therefore the new fields to support the Azure DevOps
+join method will be included without any additional work.
 
 ### Security Considerations
 
@@ -203,6 +293,20 @@ as is used for other OIDC join methods (e.g `bitbucket`).
 #### `aud` Confused Deputy
 
 #### Audit Logging
+
+As with any Bot join, the `bot.join` audit log will be emitted. This should
+be extended to include the following information extracted from the ID token:
+
+- `jti`
+- `sub`
+- `org_id`
+- `prj_id`
+- `def_id`
+- `rpo_id`
+- `rpo_uri`
+- `rpo_ver`
+- `repo_ref`
+- `run_id`
 
 ### Alternatives and Out of Scope
 
