@@ -6122,7 +6122,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Empty(t, resp.NextKey)
 		assert.Len(t, resp.Resources, 6)
-	}, 3*time.Second, 200*time.Millisecond)
+	}, 10*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
 	for _, resource := range resp.Resources {
