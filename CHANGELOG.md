@@ -41,6 +41,7 @@ number of failed probes.
 
 ### Other fixes and improvements
 
+* Increased the email access plugin timeout for sending e-mails from 5 to 15 seconds. [#54379](https://github.com/gravitational/teleport/pull/54379)
 * The `teleport-cluster` Helm chart now supports tuning the pod readiness. [#54351](https://github.com/gravitational/teleport/pull/54351)
 * Fixed a potential panic during Auth Server startup when the backend returns an error. [#54325](https://github.com/gravitational/teleport/pull/54325)
 * Fix issue that prevent Kubernetes agents from connecting to GKE control plane using the new DNS-based access mechanism. [#54218](https://github.com/gravitational/teleport/pull/54218)
