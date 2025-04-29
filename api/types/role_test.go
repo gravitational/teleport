@@ -188,7 +188,6 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Group:     Wildcard,
 				},
 			},
-
 			assertErrorCreation: require.NoError,
 		},
 		{
