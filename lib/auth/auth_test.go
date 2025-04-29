@@ -1193,8 +1193,9 @@ func TestLocalControlStream(t *testing.T) {
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
+	ctx := context.Background()
 
-	cn, err := s.a.GetClusterName()
+	cn, err := s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err := s.a.GetStaticTokens()
@@ -1234,7 +1235,7 @@ func TestUpdateConfig(t *testing.T) {
 
 	// check first auth server and make sure it returns the correct values
 	// (original cluster name, new static tokens)
-	cn, err = s.a.GetClusterName()
+	cn, err = s.a.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err = s.a.GetStaticTokens()
@@ -3045,26 +3046,16 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 
 	// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		found, _, err := p.a.UnifiedResourceCache.IterateUnifiedResources(ctx, func(rwl types.ResourceWithLabels) (bool, error) {
-			if rwl.GetKind() != types.KindKubeServer {
-				return false, nil
+		gotNames := map[string]struct{}{}
+		for ks, err := range p.a.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+			if !assert.NoError(t, err) {
+				return
 			}
 
-			ks, ok := rwl.(types.KubeServer)
-			if !ok {
-				return false, nil
-			}
-
-			return ks.GetCluster().GetName() == kubeCluster.GetName(), nil
-		}, &proto.ListUnifiedResourcesRequest{
-			Kinds:  []string{types.KindKubeServer},
-			SortBy: types.SortBy{Field: services.SortByName},
-			Limit:  1,
-		})
-
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
-	}, 10*time.Second, 100*time.Millisecond)
+			gotNames[ks.GetCluster().GetName()] = struct{}{}
+		}
+		assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+	}, 15*time.Second, 100*time.Millisecond)
 
 	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)

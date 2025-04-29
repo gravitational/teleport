@@ -44,19 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
-// UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
-var UnifiedResourceKinds = []string{
-	types.KindNode,
-	types.KindKubeServer,
-	types.KindDatabaseServer,
-	types.KindAppServer,
-	types.KindWindowsDesktop,
-	types.KindSAMLIdPServiceProvider,
-	types.KindIdentityCenterAccount,
-	types.KindIdentityCenterAccountAssignment,
-	types.KindGitServer,
-}
-
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a
@@ -205,24 +192,6 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 	}
 }
 
-func getStartKey(startKey string, sortBy types.SortBy) backend.Key {
-	if startKey == prefix {
-		return backend.NewKey(prefix)
-	}
-
-	// if startKey exists, return it
-	if startKey != "" {
-		return backend.KeyFromString(startKey)
-	}
-	// If startKey doesn't exist, we check the sort direction.
-	// If sort is descending, startKey is end of the list
-	if sortBy.IsDesc {
-		return backend.RangeEnd(backend.NewKey(prefix))
-	}
-	// return start of the list
-	return backend.NewKey(prefix)
-}
-
 type iteratedItem struct {
 	resource resource
 	key      backend.Key
@@ -233,43 +202,85 @@ type iteratedItem struct {
 // method.
 func (c *UnifiedResourceCache) iterateItems(ctx context.Context, start string, sortBy types.SortBy, kinds ...string) iter.Seq2[iteratedItem, error] {
 	return func(yield func(iteratedItem, error) bool) {
-		startKey := getStartKey(start, sortBy)
-
 		kindsMap := make(map[string]struct{})
 		for _, k := range kinds {
 			kindsMap[k] = struct{}{}
 		}
 
-		err := c.read(ctx, func(cache *UnifiedResourceCache) error {
-			tree, err := cache.getSortTree(sortBy.Field)
-			if err != nil {
-				return trace.Wrap(err, "getting sort tree")
-			}
+		var startKey backend.Key
+		if start != "" {
+			startKey = backend.KeyFromString(start)
+		}
 
-			iterateRange := tree.DescendRange
-			endKey := backend.NewKey(prefix)
-			if !sortBy.IsDesc {
-				iterateRange = tree.AscendRange
-				endKey = backend.RangeEnd(endKey)
-			}
+		itemIter := (*btree.BTreeG[*item]).AscendGreaterOrEqual
+		if sortBy.IsDesc {
+			itemIter = (*btree.BTreeG[*item]).DescendLessOrEqual
+		}
 
-			iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
-				r, ok := cache.resources[item.Value]
-				if !ok {
+		var excludedStart bool
+		const defaultPageSize = 100
+		items := make([]iteratedItem, 0, defaultPageSize)
+		for {
+			items = items[:0]
+
+			err := c.read(ctx, func(cache *UnifiedResourceCache) error {
+				tree, err := cache.getSortTree(sortBy.Field)
+				if err != nil {
+					return trace.Wrap(err, "getting sort tree")
+				}
+
+				if startKey.IsZero() {
+					max, ok := tree.Max()
+					if sortBy.IsDesc && ok {
+						startKey = max.Key
+					} else {
+						startKey = backend.NewKey("")
+					}
+				}
+
+				itemIter(tree, &item{Key: startKey}, func(item *item) bool {
+					if excludedStart {
+						excludedStart = false
+						if item.Key.Compare(startKey) <= 0 {
+							return true
+						}
+					}
+
+					r, ok := cache.resources[item.Value]
+					if !ok {
+						return true
+					}
+
+					if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
+						items = append(items, iteratedItem{key: item.Key, resource: r})
+					}
+
+					if len(items) >= defaultPageSize {
+						startKey = item.Key
+						excludedStart = true
+						return false
+					}
+
 					return true
-				}
+				})
 
-				if len(kinds) == 0 || c.itemKindMatches(r, kindsMap) {
-					return yield(iteratedItem{key: item.Key, resource: r}, nil)
-				}
-
-				return true
+				return nil
 			})
+			if err != nil {
+				yield(iteratedItem{}, err)
+				return
+			}
 
-			return nil
-		})
-		if err != nil {
-			yield(iteratedItem{}, err)
+			for _, i := range items {
+				if !yield(i, nil) {
+					return
+				}
+
+			}
+
+			if len(items) < defaultPageSize {
+				return
+			}
 		}
 	}
 }
@@ -338,7 +349,7 @@ func (c *UnifiedResourceCache) SAMLIdPServiceProviders(ctx context.Context, para
 func (c *UnifiedResourceCache) IdentityCenterAccounts(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[*identitycenterv1.Account, error] {
 	// cloning is performed on the concrete resource below instead of
 	// on the wrapper type.
-	cloneFn := func(account IdentityCenterAccount) IdentityCenterAccount {
+	cloneFn := func(account types.Resource153UnwrapperT[IdentityCenterAccount]) types.Resource153UnwrapperT[IdentityCenterAccount] {
 		return account
 	}
 	return func(yield func(*identitycenterv1.Account, error) bool) {
@@ -348,7 +359,7 @@ func (c *UnifiedResourceCache) IdentityCenterAccounts(ctx context.Context, param
 				return
 			}
 
-			if !yield(apiutils.CloneProtoMsg(account.Account), nil) {
+			if !yield(apiutils.CloneProtoMsg(account.UnwrapT().Account), nil) {
 				return
 			}
 		}
@@ -359,7 +370,7 @@ func (c *UnifiedResourceCache) IdentityCenterAccounts(ctx context.Context, param
 func (c *UnifiedResourceCache) IdentityCenterAccountAssignments(ctx context.Context, params UnifiedResourcesIterateParams) iter.Seq2[*identitycenterv1.AccountAssignment, error] {
 	// cloning is performed on the concrete resource below instead of
 	// on the wrapper type.
-	cloneFn := func(account IdentityCenterAccountAssignment) IdentityCenterAccountAssignment {
+	cloneFn := func(account types.Resource153UnwrapperT[IdentityCenterAccountAssignment]) types.Resource153UnwrapperT[IdentityCenterAccountAssignment] {
 		return account
 	}
 	return func(yield func(*identitycenterv1.AccountAssignment, error) bool) {
@@ -369,7 +380,7 @@ func (c *UnifiedResourceCache) IdentityCenterAccountAssignments(ctx context.Cont
 				return
 			}
 
-			if !yield(apiutils.CloneProtoMsg(assignment.AccountAssignment), nil) {
+			if !yield(apiutils.CloneProtoMsg(assignment.UnwrapT().AccountAssignment), nil) {
 				return
 			}
 		}
@@ -386,20 +397,8 @@ func iterateUnifiedResourceCache[T any](ctx context.Context, c *UnifiedResourceC
 				return
 			}
 
-			switch r := i.resource.(type) {
-			case T:
-				if !yield(cloneFn(r), nil) {
-					return
-				}
-			case types.Resource153Unwrapper:
-				res, ok := r.Unwrap().(T)
-				if !ok {
-					continue
-				}
-
-				if !yield(cloneFn(res), nil) {
-					return
-				}
+			if !yield(cloneFn(i.resource.(T)), nil) {
+				return
 			}
 		}
 	}
@@ -507,7 +506,7 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree in ascending order
 func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
-	for resource, err := range c.Resources(ctx, prefix, types.SortBy{IsDesc: false, Field: sortByName}) {
+	for resource, err := range c.Resources(ctx, "", types.SortBy{IsDesc: false, Field: sortByName}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -964,30 +963,13 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 			switch r := event.Resource.(type) {
 			case resource:
 				c.putLocked(r)
-
-			case types.Resource153Unwrapper:
-				// Raw RFD-153 style resources generally have very few methods
-				// defined on them by design. One way to add complex behavior to
-				// these resources is to wrap them inside another type that implements
-				// any methods or interfaces they need. Resources arriving here
-				// via the cache protocol will have those wrappers stripped away,
-				// so we unfortunately need to unwrap and re-wrap these values
-				// to restore them to a useful state.
-				switch unwrapped := r.Unwrap().(type) {
-				case IdentityCenterAccount:
-					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
-
-				case IdentityCenterAccountAssignment:
-					c.putLocked(types.Resource153ToUnifiedResource(unwrapped))
-
-				default:
-					c.logger.WarnContext(ctx, "unsupported Resource153 type", "resource_type", logutils.TypeAttr(unwrapped))
-				}
-
+			case types.Resource153UnwrapperT[*identitycenterv1.Account]:
+				c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: r.UnwrapT()}))
+			case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
+				c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: r.UnwrapT()}))
 			default:
 				c.logger.WarnContext(ctx, "unsupported Resource type", "resource_type", logutils.TypeAttr(r))
 			}
-
 		default:
 			c.logger.WarnContext(ctx, "unsupported event type", "event_type", event.Type)
 			continue
@@ -997,12 +979,17 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 
 // resourceKinds returns a list of resources to be watched.
 func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
-	watchKinds := make([]types.WatchKind, 0, len(UnifiedResourceKinds))
-	for _, kind := range UnifiedResourceKinds {
-		watchKinds = append(watchKinds, types.WatchKind{Kind: kind})
+	return []types.WatchKind{
+		{Kind: types.KindNode},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindIdentityCenterAccount},
+		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindGitServer},
 	}
-
-	return watchKinds
 }
 
 func (c *UnifiedResourceCache) defineCollectorAsInitialized() {
@@ -1192,17 +1179,11 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		}
 
 	case types.KindIdentityCenterAccountAssignment:
-		unwrapper, ok := resource.(types.Resource153Unwrapper)
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccountAssignment])
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
-		assignment, ok := unwrapper.Unwrap().(IdentityCenterAccountAssignment)
-		if !ok {
-			return nil, trace.BadParameter(
-				"Unexpected type for Identity Center Account Assignment: %T",
-				unwrapper)
-		}
-
+		assignment := unwrapper.UnwrapT()
 		protoResource = &proto.PaginatedResource{
 			Resource:        proto.PackICAccountAssignment(assignment.AccountAssignment),
 			RequiresRequest: requiresRequest,
@@ -1231,14 +1212,11 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 // makePaginatedIdentityCenterAccount returns a representation of the supplied
 // Identity Center account as an App.
 func makePaginatedIdentityCenterAccount(resourceKind string, resource types.ResourceWithLabels, requiresRequest bool) (*proto.PaginatedResource, error) {
-	unwrapper, ok := resource.(types.Resource153Unwrapper)
+	unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccount])
 	if !ok {
 		return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 	}
-	acct, ok := unwrapper.Unwrap().(IdentityCenterAccount)
-	if !ok {
-		return nil, trace.BadParameter("%s has invalid inner type %T", resourceKind, resource)
-	}
+	acct := unwrapper.UnwrapT()
 	srcPSs := acct.GetSpec().GetPermissionSetInfo()
 	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))
 	for i, ps := range acct.GetSpec().GetPermissionSetInfo() {

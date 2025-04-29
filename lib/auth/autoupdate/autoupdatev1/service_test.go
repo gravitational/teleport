@@ -235,6 +235,33 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbDelete},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
+		{
+			name: "TriggerAutoUpdateAgentGroup",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
+		{
+			name: "ForceAutoUpdateAgentGroup",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
+		{
+			name: "RollbackAutoUpdateAgentGroup",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
 	}
 
 	for _, tt := range testCases {
@@ -278,9 +305,22 @@ func TestServiceAccess(t *testing.T) {
 		})
 	}
 
+	// TODO(hugoShaka): remove this list in the PR implementing the service.
+	notImplementedYet := []string{
+		"ListAutoUpdateAgentReports",
+		"CreateAutoUpdateAgentReport",
+		"GetAutoUpdateAgentReport",
+		"UpdateAutoUpdateAgentReport",
+		"UpsertAutoUpdateAgentReport",
+		"DeleteAutoUpdateAgentReport",
+	}
+
 	// verify that all declared methods have matching test cases
 	t.Run("verify coverage", func(t *testing.T) {
 		for _, method := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
+			if slices.Contains(notImplementedYet, method.MethodName) {
+				continue
+			}
 			t.Run(method.MethodName, func(t *testing.T) {
 				match := false
 				for _, testCase := range testCases {

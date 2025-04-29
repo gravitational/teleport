@@ -235,6 +235,7 @@ func (p *localAppProvider) resolveAppInfoForCluster(
 		AppKey: &vnetv1.AppKey{
 			Profile:     profileName,
 			LeafCluster: leafClusterName,
+			Name:        app.GetName(),
 		},
 		Cluster:       clusterClient.ClusterName(),
 		App:           app,

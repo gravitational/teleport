@@ -31,7 +31,7 @@ import (
 // ClusterNameGetter is a service that gets the cluster name from the backend.
 type ClusterNameGetter interface {
 	// GetClusterName gets types.ClusterName from the backend.
-	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // ClusterConfiguration stores the cluster configuration in the backend. All

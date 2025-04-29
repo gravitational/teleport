@@ -26,9 +26,13 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib
 // the VNet admin process to facilate app queries, certificate issuance,
 // metrics, error reporting, and signatures.
 service ClientApplicationService {
-  // AuthenticateProcess mutually authenticates client applicates to the admin
-  // service.
+  // AuthenticateProcess is used to authenticate the client application (running
+  // this gRPC service) to the Windows service.
   rpc AuthenticateProcess(AuthenticateProcessRequest) returns (AuthenticateProcessResponse);
+  // ReportNetworkStackInfo should be called exactly once when the admin process
+  // connects to the ClientApplicationService, it's used to report information
+  // about the VNet networking stack to the client application.
+  rpc ReportNetworkStackInfo(ReportNetworkStackInfoRequest) returns (ReportNetworkStackInfoResponse);
   // Ping is used by the admin process to regularly poll that the client
   // application is still running.
   rpc Ping(PingRequest) returns (PingResponse);
@@ -55,7 +59,8 @@ service ClientApplicationService {
 message AuthenticateProcessRequest {
   // Version is the admin process version.
   string version = 1;
-  // PipePath is the path to a named pipe used for process authentication.
+  // PipePath is the path to a named pipe used for process authentication on
+  // Windows. The client application must dial the pipe
   string pipe_path = 2;
 }
 
@@ -64,6 +69,24 @@ message AuthenticateProcessResponse {
   // Version is the client application version.
   string version = 1;
 }
+
+// ReportNetworkStackInfoRequest is a request to report network stack
+// information to the client application.
+message ReportNetworkStackInfoRequest {
+  // NetworkStackInfo holds network stack information.
+  NetworkStackInfo network_stack_info = 1;
+}
+
+// NetworkStackInfo holds static information about the VNet networking stack.
+message NetworkStackInfo {
+  // InterfaceName is the name of the TUN interface used by VNet.
+  string interface_name = 1;
+  // Ipv6Prefix the the IPv5 prefix under which VNet assigns IPv6 addresses.
+  string ipv6_prefix = 2;
+}
+
+// ReportNetworkStackInfoResponse is currently empty.
+message ReportNetworkStackInfoResponse {}
 
 // PingRequest is a request for the Ping rpc.
 message PingRequest {}

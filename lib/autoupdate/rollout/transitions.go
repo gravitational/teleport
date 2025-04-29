@@ -33,12 +33,23 @@ const (
 	updateReasonManualRollback = "manual_rollback"
 )
 
+// GroupSet is a set of agent update groups.
+type GroupSet map[string]struct{}
+
+func GroupListToGroupSet(groupList []string) GroupSet {
+	set := make(GroupSet, len(groupList))
+	for _, group := range groupList {
+		set[group] = struct{}{}
+	}
+	return set
+}
+
 // TriggerGroups mutates a rollout to trigger updates for the given groups.
 // The function does not apply the rollout back, it is the caller's responsibility
 // to commit it in the backend.
 // The function takes a desired State parameter to leave room for future canary
 // state support as specified in RFD 184.
-func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames []string, desiredState autoupdatev1pb.AutoUpdateAgentGroupState, now time.Time) error {
+func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupsToTrigger GroupSet, desiredState autoupdatev1pb.AutoUpdateAgentGroupState, now time.Time) error {
 	// Validation part, we look for everything not in order or unsupported.
 	if rollout == nil {
 		return trace.BadParameter("rollout cannot be nil")
@@ -67,7 +78,7 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames []
 	}
 
 	// Part where we do the real work, doing a state transition for every requested group.
-	for _, groupName := range groupNames {
+	for groupName := range groupsToTrigger {
 		group, err := getGroup(groups, groupName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -95,7 +106,7 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames []
 // ForceGroupsDone mutates a rollout to forcefully transition groups to the done state.
 // The function does not apply the rollout back, it is the caller's responsibility
 // to commit it in the backend.
-func ForceGroupsDone(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames []string, now time.Time) error {
+func ForceGroupsDone(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupsToForce GroupSet, now time.Time) error {
 	// Validation part, we look for everything not in order or unsupported.
 	if rollout == nil {
 		return trace.BadParameter("rollout cannot be nil")
@@ -115,7 +126,7 @@ func ForceGroupsDone(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames 
 	}
 
 	// Part where we do the real work, doing a state transition for every requested group.
-	for _, groupName := range groupNames {
+	for groupName := range groupsToForce {
 		group, err := getGroup(groups, groupName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -139,32 +150,26 @@ func ForceGroupsDone(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames 
 	return nil
 }
 
-// RollbackStartedGroups mutates a rollout to rollback every group that started updating.
-// The function does not apply the rollout back, it is the caller's responsibility
-// to commit it in the backend.
-func RollbackStartedGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, now time.Time) error {
+// GetStartedGroups returns the list of started groups.
+func GetStartedGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout) GroupSet {
 	groups := rollout.GetStatus().GetGroups()
-	startedGroups := make([]string, 0, len(groups))
+	startedGroups := make(GroupSet, len(groups))
 
 	for _, group := range groups {
 		switch group.GetState() {
 		case autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
-			startedGroups = append(startedGroups, group.GetName())
+			startedGroups[group.GetName()] = struct{}{}
 		}
 	}
 
-	if len(startedGroups) == 0 {
-		return trace.NotFound("no already started group found")
-	}
-
-	return RollbackGroups(rollout, startedGroups, now)
+	return startedGroups
 }
 
 // RollbackGroups mutates a rollout to rollback groups (to the rolledback state).
 // The function does not apply the rollout back, it is the caller's responsibility
 // to commit it in the backend.
-func RollbackGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames []string, now time.Time) error {
+func RollbackGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupsToRollback GroupSet, now time.Time) error {
 	// Validation part, we look for everything not in order or unsupported.
 	if rollout == nil {
 		return trace.BadParameter("rollout cannot be nil")
@@ -184,7 +189,7 @@ func RollbackGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, groupNames [
 	}
 
 	// Part where we do the real work, doing a state transition for every requested group.
-	for _, groupName := range groupNames {
+	for groupName := range groupsToRollback {
 		group, err := getGroup(groups, groupName)
 		if err != nil {
 			return trace.Wrap(err)

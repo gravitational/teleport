@@ -22,19 +22,16 @@ import { MemoryRouter } from 'react-router';
 
 import { AwsRole } from 'shared/services/apps';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
+  RequiredDiscoverProviders,
+  resourceSpecAppAwsCliConsole,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { getAcl } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { app } from '../fixtures';
 import { SetupAccess } from './SetupAccess';
@@ -147,62 +144,30 @@ const Provider = ({
   noAccess?: boolean;
   isSso?: boolean;
 }) => {
-  const ctx = createTeleportContext();
-  if (noAccess) {
-    ctx.storeUser.state.acl = getAcl({ noAccess: true });
-  }
-  if (isSso) {
-    ctx.storeUser.state.authType = 'sso';
-  }
-  const discoverCtx: DiscoverContextState = {
-    prevStep: () => {},
-    nextStep: () => {},
-    agentMeta: {
-      app: {
-        ...app,
-        awsRoles,
-      },
-      awsIntegration: {
-        resourceType: 'integration',
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-aws-oidc-name',
-        statusCode: IntegrationStatusCode.Running,
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/some-iam-role-name',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-      },
-    },
-    currentStep: 0,
-    onSelectResource: () => null,
-    resourceSpec: {
-      kind: ResourceKind.Application,
-      appMeta: { awsConsole: true },
-      name: '',
-      icon: undefined,
-      keywords: [],
-      event: DiscoverEventResource.ApplicationHttp,
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'server' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={{
+        app: {
+          ...app,
+          awsRoles,
+        },
+        awsIntegration: {
+          resourceType: 'integration',
+          kind: IntegrationKind.AwsOidc,
+          name: 'some-aws-oidc-name',
+          statusCode: IntegrationStatusCode.Running,
+          spec: {
+            roleArn: 'arn:aws:iam::123456789012:role/some-iam-role-name',
+            issuerS3Bucket: '',
+            issuerS3Prefix: '',
+          },
+        },
+      }}
+      resourceSpec={resourceSpecAppAwsCliConsole}
+      authType={isSso ? 'sso' : undefined}
+      customAcl={noAccess ? getAcl({ noAccess: true }) : undefined}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      {children}
+    </RequiredDiscoverProviders>
   );
 };

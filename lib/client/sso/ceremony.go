@@ -68,6 +68,7 @@ func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 type MFACeremony struct {
 	close               func()
 	ClientCallbackURL   string
+	ProxyAddress        string
 	HandleRedirect      func(ctx context.Context, redirectURL string) error
 	GetCallbackMFAToken func(ctx context.Context) (string, error)
 }
@@ -75,6 +76,11 @@ type MFACeremony struct {
 // GetClientCallbackURL returns the client callback URL.
 func (m *MFACeremony) GetClientCallbackURL() string {
 	return m.ClientCallbackURL
+}
+
+// GetProxyAddress returns the proxy address the client is connected to.
+func (m *MFACeremony) GetProxyAddress() string {
+	return m.ProxyAddress
 }
 
 // Run the SSO MFA ceremony.
@@ -111,6 +117,7 @@ func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
 	return &MFACeremony{
 		close:             rd.Close,
 		ClientCallbackURL: rd.ClientCallbackURL,
+		ProxyAddress:      rd.ProxyAddr,
 		HandleRedirect:    rd.OpenRedirect,
 		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
 			loginResp, err := rd.WaitForResponse(ctx)
@@ -132,6 +139,7 @@ func NewConnectMFACeremony(rd *Redirector) mfa.SSOMFACeremony {
 	return &MFACeremony{
 		close:             rd.Close,
 		ClientCallbackURL: rd.ClientCallbackURL,
+		ProxyAddress:      rd.ProxyAddr,
 		HandleRedirect: func(ctx context.Context, redirectURL string) error {
 			// Connect handles redirect on the Electron side.
 			return nil

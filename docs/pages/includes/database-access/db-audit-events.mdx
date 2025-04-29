@@ -7,7 +7,7 @@ See the audit log to get a database session ID with a key of `sid`.
 
 Example:
 ```code
-$ tsh play --format json <Var name="database.session" />
+$ tsh play --format json 307b49d6-56c7-4d20-8cf0-5bc5348a7101
 ```
 
 ```json
@@ -35,6 +35,5 @@ $ tsh play --format json <Var name="database.session" />
     }
 ```
 
-The audit log is viewable in **Activity** under **Management** in the Web UI for users
-with permission to the `event` resources. Database sessions do not appear
+The audit log is viewable under **Audit** in the left-hand pane via the Web UI for users with permission to the `event` resources. Database sessions do not appear
 in the session recordings page.

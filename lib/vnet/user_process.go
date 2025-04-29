@@ -18,12 +18,10 @@ package vnet
 
 import (
 	"context"
-	"os"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
 // UserProcessConfig provides the necessary configuration to run VNet.
@@ -31,17 +29,11 @@ type UserProcessConfig struct {
 	// ClientApplication is a required field providing an interface implementation for
 	// [ClientApplication].
 	ClientApplication ClientApplication
-	// HomePath is the tsh home used for Teleport clients created by VNet. Resolved using the same
-	// rules as HomeDir in tsh.
-	HomePath string
 }
 
 func (c *UserProcessConfig) checkAndSetDefaults() error {
 	if c.ClientApplication == nil {
 		return trace.BadParameter("missing ClientApplication")
-	}
-	if c.HomePath == "" {
-		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
 	return nil
 }
@@ -56,9 +48,9 @@ func (c *UserProcessConfig) checkAndSetDefaults() error {
 // caller is expected to call Close on the process manager to clean up any
 // resources, terminate all processes, and remove any OS configuration used for
 // actively running VNet.
-func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (*ProcessManager, NetworkStackInfo, error) {
+func RunUserProcess(ctx context.Context, cfg *UserProcessConfig) (*ProcessManager, *vnetv1.NetworkStackInfo, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
-		return nil, NetworkStackInfo{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	return runPlatformUserProcess(ctx, cfg)
 }

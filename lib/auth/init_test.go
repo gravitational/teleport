@@ -41,11 +41,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/label"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -698,21 +701,22 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName()
+	cc, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(context.Background(), conf)
+	authServer, err = Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName()
+	cc, err = authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -720,7 +724,8 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(context.Background(), conf)
+	ctx := context.Background()
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -735,7 +740,7 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName()
+	cn, err := authServer.GetClusterName(ctx)
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
@@ -795,8 +800,14 @@ func TestPresets(t *testing.T) {
 		err := createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
 		// Second call should not fail
 		err = createPresetRoles(ctx, as)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -804,6 +815,10 @@ func TestPresets(t *testing.T) {
 			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
+
+		cfg, err := as.GetHealthCheckConfig(ctx, teleport.PresetDefaultHealthCheckConfigName)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
 	})
 
 	// Makes sure that existing role with the same name is not modified
@@ -829,6 +844,26 @@ func TestPresets(t *testing.T) {
 		out, err := as.GetRole(ctx, access.GetName())
 		require.NoError(t, err)
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
+	})
+
+	t.Run("ExistingHealthCheckConfig", func(t *testing.T) {
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
+
+		// an existing health check config should not be modified by init
+		cfg := services.NewPresetHealthCheckConfig()
+		cfg.Spec.Interval = durationpb.New(42 * time.Second)
+		cfg, err := as.CreateHealthCheckConfig(ctx, cfg)
+		require.NoError(t, err)
+
+		err = createPresetHealthCheckConfig(ctx, as)
+		require.NoError(t, err)
+
+		// Preset was created. Ensure it didn't overwrite the existing config
+		got, err := as.GetHealthCheckConfig(ctx, cfg.GetMetadata().GetName())
+		require.NoError(t, err)
+		require.Equal(t, cfg.Spec.Interval.AsDuration(), got.Spec.Interval.AsDuration())
 	})
 
 	// If a default allow condition is not present, ensure it gets added.
@@ -1469,6 +1504,18 @@ spec:
   type: saml_idp
 sub_kind: saml_idp
 version: v2`
+	healthCheckConfigYAML = `kind: health_check_config
+metadata:
+  name: valid
+  revision: c1159783-930e-4a79-bb19-0d0d866d7af6
+spec:
+  enabled: true
+  match:
+    db_labels:
+    - name: "*"
+      values:
+      - "*"
+version: v1`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -1518,6 +1565,28 @@ func TestInit_bootstrap(t *testing.T) {
 				)
 			},
 			assertError: require.NoError,
+		},
+		{
+			name: "OK bootstrap health check config",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCheckConfig(t),
+				)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "NOK bootstrap health check config invalid",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
+						hcc.Spec.HealthyThreshold = 9000
+					}),
+				)
+			},
+			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
@@ -1785,6 +1854,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			},
 			assertError: require.NoError,
 		},
+		{
+			name: "Apply HealthCheckConfig",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, newHealthCheckConfig(t))
+			},
+			assertError: require.NoError,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1813,6 +1889,15 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+func newHealthCheckConfig(t *testing.T, opts ...func(*healthcheckconfigv1.HealthCheckConfig)) types.Resource {
+	r := resourceFromYAML(t, healthCheckConfigYAML)
+	inner := r.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT()
+	for _, opt := range opts {
+		opt(inner)
+	}
+	return r
 }
 
 // TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
@@ -1854,6 +1939,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+	require.Equal(t, []string{"Mon", "Tue", "Wed", "Thu"}, agentWindow.Weekdays)
 
 	// change the served hour
 	mu.Lock()
@@ -2086,33 +2172,33 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 		},
 		{
 			name:            "old-version-upgrade",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-1),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-1),
 			expectedVersion: teleport.Version,
 			expectError:     false,
 		},
 		{
 			name:            "major-upgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-2),
 			expectError:     true,
 		},
 		{
 			name:            "major-upgrade-with-dev-skip-check",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major-2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor-2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor-2),
 			expectError:     false,
 			skipCheck:       true,
 		},
 		{
 			name:            "major-downgrade-fail",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor+2),
 			expectError:     true,
 		},
 		{
 			name:            "major-downgrade-with-dev-skip-check",
-			initialVersion:  fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
-			expectedVersion: fmt.Sprintf("%d.0.0", teleport.SemVersion.Major+2),
+			initialVersion:  fmt.Sprintf("%d.0.0", api.VersionMajor+2),
+			expectedVersion: fmt.Sprintf("%d.0.0", api.VersionMajor+2),
 			expectError:     false,
 			skipCheck:       true,
 		},
