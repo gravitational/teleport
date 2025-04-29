@@ -1023,15 +1023,20 @@ func (*RegisterUsingOracleMethodResponse) XXX_OneofWrappers() []interface{} {
 type RegisterUsingBoundKeypairInitialRequest struct {
 	// Registration parameters common to all join methods.
 	JoinRequest *types.RegisterUsingTokenRequest `protobuf:"bytes,1,opt,name=join_request,json=joinRequest,proto3" json:"join_request,omitempty"`
+	// If set, attempts to bind a new keypair using an initial join secret.
+	// Any value set here will be ignored if a keypair is already bound.
+	InitialJoinSecret string `protobuf:"bytes,2,opt,name=initial_join_secret,json=initialJoinSecret,proto3" json:"initial_join_secret,omitempty"`
 	// If set, requests a rotation to the new public key. The joining challenge
 	// must first be completed using the previous key, and upon completion a new
 	// challenge will be issued for this key. Certificates will only be returned
-	// after the second challenge is complete.
-	NewPublicKey []byte `protobuf:"bytes,2,opt,name=new_public_key,json=newPublicKey,proto3" json:"new_public_key,omitempty"`
+	// after the second challenge is complete. On initial join when using an
+	// initial join secret, this value should be set to the desired public key.
+	// This key is written in SSH public key format.
+	NewPublicKey string `protobuf:"bytes,3,opt,name=new_public_key,json=newPublicKey,proto3" json:"new_public_key,omitempty"`
 	// A document signed by Auth containing join state parameters from the
 	// previous join attempt. Not required on initial join; required on all
 	// subsequent joins.
-	PreviousJoinState    []byte   `protobuf:"bytes,3,opt,name=previous_join_state,json=previousJoinState,proto3" json:"previous_join_state,omitempty"`
+	PreviousJoinState    []byte   `protobuf:"bytes,4,opt,name=previous_join_state,json=previousJoinState,proto3" json:"previous_join_state,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1079,11 +1084,18 @@ func (m *RegisterUsingBoundKeypairInitialRequest) GetJoinRequest() *types.Regist
 	return nil
 }
 
-func (m *RegisterUsingBoundKeypairInitialRequest) GetNewPublicKey() []byte {
+func (m *RegisterUsingBoundKeypairInitialRequest) GetInitialJoinSecret() string {
+	if m != nil {
+		return m.InitialJoinSecret
+	}
+	return ""
+}
+
+func (m *RegisterUsingBoundKeypairInitialRequest) GetNewPublicKey() string {
 	if m != nil {
 		return m.NewPublicKey
 	}
-	return nil
+	return ""
 }
 
 func (m *RegisterUsingBoundKeypairInitialRequest) GetPreviousJoinState() []byte {
@@ -1147,13 +1159,69 @@ func (m *RegisterUsingBoundKeypairChallengeResponse) GetSolution() []byte {
 	return nil
 }
 
-// RegisterUsingBoundKeypairMethodRequest contains information needed to progress in
-// a bound-keypair joining process. Multiple requests are expected in any given
-// join process.
+// RegisterUsingBoundKeypairRotationResponse is the response sent from the
+// client containing
+type RegisterUsingBoundKeypairRotationResponse struct {
+	// The public key to be registered with auth. Clients should expect a
+	// subsequent challenge against this public key to be sent.
+	PublicKey            string   `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairRotationResponse) Reset() {
+	*m = RegisterUsingBoundKeypairRotationResponse{}
+}
+func (m *RegisterUsingBoundKeypairRotationResponse) String() string {
+	return proto.CompactTextString(m)
+}
+func (*RegisterUsingBoundKeypairRotationResponse) ProtoMessage() {}
+func (*RegisterUsingBoundKeypairRotationResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{15}
+}
+func (m *RegisterUsingBoundKeypairRotationResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairRotationResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairRotationResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairRotationResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairRotationResponse.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairRotationResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairRotationResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairRotationResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairRotationResponse proto.InternalMessageInfo
+
+func (m *RegisterUsingBoundKeypairRotationResponse) GetPublicKey() string {
+	if m != nil {
+		return m.PublicKey
+	}
+	return ""
+}
+
+// RegisterUsingBoundKeypairMethodRequest contains information needed to
+// progress in a bound-keypair joining process. Multiple requests are expected
+// in any given join process.
 type RegisterUsingBoundKeypairMethodRequest struct {
 	// Types that are valid to be assigned to Payload:
 	//	*RegisterUsingBoundKeypairMethodRequest_Init
 	//	*RegisterUsingBoundKeypairMethodRequest_ChallengeResponse
+	//	*RegisterUsingBoundKeypairMethodRequest_RotationResponse
 	Payload              isRegisterUsingBoundKeypairMethodRequest_Payload `protobuf_oneof:"payload"`
 	XXX_NoUnkeyedLiteral struct{}                                         `json:"-"`
 	XXX_unrecognized     []byte                                           `json:"-"`
@@ -1166,7 +1234,7 @@ func (m *RegisterUsingBoundKeypairMethodRequest) Reset() {
 func (m *RegisterUsingBoundKeypairMethodRequest) String() string { return proto.CompactTextString(m) }
 func (*RegisterUsingBoundKeypairMethodRequest) ProtoMessage()    {}
 func (*RegisterUsingBoundKeypairMethodRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{15}
+	return fileDescriptor_d7e760ce923b836e, []int{16}
 }
 func (m *RegisterUsingBoundKeypairMethodRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1207,10 +1275,15 @@ type RegisterUsingBoundKeypairMethodRequest_Init struct {
 type RegisterUsingBoundKeypairMethodRequest_ChallengeResponse struct {
 	ChallengeResponse *RegisterUsingBoundKeypairChallengeResponse `protobuf:"bytes,2,opt,name=challenge_response,json=challengeResponse,proto3,oneof" json:"challenge_response,omitempty"`
 }
+type RegisterUsingBoundKeypairMethodRequest_RotationResponse struct {
+	RotationResponse *RegisterUsingBoundKeypairRotationResponse `protobuf:"bytes,3,opt,name=rotation_response,json=rotationResponse,proto3,oneof" json:"rotation_response,omitempty"`
+}
 
 func (*RegisterUsingBoundKeypairMethodRequest_Init) isRegisterUsingBoundKeypairMethodRequest_Payload() {
 }
 func (*RegisterUsingBoundKeypairMethodRequest_ChallengeResponse) isRegisterUsingBoundKeypairMethodRequest_Payload() {
+}
+func (*RegisterUsingBoundKeypairMethodRequest_RotationResponse) isRegisterUsingBoundKeypairMethodRequest_Payload() {
 }
 
 func (m *RegisterUsingBoundKeypairMethodRequest) GetPayload() isRegisterUsingBoundKeypairMethodRequest_Payload {
@@ -1234,11 +1307,19 @@ func (m *RegisterUsingBoundKeypairMethodRequest) GetChallengeResponse() *Registe
 	return nil
 }
 
+func (m *RegisterUsingBoundKeypairMethodRequest) GetRotationResponse() *RegisterUsingBoundKeypairRotationResponse {
+	if x, ok := m.GetPayload().(*RegisterUsingBoundKeypairMethodRequest_RotationResponse); ok {
+		return x.RotationResponse
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*RegisterUsingBoundKeypairMethodRequest) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*RegisterUsingBoundKeypairMethodRequest_Init)(nil),
 		(*RegisterUsingBoundKeypairMethodRequest_ChallengeResponse)(nil),
+		(*RegisterUsingBoundKeypairMethodRequest_RotationResponse)(nil),
 	}
 }
 
@@ -1246,11 +1327,11 @@ func (*RegisterUsingBoundKeypairMethodRequest) XXX_OneofWrappers() []interface{}
 // joining clients are expected to complete.
 type RegisterUsingBoundKeypairChallenge struct {
 	// The desired public key corresponding to the private key that should be used
-	// to sign this challenge.
-	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	// A challenge to sign with the requested public key. During keypair rotation, a second
-	// challenge will be provided to verify the new keypair before certs are
-	// returned.
+	// to sign this challenge, in SSH public key format.
+	PublicKey string `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// A challenge to sign with the requested public key. During keypair rotation,
+	// a second challenge will be provided to verify the new keypair before certs
+	// are returned.
 	Challenge            string   `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1261,7 +1342,7 @@ func (m *RegisterUsingBoundKeypairChallenge) Reset()         { *m = RegisterUsin
 func (m *RegisterUsingBoundKeypairChallenge) String() string { return proto.CompactTextString(m) }
 func (*RegisterUsingBoundKeypairChallenge) ProtoMessage()    {}
 func (*RegisterUsingBoundKeypairChallenge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{16}
+	return fileDescriptor_d7e760ce923b836e, []int{17}
 }
 func (m *RegisterUsingBoundKeypairChallenge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1290,11 +1371,11 @@ func (m *RegisterUsingBoundKeypairChallenge) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RegisterUsingBoundKeypairChallenge proto.InternalMessageInfo
 
-func (m *RegisterUsingBoundKeypairChallenge) GetPublicKey() []byte {
+func (m *RegisterUsingBoundKeypairChallenge) GetPublicKey() string {
 	if m != nil {
 		return m.PublicKey
 	}
-	return nil
+	return ""
 }
 
 func (m *RegisterUsingBoundKeypairChallenge) GetChallenge() string {
@@ -1310,7 +1391,11 @@ type RegisterUsingBoundKeypairCertificates struct {
 	// Signed Teleport certificates resulting from the join process.
 	Certs *Certs `protobuf:"bytes,1,opt,name=certs,proto3" json:"certs,omitempty"`
 	// A signed join state document to be provided on the next join attempt.
-	JoinState            []byte   `protobuf:"bytes,2,opt,name=join_state,json=joinState,proto3" json:"join_state,omitempty"`
+	JoinState []byte `protobuf:"bytes,2,opt,name=join_state,json=joinState,proto3" json:"join_state,omitempty"`
+	// The public key registered with Auth at the end of the joining ceremony.
+	// After a successful keypair rotation, this should reflect the newly
+	// registered public key.
+	PublicKey            string   `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1320,7 +1405,7 @@ func (m *RegisterUsingBoundKeypairCertificates) Reset()         { *m = RegisterU
 func (m *RegisterUsingBoundKeypairCertificates) String() string { return proto.CompactTextString(m) }
 func (*RegisterUsingBoundKeypairCertificates) ProtoMessage()    {}
 func (*RegisterUsingBoundKeypairCertificates) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{17}
+	return fileDescriptor_d7e760ce923b836e, []int{18}
 }
 func (m *RegisterUsingBoundKeypairCertificates) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1363,13 +1448,64 @@ func (m *RegisterUsingBoundKeypairCertificates) GetJoinState() []byte {
 	return nil
 }
 
-// RegisterUsingBoundKeypairMethodResponse is a response sent by the server during the
-// bound-keypair joining process. Multiple requests and responses are expected
-// to be exchanged during one join process.
+func (m *RegisterUsingBoundKeypairCertificates) GetPublicKey() string {
+	if m != nil {
+		return m.PublicKey
+	}
+	return ""
+}
+
+// RegisterUsingBoundKeypairRotationRequest is the response sent by the server
+// when a keypair rotation is required.
+type RegisterUsingBoundKeypairRotationRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingBoundKeypairRotationRequest) Reset() {
+	*m = RegisterUsingBoundKeypairRotationRequest{}
+}
+func (m *RegisterUsingBoundKeypairRotationRequest) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingBoundKeypairRotationRequest) ProtoMessage()    {}
+func (*RegisterUsingBoundKeypairRotationRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{19}
+}
+func (m *RegisterUsingBoundKeypairRotationRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingBoundKeypairRotationRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingBoundKeypairRotationRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingBoundKeypairRotationRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingBoundKeypairRotationRequest.Merge(m, src)
+}
+func (m *RegisterUsingBoundKeypairRotationRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingBoundKeypairRotationRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingBoundKeypairRotationRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingBoundKeypairRotationRequest proto.InternalMessageInfo
+
+// RegisterUsingBoundKeypairMethodResponse is a response sent by the server
+// during the bound-keypair joining process. Multiple requests and responses are
+// expected to be exchanged during one join process.
 type RegisterUsingBoundKeypairMethodResponse struct {
 	// Types that are valid to be assigned to Response:
 	//	*RegisterUsingBoundKeypairMethodResponse_Challenge
 	//	*RegisterUsingBoundKeypairMethodResponse_Certs
+	//	*RegisterUsingBoundKeypairMethodResponse_Rotation
 	Response             isRegisterUsingBoundKeypairMethodResponse_Response `protobuf_oneof:"response"`
 	XXX_NoUnkeyedLiteral struct{}                                           `json:"-"`
 	XXX_unrecognized     []byte                                             `json:"-"`
@@ -1382,7 +1518,7 @@ func (m *RegisterUsingBoundKeypairMethodResponse) Reset() {
 func (m *RegisterUsingBoundKeypairMethodResponse) String() string { return proto.CompactTextString(m) }
 func (*RegisterUsingBoundKeypairMethodResponse) ProtoMessage()    {}
 func (*RegisterUsingBoundKeypairMethodResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d7e760ce923b836e, []int{18}
+	return fileDescriptor_d7e760ce923b836e, []int{20}
 }
 func (m *RegisterUsingBoundKeypairMethodResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1423,10 +1559,15 @@ type RegisterUsingBoundKeypairMethodResponse_Challenge struct {
 type RegisterUsingBoundKeypairMethodResponse_Certs struct {
 	Certs *RegisterUsingBoundKeypairCertificates `protobuf:"bytes,2,opt,name=certs,proto3,oneof" json:"certs,omitempty"`
 }
+type RegisterUsingBoundKeypairMethodResponse_Rotation struct {
+	Rotation *RegisterUsingBoundKeypairRotationRequest `protobuf:"bytes,3,opt,name=rotation,proto3,oneof" json:"rotation,omitempty"`
+}
 
 func (*RegisterUsingBoundKeypairMethodResponse_Challenge) isRegisterUsingBoundKeypairMethodResponse_Response() {
 }
 func (*RegisterUsingBoundKeypairMethodResponse_Certs) isRegisterUsingBoundKeypairMethodResponse_Response() {
+}
+func (*RegisterUsingBoundKeypairMethodResponse_Rotation) isRegisterUsingBoundKeypairMethodResponse_Response() {
 }
 
 func (m *RegisterUsingBoundKeypairMethodResponse) GetResponse() isRegisterUsingBoundKeypairMethodResponse_Response {
@@ -1450,11 +1591,19 @@ func (m *RegisterUsingBoundKeypairMethodResponse) GetCerts() *RegisterUsingBound
 	return nil
 }
 
+func (m *RegisterUsingBoundKeypairMethodResponse) GetRotation() *RegisterUsingBoundKeypairRotationRequest {
+	if x, ok := m.GetResponse().(*RegisterUsingBoundKeypairMethodResponse_Rotation); ok {
+		return x.Rotation
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*RegisterUsingBoundKeypairMethodResponse) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*RegisterUsingBoundKeypairMethodResponse_Challenge)(nil),
 		(*RegisterUsingBoundKeypairMethodResponse_Certs)(nil),
+		(*RegisterUsingBoundKeypairMethodResponse_Rotation)(nil),
 	}
 }
 
@@ -1476,9 +1625,11 @@ func init() {
 	proto.RegisterType((*RegisterUsingOracleMethodResponse)(nil), "proto.RegisterUsingOracleMethodResponse")
 	proto.RegisterType((*RegisterUsingBoundKeypairInitialRequest)(nil), "proto.RegisterUsingBoundKeypairInitialRequest")
 	proto.RegisterType((*RegisterUsingBoundKeypairChallengeResponse)(nil), "proto.RegisterUsingBoundKeypairChallengeResponse")
+	proto.RegisterType((*RegisterUsingBoundKeypairRotationResponse)(nil), "proto.RegisterUsingBoundKeypairRotationResponse")
 	proto.RegisterType((*RegisterUsingBoundKeypairMethodRequest)(nil), "proto.RegisterUsingBoundKeypairMethodRequest")
 	proto.RegisterType((*RegisterUsingBoundKeypairChallenge)(nil), "proto.RegisterUsingBoundKeypairChallenge")
 	proto.RegisterType((*RegisterUsingBoundKeypairCertificates)(nil), "proto.RegisterUsingBoundKeypairCertificates")
+	proto.RegisterType((*RegisterUsingBoundKeypairRotationRequest)(nil), "proto.RegisterUsingBoundKeypairRotationRequest")
 	proto.RegisterType((*RegisterUsingBoundKeypairMethodResponse)(nil), "proto.RegisterUsingBoundKeypairMethodResponse")
 }
 
@@ -1487,82 +1638,87 @@ func init() {
 }
 
 var fileDescriptor_d7e760ce923b836e = []byte{
-	// 1187 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x57, 0x4d, 0x6f, 0x1b, 0xc5,
-	0x1b, 0xf7, 0xba, 0x4d, 0x5a, 0x3f, 0x76, 0xd3, 0x66, 0x5a, 0xf5, 0xef, 0x58, 0xcd, 0xdb, 0xfe,
-	0xd3, 0xc6, 0x05, 0x6a, 0x17, 0x73, 0x41, 0x3d, 0x91, 0x37, 0xc9, 0xa1, 0x04, 0xa2, 0x6d, 0x11,
-	0x82, 0xcb, 0x6a, 0xbc, 0x7e, 0x70, 0x36, 0xde, 0xee, 0x2e, 0x33, 0xe3, 0x54, 0xe6, 0xcc, 0x57,
-	0xe0, 0xcc, 0x27, 0x40, 0xe2, 0xc0, 0x47, 0x40, 0x88, 0x03, 0x42, 0xdc, 0x38, 0x21, 0xa1, 0x7c,
-	0x07, 0xee, 0x68, 0x67, 0x66, 0x9d, 0xdd, 0xf5, 0xae, 0x9d, 0x48, 0x85, 0x4b, 0x9c, 0x7d, 0xe6,
-	0x99, 0xe7, 0xe5, 0xf7, 0xbc, 0x0e, 0xb4, 0x04, 0x7a, 0x18, 0x06, 0x4c, 0xb4, 0x3d, 0x1c, 0x50,
-	0x67, 0xdc, 0x76, 0x3c, 0x17, 0x7d, 0xd1, 0x0e, 0x59, 0x20, 0x82, 0xf6, 0x69, 0xe0, 0xfa, 0x1c,
-	0xd9, 0x99, 0xeb, 0x60, 0x4b, 0x52, 0xc8, 0x82, 0xfc, 0x69, 0x34, 0x67, 0x5e, 0x73, 0x90, 0x09,
-	0xae, 0x2e, 0x34, 0x36, 0xb3, 0x9c, 0x62, 0x1c, 0x22, 0x57, 0x7f, 0x15, 0x8b, 0xf9, 0xa3, 0x01,
-	0xab, 0x16, 0x0e, 0x5c, 0x2e, 0x90, 0x7d, 0xca, 0x5d, 0x7f, 0x70, 0xb8, 0x73, 0x74, 0x84, 0xe2,
-	0x24, 0xe8, 0x5b, 0xf8, 0xd5, 0x08, 0xb9, 0x20, 0x14, 0x1e, 0x30, 0xcd, 0x60, 0x8f, 0x22, 0x0e,
-	0x5b, 0x04, 0x43, 0xf4, 0x6d, 0xa6, 0xce, 0xeb, 0xc6, 0x86, 0xd1, 0xac, 0x76, 0x36, 0x5a, 0x4a,
-	0x6a, 0x4a, 0xd6, 0xcb, 0x88, 0x51, 0xcb, 0xb1, 0x56, 0x58, 0xd1, 0x11, 0x79, 0x0a, 0xf7, 0xb8,
-	0xe0, 0xb6, 0xdb, 0x47, 0x5f, 0xb8, 0x62, 0x3c, 0x11, 0x5d, 0xde, 0x30, 0x9a, 0x35, 0x8b, 0x70,
-	0xc1, 0x0f, 0xf5, 0x91, 0xbe, 0x61, 0xf6, 0x60, 0xad, 0xc8, 0x6a, 0x1e, 0x06, 0x3e, 0x47, 0xf2,
-	0x00, 0x2a, 0xce, 0x09, 0xf5, 0x3c, 0xf4, 0x07, 0x28, 0x6d, 0xac, 0x58, 0x17, 0x04, 0x62, 0xc2,
-	0x82, 0x04, 0x4a, 0xaa, 0xa8, 0x76, 0x6a, 0x0a, 0x8d, 0xd6, 0x5e, 0x44, 0xb3, 0xd4, 0x91, 0xf9,
-	0xab, 0x01, 0xeb, 0x29, 0x25, 0x3b, 0x5f, 0x8f, 0x18, 0xfe, 0xe7, 0xe0, 0xfc, 0x1f, 0x6e, 0x51,
-	0x21, 0x90, 0x0b, 0xec, 0xdb, 0x7d, 0x2a, 0xa8, 0x46, 0xa5, 0x16, 0x13, 0xf7, 0xa9, 0xa0, 0x64,
-	0x13, 0x6a, 0xd4, 0x71, 0x90, 0x73, 0xa5, 0xbf, 0x7e, 0x4d, 0x3a, 0x5c, 0x55, 0x34, 0x29, 0xce,
-	0xec, 0xc3, 0x46, 0xb1, 0x37, 0x6f, 0x0c, 0xb4, 0x03, 0xd8, 0x4e, 0x7b, 0x79, 0xac, 0x03, 0xb3,
-	0x17, 0x8b, 0x99, 0x28, 0x6b, 0xc0, 0x4d, 0x1e, 0x78, 0x23, 0xe1, 0x06, 0xbe, 0xd4, 0x55, 0xb3,
-	0x26, 0xdf, 0xe6, 0xdf, 0x06, 0x6c, 0xe5, 0xcb, 0x39, 0xf4, 0x5d, 0xe1, 0x52, 0x2f, 0x46, 0x67,
-	0x0f, 0x6a, 0x51, 0xa1, 0x5c, 0x19, 0xf0, 0x6a, 0x74, 0x2b, 0x16, 0xb2, 0x02, 0x37, 0x70, 0x68,
-	0x47, 0x0e, 0x28, 0x70, 0xbb, 0x25, 0x6b, 0x11, 0x87, 0x91, 0x5f, 0xe4, 0x7f, 0xb0, 0x88, 0x43,
-	0x7b, 0x88, 0x63, 0x09, 0x69, 0x74, 0xb2, 0x80, 0xc3, 0xe7, 0x38, 0x26, 0x1f, 0x03, 0x51, 0x11,
-	0xa0, 0x91, 0xc1, 0x76, 0x48, 0x19, 0x7d, 0xc5, 0xeb, 0xd7, 0xa5, 0xfa, 0x75, 0x8d, 0xcc, 0xcb,
-	0xe3, 0xa3, 0x9d, 0x0b, 0x9e, 0xe3, 0x88, 0x05, 0x05, 0x32, 0x6e, 0x2d, 0xd3, 0x0c, 0x99, 0xef,
-	0x5e, 0x87, 0x32, 0x0e, 0xcd, 0xdf, 0xb2, 0xe5, 0x38, 0xf1, 0x3b, 0xb6, 0x75, 0x07, 0xae, 0xbb,
-	0xbe, 0x1b, 0x3b, 0xfa, 0xb6, 0xd6, 0x74, 0x19, 0xac, 0xba, 0x25, 0x4b, 0x5e, 0x25, 0x36, 0x90,
-	0x49, 0x50, 0x6d, 0xa6, 0xc3, 0xa1, 0x83, 0xda, 0x9a, 0x29, 0x70, 0x2a, 0x88, 0xdd, 0x92, 0xb5,
-	0xec, 0x64, 0x89, 0xbb, 0x15, 0xb8, 0x11, 0xd2, 0xb1, 0x17, 0xd0, 0xbe, 0xf9, 0x9d, 0x91, 0xa9,
-	0xd4, 0x84, 0x43, 0x3a, 0x0f, 0x3e, 0x82, 0xe5, 0xa4, 0x39, 0xc9, 0x38, 0xae, 0x5e, 0x00, 0x79,
-	0xe0, 0x3b, 0x6c, 0x1c, 0x0a, 0xec, 0xef, 0x31, 0x94, 0xcd, 0x80, 0x7a, 0xdd, 0x92, 0x75, 0x27,
-	0xa1, 0x5c, 0xe1, 0xb3, 0x35, 0x23, 0x49, 0xa3, 0xe8, 0xc9, 0xc3, 0xa4, 0x85, 0xdf, 0x1b, 0x50,
-	0x2f, 0x0a, 0x14, 0xb9, 0x0f, 0x8b, 0xe1, 0xa8, 0xe7, 0xb9, 0x8e, 0xce, 0x50, 0xfd, 0x45, 0xd6,
-	0xa1, 0xea, 0x30, 0xa4, 0x02, 0x93, 0x25, 0x09, 0x8a, 0x24, 0x0b, 0xf2, 0x09, 0x10, 0xcd, 0x90,
-	0x08, 0xb5, 0xca, 0x21, 0x6b, 0x59, 0x9d, 0x24, 0x34, 0x92, 0xc7, 0x70, 0x47, 0xb3, 0x73, 0x77,
-	0xe0, 0x53, 0x31, 0x62, 0x28, 0x73, 0xa9, 0x66, 0xdd, 0x56, 0xf4, 0x17, 0x31, 0xd9, 0xfc, 0x1c,
-	0xee, 0xe7, 0xc3, 0x41, 0xb6, 0x21, 0x62, 0xd6, 0x5f, 0x76, 0xcf, 0x0b, 0x7a, 0xda, 0xea, 0xa5,
-	0x0b, 0xf2, 0xae, 0x17, 0xf4, 0x22, 0xaf, 0x38, 0x3a, 0x0c, 0xe3, 0x0e, 0xab, 0xbf, 0xcc, 0x1f,
-	0xca, 0x70, 0xf7, 0x13, 0x46, 0x1d, 0x4f, 0xaa, 0xc3, 0x44, 0xce, 0xdd, 0x38, 0x41, 0xda, 0x47,
-	0xc6, 0xeb, 0xc6, 0xc6, 0xb5, 0x66, 0xb5, 0xb3, 0xad, 0x51, 0xcd, 0x61, 0x6e, 0x75, 0x15, 0xe7,
-	0x81, 0x2f, 0xd8, 0xd8, 0x8a, 0xef, 0x91, 0xcf, 0xe0, 0xb6, 0x06, 0xdc, 0x8e, 0x45, 0x95, 0xa5,
-	0xa8, 0xd6, 0x0c, 0x51, 0xc7, 0xea, 0x46, 0x4a, 0xe2, 0x52, 0x98, 0x22, 0x36, 0x9e, 0x41, 0x2d,
-	0x79, 0x4e, 0xee, 0xc0, 0xb5, 0xa8, 0x5a, 0x55, 0xf3, 0x8a, 0xfe, 0x25, 0xf7, 0x60, 0xe1, 0x8c,
-	0x7a, 0x23, 0x95, 0xe1, 0x15, 0x4b, 0x7d, 0x3c, 0x2b, 0xbf, 0x6f, 0x34, 0x76, 0xe0, 0x6e, 0x8e,
-	0x8a, 0xab, 0x88, 0x30, 0xff, 0x30, 0x32, 0x6d, 0x55, 0xf9, 0x91, 0xae, 0x59, 0xe7, 0xcd, 0x4c,
-	0x89, 0x6e, 0x69, 0xd6, 0x9c, 0xd8, 0x83, 0xa5, 0x40, 0xea, 0x4e, 0x8d, 0xcf, 0x6a, 0xa7, 0x51,
-	0x0c, 0x70, 0xb7, 0x64, 0xdd, 0x52, 0x77, 0x34, 0x21, 0xaa, 0x0b, 0x7d, 0xdb, 0x1c, 0xc1, 0xe6,
-	0x0c, 0xc7, 0x74, 0xed, 0xae, 0x4d, 0x0d, 0x8c, 0x6e, 0x29, 0x39, 0x32, 0x2e, 0x57, 0x8d, 0x00,
-	0x37, 0xe3, 0x36, 0x64, 0xfe, 0x64, 0x64, 0x26, 0xc8, 0x6e, 0x30, 0xf2, 0xfb, 0xcf, 0x71, 0x1c,
-	0x52, 0x97, 0xfd, 0x1b, 0xcd, 0x7f, 0x0b, 0x96, 0x7c, 0x7c, 0x6d, 0xab, 0xc2, 0x96, 0x9d, 0x5e,
-	0x0f, 0x58, 0x1f, 0x5f, 0x1f, 0x4b, 0x62, 0xd4, 0xee, 0x5b, 0x70, 0x37, 0x64, 0x78, 0xe6, 0x06,
-	0x23, 0x6e, 0x4b, 0x9d, 0x51, 0xe5, 0x62, 0x5c, 0xd0, 0xf1, 0xd1, 0x87, 0x81, 0xeb, 0xbf, 0x88,
-	0x0e, 0xcc, 0x2e, 0xbc, 0x55, 0xe8, 0xc5, 0xd5, 0x46, 0xe1, 0x9f, 0x06, 0x3c, 0x2a, 0x14, 0x95,
-	0xce, 0xb3, 0xfd, 0xd4, 0x6c, 0xc8, 0x6d, 0xe5, 0xc5, 0x68, 0x4e, 0xc6, 0x43, 0x6f, 0xc6, 0x78,
-	0x78, 0x77, 0x9e, 0xcc, 0xab, 0x4f, 0x08, 0x0a, 0xe6, 0x7c, 0x69, 0x64, 0x15, 0x20, 0x11, 0x21,
-	0x85, 0x51, 0x25, 0x9c, 0x84, 0x27, 0xb5, 0xb8, 0x94, 0x33, 0x8b, 0x8b, 0x79, 0x0a, 0x0f, 0x8b,
-	0x55, 0x20, 0x13, 0xee, 0x97, 0xae, 0x43, 0x05, 0xf2, 0x8b, 0x0d, 0xc7, 0x28, 0xdc, 0x70, 0x22,
-	0x4b, 0x12, 0x09, 0xa0, 0x72, 0xa5, 0x72, 0x3a, 0x09, 0xfc, 0xcf, 0xb3, 0xf2, 0x37, 0x53, 0x3d,
-	0x87, 0xd9, 0xea, 0xa9, 0x76, 0x1e, 0x5f, 0x1a, 0xe0, 0x74, 0xa1, 0xed, 0xa7, 0x0b, 0xed, 0x9d,
-	0xb9, 0x62, 0x12, 0x6e, 0xe7, 0x16, 0x62, 0xe7, 0xdb, 0x05, 0xa8, 0xca, 0x7c, 0x56, 0x6f, 0x10,
-	0xe2, 0xc2, 0xfd, 0xfc, 0x95, 0x9b, 0x6c, 0xe5, 0x29, 0xcb, 0xbe, 0x23, 0x1a, 0x0f, 0xe7, 0x70,
-	0x29, 0xb5, 0x4d, 0xe3, 0xa9, 0x41, 0x02, 0xa8, 0x17, 0xad, 0xaa, 0xe4, 0x51, 0x9e, 0x98, 0xe9,
-	0xcd, 0xbc, 0xb1, 0x3d, 0x97, 0x2f, 0xa1, 0x30, 0xeb, 0xdb, 0x64, 0x49, 0xc9, 0xf7, 0x2d, 0xbb,
-	0x94, 0xe5, 0xfb, 0x36, 0xb5, 0xe9, 0x48, 0x55, 0x0c, 0x56, 0x0a, 0xdb, 0x2a, 0xc9, 0x35, 0x3a,
-	0x67, 0xa2, 0x34, 0x9a, 0xf3, 0x19, 0x13, 0x3a, 0xbf, 0xc9, 0xbe, 0x64, 0xa6, 0x73, 0x92, 0x3c,
-	0x99, 0x97, 0x31, 0x69, 0x03, 0x5a, 0x97, 0x65, 0x4f, 0x98, 0xb1, 0x0f, 0x64, 0xba, 0x27, 0x93,
-	0xb9, 0xed, 0xba, 0x91, 0x2a, 0xc3, 0xdd, 0x0f, 0x7e, 0x39, 0x5f, 0x33, 0x7e, 0x3f, 0x5f, 0x33,
-	0xfe, 0x3a, 0x5f, 0x33, 0xbe, 0xe8, 0x0c, 0x5c, 0x71, 0x32, 0xea, 0xb5, 0x9c, 0xe0, 0x55, 0x7b,
-	0xc0, 0xe8, 0x99, 0xab, 0x16, 0x2a, 0xea, 0xb5, 0x27, 0x6f, 0x5f, 0x1a, 0xba, 0xa9, 0x27, 0x72,
-	0x6f, 0x51, 0xfe, 0xbc, 0xf7, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x65, 0x1d, 0x16, 0xab, 0x80,
-	0x0f, 0x00, 0x00,
+	// 1274 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x58, 0x4f, 0x73, 0xdb, 0x44,
+	0x14, 0xb7, 0x9c, 0x26, 0xad, 0x9f, 0xdd, 0xb4, 0xde, 0x74, 0x8a, 0xeb, 0x69, 0xd3, 0x54, 0xa4,
+	0x8d, 0x5b, 0xa8, 0x5d, 0xcc, 0x85, 0xe9, 0x89, 0xfc, 0xe9, 0x8c, 0xd3, 0x12, 0xc8, 0xa8, 0x65,
+	0x18, 0xb8, 0x68, 0xd6, 0xf2, 0xe2, 0x6c, 0xad, 0x4a, 0x62, 0x77, 0x9d, 0x8e, 0x39, 0x73, 0xe1,
+	0x03, 0xf4, 0xcc, 0x27, 0x60, 0x86, 0x03, 0x67, 0xce, 0x1c, 0x18, 0x86, 0x1b, 0x57, 0x26, 0x9f,
+	0x01, 0xee, 0x8c, 0x76, 0x57, 0xb2, 0x24, 0x4b, 0xb6, 0x33, 0x53, 0xb8, 0x34, 0xd5, 0x7b, 0x6f,
+	0x7f, 0xef, 0xff, 0x7b, 0xbb, 0x86, 0xb6, 0x20, 0x2e, 0x09, 0x7c, 0x26, 0x3a, 0x2e, 0x19, 0x62,
+	0x67, 0xd2, 0x71, 0x5c, 0x4a, 0x3c, 0xd1, 0x09, 0x98, 0x2f, 0xfc, 0xce, 0x4b, 0x9f, 0x7a, 0x9c,
+	0xb0, 0x53, 0xea, 0x90, 0xb6, 0xa4, 0xa0, 0x55, 0xf9, 0xa7, 0xd9, 0x9a, 0x7b, 0xcc, 0x21, 0x4c,
+	0x70, 0x75, 0xa0, 0x79, 0x27, 0x2b, 0x29, 0x26, 0x01, 0xe1, 0xea, 0x5f, 0x25, 0x62, 0xfe, 0x6c,
+	0xc0, 0x2d, 0x8b, 0x0c, 0x29, 0x17, 0x84, 0x7d, 0xce, 0xa9, 0x37, 0x3c, 0xdc, 0x3d, 0x3a, 0x22,
+	0xe2, 0xc4, 0x1f, 0x58, 0xe4, 0x9b, 0x31, 0xe1, 0x02, 0x61, 0xb8, 0xc9, 0xb4, 0x80, 0x3d, 0x0e,
+	0x25, 0x6c, 0xe1, 0x8f, 0x88, 0x67, 0x33, 0xc5, 0x6f, 0x18, 0x5b, 0x46, 0xab, 0xda, 0xdd, 0x6a,
+	0x2b, 0xd4, 0x14, 0xd6, 0x8b, 0x50, 0x50, 0xe3, 0x58, 0x37, 0x58, 0x11, 0x0b, 0x3d, 0x82, 0x6b,
+	0x5c, 0x70, 0x9b, 0x0e, 0x88, 0x27, 0xa8, 0x98, 0xc4, 0xd0, 0xe5, 0x2d, 0xa3, 0x55, 0xb3, 0x10,
+	0x17, 0xfc, 0x50, 0xb3, 0xf4, 0x09, 0xb3, 0x0f, 0x9b, 0x45, 0x56, 0xf3, 0xc0, 0xf7, 0x38, 0x41,
+	0x37, 0xa1, 0xe2, 0x9c, 0x60, 0xd7, 0x25, 0xde, 0x90, 0x48, 0x1b, 0x2b, 0xd6, 0x94, 0x80, 0x4c,
+	0x58, 0x95, 0x81, 0x92, 0x2a, 0xaa, 0xdd, 0x9a, 0x8a, 0x46, 0x7b, 0x3f, 0xa4, 0x59, 0x8a, 0x65,
+	0xfe, 0x66, 0xc0, 0xed, 0x94, 0x92, 0xdd, 0x6f, 0xc7, 0x8c, 0xfc, 0xef, 0xc1, 0x79, 0x17, 0x2e,
+	0x63, 0x21, 0x08, 0x17, 0x64, 0x60, 0x0f, 0xb0, 0xc0, 0x3a, 0x2a, 0xb5, 0x88, 0x78, 0x80, 0x05,
+	0x46, 0x77, 0xa0, 0x86, 0x1d, 0x87, 0x70, 0xae, 0xf4, 0x37, 0x56, 0xa4, 0xc3, 0x55, 0x45, 0x93,
+	0x70, 0xe6, 0x00, 0xb6, 0x8a, 0xbd, 0x79, 0x6b, 0x41, 0x7b, 0x02, 0x3b, 0x69, 0x2f, 0x8f, 0x75,
+	0x62, 0xf6, 0x23, 0x98, 0x58, 0x59, 0x13, 0x2e, 0x71, 0xdf, 0x1d, 0x0b, 0xea, 0x7b, 0x52, 0x57,
+	0xcd, 0x8a, 0xbf, 0xcd, 0x7f, 0x0c, 0xd8, 0xce, 0xc7, 0x39, 0xf4, 0xa8, 0xa0, 0xd8, 0x8d, 0xa2,
+	0xb3, 0x0f, 0xb5, 0xb0, 0x51, 0xce, 0x1d, 0xf0, 0x6a, 0x78, 0x2a, 0x02, 0xb9, 0x01, 0x17, 0xc9,
+	0xc8, 0x0e, 0x1d, 0x50, 0xc1, 0xed, 0x95, 0xac, 0x35, 0x32, 0x0a, 0xfd, 0x42, 0xef, 0xc0, 0x1a,
+	0x19, 0xd9, 0x23, 0x32, 0x91, 0x21, 0x0d, 0x39, 0xab, 0x64, 0xf4, 0x8c, 0x4c, 0xd0, 0xa7, 0x80,
+	0x54, 0x06, 0x70, 0x68, 0xb0, 0x1d, 0x60, 0x86, 0x5f, 0xf1, 0xc6, 0x05, 0xa9, 0xfe, 0xb6, 0x8e,
+	0xcc, 0x8b, 0xe3, 0xa3, 0xdd, 0xa9, 0xcc, 0x71, 0x28, 0x42, 0x04, 0x61, 0xdc, 0xaa, 0xe3, 0x0c,
+	0x99, 0xef, 0x5d, 0x80, 0x32, 0x19, 0x99, 0xbf, 0x67, 0xdb, 0x31, 0xf6, 0x3b, 0xb2, 0x75, 0x17,
+	0x2e, 0x50, 0x8f, 0x46, 0x8e, 0xbe, 0xa7, 0x35, 0x2d, 0x13, 0xab, 0x5e, 0xc9, 0x92, 0x47, 0x91,
+	0x0d, 0x28, 0x4e, 0xaa, 0xcd, 0x74, 0x3a, 0x74, 0x52, 0xdb, 0x73, 0x01, 0x67, 0x92, 0xd8, 0x2b,
+	0x59, 0x75, 0x27, 0x4b, 0xdc, 0xab, 0xc0, 0xc5, 0x00, 0x4f, 0x5c, 0x1f, 0x0f, 0xcc, 0x1f, 0x8c,
+	0x4c, 0xa7, 0x26, 0x1c, 0xd2, 0x75, 0xf0, 0x09, 0xd4, 0x93, 0xe6, 0x24, 0xf3, 0x78, 0x6b, 0x1a,
+	0xc8, 0x27, 0x9e, 0xc3, 0x26, 0x81, 0x20, 0x83, 0x7d, 0x46, 0xe4, 0x30, 0xc0, 0x6e, 0xaf, 0x64,
+	0x5d, 0x4d, 0x28, 0x57, 0xf1, 0xd9, 0x9e, 0x53, 0xa4, 0x61, 0xf6, 0x24, 0x33, 0x69, 0xe1, 0x8f,
+	0x06, 0x34, 0x8a, 0x12, 0x85, 0xae, 0xc3, 0x5a, 0x30, 0xee, 0xbb, 0xd4, 0xd1, 0x15, 0xaa, 0xbf,
+	0xd0, 0x6d, 0xa8, 0x3a, 0x8c, 0x60, 0x41, 0x92, 0x2d, 0x09, 0x8a, 0x24, 0x1b, 0xf2, 0x21, 0x20,
+	0x2d, 0x90, 0x48, 0xb5, 0xaa, 0x21, 0xab, 0xae, 0x38, 0x09, 0x8d, 0xe8, 0x3e, 0x5c, 0xd5, 0xe2,
+	0x9c, 0x0e, 0x3d, 0x2c, 0xc6, 0x8c, 0xc8, 0x5a, 0xaa, 0x59, 0x57, 0x14, 0xfd, 0x79, 0x44, 0x36,
+	0xbf, 0x84, 0xeb, 0xf9, 0xe1, 0x40, 0x3b, 0x10, 0x0a, 0xeb, 0x2f, 0xbb, 0xef, 0xfa, 0x7d, 0x6d,
+	0xf5, 0xfa, 0x94, 0xbc, 0xe7, 0xfa, 0xfd, 0xd0, 0x2b, 0x4e, 0x1c, 0x46, 0xa2, 0x09, 0xab, 0xbf,
+	0xcc, 0x9f, 0xca, 0xb0, 0xf1, 0x19, 0xc3, 0x8e, 0x2b, 0xd5, 0x91, 0x44, 0xcd, 0x5d, 0x3c, 0x21,
+	0x78, 0x40, 0x18, 0x6f, 0x18, 0x5b, 0x2b, 0xad, 0x6a, 0x77, 0x47, 0x47, 0x35, 0x47, 0xb8, 0xdd,
+	0x53, 0x92, 0x4f, 0x3c, 0xc1, 0x26, 0x56, 0x74, 0x0e, 0x7d, 0x01, 0x57, 0x74, 0xc0, 0xed, 0x08,
+	0xaa, 0x2c, 0xa1, 0xda, 0x73, 0xa0, 0x8e, 0xd5, 0x89, 0x14, 0xe2, 0x7a, 0x90, 0x22, 0x36, 0x1f,
+	0x43, 0x2d, 0xc9, 0x47, 0x57, 0x61, 0x25, 0xec, 0x56, 0x35, 0xbc, 0xc2, 0xff, 0xa2, 0x6b, 0xb0,
+	0x7a, 0x8a, 0xdd, 0xb1, 0xaa, 0xf0, 0x8a, 0xa5, 0x3e, 0x1e, 0x97, 0x3f, 0x32, 0x9a, 0xbb, 0xb0,
+	0x91, 0xa3, 0xe2, 0x3c, 0x10, 0xe6, 0x9f, 0x46, 0x66, 0xac, 0x2a, 0x3f, 0xd2, 0x3d, 0xeb, 0xbc,
+	0x9d, 0x2d, 0xd1, 0x2b, 0xcd, 0xdb, 0x13, 0xfb, 0xb0, 0xee, 0x4b, 0xdd, 0xa9, 0xf5, 0x59, 0xed,
+	0x36, 0x8b, 0x03, 0xdc, 0x2b, 0x59, 0x97, 0xd5, 0x19, 0x4d, 0x08, 0xfb, 0x42, 0x9f, 0x36, 0xc7,
+	0x70, 0x67, 0x8e, 0x63, 0xba, 0x77, 0x37, 0x67, 0x16, 0x46, 0xaf, 0x94, 0x5c, 0x19, 0xcb, 0x75,
+	0x23, 0xc0, 0xa5, 0x68, 0x0c, 0x99, 0x7f, 0x1b, 0x99, 0x0d, 0xb2, 0xe7, 0x8f, 0xbd, 0xc1, 0x33,
+	0x32, 0x09, 0x30, 0x65, 0xff, 0xc5, 0xf0, 0x6f, 0xc3, 0x06, 0x55, 0xb0, 0xb6, 0x04, 0x4b, 0x74,
+	0x46, 0xc5, 0xaa, 0x6b, 0xd6, 0x53, 0x9f, 0x7a, 0xcf, 0x25, 0x03, 0x6d, 0xc3, 0xba, 0x47, 0x5e,
+	0xdb, 0x6a, 0x10, 0xc4, 0x9b, 0xa1, 0x62, 0xd5, 0x3c, 0xf2, 0xfa, 0x58, 0x12, 0xc3, 0xf5, 0xd0,
+	0x86, 0x8d, 0x80, 0x91, 0x53, 0xea, 0x8f, 0xb9, 0x86, 0x15, 0x58, 0x44, 0x3d, 0x5d, 0x8f, 0x58,
+	0x12, 0x36, 0x64, 0x98, 0x3d, 0x78, 0x50, 0xe8, 0xf5, 0xf9, 0x56, 0xe7, 0x53, 0xb8, 0x5f, 0x88,
+	0x64, 0xf9, 0x6a, 0xde, 0xc4, 0x40, 0xb7, 0x00, 0x12, 0x8e, 0xe8, 0x8d, 0x1f, 0x44, 0x5e, 0x98,
+	0xbf, 0x94, 0xe1, 0x5e, 0x21, 0x58, 0xba, 0xc6, 0x0f, 0x52, 0x7b, 0x29, 0x77, 0x8d, 0x14, 0x67,
+	0x32, 0x5e, 0x4d, 0xfd, 0x39, 0xab, 0xe9, 0x83, 0x45, 0x98, 0xcb, 0x6d, 0x27, 0x64, 0x43, 0x9d,
+	0xe9, 0x38, 0x4c, 0x55, 0xac, 0x48, 0x15, 0x8f, 0x16, 0xa9, 0xc8, 0x06, 0x30, 0x5c, 0x41, 0x2c,
+	0x43, 0x4b, 0x2e, 0x17, 0x0c, 0xe6, 0x62, 0x73, 0x17, 0x64, 0x21, 0x7d, 0x2b, 0x2b, 0x67, 0x6e,
+	0x65, 0xe6, 0xf7, 0x06, 0xdc, 0x2d, 0xd6, 0x41, 0x98, 0xa0, 0x5f, 0x53, 0x07, 0x0b, 0xc2, 0xa7,
+	0xf7, 0x37, 0xa3, 0xf0, 0xfe, 0x16, 0x9a, 0x92, 0x28, 0x57, 0xb5, 0x1e, 0x2a, 0x2f, 0xa3, 0x32,
+	0xcd, 0x58, 0xba, 0x92, 0xad, 0x97, 0x07, 0xd0, 0x5a, 0x22, 0x74, 0x6a, 0xbe, 0xbc, 0x29, 0xcf,
+	0x69, 0xf4, 0xcc, 0x98, 0x39, 0xcc, 0x8e, 0x99, 0x6a, 0xf7, 0xfe, 0xd2, 0xd5, 0x90, 0x9e, 0x48,
+	0x07, 0xe9, 0x89, 0xf4, 0xfe, 0x42, 0x98, 0x44, 0x04, 0xe3, 0x89, 0x85, 0x8e, 0xe0, 0x52, 0x94,
+	0x76, 0x5d, 0x3a, 0x9d, 0xe5, 0x4b, 0x27, 0x2a, 0xf9, 0x18, 0x22, 0x39, 0x00, 0xbb, 0x6f, 0x56,
+	0xa1, 0xaa, 0xc6, 0x8d, 0x7c, 0xfb, 0x21, 0x0a, 0xd7, 0xf3, 0x9f, 0x3a, 0x68, 0x3b, 0x4f, 0x65,
+	0xf6, 0xfd, 0xd6, 0xbc, 0xbb, 0x40, 0x4a, 0xa9, 0x6d, 0x19, 0x8f, 0x0c, 0xe4, 0x43, 0xa3, 0xe8,
+	0x89, 0x80, 0xee, 0xe5, 0xc1, 0xcc, 0xbe, 0x88, 0x9a, 0x3b, 0x0b, 0xe5, 0x12, 0x0a, 0xb3, 0xbe,
+	0xc5, 0x97, 0xc3, 0x7c, 0xdf, 0xb2, 0x97, 0xe1, 0x7c, 0xdf, 0x66, 0x6e, 0x98, 0x52, 0x15, 0x83,
+	0x1b, 0x85, 0xeb, 0x0c, 0xe5, 0x1a, 0x9d, 0xb3, 0xc9, 0x9b, 0xad, 0xc5, 0x82, 0x09, 0x9d, 0xdf,
+	0x65, 0x5f, 0x90, 0xb3, 0x25, 0x8e, 0x1e, 0x2e, 0xaa, 0x9b, 0xb4, 0x01, 0xed, 0x65, 0xc5, 0x13,
+	0x66, 0x1c, 0x00, 0x9a, 0xdd, 0x85, 0x68, 0xe1, 0x9a, 0x6c, 0xa6, 0x06, 0xc4, 0xde, 0xc7, 0xbf,
+	0x9e, 0x6d, 0x1a, 0x7f, 0x9c, 0x6d, 0x1a, 0x7f, 0x9d, 0x6d, 0x1a, 0x5f, 0x75, 0x87, 0x54, 0x9c,
+	0x8c, 0xfb, 0x6d, 0xc7, 0x7f, 0xd5, 0x19, 0x32, 0x7c, 0x4a, 0x55, 0x25, 0x63, 0xb7, 0x13, 0xff,
+	0xe6, 0x80, 0x03, 0x9a, 0xfa, 0x69, 0xa2, 0xbf, 0x26, 0xff, 0x7c, 0xf8, 0x6f, 0x00, 0x00, 0x00,
+	0xff, 0xff, 0x02, 0x4a, 0x12, 0xf5, 0xf8, 0x10, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -2822,12 +2978,19 @@ func (m *RegisterUsingBoundKeypairInitialRequest) MarshalToSizedBuffer(dAtA []by
 		copy(dAtA[i:], m.PreviousJoinState)
 		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.PreviousJoinState)))
 		i--
-		dAtA[i] = 0x1a
+		dAtA[i] = 0x22
 	}
 	if len(m.NewPublicKey) > 0 {
 		i -= len(m.NewPublicKey)
 		copy(dAtA[i:], m.NewPublicKey)
 		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.NewPublicKey)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.InitialJoinSecret) > 0 {
+		i -= len(m.InitialJoinSecret)
+		copy(dAtA[i:], m.InitialJoinSecret)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.InitialJoinSecret)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -2874,6 +3037,40 @@ func (m *RegisterUsingBoundKeypairChallengeResponse) MarshalToSizedBuffer(dAtA [
 		i -= len(m.Solution)
 		copy(dAtA[i:], m.Solution)
 		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Solution)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairRotationResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairRotationResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairRotationResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.PublicKey) > 0 {
+		i -= len(m.PublicKey)
+		copy(dAtA[i:], m.PublicKey)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.PublicKey)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -2958,6 +3155,27 @@ func (m *RegisterUsingBoundKeypairMethodRequest_ChallengeResponse) MarshalToSize
 	}
 	return len(dAtA) - i, nil
 }
+func (m *RegisterUsingBoundKeypairMethodRequest_RotationResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodRequest_RotationResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.RotationResponse != nil {
+		{
+			size, err := m.RotationResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
 func (m *RegisterUsingBoundKeypairChallenge) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -3023,6 +3241,13 @@ func (m *RegisterUsingBoundKeypairCertificates) MarshalToSizedBuffer(dAtA []byte
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if len(m.PublicKey) > 0 {
+		i -= len(m.PublicKey)
+		copy(dAtA[i:], m.PublicKey)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.PublicKey)))
+		i--
+		dAtA[i] = 0x1a
+	}
 	if len(m.JoinState) > 0 {
 		i -= len(m.JoinState)
 		copy(dAtA[i:], m.JoinState)
@@ -3041,6 +3266,33 @@ func (m *RegisterUsingBoundKeypairCertificates) MarshalToSizedBuffer(dAtA []byte
 		}
 		i--
 		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingBoundKeypairRotationRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingBoundKeypairRotationRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairRotationRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	return len(dAtA) - i, nil
 }
@@ -3120,6 +3372,27 @@ func (m *RegisterUsingBoundKeypairMethodResponse_Certs) MarshalToSizedBuffer(dAt
 		}
 		i--
 		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *RegisterUsingBoundKeypairMethodResponse_Rotation) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingBoundKeypairMethodResponse_Rotation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Rotation != nil {
+		{
+			size, err := m.Rotation.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
 	}
 	return len(dAtA) - i, nil
 }
@@ -3521,6 +3794,10 @@ func (m *RegisterUsingBoundKeypairInitialRequest) Size() (n int) {
 		l = m.JoinRequest.Size()
 		n += 1 + l + sovJoinservice(uint64(l))
 	}
+	l = len(m.InitialJoinSecret)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
 	l = len(m.NewPublicKey)
 	if l > 0 {
 		n += 1 + l + sovJoinservice(uint64(l))
@@ -3542,6 +3819,22 @@ func (m *RegisterUsingBoundKeypairChallengeResponse) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.Solution)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairRotationResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.PublicKey)
 	if l > 0 {
 		n += 1 + l + sovJoinservice(uint64(l))
 	}
@@ -3590,6 +3883,18 @@ func (m *RegisterUsingBoundKeypairMethodRequest_ChallengeResponse) Size() (n int
 	}
 	return n
 }
+func (m *RegisterUsingBoundKeypairMethodRequest_RotationResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.RotationResponse != nil {
+		l = m.RotationResponse.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
 func (m *RegisterUsingBoundKeypairChallenge) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3624,6 +3929,22 @@ func (m *RegisterUsingBoundKeypairCertificates) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovJoinservice(uint64(l))
 	}
+	l = len(m.PublicKey)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingBoundKeypairRotationRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3665,6 +3986,18 @@ func (m *RegisterUsingBoundKeypairMethodResponse_Certs) Size() (n int) {
 	_ = l
 	if m.Certs != nil {
 		l = m.Certs.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	return n
+}
+func (m *RegisterUsingBoundKeypairMethodResponse_Rotation) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Rotation != nil {
+		l = m.Rotation.Size()
 		n += 1 + l + sovJoinservice(uint64(l))
 	}
 	return n
@@ -5621,9 +5954,9 @@ func (m *RegisterUsingBoundKeypairInitialRequest) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NewPublicKey", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InitialJoinSecret", wireType)
 			}
-			var byteLen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowJoinservice
@@ -5633,27 +5966,57 @@ func (m *RegisterUsingBoundKeypairInitialRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if byteLen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthJoinservice
 			}
-			postIndex := iNdEx + byteLen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return ErrInvalidLengthJoinservice
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.NewPublicKey = append(m.NewPublicKey[:0], dAtA[iNdEx:postIndex]...)
-			if m.NewPublicKey == nil {
-				m.NewPublicKey = []byte{}
-			}
+			m.InitialJoinSecret = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NewPublicKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NewPublicKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PreviousJoinState", wireType)
 			}
@@ -5794,6 +6157,89 @@ func (m *RegisterUsingBoundKeypairChallengeResponse) Unmarshal(dAtA []byte) erro
 	}
 	return nil
 }
+func (m *RegisterUsingBoundKeypairRotationResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairRotationResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairRotationResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PublicKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *RegisterUsingBoundKeypairMethodRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -5893,6 +6339,41 @@ func (m *RegisterUsingBoundKeypairMethodRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.Payload = &RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{v}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RotationResponse", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RegisterUsingBoundKeypairRotationResponse{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Payload = &RegisterUsingBoundKeypairMethodRequest_RotationResponse{v}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipJoinservice(dAtA[iNdEx:])
@@ -5948,7 +6429,7 @@ func (m *RegisterUsingBoundKeypairChallenge) Unmarshal(dAtA []byte) error {
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PublicKey", wireType)
 			}
-			var byteLen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowJoinservice
@@ -5958,25 +6439,23 @@ func (m *RegisterUsingBoundKeypairChallenge) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if byteLen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthJoinservice
 			}
-			postIndex := iNdEx + byteLen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return ErrInvalidLengthJoinservice
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.PublicKey = append(m.PublicKey[:0], dAtA[iNdEx:postIndex]...)
-			if m.PublicKey == nil {
-				m.PublicKey = []byte{}
-			}
+			m.PublicKey = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
@@ -6131,6 +6610,89 @@ func (m *RegisterUsingBoundKeypairCertificates) Unmarshal(dAtA []byte) error {
 				m.JoinState = []byte{}
 			}
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PublicKey", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PublicKey = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingBoundKeypairRotationRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairRotationRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingBoundKeypairRotationRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipJoinservice(dAtA[iNdEx:])
@@ -6251,6 +6813,41 @@ func (m *RegisterUsingBoundKeypairMethodResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Response = &RegisterUsingBoundKeypairMethodResponse_Certs{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Rotation", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &RegisterUsingBoundKeypairRotationRequest{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &RegisterUsingBoundKeypairMethodResponse_Rotation{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

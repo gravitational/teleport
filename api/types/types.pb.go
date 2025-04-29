@@ -4840,7 +4840,8 @@ type ProvisionTokenSpecV2 struct {
 	// Bitbucket allows the configuration of options specific to the "bitbucket" join method.
 	Bitbucket *ProvisionTokenSpecV2Bitbucket `protobuf:"bytes,17,opt,name=Bitbucket,proto3" json:"bitbucket,omitempty"`
 	// Oracle allows the configuration of options specific to the "oracle" join method.
-	Oracle               *ProvisionTokenSpecV2Oracle       `protobuf:"bytes,18,opt,name=Oracle,proto3" json:"oracle,omitempty"`
+	Oracle *ProvisionTokenSpecV2Oracle `protobuf:"bytes,18,opt,name=Oracle,proto3" json:"oracle,omitempty"`
+	// BoundKeypair allows the configuration of options specific to the "bound-keypair" join method.
 	BoundKeypair         *ProvisionTokenSpecV2BoundKeypair `protobuf:"bytes,19,opt,name=BoundKeypair,proto3" json:"bound_keypair,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                          `json:"-"`
 	XXX_unrecognized     []byte                            `json:"-"`

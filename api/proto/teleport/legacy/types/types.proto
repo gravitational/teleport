@@ -1480,7 +1480,7 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Bitbucket Bitbucket = 17 [(gogoproto.jsontag) = "bitbucket,omitempty"];
   // Oracle allows the configuration of options specific to the "oracle" join method.
   ProvisionTokenSpecV2Oracle Oracle = 18 [(gogoproto.jsontag) = "oracle,omitempty"];
-
+  // BoundKeypair allows the configuration of options specific to the "bound-keypair" join method.
   ProvisionTokenSpecV2BoundKeypair BoundKeypair = 19 [(gogoproto.jsontag) = "bound_keypair,omitempty"];
 }
 

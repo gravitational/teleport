@@ -200,16 +200,22 @@ message RegisterUsingBoundKeypairInitialRequest {
   // Registration parameters common to all join methods.
   types.RegisterUsingTokenRequest join_request = 1;
 
+  // If set, attempts to bind a new keypair using an initial join secret.
+  // Any value set here will be ignored if a keypair is already bound.
+  string initial_join_secret = 2;
+
   // If set, requests a rotation to the new public key. The joining challenge
   // must first be completed using the previous key, and upon completion a new
   // challenge will be issued for this key. Certificates will only be returned
-  // after the second challenge is complete.
-  bytes new_public_key = 2;
+  // after the second challenge is complete. On initial join when using an
+  // initial join secret, this value should be set to the desired public key.
+  // This key is written in SSH public key format.
+  string new_public_key = 3;
 
   // A document signed by Auth containing join state parameters from the
   // previous join attempt. Not required on initial join; required on all
   // subsequent joins.
-  bytes previous_join_state = 3;
+  bytes previous_join_state = 4;
 }
 
 // RegisterUsingBoundKeypairChallengeResponse is the completed challenge
@@ -219,16 +225,28 @@ message RegisterUsingBoundKeypairChallengeResponse {
   bytes solution = 1;
 }
 
-// RegisterUsingBoundKeypairMethodRequest contains information needed to progress in
-// a bound-keypair joining process. Multiple requests are expected in any given
-// join process.
+// RegisterUsingBoundKeypairRotationResponse is the response sent from the
+// client containing
+message RegisterUsingBoundKeypairRotationResponse {
+  // The public key to be registered with auth. Clients should expect a
+  // subsequent challenge against this public key to be sent.
+  string public_key = 1;
+}
+
+// RegisterUsingBoundKeypairMethodRequest contains information needed to
+// progress in a bound-keypair joining process. Multiple requests are expected
+// in any given join process.
 message RegisterUsingBoundKeypairMethodRequest {
   oneof payload {
     // The initial joining request.
     RegisterUsingBoundKeypairInitialRequest init = 1;
+
     // A challenge response from the client in response to a challenge issued by
     // the server.
     RegisterUsingBoundKeypairChallengeResponse challenge_response = 2;
+
+    // A response from the client following a rotation request from the server.
+    RegisterUsingBoundKeypairRotationResponse rotation_response = 3;
   }
 }
 
@@ -236,12 +254,12 @@ message RegisterUsingBoundKeypairMethodRequest {
 // joining clients are expected to complete.
 message RegisterUsingBoundKeypairChallenge {
   // The desired public key corresponding to the private key that should be used
-  // to sign this challenge.
-  bytes public_key = 1;
+  // to sign this challenge, in SSH public key format.
+  string public_key = 1;
 
-  // A challenge to sign with the requested public key. During keypair rotation, a second
-  // challenge will be provided to verify the new keypair before certs are
-  // returned.
+  // A challenge to sign with the requested public key. During keypair rotation,
+  // a second challenge will be provided to verify the new keypair before certs
+  // are returned.
   string challenge = 2;
 }
 
@@ -253,11 +271,22 @@ message RegisterUsingBoundKeypairCertificates {
 
   // A signed join state document to be provided on the next join attempt.
   bytes join_state = 2;
+
+  // The public key registered with Auth at the end of the joining ceremony.
+  // After a successful keypair rotation, this should reflect the newly
+  // registered public key.
+  string public_key = 3;
 }
 
-// RegisterUsingBoundKeypairMethodResponse is a response sent by the server during the
-// bound-keypair joining process. Multiple requests and responses are expected
-// to be exchanged during one join process.
+// RegisterUsingBoundKeypairRotationRequest is the response sent by the server
+// when a keypair rotation is required.
+message RegisterUsingBoundKeypairRotationRequest {
+  // This is a marker, no contents at this time.
+}
+
+// RegisterUsingBoundKeypairMethodResponse is a response sent by the server
+// during the bound-keypair joining process. Multiple requests and responses are
+// expected to be exchanged during one join process.
 message RegisterUsingBoundKeypairMethodResponse {
   oneof response {
     // A challenge to sign. At least one challenge will always be issued, but
@@ -267,6 +296,11 @@ message RegisterUsingBoundKeypairMethodResponse {
 
     // Signed certificates upon successful completion of the join challenge.
     RegisterUsingBoundKeypairCertificates certs = 2;
+
+    // RegisterUsingBoundKeypairRotationRequest indicates keypair rotation is
+    // required, and a request for a new public key must be sent as the next
+    // request message in the ceremony.
+    RegisterUsingBoundKeypairRotationRequest rotation = 3;
   }
 }
 
