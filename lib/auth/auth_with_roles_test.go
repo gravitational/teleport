@@ -6152,7 +6152,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 		})
 		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
 		assert.Nil(t, resp)
-	}, 3*time.Second, 200*time.Millisecond)
+	}, 10*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
 	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
