@@ -4,13 +4,12 @@ description: Teleport Role-Based Access Control.
 tocDepth: 3
 ---
 
-Teleport RBAC (Role-Based Access Control) is a system for managing who can
+Teleport Role-Based Access Control (RBAC) is a system for managing who can
 access what within your infrastructure. Instead of assigning permissions
 directly to users, you create roles that define sets of permissions, then assign
 those roles to users.
 
-This guide helps you understand and implement Role-Based Access Control (RBAC)
-in Teleport. By the end of this guide, you'll be able to:
+This guide helps you understand and implement RBAC in Teleport. By the end of this guide, you'll be able to:
 
 - Understand how roles control access to resources.
 - Implement common access patterns.
@@ -84,13 +83,13 @@ user to access a server with the `env:local-dev` label and deny access to the
        method: token
      proxy_server: <Var name="example.teleport.sh:443" />
    auth_service:
-     enabled: "no"
+     enabled: "false"
    ssh_service:
-     enabled: "yes"
+     enabled: "true"
      labels:
        env: local-dev
    proxy_service:
-     enabled: "no"
+     enabled: "false"
    ```
 
    This Teleport configuration enables the Teleport SSH Service, which enrolls a
@@ -107,9 +106,8 @@ user to access a server with the `env:local-dev` label and deny access to the
    $ docker run -v <Var name="dev-config-path"/>:/etc/teleport/teleport.yaml (=teleport.latest_ent_debug_docker_image=)
    ```
 
-1. Wait for a minute or so. Ensure that the server has joined your cluster by
-   listing enrolled servers by label. You should see the server you just
-   enrolled:
+1. Wait for a minute or so. Verify that you have logged in via [tsh login](../../connect-your-client/tsh#introduction) and check that the server has joined your cluster by
+   listing enrolled servers by label. You should see the server you just enrolled:
 
    ```code
    $ tsh ls env=local-dev
@@ -128,7 +126,7 @@ user to access a server with the `env:local-dev` label and deny access to the
    $ tctl tokens add --type=node
    ```
 
-1. Assign the token to <Var name="token2" />.
+1. Assign the token to <Var name="token" />.
 
 1. Copy the following YAML document to a file called `local-prod.yaml`. This
    configuration starts the Teleport SSH Service with the label
@@ -139,17 +137,17 @@ user to access a server with the `env:local-dev` label and deny access to the
    teleport:
      data_dir: /var/lib/teleport
      join_params:
-       token_name: <Var name="token2" />
+       token_name: <Var name="token" />
        method: token
      proxy_server: <Var name="example.teleport.sh:443" />
    auth_service:
-     enabled: "no"
+     enabled: "false"
    ssh_service:
-     enabled: "yes"
+     enabled: "true"
      labels:
        env: local-prod
    proxy_service:
-     enabled: "no"
+     enabled: "false"
    ```
 
 1. Assign the absolute path to the configuration file you created to 
@@ -182,15 +180,12 @@ Create a role that can access servers with the `env:local-dev` label but not the
    kind: role
    version: v7
    metadata:
-     name: local-dev-access
+     name: local-dev-only
    spec:
      allow:
-       logins: ['root']
+       logins: [root]
        node_labels:
-         'env': 'local-*'
-     deny:
-       node_labels:
-         'env': 'local-prod'
+         env: local-dev
    ```
 
    The `allow` block indicates what the user is allowed to access. By default,
@@ -279,7 +274,7 @@ Example label structure:
 kind: role
 version: v7
 metadata:
-  name: senior-developer
+  name: backend-developer
 spec:
   allow:
     node_labels:
@@ -340,22 +335,6 @@ spec:
       'env': ['staging', 'dev']
     kubernetes_labels:
       'env': 'dev'
-```
-
-#### Read-only auditor
-
-This role allows a user to read audit log entries:
-
-```yaml
-kind: role
-version: v7
-metadata:
-  name: auditor
-spec:
-  allow:
-    rules:
-      - resources: ['session']
-        verbs: ['list', 'read']
 ```
 
 ### RBAC for specific kinds of resources
