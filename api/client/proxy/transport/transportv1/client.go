@@ -139,17 +139,15 @@ func (d desktopStream) Send(p []byte) error {
 }
 
 func (d desktopStream) Recv() ([]byte, error) {
-	msg, err := d.stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for {
+		msg, err := d.stream.Recv()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if data := msg.GetData(); len(data) > 0 {
+			return data, nil
+		}
 	}
-
-	data := msg.GetData()
-	if data == nil {
-		return nil, trace.BadParameter("received invalid message")
-	}
-
-	return data, nil
 }
 
 func (d desktopStream) Close() error {
