@@ -92,7 +92,3 @@ func (e *eventLogWriter) Write(bytes []byte, rawComponent string, level slog.Lev
 func (e *eventLogWriter) Close() error {
 	return trace.Wrap(e.log.Close())
 }
-
-func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, error) {
-	return nil, trace.NotImplemented("os_log is not supported on Windows")
-}
