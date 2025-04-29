@@ -156,6 +156,9 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
 
+      - name: Check if go generated files are up to date
+        run: make go-generate-up-to-date
+
   lint-rust:
     name: Lint (Rust)
     runs-on: ubuntu-22.04
@@ -217,9 +220,11 @@ jobs:
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         with:
           against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
+      # Release branches must not add new fields to protos with respect to
+      # master, new fields should be added to master first.
       - name: buf breaking from self to master
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
-        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        if: startsWith(github.base_ref, 'branch/v') || startsWith(github.event.merge_group.base_ref, 'refs/heads/branch/v')
         with:
           input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
           against: '.'

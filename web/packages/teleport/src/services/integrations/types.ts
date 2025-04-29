@@ -267,7 +267,8 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id'
   | 'datadog'
-  | 'aws-identity-center';
+  | 'aws-identity-center'
+  | 'scim';
 
 export type PluginOktaSpec = {
   // The plaintext of the bearer token that Okta will use
@@ -291,6 +292,8 @@ export type PluginOktaSpec = {
   defaultOwners: string[];
   // The Okta organization's base URL
   orgUrl: string;
+  // Whether changes made in Teleport should be synced back to Okta.
+  enableBidirectionalSync?: boolean;
   // Whether User Sync is enabled
   enableUserSync?: boolean;
   // Whether Access List Sync is enabled. Should match App/Group sync.

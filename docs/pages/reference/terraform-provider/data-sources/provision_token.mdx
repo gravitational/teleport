@@ -108,6 +108,7 @@ Optional:
 
 Optional:
 
+- `insecure` (Boolean) Insecure is an optional flag that enables insecure joining and rejoining. This method disables generation counter checks during joining and rejoining. When combined with the `unlimited` flag, this allows unlimited reuse of this token provided the client has access to the keypair. This may be useful in certain cases - like use in unsupported CI/CD providers - but cannot offer the same security assurances and should be used with care.
 - `may_join_until` (String) MayJoinUntil is an optional timestamp before which all joining attempts must occur. If unset, there are no time constraints on joining attempts. Note that clients may continue to renew their identities past this timestamp; a lock should be created if continued access should be cut off.
 - `total_joins` (Number) TotalJoins indicates the total number of joins that will be allowed over the lifetime of this token and is the initial value for `.status.bound_keypair.remaining_joins`. This value may be incremented after creation to allow additional joins should `remaining_joins` fall to zero, and `remaining_joins` will be incremented by the same amount. Unless `unlimited` is set, this value must be at least 1 at time of token creation for the initial join attempt to succeed.
 - `unlimited` (Boolean) Unlimited indicates no limit for joining and rejoining. `total_joins` and the calculated `.status.bound_keypair.remaining_joins` value will be zero, but rejoin attempts will succeed so long as other join requirements are met.

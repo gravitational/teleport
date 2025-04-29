@@ -34,7 +34,8 @@ export default {
 const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
   kind: 'hardware-key-touch',
   req: {
-    rootClusterUri: '/clusters/foo',
+    proxyHostname: 'foo.example.com',
+    command: '',
   },
   onCancel: () => {},
 };
@@ -42,8 +43,9 @@ const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
 const hardwareKeyPinDialog: DialogHardwareKeyPin = {
   kind: 'hardware-key-pin',
   req: {
-    rootClusterUri: '/clusters/foo',
+    proxyHostname: 'foo.example.com',
     pinOptional: false,
+    command: '',
   },
   onSuccess: () => {},
   onCancel: () => {},

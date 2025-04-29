@@ -19,12 +19,13 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import {
   addIndexToViews,
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
 import cfg from 'teleport/config';
-import { useInfoGuide } from 'teleport/Main/InfoGuideContext';
 import type { ResourceLabel } from 'teleport/services/agents';
 import type { App } from 'teleport/services/apps';
 import type { Database } from 'teleport/services/databases';
@@ -39,6 +40,7 @@ import type { Node } from 'teleport/services/nodes';
 import type {
   SamlGcpWorkforce,
   SamlIdpServiceProvider,
+  SamlMicrosoftEntraId,
 } from 'teleport/services/samlidp/types';
 import {
   DiscoverDiscoveryConfigMethod,
@@ -53,7 +55,7 @@ import {
 } from 'teleport/services/userEvent';
 
 import { ResourceViewConfig, View } from './flow';
-import { getOverview } from './Overview/Overview';
+import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
 import { SelectResourceSpec } from './SelectResource/resources';
 import { EViewConfigs } from './types';
@@ -136,7 +138,7 @@ export function DiscoverProvider({
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
-  const { infoGuideElement, setInfoGuideElement } = useInfoGuide();
+  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
@@ -355,7 +357,9 @@ export function DiscoverProvider({
     setIndexedViews(indexedViews);
     setResourceSpec(resource);
     setCurrentStep(targetViewIndex);
-    setInfoGuideElement(getOverview({ resourceSpec: resource }));
+    // Open the guide for the user when starting the flow.
+    const overview = getOverview({ resourceSpec: resource });
+    setInfoGuideConfig(getDiscoverInfoGuideConfig(overview));
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -442,8 +446,8 @@ export function DiscoverProvider({
     setResourceSpec(null);
     setIndexedViews([]);
 
-    if (infoGuideElement) {
-      setInfoGuideElement(null);
+    if (infoGuideConfig) {
+      setInfoGuideConfig(null);
     }
   }
 
@@ -606,6 +610,7 @@ export type AppMeta = BaseMeta & {
 export type SamlMeta = BaseMeta & {
   samlGeneric?: SamlIdpServiceProvider;
   samlGcpWorkforce?: SamlGcpWorkforce;
+  samlMicrosoftEntraId?: SamlMicrosoftEntraId;
 };
 
 export type AgentMeta =

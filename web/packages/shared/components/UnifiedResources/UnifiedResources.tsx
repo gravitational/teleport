@@ -605,6 +605,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
+                onShowStatusInfo: () => null,
+                showingStatusInfo: false,
               }))
             : []
         }
@@ -638,6 +640,19 @@ export function useUnifiedResourcesFetch<T>(props: {
     fetchFunc: props.fetchFunc,
     initialFetchSize: INITIAL_FETCH_SIZE,
     fetchMoreSize: FETCH_MORE_SIZE,
+  });
+}
+
+export function useResourceServersFetch<T>(props: {
+  fetchFunc(
+    paginationParams: { limit: number; startKey: string },
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+}) {
+  return useKeyBasedPagination({
+    fetchFunc: props.fetchFunc,
+    initialFetchSize: 20,
+    fetchMoreSize: 10,
   });
 }
 

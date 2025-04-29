@@ -15,7 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
-// +build vnetdaemon
 
 package daemon
 
@@ -75,11 +74,8 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 	}
 
 	log.InfoContext(ctx, "Received VNet config",
-		"socket_path", config.SocketPath,
-		"ipv6_prefix", config.IPv6Prefix,
-		"dns_addr", config.DNSAddr,
-		"home_path", config.HomePath,
-		"client_cred", config.ClientCred,
+		"service_credential_path", config.ServiceCredentialPath,
+		"client_application_service_addr", config.ClientApplicationServiceAddr,
 	)
 
 	return trace.Wrap(workFn(ctx, config))
@@ -98,31 +94,20 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 		var result C.VnetConfigResult
 		defer func() {
 			C.free(unsafe.Pointer(result.error_description))
-			C.free(unsafe.Pointer(result.socket_path))
-			C.free(unsafe.Pointer(result.ipv6_prefix))
-			C.free(unsafe.Pointer(result.dns_addr))
-			C.free(unsafe.Pointer(result.home_path))
+			C.free(unsafe.Pointer(result.service_credential_path))
+			C.free(unsafe.Pointer(result.client_application_service_addr))
 		}()
 
-		var clientCred C.ClientCred
-
 		// This call gets unblocked when the daemon gets stopped through C.DaemonStop.
-		C.WaitForVnetConfig(&result, &clientCred)
+		C.WaitForVnetConfig(&result)
 		if !result.ok {
 			errC <- trace.Wrap(errors.New(C.GoString(result.error_description)))
 			return
 		}
 
 		config = Config{
-			SocketPath: C.GoString(result.socket_path),
-			IPv6Prefix: C.GoString(result.ipv6_prefix),
-			DNSAddr:    C.GoString(result.dns_addr),
-			HomePath:   C.GoString(result.home_path),
-			ClientCred: ClientCred{
-				Valid: bool(clientCred.valid),
-				Egid:  int(clientCred.egid),
-				Euid:  int(clientCred.euid),
-			},
+			ServiceCredentialPath:        C.GoString(result.service_credential_path),
+			ClientApplicationServiceAddr: C.GoString(result.client_application_service_addr),
 		}
 		errC <- nil
 	}()

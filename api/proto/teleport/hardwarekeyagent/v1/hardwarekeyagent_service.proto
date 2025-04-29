@@ -1,0 +1,134 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.hardwarekeyagent.v1;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1";
+
+// HardwareKeyAgentService provides an agent service for hardware key (PIV) signatures.
+// This allows multiple Teleport clients to share a PIV connection rather than blocking
+// each other, due to the exclusive nature of PIV connections. This also enabled shared
+// hardware key states, such as a custom PIN cache shared across Teleport clients.
+service HardwareKeyAgentService {
+  // Ping the agent service to check if it is active.
+  rpc Ping(PingRequest) returns (PingResponse) {}
+  // Sign produces a signature with the provided options for the specified hardware private key
+  //
+  // This rpc implements Go's crypto.Signer interface.
+  rpc Sign(SignRequest) returns (Signature) {}
+}
+
+// PingRequest is a request to Ping.
+message PingRequest {}
+
+// PingResponse is a response to Ping.
+message PingResponse {
+  // PID is the PID of the client process running the agent.
+  uint32 pid = 1;
+}
+
+// SignRequest is a request to perform a signature with a specific hardware private key.
+message SignRequest {
+  // Digest is a hashed message to sign.
+  bytes digest = 1;
+  // Hash is the hash function used to prepare the digest.
+  Hash hash = 2;
+  // SaltLength specifies the length of the salt added to the digest before a signature.
+  // This salt length is precomputed by the client, following the crypto/rsa implementation.
+  // Only used, and required, for PSS RSA signatures.
+  uint32 salt_length = 3;
+  // KeyRef references a specific hardware private key.
+  KeyRef key_ref = 4;
+  // KeyInfo contains additional, optional key info which generally will improve UX by
+  // giving the agent context about the key, such as whether PIN/touch prompts are
+  // expected, or what cluster login is trying to interface with the key.
+  KeyInfo key_info = 5;
+  // Command is the client command or action requiring a signature, e.g. "tsh ssh server01".
+  // The agent can include this detail in PIN/touch prompts to show the origin of the
+  // signature request to the user.
+  string command = 6;
+}
+
+// Signature is a private key signature.
+message Signature {
+  // For an RSA key, signature should be either a PKCS #1 v1.5 or PSS signature,
+  // depending on the hash and salt chosen. For an (EC)DSA key, it should be a
+  // DER-serialised, ASN.1 signature structure.
+  bytes signature = 1;
+}
+
+// KeyRef references a specific hardware private key.
+message KeyRef {
+  // SerialNumber is the serial number of the hardware key.
+  uint32 serial_number = 1;
+  // SlotKey is a PIV slot key reference.
+  PIVSlotKey slot_key = 2;
+  // PublicKey is the public key encoded in PKIX, ASN.1 DER form. If the public key does
+  // not match the private key currently in the hardware key's PIV slot, the signature
+  // will fail early.
+  bytes public_key_der = 3;
+}
+
+// KeyInfo contains additional information about a hardware private key.
+message KeyInfo {
+  // TouchRequired is a client hint as to whether the hardware private key requires touch.
+  // The agent will use this to provide the ideal UX for the touch prompt. If this client
+  // hint is incorrect, touch will still be prompted.
+  bool touch_required = 1;
+  // PinRequired is a client hint as to whether the hardware private key requires PIN.
+  // The agent will use this to provide the ideal UX for the PIN prompt. If this client
+  // hint is incorrect, PIN will still be prompted for YubiKey versions >= 4.3.0, and
+  // failing with an auth error otherwise.
+  bool pin_required = 2;
+  // ProxyHost is a Teleport proxy hostname that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string proxy_host = 3;
+  // Username is a Teleport username that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string username = 4;
+  // ClusterName is a Teleport cluster name that the key is associated with.
+  // May be used to add context to PIN/touch prompts.
+  string cluster_name = 5;
+  // PinCacheTtl is the amount of time that the PIN should be cached for
+  // PIN prompts associated with this key. A TTL of 0 means no PIN caching.
+  google.protobuf.Duration pin_cache_ttl = 6;
+}
+
+// PIVSlotKey is the key reference for a specific PIV slot.
+enum PIVSlotKey {
+  // PIV slot key not specified.
+  PIV_SLOT_KEY_UNSPECIFIED = 0;
+  // PIV slot key 9a. This is the default slot for pin_policy=never, touch_policy=never.
+  PIV_SLOT_KEY_9A = 1;
+  // PIV slot key 9c. This is the default slot for pin_policy=never, touch_policy=cached.
+  PIV_SLOT_KEY_9C = 2;
+  // PIV slot key 9d. This is the default slot for pin_policy=once, touch_policy=cached.
+  PIV_SLOT_KEY_9D = 3;
+  // PIV slot key 9e. This is the default slot for pin_policy=once, touch_policy=never.
+  PIV_SLOT_KEY_9E = 4;
+}
+
+// Hash refers to a specific hash function used during signing.
+enum Hash {
+  HASH_UNSPECIFIED = 0;
+  HASH_NONE = 1;
+  HASH_SHA256 = 2;
+  HASH_SHA512 = 3;
+}

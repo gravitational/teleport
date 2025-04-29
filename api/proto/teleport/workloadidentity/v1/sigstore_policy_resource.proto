@@ -1,0 +1,112 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
+
+// Policy that describes the signatures and attestations that must be presented
+// in order to be issued a workload identity.
+message SigstorePolicy {
+  // The kind of resource represented. This is always `sigstore_policy`.
+  string kind = 1;
+
+  // Differentiates variations of the same kind. All resources should contain
+  // one, even if it is never populated.
+  string sub_kind = 2;
+
+  // The version of the resource being represented.
+  string version = 3;
+
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Desired Sigstore policy configuration.
+  SigstorePolicySpec spec = 5;
+}
+
+// Desired Sigstore policy configuration.
+message SigstorePolicySpec {
+  oneof authority {
+    // Well-known trusted public key.
+    SigstoreKeyAuthority key = 1;
+
+    // Keyless signing using a Fulcio certificate authority.
+    SigstoreKeylessAuthority keyless = 2;
+  }
+
+  // Requirements of the policy.
+  SigstorePolicyRequirements requirements = 3;
+}
+
+// Requirements of the policy.
+message SigstorePolicyRequirements {
+  // Whether there must be a Cosign signature for the workload "artifact"
+  // (i.e. a simple signing envelope containing the container image digest)
+  // for the policy to pass.
+  bool artifact_signature = 1;
+
+  // Which in-toto attestations must be present for the policy to pass.
+  repeated InTotoAttestationMatcher attestations = 2;
+}
+
+// Configuration for a well-known trusted public key.
+message SigstoreKeyAuthority {
+  // Public key in PEM-encoded DER format.
+  string public = 1;
+}
+
+// Configuration for keyless signing using a Fulcio certificate authority.
+message SigstoreKeylessAuthority {
+  // Trusted signing identities.
+  repeated SigstoreKeylessSigningIdentity identities = 1;
+
+  // Custom trusted roots that will be used instead of the Sigstore project's
+  // public good instance, formatted as JSON.
+  //
+  // This is where you can configure custom Fulcio, Rekor and timestamp
+  // authorities.
+  //
+  // https://github.com/sigstore/protobuf-specs/blob/cac7a926e0968571d3eb2e2fc8ebd40b8ebe0d58/protos/sigstore_trustroot.proto#L92-L144
+  repeated string trusted_roots = 2;
+}
+
+// Configuration for a trusted signing identity.
+message SigstoreKeylessSigningIdentity {
+  oneof issuer_matcher {
+    // Exact issuer string.
+    string issuer = 1;
+
+    // Regex that matches the issuer.
+    string issuer_regex = 2;
+  }
+
+  oneof subject_matcher {
+    // Exact subject string.
+    string subject = 3;
+
+    // Regex that matches the subject.
+    string subject_regex = 4;
+  }
+}
+
+// Describes a required in-toto attestation.
+message InTotoAttestationMatcher {
+  // In-toto predicate type (e.g. `https://slsa.dev/provenance/v1`).
+  string predicate_type = 1;
+}

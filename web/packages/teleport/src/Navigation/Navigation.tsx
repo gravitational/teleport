@@ -312,7 +312,11 @@ export const useFloatingUiWithRestMs = ({
   };
 };
 
-export function Navigation() {
+export function Navigation({
+  showPoweredByLogo,
+}: {
+  showPoweredByLogo?: boolean;
+}) {
   const features = useFeatures();
   const history = useHistory();
   const { clusterId } = useStickyClusterId();
@@ -501,6 +505,7 @@ export function Navigation() {
               stickyMode={stickyMode}
               toggleStickyMode={toggleStickyMode}
               canToggleStickyMode={!!currentPageSection}
+              showPoweredByLogo={showPoweredByLogo}
             />
           </>
         )}
@@ -538,6 +543,7 @@ export function Navigation() {
                 aria-controls={`panel-${debouncedSection?.category}`}
                 onNavigationItemClick={onNavigationItemClick}
                 isExpanded={isExpanded}
+                showPoweredByLogo={showPoweredByLogo}
               />
             </React.Fragment>
           );
