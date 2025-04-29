@@ -143,7 +143,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return role, trace.Wrap(err)
 	}
 
-	r, err := rg.store.get("name", name)
+	r, err := rg.store.get(roleStoreNameIndex, name)
 	if err != nil {
 		// release read lock early
 		rg.Release()
