@@ -36,10 +36,6 @@ func NewSlogEventLogHandler(source string, level slog.Leveler) (*SlogTextHandler
 		return nil, nil, trace.Wrap(err)
 	}
 
-	closeFn := func() error {
-		return writer.Close()
-	}
-
 	handler := SlogTextHandler{
 		cfg: SlogTextHandlerConfig{
 			Level: level,
@@ -57,8 +53,7 @@ func NewSlogEventLogHandler(source string, level slog.Leveler) (*SlogTextHandler
 		// Event Log adds timestamps by itself.
 		withTimestamp: false,
 	}
-
-	return &handler, closeFn, nil
+	return &handler, writer.Close, nil
 }
 
 type eventLogWriter struct {
