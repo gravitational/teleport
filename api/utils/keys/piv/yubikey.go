@@ -198,16 +198,6 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
-	// Lock the connection for the entire duration of the sign
-	// process. Without this, the connection will be released,
-	// leading to a failure when providing PIN or touch input:
-	// "verify pin: transmitting request: the supplied handle was invalid".
-	release, err := y.conn.connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer release()
-
 	var touchPromptDelayTimer *time.Timer
 	if ref.Policy.TouchRequired {
 		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
@@ -275,6 +265,16 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 		manualRetryWithPIN = true
 	}
 
+	// Lock the connection for the entire duration of the sign
+	// process. Without this, the connection will be released,
+	// leading to a failure when providing PIN or touch input:
+	// "verify pin: transmitting request: the supplied handle was invalid".
+	release, err := y.conn.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer release()
+
 	privateKey, err := y.conn.privateKey(pivSlot, ref.PublicKey, auth)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -307,6 +307,23 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 
 	case auth.PIN != "" && isPCSCError(err, pcscErrMsgResetCard):
 		slog.DebugContext(ctx, "YubiKey disconnected before PIN prompt was completed, retrying with provided PIN", "error", err)
+
+		y.conn.mu.Lock()
+		y.conn.conn.Close()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		y.conn.conn, err = piv.Open(y.conn.card)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		y.conn.mu.Unlock()
+
+		release()
+		_, err := y.conn.connect()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		signature, err := abandonableSign(ctx, signer, rand, digest, opts)
 		return signature, trace.Wrap(err)
