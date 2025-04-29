@@ -130,12 +130,13 @@ func ServiceMain() error {
 	if err != nil {
 		return trace.Wrap(err, "setting up logger for service")
 	}
-	defer closeFn()
 
 	if err := svc.Run(serviceName, &windowsService{}); err != nil {
+		closeFn()
 		return trace.Wrap(err, "running Windows service")
 	}
-	return nil
+
+	return trace.Wrap(closeFn(), "closing logger")
 }
 
 // windowsService implements [svc.Handler].
