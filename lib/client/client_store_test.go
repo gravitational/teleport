@@ -21,6 +21,7 @@ package client
 import (
 	"context"
 	"crypto/x509/pkix"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -65,7 +67,17 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	priv, err := s.keygen.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	allowedLogins := []string{idx.Username, "root"}
+	key := NewKey(priv)
+	key.KeyIndex = idx
+
+	s.signKey(t, key, makeExpired)
+	return key
+}
+
+func (s *testAuthority) signKey(t *testing.T, key *Key, makeExpired bool) {
+	t.Helper()
+
+	allowedLogins := []string{key.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {
 		ttl = -ttl
@@ -74,14 +86,14 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	// reuse the same RSA keys for SSH and TLS keys
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
-		Username: idx.Username,
+		Username: key.Username,
 		Groups:   []string{"groups"},
 	}
 	subject, err := identity.Subject()
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: priv.Public(),
+		PublicKey: key.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
@@ -92,10 +104,10 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 
 	cert, err := s.keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
-		PublicUserKey: ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
+		PublicUserKey: ssh.MarshalAuthorizedKey(key.SSHPublicKey()),
 		TTL:           ttl,
 		Identity: sshca.Identity{
-			Username:              idx.Username,
+			Username:              key.Username,
 			Principals:            allowedLogins,
 			PermitAgentForwarding: false,
 			PermitPortForwarding:  true,
@@ -103,14 +115,10 @@ func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bo
 	})
 	require.NoError(t, err)
 
-	key := NewKey(priv)
-	key.KeyIndex = idx
-	key.PrivateKey = priv
 	key.Cert = cert
 	key.TLSCert = tlsCert
 	key.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
 	key.DBTLSCerts["example-db"] = tlsCert
-	return key
 }
 
 func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
@@ -158,98 +166,130 @@ func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *
 
 func TestClientStore(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	a := newTestAuthority(t)
+	hwks := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 
-	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-		t.Parallel()
-
-		idx := KeyIndex{
-			ProxyHost:   "proxy.example.com",
-			ClusterName: "root",
-			Username:    "test-user",
-		}
-		key := a.makeSignedKey(t, idx, false)
-
-		// Add key should add the key and trusted certs to their respective stores.
-		err := clientStore.AddKey(key)
-		require.NoError(t, err)
-
-		// the key's trusted certs should be added to the trusted certs store.
-		retrievedTrustedCerts, err := clientStore.GetTrustedCerts(idx.ProxyHost)
-		require.NoError(t, err)
-		require.Equal(t, key.TrustedCerts, retrievedTrustedCerts)
-
-		// Getting the key from the key store should have no trusted certs.
-		retrievedKey, err := clientStore.KeyStore.GetKey(idx, WithAllCerts...)
-		require.NoError(t, err)
-		expectKey := key.Copy()
-		expectKey.TrustedCerts = nil
-		require.Equal(t, expectKey, retrievedKey)
-
-		// Getting the key from the client store should fill in the trusted certs.
-		retrievedKey, err = clientStore.GetKey(idx, WithAllCerts...)
-		require.NoError(t, err)
-		require.Equal(t, key, retrievedKey)
-
-		var profileDir string
-		if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
-			profileDir = fs.KeyDir
-		}
-
-		// Create and save a corresponding profile for the key.
-		profile := &profile.Profile{
-			WebProxyAddr: idx.ProxyHost + ":3080",
-			SiteName:     idx.ClusterName,
-			Username:     idx.Username,
-		}
-		err = clientStore.SaveProfile(profile, true)
-		require.NoError(t, err)
-		expectStatus, err := profileStatusFromKey(key, profileOptions{
-			ProfileName:   profile.Name(),
-			WebProxyAddr:  profile.WebProxyAddr,
-			ProfileDir:    profileDir,
-			Username:      profile.Username,
-			SiteName:      profile.SiteName,
-			KubeProxyAddr: profile.KubeProxyAddr,
-			IsVirtual:     profileDir == "",
-		})
-		require.NoError(t, err)
-
-		// ReadProfileStatus should prepare a *ProfileStatus using the saved
-		// profile and key together.
-		profileStatus, err := clientStore.ReadProfileStatus(profile.Name())
-		require.NoError(t, err)
-		require.Equal(t, expectStatus, profileStatus)
-
-		// FullProfileStatus should return the current profile status, and any
-		// other available profiles' statuses.
-		otherKey := key.Copy()
-		otherKey.ProxyHost = "other.example.com"
-		err = clientStore.AddKey(otherKey)
-		require.NoError(t, err)
-
-		otherProfile := profile.Copy()
-		otherProfile.WebProxyAddr = "other.example.com:3080"
-		err = clientStore.SaveProfile(otherProfile, false)
-		require.NoError(t, err)
-
-		expectOtherStatus, err := profileStatusFromKey(key, profileOptions{
-			ProfileName:   otherProfile.Name(),
-			WebProxyAddr:  otherProfile.WebProxyAddr,
-			ProfileDir:    profileDir,
-			Username:      otherProfile.Username,
-			SiteName:      otherProfile.SiteName,
-			KubeProxyAddr: otherProfile.KubeProxyAddr,
-			IsVirtual:     profileDir == "",
-		})
-		require.NoError(t, err)
-
-		currentStatus, otherStatuses, err := clientStore.FullProfileStatus()
-		require.NoError(t, err)
-		require.Equal(t, expectStatus, currentStatus)
-		require.Len(t, otherStatuses, 1)
-		require.Equal(t, expectOtherStatus, otherStatuses[0])
+	// create a test software and hardware key.
+	idx := KeyIndex{"test.proxy.com", "test-user", "root"}
+	softKey := a.makeSignedKey(t, idx, false)
+	keyInfo := idx.contextualKeyInfo()
+	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
+		ContextualKeyInfo: keyInfo,
 	})
+	require.NoError(t, err)
+	hardKey := NewKey(hwPriv)
+	hardKey.KeyIndex = idx
+	a.signKey(t, hardKey, false)
+
+	for name, key := range map[string]*Key{
+		"software key": softKey,
+		"hardware key": hardKey,
+	} {
+		key := key
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			testEachClientStore(t, func(t *testing.T, clientStore *Store) {
+				clientStore.HardwareKeyService = hwks
+
+				// Add key should add the key and trusted certs to their respective stores.
+				err := clientStore.AddKey(key)
+				require.NoError(t, err)
+
+				// the key's trusted certs should be added to the trusted certs store.
+				retrievedTrustedCerts, err := clientStore.GetTrustedCerts(idx.ProxyHost)
+				require.NoError(t, err)
+				require.Equal(t, key.TrustedCerts, retrievedTrustedCerts)
+
+				// Getting the key from the key store should have no trusted certs.
+				retrievedKey, err := clientStore.KeyStore.GetKey(idx, clientStore.HardwareKeyService, WithAllCerts...)
+				require.NoError(t, err)
+				expectKey := key.Copy()
+				expectKey.TrustedCerts = nil
+				require.Equal(t, expectKey, retrievedKey)
+
+				// Getting the key from the client store should fill in the trusted certs.
+				retrievedKey, err = clientStore.GetKey(idx, WithAllCerts...)
+				require.NoError(t, err)
+				require.Equal(t, key, retrievedKey)
+
+				// Get the key, now without cluster name. It should retrieve the key without certs
+				// and without a cluster name in the KeyIndex or ContextualKeyInfo (hardware keys).
+				retrievedKey, err = clientStore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""})
+				require.NoError(t, err)
+				expectKey = key.Copy()
+				expectKey.ClusterName = ""
+				expectKey.Cert = nil
+				expectKey.DBTLSCerts = make(map[string][]byte)
+				if hwPriv, ok := expectKey.PrivateKey.Signer.(*hardwarekey.Signer); ok {
+					hwPriv.KeyInfo.ClusterName = ""
+				}
+				require.Equal(t, expectKey, retrievedKey)
+
+				var profileDir string
+				if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
+					profileDir = fs.KeyDir
+				}
+
+				// Create and save a corresponding profile for the key.
+				profile := &profile.Profile{
+					WebProxyAddr: net.JoinHostPort(idx.ProxyHost, "3080"),
+					SiteName:     idx.ClusterName,
+					Username:     idx.Username,
+				}
+				err = clientStore.SaveProfile(profile, true)
+				require.NoError(t, err)
+				expectStatus, err := profileStatusFromKey(key, profileOptions{
+					ProfileName:       profile.Name(),
+					WebProxyAddr:      profile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          profile.Username,
+					SiteName:          profile.SiteName,
+					KubeProxyAddr:     profile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: profile.TLSRoutingEnabled,
+				})
+				require.NoError(t, err)
+
+				// ReadProfileStatus should prepare a *ProfileStatus using the saved
+				// profile and key together.
+				profileStatus, err := clientStore.ReadProfileStatus(profile.Name())
+				require.NoError(t, err)
+				require.Equal(t, expectStatus, profileStatus)
+
+				// FullProfileStatus should return the current profile status, and any
+				// other available profiles' statuses.
+				otherKey := key.Copy()
+				otherKey.ProxyHost = "other.example.com"
+				err = clientStore.AddKey(otherKey)
+				require.NoError(t, err)
+
+				otherProfile := profile.Copy()
+				otherProfile.WebProxyAddr = "other.example.com:3080"
+				err = clientStore.SaveProfile(otherProfile, false)
+				require.NoError(t, err)
+
+				expectOtherStatus, err := profileStatusFromKey(key, profileOptions{
+					ProfileName:       otherProfile.Name(),
+					WebProxyAddr:      otherProfile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          otherProfile.Username,
+					SiteName:          otherProfile.SiteName,
+					KubeProxyAddr:     otherProfile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: otherProfile.TLSRoutingEnabled,
+				})
+				require.NoError(t, err)
+
+				currentStatus, otherStatuses, err := clientStore.FullProfileStatus()
+				require.NoError(t, err)
+				require.Equal(t, expectStatus, currentStatus)
+				require.Len(t, otherStatuses, 1)
+				require.Equal(t, expectOtherStatus, otherStatuses[0])
+			})
+		})
+	}
 }
 
 // TestProxySSHConfig tests proxy client SSH config function

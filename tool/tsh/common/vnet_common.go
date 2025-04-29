@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
@@ -44,7 +45,8 @@ type vnetAppProvider struct {
 }
 
 func newVnetAppProvider(cf *CLIConf) (*vnetAppProvider, error) {
-	clientStore := client.NewFSClientStore(cf.HomePath)
+	hwks := libhwk.NewService(cf.Context, nil /*prompt*/)
+	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 
 	p := &vnetAppProvider{
 		cf:          cf,
@@ -219,7 +221,7 @@ func (p *vnetAppProvider) newTeleportClient(ctx context.Context, profileName, le
 	cfg := &client.Config{
 		ClientStore: p.clientStore,
 	}
-	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
 	if leafClusterName != "" {

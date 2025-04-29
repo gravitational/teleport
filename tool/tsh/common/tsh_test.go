@@ -69,6 +69,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/kube"
@@ -266,7 +267,7 @@ func (p *cliModules) IsBoringBinary() bool {
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -908,13 +909,12 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// Create a empty profile so we don't ping proxy.
-	clientStore, err := initClientStore(&conf, conf.Proxy)
-	require.NoError(t, err)
 	profile := &profile.Profile{
 		SSHProxyAddr: "proxy:3023",
 		WebProxyAddr: "proxy:3080",
 	}
-	err = clientStore.SaveProfile(profile, true)
+
+	err = conf.getClientStore().SaveProfile(profile, true)
 	require.NoError(t, err)
 
 	tc, err = makeClient(&conf)
@@ -5995,7 +5995,13 @@ func TestFlatten(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test execution: validate that flattening succeeds if a profile already exists.
-	conf.IdentityFileIn = identityPath
+	conf = CLIConf{
+		Proxy:              proxyAddr.String(),
+		InsecureSkipVerify: true,
+		IdentityFileIn:     identityPath,
+		HomePath:           freshHome,
+		Context:            context.Background(),
+	}
 	require.NoError(t, flattenIdentity(&conf), "unexpected error when overwriting a tsh profile")
 }
 
@@ -6407,13 +6413,11 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		}
 
 		// Create a empty profile so we don't ping proxy.
-		clientStore, err := initClientStore(conf, conf.Proxy)
-		require.NoError(t, err)
 		profile := &profile.Profile{
 			SSHProxyAddr: "proxy:3023",
 			WebProxyAddr: "proxy:3080",
 		}
-		err = clientStore.SaveProfile(profile, true)
+		err := conf.getClientStore().SaveProfile(profile, true)
 		require.NoError(t, err)
 
 		modify(conf)
