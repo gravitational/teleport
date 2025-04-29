@@ -25,7 +25,7 @@ import (
 	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
 
-// NewSlogEventLogHandler creates a new slog handler that writes to Event Log as source.
+// NewSlogEventLogHandler creates a new slog handler that writes to the Windows Event Log as source.
 // Requires registry entries to be set up first, see [eventlogutils.Install] and README in
 // lib/utils/log/eventlog.
 //
