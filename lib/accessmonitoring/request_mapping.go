@@ -55,6 +55,10 @@ func parseAccessRequestExpression(expr string) (accessRequestExpression, error) 
 	return parsedExpr, nil
 }
 
+func NewAccessRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, any], error) {
+	return newRequestConditionParser()
+}
+
 func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, any], error) {
 	typicalEnvVar := map[string]typical.Variable{
 		"true":  true,
