@@ -216,7 +216,8 @@ message ProvisionTokenSpecV2AzureDevops {
   message Rule {
     // Sub also known as Subject is a string that roughly uniquely identifies
     // the workload. Example:
-    // p://my-organization/my-project/my-pipeline
+    // `p://my-organization/my-project/my-pipeline`
+    // Mapped from the `sub` claim.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // The name of the AZDO project. Example:
     // `my-project`.
