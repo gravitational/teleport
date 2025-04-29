@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -28,6 +29,29 @@ const (
 	// VNet config of the cluster doesn't specify any range.
 	DefaultIPv4CIDRRange = "100.64.0.0/10"
 )
+
+// NewVnetConfig initializes a new VNet config resource given the spec.
+func NewVnetConfig(spec *vnet.VnetConfigSpec) (*vnet.VnetConfig, error) {
+	config := &vnet.VnetConfig{
+		Kind:    types.KindVnetConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameVnetConfig,
+		},
+		Spec: spec,
+	}
+
+	if err := ValidateVnetConfig(config); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return config, nil
+}
+
+// DefaultVnetConfig returns the default VNet config.
+func DefaultVnetConfig() (*vnet.VnetConfig, error) {
+	return NewVnetConfig(&vnet.VnetConfigSpec{Ipv4CidrRange: DefaultIPv4CIDRRange})
+}
 
 // ValidateVnetConfig validates the provided VNet config resource.
 func ValidateVnetConfig(vnetConfig *vnet.VnetConfig) error {

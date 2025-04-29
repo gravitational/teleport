@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
@@ -523,6 +524,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
 		defer span.End()
 		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
+	})
+
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
+		defer span.End()
+		return trace.Wrap(initializeVnetConfig(ctx, asrv))
 	})
 
 	g.Go(func() error {
@@ -1054,6 +1061,29 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 
 	asrv.logger.InfoContext(ctx, "Creating access graph settings", "settings", stored)
 	_, err = asrv.CreateAccessGraphSettings(ctx, stored)
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
+
+	return trace.Wrap(err)
+}
+
+func initializeVnetConfig(ctx context.Context, asrv *Server) error {
+	stored, err := asrv.Services.GetVnetConfig(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if stored != nil {
+		return nil
+	}
+
+	defaultConfig, err := vnet.DefaultVnetConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	asrv.logger.InfoContext(ctx, "Creating VNet config", "vnet_config", defaultConfig)
+	_, err = asrv.CreateVnetConfig(ctx, defaultConfig)
 	if trace.IsAlreadyExists(err) {
 		return nil
 	}
