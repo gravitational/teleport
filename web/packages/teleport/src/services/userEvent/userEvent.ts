@@ -21,72 +21,83 @@ import api from 'teleport/services/api';
 
 import {
   CaptureEvent,
+  CreateNewRoleSaveClickEvent,
+  CreateNewRoleSaveClickEventData,
   CtaEvent,
+  CtaEventRequest,
   DiscoverEventRequest,
   FeatureRecommendationEvent,
+  FeatureRecommendationEventRequest,
   IntegrationEnrollEventRequest,
   PreUserEvent,
   UserEvent,
 } from './types';
 
+function captureEvent({
+  event,
+  path = cfg.api.captureUserEventPath,
+}: {
+  event:
+    | UserEvent
+    | PreUserEvent
+    | DiscoverEventRequest
+    | IntegrationEnrollEventRequest
+    | CtaEventRequest
+    | FeatureRecommendationEventRequest
+    | CreateNewRoleSaveClickEvent;
+  path?: string;
+}) {
+  // using api.fetch instead of api.fetchJSON
+  // because we are not expecting a JSON response
+  void api.fetch(path, {
+    method: 'POST',
+    body: JSON.stringify(event),
+  });
+}
+
 export const userEventService = {
-  captureUserEvent(userEvent: UserEvent) {
-    // using api.fetch instead of api.fetchJSON
-    // because we are not expecting a JSON response
-    void api.fetch(cfg.api.captureUserEventPath, {
-      method: 'POST',
-      body: JSON.stringify(userEvent),
-    });
+  captureUserEvent(event: UserEvent) {
+    captureEvent({ event });
   },
 
-  capturePreUserEvent(preUserEvent: PreUserEvent) {
-    // using api.fetch instead of api.fetchJSON
-    // because we are not expecting a JSON response
-    void api.fetch(cfg.api.capturePreUserEventPath, {
-      method: 'POST',
-      body: JSON.stringify({ ...preUserEvent }),
-    });
+  capturePreUserEvent(event: PreUserEvent) {
+    captureEvent({ event, path: cfg.api.capturePreUserEventPath });
   },
 
   captureDiscoverEvent(event: DiscoverEventRequest) {
-    // using api.fetch instead of api.fetchJSON
-    // because we are not expecting a JSON response
-    void api.fetch(cfg.api.captureUserEventPath, {
-      method: 'POST',
-      body: JSON.stringify(event),
-    });
+    captureEvent({ event });
   },
 
   captureIntegrationEnrollEvent(event: IntegrationEnrollEventRequest) {
-    // using api.fetch instead of api.fetchJSON
-    // because we are not expecting a JSON response
-    void api.fetch(cfg.api.captureUserEventPath, {
-      method: 'POST',
-      body: JSON.stringify(event),
-    });
+    captureEvent({ event });
   },
 
-  captureCtaEvent(event: CtaEvent) {
-    // using api.fetch instead of api.fetchJSON
-    // because we are not expecting a JSON response
-    void api.fetch(cfg.api.captureUserEventPath, {
-      method: 'POST',
-      body: JSON.stringify({
+  captureCtaEvent(eventData: CtaEvent) {
+    captureEvent({
+      event: {
         event: CaptureEvent.UiCallToActionClickEvent,
-        eventData: event,
-      }),
+        eventData,
+      },
     });
   },
 
-  captureFeatureRecommendationEvent(event: FeatureRecommendationEvent) {
-    // using api.fetch instead of api.fetchJSON
-    // because we are not expecting a JSON response
-    void api.fetch(cfg.api.captureUserEventPath, {
-      method: 'POST',
-      body: JSON.stringify({
+  captureFeatureRecommendationEvent(eventData: FeatureRecommendationEvent) {
+    captureEvent({
+      event: {
         event: CaptureEvent.FeatureRecommendationEvent,
-        eventData: event,
-      }),
+        eventData,
+      },
+    });
+  },
+
+  captureCreateNewRoleSaveClickEvent(
+    eventData: CreateNewRoleSaveClickEventData
+  ) {
+    captureEvent({
+      event: {
+        event: CaptureEvent.CreateNewRoleSaveClickEvent,
+        eventData,
+      },
     });
   },
 };

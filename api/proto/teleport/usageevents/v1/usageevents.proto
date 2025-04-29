@@ -409,7 +409,12 @@ message UIDiscoverCompletedEvent {
 message UICreateNewRoleClickEvent {}
 
 // UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
-message UICreateNewRoleSaveClickEvent {}
+message UICreateNewRoleSaveClickEvent {
+  bool standard_used = 1;
+  bool yaml_used = 2;
+  string mode_when_saved = 3;
+  repeated string fields_with_conversion_errors = 4;
+}
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleCancelClickEvent {}

@@ -72,6 +72,12 @@ export type StandardEditorModel = {
    */
   isDirty: boolean;
   /**
+   * Indicates if the user interacted with the editor. It's different from
+   * {@link StandardEditorModel.isDirty} by not taking into consideration if
+   * anything changed from the original.
+   */
+  isTouched: boolean;
+  /**
    * Result of validating {@link StandardEditorModel.roleModel}. Can be
    * undefined if there was an unhandled error when converting an existing
    * role.

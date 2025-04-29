@@ -62,7 +62,7 @@ export const AdminRules = memo(function AdminRules({
   dispatch,
 }: SectionPropsWithDispatch<RuleModel[], AdminRuleValidationResult[]>) {
   function addRule() {
-    dispatch({ type: 'add-access-rule' });
+    dispatch({ type: ActionType.AddAdminRule });
   }
   return (
     <Flex flexDirection="column" gap={3}>
