@@ -19,7 +19,6 @@ package desktop
 import (
 	"context"
 	"log/slog"
-	"math/rand/v2"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -83,11 +82,8 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 		}
 		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}
-	rand.Shuffle(len(validServiceIDs), func(i, j int) {
-		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
-	})
 
-	for _, id := range validServiceIDs {
+	for _, id := range utils.ShuffleVisit(validServiceIDs) {
 		conn, err := tryConnect(ctx, id, config)
 		if err != nil && !trace.IsConnectionProblem(err) {
 			return nil, trace.WrapWithMessage(err,
