@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"io"
 
 	"github.com/gravitational/trace"
 
@@ -59,6 +60,11 @@ type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredenti
 // RegisterUsingOracleMethod: It must return a
 // *proto.OracleSignedRequest for a given challenge, or an error.
 type RegisterOracleChallengeResponseFunc func(challenge string) (*proto.OracleSignedRequest, error)
+
+// RegisterUsingBoundKeypairChallengeResponseFunc is a function to be passed to
+// RegisterUsingBoundKeypair. It must return a message containing a signed
+// response for the given challenge, or an error.
+type RegisterUsingBoundKeypairChallengeResponseFunc func(publicKey string, challenge string) (*proto.RegisterUsingBoundKeypairChallengeResponse, error)
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
@@ -260,6 +266,79 @@ func (c *JoinServiceClient) RegisterUsingOracleMethod(
 		return nil, trace.BadParameter("expected certificate response, got %T", certsResp.Response)
 	}
 	return certs, nil
+}
+
+func (c *JoinServiceClient) RegisterUsingBoundKeypairMethod(
+	ctx context.Context,
+	initReq *proto.RegisterUsingBoundKeypairInitialRequest,
+	challengeFunc RegisterUsingBoundKeypairChallengeResponseFunc,
+) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stream, err := c.grpcClient.RegisterUsingBoundKeypairMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer stream.CloseSend()
+
+	err = stream.Send(&proto.RegisterUsingBoundKeypairMethodRequest{
+		Payload: &proto.RegisterUsingBoundKeypairMethodRequest_Init{
+			Init: initReq,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "sending initial request")
+	}
+
+	// Unlike other methods, the server may send multiple challenges,
+	// particularly during keypair rotation. We'll iterate through all responses
+	// here instead to ensure we handle everything.
+	for {
+		res, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, trace.Wrap(err, "receiving intermediate bound keypair join response")
+		}
+
+		switch kind := res.GetResponse().(type) {
+		case *proto.RegisterUsingBoundKeypairMethodResponse_Challenge:
+			solution, err := challengeFunc(kind.Challenge.PublicKey, kind.Challenge.Challenge)
+			if err != nil {
+				return nil, trace.Wrap(err, "solving challenge")
+			}
+
+			err = stream.Send(&proto.RegisterUsingBoundKeypairMethodRequest{
+				Payload: &proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{
+					ChallengeResponse: solution,
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(err, "sending solution")
+			}
+		case *proto.RegisterUsingBoundKeypairMethodResponse_Certs:
+			certs := kind.Certs.GetCerts()
+			if certs == nil {
+				return nil, trace.BadParameter("expected Certs, got %T", kind.Certs.Certs)
+			}
+
+			// If we receive a cert bundle, we can return early. Even if we
+			// logically should have expected to receive a 2nd challenge if we
+			// e.g. requested keypair rotation, skipping it just means the new
+			// keypair won't be stored. That said, we'll rely on the server to
+			// raise an error if rotation fails or is otherwise skipped or not
+			// allowed.
+
+			return certs, nil
+		default:
+			return nil, trace.BadParameter("received unexpected challenge response: %v", res.GetResponse())
+		}
+	}
+
+	// Ideally the server will emit a proper error instead of just hanging up on
+	// us.
+	return nil, trace.AccessDenied("server declined to send certs during bound-keypair join attempt")
 }
 
 // RegisterUsingToken registers the caller using a token and returns signed

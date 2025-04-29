@@ -112,7 +112,7 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 
 	if initReq.JoinRequest.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(
+		certs, _, err := a.generateCertsBot(
 			ctx,
 			ptv2,
 			initReq.JoinRequest,
