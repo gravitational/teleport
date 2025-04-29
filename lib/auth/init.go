@@ -373,6 +373,9 @@ type InitConfig struct {
 
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
+
+	// VnetConfigService manages the VNet config resource.
+	VnetConfigService services.VnetConfigService
 }
 
 // Init instantiates and configures an instance of AuthServer
