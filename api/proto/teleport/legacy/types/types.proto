@@ -8374,7 +8374,7 @@ message TargetHealth {
   string Address = 1 [(gogoproto.jsontag) = "address,omitempty"];
   // Protocol is the health check protocol such as "tcp".
   string Protocol = 2 [(gogoproto.jsontag) = "protocol,omitempty"];
-  // Status is the health status, one of "", "disabled", "initialized", "healthy", "unhealthy".
+  // Status is the health status, one of "", "unknown", "healthy", "unhealthy".
   string Status = 3 [(gogoproto.jsontag) = "status,omitempty"];
   // TransitionTimestamp is the time that the last status transition occurred.
   google.protobuf.Timestamp TransitionTimestamp = 4 [

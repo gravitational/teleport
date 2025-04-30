@@ -22477,7 +22477,7 @@ type TargetHealth struct {
 	Address string `protobuf:"bytes,1,opt,name=Address,proto3" json:"address,omitempty"`
 	// Protocol is the health check protocol such as "tcp".
 	Protocol string `protobuf:"bytes,2,opt,name=Protocol,proto3" json:"protocol,omitempty"`
-	// Status is the health status, one of "", "disabled", "initialized", "healthy", "unhealthy".
+	// Status is the health status, one of "", "unknown", "healthy", "unhealthy".
 	Status string `protobuf:"bytes,3,opt,name=Status,proto3" json:"status,omitempty"`
 	// TransitionTimestamp is the time that the last status transition occurred.
 	TransitionTimestamp *time.Time `protobuf:"bytes,4,opt,name=TransitionTimestamp,proto3,stdtime" json:"transition_timestamp,omitempty"`
