@@ -207,9 +207,11 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}
 
 	var existingToken types.ProvisionToken
-	existingToken, err = clt.GetToken(r.Context(), tokenId)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+	if tokenId != "" {
+		existingToken, err = clt.GetToken(r.Context(), tokenId)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	var expires time.Time
