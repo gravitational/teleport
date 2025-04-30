@@ -62,6 +62,7 @@ export function FieldSelectCreatable<
     <FieldSelectWrapper {...wrapper} {...styles}>
       <SelectCreatable<Opt, IsMulti, Group>
         {...base}
+        {...styles}
         formatCreateLabel={formatCreateLabel}
       />
     </FieldSelectWrapper>

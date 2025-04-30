@@ -58,6 +58,7 @@ export function TraitsEditor({
   configuredTraits,
   setConfiguredTraits,
   tooltipContent,
+  label = 'User Traits',
 }: TraitEditorProps) {
   function handleInputChange(i: InputOption | InputOptionArray) {
     const newTraits = [...configuredTraits];
@@ -104,17 +105,19 @@ export function TraitsEditor({
 
   return (
     <Box>
-      <Flex gap={2} alignItems="center">
-        <Text typography="body3">User Traits</Text>
+      <Flex gap={2} alignItems="center" mb={2}>
+        <Text typography="body3">{label}</Text>
         {tooltipContent && <IconTooltip>{tooltipContent}</IconTooltip>}
       </Flex>
       <Box>
         {configuredTraits.map(({ traitKey, traitValues }, index) => {
           return (
-            <Box mb={-5} key={index}>
-              <Flex alignItems="start" mt={-3}>
-                <Box width="290px" mr={1} mt={4}>
+            <Box mb={-1} key={index}>
+              <Flex alignItems="start">
+                <Box width="290px" mr={1}>
                   <FieldSelectCreatable
+                    classNamePrefix="react-select"
+                    styles={customStyles}
                     data-testid="trait-key"
                     options={traitsPreset.map(r => ({
                       value: r,
@@ -125,10 +128,12 @@ export function TraitsEditor({
                     isSearchable
                     value={traitKey}
                     label="Key"
-                    rule={requiredAll(
-                      requiredField('Trait key is required'),
-                      requireNoDuplicateTraits(configuredTraits)
-                    )}
+                    rule={o =>
+                      requiredAll(
+                        () => requiredField('Trait key is required')(o.value),
+                        requireNoDuplicateTraits(configuredTraits)
+                      )(o)
+                    }
                     onChange={e => {
                       handleInputChange({
                         option: e as Option,
@@ -142,8 +147,9 @@ export function TraitsEditor({
                 </Box>
                 <Box width="400px" ml={3}>
                   <FieldSelectCreatable
+                    classNamePrefix="react-select"
+                    styles={customStyles}
                     data-testid="trait-value"
-                    mt={4}
                     ariaLabel="trait-values"
                     placeholder="Type a trait value and press enter"
                     label="Value"
@@ -167,8 +173,8 @@ export function TraitsEditor({
                 </Box>
                 <ButtonIcon
                   ml={1}
-                  mt={7}
                   size={1}
+                  mt={4}
                   title="Remove Trait"
                   aria-label="Remove Trait"
                   onClick={() => removeTraitPair(index)}
@@ -187,8 +193,7 @@ export function TraitsEditor({
           );
         })}
       </Box>
-
-      <Box mt={5}>
+      <Box mt={1}>
         <ButtonBorder
           onClick={addNewTraitPair}
           css={`
@@ -257,6 +262,7 @@ export type TraitEditorProps = {
   configuredTraits: TraitsOption[];
   isLoading: boolean;
   tooltipContent?: React.ReactNode;
+  label?: string;
 };
 
 export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
@@ -280,3 +286,12 @@ export function traitsToTraitsOption(allTraits: AllUserTraits): TraitsOption[] {
   }
   return newTrait;
 }
+
+const customStyles = {
+  placeholder: base => ({
+    ...base,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }),
+};
