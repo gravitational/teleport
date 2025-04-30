@@ -21,6 +21,7 @@ package cli
 import (
 	"testing"
 
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,4 +63,31 @@ func TestGlobalArgs(t *testing.T) {
 	require.True(t, cfg.Debug)
 	require.True(t, cfg.FIPS)
 	require.True(t, cfg.Insecure)
+}
+
+func TestGlobalInvertedFlags(t *testing.T) {
+	app, _ := buildMinimalKingpinApp("start")
+	globals := NewGlobalArgs(app)
+
+	_, err := app.Parse([]string{
+		"start",
+		"--no-debug",
+		"--no-fips",
+		"--no-insecure",
+		"--config=foo.yaml",
+		"--trace",
+		"--trace-exporter=foo",
+		"--log-format=json",
+	})
+
+	cfg, err := TestConfigWithMutators(&config.BotConfig{
+		Debug:    true,
+		FIPS:     true,
+		Insecure: true,
+	}, globals)
+	require.NoError(t, err)
+
+	require.False(t, cfg.Debug)
+	require.False(t, cfg.FIPS)
+	require.False(t, cfg.Insecure)
 }
