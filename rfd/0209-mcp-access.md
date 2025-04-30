@@ -30,17 +30,30 @@ With Teleport's support for MCP servers, users can:
 - Control access to specific MCP servers and specific tools defined by Teleport roles
 - Track activity through Teleport's audit log
 
+## Scope
+
+Teleport will support stdio-based MCP servers in the initial implementation,
+with [streamable
+HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http))
+and
+[OAuth](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization)
+support planned for future iterations (see the "Future development" section for
+details).
+
 ## Details
 
-To expedite the initial rollout, the first iteration of MCP server support will
-be implemented through App access.
+To expedite the initial rollout, the first iteration will focus on adding MCP
+protocol support for Application Access, similar to existing HTTP and TCP
+applications.
 
 ### UX
 
 #### editor - configure a filesystem MCP server and define RBAC
 To configure a [filesystem MCP
 server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)
-via Teleport app service:
+with `npx` and a [Slack API MCP
+server](https://github.com/modelcontextprotocol/servers/tree/main/src/slack)
+with `docker` via Teleport App service:
 ```yaml
 app_service:
   enabled: true
@@ -50,40 +63,72 @@ app_service:
     labels:
       env: "dev"
     mcp:
+      # Command and arguments to launch a stdio-based MCP server per client connection
+      # on the Teleport service host.
       command: "npx"
       args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/dev/files"]
+      # Specifies the local user account under which the command will be executed.
+      # Required for stdio-based MCP servers.
+      run_as_local_user: "dev"
+
+  - name: "dev-slack-api"
+    description: "Slack API to dev channels"
+    labels:
+      env: "dev"
+    mcp:
+      # Recommend containers for launching stdio-based MCP servers. Use an env file
+      # for passing secrets.
+      command: "docker"
+      args: ["run", "--rm", "--env-file", "/etc/teleport/dev_slack_api_env.list", "-i", "mcp/slack"]
+      run_as_local_user: "docker"
 ```
 
-To create a role for admins that have full access to MCP servers:
+To create a Teleport role for developers that can access only dev MCP servers,
+have read-only filesystem access, and no permission to post Slack messages:
 ```yaml
 kind: role
-version: v7
+version: v8
+metadata:
+  name: dev
+spec:
+  allow:
+    # Labels of the MCP servers to allow access to.
+    app_labels:
+      "env": "dev"
+    mcp:
+      # The name of the MCP tools to allow access to.
+      # The wildcard character '*' matches any sequence of characters.
+      # If the value begins with '^' and ends with '$', it is treated as a regular expression.
+      # This value field also supports variable interpolation.
+      # No tools are allowed if not specified.
+      tools:
+      - search_files
+      - ^(read|list|get)_.*$
+      - slack_*
+      - "{{internal.mcp_tools}}"
+      - "{{external.mcp_tools}}"
+
+  deny:
+    mcp:
+      # The name of the MCP tools to deny access to.
+      # No tools are denied if not specified.
+      # The deny rules always override allow rules.
+      tools:
+      - slack_post_message
+```
+
+To create a role for admins that have full access to MCP servers and tools:
+```yaml
+kind: role
+version: v8
 metadata:
   name: admin
 spec:
   allow:
     app_labels:
       "*": "*"
-```
-
-To create a role for devs that can only access `dev` MCP servers and only have
-read-only access to the filesystem:
-```yaml
-kind: role
-version: v7
-metadata:
-  name: dev
-spec:
-  allow:
-    app_labels:
-      "env": "dev"
-    # The name of the MCP tools to allow access to.
-    # The wildcard character '*' matches any sequence of characters.
-    # If the value begins with '^' and ends with '$', it is treated as a regular expression.
-    mcp_tools:
-    - search_files
-    - get_*
-    - ^(read|list)_.*$
+    mcp:
+      tools: ["*"]
 ```
 
 #### access - configure Claude Desktop to use the MCP server via Teleport
@@ -94,34 +139,34 @@ $ tsh login ...
 ...
 
 $ tsh mcp ls
-Name      Description                 Command Args
---------- --------------------------- ------- ------------------------------------------------
-dev-files Shared files for developers npx     [-y @modelcontextprotocol/server-filesystem ...]
+Name          Description                 Type  Labels
+------------- --------------------------- ----- -------
+dev-files     Shared files for developers stdio env=dev
+dev-slack-api Slack API to dev channels   stdio env=dev
 ```
 
-To show configuration information:
+To configure Claude Desktop:
 ```bash
-$ tsh mcp config dev-files
-Use the following command to connect the "dev-files" MCP server:
-tsh mcp connect dev-files
+$ tsh mcp login --all --format claude
+Logged into Teleport MCP servers:
+- dev-files
+- dev-slack-api
 
-For example, to install it on Claude Desktop, add the following entry to
-"mcpServers" in "claude_desktop_config.json", then restart Claude Desktop:
-{
-  "mcpServers": {
-    "teleport-dev-files": {
-      "command": "tsh",
-      "args": [ "mcp", "connect", "dev-files" ]
-    }
-  }
-}
+Found Claude Desktop configuration at:
+/Users/alice/Library/Application\ Support/Claude/claude_desktop_config.json
 
-Note that when tsh session expires, you may need to restart Claude Desktop after
-logging in a new tsh session.
+Claude Desktop configuration will be updated automatically. Logged in Teleport
+MCP servers will be prefixed with "teleport-" in this configuration.
+
+Run "tsh mcp logout" to remove the configuration from Claude Desktop.
+
+You may need to restart Claude Desktop to reload these new configurations. If
+you encounter a "disconnected" error when tsh session expires, you may also need
+to restart Claude Desktop after logging in a new tsh session.
 ```
 
-After following the instruction, Claude Desktop now shows a list of filesystem
-tools that are from server "teleport-dev-files".
+After restarting Claude Desktop, Claude Desktop now shows a list of tools that
+are from server "teleport-dev-files" and "teleport-dev-slack-api".
 
 <img src="assets/0209-claude-desktop-tools.png" alt="Claude Desktop tools" height="300"/>
 
@@ -196,9 +241,9 @@ MCP server apps.
 A new role option `mcp_tools` is introduced to apply fine-grained control on
 which tools from the MCP server should be allowed. Similar to
 `kubernetes_resources.name`, entries in `mcp_tools` also support glob and regex
-representations to make whitelisting or blacklisting easier. If `mcp_tools` is not
+representations to make whitelisting or blacklisting easier. If `mcp.tools` is not
 specified for a role, all tools are allowed by default. This new option
-`mcp_tools` will be enforced per JSON-RPC `tool/call` call, which will be
+`mcp.tools` will be enforced per JSON-RPC `tool/call` call, which will be
 detailed in the next section.
 
 The procedure to access an MCP server from `tsh` is the same as any other app --
@@ -215,7 +260,8 @@ format](https://modelcontextprotocol.io/specification/2025-03-26) will be
 transferred within this connection.
 
 Since using `stdio`, a `exec.Command` defined by the app definition is executed
-to start an MCP server, for each authorized incoming client connection. Then
+to start an MCP server, for each authorized incoming client connection. The
+execution will be run via the local user specified in `run_as_local_user`. Then
 stdin and stdout are proxied between the client connection and the launched MCP
 server. Stderr from the launched MCP server will be logged at TRACE level in
 Teleport logs.
@@ -234,19 +280,46 @@ The launched MCP server should be stopped once the connection ends.
 
 #### Implementation - "tsh mcp" commands
 
-A suite of `tsh mcp` commands are added on the client side:
-- `tsh mcp ls`: lists MCP server apps, with slightly different columns from `tsh
-  app ls`.
-- `tsh mcp connect`: command to be called by the AI tool to launch an MCP server
-  through Teleport. User cert with `route_to_app` is automatically obtained if
-  the app hasn't been logged in yet. stdin and stdout of this process are
-  proxied to Teleport backend. Any local tsh logs are sent to stderr.
-- `tsh mcp config`: shows a sample JSON configuration that launches the MCP
-  server with `tsh mcp connect` for Claude Desktop. (Most AI tools use the same
-  JSON format as well.)
-- `tsh mcp db`: command to be called by the AI tool to launch a local MCP server
-  that provides a database query tool through Teleport Database access. This
-  feature is outside this RFD but shares the same `tsh mcp` root.
+A suite of `tsh mcp` commands are added on the client side.
+
+Command `tsh mcp ls` lists MCP server apps:
+- Have slightly different columns from `tsh app ls`: `Name`, `Description`,
+  `Type`, and `Labels`.
+- Only supported `Type` is `stdio` for now. `HTTP` may come in the future.
+- `--verbose` flag enables outputting more columns like `Command`, `Args`,
+  `Allowed Tools`.
+- `--format json/yaml` is supported similar to other list commands.
+
+Command `tsh mcp login` deals with client configurations in addition to
+getting the app certificate:
+- Intake a list of MCP app names or `--all` to select all MCP servers.
+- If `--format json` is specified, print the common [`mcpServers` JSON
+  object](https://modelcontextprotocol.io/quickstart/user#mac-os-linux) that
+  includes the MCP servers getting logged it.
+- If `--format claude` is specified, detect if Claude Desktop is installed and
+  update the configuration automatically. If Claude Desktop configuration is not
+  found, treat it as `--format json`.
+- If `--format` is not specified, auto-detect which AI tools are installed (just
+  Claude Desktop for now) then prompt to update the config automatically.
+- Per selected MCP app, add an MCP server with name `teleport-<mcp-app-name>`
+  and with command `tsh mcp connect <mcp-app-name>` to the configuration.
+
+Command `tsh mcp logout` removes Teleport MCP servers from client configurations
+in addition to removing the app certificates:
+- Intake a list of MCP app names or `--all` to select all MCP servers.
+- `--format claude` for Claude Desktop, which is also the default if `--format`
+  is not set.
+
+Command  `tsh mcp connect` is called by the AI tool to launch an MCP server
+through Teleport:
+- User cert with `route_to_app` is automatically obtained if the app hasn't been
+  logged in yet.
+- stdin and stdout of this process are proxied to Teleport backend.
+- Any local tsh logs are sent to stderr.
+
+Command `tsh mcp db` is called by the AI tool to launch a local MCP server that
+provides a database query tool through Teleport Database access. This feature is
+outside this RFD but shares the same `tsh mcp` root.
 
 #### Compatibility with App access
 
@@ -256,16 +329,18 @@ functionalities and how they align with it:
   apps, MCP servers cannot be "launched" through Web UI, and clicking "Connect"
   button opens a dialog with `tsh` instructions.
 - VNet: not supported.
-- Per-session MFA: not supported.
+- Per-session MFA: not supported. (Dependency on Tray app or MCP access support
+  in Teleport Connect)
 - Access Request: supported.
-- Dynamic registration: supported.
+- Dynamic registration: supported but requires new role option rules on new
+  resource kind `mcp_server`.
 - Audit events: will generate `cert.create` event when cert is requested, but no
   `app.session.start` event.
 - `tsh`:
-  - `tsh app ls`: will be listed with `MCP` as the type.
-  - `tsh app login`: supported, but not necessary.
-  - `tsh app logout`: supported, but why.
-  - `tsh app config`: not supported, redirect user to `tsh mcp config`.
+  - `tsh app ls`: will be listed with `MCP (stdio)` as the type.
+  - `tsh app login`: internally calls `tsh mcp login`.
+  - `tsh app logout`: internally calls `tsh mcp logout`
+  - `tsh app config`: not supported.
   - `tsh proxy app`: not supported.
 
 #### Usage reporting
@@ -278,56 +353,64 @@ counted as regular `app_sessions` for user activity temporarily until new
 ### Security
 
 Transport and auth wise, this feature is mostly the same with existing TCP
-access with the addition of the new role option `mcp_tools`.
+access with the addition of the new role option `mcp.tools`.
 
 One potential concern is that the App service executes an arbitrary 3rd party
-command for each MCP session. However, since only Teleport administrators can
-configure these commands, we assume they will be safe and valid MCP server
-commands. This pattern isn't new though: `dynamic_labels` also demands the
-Teleport service to run arbitrary commands.
+command for each MCP session. To mitigate this, `run_as_local_user` is required
+when launching stdio-based MCP servers, allowing administrators to restrict the
+permissions and scope of the designated local user. Administrators can also run
+Docker commands to launch MCP servers within isolated containers. This is done
+today by configuring `docker` command, but in the future we could provide a
+dedicated docker section in the definition and use Docker APIs to launch the
+containers. Alternatively, once support for HTTP-based MCP servers is added, we
+can move away from stdio-based MCP servers.
 
-### Future improvements
+## Future Development
 
 One key improvement that can be done is to move MCP servers to a standalone
 service, instead of relying on the App service, to support potential future
-expansion. Additional enhancements, listed below in no particular order, were
-not included in the initial implementation.
+expansion.
 
-#### Improvement - environment variable support
+Additional enhancements have been organized into two categories: "Phase 2", which
+includes near-term improvements planned immediately after the initial iteration,
+and "Other Improvements" which capture longer-term or lower-priority ideas.
 
-Many MCP servers require extra environment variables to run. For example, the
-[Slack](https://github.com/modelcontextprotocol/servers/tree/main/src/slack) MCP
-server requires `SLACK_BOT_TOKEN` and a few other environment variables.
+### Phase 2 - HTTP-based MCP servers
 
-The initial implementation will not support specifying environment variables in
-the app definition as it might become a security concern when secrets like
-`SLACK_BOT_TOKEN` are saved in the app definition.
+[Streamable HTTP
+transport](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)
+is introduced in spec 2025-03-26 replacing the "HTTP with SSE" transport. Many
+MCP servers has added streamable HTTP transport support like the [Everything MCP
+server](https://github.com/modelcontextprotocol/servers/blob/main/src/everything/README.md).
+Stdio-based MCP servers can also be easily converted to use streamable HTTP
+transport with help of converters like
+[mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
 
-Users can still work around this limitation by setting these environment
-variables when running the Teleport process, since launching the MCP server will
-inherit the Teleport process's environment by default.
+Teleport should add support for MCP servers with streamable HTTP transport and
+favor it over stdio:
+- HTTP-based servers operate as a single persistent service instead of requiring
+  a new subprocess for each client session.
+- HTTP-based servers can be hosted and secured independently of the Teleport
+  process, allowing use of containers, secret stores, and other security
+  measures.
 
-#### Improvement - "tools/list" filtering
+Here is a sample config that connects to an HTTP-based MCP server:
+```yaml
+app_service:
+  enabled: true
+  apps:
+    - name: "everything"
+      uri: "mcp+http://localhost:3001/mcp"
+```
 
-The initial implementation can deny access to specific tools through
-"tools/call". However, users can still see all available tools from the MCP
-server, including the ones they don't have access to.
+`tsh mcp connect` by default serves stdio transport to the AI client tool but
+translates stdio to streamable HTTP before sending it to Teleport backend.
 
-Ideally, the response of "tools/list" should be filtered so only allowed tools
-are present. However, supporting this filter requires a more complex server
-implementation and a lot driver refactoring. Special handling on
-"notifications/tools/list_changed" may also be necessary.
+The MCP server handler on the App service will run an in-memory HTTP server that
+handles the MCP protocol before forwarding the requests to the URI specified in
+the App definition.
 
-#### Improvement - AI tool config handling
-
-`tsh mcp config` currently only shows a sample config for Claude Desktop. A
-better UX would be providing flags/sub commands to automatically detect and
-update the config directly, even prompting for restart of the Claude Desktop.
-
-In addition, other AI tools like Cursor, Zed, etc. can also be added for
-support.
-
-#### Improvement - expired tsh session handling
+### Phase 2 - expired tsh session handling
 
 MCP server errors are permanent in Claude Desktop. When `tsh` session expires,
 the user has to run `tsh login` then restart Claude Desktop.
@@ -342,18 +425,86 @@ JSON-RPC server does NOT need to understand/implement the full MCP protocol as
 it only forwards the protocol to backend when things are good and rejects the
 request with hint when `tsh` session expires.
 
-#### Improvement - non-stdio transports
+### Phase 2 - "tools/list" filtering
 
-Besides stdio as the transport of choice, MCP spec also outlines [streamable
-HTTP
-transport](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)
-and the possibility of custom transports. Support to non-stdio transports can be
-added to Teleport when they are more widely used, (or when they make more sense
-than stdio which requires launching a new subprocess).
+The initial implementation can deny access to specific tools through
+"tools/call". However, users can still see all available tools from the MCP
+server, including the ones they don't have access to.
 
-#### Improvement - Machine ID integration
+Ideally, the response of "tools/list" should be filtered so only allowed tools
+are present. However, supporting this filter requires a more complex server
+implementation and a lot driver refactoring. Special handling on
+"notifications/tools/list_changed" may also be necessary.
+
+### Other improvements - RBAC on resources and prompts
+
+Currently, MCP protocol supports three primitives: resources, tools, and
+prompts. We can extend `role.allow.mcp` for primitives other than tools:
+
+```yaml
+allow:
+  mcp:
+    tools:
+    - "*"
+    resources:
+    - "file:///var/log/*"
+    prompts:
+    - "code_review"
+```
+
+Note that both resources and prompts support
+[Completion](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/completion),
+which might also need some handling.
+
+### Other improvements - OAuth support
+
+Teleport can support [OAuth
+authorization](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization)
+between Teleport service and the MCP servers using the "Client Credentials"
+grant type. Client ID and secrets can potentially be saved as integration
+credentials.
+
+However, the OAuth support has a dependency on non-stdio transport. More
+importantly, we should monitor adoption trends to determine whether OAuth
+support is necessary.
+
+### Other Improvements - more AI tools support
+
+`tsh mcp login` currently only supports Claude Desktop. We should add support
+for other AI tools like VS Code Copilot, Cursor, Zed, etc.
+
+### Other Improvements - Machine ID integration
 
 Many AI agent SDKs like
 [OpenAI](https://openai.github.io/openai-agents-python/mcp/) have MCP support,
 so it would be great to have native `tbot` support to connect MCP servers
 through Teleport.
+
+### Other Improvements - Docker/K8s runtime
+
+Support for launching stdio-based MCP servers in containers via Docker or
+Kubernetes APIs is desirable. While the current implementation allows setting
+docker as the command with the necessary arguments, relying on `os/exec` is
+suboptimal. A more robust and secure approach would involve integrating directly
+with container runtimes or orchestration APIs without spawning subprocesses via
+`os/exec`.
+
+### Other Improvements - Teleport Connect
+
+Add MCP access support in Teleport Connect to provide a more user-friendly GUI
+experience compared to CLI/tsh.
+
+### Other Improvements - environment variable support
+
+Many MCP servers require extra environment variables to run. For example, the
+[Slack](https://github.com/modelcontextprotocol/servers/tree/main/src/slack) MCP
+server requires `SLACK_BOT_TOKEN` and a few other environment variables.
+
+The initial implementation will not support specifying environment variables in
+the app definition as it might become a security concern when secrets like
+`SLACK_BOT_TOKEN` are saved in the app definition.
+
+One workaround today is to launch the MCP server using Docker and specify the
+environment variables through an env file. Alternatively, users can set these
+environment variables when starting the Teleport process, since the MCP server
+inherits the Teleport process’s environment by default.
