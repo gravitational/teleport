@@ -121,6 +121,9 @@ const (
 	// AWSRACATLS represents the TLS key for the AWS IAM Roles Anywhere CA.
 	AWSRACATLS
 
+	// RecordingEncryption is a key used for encrypting session recordings.
+	RecordingEncryption
+
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -194,9 +197,10 @@ var (
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
 		// EC2InstanceConnect has always used Ed25519 by default.
-		EC2InstanceConnect: Ed25519,
-		GitClient:          Ed25519,
-		AWSRACATLS:         ECDSAP256,
+		EC2InstanceConnect:  Ed25519,
+		GitClient:           Ed25519,
+		AWSRACATLS:          ECDSAP256,
+		RecordingEncryption: RSA2048,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -229,6 +233,7 @@ var (
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
 		AWSRACATLS:              ECDSAP256,
+		RecordingEncryption:     RSA2048,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -262,6 +267,7 @@ var (
 		EC2InstanceConnect:      ECDSAP256,
 		GitClient:               ECDSAP256,
 		AWSRACATLS:              ECDSAP256,
+		RecordingEncryption:     RSA2048,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -297,6 +303,7 @@ var (
 		EC2InstanceConnect:      Ed25519,
 		GitClient:               Ed25519,
 		AWSRACATLS:              ECDSAP256,
+		RecordingEncryption:     RSA2048,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{
@@ -441,6 +448,15 @@ func GenerateKeyWithAlgorithm(alg Algorithm) (crypto.Signer, error) {
 		return generateECDSAP256()
 	case Ed25519:
 		return generateEd25519()
+	default:
+		return nil, trace.BadParameter("unsupported key algorithm %v", alg)
+	}
+}
+
+func GenerateDecrypterWithAlgorithm(alg Algorithm) (crypto.Decrypter, error) {
+	switch alg {
+	case RSA2048:
+		return generateRSA2048()
 	default:
 		return nil, trace.BadParameter("unsupported key algorithm %v", alg)
 	}
