@@ -86,20 +86,16 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 
 	for _, id := range utils.ShuffleVisit(validServiceIDs) {
 		conn, err := tryConnect(ctx, id, config)
-		if err != nil && !trace.IsConnectionProblem(err) {
-			return nil, trace.WrapWithMessage(err,
-				"error connecting to windows_desktop_service %q", id)
-		}
-		if trace.IsConnectionProblem(err) {
-			config.Log.WarnContext(ctx, "failed to connect to windows_desktop_service",
-				"windows_desktop_service_id", id,
-				"error", err,
-			)
-			continue
-		}
 		if err == nil {
 			return conn, nil
 		}
+		if !trace.IsConnectionProblem(err) {
+			return nil, trace.WrapWithMessage(err, "error connecting to windows_desktop_service %q", id)
+		}
+		config.Log.WarnContext(ctx, "failed to connect to windows_desktop_service",
+			"windows_desktop_service_id", id,
+			"error", err,
+		)
 	}
 	return nil, trace.Errorf("failed to connect to any windows_desktop_service")
 }
