@@ -21,6 +21,8 @@ package keystore
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
+	"io"
 
 	"github.com/gravitational/trace"
 
@@ -56,18 +58,19 @@ func (s *softwareKeyStore) keyTypeDescription() string {
 	return "raw software keys"
 }
 
-// generateRSA creates a new private key and returns its identifier and a crypto.Signer. The returned
+// generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getSigner later to get
 // an equivalent crypto.Signer.
-func (s *softwareKeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+func (s *softwareKeyStore) generateSigner(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	if alg == cryptosuites.RSA2048 && s.rsaKeyPairSource != nil {
 		privateKeyPEM, _, err := s.rsaKeyPairSource()
 		if err != nil {
 			return nil, nil, err
 		}
-		signer, err := keys.ParsePrivateKey(privateKeyPEM)
-		return privateKeyPEM, signer, trace.Wrap(err)
+		privateKey, err := keys.ParsePrivateKey(privateKeyPEM)
+		return privateKeyPEM, privateKey, trace.Wrap(err)
 	}
+
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
 	if err != nil {
 		return nil, nil, err
@@ -76,14 +79,88 @@ func (s *softwareKeyStore) generateKey(ctx context.Context, alg cryptosuites.Alg
 	return privateKeyPEM, signer, trace.Wrap(err)
 }
 
+// softwareDecrypter captures and supplies the default opts that should be provided
+// at decryption time for convenience
+type softwareDecrypter struct {
+	crypto.Decrypter
+	opts crypto.DecrypterOpts
+}
+
+func (d softwareDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.DecrypterOpts) ([]byte, error) {
+	if opts == nil {
+		opts = d.opts
+	}
+
+	plaintext, err := d.Decrypter.Decrypt(rand, ciphertext, opts)
+	return plaintext, trace.Wrap(err)
+}
+
+// generateDecrypter creates a new private key and returns its identifier and a [crypto.Decrypter]. The returned
+// identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getDecrypter later to get
+// an equivalent crypto.Decrypter.
+func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, error) {
+	key, err := cryptosuites.GenerateDecrypterWithAlgorithm(alg)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	decrypter := softwareDecrypter{
+		Decrypter: key,
+	}
+
+	if alg == cryptosuites.RSA2048 {
+		decrypter.opts = &rsa.OAEPOptions{
+			Hash: crypto.SHA256,
+		}
+	}
+
+	privateKeyPEM, err := keys.MarshalDecrypter(key)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return privateKeyPEM, decrypter, trace.Wrap(err)
+}
+
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
 func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	return keys.ParsePrivateKey(rawKey)
 }
 
+// getDecrypter returns a crypto.Decrypter for the given pem-encoded private key.
+func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Decrypter, error) {
+	privateKey, err := keys.ParsePrivateKey(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	decrypter, ok := privateKey.Signer.(crypto.Decrypter)
+	if !ok {
+		return nil, trace.Errorf("unsupported encryption key type %T", privateKey.Signer)
+	}
+
+	return softwareDecrypter{
+		Decrypter: decrypter,
+		opts:      &rsa.OAEPOptions{Hash: crypto.SHA256},
+	}, nil
+}
+
 // canSignWithKey returns true if the given key is a raw key.
 func (s *softwareKeyStore) canSignWithKey(ctx context.Context, _ []byte, keyType types.PrivateKeyType) (bool, error) {
 	return keyType == types.PrivateKeyType_RAW, nil
+}
+
+// canDecryptWithKey returns true if the given key is a raw key.
+func (s *softwareKeyStore) canDecryptWithKey(ctx context.Context, rawKey []byte, keyType types.PrivateKeyType) (bool, error) {
+	if keyType != types.PrivateKeyType_RAW {
+		return false, nil
+	}
+
+	if _, err := s.getDecrypter(ctx, rawKey, nil); err != nil {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // deleteKey is a no-op for softwareKeyStore because the keys are not actually
