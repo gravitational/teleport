@@ -122,9 +122,9 @@ func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {
 	return keyID{}, trace.AlreadyExists("failed to find unused CKA_ID for HSM")
 }
 
-// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
+// generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	// The key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
 	select {
@@ -166,7 +166,48 @@ func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algor
 	}
 }
 
-func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto.Signer, error) {
+// generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
+// identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
+func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, error) {
+	// The key identifiers are not created in a thread safe
+	// manner so all calls are serialized to prevent races.
+	select {
+	case p.semaphore <- struct{}{}:
+	case <-ctx.Done():
+		return nil, nil, trace.Wrap(ctx.Err())
+	}
+	defer func() {
+		<-p.semaphore
+	}()
+
+	id, err := p.findUnusedID(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	rawTeleportID, err := id.marshal()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	rawPKCS11ID, err := id.pkcs11Key(p.isYubiHSM)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	p.log.InfoContext(ctx, "Creating new HSM keypair.", "id", id, "algorithm", alg.String())
+
+	label := []byte(p.hostUUID)
+	switch alg {
+	case cryptosuites.RSA2048:
+		decrypter, err := p.generateRSA2048(rawPKCS11ID, label)
+		return rawTeleportID, decrypter, trace.Wrap(err, "generating RSA2048 key")
+	default:
+		return nil, nil, trace.BadParameter("unsupported key algorithm for PKCS#11 HSM decryption: %v", alg)
+	}
+}
+
+func (p *pkcs11KeyStore) generateRSA2048(ckaID, label []byte) (crypto11.SignerDecrypter, error) {
 	signer, err := p.ctx.GenerateRSAKeyPairWithLabel(ckaID, label, constants.RSAKeySize)
 	return signer, trace.Wrap(err)
 }
@@ -179,6 +220,20 @@ func (p *pkcs11KeyStore) generateECDSAP256(ckaID, label []byte) (crypto.Signer, 
 // getSigner returns a crypto.Signer for the given key identifier, if it is found.
 func (p *pkcs11KeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	return p.getSignerWithoutPublicKey(ctx, rawKey)
+}
+
+// getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
+func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Decrypter, error) {
+	signer, err := p.getSignerWithoutPublicKey(ctx, rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if decrypter, ok := signer.(crypto.Decrypter); ok {
+		return decrypter, nil
+	}
+
+	return nil, trace.BadParameter("pkcs11 key does not support decryption")
 }
 
 func (p *pkcs11KeyStore) getSignerWithoutPublicKey(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
@@ -218,6 +273,23 @@ func (p *pkcs11KeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	return keyID.HostID == p.hostUUID, nil
+}
+
+// canDecryptWithKey returns true if the given key is PKCS11 and was created by
+// this host. If the HSM is disconnected or the key material has been deleted
+// the error will not be detected here but when the first signature is
+// attempted.
+func (p *pkcs11KeyStore) canDecryptWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
+	if keyType != types.PrivateKeyType_PKCS11 {
+		return false, nil
+	}
+	keyID, err := parsePKCS11KeyID(raw)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// TODO (eriktate): verify this key can actually decrypt things
 	return keyID.HostID == p.hostUUID, nil
 }
 
