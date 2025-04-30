@@ -54,10 +54,11 @@ import (
 const (
 	keystoreSubsystem = "keystore"
 
-	labelKeyType = "key_type"
-	keyTypeTLS   = "tls"
-	keyTypeSSH   = "ssh"
-	keyTypeJWT   = "jwt"
+	labelKeyType      = "key_type"
+	keyTypeTLS        = "tls"
+	keyTypeSSH        = "ssh"
+	keyTypeJWT        = "jwt"
+	keyTypeEncryption = "enc"
 
 	labelStoreType = "store_type"
 	storePKCS11    = "pkcs11"
@@ -80,6 +81,18 @@ var (
 		Subsystem: keystoreSubsystem,
 		Name:      "sign_requests_error",
 		Help:      "Total number of sign request errors",
+	}, []string{labelKeyType, labelStoreType})
+	decryptCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: keystoreSubsystem,
+		Name:      "decrypt_requests_total",
+		Help:      "Total number of decrypt requests",
+	}, []string{labelKeyType, labelStoreType})
+	decryptErrorCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: keystoreSubsystem,
+		Name:      "decrypt_requests_error",
+		Help:      "Total number of decrypt request errors",
 	}, []string{labelKeyType, labelStoreType})
 	createCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
@@ -107,25 +120,43 @@ type Manager struct {
 	// the first element.
 	usableSigningBackends []backend
 
+	// usableDecryptionBackends is a list of all backends the manager can get
+	// decrypters from, in preference order. [backendForNewKeys] is expected to be
+	// the first element.
+	usableDecryptionBackends []backend
+
 	currentSuiteGetter cryptosuites.GetSuiteFunc
 	logger             *slog.Logger
 }
 
-// backend is an interface that holds private keys and provides signing
+// backend is an interface that holds private keys and provides signing and decryption
 // operations.
 type backend interface {
-	// generateRSA creates a new key pair and returns its identifier and a crypto.Signer. The returned
+	// generateSigner creates a new key pair and returns its identifier and a crypto.Signer. The returned
 	// identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-	generateKey(context.Context, cryptosuites.Algorithm) (keyID []byte, signer crypto.Signer, err error)
+	generateSigner(context.Context, cryptosuites.Algorithm) (keyID []byte, signer crypto.Signer, err error)
+
+	// generateDecrypter creates a new key pair and returns its identifier and a crypto.Decrypter. The returned
+	// identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
+	generateDecrypter(context.Context, cryptosuites.Algorithm) (keyID []byte, decrypter crypto.Decrypter, err error)
 
 	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
 	// The public key is passed as well so that it does not need to be fetched
 	// from the underlying backend, and it is always stored in the CA anyway.
 	getSigner(ctx context.Context, keyID []byte, pub crypto.PublicKey) (crypto.Signer, error)
 
+	// getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
+	// The public key is passed as well so that it does not need to be fetched
+	// from the underlying backend.
+	getDecrypter(ctx context.Context, keyID []byte, pub crypto.PublicKey) (crypto.Decrypter, error)
+
 	// canSignWithKey returns true if this backend is able to sign with the
 	// given key.
 	canSignWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error)
+
+	// canDecryptWithKey returns true if this backend is able to decrypt with the
+	// given key.
+	canDecryptWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error)
 
 	// deleteKey deletes the given key from the backend.
 	deleteKey(ctx context.Context, keyID []byte) error
@@ -200,6 +231,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	softwareBackend := newSoftwareKeyStore(&softwareConfig{})
 	var backendForNewKeys backend = softwareBackend
 	usableSigningBackends := []backend{softwareBackend}
+	usableDecryptionBackends := []backend{softwareBackend}
 
 	switch {
 	case cfg.PKCS11 != (servicecfg.PKCS11Config{}):
@@ -209,6 +241,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		}
 		backendForNewKeys = pkcs11Backend
 		usableSigningBackends = []backend{pkcs11Backend, softwareBackend}
+		usableDecryptionBackends = []backend{pkcs11Backend, softwareBackend}
 	case cfg.GCPKMS != (servicecfg.GCPKMSConfig{}):
 		gcpBackend, err := newGCPKMSKeyStore(ctx, &cfg.GCPKMS, opts)
 		if err != nil {
@@ -216,6 +249,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		}
 		backendForNewKeys = gcpBackend
 		usableSigningBackends = []backend{gcpBackend, softwareBackend}
+		usableDecryptionBackends = []backend{gcpBackend, softwareBackend}
 	case cfg.AWSKMS != nil:
 		awsBackend, err := newAWSKMSKeystore(ctx, cfg.AWSKMS, opts)
 		if err != nil {
@@ -223,13 +257,15 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		}
 		backendForNewKeys = awsBackend
 		usableSigningBackends = []backend{awsBackend, softwareBackend}
+		usableDecryptionBackends = []backend{awsBackend, softwareBackend}
 	}
 
 	return &Manager{
-		backendForNewKeys:     backendForNewKeys,
-		usableSigningBackends: usableSigningBackends,
-		currentSuiteGetter:    cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
-		logger:                opts.Logger,
+		backendForNewKeys:        backendForNewKeys,
+		usableSigningBackends:    usableSigningBackends,
+		usableDecryptionBackends: usableDecryptionBackends,
+		currentSuiteGetter:       cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
+		logger:                   opts.Logger,
 	}, nil
 }
 
@@ -247,6 +283,23 @@ func (s *cryptoCountSigner) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		return nil, trace.Wrap(err)
 	}
 	return sig, nil
+}
+
+type cryptoCountDecrypter struct {
+	crypto.Decrypter
+	keyType string
+	store   string
+}
+
+func (d *cryptoCountDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.DecrypterOpts) ([]byte, error) {
+	decryptCounter.WithLabelValues(d.keyType, d.store).Inc()
+	plaintext, err := d.Decrypter.Decrypt(rand, ciphertext, opts)
+	if err != nil {
+		decryptErrorCounter.WithLabelValues(d.keyType, d.store).Inc()
+		return nil, trace.Wrap(err)
+	}
+
+	return plaintext, nil
 }
 
 // GetSSHSigner selects a usable SSH keypair from the given CA ActiveKeys and
@@ -456,6 +509,33 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 	return nil, trace.NotFound("no usable JWT key pairs found")
 }
 
+// GetDecrypter returns the [crypto.Decrypter] associated with a given EncryptionKeyPair if accessible.
+func (m *Manager) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKeyPair) (crypto.Decrypter, error) {
+	for _, backend := range m.usableDecryptionBackends {
+		canDecrypt, err := backend.canDecryptWithKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !canDecrypt {
+			continue
+		}
+		pub, err := keys.ParsePublicKey(keyPair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		decrypter, err := backend.getDecrypter(ctx, keyPair.PrivateKey, pub)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &cryptoCountDecrypter{Decrypter: decrypter, keyType: keyTypeEncryption, store: backend.name()}, nil
+	}
+
+	return nil, trace.NotFound("no compatible backend found for keypair")
+}
+
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
 func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
 	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
@@ -472,7 +552,7 @@ func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 }
 
 func (m *Manager) newSSHKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.SSHKeyPair, error) {
-	sshKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
+	sshKey, signer, err := m.backendForNewKeys.generateSigner(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -503,7 +583,7 @@ func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose
 }
 
 func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cryptosuites.Algorithm) (*types.TLSKeyPair, error) {
-	tlsKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
+	tlsKey, signer, err := m.backendForNewKeys.generateSigner(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -562,7 +642,7 @@ func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 }
 
 func (m *Manager) newJWTKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.JWTKeyPair, error) {
-	jwtKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
+	jwtKey, signer, err := m.backendForNewKeys.generateSigner(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -574,6 +654,39 @@ func (m *Manager) newJWTKeyPair(ctx context.Context, alg cryptosuites.Algorithm)
 		PublicKey:      publicKey,
 		PrivateKey:     jwtKey,
 		PrivateKeyType: keyType(jwtKey),
+	}, nil
+}
+
+// NewEncryptionKeyPair creates and returns a new encryption keypair.
+func (m *Manager) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.EncryptionKeyPair, error) {
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createCounter.WithLabelValues(keyTypeEncryption, m.backendForNewKeys.name(), alg.String()).Inc()
+	key, err := m.newEncryptionKeyPair(ctx, alg)
+	if err != nil {
+		createErrorCounter.WithLabelValues(keyTypeEncryption, m.backendForNewKeys.name(), alg.String()).Inc()
+		return nil, trace.Wrap(err)
+	}
+	return key, nil
+}
+
+func (m *Manager) newEncryptionKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.EncryptionKeyPair, error) {
+	encKey, decrypter, err := m.backendForNewKeys.generateDecrypter(ctx, alg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	publicKey, err := keys.MarshalPublicKey(decrypter.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.EncryptionKeyPair{
+		PublicKey:      publicKey,
+		PrivateKey:     encKey,
+		PrivateKeyType: keyType(encKey),
 	}, nil
 }
 

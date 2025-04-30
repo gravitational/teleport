@@ -1232,6 +1232,40 @@ message JWTKeyPair {
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
 }
 
+// EncryptionKeyPair is a keypair used for encrypting and decrypting data.
+message EncryptionKeyPair {
+  // PublicKey is the public encryption key.
+  bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
+  // PrivateKey is the private decryption key.
+  bytes PrivateKey = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
+  // PrivateKeyType is the type of the PrivateKey.
+  PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+}
+
+// WrappedKey wraps a PrivateKey using an asymmetric keypair.
+message WrappedKey {
+  // wrapping_pair is the asymmetric keypair used to wrap the private key.
+  // Expected to be RSA
+  EncryptionKeyPair wrapping_pair = 1;
+  // wrapped_pair is the asymmetric keypair whose private key is being wrapped
+  // by the WrappingPair. Expected to be X25519.
+  EncryptionKeyPair wrapped_pair = 2;
+  // rotate signals that this WrappedKey should be rotated.
+  bool rotate = 3 [(gogoproto.jsontag) = "rotate"];
+}
+
+// EncryptionKeySet contains the list of active and rotated WrappedKeys for a
+// given usage.
+message EncryptionKeySet {
+  // ActiveKeys is a list of active, wrapped X25519 private keys. There should
+  // be at most one wrapped key per auth server using the
+  // SessionRecordingConfigV2 resource unless keys are being rotated.
+  repeated WrappedKey active_keys = 1 [(gogoproto.jsontag) = "active_keys"];
+  // RotatedKeys is a list of wrapped private keys that have been rotated.
+  // These are kept to decrypt historical encrypted session recordings.
+  repeated WrappedKey rotated_keys = 2 [(gogoproto.jsontag) = "rotated_keys"];
+}
+
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
 message CertAuthorityV2 {
   option (gogoproto.goproto_stringer) = false;
