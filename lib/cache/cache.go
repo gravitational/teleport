@@ -45,7 +45,6 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -535,7 +534,6 @@ type Cache struct {
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
-	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
@@ -994,12 +992,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	notificationsCache, err := local.NewNotificationsService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	accessMonitoringRuleCache, err := local.NewAccessMonitoringRulesService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1106,7 +1098,6 @@ func New(config Config) (*Cache, error) {
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
 		databaseObjectsCache:         databaseObjectsCache,
-		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
@@ -2942,36 +2933,6 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	}
 	defer rg.Release()
 	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
-}
-
-// ListUserNotifications returns a paginated list of user-specific notifications for all users.
-func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListUserNotifications")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userNotifications)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	defer rg.Release()
-
-	out, nextKey, err := rg.reader.ListUserNotifications(ctx, pageSize, startKey)
-	return out, nextKey, trace.Wrap(err)
-}
-
-// ListGlobalNotifications returns a paginated list of global notifications.
-func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListGlobalNotifications")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.globalNotifications)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	out, nextKey, err := rg.reader.ListGlobalNotifications(ctx, pageSize, startKey)
-	return out, nextKey, trace.Wrap(err)
 }
 
 // ListAccessMonitoringRules returns a paginated list of access monitoring rules.
