@@ -1162,7 +1162,7 @@ func (m *RegisterUsingBoundKeypairChallengeResponse) GetSolution() []byte {
 }
 
 // RegisterUsingBoundKeypairRotationResponse is the response sent from the
-// client containing
+// client containing the new public key.
 type RegisterUsingBoundKeypairRotationResponse struct {
 	// The public key to be registered with auth. Clients should expect a
 	// subsequent challenge against this public key to be sent. This is encoded in

@@ -1231,22 +1231,22 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						"joining": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"insecure": {
-									Description: "Insecure is an optional flag that enables insecure joining and rejoining. This method disables generation counter checks during joining and rejoining. When combined with the `unlimited` flag, this allows unlimited reuse of this token provided the client has access to the keypair. This may be useful in certain cases - like use in unsupported CI/CD providers - but cannot offer the same security assurances and should be used with care.",
+									Description: "Insecure is an optional flag that enables insecure joining and rejoining. When set, join state verification and generation counter checks are disabled, allowing an arbitrary number of \"initial\" joins. When combined with the `unlimited` flag, this allows unlimited reuse of this token provided the client has access to the keypair. This may be useful in certain cases - like use in unsupported CI/CD providers - but cannot offer the same security assurances. This flag should be used with care, and RBAC rules should heavily restrict which resources this identity can access.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"may_join_until": {
-									Description: "MayJoinUntil is an optional timestamp before which all joining attempts must occur. If unset, there are no time constraints on joining attempts. Note that clients may continue to renew their identities past this timestamp; a lock should be created if continued access should be cut off.",
+									Description: "MayJoinUntil is an optional timestamp before which all joining attempts must occur. If unset, there are no time constraints on joining attempts. Note that clients may continue to renew their identities past this timestamp; a lock should be created if continued access should be cut off. This value may be modified after creation to adjust the joining deadline as desired.",
 									Optional:    true,
 									Type:        UseRFC3339Time(),
 								},
 								"total_joins": {
-									Description: "TotalJoins indicates the total number of joins that will be allowed over the lifetime of this token and is the initial value for `.status.bound_keypair.remaining_joins`. This value may be incremented after creation to allow additional joins should `remaining_joins` fall to zero, and `remaining_joins` will be incremented by the same amount. Unless `unlimited` is set, this value must be at least 1 at time of token creation for the initial join attempt to succeed.",
+									Description: "TotalJoins is the total number of joins that will be allowed over the lifetime of this token. This value may be raised or lowered after creation to allow additional joins should `.status.bound_keypair.join_count` reach this limit. Unless `unlimited` is set, this value must be greater than `join_count` for a join attempt to succeed. The initial join counts toward this limit, so it must be at least 1 to allow onboarding. If `unlimited` is set, this value can be set to 0 and ignored.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"unlimited": {
-									Description: "Unlimited indicates no limit for joining and rejoining. `total_joins` and the calculated `.status.bound_keypair.remaining_joins` value will be zero, but rejoin attempts will succeed so long as other join requirements are met.",
+									Description: "Unlimited indicates no limit for joining and rejoining. `total_joins` and the calculated `.status.bound_keypair.join_count` value will increment as usual, but join attempts will succeed even if the `total_joins` limit is exceeded.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
@@ -1257,7 +1257,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						"onboarding": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"initial_join_secret": {
-									Description: "InitialJoinSecret is an initial join secret joining clients may use to register their public key on first join. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`; if unset, a random secure value will be generated server-side to populate the status field.",
+									Description: "InitialJoinSecret is an initial join secret joining clients may use to register their public key on first join. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -1267,7 +1267,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"must_join_before": {
-									Description: "MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. This  may be modified after creation if necessary to allow the initial registration to take place.",
+									Description: "MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place.",
 									Optional:    true,
 									Type:        UseRFC3339Time(),
 								},
@@ -1724,7 +1724,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					},
 					"join_count": {
-						Description: "JoinCount is a count of the total number of joins performed using this token. It is incremented for every successful join or rejoin.",
+						Description: "JoinCount is a count of the total number of joins performed using this token. It is incremented for every successful join or rejoin. Join attempts are only allowed if this value is less than `.spec.bound_keypair.joining.total_joins`.",
 						Optional:    true,
 						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 					},
@@ -1737,11 +1737,6 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Description: "LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.",
 						Optional:    true,
 						Type:        UseRFC3339Time(),
-					},
-					"remaining_joins": {
-						Description: "RemainingJoins is a count of the total number of additional joins that can be performed using this token. If `.spec.joining.total_joins` is incremented, this value will be incremented by the same value.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 					},
 				}),
 				Description: "BoundKeypair contains status information related to bound-keypair type tokens.",
@@ -15897,23 +15892,6 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 										}
 									}
 									{
-										a, ok := tf.Attrs["remaining_joins"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-											} else {
-												var t uint32
-												if !v.Null && !v.Unknown {
-													t = uint32(v.Value)
-												}
-												obj.RemainingJoins = t
-											}
-										}
-									}
-									{
 										a, ok := tf.Attrs["join_count"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.JoinCount"})
@@ -19675,28 +19653,6 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = string(obj.BoundBotInstanceID)
 											v.Unknown = false
 											tf.Attrs["bound_bot_instance_id"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["remaining_joins"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins"})
-										} else {
-											v, ok := tf.Attrs["remaining_joins"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Status.BoundKeypair.RemainingJoins", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-												}
-												v.Null = int64(obj.RemainingJoins) == 0
-											}
-											v.Value = int64(obj.RemainingJoins)
-											v.Unknown = false
-											tf.Attrs["remaining_joins"] = v
 										}
 									}
 									{

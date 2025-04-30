@@ -51,6 +51,11 @@ message BotInstanceSpec {
 
   reserved 3;
   reserved "ttl";
+
+  // The previous instance ID, if any, set when a bot reauthenticates after the
+  // previous identity has expired. Currently only set during bound-keypair
+  // rejoining.
+  string previous_instance_id = 4;
 }
 
 // BotInstanceStatusHeartbeat contains information self-reported by an instance
