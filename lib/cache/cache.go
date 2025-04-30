@@ -537,14 +537,11 @@ type Cache struct {
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
-	spiffeFederationCache        spiffeFederationCacher
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 	gitServersCache              *local.GitServerService
-	workloadIdentityCache        workloadIdentityCacher
-	healthCheckConfigCache       *local.HealthCheckConfigService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -761,12 +758,12 @@ type Config struct {
 	// AccessMonitoringRules is the access monitoring rules service.
 	AccessMonitoringRules services.AccessMonitoringRules
 	// SPIFFEFederations is the SPIFFE federations service.
-	SPIFFEFederations SPIFFEFederationReader
+	SPIFFEFederations services.SPIFFEFederations
 	// StaticHostUsers is the static host user service.
 	StaticHostUsers services.StaticHostUser
 	// WorkloadIdentity is the upstream Workload Identities service that we're
 	// caching
-	WorkloadIdentity WorkloadIdentityReader
+	WorkloadIdentity services.WorkloadIdentities
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -1033,18 +1030,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	spiffeFederationCache, err := local.NewSPIFFEFederationService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	workloadIdentityCache, err := local.NewWorkloadIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1088,12 +1073,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	healthCheckConfigCache, err := local.NewHealthCheckConfigService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -1131,14 +1110,11 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
-		spiffeFederationCache:        spiffeFederationCache,
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
-		workloadIdentityCache:        workloadIdentityCache,
-		healthCheckConfigCache:       healthCheckConfigCache,
 		collections:                  collections,
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
