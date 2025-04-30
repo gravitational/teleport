@@ -135,7 +135,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 		},
 	}, log)
 	attestor.rootPath = tmpDir
-	attestor.clock = clockwork.NewFakeClock()
+	attestor.clock = clockwork.NewRealClock()
 	attestor.kubeletClient.getEnv = func(s string) string {
 		env := map[string]string{
 			"TELEPORT_NODE_NAME": host,
