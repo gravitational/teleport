@@ -6108,16 +6108,21 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	// ensure updated roles have propagated to auth cache
+	// ensure updated roles have propagated to auth cache. Since ListUnifiedResources
+	// uses a separate, custom cache, this is not guaranteed to flush that cache, so
+	// we still use an Eventually loop below.
 	flushCache(t, srv.Auth())
 
-	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Limit:  20,
-		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-	})
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 6)
-	require.Empty(t, resp.NextKey)
+	var resp *proto.ListUnifiedResourcesResponse
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Limit:  20,
+			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		})
+		assert.NoError(t, err)
+		assert.Empty(t, resp.NextKey)
+		assert.Len(t, resp.Resources, 6)
+	}, 10*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
 	for _, resource := range resp.Resources {
@@ -6130,7 +6135,9 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// ensure updated roles have propagated to auth cache
+	// ensure updated roles have propagated to auth cache. Since ListUnifiedResources
+	// uses a separate, custom cache, this is not guaranteed to flush that cache, so
+	// we still use an Eventually loop below.
 	flushCache(t, srv.Auth())
 
 	// Get a new client to test with the new roles.
@@ -6138,13 +6145,14 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that an error is returned when no kinds are requested.
-	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-		Limit:  20,
-		SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
-	})
-
-	require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
-	require.Nil(t, resp)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+			Limit:  20,
+			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
+		})
+		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
+		assert.Nil(t, resp)
+	}, 10*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
 	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{

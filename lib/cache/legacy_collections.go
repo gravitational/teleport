@@ -31,16 +31,13 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -136,7 +133,6 @@ type legacyCollections struct {
 	oktaImportRules                    collectionReader[oktaImportRuleGetter]
 	proxies                            collectionReader[services.ProxyGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
-	reverseTunnels                     collectionReader[reverseTunnelGetter]
 	samlIdPServiceProviders            collectionReader[samlIdPServiceProviderGetter]
 	samlIdPSessions                    collectionReader[samlIdPSessionGetter]
 	sessionRecordingConfigs            collectionReader[sessionRecordingConfigGetter]
@@ -151,7 +147,6 @@ type legacyCollections struct {
 	accessGraphSettings                collectionReader[accessGraphSettingsGetter]
 	globalNotifications                collectionReader[notificationGetter]
 	accessMonitoringRules              collectionReader[accessMonitoringRuleGetter]
-	spiffeFederations                  collectionReader[SPIFFEFederationReader]
 	autoUpdateConfigs                  collectionReader[autoUpdateConfigGetter]
 	autoUpdateVersions                 collectionReader[autoUpdateVersionGetter]
 	autoUpdateAgentRollouts            collectionReader[autoUpdateAgentRolloutGetter]
@@ -159,8 +154,6 @@ type legacyCollections struct {
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
 	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 	gitServers                         collectionReader[services.GitServerGetter]
-	workloadIdentity                   collectionReader[WorkloadIdentityReader]
-	healthCheckConfig                  collectionReader[services.HealthCheckConfigReader]
 }
 
 // setupLegacyCollections returns a registry of legacyCollections.
@@ -243,15 +236,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.uiConfigs
-		case types.KindReverseTunnel:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.reverseTunnels = &genericCollection[types.ReverseTunnel, reverseTunnelGetter, reverseTunnelExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.reverseTunnels
 		case types.KindTunnelConnection:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -516,24 +500,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.accessGraphSettings
-		case types.KindSPIFFEFederation:
-			if c.Config.SPIFFEFederations == nil {
-				return nil, trace.BadParameter("missing parameter SPIFFEFederations")
-			}
-			collections.spiffeFederations = &genericCollection[*machineidv1.SPIFFEFederation, SPIFFEFederationReader, spiffeFederationExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.spiffeFederations
-		case types.KindWorkloadIdentity:
-			if c.Config.WorkloadIdentity == nil {
-				return nil, trace.BadParameter("missing parameter WorkloadIdentity")
-			}
-			collections.workloadIdentity = &genericCollection[*workloadidentityv1pb.WorkloadIdentity, WorkloadIdentityReader, workloadIdentityExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.workloadIdentity
 		case types.KindAutoUpdateConfig:
 			if c.AutoUpdateService == nil {
 				return nil, trace.BadParameter("missing parameter AutoUpdateService")
@@ -612,19 +578,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.gitServers
-		case types.KindHealthCheckConfig:
-			if c.HealthCheckConfig == nil {
-				return nil, trace.BadParameter("missing parameter HealthCheckConfigs")
-			}
-			collections.healthCheckConfig = &genericCollection[
-				*healthcheckconfigv1.HealthCheckConfig,
-				services.HealthCheckConfigReader,
-				healthCheckConfigExecutor,
-			]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.healthCheckConfig
 		default:
 			if _, ok := c.collections.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
