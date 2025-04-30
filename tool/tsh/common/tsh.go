@@ -80,6 +80,7 @@ import (
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
@@ -611,6 +612,10 @@ type CLIConf struct {
 	// atomic here is overkill as the CLIConf is generally consumed sequentially. However, occasionally
 	// we need concurrency safety, such as for [forEachProfileParallel].
 	clientStoreSet int32
+
+	// databaseMCPRegistryOverride overrides database access MCP servers
+	// registry. used in tests.
+	databaseMCPRegistryOverride dbmcp.Registry
 }
 
 // Stdout returns the stdout writer.
@@ -1738,6 +1743,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case mcpCmd.db.FullCommand():
+		err = mcpCmd.db.run(&cf)
 	case mcpCmd.login.FullCommand():
 		err = mcpCmd.login.run(&cf)
 	case mcpCmd.list.FullCommand():
