@@ -470,7 +470,15 @@ func TestEditToken(t *testing.T) {
 }
 
 func TestCreateTokenExpiry(t *testing.T) {
-	t.Parallel()
+	// Can't t.Parallel because of modules.SetTestModules.
+	// Use enterprise build to access token types such as TPM and Spacelift
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: false,
+		},
+	})
+
 	ctx := context.Background()
 	username := "test-user@example.com"
 	env := newWebPack(t, 1)
@@ -479,11 +487,6 @@ func TestCreateTokenExpiry(t *testing.T) {
 
 	for _, method := range types.JoinMethods {
 		t.Run(string(method), func(t *testing.T) {
-			// Skip enterprise-only methods
-			if method == types.JoinMethodTPM || method == types.JoinMethodSpacelift {
-				t.Skipf("Skipping %s, as it's enterprise-only", method)
-			}
-
 			spec := types.ProvisionTokenSpecV2{
 				Roles:      []types.SystemRole{types.RoleNode},
 				JoinMethod: method,
@@ -593,6 +596,23 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				},
 			},
 			OrganizationID: "test-org-id",
+		}
+	case types.JoinMethodTPM:
+		spec.TPM = &types.ProvisionTokenSpecV2TPM{
+			Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+				{
+					EKPublicHash: "test-hash",
+				},
+			},
+		}
+	case types.JoinMethodSpacelift:
+		spec.Spacelift = &types.ProvisionTokenSpecV2Spacelift{
+			Hostname: "test-hostname",
+			Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
+				{
+					SpaceID: "test-space-id",
+				},
+			},
 		}
 	}
 }
