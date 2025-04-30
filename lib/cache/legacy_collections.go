@@ -137,7 +137,6 @@ type legacyCollections struct {
 	samlIdPSessions                    collectionReader[samlIdPSessionGetter]
 	sessionRecordingConfigs            collectionReader[sessionRecordingConfigGetter]
 	snowflakeSessions                  collectionReader[snowflakeSessionGetter]
-	tokens                             collectionReader[tokenGetter]
 	uiConfigs                          collectionReader[uiConfigGetter]
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
 	webSessions                        collectionReader[webSessionGetter]
@@ -164,15 +163,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case types.KindToken:
-			if c.Provisioner == nil {
-				return nil, trace.BadParameter("missing parameter Provisioner")
-			}
-			collections.tokens = &genericCollection[types.ProvisionToken, tokenGetter, provisionTokenExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.tokens
 		case types.KindClusterName:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -731,40 +721,6 @@ type remoteClusterGetter interface {
 }
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
-
-type provisionTokenExecutor struct{}
-
-func (provisionTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ProvisionToken, error) {
-	return cache.Provisioner.GetTokens(ctx)
-}
-
-func (provisionTokenExecutor) upsert(ctx context.Context, cache *Cache, resource types.ProvisionToken) error {
-	return cache.provisionerCache.UpsertToken(ctx, resource)
-}
-
-func (provisionTokenExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.provisionerCache.DeleteAllTokens()
-}
-
-func (provisionTokenExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.provisionerCache.DeleteToken(ctx, resource.GetName())
-}
-
-func (provisionTokenExecutor) isSingleton() bool { return false }
-
-func (provisionTokenExecutor) getReader(cache *Cache, cacheOK bool) tokenGetter {
-	if cacheOK {
-		return cache.provisionerCache
-	}
-	return cache.Config.Provisioner
-}
-
-type tokenGetter interface {
-	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-var _ executor[types.ProvisionToken, tokenGetter] = provisionTokenExecutor{}
 
 type clusterNameExecutor struct{}
 
