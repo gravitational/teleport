@@ -215,7 +215,7 @@ below, signed by the key in the PIV slot. The important detail is that the certi
 has "teleport" as the organization name in the subject field.
 
 ```code
-$ ykman piv certificates generate 9e -s O=teleport pub.pem
+$ ykman piv certificates generate [slot] -s O=teleport pub.pem
 ```
 
 This command will prompt you for the management key, as well as PIN or touch depending
