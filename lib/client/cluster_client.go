@@ -608,7 +608,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		case errors.Is(err, &mfa.ErrExpiredReusableMFAResponse):
 			// If the reusable MFA response is expired, break the switch to
 			// perform the ceremony again.
-			fmt.Fprintln(c.tc.Stderr, "Current MFA session has expired.")
+			fmt.Fprintln(c.tc.Stderr, "Your MFA validation has timed out.")
 		case err != nil:
 			return nil, trace.Wrap(err)
 		default:
@@ -681,7 +681,7 @@ type newUserKeys struct {
 	ssh, tls, app, db, kube *keys.PrivateKey
 }
 
-// PerformSessionMFACeremonyResult contains the produced result of a successful
+// PerformSessionMFACeremonyResult contains the result of a successful
 // PerformSessionMFACeremony call.
 type PerformSessionMFACeremonyResult struct {
 	// KeyRing is the client key ring that contains the new certificates.

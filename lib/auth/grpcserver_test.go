@@ -1766,9 +1766,12 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					},
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-				fakeClock:     fakeClock,
-				advanceTime:   defaults.WebauthnChallengeTimeout + time.Second,
-				authnHandler:  registered.webAuthHandler,
+				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					resp := registered.webAuthHandler(t, challenge)
+					// Delete the session data to simulate that the session has expired.
+					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
+					return resp
+				},
 				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
 				},
@@ -2390,8 +2393,6 @@ type generateUserSingleUseCertsTestOpts struct {
 	initReq       *proto.UserCertsRequest
 	authnHandler  func(*testing.T, *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse
 	mfaAllowReuse mfav1.ChallengeAllowReuse
-	fakeClock     *clockwork.FakeClock
-	advanceTime   time.Duration
 	verifyErr     require.ErrorAssertionFunc
 	verifyCert    func(*testing.T, *proto.Certs)
 }
@@ -2412,11 +2413,6 @@ func testGenerateUserSingleUseCerts(ctx context.Context, t *testing.T, cl *authc
 	req.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	if opts.authnHandler != nil {
 		req.MFAResponse = opts.authnHandler(t, authnChal)
-	}
-
-	if opts.advanceTime != 0 {
-		opts.fakeClock.Advance(opts.advanceTime)
-		defer opts.fakeClock.Advance(-opts.advanceTime)
 	}
 
 	certs, err := cl.GenerateUserCerts(ctx, *req)
