@@ -1664,170 +1664,122 @@ export const formatters: Formatters = {
     type: 'access_list.create',
     desc: 'Access list created',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] created access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] created access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_CREATE_FAILURE]: {
     type: 'access_list.create',
     desc: 'Access list create failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to create access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] failed to create access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_UPDATE]: {
     type: 'access_list.update',
     desc: 'Access list updated',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] updated access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] updated access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_UPDATE_FAILURE]: {
     type: 'access_list.update',
     desc: 'Access list update failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to update access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] failed to update access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_DELETE]: {
     type: 'access_list.delete',
     desc: 'Access list deleted',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] deleted access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] deleted access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_DELETE_FAILURE]: {
     type: 'access_list.delete',
     desc: 'Access list delete failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to delete access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] failed to delete access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_REVIEW]: {
     type: 'access_list.review',
     desc: 'Access list reviewed',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] reviewed access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] reviewed access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_REVIEW_FAILURE]: {
     type: 'access_list.review',
     desc: 'Access list review failed',
     format: ({ access_list_title, name, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to to review access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${name}]`)
-      );
+      return `User [${updated_by}] failed to to review access list [${access_list_title || name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE]: {
     type: 'access_list.member.create',
     desc: 'Access list member added',
     format: ({ access_list_title, members, access_list_name, updated_by }) => {
-      return (
-        `User [${updated_by}] added ${formatMembers(members)} to access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] added ${formatMembers(members)} to access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_CREATE_FAILURE]: {
     type: 'access_list.member.create',
     desc: 'Access list member addition failure',
     format: ({ access_list_title, members, access_list_name, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to add ${formatMembers(
-          members
-        )} to access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] failed to add ${formatMembers(
+        members
+      )} to access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE]: {
     type: 'access_list.member.update',
     desc: 'Access list member updated',
     format: ({ access_list_title, members, access_list_name, updated_by }) => {
-      return (
-        `User [${updated_by}] updated ${formatMembers(
-          members
-        )} in access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] updated ${formatMembers(
+        members
+      )} in access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_UPDATE_FAILURE]: {
     type: 'access_list.member.update',
     desc: 'Access list member update failure',
     format: ({ access_list_title, members, access_list_name, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to update ${formatMembers(
-          members
-        )} in access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] failed to update ${formatMembers(
+        members
+      )} in access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removed',
     format: ({ access_list_title, members, access_list_name, updated_by }) => {
-      return (
-        `User [${updated_by}] removed ${formatMembers(
-          members
-        )} from access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] removed ${formatMembers(
+        members
+      )} from access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_FAILURE]: {
     type: 'access_list.member.delete',
     desc: 'Access list member removal failure',
     format: ({ access_list_title, members, access_list_name, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to remove ${formatMembers(
-          members
-        )} from access list [${access_list_title}]` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] failed to remove ${formatMembers(
+        members
+      )} from access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST]: {
     type: 'access_list.member.delete_all_members',
     desc: 'All members removed from access list',
     format: ({ access_list_title, access_list_name, updated_by }) => {
-      return (
-        `User [${updated_by}] removed all members from access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] removed all members from access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
     type: 'access_list.member.delete_all_members',
     desc: 'Access list member delete all members failure',
     format: ({ access_list_title, updated_by }) => {
-      return (
-        `User [${updated_by}] failed to remove all members from access list ` +
-        (access_list_title ? `[${access_list_title}]` : `[${access_list_name}]`)
-      );
+      return `User [${updated_by}] failed to remove all members from access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: {
