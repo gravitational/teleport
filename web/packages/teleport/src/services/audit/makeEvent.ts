@@ -1778,7 +1778,7 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
     type: 'access_list.member.delete_all_members',
     desc: 'Access list member delete all members failure',
-    format: ({ access_list_title, updated_by }) => {
+      format: ({ access_list_title, access_list_name, updated_by }) => {
       return `User [${updated_by}] failed to remove all members from access list [${access_list_title || access_list_name}]`;
     },
   },
