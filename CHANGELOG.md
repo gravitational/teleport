@@ -1,5 +1,13 @@
 # Changelog
 
+## 16.5.6 (04/30/25)
+
+* Included access request's max duration in MsTeams plugin messages. [#54387](https://github.com/gravitational/teleport/pull/54387)
+* Increased the email access plugin timeout for sending e-mails from 5 to 15 seconds. [#54380](https://github.com/gravitational/teleport/pull/54380)
+* Fixed a potential panic during Auth Server startup when the backend returns an error. [#54326](https://github.com/gravitational/teleport/pull/54326)
+* Added a Hardware Key Agent to Teleport Connect along with other significant UX improvements for Hardware Key support. With the agent enabled, Teleport Connect will handle prompts on behalf of other Teleport Clients (tsh, tctl), with an additional option to cache the PIN between client calls (New cluster option:cap.hardware_key.pin_cache_ttl). [#54298](https://github.com/gravitational/teleport/pull/54298)
+
+
 ## 16.5.5 (04/24/25)
 
 * Fixed incompatibility of client tools with servers older than v16.5.4. [#54285](https://github.com/gravitational/teleport/pull/54285)
