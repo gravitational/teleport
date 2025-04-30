@@ -22,6 +22,7 @@ package web
 
 import (
 	"context"
+	"math/rand/v2"
 	"net/http"
 	"sort"
 
@@ -374,7 +375,7 @@ func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclien
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.Match(ctx, authClient, app.MatchName(appName))
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchName(appName))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -383,7 +384,7 @@ func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclien
 		return nil, "", trace.NotFound("failed to match applications with name %s", appName)
 	}
 
-	return servers[0], clusterName, nil
+	return servers[rand.N(len(servers))], clusterName, nil
 }
 
 // resolveDirect takes a public address and cluster name and exactly resolves
@@ -399,7 +400,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -408,7 +409,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.T
 		return nil, "", trace.NotFound("failed to match applications with public addr %s", publicAddr)
 	}
 
-	return servers[0], clusterName, nil
+	return servers[rand.N(len(servers))], clusterName, nil
 }
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
