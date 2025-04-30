@@ -406,6 +406,8 @@ func TestEditToken(t *testing.T) {
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, username, nil /* roles */)
 
+	expiry := time.Now().UTC()
+
 	// Setup an existing token
 	spec := types.ProvisionTokenSpecV2{
 		Roles:      types.SystemRoles{types.RoleBot},
@@ -422,6 +424,7 @@ func TestEditToken(t *testing.T) {
 	}
 	token, err := types.NewProvisionTokenFromSpec("github-test-token", time.Time{}, spec)
 	require.NoError(t, err)
+	token.SetExpiry(expiry)
 	token.SetLabels(map[string]string{
 		"test-key": "test-value",
 	})
@@ -445,6 +448,7 @@ func TestEditToken(t *testing.T) {
 	editedToken, err := env.server.Auth().GetToken(ctx, "github-test-token")
 	require.NoError(t, err)
 	require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
+	require.Equal(t, expiry, *editedToken.GetMetadata().Expires)
 	require.Equal(t, map[string]string{
 		"test-key": "test-value",
 	}, editedToken.GetMetadata().Labels)
