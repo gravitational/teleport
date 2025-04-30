@@ -51,20 +51,16 @@ import {
 import 'teleport/services/resources';
 
 import { Info } from 'design/Alert/Alert';
+import { collectKeys } from 'shared/utils/collectKeys';
 
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import {
-  checkGcpYamlData,
-  checkIamYamlData,
   JoinTokenGCPForm,
   JoinTokenIAMForm,
   JoinTokenOracleForm,
 } from './JoinTokenForms';
-import {
-  checkGithubYamlData,
-  JoinTokenGithubForm,
-} from './JoinTokenGithubForm';
+import { JoinTokenGithubForm } from './JoinTokenGithubForm';
 
 const maxWidth = '550px';
 
@@ -259,11 +255,20 @@ export const UpsertJoinTokenDialog = ({
 
     switch (data.object.spec.join_method) {
       case 'iam':
-        return !checkIamYamlData(data.object.spec.allow);
+        return !checkYamlData(
+          data.object.spec.allow,
+          data.object.spec.join_method
+        );
       case 'gcp':
-        return !checkGcpYamlData(data.object.spec.gcp);
+        return !checkYamlData(
+          data.object.spec.gcp,
+          data.object.spec.join_method
+        );
       case 'github':
-        return !checkGithubYamlData(data.object.spec.github);
+        return !checkYamlData(
+          data.object.spec.github,
+          data.object.spec.join_method
+        );
     }
 
     return false;
@@ -625,3 +630,32 @@ export const RuleBox = styled(Box)`
 
   padding: ${props => props.theme.space[3]}px;
 `;
+
+const checkYamlData = (data: unknown, joinMethod: JoinMethod) => {
+  const supportedFields = supportedFieldsMap[joinMethod];
+  if (!supportedFields) {
+    return true;
+  }
+  const keys = collectKeys(data);
+  return !keys || new Set(keys).isSubsetOf(supportedFields);
+};
+
+const supportedFieldsMap: Partial<Record<JoinMethod, Set<string>>> = {
+  iam: new Set(['.aws_account', '.aws_arn']),
+  gcp: new Set([
+    '.allow.project_ids',
+    '.allow.locations',
+    '.allow.service_accounts',
+  ]),
+  github: new Set([
+    '.enterprise_server_host',
+    '.static_jwks',
+    '.enterprise_slug',
+    '.allow.repository',
+    '.allow.repository_owner',
+    '.allow.workflow',
+    '.allow.environment',
+    '.allow.ref',
+    '.allow.ref_type',
+  ]),
+};

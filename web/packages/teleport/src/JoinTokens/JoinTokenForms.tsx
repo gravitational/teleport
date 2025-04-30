@@ -22,7 +22,6 @@ import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { collectKeys } from './collectKeys';
 import {
   AllowOption,
   NewJoinTokenState,
@@ -125,18 +124,6 @@ export const JoinTokenIAMForm = ({
       </ButtonText>
     </>
   );
-};
-
-const supportedFieldsIam = new Set(['.aws_account', '.aws_arn']);
-
-/**
- * `checkIamYamlData` determines if the provided value contains item/s that are not supported by the edit form.
- * @param data a value representing the iam-specific config for a token
- * @returns a boolean indicating if the provided value contains unsupported items
- */
-export const checkIamYamlData = (data: unknown) => {
-  const keys = collectKeys(data);
-  return !keys || new Set(keys).isSubsetOf(supportedFieldsIam);
 };
 
 export const JoinTokenGCPForm = ({
@@ -252,22 +239,6 @@ export const JoinTokenGCPForm = ({
       </ButtonText>
     </>
   );
-};
-
-const supportedFieldsGcp = new Set([
-  '.allow.project_ids',
-  '.allow.locations',
-  '.allow.service_accounts',
-]);
-
-/**
- * `checkGcpYamlData` determines if the provided value contains item/s that are not supported by the edit form.
- * @param data a value representing the gcp-specific config for a token
- * @returns a boolean indicating if the provided value contains unsupported items
- */
-export const checkGcpYamlData = (data: unknown) => {
-  const keys = collectKeys(data);
-  return !keys || new Set(keys).isSubsetOf(supportedFieldsGcp);
 };
 
 export const JoinTokenOracleForm = ({

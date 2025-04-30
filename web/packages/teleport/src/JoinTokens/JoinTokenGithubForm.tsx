@@ -34,7 +34,6 @@ import { requiredField } from 'shared/components/Validation/rules';
 import cfg from 'teleport/config';
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 
-import { collectKeys } from './collectKeys';
 import { NewJoinTokenState } from './UpsertJoinTokenDialog';
 
 export const JoinTokenGithubForm = ({
@@ -290,25 +289,3 @@ const RuleBox = styled(Box)`
 
   padding: ${props => props.theme.space[3]}px;
 `;
-
-const supportedFields = new Set([
-  '.enterprise_server_host',
-  '.static_jwks',
-  '.enterprise_slug',
-  '.allow.repository',
-  '.allow.repository_owner',
-  '.allow.workflow',
-  '.allow.environment',
-  '.allow.ref',
-  '.allow.ref_type',
-]);
-
-/**
- * `checkGithubYamlData` determines if the provided value contains item/s that are not supported by the edit form.
- * @param data a value representing the github-specific config for a token
- * @returns a boolean indicating if the provided value contains unsupported items
- */
-export const checkGithubYamlData = (data: unknown) => {
-  const keys = collectKeys(data);
-  return !keys || new Set(keys).isSubsetOf(supportedFields);
-};
