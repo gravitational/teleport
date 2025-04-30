@@ -184,11 +184,12 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 // NewKeyRing creates a new KeyRing for the given private keys.
 func NewKeyRing(sshPriv, tlsPriv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
-		SSHPrivateKey:      sshPriv,
-		TLSPrivateKey:      tlsPriv,
-		KubeTLSCredentials: make(map[string]TLSCredential),
-		DBTLSCredentials:   make(map[string]TLSCredential),
-		AppTLSCredentials:  make(map[string]TLSCredential),
+		SSHPrivateKey:                sshPriv,
+		TLSPrivateKey:                tlsPriv,
+		KubeTLSCredentials:           make(map[string]TLSCredential),
+		DBTLSCredentials:             make(map[string]TLSCredential),
+		AppTLSCredentials:            make(map[string]TLSCredential),
+		WindowsDesktopTLSCredentials: make(map[string]TLSCredential),
 	}
 }
 
