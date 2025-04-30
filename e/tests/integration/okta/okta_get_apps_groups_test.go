@@ -54,6 +54,7 @@ func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
 		ReuseConnector:      "okta-pre-created-test",
 		OktaOrganizationUrl: oktaApiClient.GetOrgUrl(),
 		ApiCredentials:      apiCredentials,
+		EnableUserSync:      true,
 	})
 	require.NoError(t, err)
 

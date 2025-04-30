@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -13,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // oktaInstanceFactory will create Okta services based on the plugin specification.
@@ -22,10 +24,37 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("field Spec.Okta must be present")
 	}
 
+	syncEnabled := oktaSpec.GetSyncSettings().GetEnableUserSync()
+
 	_, scimEnabled, err := oktaplugin.SelectSCIMTokenHash(deps.staticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
 	}
+
+	// If sync is not enabled (SSO-only/SCIM-only integration) then only report the plugin's
+	// status and for the done channel.
+	if !syncEnabled {
+		return func() error {
+			if scimEnabled {
+				deps.logger.InfoContext(ctx, "SCIM-only integration. Updating plugin status, without starting the plugin")
+			} else {
+				deps.logger.InfoContext(ctx, "SSO-only integration. Updating plugin status, without starting the plugin")
+			}
+
+			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
+				SyncSettings: *oktaSpec.GetSyncSettings(),
+				ScimEnabled:  scimEnabled,
+			})
+			okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_RUNNING, status)
+
+			broadcastOktaEvent(deps.parentProcess, plugin, services.OktaReady)
+			defer broadcastOktaEvent(deps.parentProcess, plugin, services.OktaStopped)
+
+			<-deps.lifetime.Done()
+			return nil
+		}, nil
+	}
+
 	var oktaAuthProvider oktaapi.AuthProvider
 	selectedOktaCreds, err := oktaplugin.SelectOktaCredentials(deps.staticCredentials)
 	if err != nil {
@@ -48,23 +77,16 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 			if err != nil {
 				return trace.Wrap(err)
 			}
+
+			deps.logger.ErrorContext(ctx, "Okta sync is enabled but credentials not found. Updating plugin status, without starting the plugin")
+
 			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
 				SsoConnector: connectorInfo,
 				SyncSettings: *oktaSpec.GetSyncSettings(),
-				ScimEnabled:  false,
+				ScimEnabled:  scimEnabled,
+				SyncErr:      trace.BadParameter("Okta API credentials not found"),
 			})
-			if isSyncEnabled(status) {
-				err := trace.BadParameter("Okta credentials missing")
-				setSyncDetailsError(status, err)
-				okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_OTHER_ERROR, status)
-				return trace.Wrap(err)
-			}
-			if scimEnabled {
-				deps.logger.InfoContext(ctx, "SCIM-only integration. Updating plugin status, without starting the plugin")
-			} else {
-				deps.logger.InfoContext(ctx, "SSO-only integration. Updating plugin status, without starting the plugin")
-			}
-			okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_RUNNING, status)
+			okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_OTHER_ERROR, status)
 
 			<-deps.lifetime.Done()
 			return nil
@@ -105,27 +127,8 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	}, nil
 }
 
-func isSyncEnabled(status *types.PluginOktaStatusV1) bool {
-	if status.UsersSyncDetails != nil && status.UsersSyncDetails.Enabled {
-		return true
-	}
-	if status.AppGroupSyncDetails != nil && status.AppGroupSyncDetails.Enabled {
-		return true
-	}
-	if status.AccessListsSyncDetails != nil && status.AccessListsSyncDetails.Enabled {
-		return true
-	}
-	return false
-}
-
-func setSyncDetailsError(status *types.PluginOktaStatusV1, err error) {
-	if status.UsersSyncDetails != nil && status.UsersSyncDetails.Enabled {
-		status.UsersSyncDetails.Error = err.Error()
-	}
-	if status.AppGroupSyncDetails != nil && status.AppGroupSyncDetails.Enabled {
-		status.AppGroupSyncDetails.Error = err.Error()
-	}
-	if status.AccessListsSyncDetails != nil && status.AccessListsSyncDetails.Enabled {
-		status.AccessListsSyncDetails.Error = err.Error()
-	}
+func broadcastOktaEvent(process *service.TeleportProcess, plugin *types.PluginV1, eventName string) {
+	timestamp := strconv.FormatInt(process.Clock.Now().Unix(), 10)
+	pluginName := plugin.GetName()
+	process.BroadcastEvent(service.Event{Name: services.EventWithComponents(eventName, pluginName, timestamp), Payload: nil})
 }

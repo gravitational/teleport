@@ -25,7 +25,6 @@ func TestNewSSWSAuthProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, oktaAPIScopes, client.GetScopes())
 	_, err = client.ListUsers(ctx)
 	require.NoError(t, err)
 }
@@ -68,5 +67,6 @@ func TestOAuthProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NotEmpty(t, client.GetScopes())
+	_, err = client.ListUsers(ctx)
+	require.NoError(t, err)
 }

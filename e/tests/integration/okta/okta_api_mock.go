@@ -34,21 +34,18 @@ type mockOktaAPIClient struct {
 	rt http.RoundTripper
 }
 
-// GetScopes returns the scopes.
 func (m *mockOktaAPIClient) GetOrgUrl() string {
 	return m.orgUrl
 }
 
-// GetScopes returns the scopes.
-func (m *mockOktaAPIClient) GetScopes() []string {
-	return m.scopes
+func (m *mockOktaAPIClient) GetAuthorizedScopes(ctx context.Context) ([]string, error) {
+	return m.scopes, nil
 }
 
 func newMockOktaAPIClient(orgUrl string) *mockOktaAPIClient {
 	m := &mockOktaAPIClient{
 		orgUrl: orgUrl,
 		scopes: []string{
-			oktaapi.ScopeUserManage,
 			oktaapi.ScopeUserRead,
 			oktaapi.ScopeAppsManage,
 			oktaapi.ScopeAppsRead,

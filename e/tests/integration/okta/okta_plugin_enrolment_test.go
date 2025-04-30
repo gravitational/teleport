@@ -18,6 +18,7 @@ import (
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	common "github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -710,6 +711,96 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 	})
+}
+
+// Tests OAuth scopes validation during the Create/UpdateIntegration reqeusts.
+func Test_PluginEnrolment_OAuthScopes(t *testing.T) {
+	ctx := context.Background()
+
+	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+
+	_ = createOktaSAMLAPP(t, ctx, oktaApiClient, "trial-1234567_teleportsamlconnectorapp_1")
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
+
+	// Try (and fail) creating an integration with insufficient OAuth scopes
+
+	oktaApiClient.scopes = []string{
+		oktaapi.ScopeUserRead,
+	}
+
+	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ReuseConnector:      "okta-pre-created-test",
+		OktaOrganizationUrl: oktaApiClient.GetOrgUrl(),
+		ApiCredentials:      apiCredentials,
+		EnableUserSync:      true,
+		EnableAppGroupSync:  true,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, `Okta OAuth scopes verification failed: scope "okta.apps.read" missing, scope "okta.groups.read" missing`)
+
+	// Create the integration (to proceed with other tests)
+
+	oktaApiClient.scopes = []string{
+		oktaapi.ScopeUserRead,
+		oktaapi.ScopeAppsRead,
+		oktaapi.ScopeGroupsRead,
+	}
+
+	_, err = oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		ReuseConnector:      "okta-pre-created-test",
+		OktaOrganizationUrl: oktaApiClient.GetOrgUrl(),
+		ApiCredentials:      apiCredentials,
+		EnableUserSync:      true,
+		EnableAppGroupSync:  true,
+	})
+	require.NoError(t, err)
+
+	// Try (and fail) updating the integration with insufficient OAuth scopes
+
+	oktaApiClient.scopes = []string{
+		oktaapi.ScopeUserRead,
+		oktaapi.ScopeAppsRead,
+	}
+
+	_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		EnableUserSync:       true,
+		EnableAppGroupSync:   true,
+		EnableAccessListSync: true,
+		AccessListSettings: &oktav1.AccessListSettings{
+			DefaultOwner: []string{"alice-admin"},
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, `Okta OAuth scopes verification failed: scope "okta.groups.read" missing`)
+
+	// Try (and fail) updating the integration with even more insufficient OAuth scopes
+	// (because of bidirectional sync)
+
+	oktaApiClient.scopes = []string{
+		oktaapi.ScopeUserRead,
+		oktaapi.ScopeAppsRead,
+		oktaapi.ScopeGroupsRead,
+	}
+
+	_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		EnableUserSync:       true,
+		EnableAppGroupSync:   true,
+		EnableAccessListSync: true,
+		AccessListSettings: &oktav1.AccessListSettings{
+			DefaultOwner: []string{"alice-admin"},
+		},
+		EnableBidirectionalSync: true,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorContains(t, err, "Okta OAuth scopes verification failed: scope \"okta.apps.manage\" missing, scope \"okta.groups.manage\" missing")
 }
 
 func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector {

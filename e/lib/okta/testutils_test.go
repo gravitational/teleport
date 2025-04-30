@@ -235,14 +235,10 @@ func withSSOConnector(c string) testServiceOpt {
 	}
 }
 
-// newTestService creates a new test Okta service.
-func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
+func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (Config, *eventstest.ChannelEmitter) {
 	t.Helper()
 
-	ctx := context.Background()
-
 	emitter := eventstest.NewChannelEmitter(2)
-	client := newTestClient()
 	lockWatcher := newLockWatcher(t, ap)
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testClusterName,
@@ -251,7 +247,7 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 	})
 	require.NoError(t, err)
 
-	serviceConfig := Config{
+	config := Config{
 		Leader:           &mockIsLeader{true},
 		TLSConfig:        generateTestTLSConfig(t, testHostID, nil),
 		Authorizer:       authorizer,
@@ -269,25 +265,38 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 		ConnectorService: ap,
 		AuthProvider:     oktaapi.NewSSWSAuthProvider("dummy"),
 		SyncSettings: types.PluginOktaSyncSettings{
-			SsoConnectorId:  "dummy-connector-id",
-			SyncUsers:       true,
-			SyncAccessLists: true,
-			DefaultOwners:   []string{"the-owner"},
+			SsoConnectorId:       "dummy-connector-id",
+			SyncUsers:            true,
+			DisableSyncAppGroups: false,
+			SyncAccessLists:      true,
+			DefaultOwners:        []string{"the-owner"},
 		},
 		AssignmentsService: ap,
 	}
 	for _, opt := range options {
-		opt(&serviceConfig)
+		opt(&config)
 	}
 
-	if serviceConfig.SyncSettings.SsoConnectorId != "" {
-		if conn, err := ap.GetSAMLConnector(ctx, serviceConfig.SyncSettings.SsoConnectorId, false); err != nil || conn == nil {
-			_, err := createStubSAMLConnector(ctx, t, serviceConfig.SyncSettings.SsoConnectorId, ap)
+	return config, emitter
+}
+
+// newTestService creates a new test Okta service.
+func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	client := newTestClient()
+	config, emitter := newTestConfig(t, ap, options...)
+
+	if config.SyncSettings.SsoConnectorId != "" {
+		if conn, err := ap.GetSAMLConnector(ctx, config.SyncSettings.SsoConnectorId, false); err != nil || conn == nil {
+			_, err := createStubSAMLConnector(ctx, t, config.SyncSettings.SsoConnectorId, ap)
 			require.NoError(t, err)
 		}
 	}
 
-	svc, err := newWithClientCreator(ctx, serviceConfig, oktaapi.CreatorFromTestClient(client))
+	svc, err := newWithClientCreator(ctx, config, oktaapi.CreatorFromTestClient(client))
 	require.NoError(t, err)
 
 	// Skip client cert verification for tests.

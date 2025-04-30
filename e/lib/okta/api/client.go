@@ -46,9 +46,10 @@ const (
 type Interface interface {
 	// GetOrgUrl will return the org URL for the client.
 	GetOrgUrl() string
-	// GetScopes returns the scopes that the client is configured to use.
-	GetScopes() []string
 
+	// GetAuthorizedScopes verifies and returns the list of configured OAuth scopes trimmed
+	// down to those allowed by the configured credentials.
+	GetAuthorizedScopes(ctx context.Context) ([]string, error)
 	// GetCurrentUser will fetch the profile of the user currently logged into
 	// Okta.
 	GetCurrentUser(context.Context) (*okta.User, error)
@@ -98,10 +99,12 @@ type Interface interface {
 	CreateApplication(ctx context.Context, application okta.App) (okta.App, error)
 	// GetApplication fetches the data for single application.
 	GetApplication(ctx context.Context, appID OktaAppID, appType okta.App) (okta.App, error)
-	// OrgName returns the configured
+	// OrgName returns the configured org name.
+	// TODO(kopiczko) Remove when cleaning up the legacy connector creation code.
 	OrgName(context.Context) (string, error)
-	// DoHttp executes an HTTP request on the supplied URL using the same
-	// credentials and headers used by underlying Okta client
+	// DoHttp executes an HTTP request on the supplied URL using the same credentials and
+	// headers used by underlying Okta client. Mainly used for retrieving SAML connector
+	// metadata.
 	DoHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error)
 }
 
@@ -569,9 +572,10 @@ func (c *Client) GetOrgUrl() string {
 	return c.APIClient.GetOrgUrl()
 }
 
-// GetScopes implements [Interface].
-func (c *Client) GetScopes() []string {
-	return c.APIClient.GetScopes()
+// CheckScopes implements [Interface].CheckScopes.
+func (c *Client) GetAuthorizedScopes(ctx context.Context) ([]string, error) {
+	scopes, err := c.APIClient.GetAuthorizedScopes(ctx)
+	return scopes, trace.Wrap(err)
 }
 
 // DoHttp performs an HTTP request to the Okta API.

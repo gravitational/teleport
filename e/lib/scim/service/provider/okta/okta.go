@@ -532,28 +532,27 @@ func (s *oktaShim) oktaClient(ctx context.Context) (*oktasdk.Client, error) {
 		return nil, trace.NotFound("Okta API credentials not found in plugin static credentials")
 	}
 
-	var oktaAPIScopes = []string{
-		oktaapi.ScopeAppsRead,
-		oktaapi.ScopeGroupsRead,
-		oktaapi.ScopeUserRead,
-	}
-
+	oktaOAuthScopes := oktacommon.GetReadOnlyOAuthScopes()
 	oktaOpts := append(
 		oktaAuthProvider.GetAuthOptions(),
 		oktasdk.WithCache(false),
 		oktasdk.WithOrgUrl(s.plugin.Spec.GetOkta().OrgUrl),
 		oktasdk.WithRequestTimeout(okta.RequestTimeoutSeconds),
 		oktasdk.WithRateLimitMaxRetries(math.MaxInt32),
-		oktasdk.WithScopes(oktaAPIScopes),
+		oktasdk.WithScopes(oktaOAuthScopes),
 		oktasdk.WithHttpClientPtr(s.HTTPClient),
 	)
-
-	_, apiClient, err := oktasdk.NewClient(ctx, oktaOpts...)
+	_, oktaSDKClient, err := oktasdk.NewClient(ctx, oktaOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return apiClient, nil
+	// TODO(kopiczko) switch oktaShim to use oktaapi.Client and test this call
+	if err := oktacommon.CheckClientOAuthScopes(ctx, oktaapi.NewAPIClient(oktaSDKClient), oktaOAuthScopes...); err != nil {
+		return nil, trace.Wrap(err, "checking Okta client required OAuth scopes")
+	}
+
+	return oktaSDKClient, nil
 }
 
 func (s *oktaShim) defaultOwners() []accesslist.Owner {

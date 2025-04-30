@@ -199,10 +199,10 @@ func (c *Client) DoHttp(ctx context.Context, method string, url *url.URL, accept
 	panic("Client.DoHttp not implemented")
 }
 
-// GetScopes implements [[oktaapi.Interface]].
-func (c *Client) GetScopes() []string {
-	if c.GetScopesFunc != nil {
-		return c.GetScopesFunc(c.t)
+// GetAuthorizedScopes implements [[oktaapi.Interface]].
+func (c *Client) GetAuthorizedScopes(ctx context.Context) ([]string, error) {
+	if c.GetAuthorizedScopesFunc != nil {
+		return c.GetAuthorizedScopesFunc(c.t, ctx)
 	}
-	panic("Client.GetScopes not implemented")
+	panic("Client.GetAuthorizedScopesFunc not implemented")
 }

@@ -139,6 +139,7 @@ type PluginOktaStatusParams struct {
 	SsoConnector types.SAMLConnector
 	SyncSettings types.PluginOktaSyncSettings
 	ScimEnabled  bool
+	SyncErr      error
 }
 
 func NewPluginOktaStatus(params PluginOktaStatusParams) *types.PluginOktaStatusV1 {
@@ -156,6 +157,11 @@ func NewPluginOktaStatus(params PluginOktaStatusParams) *types.PluginOktaStatusV
 		}
 	}
 
+	syncErrorMsg := ""
+	if params.SyncErr != nil {
+		syncErrorMsg = params.SyncErr.Error()
+	}
+
 	return &types.PluginOktaStatusV1{
 		SsoDetails: &types.PluginOktaStatusDetailsSSO{
 			Enabled:                      true,
@@ -163,17 +169,20 @@ func NewPluginOktaStatus(params PluginOktaStatusParams) *types.PluginOktaStatusV
 			AppName:                      params.SyncSettings.AppName,
 			OktaGroupEveryoneMappedRoles: mappedRoleNames,
 		},
-		AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
-			Enabled: params.SyncSettings.GetEnableAppGroupSync(),
-		},
-		UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
-			Enabled: params.SyncSettings.GetEnableUserSync(),
-		},
 		ScimDetails: &types.PluginOktaStatusDetailsSCIM{
 			Enabled: params.ScimEnabled,
 		},
+		UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
+			Enabled: params.SyncSettings.GetEnableUserSync(),
+			Error:   syncErrorMsg,
+		},
+		AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
+			Enabled: params.SyncSettings.GetEnableAppGroupSync(),
+			Error:   syncErrorMsg,
+		},
 		AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
 			Enabled:      params.SyncSettings.GetEnableAccessListSync(),
+			Error:        syncErrorMsg,
 			GroupFilters: params.SyncSettings.GroupFilters,
 			AppFilters:   params.SyncSettings.AppFilters,
 		},

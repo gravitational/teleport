@@ -32,5 +32,5 @@ type ClientFuncs struct {
 	OrgURLFunc                      func(t *testing.T) string
 	OrgNameFunc                     func(t *testing.T, ctx context.Context) (string, error)
 	DoHttpFunc                      func(t *testing.T, ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error)
-	GetScopesFunc                   func(t *testing.T) []string
+	GetAuthorizedScopesFunc         func(t *testing.T, ctx context.Context) ([]string, error)
 }

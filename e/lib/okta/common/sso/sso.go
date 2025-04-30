@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -19,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -109,7 +109,7 @@ func CreateSAMLConnector(ctx context.Context, args ConnectorArgs) (*SAMLConnecto
 	if err := args.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !slices.Contains(args.OktaClient.GetScopes(), oktaapi.ScopeAppsManage) {
+	if err := oktacommon.CheckClientOAuthScopes(ctx, args.OktaClient, oktaapi.ScopeAppsManage); err != nil {
 		return nil, trace.BadParameter(
 			"Unable to automatically create an Okta SAML Application due to missing permissions. " +
 				"Your Okta API credentials lack the required 'okta.apps.manage' scope needed for this operation. " +
@@ -289,11 +289,6 @@ func CreateSAMLConnectorFromMetadataURL(ctx context.Context, args ConnectorArgs)
 // connector. It first tries to get it from annotation but if not available it tries to extract the
 // Okta app name it from SAML connector SSO URL and then query Okta to retrieve tha app ID.
 func FetchOktaAppIdFromConnector(ctx context.Context, oktaClient oktaapi.Interface, samlConnector types.SAMLConnector) (string, error) {
-	oktaClientScopes := oktaClient.GetScopes()
-	if !slices.Contains(oktaClientScopes, oktaapi.ScopeAppsRead) {
-		return "", trace.AccessDenied("provided Okta credentials do not contain %q scope", oktaapi.ScopeAppsRead)
-	}
-
 	if oktaAppId := samlConnector.GetMetadata().Labels[eteleport.OktaAppIDLabel]; oktaAppId != "" {
 		return oktaAppId, nil
 	}

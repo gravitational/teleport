@@ -102,30 +102,3 @@ const (
 	// in an Okta system. It's always present.
 	OktaGroupEveryone = "Everyone"
 )
-
-var oktaAPIScopes = []string{
-	ScopeUserManage,
-	ScopeUserRead,
-	ScopeAppsManage,
-	ScopeAppsRead,
-	ScopeGroupsManage,
-	ScopeGroupsRead,
-}
-
-const (
-	// ScopeUserManage allows to call okta API and manage users - create, update, delete deactive etc.
-	ScopeUserManage = "okta.users.manage"
-	// ScopeUserRead allows to read user information from Okta API.
-	ScopeUserRead = "okta.users.read"
-	// ScopeAppsManage allows to manage applications in Okta create (needed to auto-creation of SAML okta APP) or
-	// manage Okta applications assignments.
-	ScopeAppsManage = "okta.apps.manage"
-	// ScopeAppsRead allows to read applications from Okta API.
-	ScopeAppsRead = "okta.apps.read"
-	// ScopeGroupsManage allows to manage groups in Okta
-	ScopeGroupsManage = "okta.groups.manage"
-	// ScopeGroupsRead allows to read groups from Okta API.
-	ScopeGroupsRead = "okta.groups.read"
-	// ScopeOrgsRead allows to read organization information from Okta API.
-	ScopeOrgsRead = "okta.orgs.read"
-)

@@ -11,6 +11,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/lib/plugins"
@@ -37,19 +38,26 @@ func (s *Service) ValidateClientCredentials(ctx context.Context, req *oktapb.Val
 		requestCreds: req.GetApiCredentials(),
 		orgUrl:       req.GetOktaOrganizationUrl(),
 	}
-	if err := s.validateClientCredentials(ctx, params); err != nil {
+	// Since it can't be determined here if the intention is to create a read-only or
+	// bidirectional integration installed with those credentials, check read-only scopes here
+	// which are required in any case.
+	oauthScopes := oktacommon.GetReadOnlyOAuthScopes()
+	if err := s.validateClientCredentials(ctx, params, oauthScopes); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &oktapb.ValidateClientCredentialsResponse{}, nil
 }
 
-func (s *Service) validateClientCredentials(ctx context.Context, params createOktaClientParams) error {
+func (s *Service) validateClientCredentials(ctx context.Context, params createOktaClientParams, oauthScopes []string) error {
 	oktaClient, err := s.createOktaClient(ctx, params)
 	if err != nil {
 		return trace.BadParameter("okta credential verification failed: %v", err)
 	}
-	if _, err = oktaClient.ListUsers(ctx); err != nil {
-		return trace.BadParameter("okta credential verification failed: %v", err)
+	if err := oktacommon.CheckClientOAuthScopes(ctx, oktaClient, oauthScopes...); err != nil {
+		return trace.BadParameter("Okta OAuth scopes verification failed: %v", err)
+	}
+	if _, err := oktaClient.ListUsers(ctx); err != nil {
+		return trace.BadParameter("Okta credential verification failed: %v", err)
 	}
 	return nil
 }
@@ -124,11 +132,14 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 		return nil, trace.Wrap(err, "create integration failed due to invalid request")
 	}
 	if req.GetApiCredentials() != nil {
-		err := s.validateClientCredentials(ctx, createOktaClientParams{
-			requestCreds: req.GetApiCredentials(),
-			orgUrl:       req.GetOktaOrganizationUrl(),
-		})
-		if err != nil {
+		if err := s.validateClientCredentials(
+			ctx,
+			createOktaClientParams{
+				requestCreds: req.GetApiCredentials(),
+				orgUrl:       req.GetOktaOrganizationUrl(),
+			},
+			oktacommon.GetOAuthScopesForIntegrationRequest(req),
+		); err != nil {
 			return nil, trace.Wrap(err, "validating request credentials")
 		}
 	}
@@ -246,16 +257,22 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = validateUpdateIntegrationRequest(req, plugin); err != nil {
+	if err := validateUpdateIntegrationRequest(req, plugin); err != nil {
 		return nil, trace.Wrap(err, "request validation")
 	}
 
-	if req.GetApiCredentials() != nil {
-		err := s.validateClientCredentials(ctx, createOktaClientParams{
-			requestCreds: req.GetApiCredentials(),
-			orgUrl:       plugin.Spec.GetOkta().OrgUrl,
-		})
-		if err != nil {
+	if err := s.validateClientCredentials(
+		ctx,
+		createOktaClientParams{
+			requestCreds:         req.GetApiCredentials(),
+			pluginStaticCredsRef: plugin.Credentials.GetStaticCredentialsRef(),
+			orgUrl:               plugin.Spec.GetOkta().OrgUrl,
+		},
+		oktacommon.GetOAuthScopesForIntegrationRequest(req),
+	); err != nil {
+		if req.GetApiCredentials() != nil {
+			return nil, trace.Wrap(err, "validating request credentials")
+		} else {
 			return nil, trace.Wrap(err, "validating plugin credentials")
 		}
 	}

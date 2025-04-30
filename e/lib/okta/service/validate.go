@@ -8,6 +8,7 @@ import (
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 )
 
@@ -142,12 +143,7 @@ func validatePlugin(plugin *types.PluginV1) error {
 
 // validateSyncSettings validates sync settings in [oktapb.CreateIntegrationRequest] and
 // [oktapb.UpdateIntegrationRequest].
-func validateSyncSettings(req interface {
-	GetEnableUserSync() bool
-	GetEnableAppGroupSync() bool
-	GetEnableAccessListSync() bool
-	GetEnableBidirectionalSync() bool
-}) error {
+func validateSyncSettings(req oktacommon.SyncSettings) error {
 	if req.GetEnableAppGroupSync() {
 		if !req.GetEnableUserSync() {
 			return trace.BadParameter("App and Group sync can be enabled only when user sync is enabled")

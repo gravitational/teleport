@@ -3,6 +3,7 @@ package oktaapi
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 )
@@ -13,14 +14,10 @@ import (
 type APIClient interface {
 	// GetOrgUrl returns Okta API URL this client is configured with.
 	GetOrgUrl() string
-	// GetScopes returns Okta API scopes this client was configured with. Please note that
-	// [ApiClientProvider].defaultNewClient fetches the scopes from Okta using the provided
-	// credentials.
-	//
-	// Scopes are never refreshed so it they may become inaccurate if the Okta Services API app
-	// is changed during client's operation.
-	GetScopes() []string
 
+	// GetAuthorizedScopes verifies and returns the list of configured OAuth scopes trimmed
+	// down to those allowed by the configured credentials.
+	GetAuthorizedScopes(ctx context.Context) ([]string, error)
 	GetOrgSettings(ctx context.Context) (*okta.OrgSetting, *okta.Response, error)
 	GetUser(ctx context.Context, userId string) (*okta.User, *okta.Response, error)
 	ListUsers(ctx context.Context, qp *query.Params) ([]*okta.User, *okta.Response, error)
@@ -45,7 +42,6 @@ func NewAPIClient(client *okta.Client) APIClient {
 	return &apiClient{
 		client: client,
 		orgUrl: client.GetConfig().Okta.Client.OrgUrl,
-		scopes: client.GetConfig().Okta.Client.Scopes,
 	}
 }
 
@@ -53,17 +49,17 @@ func NewAPIClient(client *okta.Client) APIClient {
 type apiClient struct {
 	client *okta.Client
 	orgUrl string
-	scopes []string
 }
 
-// GetScopes returns the scopes for the Okta client.
+// GetOrgUrl implements [APIClient].GetOrgUrl.
 func (o *apiClient) GetOrgUrl() string {
 	return o.orgUrl
 }
 
-// GetScopes returns the scopes for the Okta client.
-func (o *apiClient) GetScopes() []string {
-	return o.scopes
+// GetAuthorizedScopes implements [APIClient].GetAuthorizedScopes.
+func (o *apiClient) GetAuthorizedScopes(ctx context.Context) ([]string, error) {
+	scopes, err := getAuthorizedScopes(ctx, o.client)
+	return scopes, trace.Wrap(err)
 }
 
 // AddUserToGroup will assign the given user to the group.
