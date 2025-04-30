@@ -5330,6 +5330,13 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						types.NewRule(types.KindRole, services.RW()),
 					},
 				},
+				Options: types.RoleOptions{
+					IDP: &types.IdPOptions{
+						SAML: &types.IdPSAMLOptions{
+							Enabled: types.NewBoolOption(false),
+						},
+					},
+				},
 			}),
 			expectDowngraded: true,
 		},
