@@ -2920,6 +2920,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 			)
 			defer span.End()
 
+			displayName := nodeName(node)
 			nodeClient, err := tc.ConnectToNode(
 				ctx,
 				clt,
@@ -2936,25 +2937,31 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 				// Returning the error here would cancel all the other goroutines, so
 				// print the error instead to let them all finish.
 				fmt.Fprintln(stderr, err)
+				resultsCh <- execResult{
+					hostname:   displayName,
+					exitStatus: 1,
+				}
 				return nil
 			}
 			defer nodeClient.Close()
 
-			displayName := nodeName(node)
 			fmt.Fprintf(stdout, "Running command on %v:\n", displayName)
 
-			if err := nodeClient.RunCommand(
+			err = nodeClient.RunCommand(
 				ctx,
 				command,
 				WithLabeledOutput(width),
 				WithOutput(stdout, stderr),
-			); err != nil && tc.ExitStatus == 0 {
+			)
+			// Use the status from the error to avoid a race on tc.ExitStatus.
+			exitStatus := getExitStatus(err)
+			if err != nil && exitStatus == 0 {
 				fmt.Fprintln(stderr, err)
 				return nil
 			}
 			resultsCh <- execResult{
 				hostname:   displayName,
-				exitStatus: tc.ExitStatus,
+				exitStatus: exitStatus,
 			}
 			return nil
 		})
