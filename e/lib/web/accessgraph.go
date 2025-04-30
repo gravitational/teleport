@@ -15,7 +15,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -442,7 +441,7 @@ func listAllAccessGraphPlugins(ctx context.Context, client authclient.ClientI) (
 	pluginsC := client.PluginsClient()
 	for {
 		rsp, err := pluginsC.ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
-			PageSize:    apidefaults.DefaultChunkSize,
+			PageSize:    defaults.DefaultChunkSize,
 			StartKey:    nextPage,
 			WithSecrets: false, /* don't return secrets */
 		})

@@ -308,7 +308,7 @@ func TestGetAccessRequest(t *testing.T) {
 
 				// test-node-2 should be included but the hostname should be missing
 				require.Equal(t, "test-node-2", res.Resources[1].ID.Name)
-				require.Equal(t, "", res.Resources[1].Details.FriendlyName)
+				require.Empty(t, res.Resources[1].Details.FriendlyName)
 			},
 		},
 		{
@@ -357,9 +357,9 @@ func TestGetAccessRequest(t *testing.T) {
 				require.Equal(t, "test-node-1", req.Resources[0].ID.Name)
 				require.Equal(t, "test-hostname-1", req.Resources[0].Details.FriendlyName)
 				require.Equal(t, "test-app-1", req.Resources[1].ID.Name)
-				require.Equal(t, "", req.Resources[1].Details.FriendlyName)
+				require.Empty(t, req.Resources[1].Details.FriendlyName)
 				require.Equal(t, "test-kube-1", req.Resources[2].ID.Name)
-				require.Equal(t, "", req.Resources[2].Details.FriendlyName)
+				require.Empty(t, req.Resources[2].Details.FriendlyName)
 			},
 		},
 	} {

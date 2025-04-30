@@ -95,7 +95,7 @@ func (s *Service) createSession(identity *tlsca.Identity) (*saml.Session, error)
 // SamlMappableAttributeToCustomAttribute converts samlMappableUserSpec to saml.Attribute
 // which will eventually be added to SAML session custom attributes.
 func SamlMappableAttributeToCustomAttribute(userSpec attribute.SAMLMappableUserSpec) []saml.Attribute {
-	var customAttributes []saml.Attribute = make([]saml.Attribute, 0)
+	var customAttributes []saml.Attribute
 	for k, v := range userSpec.Traits {
 		customAttributes = addAttribute(customAttributes, k, k, v...)
 	}

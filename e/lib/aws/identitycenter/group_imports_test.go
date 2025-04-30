@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
-	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/entitlements"
 	accesscommon "github.com/gravitational/teleport/integrations/access/common"
@@ -403,7 +402,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 // the group filter. In that case, REIMPORT_REQUESTED status is used to override group
 // status code, which re-triggers group import.
 func TestGroupImportTriggers(t *testing.T) {
-	fixture := ictest.NewFixture(t, ictest.WithCache(ictest.CacheArgs{Started: true}))
+	fixture := icfixture.NewFixture(t, icfixture.WithCache(icfixture.CacheArgs{Started: true}))
 	ctx := fixture.Ctx
 	fixture.CreatePluginResource(t,
 		icfixture.WithGroupFilters(icfilters.Filters{

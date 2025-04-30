@@ -282,7 +282,7 @@ func attributesToMappableUserSpec(customAttrs []saml.Attribute) attribute.SAMLMa
 }
 
 func samlAttributeValuesToSlice(attrVals []saml.AttributeValue) []string {
-	var attrValues []string = make([]string, 0, len(attrVals))
+	attrValues := make([]string, 0, len(attrVals))
 	for _, values := range attrVals {
 		attrValues = append(attrValues, values.Value)
 	}

@@ -262,9 +262,9 @@ func (c *WorkloadIdentityX509IssuerOverrideCache) GetWorkloadIdentityX509CAOverr
 	switch name {
 	case "none":
 		return ca, nil, nil
+	case "", "default":
 	default:
 		return nil, nil, trace.NotFound(apitypes.KindWorkloadIdentityX509IssuerOverride+" %q doesn't exist", name)
-	case "", "default":
 	}
 
 	r, err := utils.FnCacheGet(

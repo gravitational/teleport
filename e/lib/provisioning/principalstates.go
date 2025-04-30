@@ -180,7 +180,7 @@ func markStateAsProvisioned(
 // errNoChangeRequired is a sentinel error used by the mutator functions in
 // updateProvisioningState to signal that no update is required and the update
 // should be abandoned
-var errNoChangeRequired = errors.New("no change required. Update aborted.")
+var errNoChangeRequired = errors.New("no change required")
 
 // provisioningStateMutator defines the signature for provisioning state mutator
 // functions for use with updateProvisioningState.

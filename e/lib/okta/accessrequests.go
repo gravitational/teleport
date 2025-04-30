@@ -649,7 +649,7 @@ func (a *AccessRequestReconciler) OnLogin(ctx context.Context, user types.User) 
 
 		needsLock := userLocked || accessRequestLocked
 
-		if needsLock && accessRequest.Expiry() == assignment.GetCleanupTime() {
+		if needsLock && accessRequest.Expiry().Equal(assignment.GetCleanupTime()) {
 			// If the user or access request is locked and the cleanup time matches the access request expiry time,
 			// update the assignment so that it gets cleaned up immediately.
 			assignmentNeedsUpdate = true

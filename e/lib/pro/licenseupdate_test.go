@@ -201,7 +201,7 @@ func TestAppendAnonymizationKey(t *testing.T) {
 				decoded, _ := pem.Decode(result)
 				require.NotNil(t, decoded, "expected resulting PEM to be valid")
 				// assert it includes the anonymization key
-				require.Equal(t, "", string(decoded.Bytes))
+				require.Empty(t, decoded.Bytes)
 			},
 		},
 	}

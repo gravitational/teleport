@@ -683,7 +683,7 @@ func TestEnrolmentPartialStepsFromLegacyConnector(t *testing.T) {
 		oktaPlugin, err = pluginClient.UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: oktaPlugin})
 		require.NoError(t, err)
 		require.Equal(t, "unknown", oktaPlugin.Spec.GetOkta().GetSyncSettings().UserSyncSource)
-		require.Equal(t, "", oktaPlugin.Spec.GetOkta().GetSyncSettings().AppId)
+		require.Empty(t, oktaPlugin.Spec.GetOkta().GetSyncSettings().AppId)
 
 		// Now updating integration should populate back the app ID and set user sync source to
 		// "org" (because app ID was not set).

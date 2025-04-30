@@ -10,10 +10,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudv1 "github.com/gravitational/teleport/e/api/cloud/v1"
-	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -33,11 +31,11 @@ func (m *mockAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 
 type mockEmitter struct {
 	// in is the event param used in the last EmitAuditEvent call.
-	in apievents.AuditEvent
+	in events.AuditEvent
 }
 
 // EmitAuditEvent stores `event` into the `in` property.
-func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	m.in = event
 	return nil
 }
@@ -62,7 +60,7 @@ type cloudWithRolesTestSuite struct {
 	// authorizer is a mockAuthorizer that can be used to overwrite the
 	// `Authorize` call during authentication checks.
 	authorizer *mockAuthorizer
-	// emitter is a mockEmitter that implements the `apievents.Emitter` interface and
+	// emitter is a mockEmitter that implements the `events.Emitter` interface and
 	// stores that latest emitted event in its `in` value.
 	emitter *mockEmitter
 	// authIdentity is the identity getter that will be used during Authorize() calls.
@@ -125,7 +123,7 @@ func unauthorized(ctx context.Context) (*authz.Context, error) {
 // newTestContact returns a *cloudv1.Contact with valid fields,
 // to be used in tests.
 func newTestContact() *cloudv1.Contact {
-	return &v1.Contact{
+	return &cloudv1.Contact{
 		Name:        "contactname",
 		AccountId:   "accid",
 		VerifyToken: "verifytoken",
@@ -137,7 +135,7 @@ func newTestContact() *cloudv1.Contact {
 
 func TestRemoveContact(t *testing.T) {
 	ctx := context.Background()
-	removeContactResp := &v1.RemoveContactResponse{
+	removeContactResp := &cloudv1.RemoveContactResponse{
 		Contact: newTestContact(),
 	}
 	suite := newCloudSuite(t)
@@ -150,13 +148,13 @@ func TestRemoveContact(t *testing.T) {
 		name      string
 		authorize bool
 		req       *cloudv1.RemoveContactRequest
-		assert    func(t *testing.T, resp *cloudv1.RemoveContactResponse, err error, event apievents.AuditEvent)
+		assert    func(t *testing.T, resp *cloudv1.RemoveContactResponse, err error, event events.AuditEvent)
 	}{
 		{
 			name:      "unauthorized request should emit no events",
 			authorize: false,
-			req:       &v1.RemoveContactRequest{},
-			assert: func(t *testing.T, resp *cloudv1.RemoveContactResponse, err error, event apievents.AuditEvent) {
+			req:       &cloudv1.RemoveContactRequest{},
+			assert: func(t *testing.T, resp *cloudv1.RemoveContactResponse, err error, event events.AuditEvent) {
 				require.True(t, trace.IsAccessDenied(err))
 				require.Nil(t, event)
 			},
@@ -164,15 +162,15 @@ func TestRemoveContact(t *testing.T) {
 		{
 			name:      "successful request should emit events",
 			authorize: true,
-			req: &v1.RemoveContactRequest{
+			req: &cloudv1.RemoveContactRequest{
 				ContactType: 2,
 			},
-			assert: func(t *testing.T, resp *cloudv1.RemoveContactResponse, err error, event apievents.AuditEvent) {
+			assert: func(t *testing.T, resp *cloudv1.RemoveContactResponse, err error, event events.AuditEvent) {
 				require.NoError(t, err)
 				require.Equal(t, removeContactResp, resp)
 				// check event
 				require.NotNil(t, event)
-				removeEvent := event.(*apievents.ContactDelete)
+				removeEvent := event.(*events.ContactDelete)
 				require.Equal(t, removeContactResp.Contact.Email, removeEvent.Email)
 				require.Equal(t, events.ContactType(2), removeEvent.ContactType) // should match request
 				require.Equal(t, libevents.ContactDeleteEvent, removeEvent.Type)
@@ -199,7 +197,7 @@ func TestRemoveContact(t *testing.T) {
 
 func TestCreateContact(t *testing.T) {
 	ctx := context.Background()
-	createContactResp := &v1.CreateContactResponse{
+	createContactResp := &cloudv1.CreateContactResponse{
 		Contact: newTestContact(),
 	}
 	suite := newCloudSuite(t)
@@ -212,13 +210,13 @@ func TestCreateContact(t *testing.T) {
 		name      string
 		authorize bool
 		req       *cloudv1.CreateContactRequest
-		assert    func(t *testing.T, resp *cloudv1.CreateContactResponse, err error, event apievents.AuditEvent)
+		assert    func(t *testing.T, resp *cloudv1.CreateContactResponse, err error, event events.AuditEvent)
 	}{
 		{
 			name:      "unauthorized request should emit no events",
 			authorize: false,
-			req:       &v1.CreateContactRequest{},
-			assert: func(t *testing.T, resp *cloudv1.CreateContactResponse, err error, event apievents.AuditEvent) {
+			req:       &cloudv1.CreateContactRequest{},
+			assert: func(t *testing.T, resp *cloudv1.CreateContactResponse, err error, event events.AuditEvent) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 				require.Nil(t, event)
@@ -227,16 +225,16 @@ func TestCreateContact(t *testing.T) {
 		{
 			name:      "successful request should emit events",
 			authorize: true,
-			req: &v1.CreateContactRequest{
+			req: &cloudv1.CreateContactRequest{
 				Email:       "email@goteleport.com",
 				ContactType: 2,
 			},
-			assert: func(t *testing.T, resp *cloudv1.CreateContactResponse, err error, event apievents.AuditEvent) {
+			assert: func(t *testing.T, resp *cloudv1.CreateContactResponse, err error, event events.AuditEvent) {
 				require.NoError(t, err)
 				require.Equal(t, createContactResp, resp)
 				// check event
 				require.NotNil(t, event)
-				createEvent := event.(*apievents.ContactCreate)
+				createEvent := event.(*events.ContactCreate)
 				require.Equal(t, "email@goteleport.com", createEvent.Email)      // should match request
 				require.Equal(t, events.ContactType(2), createEvent.ContactType) // should match request
 				require.Equal(t, libevents.ContactCreateEvent, createEvent.Type)

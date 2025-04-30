@@ -16,7 +16,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
-	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
@@ -28,7 +27,7 @@ func TestPreprocessing(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	fixture := ictest.NewFixture(t)
+	fixture := test.NewFixture(t)
 	icSvc := newTestService(t, fixture)
 
 	const (
@@ -206,7 +205,7 @@ func TestEventEmittedOnSynchronize(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	fixture := ictest.NewFixture(t)
+	fixture := test.NewFixture(t)
 	icSvc := newTestService(t, fixture)
 
 	// Input data for this test is the default data set for the mocked Identity

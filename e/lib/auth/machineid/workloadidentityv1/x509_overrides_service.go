@@ -17,7 +17,6 @@ import (
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	eservices "github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/lib/authz"
@@ -26,7 +25,7 @@ import (
 )
 
 type CertAuthorityGetter interface {
-	GetCertAuthority(ctx context.Context, id apitypes.CertAuthID, loadKeys bool) (apitypes.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 
 type TLSCertAndSignerGetter interface {
@@ -118,13 +117,13 @@ func (s *X509OverridesService) authorizeAccessToKindAdminReusedMFA(ctx context.C
 
 // SignX509IssuerCSR implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) SignX509IssuerCSR(ctx context.Context, req *workloadidentityv1pb.SignX509IssuerCSRRequest) (*workloadidentityv1pb.SignX509IssuerCSRResponse, error) {
-	if err := s.authorizeAccessToKind(ctx, apitypes.KindWorkloadIdentityX509IssuerOverrideCSR, apitypes.VerbCreate); err != nil {
+	if err := s.authorizeAccessToKind(ctx, types.KindWorkloadIdentityX509IssuerOverrideCSR, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	const loadKeysTrue = true
-	ca, err := s.caGetter.GetCertAuthority(ctx, apitypes.CertAuthID{
-		Type:       apitypes.SPIFFECA,
+	ca, err := s.caGetter.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
 		DomainName: s.clusterName,
 	}, loadKeysTrue)
 	if err != nil {
@@ -149,8 +148,8 @@ func (s *X509OverridesService) SignX509IssuerCSR(ctx context.Context, req *workl
 	// we are somewhat sure that we have sourced the key from the actual
 	// cert_authority we intended to source it from and we were not tricked to
 	// use some other unrelated key
-	ca.SetActiveKeys(apitypes.CAKeySet{TLS: []*apitypes.TLSKeyPair{keyPair}})
-	ca.SetAdditionalTrustedKeys(apitypes.CAKeySet{})
+	ca.SetActiveKeys(types.CAKeySet{TLS: []*types.TLSKeyPair{keyPair}})
+	ca.SetAdditionalTrustedKeys(types.CAKeySet{})
 
 	_, signer, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
@@ -172,7 +171,7 @@ func (s *X509OverridesService) SignX509IssuerCSR(ctx context.Context, req *workl
 	}, nil
 }
 
-func (*X509OverridesService) searchIssuerInCA(ca apitypes.CertAuthority, issuerDER []byte) *apitypes.TLSKeyPair {
+func (*X509OverridesService) searchIssuerInCA(ca types.CertAuthority, issuerDER []byte) *types.TLSKeyPair {
 	for _, kp := range chainSlices(
 		ca.GetActiveKeys().TLS,
 		ca.GetAdditionalTrustedKeys().TLS,
@@ -218,7 +217,7 @@ func (*X509OverridesService) getCSRTemplateForIssuer(issuerCert *x509.Certificat
 
 // GetX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) GetX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.GetX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	if err := s.authorizeAccessToKind(ctx, apitypes.KindWorkloadIdentityX509IssuerOverride, apitypes.VerbRead); err != nil {
+	if err := s.authorizeAccessToKind(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -227,7 +226,7 @@ func (s *X509OverridesService) GetX509IssuerOverride(ctx context.Context, req *w
 
 // ListX509IssuerOverrides implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) ListX509IssuerOverrides(ctx context.Context, req *workloadidentityv1pb.ListX509IssuerOverridesRequest) (*workloadidentityv1pb.ListX509IssuerOverridesResponse, error) {
-	if err := s.authorizeAccessToKind(ctx, apitypes.KindWorkloadIdentityX509IssuerOverride, apitypes.VerbList, apitypes.VerbRead); err != nil {
+	if err := s.authorizeAccessToKind(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -244,7 +243,7 @@ func (s *X509OverridesService) ListX509IssuerOverrides(ctx context.Context, req 
 
 // CreateX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) CreateX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.CreateX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, apitypes.KindWorkloadIdentityX509IssuerOverride, apitypes.VerbCreate); err != nil {
+	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -275,7 +274,7 @@ func (s *X509OverridesService) CreateX509IssuerOverride(ctx context.Context, req
 
 // UpdateX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) UpdateX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.UpdateX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, apitypes.KindWorkloadIdentityX509IssuerOverride, apitypes.VerbUpdate); err != nil {
+	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -306,7 +305,7 @@ func (s *X509OverridesService) UpdateX509IssuerOverride(ctx context.Context, req
 
 // UpsertX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) UpsertX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.UpsertX509IssuerOverrideRequest) (*workloadidentityv1pb.X509IssuerOverride, error) {
-	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, apitypes.KindWorkloadIdentityX509IssuerOverride, apitypes.VerbCreate, apitypes.VerbUpdate); err != nil {
+	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -337,7 +336,7 @@ func (s *X509OverridesService) UpsertX509IssuerOverride(ctx context.Context, req
 
 // DeleteX509IssuerOverride implements [workloadidentityv1pb.X509OverridesServiceServer].
 func (s *X509OverridesService) DeleteX509IssuerOverride(ctx context.Context, req *workloadidentityv1pb.DeleteX509IssuerOverrideRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, apitypes.KindWorkloadIdentityX509IssuerOverride, apitypes.VerbDelete); err != nil {
+	if err := s.authorizeAccessToKindAdminReusedMFA(ctx, types.KindWorkloadIdentityX509IssuerOverride, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

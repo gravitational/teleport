@@ -78,11 +78,7 @@ func (s *Service) waitIfNotLeader(ctx context.Context) bool {
 	s.logger.InfoContext(ctx, "Waiting for leadership to be acquired before starting synchronizer")
 	waitForLeadershipTicker := s.clock.NewTicker(SyncRetryAfterLeadershipFailure)
 	defer waitForLeadershipTicker.Stop()
-	for {
-		if s.leader.IsLeader() {
-			break
-		}
-
+	for !s.leader.IsLeader() {
 		select {
 		case <-waitForLeadershipTicker.Chan():
 		case <-s.stopCh:
@@ -160,8 +156,8 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 
 // synchronize will synchronize the Okta groups and applications with the backend.
 func (s *Service) synchronize(ctx context.Context) error {
-	switch {
-	case s.userReconciler == nil:
+	switch s.userReconciler {
+	case nil:
 		s.logger.InfoContext(ctx, "User sync is disabled")
 	default:
 		s.logger.InfoContext(ctx, "Synchronizing users", "user_sync_source", sanitizeUserSyncSource(s.userSyncSource, s.oktaSAMLAppID))

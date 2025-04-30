@@ -340,7 +340,7 @@ func TestCheckClusterAlertTryCreateBuyTeleportAlert(t *testing.T) {
 				require.NotNil(t, insertedAlert)
 				require.Equal(t, buyTeleportAlertName, insertedAlert.Metadata.Name)
 			} else {
-				require.Equal(t, "", insertedAlert.Metadata.Name)
+				require.Empty(t, insertedAlert.Metadata.Name)
 			}
 		})
 	}

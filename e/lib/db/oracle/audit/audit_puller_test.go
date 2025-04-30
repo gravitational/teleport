@@ -3,7 +3,6 @@ package audit
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"log/slog"
 	"sync/atomic"
 	"testing"
@@ -43,7 +42,7 @@ func TestPuller(t *testing.T) {
 	p := &Puller{
 		cfg: PullerConfig{
 			Interval: time.Second * 5,
-			Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+			Logger:   slog.New(slog.DiscardHandler),
 			oracleDB: mockConn,
 			OnQuery: func(entry QueryEntry) {
 				entryC <- entry
@@ -88,7 +87,7 @@ func TestPullerClose(t *testing.T) {
 	cfg := PullerConfig{
 		Addr:      "dummy.addr",
 		TLSConfig: &tls.Config{InsecureSkipVerify: true},
-		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:    slog.New(slog.DiscardHandler),
 	}
 
 	p, err := NewPuller(cfg)

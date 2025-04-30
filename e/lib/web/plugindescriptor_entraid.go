@@ -10,7 +10,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
@@ -98,7 +97,7 @@ func (entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req := &pluginspb.CreatePluginRequest{
+	req := &pluginsv1.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: inputs.name,

@@ -144,7 +144,7 @@ func (svc *Service) batchReadEvents(ctx context.Context, duration time.Duration)
 
 // errResourceExcluded isn an error indicating that a resource has failed its
 // inclusion predicate and should not be provisioned by the event handler.
-var errResourceExcluded = errors.New("Resource excluded")
+var errResourceExcluded = errors.New("resource excluded")
 
 func (svc *Service) handleResourceEvent(ctx context.Context, principalID services.PrincipalAssignmentID, event *monitor.PrincipalEvent) error {
 	switch event.Verb {

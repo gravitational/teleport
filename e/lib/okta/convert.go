@@ -153,7 +153,7 @@ func (s *Service) oktaAppToApps(oktaApplication *okta.Application, groupIDs []st
 func AppName(id, appLinkName string) (string, error) {
 	// Let's create a short unique string for the app ID.
 	hasher := crypto.SHA256.New()
-	_, err := hasher.Write([]byte(fmt.Sprintf("%s-%s", id, appLinkName)))
+	_, err := fmt.Fprintf(hasher, "%s-%s", id, appLinkName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

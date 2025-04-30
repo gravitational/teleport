@@ -1590,7 +1590,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 			checkError: assert.NoError,
 			checkResponse: func(t *testing.T, resp *authclient.SAMLAuthResponse) {
 				require.NotNil(t, resp)
-				assert.NotZero(t, resp.MFAToken)
+				assert.NotEmpty(t, resp.MFAToken)
 
 				// MFA session data token should match the response.
 				sd, err := a.GetSSOMFASessionData(ctx, requestID)

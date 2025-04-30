@@ -13,7 +13,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
-	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -78,7 +77,7 @@ func TestResourceMonitor(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// GIVEN a test cluster
-	fixture := ictest.NewFixture(t, ictest.WithCache(ictest.CacheArgs{Started: true}))
+	fixture := test.NewFixture(t, test.WithCache(test.CacheArgs{Started: true}))
 	eventCh := make(chan *PrincipalEvent)
 	defer close(eventCh)
 

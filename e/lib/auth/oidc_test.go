@@ -1635,7 +1635,7 @@ func TestServer_ValidateOIDCResponse_MFA(t *testing.T) {
 			checkError: assert.NoError,
 			checkResponse: func(t *testing.T, resp *authclient.OIDCAuthResponse) {
 				require.NotEmpty(t, resp)
-				assert.NotZero(t, resp.MFAToken)
+				assert.NotEmpty(t, resp.MFAToken)
 
 				// MFA session data token should match the response.
 				sd, err := a.GetSSOMFASessionData(ctx, request.StateToken)

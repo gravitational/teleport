@@ -13,7 +13,6 @@ import (
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	accesslistpb "github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
@@ -86,7 +85,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	// 3. Remember the name of the AL
 
-	var accessList *accesslistpb.AccessList
+	var accessList *accesslist.AccessList
 	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -100,7 +99,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	// 4. Verify members (user1 - ghost)
 
-	var member1 *accesslistpb.AccessListMember
+	var member1 *accesslist.AccessListMember
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		members, _, err := authServer.ListAccessListMembers(ctx, accessList.GetName(), 1000, "")
@@ -265,7 +264,7 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 
 	// 3. Remember the name of the AL
 
-	var accessList *accesslistpb.AccessList
+	var accessList *accesslist.AccessList
 	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -279,7 +278,7 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 
 	// 4. Verify members (user1 - ghost)
 
-	var member1 *accesslistpb.AccessListMember
+	var member1 *accesslist.AccessListMember
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		members, _, err := authServer.ListAccessListMembers(ctx, accessList.GetName(), 1000, "")

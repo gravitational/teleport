@@ -66,9 +66,10 @@ func TestWriteSAMLPOSTFormWithHeaders(t *testing.T) {
 			formNode := testenv.FindNode(form, "form")
 			require.NotNil(t, formNode)
 			var formID string
-			if test.formData.SAMLAuthnMessageType == SAMLRequest {
+			switch test.formData.SAMLAuthnMessageType {
+			case SAMLRequest:
 				formID = requestFormID.String()
-			} else if test.formData.SAMLAuthnMessageType == SAMLResponse {
+			case SAMLResponse:
 				formID = responseFormID.String()
 			}
 			// checks the {{.FormID}}
