@@ -147,6 +147,11 @@
         },
         {
           "type": "doc",
+          "label": "Using Model Context Protocol (MCP)",
+          "id": "connect-your-client/mcp"
+        },
+        {
+          "type": "doc",
           "label": "Database GUI Clients",
           "id": "connect-your-client/gui-clients"
         },

@@ -1,0 +1,139 @@
+---
+title: Using Model Context Protocol (MCP)
+description: How to configure MCP clients to use Teleport MCP servers.
+---
+
+Introduced in late 2024 by Anthropic, [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction)
+is a widely adopted, open-source standard that enables language models to
+seamlessly interact with external tools and data, enhancing their contextual
+capabilities. This guide will show you how to use the Teleport Model Context
+Protocols (MCP) servers.
+
+## Database Access for MCP
+
+Teleport supports serving database access as MCP servers for **PostgreSQL**
+databases.
+
+### Prerequisites
+
+- A running Teleport cluster. If you want to get started with Teleport, [sign
+  up](https://goteleport.com/signup) for a free trial or [set up a demo
+  environment](../admin-guides/deploy-a-cluster/linux-demo.mdx).
+
+- The `tsh` client tool. Visit [Installation](../installation.mdx) for instructions
+  on downloading `tsh`. See the [Using Teleport Connect](./teleport-connect.mdx)
+  guide for a graphical desktop client that includes `tsh`.
+
+- To check that you can connect to your Teleport cluster, sign in with
+  `tsh login`. For example:
+
+  ```code
+  $ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=myuser@example.com
+  ```
+
+- The Teleport Database Service configured to access a database. See one of our
+  [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set
+  up the Teleport Database Service for your database.
+
+- Access to the configured databases. You can use `tsh db ls` to check which
+  database your user has access to and the connect options available:
+  
+  ```code
+  $ tsh db ls
+  # Name            Description          Allowed Users Labels 
+  # --------------- -------------------- ------------- -------
+  # postgres-dev    Development database [* postgres]  env=dev
+  # postgres-prod   Production database  [readonly]    env=prod
+  # mysql-dev       Development database [*]           env=dev
+  ```
+
+### Step 1/2. Installation
+
+`tsh mcp db` command directly starts a MCP server using the
+[Standard Input/Output (stdio)](https://modelcontextprotocol.io/docs/concepts/transports#standard-input%2Foutput-stdio).
+
+Similarly to `tsh db connect`, the database access MCP server command requires
+you to pick the database user and name the MCP connections will use. In
+addition, you can also filter which database will be available as an MCP
+resource, either using `--query` or `--labels` flags.
+
+As for the current version, **you can only specify a single value for
+`--db-user` and `--db-name`**. All selected databases must have a database and
+a database user. Otherwise, the queries will fail. 
+
+<Admonition type="note" title="Permissions">
+  Given that language models can perform any query on your database, we
+  recommend that you select a database user with only the permissions you want
+  to allow the language models to perform. Creating a user with read-only
+  permissions will prevent accidental changes to your database.
+</Admonition>
+
+#### VS Code
+
+You can either add the Teleport MCP server to
+[your workspace](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server-to-your-workspace)
+or to the [user settings](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server-to-your-user-settings).
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "teleport-databases": {
+        "command": "tsh",
+        "args": [
+          "mcp",
+          "db",
+          "--db-user=readonly",
+          "--db-name=postgres",
+          "--labels=\"env=dev\""
+        ]
+      }
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+Open the Claude Desktop configuration file.
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+And update the contents with the Teleport MCP server configuration.
+
+```json
+{
+  "mcpServers": {
+    "teleport-detabases": {
+      "command": "tsh",
+      "args": [
+        "mcp",
+        "db",
+        "--db-user=readonly",
+        "--db-name=postgres",
+        "--labels=\"env=dev\""
+      ]
+    }
+  }
+}
+```
+
+After updating the configuration, you must restart the Claude Desktop app before
+using the newly added MCPs.
+
+### Step 2/2. Usage
+
+After updating your MCP client configuration, you can use the Teleport
+databases. Each database protocol will have its own tool to execute queries.
+Given that you might have multiple databases from the same protocol, the tool
+call must specify which Teleport database it will perform the query against.
+
+The Teleport database resources can be retrieved automatically by the clients
+(using the available tool) and are also available as MCP resources. Depending
+on which client you're using, you can set the target database beforehand. For
+example, on Claude Desktop, you can attach the resource to the conversation and
+ask the model to perform the queries on the attached database.
+
+### Troubleshooting
+
+TODO
