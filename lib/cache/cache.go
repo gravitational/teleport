@@ -1858,79 +1858,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-type clusterConfigCacheKey struct {
-	kind string
-}
-
-// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterAuditConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
-			cfg, err := rg.reader.GetClusterAuditConfig(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cachedCfg.Clone(), nil
-	}
-	return rg.reader.GetClusterAuditConfig(ctx)
-}
-
-// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterNetworkingConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cachedCfg.Clone(), nil
-	}
-	return rg.reader.GetClusterNetworkingConfig(ctx)
-}
-
-// GetClusterName gets the name of the cluster from the backend.
-func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterName")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterNames)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
-			cfg, err := rg.reader.GetClusterName(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cachedName.Clone(), nil
-	}
-	return rg.reader.GetClusterName(ctx)
-}
-
 type autoUpdateCacheKey struct {
 	kind string
 }
@@ -2373,32 +2300,6 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	}
 	defer rg.Release()
 	return rg.reader.Get(ctx, req)
-}
-
-// GetAuthPreference gets the cluster authentication config.
-func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.authPreferences)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAuthPreference(ctx)
-}
-
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.sessionRecordingConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSessionRecordingConfig(ctx)
 }
 
 // GetNetworkRestrictions gets the network restrictions.
