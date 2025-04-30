@@ -85,6 +85,7 @@ Enterprise:
 ## 17.4.1 (03/28/25)
 
 * Fix a bug causing the discovery service to fail to configure teleport on discovered nodes when managed updates v2 are enabled. [#53543](https://github.com/gravitational/teleport/pull/53543)
+* Machine ID: `tbot` is supported for Windows and included in Windows client downloads. [#53550](https://github.com/gravitational/teleport/pull/53550)
 
 ## 17.4.0 (03/27/25)
 
