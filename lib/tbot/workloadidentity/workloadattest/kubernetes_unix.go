@@ -163,6 +163,7 @@ LOOP:
 			break LOOP
 		}
 
+		retry.Inc()
 		select {
 		case <-ctx.Done():
 			break LOOP
