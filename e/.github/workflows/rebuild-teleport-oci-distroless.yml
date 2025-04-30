@@ -23,6 +23,11 @@ on:
           the leading `v`
         type: string
 
+      slack-notify-channel:
+        description: The slack channel ID of where to send failure notifications.
+        type: string
+        default: C0351AUPJ8K # internal-tools
+
       environment:
         description: |
           GitHub Actions environment in which to run the rebuild. Can be either
@@ -105,3 +110,34 @@ jobs:
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+  slack-on-fail:
+    runs-on: ubuntu-latest
+    needs:
+      - configure
+      - rebuild-image
+    if: always()
+    steps:
+      - name: Slack Notify Failure
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
+        with:
+          channel-id: ${{ inputs.slack-notify-channel }}
+          payload: |
+            {
+              "username": "OCI Rebuild",
+              "text": "*OCI Rebuild failure*",
+              "mrkdwn": true,
+              "parse": "none",
+              "unfurl_links": false,
+              "unfurl_media": false,
+              "attachments": [
+                {
+                  "color": "danger",
+                  "title": "OCI Rebuild for ${{ inputs.teleport-release-tag }} failed",
+                  "title_link": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }
+              ]
+            }
