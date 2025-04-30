@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"slices"
@@ -454,6 +455,36 @@ func (f *fakeAWSKMSService) Sign(_ context.Context, input *kms.SignInput, _ ...f
 	}
 	return &kms.SignOutput{
 		Signature: signature,
+	}, nil
+}
+
+func (f *fakeAWSKMSService) Decrypt(_ context.Context, input *kms.DecryptInput, _ ...func(*kms.Options)) (*kms.DecryptOutput, error) {
+	key, err := f.findKey(aws.ToString(input.KeyId))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if key.state != kmstypes.KeyStateEnabled {
+		return nil, trace.NotFound("key %q is not enabled", aws.ToString(input.KeyId))
+	}
+	signer, err := keys.ParsePrivateKey(key.privKeyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	decrypter, ok := signer.Signer.(crypto.Decrypter)
+	if !ok {
+		return nil, trace.Errorf("private key is not a decrypter")
+	}
+	switch input.EncryptionAlgorithm {
+	case kmstypes.EncryptionAlgorithmSpecRsaesOaepSha256:
+	default:
+		return nil, trace.BadParameter("unsupported EncryptionAlgorithm %q", input.EncryptionAlgorithm)
+	}
+	plaintext, err := decrypter.Decrypt(rand.Reader, input.CiphertextBlob, &rsa.OAEPOptions{Hash: crypto.SHA256})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &kms.DecryptOutput{
+		Plaintext: plaintext,
 	}, nil
 }
 
