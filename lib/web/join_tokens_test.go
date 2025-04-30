@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -96,8 +95,8 @@ func TestGenerateIAMTokenName(t *testing.T) {
 
 type tokenData struct {
 	name   string
-	roles  types.SystemRoles
 	expiry time.Time
+	spec   types.ProvisionTokenSpecV2
 }
 
 func TestGetTokens(t *testing.T) {
@@ -149,25 +148,31 @@ func TestGetTokens(t *testing.T) {
 			tokenData: []tokenData{
 				{
 					name: "test-token",
-					roles: types.SystemRoles{
-						types.RoleNode,
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleNode,
+						},
 					},
 					expiry: expiry,
 				},
 				{
 					name: "test-token-2",
-					roles: types.SystemRoles{
-						types.RoleNode,
-						types.RoleDatabase,
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleNode,
+							types.RoleDatabase,
+						},
 					},
 					expiry: expiry,
 				},
 				{
 					name: "test-token-3-and-super-duper-long",
-					roles: types.SystemRoles{
-						types.RoleNode,
-						types.RoleKube,
-						types.RoleDatabase,
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleNode,
+							types.RoleKube,
+							types.RoleDatabase,
+						},
 					},
 					expiry: expiry,
 				},
@@ -205,6 +210,64 @@ func TestGetTokens(t *testing.T) {
 						types.RoleDatabase,
 					},
 					Method: types.JoinMethodToken,
+				},
+				staticUIToken,
+			},
+		},
+		{
+			name: "github token",
+			tokenData: []tokenData{
+				{
+					name: "github-test-token",
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{
+							types.RoleBot,
+						},
+						BotName:    "test-bot",
+						JoinMethod: types.JoinMethodGitHub,
+						GitHub: &types.ProvisionTokenSpecV2GitHub{
+							EnterpriseServerHost: "github.example.com",
+							StaticJWKS:           "{\"keys\":[]}",
+							Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+								{
+									Repository:      "gravitational/teleport",
+									RepositoryOwner: "gravitational",
+									Sub:             "test-sub",
+									Workflow:        "test-workflow",
+									Environment:     "test-environment",
+									Actor:           "octocat",
+									Ref:             "ref/heads/main",
+									RefType:         "branch",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []ui.JoinToken{
+				{
+					ID:       "github-test-token",
+					SafeName: "github-test-token",
+					BotName:  "test-bot",
+					Expiry:   time.Time{},
+					Roles:    types.SystemRoles{"Bot"},
+					Method:   types.JoinMethodGitHub,
+					Github: &types.ProvisionTokenSpecV2GitHub{
+						EnterpriseServerHost: "github.example.com",
+						StaticJWKS:           "{\"keys\":[]}",
+						Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Repository:      "gravitational/teleport",
+								RepositoryOwner: "gravitational",
+								Sub:             "test-sub",
+								Workflow:        "test-workflow",
+								Environment:     "test-environment",
+								Actor:           "octocat",
+								Ref:             "ref/heads/main",
+								RefType:         "branch",
+							},
+						},
+					},
 				},
 				staticUIToken,
 			},
@@ -249,9 +312,7 @@ func TestGetTokens(t *testing.T) {
 			}
 
 			for _, td := range tc.tokenData {
-				token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, types.ProvisionTokenSpecV2{
-					Roles: td.roles,
-				})
+				token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, td.spec)
 				require.NoError(t, err)
 				err = env.server.Auth().CreateToken(ctx, token)
 				require.NoError(t, err)
@@ -267,86 +328,6 @@ func TestGetTokens(t *testing.T) {
 			require.Empty(t, cmp.Diff(resp.Items, tc.expected, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 		})
 	}
-}
-
-func TestGetGithubTokens(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	username := "test-user@example.com"
-	expiry := time.Now().UTC().Add(30 * time.Minute)
-
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, username, nil /* roles */)
-
-	td := tokenData{
-		name:   "github-test-token",
-		expiry: expiry,
-		roles:  types.SystemRoles{types.RoleBot},
-	}
-
-	token, err := types.NewProvisionTokenFromSpec(td.name, td.expiry, types.ProvisionTokenSpecV2{
-		Roles:      td.roles,
-		BotName:    "test-bot",
-		JoinMethod: types.JoinMethodGitHub,
-
-		GitHub: &types.ProvisionTokenSpecV2GitHub{
-			EnterpriseServerHost: "github.example.com",
-			StaticJWKS:           "{\"keys\":[]}",
-			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
-				{
-					Repository:      "gravitational/teleport",
-					RepositoryOwner: "gravitational",
-					Sub:             "test-sub",
-					Workflow:        "test-workflow",
-					Environment:     "test-environment",
-					Actor:           "octocat",
-					Ref:             "ref/heads/main",
-					RefType:         "branch",
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	err = env.server.Auth().CreateToken(ctx, token)
-	require.NoError(t, err)
-
-	endpoint := pack.clt.Endpoint("webapi", "tokens")
-	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
-	require.NoError(t, err)
-
-	resp := GetTokensResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-
-	require.Len(t, resp.Items, 2) // Including a static token
-
-	githubTokenIndex := slices.IndexFunc(resp.Items, func(item ui.JoinToken) bool { return item.Method == types.JoinMethodGitHub })
-	require.NotEqual(t, githubTokenIndex, -1)
-	require.Empty(t, cmp.Diff(resp.Items[githubTokenIndex], ui.JoinToken{
-		ID:       "github-test-token",
-		SafeName: "github-test-token",
-		BotName:  "test-bot",
-		Expiry:   expiry,
-		Roles:    types.SystemRoles{"Bot"},
-		Method:   types.JoinMethodGitHub,
-		Github: &types.ProvisionTokenSpecV2GitHub{
-			EnterpriseServerHost: "github.example.com",
-			StaticJWKS:           "{\"keys\":[]}",
-			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
-				{
-					Repository:      "gravitational/teleport",
-					RepositoryOwner: "gravitational",
-					Sub:             "test-sub",
-					Workflow:        "test-workflow",
-					Environment:     "test-environment",
-					Actor:           "octocat",
-					Ref:             "ref/heads/main",
-					RefType:         "branch",
-				},
-			},
-		},
-	}, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 }
 
 func TestDeleteToken(t *testing.T) {
