@@ -275,7 +275,7 @@ spec:
                       properties:
                         api_group:
                           description: APIGroup specifies the API group of the resource.
-                            Can be '*' for any, but doesn't support pattern matching.
+                            It supports wildcards.
                           type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
@@ -286,9 +286,6 @@ spec:
                         namespace:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
-                          type: string
-                        sub_resource:
-                          description: For future use.
                           type: string
                         verbs:
                           description: Verbs are the allowed Kubernetes verbs for
@@ -870,7 +867,7 @@ spec:
                       properties:
                         api_group:
                           description: APIGroup specifies the API group of the resource.
-                            Can be '*' for any, but doesn't support pattern matching.
+                            It supports wildcards.
                           type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
@@ -881,9 +878,6 @@ spec:
                         namespace:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
-                          type: string
-                        sub_resource:
-                          description: For future use.
                           type: string
                         verbs:
                           description: Verbs are the allowed Kubernetes verbs for
