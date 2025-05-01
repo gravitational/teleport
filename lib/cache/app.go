@@ -26,16 +26,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const appStoreNameIndex = "name"
+type appIndex string
 
-func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.Application], error) {
+const appNameIndex appIndex = "name"
+
+func newAppCollection(p services.Apps, w types.WatchKind) (*collection[types.Application, appIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Apps")
 	}
 
-	return &collection[types.Application]{
-		store: newStore(map[string]func(types.Application) string{
-			appStoreNameIndex: func(u types.Application) string {
+	return &collection[types.Application, appIndex]{
+		store: newStore(map[appIndex]func(types.Application) string{
+			appNameIndex: func(u types.Application) string {
 				return u.GetName()
 			},
 		}),
@@ -72,7 +74,7 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	}
 
 	out := make([]types.Application, 0, rg.store.len())
-	for a := range rg.store.resources(appStoreNameIndex, "", "") {
+	for a := range rg.store.resources(appNameIndex, "", "") {
 		out = append(out, a.Copy())
 	}
 
@@ -95,7 +97,7 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 		return apps, trace.Wrap(err)
 	}
 
-	a, err := rg.store.get(appStoreNameIndex, name)
+	a, err := rg.store.get(appNameIndex, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,16 +105,18 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	return a.Copy(), nil
 }
 
-const appServerStoreNameIndex = "name"
+type appServerIndex string
 
-func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer], error) {
+const appServerNameIndex appServerIndex = "name"
+
+func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer, appServerIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Presence")
 	}
 
-	return &collection[types.AppServer]{
-		store: newStore(map[string]func(types.AppServer) string{
-			appServerStoreNameIndex: func(u types.AppServer) string {
+	return &collection[types.AppServer, appServerIndex]{
+		store: newStore(map[appServerIndex]func(types.AppServer) string{
+			appServerNameIndex: func(u types.AppServer) string {
 				return u.GetHostID() + "/" + u.GetName()
 			},
 		}),
@@ -148,7 +152,7 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 
 	if rg.ReadCache() {
 		out := make([]types.AppServer, 0, rg.store.len())
-		for as := range rg.store.resources(appServerStoreNameIndex, "", "") {
+		for as := range rg.store.resources(appServerNameIndex, "", "") {
 			out = append(out, as.Copy())
 		}
 

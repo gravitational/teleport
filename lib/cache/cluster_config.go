@@ -26,16 +26,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const clusterNameIndex = "name"
+type clusterNameIndex string
 
-func newClusterNameCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterName], error) {
+const clusterNameDefaultIndex clusterNameIndex = "name"
+
+func newClusterNameCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterName, clusterNameIndex], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.ClusterName]{
-		store: newStore(map[string]func(types.ClusterName) string{
-			clusterNameIndex: func(n types.ClusterName) string {
+	return &collection[types.ClusterName, clusterNameIndex]{
+		store: newStore(map[clusterNameIndex]func(types.ClusterName) string{
+			clusterNameDefaultIndex: func(n types.ClusterName) string {
 				return n.GetName()
 			},
 		}),
@@ -72,7 +74,7 @@ func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		name, err := rg.store.get(clusterNameIndex, types.MetaNameClusterName)
+		name, err := rg.store.get(clusterNameDefaultIndex, types.MetaNameClusterName)
 		return name.Clone(), trace.Wrap(err)
 	}
 
@@ -86,16 +88,18 @@ func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 	return cachedName.Clone(), nil
 }
 
-const clusterAuditConfigIndex = "name"
+type clusterAuditConfigIndex string
 
-func newClusterAuditConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterAuditConfig], error) {
+const clusterAuditConfigNameIndex clusterAuditConfigIndex = "name"
+
+func newClusterAuditConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterAuditConfig, clusterAuditConfigIndex], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.ClusterAuditConfig]{
-		store: newStore(map[string]func(types.ClusterAuditConfig) string{
-			clusterAuditConfigIndex: func(n types.ClusterAuditConfig) string {
+	return &collection[types.ClusterAuditConfig, clusterAuditConfigIndex]{
+		store: newStore(map[clusterAuditConfigIndex]func(types.ClusterAuditConfig) string{
+			clusterAuditConfigNameIndex: func(n types.ClusterAuditConfig) string {
 				return n.GetName()
 			},
 		}),
@@ -136,7 +140,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		cfg, err := rg.store.get(clusterAuditConfigIndex, types.MetaNameClusterAuditConfig)
+		cfg, err := rg.store.get(clusterAuditConfigNameIndex, types.MetaNameClusterAuditConfig)
 		return cfg.Clone(), trace.Wrap(err)
 	}
 
@@ -150,16 +154,18 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 	return cachedCfg.Clone(), nil
 }
 
-const clusterNetworkingConfigIndex = "name"
+type clusterNetworkingConfigIndex string
 
-func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterNetworkingConfig], error) {
+const clusterNetworkingConfigNameIndex clusterNetworkingConfigIndex = "name"
+
+func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.ClusterNetworkingConfig]{
-		store: newStore(map[string]func(types.ClusterNetworkingConfig) string{
-			clusterNetworkingConfigIndex: func(n types.ClusterNetworkingConfig) string {
+	return &collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]{
+		store: newStore(map[clusterNetworkingConfigIndex]func(types.ClusterNetworkingConfig) string{
+			clusterNetworkingConfigNameIndex: func(n types.ClusterNetworkingConfig) string {
 				return n.GetName()
 			},
 		}),
@@ -196,7 +202,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		cfg, err := rg.store.get(clusterNetworkingConfigIndex, types.MetaNameClusterNetworkingConfig)
+		cfg, err := rg.store.get(clusterNetworkingConfigNameIndex, types.MetaNameClusterNetworkingConfig)
 		return cfg.Clone(), trace.Wrap(err)
 	}
 
@@ -210,16 +216,18 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 	return cachedCfg.Clone(), nil
 }
 
-const authPreferenceIndex = "name"
+type authPreferenceIndex string
 
-func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.AuthPreference], error) {
+const authPreferenceNameIndex authPreferenceIndex = "name"
+
+func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.AuthPreference, authPreferenceIndex], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.AuthPreference]{
-		store: newStore(map[string]func(types.AuthPreference) string{
-			authPreferenceIndex: func(n types.AuthPreference) string {
+	return &collection[types.AuthPreference, authPreferenceIndex]{
+		store: newStore(map[authPreferenceIndex]func(types.AuthPreference) string{
+			authPreferenceNameIndex: func(n types.AuthPreference) string {
 				return n.GetName()
 			},
 		}),
@@ -256,7 +264,7 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		cfg, err := rg.store.get(authPreferenceIndex, types.MetaNameClusterAuthPreference)
+		cfg, err := rg.store.get(authPreferenceNameIndex, types.MetaNameClusterAuthPreference)
 		return cfg.Clone(), trace.Wrap(err)
 	}
 
@@ -264,16 +272,18 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 	return cfg, trace.Wrap(err)
 }
 
-const sessionRecordingConfigIndex = "name"
+type sessionRecordingConfigIndex string
 
-func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.SessionRecordingConfig], error) {
+const sessionRecordingConfigNameIndex sessionRecordingConfigIndex = "name"
+
+func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.SessionRecordingConfig, sessionRecordingConfigIndex], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfiguration")
 	}
 
-	return &collection[types.SessionRecordingConfig]{
-		store: newStore(map[string]func(types.SessionRecordingConfig) string{
-			sessionRecordingConfigIndex: func(n types.SessionRecordingConfig) string {
+	return &collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]{
+		store: newStore(map[sessionRecordingConfigIndex]func(types.SessionRecordingConfig) string{
+			sessionRecordingConfigNameIndex: func(n types.SessionRecordingConfig) string {
 				return n.GetName()
 			},
 		}),
@@ -310,7 +320,7 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRec
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		cfg, err := rg.store.get(sessionRecordingConfigIndex, types.MetaNameSessionRecordingConfig)
+		cfg, err := rg.store.get(sessionRecordingConfigNameIndex, types.MetaNameSessionRecordingConfig)
 		return cfg.Clone(), trace.Wrap(err)
 	}
 
