@@ -887,6 +887,9 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
+	// SchemaMCPStdio is a URI schema for the stdio-based MCP servers.
+	SchemaMCPStdio = "mcp+stdio://"
+
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.

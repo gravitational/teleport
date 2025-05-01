@@ -70,6 +70,8 @@ type Application interface {
 	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
+	// IsMCP returns true if this app represents a MCP server.
+	IsMCP() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -101,6 +103,8 @@ type Application interface {
 	SetTCPPorts([]*PortRange)
 	// GetIdentityCenter fetches identity center info for the app, if any.
 	GetIdentityCenter() *AppIdentityCenter
+	// GetMCP fetches MCP specific configuration.
+	GetMCP() *MCP
 }
 
 // NewAppV3 creates a new app resource.
@@ -286,6 +290,11 @@ func (a *AppV3) IsTCP() bool {
 	return IsAppTCP(a.Spec.URI)
 }
 
+// IsMCP returns true if this app represents a TCP endpoint.
+func (a *AppV3) IsMCP() bool {
+	return strings.HasPrefix(a.Spec.URI, SchemaMCPStdio)
+}
+
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
 }
@@ -401,9 +410,12 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 	if a.Spec.URI == "" {
-		if a.Spec.Cloud != "" {
+		switch {
+		case a.Spec.Cloud != "":
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
-		} else {
+		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
+			a.Spec.URI = SchemaMCPStdio
+		default:
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
 	}
@@ -453,6 +465,12 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if a.IsMCP() {
+		if err := a.checkMCP(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -486,6 +504,24 @@ func (a *AppV3) checkTCPPorts() error {
 	return nil
 }
 
+func (a *AppV3) checkMCP() error {
+	// Only stdio-based for now.
+	return trace.Wrap(a.checkMCPStdio())
+}
+
+func (a *AppV3) checkMCPStdio() error {
+	if a.Spec.MCP == nil {
+		return trace.BadParameter("MCP server %q missing mcp spec", a.GetName())
+	}
+	if a.Spec.MCP.Command == "" {
+		return trace.BadParameter("MCP server %q missing command", a.GetName())
+	}
+	if a.Spec.MCP.RunAsLocalUser == "" {
+		return trace.BadParameter("MCP server %q missing run_as_local_user", a.GetName())
+	}
+	return nil
+}
+
 // GetIdentityCenter returns the Identity Center information for the app, if any.
 // May be nil.
 func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
@@ -509,6 +545,11 @@ func (a *AppV3) IsEqual(i Application) bool {
 		return deriveTeleportEqualAppV3(a, other)
 	}
 	return false
+}
+
+// GetMCP fetches MCP specific configuration.
+func (a *AppV3) GetMCP() *MCP {
+	return a.Spec.MCP
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
