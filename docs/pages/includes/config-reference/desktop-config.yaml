@@ -93,7 +93,7 @@ windows_desktop_service:
         controller: all
 
   # (optional) settings for enabling automatic desktop discovery via LDAP.
-  # To disable automatic discovery, omit this field.
+  # To disable automatic discovery, omit this section.
   discovery_configs:
     - base_dn: "OU=prod,DC=example,DC=com"
       # (optional) LDAP filters for further customizing the LDAP search.
@@ -105,6 +105,9 @@ windows_desktop_service:
       # The key of the label will be "ldap/" + the value of the attribute.
       label_attributes:
         - location
+
+  # (optional) interval at which to run desktop discovery
+  discovery_interval: 10m
 
   # (optional) configure a set of label selectors for dynamic registration.
   # If specified, this service will monitor the cluster for dynamic_windows_desktop

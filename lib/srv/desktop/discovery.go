@@ -122,9 +122,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 			s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
 		}
 
-		// TODO(zmb3): consider making the discovery period configurable
-		// (it's currently hard coded to 5 minutes in order to match DB access discovery behavior)
-		t := s.cfg.Clock.NewTicker(5 * time.Minute)
+		t := s.cfg.Clock.NewTicker(s.cfg.DiscoveryInterval)
 		defer t.Stop()
 		for {
 			select {
@@ -155,7 +153,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	// Check whether we've ever successfully initialized our LDAP client.
 	s.mu.Lock()
 	if !s.ldapInitialized {
-		s.cfg.Logger.DebugContext(context.Background(), "LDAP not ready, skipping discovery and attempting to reconnect")
+		s.cfg.Logger.DebugContext(s.closeCtx, "LDAP not ready, skipping discovery and attempting to reconnect")
 		s.mu.Unlock()
 		s.initializeLDAP()
 		return nil
@@ -165,7 +163,7 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	result := make(map[string]types.WindowsDesktop)
 	for _, discoveryConfig := range s.cfg.Discovery {
 		filter := s.ldapSearchFilter(discoveryConfig.Filters)
-		s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
+		s.cfg.Logger.DebugContext(s.closeCtx, "searching for desktops", "filter", filter)
 
 		var attrs []string
 		attrs = append(attrs, computerAttributes...)
@@ -177,17 +175,17 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 			// ready for the next reconcile loop. Return the last known set of desktops
 			// in this case, so that the reconciler doesn't delete the desktops it already
 			// knows about.
-			s.cfg.Logger.InfoContext(context.Background(), "LDAP connection error when searching for desktops, reinitializing client")
+			s.cfg.Logger.InfoContext(s.closeCtx, "LDAP connection error when searching for desktops, reinitializing client")
 			if err := s.initializeLDAP(); err != nil {
-				s.cfg.Logger.ErrorContext(context.Background(), "failed to reinitialize LDAP client, will retry on next reconcile", "error", err)
+				s.cfg.Logger.ErrorContext(s.closeCtx, "failed to reinitialize LDAP client, will retry on next reconcile", "error", err)
 			}
 			return s.lastDiscoveryResults
 		} else if err != nil {
-			s.cfg.Logger.WarnContext(context.Background(), "could not discover Windows Desktops", "error", err)
+			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
 			return nil
 		}
 
-		s.cfg.Logger.DebugContext(context.Background(), "discovered Windows Desktops", "count", len(entries))
+		s.cfg.Logger.DebugContext(s.closeCtx, "discovered Windows Desktops", "count", len(entries))
 
 		for _, entry := range entries {
 			desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn, &discoveryConfig)

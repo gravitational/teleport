@@ -94,13 +94,13 @@ To update your configuration, move the `discovery` section to `discovery_configs
 ```diff
 windows_desktop_service:
   enabled: yes
++  discovery_interval: 10m # optional, defaults to 5 minutes
 -  discovery:
 -    base_dn: '*'
 -    label_attributes: [ department ]
 +  discovery_configs:
 +    - base_dn: '*'
 +      label_attributes: [ department ]
-+      interval: 30m # optional, defaults to 5 minutes
 ```
 
 ## 16.0.0 (xx/xx/xx)

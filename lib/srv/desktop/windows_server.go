@@ -204,6 +204,8 @@ type WindowsServiceConfig struct {
 	KDCAddr string
 	// Discovery contains policies for configuring LDAP-based discovery.
 	Discovery []servicecfg.LDAPDiscoveryConfig
+	// DiscoveryInterval configures how frequently the discovery process runs.
+	DiscoveryInterval time.Duration
 	// Hostname of the Windows desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
@@ -243,6 +245,8 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 			}
 		}
 	}
+
+	cfg.DiscoveryInterval = cmp.Or(cfg.DiscoveryInterval, 5*time.Minute)
 
 	return nil
 }

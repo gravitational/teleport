@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"maps"
 	"regexp"
+	"time"
 
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,7 +56,8 @@ type WindowsDesktopConfig struct {
 	KDCAddr string
 
 	// Discovery configures automatic desktop discovery via LDAP.
-	Discovery []LDAPDiscoveryConfig
+	Discovery         []LDAPDiscoveryConfig
+	DiscoveryInterval time.Duration
 
 	// StaticHosts is an optional list of static Windows hosts to expose through this
 	// service.
