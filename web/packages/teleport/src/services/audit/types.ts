@@ -1626,6 +1626,7 @@ export type RawEvents = {
     typeof eventCodes.USER_LOGIN_INVALID_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       user: string;
       missing_roles: string[];
     }
