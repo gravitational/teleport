@@ -168,6 +168,8 @@ export function RequestCheckout<T extends PendingListItem>({
   onStartTimeChange,
   fetchKubeNamespaces,
   updateNamespacesForKubeCluster,
+  reasonMode,
+  reasonPrompts,
 }: RequestCheckoutProps<T>) {
   const [reason, setReason] = useState('');
 
@@ -446,6 +448,8 @@ export function RequestCheckout<T extends PendingListItem>({
                       reason={reason}
                       updateReason={updateReason}
                       requireReason={requireReason}
+                      reasonMode={reasonMode}
+                      reasonPrompts={reasonPrompts}
                     />
                     {dryRunResponse && maxDuration && (
                       <AdditionalOptions
@@ -723,14 +727,20 @@ function TextBox({
   reason,
   updateReason,
   requireReason,
+  reasonMode,
+  reasonPrompts,
 }: {
   reason: string;
   updateReason(reason: string): void;
   requireReason: boolean;
+  reasonMode: string,
+  reasonPrompts?: string[],
 }) {
-  const { valid, message } = useRule(requireText(reason, requireReason));
+  const { valid, message } = useRule(requireText(reason, requireReason || reasonMode === 'required'));
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
+
+  const placeholderText = reasonPrompts?.length === 0  ? "Describe your request..." : reasonPrompts.join("\n")
 
   return (
     <LabelInput hasError={hasError}>
@@ -744,7 +754,7 @@ function TextBox({
         color="text.main"
         border={hasError ? '2px solid' : '1px solid'}
         borderColor={hasError ? 'error.main' : 'text.muted'}
-        placeholder="Describe your request..."
+        placeholder={placeholderText.replaceAll(/\\n/g, '\n')}
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`
@@ -941,6 +951,8 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
       kubeResources: PendingKubeResourceItem[],
       kubeCluster: T
     ): void;
+    reasonMode: string;
+    reasonPrompts: string[];
   };
 
 type SuccessComponentParams = {

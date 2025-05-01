@@ -5738,6 +5738,19 @@ func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	return caps, nil
 }
 
+func (a *Server) GetAccessRequestMetadata(ctx context.Context, req types.AccessRequestMetadataRequest) (*types.AccessRequestMetadata, error) {
+	user, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	md, err := services.CalculateAccessRequestMetadata(ctx, a.clock, a, user.GetIdentity(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return md, nil
+}
+
 func (a *Server) getCache() (c *cache.Cache, ok bool) {
 	c, ok = a.Cache.(*cache.Cache)
 	return

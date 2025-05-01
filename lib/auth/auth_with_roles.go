@@ -2904,6 +2904,25 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 	return a.authServer.GetAccessCapabilities(ctx, req)
 }
 
+func (a *ServerWithRoles) GetAccessRequestMetadata(ctx context.Context, req types.AccessRequestMetadataRequest) (*types.AccessRequestMetadata, error) {
+	// default to checking the capabilities of the caller
+	if req.User == "" {
+		req.User = a.context.User.GetName()
+	}
+
+	// all users can check their own Access Request metadata
+	if a.currentUserAction(req.User) != nil {
+		if err := a.action(types.KindUser, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(types.KindRole, types.VerbList, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.GetAccessRequestMetadata(ctx, req)
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {

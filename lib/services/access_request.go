@@ -181,6 +181,7 @@ type DynamicAccess interface {
 // actors with limited privileges.
 type DynamicAccessOracle interface {
 	GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
+	GetAccessRequestMetadata(ctx context.Context, req types.AccessRequestMetadataRequest) (*types.AccessRequestMetadata, error)
 }
 
 func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.AccessCapabilitiesRequest) (bool, error) {
@@ -246,10 +247,88 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caps.RequestPrompt = v.prompt
-	caps.AutoRequest = v.autoRequest
+	if v.autoRequest {
+		caps.AutoRequest = true
+		caps.RequestPrompt = v.autoRequestPrompt
+	}
 
 	return &caps, nil
+}
+
+func CalculateAccessRequestMetadata(ctx context.Context, clock clockwork.Clock, clt RequestValidatorGetter, identity tlsca.Identity, req types.AccessRequestMetadataRequest) (*types.AccessRequestMetadata, error) {
+	// TODO(kopiczko) check expand vars and potential wildcards in allow.request.roles/search_as_roles
+	v, err := NewRequestValidator(ctx, clock, clt, req.User, ExpandVars(false))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var requestedRoleNames, searchAsRoleNames []string
+	if len(req.RequestedResourceIDs) != 0 {
+		searchAsRoleNames, err = v.applicableSearchAsRoles(ctx, req.RequestedResourceIDs, "")
+		if err != nil {
+			return nil, trace.Wrap(err, "trying to find applicable search_as_roles")
+		}
+	} else {
+		for _, r := range req.RequestedRoles {
+			if v.CanRequestRole(r) {
+				requestedRoleNames = append(requestedRoleNames, r)
+			}
+		}
+	}
+
+	if len(requestedRoleNames) == 0 && len(searchAsRoleNames) == 0 {
+		return &types.AccessRequestMetadata{
+			ReasonMode: types.RequestReasonModeOptional,
+		}, nil
+	}
+
+	var matchers roleRequestableAccessMatchers
+	for _, n := range v.userState.GetRoles() {
+		userRole, err := clt.GetRole(ctx, n)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting user's role %q", n)
+		}
+
+		matcher, err := newRoleRequestableAccessMatcher(userRole, v.userState)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating a Access Request matcher for role %q", n)
+		}
+
+		matchers = append(matchers, matcher)
+	}
+
+	reasonMode := types.RequestReasonModeOptional
+	var reasonPrompts []string
+	for _, requestedRole := range requestedRoleNames {
+		for _, allowingRole := range matchers.getRolesAllowingRequestRole(requestedRole) {
+			allow := allowingRole.GetAccessRequestConditions(types.Allow)
+			if allow.GetReasonMode().Required() {
+				reasonMode = types.RequestReasonModeRequired
+			}
+			prompt := strings.TrimSpace(allow.GetReasonPrompt())
+			if prompt != "" && !slices.Contains(reasonPrompts, prompt) {
+				reasonPrompts = append(reasonPrompts, prompt)
+			}
+		}
+	}
+	for _, searchAsRole := range searchAsRoleNames {
+		for _, allowingRole := range matchers.getRolesAllowingSearchAsRole(searchAsRole) {
+			allow := allowingRole.GetAccessRequestConditions(types.Allow)
+			if allow.GetReasonMode().Required() {
+				reasonMode = types.RequestReasonModeRequired
+			}
+			prompt := strings.TrimSpace(allow.GetReasonPrompt())
+			if prompt != "" && !slices.Contains(reasonPrompts, prompt) {
+				reasonPrompts = append(reasonPrompts, prompt)
+			}
+		}
+	}
+	slices.Sort(reasonPrompts)
+
+	return &types.AccessRequestMetadata{
+		ReasonMode:    reasonMode,
+		ReasonPrompts: reasonPrompts,
+	}, nil
 }
 
 func (v *RequestValidator) calcRequireReasonCap(ctx context.Context, req types.AccessCapabilitiesRequest, caps types.AccessCapabilities) (requireReason bool, err error) {
@@ -272,18 +351,11 @@ func (v *RequestValidator) calcRequireReasonCap(ctx context.Context, req types.A
 // not in the `deny.request.search_as_roles`. It does not filter out any roles that should not be
 // allowed based on requests.
 func (m *RequestValidator) allowedSearchAsRoles() ([]string, error) {
-	var rolesToRequest []string
-	for _, roleName := range m.Roles.AllowSearch {
-		if !m.CanSearchAsRole(roleName) {
-			continue
-		}
-		rolesToRequest = append(rolesToRequest, roleName)
-	}
-	if len(rolesToRequest) == 0 {
+	allowedSearchAsRoles := m.RoleAccessMatchers.getAllowedSearchAsRoles()
+	if len(allowedSearchAsRoles) == 0 {
 		return nil, trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user %q`, m.userState.GetName())
 	}
-
-	return rolesToRequest, nil
+	return allowedSearchAsRoles, nil
 }
 
 // applicableSearchAsRoles prunes the search_as_roles and only returns those
@@ -767,6 +839,95 @@ type RequestValidatorGetter interface {
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
+type roleRequestableAccessMatcher struct {
+	role                      types.Role
+	allowRequest, denyRequest []parse.Matcher
+	allowSearch, denySearch   []string
+}
+
+func newRoleRequestableAccessMatcher(role types.Role, userState UserState) (*roleRequestableAccessMatcher, error) {
+	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
+
+	allowRequest, err := appendRoleMatchers(nil, allow.Roles, allow.ClaimsToRoles, userState.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	denyRequest, err := appendRoleMatchers(nil, deny.Roles, deny.ClaimsToRoles, userState.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &roleRequestableAccessMatcher{
+		role:         role,
+		allowRequest: allowRequest,
+		denyRequest:  denyRequest,
+		allowSearch:  allow.SearchAsRoles,
+		denySearch:   deny.SearchAsRoles,
+	}, nil
+}
+
+type roleRequestableAccessMatchers []*roleRequestableAccessMatcher
+
+// canRequestRole checks if a given role can be requested.
+func (ms roleRequestableAccessMatchers) canRequestRole(role string) bool {
+	return len(ms.getRolesAllowingRequestRole(role)) > 0
+}
+
+func (ms roleRequestableAccessMatchers) getRolesAllowingRequestRole(role string) []types.Role {
+	var allowing []types.Role
+	for _, m := range ms {
+		if slices.Contains(allowing, m.role) {
+			continue
+		}
+		for _, deny := range m.denyRequest {
+			if deny.Match(role) {
+				return nil
+			}
+		}
+		for _, allow := range m.allowRequest {
+			if allow.Match(role) {
+				allowing = append(allowing, m.role)
+			}
+		}
+	}
+	return allowing
+}
+
+// canSearchAsRole check if a given role can be requested through a search-based
+// access request
+func (ms roleRequestableAccessMatchers) canSearchAsRole(role string) bool {
+	return len(ms.getRolesAllowingSearchAsRole(role)) > 0
+}
+
+func (ms roleRequestableAccessMatchers) getAllowedSearchAsRoles() []string {
+	var res []string
+	for _, m := range ms {
+		for _, potentialSearchAsRole := range m.allowSearch {
+			if ms.canSearchAsRole(potentialSearchAsRole) {
+				res = append(res, potentialSearchAsRole)
+			}
+		}
+	}
+	return res
+}
+
+func (ms roleRequestableAccessMatchers) getRolesAllowingSearchAsRole(role string) []types.Role {
+	var allowing []types.Role
+	for _, m := range ms {
+		if slices.Contains(allowing, m.role) {
+			continue
+		}
+		if slices.Contains(m.denySearch, role) {
+			return nil
+		}
+		if slices.Contains(m.allowSearch, role) {
+			allowing = append(allowing, m.role)
+		}
+	}
+	return allowing
+}
+
 // appendRoleMatchers constructs all role matchers for a given
 // AccessRequestConditions instance and appends them to the
 // supplied matcher slice.
@@ -1046,6 +1207,24 @@ type RequestValidator struct {
 	// in spec.allow.request.roles and spec.allow.request.search_as_roles as roles requiring
 	// reason.
 	requiringReasonRoles map[string]struct{}
+	// rolePrompts is a mapping of role names to reason prompts.
+	//
+	// For example for a role R1 and R2 assigned to the user and having:
+	//
+	// 	- R1 having role X in spec.allow.request.roles
+	//      - R1 having role Y in spec.allow.request.search_as_roles
+	//      - R1 having options.request_prompt set to to "R1 prompt"
+	// 	- R2 having role Y in spec.allow.request.roles
+	//      - R2 having options.request_prompt set to to "R2 prompt"
+	//
+	// then the roleReasonPrompt map will look like:
+	//
+	//	- [X] -> {"R1 prompt"}
+	//	- [Y] -> {"R1 prompt", "R2 prompt"}  // the order is not guaranteed
+	//
+	// The order of the prompts is not guaranteed. Prompts are deduplicated withing a role, but
+	// not between roles.
+	roleReasonPrompts map[string][]string
 	// Used to enforce that the configuration found in the static
 	// role that defined the search_as_role, is respected.
 	// An empty map or list means nothing was configured.
@@ -1057,16 +1236,13 @@ type RequestValidator struct {
 		// denied from requesting.
 		deny []types.RequestKubernetesResource
 	}
-	autoRequest bool
-	prompt      string
-	opts        struct {
+	autoRequest       bool
+	autoRequestPrompt string
+	opts              struct {
 		expandVars bool
 	}
-	Roles struct {
-		AllowRequest, DenyRequest []parse.Matcher
-		AllowSearch, DenySearch   []string
-	}
-	Annotations struct {
+	RoleAccessMatchers roleRequestableAccessMatchers
+	Annotations        struct {
 		// Allowed annotations are not greedy, the role that defines the annotation must allow requesting one
 		// of the roles that are being requested in order for the annotation to be applied.
 		Allow map[singleAnnotation]annotationMatcher
@@ -1100,6 +1276,7 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		logger:    slog.With(teleport.ComponentKey, "request.validator"),
 
 		requiringReasonRoles: make(map[string]struct{}),
+		roleReasonPrompts:    make(map[string][]string),
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -1506,9 +1683,11 @@ func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 // to view resources (i.e., base roles + search as roles).
 func (m *RequestValidator) getResourceViewingRoles() []string {
 	roles := slices.Clone(m.userState.GetRoles())
-	for _, role := range m.Roles.AllowSearch {
-		if m.CanSearchAsRole(role) {
-			roles = append(roles, role)
+	for _, matcher := range m.RoleAccessMatchers {
+		for _, role := range matcher.allowSearch {
+			if m.CanSearchAsRole(role) {
+				roles = append(roles, role)
+			}
 		}
 	}
 	return apiutils.Deduplicate(roles)
@@ -1610,8 +1789,8 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 
 	m.requireReasonForAllRoles = m.requireReasonForAllRoles || role.GetOptions().RequestAccess.RequireReason()
 	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
-	if m.prompt == "" {
-		m.prompt = role.GetOptions().RequestPrompt
+	if m.autoRequestPrompt == "" {
+		m.autoRequestPrompt = role.GetOptions().RequestPrompt
 	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
@@ -1631,39 +1810,29 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 		m.kubernetesResource.deny = append(m.kubernetesResource.deny, deny.KubernetesResources...)
 	}
 
-	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
+	accessMatcher, err := newRoleRequestableAccessMatcher(role, m.userState)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// record what will be the starting index of the allow and deny matchers for this role, if it applies any.
-	astart := len(m.Roles.AllowRequest)
-
-	m.Roles.AllowRequest, err = appendRoleMatchers(m.Roles.AllowRequest, allow.Roles, allow.ClaimsToRoles, m.userState.GetTraits())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	m.Roles.AllowSearch = apiutils.Deduplicate(append(m.Roles.AllowSearch, allow.SearchAsRoles...))
-	m.Roles.DenySearch = apiutils.Deduplicate(append(m.Roles.DenySearch, deny.SearchAsRoles...))
+	m.RoleAccessMatchers = append(m.RoleAccessMatchers, accessMatcher)
 
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
 		// between its matchers and its thresholds. This information is used later to calculate
 		// the rtm and threshold list.
-		newAllowRequestMatchers := m.Roles.AllowRequest[astart:]
-		newAllowSearchMatchers := literalMatchers(allow.SearchAsRoles)
+		requestRoleAllowMatchers := accessMatcher.allowRequest
+		searchAsRoleAllowMatchers := literalMatchers(accessMatcher.allowSearch)
+		allAllowMatchers := make([]parse.Matcher, 0, len(requestRoleAllowMatchers)+len(searchAsRoleAllowMatchers))
+		allAllowMatchers = append(allAllowMatchers, requestRoleAllowMatchers...)
+		allAllowMatchers = append(allAllowMatchers, searchAsRoleAllowMatchers...)
 
-		allNewAllowMatchers := make([]parse.Matcher, 0, len(newAllowRequestMatchers)+len(newAllowSearchMatchers))
-		allNewAllowMatchers = append(allNewAllowMatchers, newAllowRequestMatchers...)
-		allNewAllowMatchers = append(allNewAllowMatchers, newAllowSearchMatchers...)
-
-		if len(allNewAllowMatchers) > 0 {
+		if len(allAllowMatchers) > 0 {
 			m.ThresholdMatchers = append(m.ThresholdMatchers, struct {
 				Matchers   []parse.Matcher
 				Thresholds []types.AccessReviewThreshold
 			}{
-				Matchers:   allNewAllowMatchers,
+				Matchers:   allAllowMatchers,
 				Thresholds: allow.Thresholds,
 			})
 		}
@@ -1673,7 +1842,7 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 				Matchers    []parse.Matcher
 				MaxDuration time.Duration
 			}{
-				Matchers:    allNewAllowMatchers,
+				Matchers:    allAllowMatchers,
 				MaxDuration: allow.MaxDuration.Duration(),
 			})
 		}
@@ -1681,7 +1850,7 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		m.insertAllowedAnnotations(ctx, allow, newAllowRequestMatchers, newAllowSearchMatchers)
+		m.insertAllowedAnnotations(ctx, allow, requestRoleAllowMatchers, searchAsRoleAllowMatchers)
 		m.insertDeniedAnnotations(ctx, deny)
 
 		m.SuggestedReviewers = append(m.SuggestedReviewers, allow.SuggestedReviewers...)
@@ -1837,31 +2006,13 @@ func (c *thresholdCollector) pushThreshold(t types.AccessReviewThreshold) (uint3
 
 // CanRequestRole checks if a given role can be requested.
 func (m *RequestValidator) CanRequestRole(name string) bool {
-	for _, deny := range m.Roles.DenyRequest {
-		if deny.Match(name) {
-			return false
-		}
-	}
-	for _, allow := range m.Roles.AllowRequest {
-		if allow.Match(name) {
-			return true
-		}
-	}
-	return false
+	return m.RoleAccessMatchers.canRequestRole(name)
 }
 
 // CanSearchAsRole check if a given role can be requested through a search-based
 // access request
 func (m *RequestValidator) CanSearchAsRole(name string) bool {
-	if slices.Contains(m.Roles.DenySearch, name) {
-		return false
-	}
-	for _, deny := range m.Roles.DenyRequest {
-		if deny.Match(name) {
-			return false
-		}
-	}
-	return slices.Contains(m.Roles.AllowSearch, name)
+	return m.RoleAccessMatchers.canSearchAsRole(name)
 }
 
 // collectSetsForRole collects the threshold index sets which describe the various groups of
@@ -2295,6 +2446,7 @@ func (m *RequestValidator) roleAllowsResource(
 	extraMatchers ...RoleMatcher,
 ) (bool, error) {
 	roleSet := RoleSet{role}
+	roleSet.GetAllowedSearchAsRoles()
 	var matchers []RoleMatcher
 	if len(loginHint) > 0 {
 		matchers = append(matchers, NewLoginMatcher(loginHint))

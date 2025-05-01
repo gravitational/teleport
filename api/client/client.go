@@ -1362,6 +1362,14 @@ func (c *Client) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	return caps, nil
 }
 
+func (c *Client) GetAccessRequestMetadata(ctx context.Context, req types.AccessRequestMetadataRequest) (*types.AccessRequestMetadata, error) {
+	resp, err := c.grpc.GetAccessRequestMetadata(ctx, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (c *Client) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	seq, err := c.grpc.GetPluginData(ctx, &filter)

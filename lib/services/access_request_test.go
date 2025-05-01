@@ -2077,7 +2077,7 @@ func TestAutoRequest(t *testing.T) {
 			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequest)
-				require.Empty(t, validator.prompt)
+				require.Empty(t, validator.autoRequestPrompt)
 
 				require.False(t, accessCaps.RequireReason)
 				require.False(t, accessCaps.AutoRequest)
@@ -2090,7 +2090,7 @@ func TestAutoRequest(t *testing.T) {
 			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.False(t, validator.autoRequest)
-				require.Equal(t, "test prompt", validator.prompt)
+				require.Equal(t, "test prompt", validator.autoRequestPrompt)
 
 				require.False(t, accessCaps.RequireReason)
 				require.False(t, accessCaps.AutoRequest)
@@ -2103,7 +2103,7 @@ func TestAutoRequest(t *testing.T) {
 			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
-				require.Empty(t, validator.prompt)
+				require.Empty(t, validator.autoRequestPrompt)
 
 				require.False(t, accessCaps.RequireReason)
 				require.True(t, accessCaps.AutoRequest)
@@ -2116,7 +2116,7 @@ func TestAutoRequest(t *testing.T) {
 			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.False(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
-				require.Equal(t, "test prompt", validator.prompt)
+				require.Equal(t, "test prompt", validator.autoRequestPrompt)
 
 				require.False(t, accessCaps.RequireReason)
 				require.True(t, accessCaps.AutoRequest)
@@ -2129,7 +2129,7 @@ func TestAutoRequest(t *testing.T) {
 			assertion: func(t *testing.T, validator *RequestValidator, accessCaps *types.AccessCapabilities) {
 				require.True(t, validator.requireReasonForAllRoles)
 				require.True(t, validator.autoRequest)
-				require.Empty(t, validator.prompt)
+				require.Empty(t, validator.autoRequestPrompt)
 
 				require.True(t, accessCaps.RequireReason)
 				require.True(t, accessCaps.AutoRequest)

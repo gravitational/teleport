@@ -2971,6 +2971,8 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+  // GetAccessRequestMetadata returns metadata information about Access Request reason.
+  rpc GetAccessRequestMetadata(types.AccessRequestMetadataRequest) returns (types.AccessRequestMetadata);
 
   // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
   rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);

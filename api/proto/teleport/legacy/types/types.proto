@@ -2945,6 +2945,25 @@ message AccessCapabilitiesRequest {
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
+// TODO(kopiczko) docs
+message AccessRequestMetadata {
+  string ReasonMode = 1 [
+    (gogoproto.jsontag) = "reason_mode,omitempty",
+    (gogoproto.casttype) = "RequestReasonMode"
+  ];
+  repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+}
+
+// TODO(kopiczko) docs
+message AccessRequestMetadataRequest {
+  string User = 1 [(gogoproto.jsontag) = "login,omitempty"];
+  repeated string RequestedRoles = 2 [(gogoproto.jsontag) = "requested_roles,omitempty"];
+  repeated ResourceID RequestedResourceIDs = 3 [
+    (gogoproto.jsontag) = "requested_resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
+}
+
 // RequestKubernetesResource is the Kubernetes resource identifier used
 // in access request settings.
 // Modeled after existing message KubernetesResource.
@@ -3779,6 +3798,8 @@ message AccessRequestConditionsReason {
     (gogoproto.jsontag) = "mode,omitempty",
     (gogoproto.casttype) = "RequestReasonMode"
   ];
+
+  string Prompt = 2 [(gogoproto.jsontag) = "prompt,omitempty"];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

@@ -78,6 +78,9 @@ export function useSpecifiableFields() {
    */
   const [pendingRequestTtl, setPendingRequestTtl] = useState<Option<number>>();
 
+  const [reasonMode, setReasonMode] = useState<string>();
+  const [reasonPrompts, setReasonPrompts] = useState<string[]>();
+
   /**
    * Options for shortening or extending pending TTL.
    */
@@ -180,6 +183,8 @@ export function useSpecifiableFields() {
           isSelected: true,
         }))
       );
+      setReasonMode(dryRequest.reasonMode);
+      setReasonPrompts(dryRequest.reasonPrompts);
     }
   }
 
@@ -201,5 +206,7 @@ export function useSpecifiableFields() {
     onStartTimeChange,
     onDryRunChange,
     reset,
+    reasonMode,
+    reasonPrompts,
   };
 }

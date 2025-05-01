@@ -2401,3 +2401,17 @@ func (m CreateDatabaseUserMode) IsEnabled() bool {
 func (a IdentityCenterAccountAssignment) GetAccount() string {
 	return a.Account
 }
+
+func (c AccessRequestConditions) GetReasonMode() RequestReasonMode {
+	if c.Reason != nil && c.Reason.Mode.Required() {
+		return RequestReasonModeRequired
+	}
+	return RequestReasonModeOptional
+}
+
+func (c AccessRequestConditions) GetReasonPrompt() string {
+	if c.Reason == nil {
+		return ""
+	}
+	return c.Reason.Prompt
+}
