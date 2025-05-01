@@ -56,7 +56,6 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 		},
 		watch: w,
 	}, nil
-
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -77,4 +76,92 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 
 	st, err := c.Config.ClusterConfig.GetStaticTokens()
 	return st, trace.Wrap(err)
+}
+
+const provisionTokenStoreNameIndex = "name"
+
+func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*collection[types.ProvisionToken], error) {
+	if p == nil {
+		return nil, trace.BadParameter("missing parameter Provisioner")
+	}
+
+	return &collection[types.ProvisionToken]{
+		store: newStore(map[string]func(types.ProvisionToken) string{
+			staticTokensStoreNameIndex: func(u types.ProvisionToken) string {
+				return u.GetName()
+			},
+		}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ProvisionToken, error) {
+			tokens, err := p.GetTokens(ctx)
+			return tokens, trace.Wrap(err)
+		},
+		headerTransform: func(hdr *types.ResourceHeader) types.ProvisionToken {
+			return &types.ProvisionTokenV2{
+				Kind:    types.KindToken,
+				Version: hdr.Version,
+				Metadata: types.Metadata{
+					Name: hdr.GetName(),
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+// GetTokens returns all active (non-expired) provisioning tokens
+func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.provisionTokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		tokens, err := c.Config.Provisioner.GetTokens(ctx)
+		return tokens, trace.Wrap(err)
+	}
+
+	tokens := make([]types.ProvisionToken, 0, rg.store.len())
+	for t := range rg.store.resources(provisionTokenStoreNameIndex, "", "") {
+		tokens = append(tokens, t.Clone())
+	}
+
+	return tokens, nil
+}
+
+// GetToken finds and returns token by ID
+func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.provisionTokens)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		token, err := c.Config.Provisioner.GetToken(ctx, name)
+		return token, trace.Wrap(err)
+	}
+
+	t, err := rg.store.get(provisionTokenStoreNameIndex, name)
+	if err != nil {
+		// release read lock early
+		rg.Release()
+
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if trace.IsNotFound(err) {
+			if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
+				return token, nil
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	return t.Clone(), nil
 }
