@@ -21,9 +21,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -52,6 +54,7 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
+	provisionTokens                  *collection[types.ProvisionToken]
 	staticTokens                     *collection[types.StaticTokens]
 	certAuthorities                  *collection[types.CertAuthority]
 	users                            *collection[types.User]
@@ -75,6 +78,16 @@ type collections struct {
 	reverseTunnels                   *collection[types.ReverseTunnel]
 	spiffeFederations                *collection[*machineidv1.SPIFFEFederation]
 	workloadIdentity                 *collection[*workloadidentityv1.WorkloadIdentity]
+	userNotifications                *collection[*notificationsv1.Notification]
+	globalNotifications              *collection[*notificationsv1.GlobalNotification]
+	clusterName                      *collection[types.ClusterName]
+	auditConfig                      *collection[types.ClusterAuditConfig]
+	networkingConfig                 *collection[types.ClusterNetworkingConfig]
+	authPreference                   *collection[types.AuthPreference]
+	sessionRecordingConfig           *collection[types.SessionRecordingConfig]
+	autoUpdateConfig                 *collection[*autoupdatev1.AutoUpdateConfig]
+	autoUpdateVerion                 *collection[*autoupdatev1.AutoUpdateVersion]
+	autoUpdateRollout                *collection[*autoupdatev1.AutoUpdateAgentRollout]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -89,6 +102,14 @@ func setupCollections(c Config) (*collections, error) {
 		resourceKind := resourceKindFromWatchKind(watch)
 
 		switch watch.Kind {
+		case types.KindToken:
+			collect, err := newProvisionTokensCollection(c.Provisioner, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.provisionTokens = collect
+			out.byKind[resourceKind] = out.provisionTokens
 		case types.KindStaticTokens:
 			collect, err := newStaticTokensCollection(c.ClusterConfig, watch)
 			if err != nil {
@@ -273,6 +294,86 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.workloadIdentity = collect
 			out.byKind[resourceKind] = out.workloadIdentity
+		case types.KindNotification:
+			collect, err := newUserNotificationCollection(c.Notifications, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userNotifications = collect
+			out.byKind[resourceKind] = out.userNotifications
+		case types.KindGlobalNotification:
+			collect, err := newGlobalNotificationCollection(c.Notifications, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.globalNotifications = collect
+			out.byKind[resourceKind] = out.globalNotifications
+		case types.KindClusterName:
+			collect, err := newClusterNameCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.clusterName = collect
+			out.byKind[resourceKind] = out.clusterName
+		case types.KindClusterAuditConfig:
+			collect, err := newClusterAuditConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.auditConfig = collect
+			out.byKind[resourceKind] = out.auditConfig
+		case types.KindClusterNetworkingConfig:
+			collect, err := newClusterNetworkingConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.networkingConfig = collect
+			out.byKind[resourceKind] = out.networkingConfig
+		case types.KindClusterAuthPreference:
+			collect, err := newAuthPreferenceCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.authPreference = collect
+			out.byKind[resourceKind] = out.authPreference
+		case types.KindSessionRecordingConfig:
+			collect, err := newSessionRecordingConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.sessionRecordingConfig = collect
+			out.byKind[resourceKind] = out.sessionRecordingConfig
+		case types.KindAutoUpdateConfig:
+			collect, err := newAutoUpdateConfigCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateConfig = collect
+			out.byKind[resourceKind] = out.autoUpdateConfig
+		case types.KindAutoUpdateVersion:
+			collect, err := newAutoUpdateVersionCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateVerion = collect
+			out.byKind[resourceKind] = out.autoUpdateVerion
+		case types.KindAutoUpdateAgentRollout:
+			collect, err := newAutoUpdateRolloutCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateRollout = collect
+			out.byKind[resourceKind] = out.autoUpdateRollout
 		}
 	}
 

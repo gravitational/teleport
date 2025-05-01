@@ -33,6 +33,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -408,50 +409,64 @@ func TestEditToken(t *testing.T) {
 
 	expiry := time.Now().UTC()
 
-	// Setup an existing token
-	spec := types.ProvisionTokenSpecV2{
-		Roles:      types.SystemRoles{types.RoleBot},
-		BotName:    "test-bot",
-		JoinMethod: types.JoinMethodGitHub,
-
-		GitHub: &types.ProvisionTokenSpecV2GitHub{
-			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
-				{
-					Repository: "gravitational/teleport",
-				},
-			},
-		},
-	}
-	token, err := types.NewProvisionTokenFromSpec("github-test-token", time.Time{}, spec)
-	require.NoError(t, err)
-	token.SetExpiry(expiry)
-	token.SetLabels(map[string]string{
-		"test-key": "test-value",
-	})
-	err = env.server.Auth().CreateToken(ctx, token)
-	require.NoError(t, err)
-
-	// Make a simple edit
-	spec.BotName = "test-bot_EDITED"
-	data := struct {
-		types.ProvisionTokenSpecV2
-		Name string `json:"name"`
+	tcs := []struct {
+		Name   string
+		Method func(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error)
 	}{
-		ProvisionTokenSpecV2: spec,
-		Name:                 "github-test-token",
+		{Name: "http_post", Method: pack.clt.PostJSON},
+		{Name: "http_put", Method: pack.clt.PutJSON},
 	}
-	endpointV1 := pack.clt.Endpoint("v1", "webapi", "tokens")
-	_, err = pack.clt.PostJSON(ctx, endpointV1, data)
-	require.NoError(t, err)
 
-	// Fetch the token and compare
-	editedToken, err := env.server.Auth().GetToken(ctx, "github-test-token")
-	require.NoError(t, err)
-	require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
-	require.Equal(t, expiry, *editedToken.GetMetadata().Expires)
-	require.Equal(t, map[string]string{
-		"test-key": "test-value",
-	}, editedToken.GetMetadata().Labels)
+	for _, tc := range tcs {
+		t.Run(tc.Name, func(t *testing.T) {
+
+			// Setup an existing token
+			spec := types.ProvisionTokenSpecV2{
+				Roles:      types.SystemRoles{types.RoleBot},
+				BotName:    "test-bot",
+				JoinMethod: types.JoinMethodGitHub,
+
+				GitHub: &types.ProvisionTokenSpecV2GitHub{
+					Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+						{
+							Repository: "gravitational/teleport",
+						},
+					},
+				},
+			}
+			tokenName := "github-test-token" + tc.Name
+			token, err := types.NewProvisionTokenFromSpec(tokenName, time.Time{}, spec)
+			require.NoError(t, err)
+			token.SetExpiry(expiry)
+			token.SetLabels(map[string]string{
+				"test-key": "test-value",
+			})
+			err = env.server.Auth().CreateToken(ctx, token)
+			require.NoError(t, err)
+
+			// Make a simple edit
+			spec.BotName = "test-bot_EDITED"
+			data := struct {
+				types.ProvisionTokenSpecV2
+				Name string `json:"name"`
+			}{
+				ProvisionTokenSpecV2: spec,
+				Name:                 tokenName,
+			}
+			endpointV1 := pack.clt.Endpoint("v1", "webapi", "tokens")
+			_, err = tc.Method(ctx, endpointV1, data)
+			require.NoError(t, err)
+
+			// Fetch the token and compare
+			editedToken, err := env.server.Auth().GetToken(ctx, tokenName)
+			require.NoError(t, err)
+			require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
+			require.Equal(t, expiry, *editedToken.GetMetadata().Expires)
+			require.Equal(t, map[string]string{
+				"test-key": "test-value",
+			}, editedToken.GetMetadata().Labels)
+		})
+	}
 }
 
 func TestCreateTokenExpiry(t *testing.T) {
