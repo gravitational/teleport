@@ -102,11 +102,8 @@ class JoinTokenService {
     return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
   }
 
-  async upsertJoinToken(req: CreateJoinTokenRequest, tokenName: string) {
-    const json = await api.putWithHeaders(cfg.getJoinTokensUrl(), req, {
-      [TeleportTokenNameHeader]: tokenName,
-      'Content-Type': 'application/json',
-    });
+  async editJoinToken(req: CreateJoinTokenRequest) {
+    const json = await api.put(cfg.getJoinTokensUrl(), req);
     return makeJoinToken(json);
   }
 

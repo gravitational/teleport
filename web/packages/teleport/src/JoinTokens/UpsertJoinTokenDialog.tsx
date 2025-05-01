@@ -212,7 +212,7 @@ export const UpsertJoinTokenDialog = ({
   const [createTokenAttempt, runCreateTokenAttempt] = useAsync(
     async (req: CreateJoinTokenRequest, isEdit: boolean) => {
       const token = isEdit
-        ? await ctx.joinTokenService.upsertJoinToken(req, editToken.id)
+        ? await ctx.joinTokenService.editJoinToken(req)
         : await ctx.joinTokenService.createJoinToken(req);
       updateTokenList(token);
       onClose();
