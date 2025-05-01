@@ -45,10 +45,10 @@ metadata:
 spec:
   ...
   traits:
-    server_perms: '{
+    server_perms: {
       "env": "staging",
       "logins": "alice"
-    }'
+    }
 ---
 kind: role
 ...
@@ -73,7 +73,6 @@ ignores any other value types.
 
 ```json
 {
-   "email": "alice@example.com",
    "groups": ["admin", "viewer"]
 }
 ```
@@ -84,7 +83,6 @@ For example:
 
 ```json
 {
-   "email": "alice@example.com",
    "groups": {
       "staging": ["admin", "viewer"],
       "prod": ["viewer"]
@@ -106,9 +104,10 @@ kind: user
 spec:
   ...
   traits:
-    email: alice@example.com
-    groups:
-    - '{"staging": "admin", "prod": "viewer"}'
+    groups: {
+      "staging": "admin",
+      "prod": "viewer"
+    }'
 ```
 
 #### Claims to Roles - `claim_expression`
@@ -131,4 +130,56 @@ spec:
       claim_expression: "jsonpath('$.[*]')"
       value: "admin"
       roles: "admin"
+```
+
+### Full example
+
+TODO: Move to user stories
+
+OIDC claims:
+
+```json
+{
+    "idp_name": "Azure",
+    "groups": {
+      "staging": "teleport-admin",
+      "prod": "teleport-devops"
+    }
+}
+```
+
+Connector Spec:
+
+```yaml
+kind: oidc 
+metadata:
+  name: my-connector
+spec:
+  ...
+  claims_to_roles:
+    - claim: "groups"
+      claim_expression: "jsonpath('$.[*]')"
+      value: "*-admin"
+      roles: "admin"
+    - claim: "groups"
+      claim_expression: "jsonpath('$.[*]')"
+      value: "*-devops"
+      roles: "devops"
+```
+
+Role with templates:
+
+```yaml
+kind: role
+metadata:
+  name: admin
+spec:
+  allow:
+    ...
+    logins: 
+    - '{{email.local(external.email)}}'
+    - 'root'
+    node_labels: 
+      # evaluates to `"Azure": ["teleport-admin", "teleport-devops"]
+      "{{external.idp_name]}}": "{{jsonpath(external.groups, '$.[*]')}}
 ```
