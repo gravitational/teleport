@@ -84,6 +84,8 @@ type VersionStorage interface {
 	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
 	WriteTeleportVersion(ctx context.Context, version semver.Version) error
+	// DeleteTeleportVersion removes the last known Teleport version in storage.
+	DeleteTeleportVersion(ctx context.Context) error
 }
 
 // InitConfig is auth server init config

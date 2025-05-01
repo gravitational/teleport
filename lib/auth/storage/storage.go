@@ -66,6 +66,8 @@ type stateBackend interface {
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
+	// Delete removes a single item in storage.
+	Delete(ctx context.Context, key backend.Key) error
 }
 
 // ProcessStorage is a backend for local process state,
@@ -230,6 +232,15 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version semve
 		Value: []byte(version.String()),
 	}
 	_, err := p.stateStorage.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteTeleportVersion removes last known Teleport version from the process storage.
+func (p *ProcessStorage) DeleteTeleportVersion(ctx context.Context) error {
+	err := p.stateStorage.Delete(ctx, backend.NewKey(teleportPrefix, lastKnownVersion))
 	if err != nil {
 		return trace.Wrap(err)
 	}

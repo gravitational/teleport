@@ -36,7 +36,10 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// AuthInfo holds meta-information for specific server.
+// AuthInfo is a singleton resource that holds meta-information for the cluster's auth service.
+// It is used to store the auth instance last known version and is managed by the major version
+// check validator. After a cluster upgrade with a new version of the auth service, this
+// information is overridden with data from the new auth instance.
 type AuthInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`

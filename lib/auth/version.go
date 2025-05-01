@@ -49,7 +49,7 @@ func validateAndUpdateTeleportVersion(
 	backendStorage services.AuthInfoService,
 	currentVersion semver.Version,
 	skipVersionCheck bool,
-) (err error) {
+) error {
 	skip := skipVersionCheck || os.Getenv(skipVersionUpgradeCheckEnv) != ""
 
 	// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
@@ -61,40 +61,48 @@ func validateAndUpdateTeleportVersion(
 		return trace.Wrap(err)
 	}
 
-	var authInfo *authinfov1.AuthInfo
+	var createNewResource bool
 	for range versionUpgradeCheckMaxWriteRetry {
-		authInfo, err = backendStorage.GetAuthInfo(ctx)
+		authInfo, err := backendStorage.GetAuthInfo(ctx)
 		if trace.IsNotFound(err) {
 			authInfo, err = authinfo.NewAuthInfo(&authinfov1.AuthInfoSpec{TeleportVersion: teleportVersion.String()})
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			createNewResource = true
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
 
-		lastKnownVersion, err := semver.NewVersion(authInfo.GetSpec().GetTeleportVersion())
-		if err != nil {
-			return trace.Wrap(err, "failed to parse teleport version: %+q", authInfo.GetSpec().GetTeleportVersion())
-		}
-		if !skip && currentVersion.Major-lastKnownVersion.Major > 1 {
-			return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
-				"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
-				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
-				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-				lastKnownVersion, currentVersion.String(), lastKnownVersion.Major+1)
-		}
-		if !skip && lastKnownVersion.Major > currentVersion.Major {
-			return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
-				"Teleport doesn't support major version downgrade.\n Please downgrade "+
-				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
-				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-				lastKnownVersion, currentVersion.String(), lastKnownVersion.Major-1)
+		if !skip {
+			lastKnownVersion, err := semver.NewVersion(authInfo.GetSpec().GetTeleportVersion())
+			if err != nil {
+				return trace.Wrap(err, "failed to parse teleport version: %+q", authInfo.GetSpec().GetTeleportVersion())
+			}
+			// The last known version is already updated to the current one.
+			// Skip any further checks and resource updates.
+			if lastKnownVersion.Equal(currentVersion) {
+				return nil
+			}
+			if currentVersion.Major-lastKnownVersion.Major > 1 {
+				return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
+					"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
+					"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+					"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+					lastKnownVersion, currentVersion.String(), lastKnownVersion.Major+1)
+			}
+			if lastKnownVersion.Major > currentVersion.Major {
+				return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
+					"Teleport doesn't support major version downgrade.\n Please downgrade "+
+					"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+					"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+					lastKnownVersion, currentVersion.String(), lastKnownVersion.Major-1)
+			}
 		}
 
 		authInfo.GetSpec().TeleportVersion = currentVersion.String()
 
-		if authInfo.GetMetadata().GetRevision() == "" {
+		if createNewResource {
 			_, err = backendStorage.CreateAuthInfo(ctx, authInfo)
 			if trace.IsAlreadyExists(err) {
 				err = trace.Wrap(err)
@@ -103,7 +111,7 @@ func validateAndUpdateTeleportVersion(
 			} else if err != nil {
 				return trace.Wrap(err)
 			}
-		} else if !lastKnownVersion.Equal(currentVersion) {
+		} else {
 			_, err = backendStorage.UpdateAuthInfo(ctx, authInfo)
 			if errors.Is(err, backend.ErrIncorrectRevision) || trace.IsNotFound(err) {
 				err = trace.Wrap(err)
@@ -113,7 +121,16 @@ func validateAndUpdateTeleportVersion(
 				return trace.Wrap(err)
 			}
 		}
+		if skip {
+			slog.WarnContext(ctx, "Version check skipped, Teleport might perform unsupported backend version transitions",
+				"upgrade_version", currentVersion.String())
+		}
+
+		if err := procStorage.DeleteTeleportVersion(ctx); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
 		return nil
 	}
-	return
+	return err
 }

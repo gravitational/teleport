@@ -20,7 +20,10 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1;authinfov1";
 
-// AuthInfo holds meta-information for specific server.
+// AuthInfo is a singleton resource that holds meta-information for the cluster's auth service.
+// It is used to store the auth instance last known version and is managed by the major version
+// check validator. After a cluster upgrade with a new version of the auth service, this
+// information is overridden with data from the new auth instance.
 message AuthInfo {
   string kind = 1;
   string sub_kind = 2;
