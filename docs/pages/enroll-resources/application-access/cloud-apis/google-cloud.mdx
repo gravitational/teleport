@@ -248,11 +248,11 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 app_service:
   enabled: true
   apps:
@@ -440,7 +440,8 @@ Create the role:
 $ tctl create -f google-cloud-cli-access.yaml
 ```
 
-<Details title="Denying access to Google Cloud service accounts">
+<details>
+<summary>Denying access to Google Cloud service accounts</summary>
 
 You can define a Teleport role that denies a user access to one or more Google
 Cloud service accounts. To do so, assign values to the `gcp_service_accounts`
@@ -474,7 +475,7 @@ URIs of specific Google Cloud service accounts.
 The Teleport Auth Service gives `deny` rules precedence over `allow` rules when
 evaluating a user's roles.
 
-</Details>
+</details>
 
 (!docs/pages/includes/add-role-to-user.mdx role="google-cloud-cli-access"!)
 

@@ -552,6 +552,7 @@ func InitTestAuthCache(p TestAuthCacheParams) error {
 		IdentityCenter:          p.AuthServer.Services.IdentityCenter,
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
+		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -643,7 +644,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 	}
 	sshPublicKeyPEM := ssh.MarshalAuthorizedKey(sshPublicKey)
 
-	clusterName, err := authServer.GetClusterName()
+	clusterName, err := authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1231,7 +1232,7 @@ func NewFakeTeleportVersion() *FakeTeleportVersion {
 
 // GetTeleportVersion returns current Teleport version.
 func (s FakeTeleportVersion) GetTeleportVersion(_ context.Context) (*semver.Version, error) {
-	return teleport.SemVersion, nil
+	return teleport.SemVer(), nil
 }
 
 // WriteTeleportVersion stub function for writing.

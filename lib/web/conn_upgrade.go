@@ -141,7 +141,11 @@ func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, u
 
 	if err := upgradeHandler(ctx, conn); err != nil && !utils.IsOKNetworkError(err) {
 		// Upgrader hijacks the connection so no point returning an error here.
-		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request.", "protocol", wsConn.Subprotocol(), "error", err)
+		h.logger.ErrorContext(ctx, "Failed to handle WebSocket upgrade request",
+			"protocol", wsConn.Subprotocol(),
+			"error", err,
+			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
+		)
 	}
 	return nil, nil
 }

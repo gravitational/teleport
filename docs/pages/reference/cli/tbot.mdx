@@ -581,6 +581,34 @@ command supports these additional flags:
 | `--name-selector`                        | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
 | `--label-selector`                       | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
 
+## tbot start workload-identity-aws-roles-anywhere
+
+Issues an X509 workload identity credential, exchanges this for short-lived AWS
+credentials using Roles Anywhere, and writes these to a configured destination.
+
+See the [configuration reference](../machine-id/configuration.mdx) for further
+information about the workload identity credential output and the YAML
+configuration file format.
+
+### Flags
+
+In addition to the [common `tbot start` flags](#common-start-flags), this
+command supports these additional flags:
+
+| Flag                         | Description                                                                                                                                                        |
+|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--destination`              | A destination URI, such as `file:///foo/bar`. See [Destination URIs](#destination-uris) for more info. Required.                                                   |
+| `--reader-user`              | An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                 |
+| `--reader-group`             | An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.                                |
+| `--name-selector`            | Specifies a WorkloadIdentity resource by name to use when issuing the X509 for a workload. Mutually exclusive with `--label-selector`.                             |
+| `--label-selector`           | Specifies a set of labels to use when selecting WorkloadIdentity resources to use when issuing the X509 for a workload. Mutually exclusive with `--name-selector`. |
+| `--role-arn`                 | The ARN of the AWS role to assume. Required.                                                                                                                       |
+| `--profile-arn`              | The ARN of the AWS profile to use for the Roles Anywhere exchange. Required.                                                                                       |
+| `--trust-anchor-arn`         | The ARN of the trust anchor to use for the Roles Anywhere exchange. Required.                                                                                      |
+| `--region`                   | The AWS region to use for the Roles Anywhere exchange. Falls back to value in `AWS_REGION` or the AWS configuration file if unspecified.                           |
+| `--session-duration`         | The duration of the AWS session. Defaults to `6h`. This may be up to `12h`.                                                                                        |
+| `--session-renewal-interval` | The interval at which to renew the AWS session. Defaults to `1h`. This must be less than the session duration.                                                     |
+
 ## tbot start workload-identity-jwt
 
 Issues a JWT workload identity credential using Teleport Workload Identity and

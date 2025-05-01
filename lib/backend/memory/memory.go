@@ -302,7 +302,7 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey backend.Key) 
 	return nil
 }
 
-func (m *Memory) Items(ctx context.Context, params backend.IterateParams) iter.Seq2[backend.Item, error] {
+func (m *Memory) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
 	if params.StartKey.IsZero() {
 		err := trace.BadParameter("missing parameter startKey")
 		return func(yield func(backend.Item, error) bool) { yield(backend.Item{}, err) }
@@ -395,7 +395,7 @@ func (m *Memory) Items(ctx context.Context, params backend.IterateParams) iter.S
 // GetRange returns query range
 func (m *Memory) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	var result backend.GetResult
-	for item, err := range m.Items(ctx, backend.IterateParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
+	for item, err := range m.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey, Limit: limit}) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

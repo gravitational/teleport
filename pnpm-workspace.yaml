@@ -1,3 +1,25 @@
 packages:
-  - 'web/packages/*'
-  - 'e/web/*'
+  - web/packages/*
+  - e/web/*
+onlyBuiltDependencies:
+  - '@swc/core'
+  - electron
+  - esbuild
+  - msw
+  - node-pty
+  - protobufjs
+# Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
+# and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
+# start complaining that electron-winstaller is not in onlyBuiltDependencies.
+#
+# We could instead solve this by adding electron-winstaller to ignoredBuiltDependencies, but why
+# pull in deps that we don't use? Ultimately, the problem is that electron-builder-squirrel-windows
+# is defined as a peer dep of one of electron-builder deps, while in reality it's more like an
+# optional dep.
+autoInstallPeers: false
+strictPeerDependencies: true
+peerDependencyRules:
+  ignoreMissing:
+    # This dep is needed only when using Squirrel.Windows as an installer in electron-build which we
+    # don't use. https://www.electron.build/squirrel-windows.html
+    - electron-builder-squirrel-windows

@@ -20,6 +20,7 @@ import { within } from '@testing-library/react';
 import { addHours } from 'date-fns';
 
 import { render, screen } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
@@ -57,6 +58,7 @@ test('renders header and stats cards', () => {
             resourcesEnrollmentSuccess: 9,
             discoverLastSync: new Date().getTime(),
             ecsDatabaseServiceCount: 0, // irrelevant
+            unresolvedUserTasks: 0,
           },
           awsrds: {
             rulesCount: 14,
@@ -65,6 +67,7 @@ test('renders header and stats cards', () => {
             resourcesEnrollmentSuccess: 0,
             discoverLastSync: addHours(new Date().getTime(), -4).getTime(),
             ecsDatabaseServiceCount: 8, // relevant
+            unresolvedUserTasks: 0,
           },
           awseks: {
             rulesCount: 33,
@@ -73,12 +76,15 @@ test('renders header and stats cards', () => {
             resourcesEnrollmentSuccess: 3,
             discoverLastSync: addHours(new Date().getTime(), -48).getTime(),
             ecsDatabaseServiceCount: 0, // irrelevant
+            unresolvedUserTasks: 0,
           },
         }),
       }}
       path=""
     >
-      <AwsOidcDashboard />
+      <InfoGuidePanelProvider>
+        <AwsOidcDashboard />
+      </InfoGuidePanelProvider>
     </MockAwsOidcStatusProvider>
   );
 
@@ -151,6 +157,7 @@ test('renders enroll cards', () => {
     resourcesEnrollmentSuccess: 0,
     discoverLastSync: new Date().getTime(),
     ecsDatabaseServiceCount: 0,
+    unresolvedUserTasks: 0,
   };
 
   render(
@@ -179,23 +186,19 @@ test('renders enroll cards', () => {
       }}
       path=""
     >
-      <AwsOidcDashboard />
+      <InfoGuidePanelProvider>
+        <AwsOidcDashboard />
+      </InfoGuidePanelProvider>
     </MockAwsOidcStatusProvider>
   );
 
   expect(
-    within(screen.getByTestId('ec2-enroll')).getByRole('link', {
-      name: 'Enroll EC2',
-    })
+    within(screen.getByTestId('ec2-enroll')).getByText('Enroll EC2')
   ).toBeInTheDocument();
   expect(
-    within(screen.getByTestId('rds-enroll')).getByRole('link', {
-      name: 'Enroll RDS',
-    })
+    within(screen.getByTestId('rds-enroll')).getByText('Enroll RDS')
   ).toBeInTheDocument();
   expect(
-    within(screen.getByTestId('eks-enroll')).getByRole('link', {
-      name: 'Enroll EKS',
-    })
+    within(screen.getByTestId('eks-enroll')).getByText('Enroll EKS')
   ).toBeInTheDocument();
 });

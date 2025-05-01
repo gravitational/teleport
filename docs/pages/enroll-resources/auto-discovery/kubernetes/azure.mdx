@@ -117,10 +117,8 @@ following permissions with Teleport's identity.
 
 In all other cases, you must manually set up the required access as described in the guide below.
 
-<Details
-title="Manual configuration of Teleport RBAC permissions"
-opened={false}
->
+<details>
+<summary>Manual configuration of Teleport RBAC permissions</summary>
 
 Connect to every cluster to enroll with admin permissions and create the following resources
 using `kubectl`.
@@ -181,7 +179,7 @@ subjects:
 Replace `{azure_ad_group_id}` with the appropriate Azure AD group id
 associated with Teleport identity.
 
-</Details>
+</details>
 
   </TabItem>
     <TabItem label="Local Accounts">
@@ -236,13 +234,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "aks-prod"
   azure:
   - types: ["aks"]
@@ -252,7 +250,7 @@ discovery_service:
     tags:
       "env": "prod"
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier

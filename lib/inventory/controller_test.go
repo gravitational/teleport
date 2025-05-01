@@ -492,6 +492,19 @@ func TestAppServerBasics(t *testing.T) {
 		deny(appUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < appCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{appKeepAliveOk, appKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < appCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
@@ -517,7 +530,7 @@ func TestAppServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(appKeepAliveOk, appKeepAliveOk, appKeepAliveOk, appUpsertErr, appUpsertRetryOk),
+		expect(appUpsertErr, appUpsertRetryOk),
 		deny(appKeepAliveErr, handlerClose),
 	)
 
@@ -552,13 +565,6 @@ func TestAppServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// apps (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveAppTick, keepAliveAppTick, keepAliveAppTick),
-		deny(appKeepAliveOk, appKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -720,6 +726,19 @@ func TestDatabaseServerBasics(t *testing.T) {
 		deny(dbUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < dbCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{dbKeepAliveOk, dbKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < dbCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
@@ -745,7 +764,7 @@ func TestDatabaseServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(dbKeepAliveOk, dbKeepAliveOk, dbKeepAliveOk, dbUpsertErr, dbUpsertRetryOk),
+		expect(dbUpsertErr, dbUpsertRetryOk),
 		deny(dbKeepAliveErr, handlerClose),
 	)
 
@@ -780,13 +799,6 @@ func TestDatabaseServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// dbs (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveDatabaseTick, keepAliveDatabaseTick, keepAliveDatabaseTick),
-		deny(dbKeepAliveOk, dbKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -1037,9 +1049,11 @@ func TestUpdateLabels(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	downstreamHandle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, upstreamHello)
+	}, func(_ context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, downstreamHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1099,11 +1113,11 @@ func TestAgentMetadata(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	NewDownstreamHandle(
+	inventoryHandle, err := NewDownstreamHandle(
 		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 			return downstream, nil
 		},
-		upstreamHello,
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil },
 		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
 			return &metadata.Metadata{
 				OS:                    "llamaOS",
@@ -1117,6 +1131,8 @@ func TestAgentMetadata(t *testing.T) {
 			}, nil
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -1186,9 +1202,11 @@ func TestGoodbye(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 				return downstream, nil
-			}, upstreamHello)
+			}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+			require.NoError(t, err)
+			// downstream handler is closed later in the test, no need to defer the cleanup
 
 			// Wait for upstream hello.
 			select {
@@ -1337,6 +1355,19 @@ func TestKubernetesServerBasics(t *testing.T) {
 		deny(kubeUpsertErr, handlerClose),
 	)
 
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for i := 0; i < kubeCount; i++ {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{kubeKeepAliveOk, kubeKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
 	for i := 0; i < kubeCount; i++ {
 		err := downstream.Send(ctx, proto.InventoryHeartbeat{
 			KubernetesServer: &types.KubernetesServerV3{
@@ -1363,7 +1394,7 @@ func TestKubernetesServerBasics(t *testing.T) {
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(kubeKeepAliveOk, kubeKeepAliveOk, kubeKeepAliveOk, kubeUpsertErr, kubeUpsertRetryOk),
+		expect(kubeUpsertErr, kubeUpsertRetryOk),
 		deny(kubeKeepAliveErr, handlerClose),
 	)
 
@@ -1398,13 +1429,6 @@ func TestKubernetesServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(expectedEvents...),
 		deny(handlerClose),
-	)
-
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// apps (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveKubeTick, keepAliveKubeTick, keepAliveKubeTick),
-		deny(kubeKeepAliveOk, kubeKeepAliveErr, handlerClose),
 	)
 
 	// set up to induce enough consecutive errors to cause stream closure
@@ -1489,9 +1513,11 @@ func TestGetSender(t *testing.T) {
 		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
 	}
 
-	handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	handle, err := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		return downstream, nil
-	}, upstreamHello)
+	}, func(ctx context.Context) (proto.UpstreamInventoryHello, error) { return upstreamHello, nil })
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
 
 	// Validate that the sender is not present prior to
 	// the stream becoming healthy.

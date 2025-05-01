@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
 import { DbProtocol } from 'shared/services/databases';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -53,6 +54,7 @@ export interface Database {
   aws?: Aws;
   requiresRequest?: boolean;
   supportsInteractive?: boolean;
+  autoUsersEnabled?: boolean;
 }
 
 export type DatabasesResponse = {
@@ -101,4 +103,10 @@ export type DatabaseServicesResponse = {
   services: DatabaseService[];
   startKey?: string;
   totalCount?: number;
+};
+
+export type DatabaseServer = {
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
 };

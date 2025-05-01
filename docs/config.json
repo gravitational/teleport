@@ -1,131 +1,4 @@
 {
-  "navigation": [
-    {
-      "icon": "home",
-      "title": "Get Started",
-      "entries": [
-        {
-          "title": "Introduction to Teleport",
-          "slug": "/"
-        },
-        {
-           "title": "Get Started",
-           "slug": "/get-started/"
-        },
-        {
-          "title": "Core Concepts",
-          "slug": "/core-concepts/"
-        },
-        {
-          "title": "Installation",
-          "slug": "/installation/"
-        },
-        {
-          "title": "Upgrading",
-          "slug": "/upgrading/upgrading/",
-          "entries": [
-            {
-              "title": "Compatibility Overview",
-              "slug": "/upgrading/overview/"
-            },
-            {
-              "title": "Cluster Upgrading Reference",
-              "slug": "/upgrading/upgrading-reference/"
-            },
-            {
-              "title": "Managed Updates for Agents (v1)",
-              "slug": "/upgrading/agent-managed-updates-v1/"
-            },
-            {
-              "title": "Managed Updates for Agents (v2)",
-              "slug": "/upgrading/agent-managed-updates/"
-            },
-            {
-              "title": "Managed Updates for Client Tools",
-              "slug": "/upgrading/client-tools-autoupdate/"
-            }
-          ]
-        },
-        {
-          "title": "FAQ",
-          "slug": "/faq/"
-        },
-        {
-          "title": "Usage Reporting and Billing",
-          "slug": "/usage-billing/",
-          "forScopes": ["cloud", "enterprise"]
-        },
-        {
-          "title": "Upcoming Releases",
-          "slug": "/upcoming-releases/"
-        },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
-        {
-          "title": "Changelog",
-          "slug": "/changelog/"
-        }
-      ]
-    },
-    {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
-    },
-    {
-      "icon": "connect",
-      "title": "User Guides",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/connect-your-client/introduction/"
-        },
-        {
-          "title": "Using tsh",
-          "slug": "/connect-your-client/tsh/"
-        },
-        {
-          "title": "Using the Web UI",
-          "slug": "/connect-your-client/web-ui/"
-        },
-        {
-          "title": "Using Teleport Connect",
-          "slug": "/connect-your-client/teleport-connect/"
-        },
-        {
-          "title": "Using VNet",
-          "slug": "/connect-your-client/vnet/"
-        },
-        {
-          "title": "Using PuTTY and WinSCP",
-          "slug": "/connect-your-client/putty-winscp/"
-        },
-        {
-          "title": "Database GUI Clients",
-          "slug": "/connect-your-client/gui-clients/"
-        },
-        {
-          "title": "Notifications",
-          "slug": "/connect-your-client/notifications/"
-        }
-      ]
-    },
-    {
-      "title": "Enroll Resources",
-      "icon": "layers",
-      "generateFrom": "enroll-resources",
-      "entries": []
-    },
-    {
-      "icon": "book",
-      "title": "References",
-      "entries": [],
-      "generateFrom": "reference"
-    }
-  ],
   "variables": {
     "clusterDefaults": {
       "clusterName": "teleport.example.com",
@@ -144,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "17.2.7",
+      "version": "17.4.3",
       "major_version": "17",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -205,7 +78,7 @@
       "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
       "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
       "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
+      "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
       "version": "1.0.0"
@@ -225,6 +98,11 @@
     {
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
       "destination": "/admin-guides/access-controls/guides/joining-sessions/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/management/guides/aws-iam-identity-center/",
+      "destination": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
       "permanent": true
     },
     {
@@ -308,7 +186,6 @@
       "permanent": true
     },
     {
-
       "source": "/enterprise/sso/",
       "destination": "/admin-guides/access-controls/sso/",
       "permanent": true
@@ -320,7 +197,7 @@
     },
     {
       "source": "/application-access/okta/hosted-guide/",
-      "destination": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     },
     {
@@ -396,6 +273,71 @@
     {
       "source": "/server-access/introduction/",
       "destination": "/enroll-resources/server-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/",
+      "destination": "/reference/agent-services/auto-discovery-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/aws-iam/",
+      "destination": "/reference/agent-services/auto-discovery-reference/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/agent-services/kubernetes-application-discovery/",
+      "destination": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
+      "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/hosted-guide/",
+      "destination": "/admin-guides/access-controls/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-only/",
+      "destination": "/admin-guides/access-controls/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/sync-scim/",
+      "destination": "/admin-guides/access-controls/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/app-and-group-sync/",
+      "destination": "/admin-guides/access-controls/okta/app-and-group-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/guided-sso/",
+      "destination": "/admin-guides/access-controls/okta/guided-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/okta/",
+      "destination": "/admin-guides/access-controls/okta/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/scim-integration/",
+      "destination": "/admin-guides/access-controls/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/user-sync/",
+      "destination": "/admin-guides/access-controls/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/okta/",
+      "destination": "/admin-guides/access-controls/okta/",
       "permanent": true
     }
   ]

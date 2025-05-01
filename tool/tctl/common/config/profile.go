@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -45,11 +46,11 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		proxyAddr = ccf.AuthServerAddr[0]
 	}
 
-	clientStore := client.NewFSClientStore(cfg.TeleportHome)
+	hwks := libhwk.NewService(ctx, nil /*prompt*/)
+	clientStore := client.NewFSClientStore(cfg.TeleportHome, client.WithHardwareKeyService(hwks))
 	if ccf.IdentityFilePath != "" {
-		var err error
-		clientStore, err = identityfile.NewClientStoreFromIdentityFile(ccf.IdentityFilePath, proxyAddr, "")
-		if err != nil {
+		clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
+		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, ccf.IdentityFilePath, proxyAddr, ""); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -70,17 +71,12 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		return nil, trace.BadParameter("your credentials have expired, please log in using `tsh login`")
 	}
 
-	c := client.MakeDefaultConfig()
 	slog.DebugContext(ctx, "Found profile",
 		"proxy", logutils.StringerAttr(&profile.ProxyURL),
 		"user", profile.Username,
 	)
-	if err := c.LoadProfile(clientStore, proxyAddr); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	webProxyHost, _ := c.WebProxyHostPort()
-	idx := client.KeyRingIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
+	idx := client.KeyRingIndex{ProxyHost: profile.Name, Username: profile.Username, ClusterName: profile.Cluster}
 	keyRing, err := clientStore.GetKeyRing(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,7 +104,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 	// Do not override auth servers from command line
 	if len(ccf.AuthServerAddr) == 0 {
-		webProxyAddr, err := utils.ParseAddr(c.WebProxyAddr)
+		webProxyAddr, err := utils.ParseAddr(profile.ProxyURL.Host)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -119,7 +115,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	authConfig.Log = cfg.Logger
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
-	if c.TLSRoutingEnabled {
+	if profile.TLSRoutingEnabled {
 		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	}
 

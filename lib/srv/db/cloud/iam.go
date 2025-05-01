@@ -279,7 +279,7 @@ func (c *IAM) getAWSIdentity(ctx context.Context, database types.Database) (awsl
 
 // getPolicyName returns the inline policy name.
 func (c *IAM) getPolicyName() (string, error) {
-	clusterName, err := c.cfg.AccessPoint.GetClusterName()
+	clusterName, err := c.cfg.AccessPoint.GetClusterName(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

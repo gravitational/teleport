@@ -36,11 +36,23 @@ import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+export const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
 function Providers({ children }: { children: ReactNode }) {
   return (
-    <ConfiguredThemeProvider theme={darkTheme}>
-      {children}
-    </ConfiguredThemeProvider>
+    <QueryClientProvider client={testQueryClient}>
+      <ConfiguredThemeProvider theme={darkTheme}>
+        {children}
+      </ConfiguredThemeProvider>
+    </QueryClientProvider>
   );
 }
 

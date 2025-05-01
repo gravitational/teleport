@@ -22,6 +22,7 @@ import styled from 'styled-components';
 import { Box, ButtonBorder, Label as DesignLabel, Flex, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Cross as CloseIcon } from 'design/Icon';
+import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 import { Highlight } from 'shared/components/Highlight';
 import {
@@ -46,6 +47,7 @@ import {
   SearchResultKube,
   SearchResultResourceType,
   SearchResultServer,
+  SearchResultWindowsDesktop,
 } from 'teleterm/ui/Search/searchResult';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import * as uri from 'teleterm/ui/uri';
@@ -506,6 +508,7 @@ export const ComponentMap: Record<
   kube: KubeItem,
   database: DatabaseItem,
   app: AppItem,
+  windows_desktop: WindowsDesktopItem,
   'cluster-filter': ClusterFilterItem,
   'resource-type-filter': ResourceTypeFilterItem,
   'display-results': DisplayResultsItem,
@@ -581,6 +584,7 @@ const resourceIcons: Record<
   node: icons.Server,
   db: icons.Database,
   app: icons.Application,
+  windows_desktop: icons.Desktop,
 };
 
 function ResourceTypeFilterItem(
@@ -814,9 +818,61 @@ export function AppItem(props: SearchResultItem<SearchResultApp>) {
   );
 }
 
+export function WindowsDesktopItem(
+  props: SearchResultItem<SearchResultWindowsDesktop>
+) {
+  const { searchResult } = props;
+  const windowsDesktop = searchResult.resource;
+
+  const $resourceFields = (
+    <ResourceFields>
+      <span
+        css={`
+          flex-shrink: 0;
+        `}
+      >
+        <HighlightField
+          field="addrWithoutDefaultPort"
+          searchResult={searchResult}
+        />
+      </span>
+    </ResourceFields>
+  );
+
+  return (
+    <IconAndContent
+      Icon={icons.Desktop}
+      iconColor="brand"
+      iconOpacity={getRequestableResourceIconOpacity(props.searchResult)}
+    >
+      <Flex
+        justifyContent="space-between"
+        alignItems="center"
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Text typography="body2">
+          {props.searchResult.requiresRequest
+            ? 'Request access to desktop '
+            : 'Connect to desktop '}
+          <strong>
+            <HighlightField field="name" searchResult={searchResult} />
+          </strong>
+        </Text>
+        <Box ml="auto">
+          <Text typography="body4">
+            {props.getOptionalClusterName(windowsDesktop.uri)}
+          </Text>
+        </Box>
+      </Flex>
+      <Labels searchResult={searchResult}>{$resourceFields}</Labels>
+    </IconAndContent>
+  );
+}
+
 function getAppItemCopy(
   $appName: React.JSX.Element,
-  app: tsh.App,
+  app: App,
   requiresRequest: boolean,
   isVnetSupported: boolean
 ) {

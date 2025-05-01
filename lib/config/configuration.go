@@ -67,7 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -1084,6 +1084,9 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.PROXYProtocolMode = val
 	}
 
+	allowDowngrade := fc.Proxy.ProxyProtocolAllowDowngrade
+	cfg.Proxy.PROXYAllowDowngrade = allowDowngrade != nil && allowDowngrade.Value
+
 	if fc.Proxy.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, defaults.SSHProxyListenPort)
 		if err != nil {
@@ -1451,6 +1454,8 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
+	cfg.SSH.ForceListen = fc.SSH.ForceListen
+
 	return nil
 }
 
@@ -1499,12 +1504,12 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		for _, region := range matcher.Regions {
-			if !awsutils.IsKnownRegion(region) {
+			if !awsregion.IsKnownRegion(region) {
 				const message = "AWS matcher uses unknown region" +
 					"This is either a typo or a new AWS region that is unknown to the AWS SDK used to compile this binary. "
 				slog.WarnContext(context.Background(), message,
 					"region", region,
-					"known_regions", awsutils.GetKnownRegions(),
+					"known_regions", awsregion.GetKnownRegions(),
 				)
 			}
 		}
@@ -1906,15 +1911,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		// Add the application to the list of proxied applications.
 		app := servicecfg.App{
-			Name:               application.Name,
-			Description:        application.Description,
-			URI:                application.URI,
-			PublicAddr:         application.PublicAddr,
-			StaticLabels:       staticLabels,
-			DynamicLabels:      dynamicLabels,
-			InsecureSkipVerify: application.InsecureSkipVerify,
-			Cloud:              application.Cloud,
-			RequiredAppNames:   application.RequiredApps,
+			Name:                  application.Name,
+			Description:           application.Description,
+			URI:                   application.URI,
+			PublicAddr:            application.PublicAddr,
+			StaticLabels:          staticLabels,
+			DynamicLabels:         dynamicLabels,
+			InsecureSkipVerify:    application.InsecureSkipVerify,
+			Cloud:                 application.Cloud,
+			RequiredAppNames:      application.RequiredApps,
+			UseAnyProxyPublicAddr: application.UseAnyProxyPublicAddr,
 		}
 
 		if application.CORS != nil {

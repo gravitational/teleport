@@ -165,6 +165,11 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 		return trace.Wrap(err)
 	}
 
+	reqCloneForAudit, err := cloneRequest(unsignedReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	awsCfg, err := s.AWSConfigProvider.GetConfig(s.closeContext, re.SigningRegion,
 		awsconfig.WithDetailedAssumeRole(awsconfig.AssumeRole{
 			RoleARN:     sessCtx.Identity.RouteToApp.AWSRoleARN,
@@ -189,7 +194,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 	}
 	recorder := httplib.NewResponseStatusRecorder(w)
 	s.fwd.ServeHTTP(recorder, signedReq)
-	s.emitAudit(sessCtx, unsignedReq, uint32(recorder.Status()), re)
+	s.emitAudit(sessCtx, reqCloneForAudit, uint32(recorder.Status()), re)
 	return nil
 }
 
