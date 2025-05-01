@@ -21,8 +21,9 @@ package cli
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // TestGlobals tests that GlobalArgs initialize and parse properly, and mutate
@@ -79,6 +80,7 @@ func TestGlobalInvertedFlags(t *testing.T) {
 		"--trace-exporter=foo",
 		"--log-format=json",
 	})
+	require.NoError(t, err)
 
 	cfg, err := TestConfigWithMutators(&config.BotConfig{
 		Debug:    true,
