@@ -65,7 +65,7 @@ func (p *identityCenterAccountParser) parse(event backend.Event) (types.Resource
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return types.Resource153ToResourceWithLabels(services.IdentityCenterAccount{Account: r}), nil
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -109,7 +109,7 @@ func (p *identityCenterPrincipalAssignmentParser) parse(event backend.Event) (ty
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return types.Resource153ToResourceWithLabels(r), nil
+		return types.Resource153ToLegacy(r), nil
 
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -153,8 +153,7 @@ func (p *identityCenterAccountAssignmentParser) parse(event backend.Event) (type
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return types.Resource153ToLegacy(
-				services.IdentityCenterAccountAssignment{AccountAssignment: r}),
+		return types.Resource153ToLegacy(r),
 			nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)

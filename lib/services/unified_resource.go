@@ -963,10 +963,10 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 			switch r := event.Resource.(type) {
 			case resource:
 				c.putLocked(r)
-			case types.Resource153UnwrapperT[IdentityCenterAccount]:
-				c.putLocked(types.Resource153ToUnifiedResource(r.UnwrapT()))
-			case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
-				c.putLocked(types.Resource153ToUnifiedResource(r.UnwrapT()))
+			case types.Resource153UnwrapperT[*identitycenterv1.Account]:
+				c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccount{Account: r.UnwrapT()}))
+			case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
+				c.putLocked(types.Resource153ToUnifiedResource(IdentityCenterAccountAssignment{AccountAssignment: r.UnwrapT()}))
 			default:
 				c.logger.WarnContext(ctx, "unsupported Resource type", "resource_type", logutils.TypeAttr(r))
 			}

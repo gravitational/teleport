@@ -58,6 +58,7 @@ import (
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
@@ -441,6 +442,7 @@ func (h *Handler) dbConnect(
 		"database_name", req.DatabaseName,
 		"database_user", req.DatabaseUser,
 		"database_roles", req.DatabaseRoles,
+		"remote_addr", logutils.StringerAttr(ws.RemoteAddr()),
 	)
 	log.DebugContext(ctx, "Received database interactive session request")
 
@@ -709,7 +711,7 @@ func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: s.clt,
 		RootAuthClient:    s.sctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge),
+		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge, s.proxyAddr),
 		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_Database{Database: &routeToDatabase},

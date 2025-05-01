@@ -2560,12 +2560,17 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: p.HostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleDatabase},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
+				ServerID: p.HostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{types.RoleDatabase},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Create database server agent itself.
 	server, err := New(ctx, Config{

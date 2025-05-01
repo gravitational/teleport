@@ -42,6 +42,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
@@ -82,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -240,12 +243,17 @@ type CLIConf struct {
 
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
+	// DatabaseServices specifies a list of database services.
+	DatabaseServices string
 	// DatabaseUser specifies database user to embed in the certificate.
 	DatabaseUser string
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
 	// DatabaseRoles specifies database roles to embed in the certificate.
 	DatabaseRoles string
+	// DatabaseCommand specifies the command to execute.
+	DatabaseCommand string
+
 	// AppName specifies proxied application name.
 	AppName string
 	// Interactive sessions will allocate a PTY and create interactive "shell"
@@ -578,6 +586,31 @@ type CLIConf struct {
 
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
+
+	// HardwareKeyAgentServer determines whether `tsh daemon` will run the hardware key agent server.
+	HardwareKeyAgentServer bool
+	// disableHardwareKeyAgentClient determines whether the client will attempt to connect
+	// to the hardware key agent. Some commands, like login, are better with the
+	// direct PIV service so that prompts are not split between processes.
+	disableHardwareKeyAgentClient bool
+
+	// ParallelJobs specifies the number of parallel jobs allowed.
+	ParallelJobs int
+	// OutputDir specifies the directory for storing command outputs.
+	OutputDir string
+	// Confirm determines whether to provide a y/N confirmation prompt.
+	Confirm bool
+
+	// clientStore is the client identity storage interface. This store must be initialized once
+	// and only once in order to ensure key (and hardware key) storage is synced across the process.
+	//
+	// Use getClientStore instead of using this directly to ensure the client store is initialized,
+	// instead of performing nil checks.
+	clientStore *client.Store
+	// clientStoreSet ensures that the client store is only initialized once. Generally, using an
+	// atomic here is overkill as the CLIConf is generally consumed sequentially. However, occasionally
+	// we need concurrency safety, such as for [forEachProfileParallel].
+	clientStoreSet int32
 }
 
 // Stdout returns the stdout writer.
@@ -623,6 +656,23 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 		return c.lookPathOverride, nil
 	}
 	return exec.LookPath(file)
+}
+
+// PromptConfirmation prompts the user for a yes/no confirmation for question.
+// The prompt is skipped unless cf.Confirm is set.
+func (c *CLIConf) PromptConfirmation(question string) error {
+	if !c.Confirm {
+		fmt.Fprintf(c.Stdout(), "Skipping confirmation for %q due to the --no-confirm flag.\n", question)
+		return nil
+	}
+
+	ok, err := prompt.Confirmation(c.Context, c.Stdout(), prompt.Stdin(), question)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.Errorf("Operation canceled by user request.")
+	}
+	return nil
 }
 
 func Main() {
@@ -859,6 +909,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStart.Flag("installation-id", "Unique ID identifying a specific Teleport Connect installation").StringVar(&cf.DaemonInstallationID)
+	daemonStart.Flag("hardware-key-agent", "Serve the hardware key agent as part of the daemon process").BoolVar(&cf.HardwareKeyAgentServer)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -1021,6 +1072,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
+	dbExec := db.Command("exec", "Execute database commands on target database services.")
+	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	dbExec.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	dbExec.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
+	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbExec.Flag("parallel", "Run commands on target databases in parallel. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.ParallelJobs)
+	dbExec.Flag("output-dir", "Directory to store command output per target database service. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
+	dbExec.Flag("dbs", "List of comma separated target database services. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
+	dbExec.Flag("confirm", "Confirm selected database services before executing command.").Default("true").BoolVar(&cf.Confirm)
+	dbExec.Arg("command", "Execute this command on target database services.").Required().StringVar(&cf.DatabaseCommand)
+	dbExec.Alias(dbExecHelp)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -1270,6 +1333,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
+	pivCmd := newPIVCommands(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1582,6 +1646,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDatabaseConfig(&cf)
 	case dbConnect.FullCommand():
 		err = onDatabaseConnect(&cf)
+	case dbExec.FullCommand():
+		err = onDatabaseExec(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
 	case mfa.ls.FullCommand():
@@ -1669,6 +1735,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case pivCmd.agent.FullCommand():
+		err = pivCmd.agent.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1901,6 +1969,10 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		cf.DesiredRoles = ""
 	}
 
+	// For login operations, we use the hardware key
+	// service directly instead of the agent.
+	cf.disableHardwareKeyAgentClient = true
+
 	if cf.IdentityFileIn != "" {
 		err := flattenIdentity(cf)
 		if err != nil {
@@ -1929,7 +2001,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.HomePath = cf.HomePath
 
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
@@ -4173,7 +4244,7 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	// Load SSH key for the cluster indicated in the profile.
 	// Handle gracefully if the profile is empty, the key cannot
 	// be found, or the key isn't supported as an agent key.
-	profile, profileError := c.GetProfile(c.ClientStore, proxy)
+	profile, profileError := c.GetProfile(proxy)
 	if profileError == nil {
 		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
@@ -4284,8 +4355,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// 1: start with the defaults
-	c := client.MakeDefaultConfig()
-
+	c := &client.Config{}
 	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
 	c.Tracer = cf.tracer
 
@@ -4392,14 +4462,19 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 	}
 
-	c.ClientStore, err = initClientStore(cf, proxy)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	c.ClientStore = cf.getClientStore()
+
+	// If the client store was initialized for the identity file, but the wrong (or missing)
+	// proxy address, re-load the identity file for the provided proxy address.
+	if cf.IdentityFileIn != "" && cf.Proxy != proxy {
+		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName); err == nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// load profile. if no --proxy is given the currently active profile is used, otherwise
 	// fetch profile for exact proxy we are trying to connect to.
-	profileErr := c.LoadProfile(c.ClientStore, proxy)
+	profileErr := c.LoadProfile(proxy)
 	if profileErr != nil && !trace.IsNotFound(profileErr) {
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
@@ -4543,7 +4618,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
-	c.EnableEscapeSequences = cf.EnableEscapeSequences
+	c.DisableEscapeSequences = !cf.EnableEscapeSequences
 
 	// pass along mock functions if provided (only used in tests)
 	c.MockSSOLogin = cf.MockSSOLogin
@@ -4555,13 +4630,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// pass along MySQL/Postgres path overrides (only used in tests).
 	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath
 	c.OverridePostgresServiceFilePath = cf.overridePostgresServiceFilePath
-
-	// Set tsh home directory
-	c.HomePath = cf.HomePath
-
-	if c.KeysDir == "" {
-		c.KeysDir = c.HomePath
-	}
 
 	if cf.IdentityFileIn != "" {
 		c.NonInteractive = true
@@ -4592,31 +4660,61 @@ func setEnvVariables(c *client.Config, options Options) {
 	}
 }
 
-func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+// setClientStore sets the client store. If the client store was already set,
+// it returns an error instead, so this should not be used after initClientStore.
+func (c *CLIConf) setClientStore(store *client.Store) error {
+	if !atomic.CompareAndSwapInt32(&c.clientStoreSet, 0, 1) {
+		return trace.AlreadyExists("setClientStore: client store is already set; this is a bug")
+	}
+	c.clientStore = store
+	return nil
+}
+
+// getClientStore gets the client store, initializing it if needed. This should be
+// preferred over using clientStore directly in cases where it might not be initialized.
+func (c *CLIConf) getClientStore() *client.Store {
+	c.initClientStore()
+	return c.clientStore
+}
+
+// initClientStore initializes the client identity store which will be used by the
+// client to interface with client identity material. After the first call to
+// initClientStore, further calls will be a no-op.
+func (c *CLIConf) initClientStore() {
+	if !atomic.CompareAndSwapInt32(&c.clientStoreSet, 0, 1) {
+		// client store already initialized.
+		return
+	}
+
+	var hwks hardwarekey.Service
+	if c.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(c.Context, nil /*prompt*/)
+	}
 
 	switch {
-	case cf.IdentityFileIn != "":
-		// Import identity file keys to in-memory client store.
-		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName, client.WithHardwareKeyService(hwks))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return clientStore, nil
-
-	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
+	case c.IdentityFileIn != "", c.IdentityFileOut != "", c.AuthConnector == constants.HeadlessConnector:
 		// Store client keys in memory, where they can be exported to non-standard
 		// FS formats (e.g. identity file) or used for a single client call in memory.
-		return client.NewMemClientStore(client.WithHardwareKeyService(hwks)), nil
+		c.clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
 
-	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
+	case c.AddKeysToAgent == client.AddKeysToAgentOnly:
 		// Store client keys in memory, but save trusted certs and profile to disk.
-		clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
-		clientStore.KeyStore = client.NewMemKeyStore()
-		return clientStore, nil
+		c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
+		c.clientStore.KeyStore = client.NewMemKeyStore()
 
 	default:
-		return client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks)), nil
+		c.clientStore = client.NewFSClientStore(c.HomePath, client.WithHardwareKeyService(hwks))
+	}
+
+	// If an identity file is provided, opportunistically try to load it into the keystore. It may
+	// fail if the user did not provide the --proxy flag, but in some cases the proxy, the proxy
+	// address will be provided later on and the client will attempt to load the identity file then.
+	if c.IdentityFileIn != "" {
+		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName); err == nil {
+			slog.DebugContext(c.Context, "failed to load identity file into client store", "err", err)
+		}
 	}
 }
 
@@ -4625,11 +4723,7 @@ func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 		return c.profileStatusOverride, nil
 	}
 
-	clientStore, err := initClientStore(c, c.Proxy)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	profile, err := clientStore.ReadProfileStatus(c.Proxy)
+	profile, err := c.getClientStore().ReadProfileStatus(c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4637,11 +4731,7 @@ func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 }
 
 func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
-	clientStore, err := initClientStore(c, c.Proxy)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	currentProfile, profiles, err := clientStore.FullProfileStatus()
+	currentProfile, profiles, err := c.getClientStore().FullProfileStatus()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -4651,19 +4741,14 @@ func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileS
 // ListProfiles returns a list of profiles the current user has
 // credentials for.
 func (c *CLIConf) ListProfiles() ([]*client.ProfileStatus, error) {
-	clientStore, err := initClientStore(c, c.Proxy)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profileNames, err := clientStore.ListProfiles()
+	profileNames, err := c.getClientStore().ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	profiles := make([]*client.ProfileStatus, 0, len(profileNames))
 	for _, profileName := range profileNames {
-		status, err := clientStore.ReadProfileStatus(profileName)
+		status, err := c.getClientStore().ReadProfileStatus(profileName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4675,17 +4760,13 @@ func (c *CLIConf) ListProfiles() ([]*client.ProfileStatus, error) {
 
 // GetProfile loads user profile.
 func (c *CLIConf) GetProfile() (*profile.Profile, error) {
-	store, err := initClientStore(c, c.Proxy)
+	clientStore := c.getClientStore()
+	profileName, err := client.ProfileNameFromProxyAddress(clientStore, c.Proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	profileName, err := client.ProfileNameFromProxyAddress(store, c.Proxy)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	profile, err := store.GetProfile(profileName)
+	profile, err := clientStore.GetProfile(profileName)
 	return profile, trace.Wrap(err)
 }
 
@@ -4815,30 +4896,26 @@ func parseCertificateCompatibilityFlag(compatibility string, certificateFormat s
 
 // flattenIdentity reads an identity file and flattens it into a tsh profile on disk.
 func flattenIdentity(cf *CLIConf) error {
-	// Save the identity file path for later
-	identityFile := cf.IdentityFileIn
-
-	// We clear the identity flag so that the client store will be backed
-	// by the filesystem instead (in ~/.tsh or TELEPORT_HOME).
-	cf.IdentityFileIn = ""
-
-	// Load client config as normal to parse client inputs and add defaults.
-	c, err := loadClientConfigFromCLIConf(cf, cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Proxy address may be loaded from existing tsh profile or from --proxy flag.
-	if c.WebProxyAddr == "" {
+	if cf.Proxy == "" {
 		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
 	}
 
-	// Load the identity file key and partial profile into the client store.
-	if err := identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, identityFile, c.WebProxyAddr, c.SiteName); err != nil {
+	// Usually, initializing the client store with an identity file would result in
+	// an in-memory client store with a profile for cf.Proxy pre-loaded. Instead,
+	// initialize an FS client store and load the identity file into it.
+	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
+	if err := cf.setClientStore(clientStore); err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Successfully flattened Identity file %q into a tsh profile.\n", identityFile)
+	// Load the identity file key and partial profile into the client store.
+	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Successfully flattened Identity file %q into a tsh profile.\n", cf.IdentityFileIn)
 
 	// onStatus will ping the proxy to fill in cluster profile information missing in the
 	// client store, then print the login status.
@@ -5845,4 +5922,15 @@ func tryLockMemory(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unexpected value for --mlock, expected one of (%v)", strings.Join(mlockModes, ", "))
 	}
+}
+
+// stringFlagToStrings parses a comma-separated string from a CLIConf flag into
+// a slice of strings. It trims whitespace from each value and removes
+// duplicates.
+func stringFlagToStrings(value string) []string {
+	values := strings.Split(value, ",")
+	for i := range values {
+		values[i] = strings.TrimSpace(values[i])
+	}
+	return apiutils.Deduplicate(values)
 }

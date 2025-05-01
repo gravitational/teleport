@@ -43,6 +43,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -698,38 +699,38 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:       "rejection enabled and client version not specified",
-			middleware: &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			middleware: &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:          "client rejected",
-			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
-			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 2}.String(),
+			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			clientVersion: semver.Version{Major: api.VersionMajor - 2}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
 			},
 		},
 		{
 			name:          "valid client v-1",
-			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
-			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 1}.String(),
+			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			clientVersion: semver.Version{Major: api.VersionMajor - 1}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:          "valid client v-0",
-			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
-			clientVersion: semver.Version{Major: teleport.SemVersion.Major}.String(),
+			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			clientVersion: semver.Version{Major: api.VersionMajor}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:          "invalid client version",
-			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
+			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
 			clientVersion: "abc123",
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
@@ -737,16 +738,16 @@ func TestValidateClientVersion(t *testing.T) {
 		},
 		{
 			name:          "pre-release client allowed",
-			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
-			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 1, PreRelease: "dev.abcd.123"}.String(),
+			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			clientVersion: semver.Version{Major: api.VersionMajor - 1, PreRelease: "dev.abcd.123"}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:          "pre-release client rejected",
-			middleware:    &Middleware{OldestSupportedVersion: &teleport.MinClientSemVersion},
-			clientVersion: semver.Version{Major: teleport.SemVersion.Major - 2, PreRelease: "dev.abcd.123"}.String(),
+			middleware:    &Middleware{OldestSupportedVersion: teleport.MinClientSemVer()},
+			clientVersion: semver.Version{Major: api.VersionMajor - 2, PreRelease: "dev.abcd.123"}.String(),
 			errAssertion: func(t *testing.T, err error) {
 				require.True(t, trace.IsAccessDenied(err), "got %T, expected access denied error", err)
 			},
@@ -768,7 +769,7 @@ func TestValidateClientVersion(t *testing.T) {
 func TestRejectedClientClusterAlertContents(t *testing.T) {
 	var alerts []types.ClusterAlert
 	mw := Middleware{
-		OldestSupportedVersion: &teleport.MinClientSemVersion,
+		OldestSupportedVersion: teleport.MinClientSemVer(),
 		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
 			alerts = append(alerts, a)
 			return nil
@@ -781,7 +782,7 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 		Patch: mw.OldestSupportedVersion.Patch,
 	}.String()
 
-	version := semver.Version{Major: teleport.SemVersion.Major - 5}.String()
+	version := semver.Version{Major: api.VersionMajor - 5}.String()
 
 	tests := []struct {
 		name      string
@@ -850,7 +851,7 @@ func TestRejectedClientClusterAlertContents(t *testing.T) {
 func TestRejectedClientClusterAlert(t *testing.T) {
 	var alerts []types.ClusterAlert
 	mw := Middleware{
-		OldestSupportedVersion: &teleport.MinClientSemVersion,
+		OldestSupportedVersion: teleport.MinClientSemVer(),
 		AlertCreator: func(ctx context.Context, a types.ClusterAlert) error {
 			alerts = append(alerts, a)
 			return nil
@@ -859,7 +860,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 
 	// Validate an unsupported client, which should trigger an alert
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
-		"version": semver.Version{Major: teleport.SemVersion.Major - 20}.String(),
+		"version": semver.Version{Major: api.VersionMajor - 20}.String(),
 	}))
 	err := mw.ValidateClientVersion(ctx, IdentityInfo{Conn: &fakeConn{}, IdentityGetter: TestBuiltin(types.RoleNode).I})
 	assert.Error(t, err)
@@ -890,7 +891,7 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 			// Create a new context with the user-agent set to a client tool. This should alter the
 			// text in the alert to indicate the connection was from a client tool and not an agent.
 			ctx = metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{
-				"version":    semver.Version{Major: teleport.SemVersion.Major - 20}.String(),
+				"version":    semver.Version{Major: api.VersionMajor - 20}.String(),
 				"user-agent": tool + "/" + teleport.Version,
 			}))
 

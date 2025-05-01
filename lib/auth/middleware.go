@@ -173,7 +173,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	oldestSupportedVersion := &teleport.MinClientSemVersion
+	oldestSupportedVersion := teleport.MinClientSemVer()
 	if os.Getenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS") == "yes" {
 		oldestSupportedVersion = nil
 	}

@@ -29,9 +29,14 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -371,12 +376,15 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	customCA := mustGenSelfSignedCert(t)
 
 	// Create a ConnectionHandler from the proxy server.
-	alpnConnHandler := svr.MakeConnectionHandler(&tls.Config{
-		NextProtos: []string{string(common.ProtocolHTTP)},
-		Certificates: []tls.Certificate{
-			mustGenCertSignedWithCA(t, customCA),
+	alpnConnHandler := svr.MakeConnectionHandler(
+		&tls.Config{
+			NextProtos: []string{string(common.ProtocolHTTP)},
+			Certificates: []tls.Certificate{
+				mustGenCertSignedWithCA(t, customCA),
+			},
 		},
-	})
+		common.ConnHandlerSource(t.Name()),
+	)
 
 	// Prepare net.Conn to be used for the created alpnConnHandler.
 	serverConn, clientConn := net.Pipe()
@@ -406,6 +414,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	defer clientTLSConn.Close()
 
 	require.NoError(t, clientTLSConn.HandshakeContext(context.Background()))
+	checkGaugeValue(t, 1, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
 
@@ -421,6 +430,90 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	// Wait until handler is done. And verify context is canceled, NOT deadline exceeded.
 	<-handlerCtx.Done()
 	require.ErrorIs(t, handlerCtx.Err(), context.Canceled)
+
+	// Check reporting.
+	checkGaugeValue(t, 1, proxyConnectionsTotal.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
+	checkGaugeValue(t, 0, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
+
+	t.Run("on handler error", func(t *testing.T) {
+		alpnConnHandler := svr.MakeConnectionHandler(
+			&tls.Config{
+				NextProtos: []string{string(common.ProtocolHTTP)},
+				Certificates: []tls.Certificate{
+					mustGenCertSignedWithCA(t, customCA),
+				},
+			},
+			common.ConnHandlerSource(t.Name()),
+		)
+
+		serverConn, clientConn := net.Pipe()
+
+		clientTLSConn := tls.Client(clientConn, &tls.Config{
+			NextProtos: []string{"some-unknown-alpn"},
+			RootCAs:    pool,
+			ServerName: "localhost",
+		})
+		defer clientTLSConn.Close()
+
+		// The handler should close this conn automatically on error.
+		// Do a defer-close just in case the test fails earlier.
+		trackServerConn := &closeTrackerConn{
+			Conn: serverConn,
+		}
+		defer trackServerConn.Close()
+
+		handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		handlerErr := make(chan error, 1)
+		go func() {
+			defer cancel()
+			handlerErr <- alpnConnHandler(handlerCtx, trackServerConn)
+		}()
+
+		// Now do the TLS handshake for server to handle.
+		require.Error(t, clientTLSConn.HandshakeContext(context.Background()))
+		select {
+		case err := <-handlerErr:
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+			require.Contains(t, err.Error(), "failed to find ALPN handler")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for handler error")
+		}
+
+		// Make sure passed in conn is closed.
+		require.True(t, trackServerConn.closed.Load())
+		// Check reporting.
+		checkGaugeValue(t, 1, proxyConnectionsTotal.WithLabelValues("unknown", t.Name()))
+		checkGaugeValue(t, 1, proxyConnectionErrorsTotal.WithLabelValues("unknown", t.Name()))
+	})
+}
+
+func checkGaugeValue(t *testing.T, expected float64, gauge prometheus.Gauge) {
+	t.Helper()
+
+	var protoMetric dto.Metric
+	err := gauge.Write(&protoMetric)
+	assert.NoError(t, err)
+
+	if err != nil {
+		assert.InEpsilon(t, expected, protoMetric.GetGauge().GetValue(), float64(0))
+	}
+}
+
+type closeTrackerConn struct {
+	net.Conn
+	closed atomic.Bool
+}
+
+func (c *closeTrackerConn) NetConn() net.Conn {
+	return c.Conn
+}
+func (c *closeTrackerConn) Close() error {
+	if c.closed.Load() {
+		return io.ErrClosedPipe
+	}
+	c.closed.Store(true)
+	return c.Conn.Close()
 }
 
 // TestProxyALPNProtocolsRouting tests the routing based on client TLS NextProtos values.

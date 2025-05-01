@@ -210,7 +210,7 @@ func TestClientStore(t *testing.T) {
 			t.Parallel()
 
 			testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-				clientStore.hwKeyService = hwks
+				clientStore.HardwareKeyService = hwks
 
 				// Add key should add the key and trusted certs to their respective stores.
 				err := clientStore.AddKeyRing(keyRing)
@@ -222,7 +222,7 @@ func TestClientStore(t *testing.T) {
 				require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
 
 				// Getting the key from the key store should have no trusted certs.
-				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.hwKeyService, WithAllCerts...)
+				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.HardwareKeyService, WithAllCerts...)
 				require.NoError(t, err)
 				expectKeyRing := keyRing.Copy()
 				expectKeyRing.TrustedCerts = nil
@@ -263,13 +263,14 @@ func TestClientStore(t *testing.T) {
 				err = clientStore.SaveProfile(profile, true)
 				require.NoError(t, err)
 				expectStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-					ProfileName:   profile.Name(),
-					WebProxyAddr:  profile.WebProxyAddr,
-					ProfileDir:    profileDir,
-					Username:      profile.Username,
-					SiteName:      profile.SiteName,
-					KubeProxyAddr: profile.KubeProxyAddr,
-					IsVirtual:     profileDir == "",
+					ProfileName:       profile.Name(),
+					WebProxyAddr:      profile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          profile.Username,
+					SiteName:          profile.SiteName,
+					KubeProxyAddr:     profile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: profile.TLSRoutingEnabled,
 				})
 				require.NoError(t, err)
 
@@ -292,13 +293,14 @@ func TestClientStore(t *testing.T) {
 				require.NoError(t, err)
 
 				expectOtherStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-					ProfileName:   otherProfile.Name(),
-					WebProxyAddr:  otherProfile.WebProxyAddr,
-					ProfileDir:    profileDir,
-					Username:      otherProfile.Username,
-					SiteName:      otherProfile.SiteName,
-					KubeProxyAddr: otherProfile.KubeProxyAddr,
-					IsVirtual:     profileDir == "",
+					ProfileName:       otherProfile.Name(),
+					WebProxyAddr:      otherProfile.WebProxyAddr,
+					ProfileDir:        profileDir,
+					Username:          otherProfile.Username,
+					SiteName:          otherProfile.SiteName,
+					KubeProxyAddr:     otherProfile.KubeProxyAddr,
+					IsVirtual:         profileDir == "",
+					TLSRoutingEnabled: otherProfile.TLSRoutingEnabled,
 				})
 				require.NoError(t, err)
 

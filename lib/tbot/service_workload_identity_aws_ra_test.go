@@ -46,23 +46,94 @@ func Test_renderAWSCreds(t *testing.T) {
 		AccessKeyId:     "AKIAIOSFODNN7EXAMPLEAKID",
 		SessionToken:    "AQoDYXdzEJrtyWJ4NjK7PiEXAMPLEST",
 		SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYzEXAMPLESAK",
+		Expiration:      "2028-07-27T04:36:55Z",
 	}
 	ctx := context.Background()
 
-	dest := &config.DestinationMemory{}
-	require.NoError(t, dest.CheckAndSetDefaults())
-	require.NoError(t, dest.Init(ctx, []string{}))
-
-	err := renderAWSCreds(ctx, creds, dest)
-	require.NoError(t, err)
-
-	got, err := dest.Read(ctx, "aws_credentials")
-	require.NoError(t, err)
-
-	if golden.ShouldSet() {
-		golden.Set(t, got)
+	tests := []struct {
+		name         string
+		cfg          *config.WorkloadIdentityAWSRAService
+		artifactName string
+		existingData []byte
+	}{
+		{
+			name:         "normal",
+			cfg:          &config.WorkloadIdentityAWSRAService{},
+			artifactName: "aws_credentials",
+		},
+		{
+			name:         "merge with existing data",
+			cfg:          &config.WorkloadIdentityAWSRAService{},
+			artifactName: "aws_credentials",
+			existingData: []byte(`[foo]
+aws_secret_access_key=existing
+aws_access_key_id=existing
+aws_session_token=existing`),
+		},
+		{
+			name:         "replace with existing data",
+			cfg:          &config.WorkloadIdentityAWSRAService{},
+			artifactName: "aws_credentials",
+			existingData: []byte(`[default]
+aws_secret_access_key=existing
+aws_access_key_id=existing
+aws_session_token=existing`),
+		},
+		{
+			name: "with artifact name override",
+			cfg: &config.WorkloadIdentityAWSRAService{
+				ArtifactName: "foo-xyzzy",
+			},
+			artifactName: "foo-xyzzy",
+		},
+		{
+			name: "with named profile",
+			cfg: &config.WorkloadIdentityAWSRAService{
+				CredentialProfileName: "test-profile",
+			},
+			artifactName: "aws_credentials",
+		},
+		{
+			name: "overwrite existing data",
+			cfg: &config.WorkloadIdentityAWSRAService{
+				CredentialProfileName:   "test-profile",
+				OverwriteCredentialFile: true,
+			},
+			artifactName: "aws_credentials",
+			existingData: []byte(`[foo]
+aws_secret_access_key=existing
+aws_access_key_id=existing
+aws_session_token=existing
+`),
+		},
 	}
-	require.Equal(t, golden.Get(t), got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dest := &config.DestinationMemory{}
+			require.NoError(t, dest.CheckAndSetDefaults())
+			require.NoError(t, dest.Init(ctx, []string{}))
+
+			if len(tt.existingData) > 0 {
+				require.NoError(t, dest.Write(ctx, tt.artifactName, tt.existingData))
+			}
+
+			tt.cfg.Destination = dest
+			svc := &WorkloadIdentityAWSRAService{
+				cfg: tt.cfg,
+			}
+
+			err := svc.renderAWSCreds(ctx, creds)
+			require.NoError(t, err)
+
+			got, err := dest.Read(ctx, tt.artifactName)
+			require.NoError(t, err)
+
+			if golden.ShouldSet() {
+				golden.Set(t, got)
+			}
+			require.Equal(t, golden.Get(t), got)
+		})
+	}
 }
 
 type mockCreateSessionInputBody struct {

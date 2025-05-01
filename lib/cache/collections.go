@@ -21,6 +21,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -48,9 +53,37 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	staticTokens    *collection[types.StaticTokens]
-	certAuthorities *collection[types.CertAuthority]
-	users           *collection[types.User]
+	provisionTokens                  *collection[types.ProvisionToken]
+	staticTokens                     *collection[types.StaticTokens]
+	certAuthorities                  *collection[types.CertAuthority]
+	users                            *collection[types.User]
+	roles                            *collection[types.Role]
+	authServers                      *collection[types.Server]
+	proxyServers                     *collection[types.Server]
+	nodes                            *collection[types.Server]
+	apps                             *collection[types.Application]
+	appServers                       *collection[types.AppServer]
+	dbs                              *collection[types.Database]
+	dbServers                        *collection[types.DatabaseServer]
+	dbServices                       *collection[types.DatabaseService]
+	kubeServers                      *collection[types.KubeServer]
+	kubeClusters                     *collection[types.KubeCluster]
+	windowsDesktops                  *collection[types.WindowsDesktop]
+	windowsDesktopServices           *collection[types.WindowsDesktopService]
+	userGroups                       *collection[types.UserGroup]
+	identityCenterAccounts           *collection[*identitycenterv1.Account]
+	identityCenterAccountAssignments *collection[*identitycenterv1.AccountAssignment]
+	healthCheckConfig                *collection[*healthcheckconfigv1.HealthCheckConfig]
+	reverseTunnels                   *collection[types.ReverseTunnel]
+	spiffeFederations                *collection[*machineidv1.SPIFFEFederation]
+	workloadIdentity                 *collection[*workloadidentityv1.WorkloadIdentity]
+	userNotifications                *collection[*notificationsv1.Notification]
+	globalNotifications              *collection[*notificationsv1.GlobalNotification]
+	clusterName                      *collection[types.ClusterName]
+	auditConfig                      *collection[types.ClusterAuditConfig]
+	networkingConfig                 *collection[types.ClusterNetworkingConfig]
+	authPreference                   *collection[types.AuthPreference]
+	sessionRecordingConfig           *collection[types.SessionRecordingConfig]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -65,6 +98,14 @@ func setupCollections(c Config) (*collections, error) {
 		resourceKind := resourceKindFromWatchKind(watch)
 
 		switch watch.Kind {
+		case types.KindToken:
+			collect, err := newProvisionTokensCollection(c.Provisioner, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.provisionTokens = collect
+			out.byKind[resourceKind] = out.provisionTokens
 		case types.KindStaticTokens:
 			collect, err := newStaticTokensCollection(c.ClusterConfig, watch)
 			if err != nil {
@@ -89,6 +130,222 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.users = collect
 			out.byKind[resourceKind] = out.users
+		case types.KindRole:
+			collect, err := newRoleCollection(c.Access, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.roles = collect
+			out.byKind[resourceKind] = out.roles
+		case types.KindAuthServer:
+			collect, err := newAuthServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.authServers = collect
+			out.byKind[resourceKind] = out.authServers
+		case types.KindProxy:
+			collect, err := newProxyServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.proxyServers = collect
+			out.byKind[resourceKind] = out.proxyServers
+		case types.KindNode:
+			collect, err := newNodeCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.nodes = collect
+			out.byKind[resourceKind] = out.nodes
+		case types.KindApp:
+			collect, err := newAppCollection(c.Apps, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.apps = collect
+			out.byKind[resourceKind] = out.apps
+		case types.KindAppServer:
+			collect, err := newAppServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.appServers = collect
+			out.byKind[resourceKind] = out.appServers
+		case types.KindDatabase:
+			collect, err := newDatabaseCollection(c.Databases, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dbs = collect
+			out.byKind[resourceKind] = out.dbs
+		case types.KindDatabaseServer:
+			collect, err := newDatabaseServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dbServers = collect
+			out.byKind[resourceKind] = out.dbServers
+		case types.KindDatabaseService:
+			collect, err := newDatabaseServiceCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dbServices = collect
+			out.byKind[resourceKind] = out.dbServices
+		case types.KindKubeServer:
+			collect, err := newKubernetesServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.kubeServers = collect
+			out.byKind[resourceKind] = out.kubeServers
+		case types.KindKubernetesCluster:
+			collect, err := newKubernetesClusterCollection(c.Kubernetes, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.kubeClusters = collect
+			out.byKind[resourceKind] = out.kubeClusters
+		case types.KindWindowsDesktop:
+			collect, err := newWindowsDesktopCollection(c.WindowsDesktops, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.windowsDesktops = collect
+			out.byKind[resourceKind] = out.windowsDesktops
+		case types.KindWindowsDesktopService:
+			collect, err := newWindowsDesktopServiceCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.windowsDesktopServices = collect
+			out.byKind[resourceKind] = out.windowsDesktopServices
+		case types.KindUserGroup:
+			collect, err := newUserGroupCollection(c.UserGroups, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userGroups = collect
+			out.byKind[resourceKind] = out.userGroups
+		case types.KindIdentityCenterAccount:
+			collect, err := newIdentityCenterAccountCollection(c.IdentityCenter, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.identityCenterAccounts = collect
+			out.byKind[resourceKind] = out.identityCenterAccounts
+		case types.KindIdentityCenterAccountAssignment:
+			collect, err := newIdentityCenterAccountAssignmentCollection(c.IdentityCenter, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.identityCenterAccountAssignments = collect
+			out.byKind[resourceKind] = out.identityCenterAccountAssignments
+		case types.KindHealthCheckConfig:
+			collect, err := newHealthCheckConfigCollection(c.HealthCheckConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.healthCheckConfig = collect
+			out.byKind[resourceKind] = out.healthCheckConfig
+		case types.KindReverseTunnel:
+			collect, err := newReverseTunnelCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.reverseTunnels = collect
+			out.byKind[resourceKind] = out.reverseTunnels
+		case types.KindSPIFFEFederation:
+			collect, err := newSPIFFEFederationCollection(c.SPIFFEFederations, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.spiffeFederations = collect
+			out.byKind[resourceKind] = out.spiffeFederations
+		case types.KindWorkloadIdentity:
+			collect, err := newWorkloadIdentityCollection(c.WorkloadIdentity, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadIdentity = collect
+			out.byKind[resourceKind] = out.workloadIdentity
+		case types.KindNotification:
+			collect, err := newUserNotificationCollection(c.Notifications, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userNotifications = collect
+			out.byKind[resourceKind] = out.userNotifications
+		case types.KindGlobalNotification:
+			collect, err := newGlobalNotificationCollection(c.Notifications, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.globalNotifications = collect
+			out.byKind[resourceKind] = out.globalNotifications
+		case types.KindClusterName:
+			collect, err := newClusterNameCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.clusterName = collect
+			out.byKind[resourceKind] = out.clusterName
+		case types.KindClusterAuditConfig:
+			collect, err := newClusterAuditConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.auditConfig = collect
+			out.byKind[resourceKind] = out.auditConfig
+		case types.KindClusterNetworkingConfig:
+			collect, err := newClusterNetworkingConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.networkingConfig = collect
+			out.byKind[resourceKind] = out.networkingConfig
+		case types.KindClusterAuthPreference:
+			collect, err := newAuthPreferenceCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.authPreference = collect
+			out.byKind[resourceKind] = out.authPreference
+		case types.KindSessionRecordingConfig:
+			collect, err := newSessionRecordingConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.sessionRecordingConfig = collect
+			out.byKind[resourceKind] = out.sessionRecordingConfig
 		}
 	}
 

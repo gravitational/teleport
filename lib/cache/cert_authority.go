@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
+const certAuthorityStoreIDIndex = "id"
+
 func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collection[types.CertAuthority], error) {
 	if t == nil {
 		return nil, trace.BadParameter("missing parameter Trust")
@@ -37,7 +39,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 
 	return &collection[types.CertAuthority]{
 		store: newStore(map[string]func(types.CertAuthority) string{
-			"id": func(ca types.CertAuthority) string {
+			certAuthorityStoreIDIndex: func(ca types.CertAuthority) string {
 				return string(ca.GetType()) + "/" + ca.GetID().DomainName
 			},
 		}),
@@ -105,7 +107,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		ca, err := rg.store.get("id", string(id.Type)+"/"+id.DomainName)
+		ca, err := rg.store.get(certAuthorityStoreIDIndex, string(id.Type)+"/"+id.DomainName)
 		if err != nil {
 			// release read lock early
 			rg.Release()
@@ -162,8 +164,8 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		cas := make([]types.CertAuthority, 0, c.collections.certAuthorities.store.len())
-		for ca := range rg.store.resources("id", string(caType), sortcache.NextKey(string(caType))) {
+		cas := make([]types.CertAuthority, 0, rg.store.len())
+		for ca := range rg.store.resources(certAuthorityStoreIDIndex, string(caType), sortcache.NextKey(string(caType))) {
 			if loadSigningKeys {
 				cas = append(cas, ca.Clone())
 			} else {

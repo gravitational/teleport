@@ -278,6 +278,15 @@ func TestExportAuthorities(t *testing.T) {
 			assertNoSecrets: validateTLSCertificateDERFunc,
 			assertSecrets:   validateRSAPrivateKeyDERFunc,
 		},
+		{
+			name: "aws iam roles anywhere",
+			req: ExportAuthoritiesRequest{
+				AuthType: "awsra",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificatePEMFunc,
+			assertSecrets:   validatePrivateKeyPEMFunc,
+		},
 	} {
 		runTest := func(
 			t *testing.T,
