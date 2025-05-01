@@ -29,9 +29,11 @@ import { NewJoinTokenState, OptionGCP, RuleBox } from './UpsertJoinTokenDialog';
 export const JoinTokenIAMForm = ({
   tokenState,
   onUpdateState,
+  readonly,
 }: {
   tokenState: NewJoinTokenState;
   onUpdateState: (newToken: NewJoinTokenState) => void;
+  readonly: boolean;
 }) => {
   const rules = tokenState.iam;
 
@@ -102,6 +104,7 @@ export const JoinTokenIAMForm = ({
             onChange={e =>
               setTokenRulesField(index, 'aws_account', e.target.value)
             }
+            readonly={readonly}
           />
           <FieldInput
             label="ARN"
@@ -109,6 +112,7 @@ export const JoinTokenIAMForm = ({
             placeholder="arn:aws:iam::account-id:role/*"
             value={rule.aws_arn}
             onChange={e => setTokenRulesField(index, 'aws_arn', e.target.value)}
+            readonly={readonly}
           />
         </RuleBox>
       ))}
@@ -123,9 +127,11 @@ export const JoinTokenIAMForm = ({
 export const JoinTokenGCPForm = ({
   tokenState,
   onUpdateState,
+  readonly,
 }: {
   tokenState: NewJoinTokenState;
   onUpdateState: (newToken: NewJoinTokenState) => void;
+  readonly: boolean;
 }) => {
   const rules = tokenState.gcp;
   function removeRule(index: number) {
@@ -196,6 +202,7 @@ export const JoinTokenGCPForm = ({
             value={rule.project_ids}
             label="Add Project ID(s)"
             rule={requiredField('At least 1 Project ID required')}
+            isDisabled={readonly}
           />
           <FieldSelectCreatable
             placeholder="us-west1, us-east1-a"
@@ -207,7 +214,8 @@ export const JoinTokenGCPForm = ({
             }
             value={rule.locations}
             label="Add Locations"
-            labelTip="Allows regions and/or zones."
+            helperText="Allows regions and/or zones."
+            isDisabled={readonly}
           />
           <FieldSelectCreatable
             placeholder="PROJECT_compute@developer.gserviceaccount.com"
@@ -219,6 +227,7 @@ export const JoinTokenGCPForm = ({
             }
             value={rule.service_accounts}
             label="Add Service Account Emails"
+            isDisabled={readonly}
           />
         </RuleBox>
       ))}

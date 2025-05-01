@@ -42,7 +42,10 @@ interface FlexProps
     FlexWrapProps,
     FlexDirectionProps,
     FlexBasisProps,
-    GapProps {}
+    GapProps {
+  /** Makes the element and its immediate children have 100% width. */
+  fullWidth?: boolean;
+}
 
 const Flex = styled(Box)<FlexProps>`
   display: flex;
@@ -52,6 +55,15 @@ const Flex = styled(Box)<FlexProps>`
   ${flexBasis}
   ${flexDirection}
   ${gap};
+
+  ${props =>
+    props.fullWidth &&
+    `
+      width: 100%;
+      & > * {
+        width: 100%;
+      }
+    `}
 `;
 
 Flex.displayName = 'Flex';

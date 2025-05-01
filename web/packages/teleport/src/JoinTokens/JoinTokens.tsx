@@ -127,6 +127,9 @@ export const JoinTokens = () => {
 
   useEffect(() => {
     runJoinTokensAttempt();
+
+    // runJoinTokensAttempt is not stable and causes a render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -151,7 +154,7 @@ export const JoinTokens = () => {
           </Button>
         )}
       </FeatureHeader>
-      <Flex>
+      <Flex gap={24}>
         <Box
           css={`
             flex-grow: 1;
@@ -221,7 +224,8 @@ export const JoinTokens = () => {
                         if (
                           token.method === 'iam' ||
                           token.method === 'gcp' ||
-                          token.method === 'token'
+                          token.method === 'token' ||
+                          (token.method === 'github' && token.github)
                         ) {
                           setEditingToken(token);
                           return;
@@ -385,7 +389,7 @@ function TokenDelete({
         <DialogTitle>Delete Join Token?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'error' && <Alert children={attempt.statusText} />}
+        {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
         <Text mb={4}>
           You are about to delete join token
           <Text bold as="span">
