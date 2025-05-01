@@ -210,7 +210,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -1204,6 +1203,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1514,6 +1514,10 @@ func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector typ
 func (s *IdentityService) CreateOIDCConnector(ctx context.Context, connector types.OIDCConnector) (types.OIDCConnector, error) {
 	if err := connector.Validate(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// new connectors will default to PKCEMode_Enabled unless disabled explicitly
+	if connector.GetPKCEMode() == "" {
+		connector.SetPKCEMode(constants.PKCEMode_Enabled)
 	}
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
