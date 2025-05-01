@@ -190,25 +190,14 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	var tokenId string = req.Name
-	if r.Method == "PUT" {
-		// if using the PUT route, tokenId will be present
-		// in the X-Teleport-TokenName header
-		tokenId = r.Header.Get(HeaderTokenName)
-
-		if tokenId != "" && tokenId != req.Name {
-			return nil, trace.BadParameter("renaming tokens is not supported")
-		}
-	}
-
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var existingToken types.ProvisionToken
-	if tokenId != "" {
-		existingToken, err = clt.GetToken(r.Context(), tokenId)
+	if req.Name != "" {
+		existingToken, err = clt.GetToken(r.Context(), req.Name)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
