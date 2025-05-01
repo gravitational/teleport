@@ -52,6 +52,8 @@ const traitsPreset = [
  * @param isLoading if true, it disables all the inputs in the editor.
  * @param configuredTraits holds traits configured for user in current editor.
  * @param setConfiguredTraits sets user traits in current editor.
+ * @param tooltipContent sets optional tooltip content to be displayed next to the label.
+ * @param label sets optional label for the editor. Default is 'User Traits'.
  */
 export function TraitsEditor({
   isLoading,
