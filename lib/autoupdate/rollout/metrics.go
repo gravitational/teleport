@@ -20,8 +20,6 @@ package rollout
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -239,7 +239,8 @@ func valuesHelpString[K constraints.Integer](possibleValues map[K]string) string
 
 	// maps are nor ordered, so we must sort keys to consistently generate the help message.
 	keys := maps.Keys(possibleValues)
-	for _, k := range slices.Sorted(keys) {
+	slices.Sort(keys)
+	for _, k := range keys {
 		sb.WriteString(fmt.Sprintf(" %d:%s", k, possibleValues[k]))
 	}
 
