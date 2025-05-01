@@ -287,6 +287,60 @@ func TestInterpolate(t *testing.T) {
 			traits: map[string][]string{"foo": {"foo-test1", "bar-test2"}},
 			res:    result{values: []string{"test2-matched"}},
 		},
+		{
+			title:  "jsonpath object selector",
+			in:     `{{jsonpath(external.attributes, "$.azure")}}`,
+			traits: map[string][]string{"attributes": {`{"azure":"teleport_access","aws":"teleport_admin"}`}},
+			res:    result{values: []string{"teleport_access"}},
+		},
+		{
+			title:  "jsonpath object wildcard flatten elements",
+			in:     `{{jsonpath(external.attributes, "$.*")}}`,
+			traits: map[string][]string{"attributes": {`{"azure":"teleport_access","aws":"teleport_admin"}`}},
+			res:    result{values: []string{"teleport_admin", "teleport_access"}},
+		},
+		{
+			title:  "jsonpath array selector",
+			in:     `{{jsonpath(external.attributes, "$[1].aws")}}`,
+			traits: map[string][]string{"attributes": {`[{"azure":"teleport_access"},{"aws":"teleport_admin"}]`}},
+			res:    result{values: []string{"teleport_admin"}},
+		},
+		{
+			title:  "jsonpath array wildcard flatten elements",
+			in:     `{{jsonpath(external.attributes, "$.*.*")}}`,
+			traits: map[string][]string{"attributes": {`[{"azure":"teleport_access"},{"aws":"teleport_admin"}]`}},
+			res:    result{values: []string{"teleport_access", "teleport_admin"}},
+		},
+		{
+			title:  "jsonpath filter",
+			in:     `{{jsonpath(external.attributes, "$[?(@.teleport == 'admin')].*")}}`,
+			traits: map[string][]string{"attributes": {`{"azure":{"teleport":"access"},"aws":{"teleport":"admin"}}`}},
+			res:    result{values: []string{"admin"}},
+		},
+		{
+			title:  "jsonpath regexp",
+			in:     `{{jsonpath(external.attributes, "$[?(@ =~ 'teleport_.*')]")}}`,
+			traits: map[string][]string{"attributes": {`{"azure":"other_access","aws":"teleport_admin"}`}},
+			res:    result{values: []string{"teleport_admin"}},
+		},
+		{
+			title:  "jsonpath parsing error",
+			in:     `{{jsonpath(external.attributes, "$[@.azure = teleport_access]")}}`,
+			traits: map[string][]string{"attributes": {`{"azure":"teleport_access","aws":"teleport_admin"}`}},
+			res:    result{errCheck: require.Error},
+		},
+		{
+			title:  "jsonpath interpolation to non string list error",
+			in:     `{{jsonpath(external.attributes, "$")}}`,
+			traits: map[string][]string{"attributes": {`{"azure":"teleport_access","aws":"teleport_admin"}`}},
+			res:    result{errCheck: errCheckIsBadParameter},
+		},
+		{
+			title:  "jsonpath interpolation to non list with non string error",
+			in:     `{{jsonpath(external.attributes, "$")}}`,
+			traits: map[string][]string{"attributes": {`[{"azure":"teleport_access"},{"aws":"teleport_admin"}]`}},
+			res:    result{errCheck: errCheckIsBadParameter},
+		},
 	}
 
 	for _, tt := range tests {
@@ -303,7 +357,7 @@ func TestInterpolate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.res.values, values)
+			require.ElementsMatch(t, tt.res.values, values)
 		})
 	}
 }
