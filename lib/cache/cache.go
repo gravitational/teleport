@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -506,7 +505,6 @@ type Cache struct {
 
 	trustCache                   services.Trust
 	clusterConfigCache           services.ClusterConfigurationInternal
-	autoUpdateCache              *local.AutoUpdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
 	accessCache                  services.Access
@@ -998,12 +996,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateCache, err := local.NewAutoUpdateService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -1073,7 +1065,6 @@ func New(config Config) (*Cache, error) {
 		fnCache:                      fnCache,
 		trustCache:                   local.NewCAService(config.Backend),
 		clusterConfigCache:           clusterConfigCache,
-		autoUpdateCache:              autoUpdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
 		accessCache:                  local.NewAccessService(config.Backend),
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
@@ -1856,79 +1847,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	}
 
 	return nil
-}
-
-type autoUpdateCacheKey struct {
-	kind string
-}
-
-// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
-func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
-			cfg, err := rg.reader.GetAutoUpdateConfig(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return protobuf.Clone(cachedConfig).(*autoupdate.AutoUpdateConfig), nil
-	}
-	return rg.reader.GetAutoUpdateConfig(ctx)
-}
-
-// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
-func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateVersions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-			version, err := rg.reader.GetAutoUpdateVersion(ctx)
-			return version, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return protobuf.Clone(cachedVersion).(*autoupdate.AutoUpdateVersion), nil
-	}
-	return rg.reader.GetAutoUpdateVersion(ctx)
-}
-
-// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
-func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateAgentRollouts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedAgentRollout, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
-			version, err := rg.reader.GetAutoUpdateAgentRollout(ctx)
-			return version, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return protobuf.Clone(cachedAgentRollout).(*autoupdate.AutoUpdateAgentRollout), nil
-	}
-	return rg.reader.GetAutoUpdateAgentRollout(ctx)
 }
 
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
