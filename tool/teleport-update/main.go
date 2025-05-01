@@ -31,12 +31,10 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const appHelp = `Teleport Updater
@@ -58,7 +56,13 @@ const (
 	updateLockTimeout = 10 * time.Minute
 )
 
-var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
+var (
+	logLevel = slog.LevelVar{}
+	plog     = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+		Level:     &logLevel,
+	}))
+)
 
 func main() {
 	if code := Run(os.Args[1:]); code != 0 {
@@ -70,9 +74,6 @@ type cliConfig struct {
 	autoupdate.OverrideConfig
 	// Debug logs enabled
 	Debug bool
-	// LogFormat controls the format of logging. Can be either `json` or `text`.
-	// By default, this is `text`.
-	LogFormat string
 	// InstallDir for Teleport (usually /opt/teleport)
 	InstallDir string
 	// InstallSuffix is the isolated suffix for the installation.
@@ -98,8 +99,6 @@ func Run(args []string) int {
 	app := libutils.InitCLIParser(autoupdate.BinaryName, appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").
 		Short('d').BoolVar(&ccfg.Debug)
-	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
 		Short('i').StringVar(&ccfg.InstallSuffix)
 	app.Flag("install-dir", "Directory containing Teleport installations.").
@@ -183,7 +182,7 @@ func Run(args []string) int {
 
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
-	if err := setupLogger(ccfg.Debug, ccfg.LogFormat); err != nil {
+	if err := setupLogger(ccfg.Debug); err != nil {
 		plog.ErrorContext(ctx, "Failed to set up logger.", "error", err)
 		return 1
 	}
@@ -239,20 +238,13 @@ func Run(args []string) int {
 	return 0
 }
 
-func setupLogger(debug bool, format string) error {
+func setupLogger(debug bool) error {
 	level := slog.LevelInfo
 	if debug {
 		level = slog.LevelDebug
 	}
 
-	switch format {
-	case libutils.LogFormatJSON:
-	case libutils.LogFormatText, "":
-	default:
-		return trace.Errorf("unsupported log format %q", format)
-	}
-
-	libutils.InitLogger(libutils.LoggingForDaemon, level, libutils.WithLogFormat(format))
+	logLevel.Set(level)
 	return nil
 }
 
@@ -268,7 +260,6 @@ func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updat
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup:          ccfg.SelfSetup,
 		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
 		Debug:              ccfg.Debug,
 		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
@@ -283,7 +274,6 @@ func statusConfig(ctx context.Context, ccfg *cliConfig) (*autoupdate.Updater, er
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup:          ccfg.SelfSetup,
 		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
 		Debug:              ccfg.Debug,
 		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)
@@ -448,7 +438,6 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
 		SelfSetup:          ccfg.SelfSetup,
 		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
 		Debug:              ccfg.Debug,
 		InsecureSkipVerify: ccfg.Insecure,
 	}, ns)

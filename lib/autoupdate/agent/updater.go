@@ -164,7 +164,6 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			args := []string{
 				"--install-dir", ns.installDir,
 				"--install-suffix", ns.name,
-				"--log-format", cfg.LogFormat,
 			}
 			if cfg.Debug {
 				args = append(args, "--debug")
@@ -202,8 +201,6 @@ type LocalUpdaterConfig struct {
 	SelfSetup bool
 	// Debug logs enabled.
 	Debug bool
-	// LogFormat controls the format of logging. Can be either `json` or `text`.
-	LogFormat string
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.
