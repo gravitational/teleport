@@ -352,6 +352,7 @@ const appAccessValidationRules = {
   gcpServiceAccounts: arrayOf(
     noWildcard('Wildcard is not allowed in GCP service accounts')
   ),
+  mcpTools: alwaysValid,
 };
 export type AppAccessValidationResult = RuleSetValidationResult<
   typeof appAccessValidationRules

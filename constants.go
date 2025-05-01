@@ -654,6 +654,10 @@ const (
 	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
 	// organizations for GitHub integrations.
 	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
+
+	// TraitInternalMCPTools is the variable used to store allowed MCP tools for
+	// MCP servers.
+	TraitInternalMCPTools = "{{internal.mcp_tools}}"
 )
 
 // SCP is Secure Copy.

@@ -225,6 +225,9 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
             'account1@some-project.iam.gserviceaccount.com',
             'account2@some-project.iam.gserviceaccount.com',
           ],
+          mcp: {
+            tools: [],
+          },
           hideValidationErrors: false,
         },
       ],
@@ -973,6 +976,9 @@ describe('roleToRoleEditorModel', () => {
           awsRoleARNs: [],
           azureIdentities: [],
           gcpServiceAccounts: [],
+          mcp: {
+            tools: [],
+          },
           hideValidationErrors: false,
         },
       ],

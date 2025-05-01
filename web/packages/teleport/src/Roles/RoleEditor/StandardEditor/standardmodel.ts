@@ -309,6 +309,9 @@ export type AppAccess = ResourceAccessBase<'app'> & {
   awsRoleARNs: string[];
   azureIdentities: string[];
   gcpServiceAccounts: string[];
+  mcp: {
+    tools: string[];
+  };
 };
 
 export type DatabaseAccess = ResourceAccessBase<'db'> & {
@@ -542,6 +545,9 @@ export function newResourceAccess(
         awsRoleARNs: ['{{internal.aws_role_arns}}'],
         azureIdentities: ['{{internal.azure_identities}}'],
         gcpServiceAccounts: ['{{internal.gcp_service_accounts}}'],
+        mcp: {
+          tools: ['{{internal.mcp_tools}}'],
+        },
         hideValidationErrors: true,
       };
     case 'db':
@@ -715,6 +721,9 @@ function roleConditionsToModel(
     // Admin rules
     rules,
 
+    // MCP permissions
+    mcp,
+
     ...unsupported
   } = conditions;
   conversionErrors.push(
@@ -770,6 +779,7 @@ function roleConditionsToModel(
   const awsRoleARNsModel = aws_role_arns ?? [];
   const azureIdentitiesModel = azure_identities ?? [];
   const gcpServiceAccountsModel = gcp_service_accounts ?? [];
+  const mcpTools = mcp?.tools ?? [];
   if (
     someNonEmpty(
       appLabelsModel,
@@ -784,6 +794,9 @@ function roleConditionsToModel(
       awsRoleARNs: awsRoleARNsModel,
       azureIdentities: azureIdentitiesModel,
       gcpServiceAccounts: gcpServiceAccountsModel,
+      mcp: {
+        tools: mcpTools,
+      },
       hideValidationErrors: false,
     });
   }

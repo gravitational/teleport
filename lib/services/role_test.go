@@ -9661,3 +9661,62 @@ func TestCheckAccessToGitServer(t *testing.T) {
 		})
 	}
 }
+
+func TestMCPToolMatcher(t *testing.T) {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:      "ai-agent",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				MCP: &types.MCPPermissions{
+					Tools: []string{
+						"search_files",
+						"^(read|list|get)_.*$",
+						"slack_*",
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		inputToolName string
+		requireMatch  require.BoolAssertionFunc
+	}{
+		{
+			inputToolName: "search_files",
+			requireMatch:  require.True,
+		},
+		{
+			inputToolName: "read_multiple_files",
+			requireMatch:  require.True,
+		},
+		{
+			inputToolName: "slack_list_channels",
+			requireMatch:  require.True,
+		},
+		{
+			inputToolName: "add",
+			requireMatch:  require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.inputToolName, func(t *testing.T) {
+			matcher := MCPToolMatcher{
+				Name: test.inputToolName,
+			}
+			match, err := matcher.Match(role, types.Allow)
+			require.NoError(t, err)
+			test.requireMatch(t, match)
+
+			match, err = matcher.Match(role, types.Deny)
+			require.NoError(t, err)
+			require.False(t, match)
+		})
+	}
+}
