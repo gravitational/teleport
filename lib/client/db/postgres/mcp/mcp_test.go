@@ -186,3 +186,5 @@ func (mr *mockRows) Values() ([]any, error) {
 func (mr *mockRows) CommandTag() pgconn.CommandTag {
 	return pgconn.NewCommandTag(mr.commandTag)
 }
+
+func (mr *mockRows) Close() {}
