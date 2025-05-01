@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -46,7 +45,6 @@ func BuildForkAuthenticateCommand(params BuildForkAuthenticateCommandParams) (*F
 }
 
 func RunForkAuthenticateChild(ctx context.Context, cmd *ForkAuthenticateCommand) (err error) {
-	fmt.Printf("fork auth: %v\n", cmd.Args)
 	defer cmd.disownSignal.Close()
 	disownReady := make(chan error, 1)
 	go func() {
