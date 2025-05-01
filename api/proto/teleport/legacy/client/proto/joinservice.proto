@@ -202,7 +202,7 @@ message RegisterUsingBoundKeypairInitialRequest {
 
   // If set, attempts to bind a new keypair using an initial join secret.
   // Any value set here will be ignored if a keypair is already bound.
-  optional string initial_join_secret = 2;
+  string initial_join_secret = 2;
 
   // A document signed by Auth containing join state parameters from the
   // previous join attempt. Not required on initial join; required on all
