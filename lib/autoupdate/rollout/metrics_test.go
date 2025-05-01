@@ -127,6 +127,7 @@ func Test_setVersionMetric(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			test := test
 			t.Parallel()
 			// Test setup: create metrics and load previous metrics.
 			m := metrics{
