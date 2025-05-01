@@ -150,12 +150,12 @@ export function TraitsEditor({
                     data-testid="trait-value"
                     ariaLabel="trait-values"
                     placeholder="Type a trait value and press enter"
-                    label="Value"
+                    label="Values"
                     isMulti
                     isSearchable
                     isClearable={false}
                     value={traitValues}
-                    rule={requiredField('Trait value cannot be empty')}
+                    rule={requiredField('Trait values cannot be empty')}
                     onChange={e => {
                       handleInputChange({
                         option: e as Option[],
