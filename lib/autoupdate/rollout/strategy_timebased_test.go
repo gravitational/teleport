@@ -34,7 +34,7 @@ import (
 
 func Test_progressGroupsTimeBased(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
-	log := utils.NewSlogLoggerForTests()
+	log := utils.NewLoggerForTests().WithField("component", "reconciler")
 	strategy, err := newTimeBasedStrategy(log)
 	require.NoError(t, err)
 

@@ -133,7 +133,7 @@ func Test_canStartHaltOnError(t *testing.T) {
 
 func Test_progressGroupsHaltOnError(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(testSunday)
-	log := utils.NewSlogLoggerForTests()
+	log := utils.NewLoggerForTests().WithField("component", "reconciler")
 	strategy, err := newHaltOnErrorStrategy(log)
 	require.NoError(t, err)
 

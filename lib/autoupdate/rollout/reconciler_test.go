@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -136,7 +135,7 @@ func TestGetMode(t *testing.T) {
 
 func TestTryReconcile(t *testing.T) {
 	t.Parallel()
-	log := utils.NewSlogLoggerForTests()
+	log := utils.NewLoggerForTests().WithField("component", "reconciler")
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -331,7 +330,7 @@ func TestTryReconcile(t *testing.T) {
 }
 
 func TestReconciler_Reconcile(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := utils.NewLoggerForTests().WithField("component", "reconciler")
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	// Test setup: creating fixtures
@@ -434,7 +433,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 			rolloutAnswers: []callAnswer[*autoupdate.AutoUpdateAgentRollout]{{outOfDateRollout, nil}, {upToDateRollout, nil}},
 			// Single update expected, because there's nothing to do after the retry
 			updateRolloutExpects: []require.ValueAssertionFunc{rolloutEquals(upToDateRollout)},
-			updateRolloutAnswers: []callAnswer[*autoupdate.AutoUpdateAgentRollout]{{nil, trace.Wrap(backend.ErrIncorrectRevision)}},
+			updateRolloutAnswers: []callAnswer[*autoupdate.AutoUpdateAgentRollout]{{nil, trace.CompareFailed("conflict")}},
 		}
 
 		client := newMockClient(t, stubs)
@@ -474,7 +473,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 			},
 			// We mimic a race and reject the first update because of the outdated revision
 			updateRolloutAnswers: []callAnswer[*autoupdate.AutoUpdateAgentRollout]{
-				{nil, trace.Wrap(backend.ErrIncorrectRevision)},
+				{nil, trace.CompareFailed("conflict")},
 				{withRevisionID(upToDateRollout, rev3.String()), nil},
 			},
 		}
@@ -574,7 +573,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 			// We wrap the update validation function into a context canceler, so the context is done after the first update
 			updateRolloutExpects: []require.ValueAssertionFunc{cancelContext(rolloutEquals(upToDateRollout), cancel)},
 			// return a retryable error
-			updateRolloutAnswers: []callAnswer[*autoupdate.AutoUpdateAgentRollout]{{nil, trace.Wrap(backend.ErrIncorrectRevision)}},
+			updateRolloutAnswers: []callAnswer[*autoupdate.AutoUpdateAgentRollout]{{nil, trace.CompareFailed("conflict")}},
 		}
 
 		client := newMockClient(t, stubs)
@@ -728,7 +727,7 @@ func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, spec *autoupd
 }
 
 func Test_reconciler_computeStatus(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := utils.NewLoggerForTests().WithField("component", "reconciler")
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
 
