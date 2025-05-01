@@ -23,6 +23,7 @@
 package config
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"errors"
@@ -2057,6 +2058,12 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
 
+	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
+		if !types.IsValidLabelKey(attributeName) {
+			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+		}
+	}
+
 	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
 		if _, err := ldap.CompileFilter(filter); err != nil {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
@@ -2078,12 +2085,6 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// apend the old (singular) discovery config to the new format that supports multiple configs
 	fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
 
-	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
-		if !types.IsValidLabelKey(attributeName) {
-			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
-		}
-	}
-
 	cfg.WindowsDesktop.Discovery = make([]servicecfg.LDAPDiscoveryConfig, 0, len(fc.WindowsDesktop.DiscoveryConfigs))
 	for _, dc := range fc.WindowsDesktop.DiscoveryConfigs {
 		if dc.BaseDN == "" {
@@ -2097,6 +2098,11 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				LabelAttributes: dc.LabelAttributes,
 			},
 		)
+	}
+
+	cfg.WindowsDesktop.DiscoveryInterval = cmp.Or(fc.WindowsDesktop.DiscoveryInterval, 5*time.Minute)
+	if cfg.WindowsDesktop.DiscoveryInterval <= 0 {
+		return trace.BadParameter("desktop discovery interval must be greater than 0 (%v)", fc.WindowsDesktop.DiscoveryInterval.String())
 	}
 
 	var err error

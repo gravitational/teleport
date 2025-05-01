@@ -122,9 +122,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 			s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
 		}
 
-		// TODO(zmb3): consider making the discovery period configurable
-		// (it's currently hard coded to 5 minutes in order to match DB access discovery behavior)
-		t := s.cfg.Clock.NewTicker(5 * time.Minute)
+		t := s.cfg.Clock.NewTicker(s.cfg.DiscoveryInterval)
 		defer t.Stop()
 		for {
 			select {
