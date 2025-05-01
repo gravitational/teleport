@@ -1882,15 +1882,15 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE]: {
     type: 'access_list.member.delete_all_members',
     desc: 'Access list member delete all members failure',
-      format: ({ access_list_title, access_list_name, updated_by }) => {
+    format: ({ access_list_title, access_list_name, updated_by }) => {
       return `User [${updated_by}] failed to remove all members from access list [${access_list_title || access_list_name}]`;
     },
   },
   [eventCodes.USER_LOGIN_INVALID_ACCESS_LIST]: {
     type: 'user_login.invalid_access_list',
     desc: 'Access list skipped.',
-    format: ({ access_list_title, user, missing_roles }) =>
-      `Access list [${access_list_title}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
+    format: ({ access_list_title, access_list_name, user, missing_roles }) =>
+      `Access list [${access_list_title || access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
   },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
     type: 'secreports.audit.query.run"',
