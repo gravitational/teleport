@@ -1315,7 +1315,7 @@ export const FindDevicesRequest = new FindDevicesRequest$Type();
 class FindDevicesResponse$Type extends MessageType<FindDevicesResponse> {
     constructor() {
         super("teleport.devicetrust.v1.FindDevicesResponse", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Device }
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Device }
         ]);
     }
     create(value?: PartialMessage<FindDevicesResponse>): FindDevicesResponse {
@@ -1472,7 +1472,7 @@ export const ListDevicesRequest = new ListDevicesRequest$Type();
 class ListDevicesResponse$Type extends MessageType<ListDevicesResponse> {
     constructor() {
         super("teleport.devicetrust.v1.ListDevicesResponse", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Device },
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Device },
             { no: 2, name: "next_page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
@@ -1582,7 +1582,7 @@ export const ListDevicesByUserRequest = new ListDevicesByUserRequest$Type();
 class ListDevicesByUserResponse$Type extends MessageType<ListDevicesByUserResponse> {
     constructor() {
         super("teleport.devicetrust.v1.ListDevicesByUserResponse", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Device },
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Device },
             { no: 2, name: "next_page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
@@ -1637,7 +1637,7 @@ export const ListDevicesByUserResponse = new ListDevicesByUserResponse$Type();
 class BulkCreateDevicesRequest$Type extends MessageType<BulkCreateDevicesRequest> {
     constructor() {
         super("teleport.devicetrust.v1.BulkCreateDevicesRequest", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Device },
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Device },
             { no: 2, name: "create_as_resource", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
@@ -1692,7 +1692,7 @@ export const BulkCreateDevicesRequest = new BulkCreateDevicesRequest$Type();
 class BulkCreateDevicesResponse$Type extends MessageType<BulkCreateDevicesResponse> {
     constructor() {
         super("teleport.devicetrust.v1.BulkCreateDevicesResponse", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DeviceOrStatus }
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeviceOrStatus }
         ]);
     }
     create(value?: PartialMessage<BulkCreateDevicesResponse>): BulkCreateDevicesResponse {
@@ -3092,7 +3092,7 @@ export const SyncInventoryEnd = new SyncInventoryEnd$Type();
 class SyncInventoryDevices$Type extends MessageType<SyncInventoryDevices> {
     constructor() {
         super("teleport.devicetrust.v1.SyncInventoryDevices", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Device }
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Device }
         ]);
     }
     create(value?: PartialMessage<SyncInventoryDevices>): SyncInventoryDevices {
@@ -3164,7 +3164,7 @@ export const SyncInventoryAck = new SyncInventoryAck$Type();
 class SyncInventoryResult$Type extends MessageType<SyncInventoryResult> {
     constructor() {
         super("teleport.devicetrust.v1.SyncInventoryResult", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DeviceOrStatus }
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => DeviceOrStatus }
         ]);
     }
     create(value?: PartialMessage<SyncInventoryResult>): SyncInventoryResult {
@@ -3211,7 +3211,7 @@ export const SyncInventoryResult = new SyncInventoryResult$Type();
 class SyncInventoryMissingDevices$Type extends MessageType<SyncInventoryMissingDevices> {
     constructor() {
         super("teleport.devicetrust.v1.SyncInventoryMissingDevices", [
-            { no: 1, name: "devices", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Device }
+            { no: 1, name: "devices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Device }
         ]);
     }
     create(value?: PartialMessage<SyncInventoryMissingDevices>): SyncInventoryMissingDevices {
