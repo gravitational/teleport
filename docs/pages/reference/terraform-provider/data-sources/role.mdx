@@ -138,11 +138,10 @@ Optional:
 
 Optional:
 
-- `api_group` (String) APIGroup specifies the API group of the resource. Can be '*' for any, but doesn't support pattern matching.
+- `api_group` (String) APIGroup specifies the API group of the resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
-- `sub_resource` (String) For future use.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
 
 
@@ -338,11 +337,10 @@ Optional:
 
 Optional:
 
-- `api_group` (String) APIGroup specifies the API group of the resource. Can be '*' for any, but doesn't support pattern matching.
+- `api_group` (String) APIGroup specifies the API group of the resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
-- `sub_resource` (String) For future use.
 - `verbs` (List of String) Verbs are the allowed Kubernetes verbs for the following resource.
 
 
