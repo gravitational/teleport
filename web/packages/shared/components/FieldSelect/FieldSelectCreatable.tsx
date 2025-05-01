@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { GroupBase, OnChangeValue } from 'react-select';
+import { GroupBase, OnChangeValue, StylesConfig } from 'react-select';
 
 import { BoxProps } from 'design/Box';
 import { useAsync } from 'shared/hooks/useAsync';
@@ -44,6 +44,7 @@ import {
  * @param {boolean} markAsError - manually mark the component as error.
  * @param {string} placeholder - placeholder value.
  * @param {string} formatCreateLabel - custom formatting for create label.
+ * @param {StylesConfig} stylesConfig - custom styles for the inner select component.
  * @returns SelectCreatable
  */
 export function FieldSelectCreatable<
@@ -62,7 +63,6 @@ export function FieldSelectCreatable<
     <FieldSelectWrapper {...wrapper} {...styles}>
       <SelectCreatable<Opt, IsMulti, Group>
         {...base}
-        {...styles}
         formatCreateLabel={formatCreateLabel}
       />
     </FieldSelectWrapper>

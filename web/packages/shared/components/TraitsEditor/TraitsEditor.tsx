@@ -114,10 +114,9 @@ export function TraitsEditor({
           return (
             <Box mb={-1} key={index}>
               <Flex alignItems="start">
-                <Box width="290px" mr={1}>
+                <Box width="290px" minWidth="200px" mr={1}>
                   <FieldSelectCreatable
-                    classNamePrefix="react-select"
-                    styles={customStyles}
+                    stylesConfig={customStyles}
                     data-testid="trait-key"
                     options={traitsPreset.map(r => ({
                       value: r,
@@ -143,10 +142,9 @@ export function TraitsEditor({
                     isDisabled={isLoading}
                   />
                 </Box>
-                <Box width="400px" ml={3}>
+                <Box width="400px" minWidth="200px" ml={3}>
                   <FieldSelectCreatable
-                    classNamePrefix="react-select"
-                    styles={customStyles}
+                    stylesConfig={customStyles}
                     data-testid="trait-value"
                     ariaLabel="trait-values"
                     placeholder="Type a trait value and press enter"
