@@ -204,14 +204,6 @@ message RegisterUsingBoundKeypairInitialRequest {
   // Any value set here will be ignored if a keypair is already bound.
   string initial_join_secret = 2;
 
-  // If set, requests a rotation to the new public key. The joining challenge
-  // must first be completed using the previous key, and upon completion a new
-  // challenge will be issued for this key. Certificates will only be returned
-  // after the second challenge is complete. On initial join when using an
-  // initial join secret, this value should be set to the desired public key.
-  // This key is written in SSH public key format.
-  string new_public_key = 3;
-
   // A document signed by Auth containing join state parameters from the
   // previous join attempt. Not required on initial join; required on all
   // subsequent joins.
