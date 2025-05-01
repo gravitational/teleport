@@ -128,12 +128,10 @@ export function TraitsEditor({
                     isSearchable
                     value={traitKey}
                     label="Key"
-                    rule={o =>
-                      requiredAll(
-                        () => requiredField('Trait key is required')(o.value),
-                        requireNoDuplicateTraits(configuredTraits)
-                      )(o)
-                    }
+                    rule={requiredAll(
+                      requiredField('Trait key is required'),
+                      requireNoDuplicateTraits(configuredTraits)
+                    )}
                     onChange={e => {
                       handleInputChange({
                         option: e as Option,
@@ -235,8 +233,11 @@ type InputOptionArray = {
 
 const requireNoDuplicateTraits =
   (configuredTraits: TraitsOption[]) => (enteredTrait: Option) => () => {
+    if (!enteredTrait) {
+      return { valid: true };
+    }
     const traitKey = configuredTraits.map(trait =>
-      trait.traitKey.value.toLowerCase()
+      trait.traitKey?.value.toLowerCase()
     );
     let occurance = 0;
     traitKey.forEach(key => {
@@ -251,7 +252,7 @@ const requireNoDuplicateTraits =
   };
 
 export const emptyTrait = {
-  traitKey: { value: '', label: 'Type a trait name and press enter' },
+  traitKey: null,
   traitValues: [],
 };
 
