@@ -45,7 +45,6 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -535,7 +534,6 @@ type Cache struct {
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
-	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
@@ -994,12 +992,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	notificationsCache, err := local.NewNotificationsService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	accessMonitoringRuleCache, err := local.NewAccessMonitoringRulesService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1106,7 +1098,6 @@ func New(config Config) (*Cache, error) {
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
 		databaseObjectsCache:         databaseObjectsCache,
-		notificationsCache:           notificationsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
@@ -1867,116 +1858,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-// GetTokens returns all active (non-expired) provisioning tokens
-func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetTokens(ctx)
-}
-
-// GetToken finds and returns token by ID
-func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.tokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	token, err := rg.reader.GetToken(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
-			return token, nil
-		}
-	}
-	return token, trace.Wrap(err)
-}
-
-type clusterConfigCacheKey struct {
-	kind string
-}
-
-// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterAuditConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
-			cfg, err := rg.reader.GetClusterAuditConfig(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cachedCfg.Clone(), nil
-	}
-	return rg.reader.GetClusterAuditConfig(ctx)
-}
-
-// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterNetworkingConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-			cfg, err := rg.reader.GetClusterNetworkingConfig(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cachedCfg.Clone(), nil
-	}
-	return rg.reader.GetClusterNetworkingConfig(ctx)
-}
-
-// GetClusterName gets the name of the cluster from the backend.
-func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterName")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.clusterNames)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
-			cfg, err := rg.reader.GetClusterName(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cachedName.Clone(), nil
-	}
-	return rg.reader.GetClusterName(ctx)
-}
-
 type autoUpdateCacheKey struct {
 	kind string
 }
@@ -2419,32 +2300,6 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	}
 	defer rg.Release()
 	return rg.reader.Get(ctx, req)
-}
-
-// GetAuthPreference gets the cluster authentication config.
-func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.authPreferences)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAuthPreference(ctx)
-}
-
-// GetSessionRecordingConfig gets session recording configuration.
-func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.sessionRecordingConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSessionRecordingConfig(ctx)
 }
 
 // GetNetworkRestrictions gets the network restrictions.
@@ -2979,36 +2834,6 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 	}
 	defer rg.Release()
 	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
-}
-
-// ListUserNotifications returns a paginated list of user-specific notifications for all users.
-func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.Notification, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListUserNotifications")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userNotifications)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	defer rg.Release()
-
-	out, nextKey, err := rg.reader.ListUserNotifications(ctx, pageSize, startKey)
-	return out, nextKey, trace.Wrap(err)
-}
-
-// ListGlobalNotifications returns a paginated list of global notifications.
-func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, startKey string) ([]*notificationsv1.GlobalNotification, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListGlobalNotifications")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.globalNotifications)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	out, nextKey, err := rg.reader.ListGlobalNotifications(ctx, pageSize, startKey)
-	return out, nextKey, trace.Wrap(err)
 }
 
 // ListAccessMonitoringRules returns a paginated list of access monitoring rules.
