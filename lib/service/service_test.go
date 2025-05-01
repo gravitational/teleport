@@ -1772,7 +1772,6 @@ func TestAgentRolloutController(t *testing.T) {
 	cfg.Auth.Enabled = true
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
-	cfg.DebugService.Enabled = false
 	cfg.Auth.StorageConfig.Params["path"] = dataDir
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	// Speed up the reconciliation period for testing purposes.
