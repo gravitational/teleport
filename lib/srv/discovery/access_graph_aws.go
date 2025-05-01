@@ -188,6 +188,35 @@ func (s *Server) getAllAWSSyncFetchers() []*aws_sync.Fetcher {
 	return allFetchers
 }
 
+func (s *Server) getAllAWSSyncFetchersWithTrailEnabled() []*types.AccessGraphAWSSync {
+	var allFetchers []*types.AccessGraphAWSSync
+
+	s.dynamicDiscoveryConfigMu.RLock()
+	for _, discConfig := range s.dynamicDiscoveryConfig {
+		if discConfig.Spec.AccessGraph == nil || len(discConfig.Spec.AccessGraph.AWS) == 0 {
+			continue
+		}
+
+		for _, disc := range discConfig.Spec.AccessGraph.AWS {
+			if disc.EnableCloudTrailPolling && disc.SqsPolling != nil {
+				allFetchers = append(allFetchers, disc)
+			}
+		}
+
+	}
+	s.dynamicDiscoveryConfigMu.RUnlock()
+
+	if s.Config.Matchers.AccessGraph == nil {
+		return allFetchers
+	}
+	for _, disc := range s.Config.Matchers.AccessGraph.AWS {
+		if disc.EnableCloudTrailPolling && disc.SqsPolling != nil {
+			allFetchers = append(allFetchers, disc)
+		}
+	}
+	return allFetchers
+}
+
 func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
@@ -504,33 +533,30 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 			}
 		}()
 		go func() {
+			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
+				allFetchers := s.getAllAWSSyncFetchers()
 				// If there are no fetchers, we don't need to start the access graph sync.
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
-				if s.Matchers.AccessGraph == nil || len(s.Matchers.AccessGraph.AWS) == 0 {
+				if len(allFetchers) == 0 {
 					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
-					return
+					select {
+					case <-ctx.Done():
+						return
+					case <-reloadCh:
+						// if the config changes, we need to re-evaluate the fetchers.
+					}
+					continue
 				}
-
 				var matchers []*types.AccessGraphAWSSync
 				for _, matcher := range s.Matchers.AccessGraph.AWS {
 					if matcher.EnableCloudTrailPolling {
 						matchers = append(matchers, matcher)
 					}
 				}
-				if len(matchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers configured. Access graph sync will not be enabled.")
-					return
-				}
-				if len(matchers) > 1 {
-					s.Log.WarnContext(ctx, "Multiple AWS sync fetchers configured. Only the first one will be used.")
-					return
-				}
 				// reset the currentTAGResources to force a full sync
-				endTime := time.Now()
-				startTime := endTime.Add(-20 * 24 * time.Hour)
-				if err := s.startCloudtrailPoller(ctx, startTime, endTime, matchers[0]); errors.Is(err, errTAGFeatureNotEnabled) {
+				if err := s.startCloudtrailPoller(ctx, reloadCh, matchers); errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
@@ -541,6 +567,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				case <-ctx.Done():
 					return
 				case <-time.After(time.Minute):
+				case <-reloadCh:
 				}
 			}
 		}()
@@ -587,11 +614,8 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 	return fetchers, trace.NewAggregate(errs...)
 }
 
-func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time, endDate time.Time, matcher *types.AccessGraphAWSSync) error {
-	accountID, err := s.getAccountId(ctx, matcher)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan struct{}, matchers []*types.AccessGraphAWSSync) error {
+
 	const (
 		// aws discovery semaphore lock.
 		semaphoreName = "access_graph_aws_cloudtrail_sync"
@@ -673,11 +697,7 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time,
 	err = stream.Send(
 		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
 			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
-				Config: &accessgraphv1alpha.AWSCloudTrailConfig{
-					StartDate: timestamppb.New(startDate),
-					EndDate:   timestamppb.New(endDate),
-					Regions:   matcher.Regions,
-				},
+				Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
 			},
 		},
 	)
@@ -737,30 +757,88 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time,
 			lastEventTime: regionState.GetLastEventTime().AsTime(),
 		}
 	}
-	// disabled for now because of the performance and cost impact
-	/*if err = s.pollCloudTrail(ctx,
-		accountID,
-		resumeState.GetResumeState().GetStartDate().AsTime(),
-		resumeState.GetResumeState().GetEndDate().AsTime(),
-		state,
-		&wg,
-		eventsC,
-		matcher,
-	); err != nil {
-		return trace.Wrap(err)
-	}*/
 
 	filePayload := make(chan payloadChannelMessage, 1)
+	type mapPayload struct {
+		disc       *types.AccessGraphAWSSync
+		cancelFunc context.CancelFunc
+	}
+	stateMatchersMap := make(map[string]mapPayload)
 
-	if matcher.SqsPolling != nil {
-		go func() {
-			err := s.pollEventsFromSQSFiles(ctx, accountID, matcher, filePayload)
+	spawnMatcher := func(ctx context.Context, matcher *types.AccessGraphAWSSync) {
+		localCtx, cancel := context.WithCancel(ctx)
+		stateMatchersMap[matcher.Integration] = mapPayload{
+			disc:       matcher,
+			cancelFunc: cancel,
+		}
+		go func(ctx context.Context, matcher *types.AccessGraphAWSSync) {
+			accountID, err := s.getAccountId(ctx, matcher)
+			if err != nil {
+				s.Log.ErrorContext(ctx, "Error getting account ID", "error", err)
+				return
+			}
+			err = s.pollEventsFromSQSFiles(ctx, accountID, matcher, filePayload)
 			if err != nil {
 				s.Log.ErrorContext(ctx, "Error extracting events from SQS files", "error", err)
 			}
-		}()
+		}(localCtx, matcher)
 	}
 
+	for _, matcher := range matchers {
+		if matcher.SqsPolling == nil {
+			continue
+		}
+		spawnMatcher(ctx, matcher)
+	}
+
+	reconciler, err := services.NewGenericReconciler(services.GenericReconcilerConfig[string, *types.AccessGraphAWSSync]{
+		Matcher: func(matcher *types.AccessGraphAWSSync) bool {
+			return true
+		},
+		GetCurrentResources: func() map[string]*types.AccessGraphAWSSync {
+			matchersMap := make(map[string]*types.AccessGraphAWSSync)
+			for k, matcher := range stateMatchersMap {
+				matchersMap[k] = matcher.disc
+			}
+			return matchersMap
+		},
+		GetNewResources: func() map[string]*types.AccessGraphAWSSync {
+			matchersMap := make(map[string]*types.AccessGraphAWSSync)
+			for _, matcher := range s.getAllAWSSyncFetchersWithTrailEnabled() {
+				matchersMap[matcher.Integration] = matcher
+			}
+			return matchersMap
+		},
+		// Compare allows custom comparators without having to implement IsEqual.
+		// Defaults to `CompareResources[T]` if not specified.
+		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
+		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
+			spawnMatcher(ctx, disc)
+			return nil
+		},
+		// OnUpdate is called when an existing resource is updated.
+		OnUpdate: func(ctx context.Context, new, old *types.AccessGraphAWSSync) error {
+			if p, ok := stateMatchersMap[old.Integration]; ok {
+				p.cancelFunc()
+				delete(stateMatchersMap, old.Integration)
+			}
+			spawnMatcher(ctx, new)
+			return nil
+		},
+		// OnDelete is called when an existing resource is deleted.
+		OnDelete: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
+			if p, ok := stateMatchersMap[disc.Integration]; ok {
+				p.cancelFunc()
+				delete(stateMatchersMap, disc.Integration)
+			}
+			return nil
+		},
+		Logger: s.Log,
+	})
+	if err != nil {
+		s.Log.ErrorContext(ctx, "Error creating reconciler", "error", err)
+		return trace.Wrap(err)
+	}
 	var size int
 	var events []*accessgraphv1alpha.AWSCloudTrailEvent
 	const maxSize = 3 * 1024 * 1024 // 3MB
@@ -771,6 +849,11 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, startDate time.Time,
 			return trace.Wrap(ctx.Err())
 		case <-timer.C:
 			sendData = len(events) > 0
+		case <-reloadCh:
+			if err := reconciler.Reconcile(ctx); err != nil {
+				s.Log.ErrorContext(ctx, "Error reconciling access graph fetchers", "error", err)
+			}
+			continue
 		case evts := <-eventsC:
 			for _, event := range evts.events {
 				size += gproto.Size(event)
@@ -1216,7 +1299,7 @@ func (a *Server) pollEventsFromSQSFiles(ctx context.Context, accountID string, m
 			return nil
 		})
 	}
-	return nil
+	return errG.Wait()
 }
 
 type sqsFileEvent struct {

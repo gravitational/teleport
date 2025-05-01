@@ -2621,9 +2621,6 @@ func (x *AWSCloudTrailEventsFile) GetAwsAccountId() string {
 // AWSCloudTrailConfig is the configuration for exporting AWS audit logs.
 type AWSCloudTrailConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	StartDate     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
-	Regions       []string               `protobuf:"bytes,2,rep,name=regions,proto3" json:"regions,omitempty"`
-	EndDate       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=end_date,json=endDate,proto3" json:"end_date,omitempty"` // End date for exporting audit logs.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2656,27 +2653,6 @@ func (x *AWSCloudTrailConfig) ProtoReflect() protoreflect.Message {
 // Deprecated: Use AWSCloudTrailConfig.ProtoReflect.Descriptor instead.
 func (*AWSCloudTrailConfig) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{38}
-}
-
-func (x *AWSCloudTrailConfig) GetStartDate() *timestamppb.Timestamp {
-	if x != nil {
-		return x.StartDate
-	}
-	return nil
-}
-
-func (x *AWSCloudTrailConfig) GetRegions() []string {
-	if x != nil {
-		return x.Regions
-	}
-	return nil
-}
-
-func (x *AWSCloudTrailConfig) GetEndDate() *timestamppb.Timestamp {
-	if x != nil {
-		return x.EndDate
-	}
-	return nil
 }
 
 // AuditLogEvents bundles a batch of unstructured audit log events with the
@@ -3873,12 +3849,8 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x06action\"Y\n" +
 	"\x17AWSCloudTrailEventsFile\x12\x18\n" +
 	"\apayload\x18\x01 \x01(\fR\apayload\x12$\n" +
-	"\x0eaws_account_id\x18\x02 \x01(\tR\fawsAccountId\"\xa1\x01\n" +
-	"\x13AWSCloudTrailConfig\x129\n" +
-	"\n" +
-	"start_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDate\x12\x18\n" +
-	"\aregions\x18\x02 \x03(\tR\aregions\x125\n" +
-	"\bend_date\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aendDate\"\xa8\x01\n" +
+	"\x0eaws_account_id\x18\x02 \x01(\tR\fawsAccountId\"\x15\n" +
+	"\x13AWSCloudTrailConfig\"\xa8\x01\n" +
 	"\x13AWSCloudTrailEvents\x12?\n" +
 	"\x06events\x18\x01 \x03(\v2'.accessgraph.v1alpha.AWSCloudTrailEventR\x06events\x12P\n" +
 	"\fresume_state\x18\x02 \x01(\v2-.accessgraph.v1alpha.AWSCloudTrailResumeStateR\vresumeState\"\xd4\x01\n" +
@@ -4111,73 +4083,71 @@ var file_accessgraph_v1alpha_access_graph_service_proto_depIdxs = []int32{
 	38, // 46: accessgraph.v1alpha.AWSCloudTrailStreamRequest.config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
 	39, // 47: accessgraph.v1alpha.AWSCloudTrailStreamRequest.events:type_name -> accessgraph.v1alpha.AWSCloudTrailEvents
 	37, // 48: accessgraph.v1alpha.AWSCloudTrailStreamRequest.events_file:type_name -> accessgraph.v1alpha.AWSCloudTrailEventsFile
-	62, // 49: accessgraph.v1alpha.AWSCloudTrailConfig.start_date:type_name -> google.protobuf.Timestamp
-	62, // 50: accessgraph.v1alpha.AWSCloudTrailConfig.end_date:type_name -> google.protobuf.Timestamp
-	43, // 51: accessgraph.v1alpha.AWSCloudTrailEvents.events:type_name -> accessgraph.v1alpha.AWSCloudTrailEvent
-	41, // 52: accessgraph.v1alpha.AWSCloudTrailEvents.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
-	38, // 53: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
-	41, // 54: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
-	54, // 55: accessgraph.v1alpha.AWSCloudTrailResumeState.regions_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry
-	62, // 56: accessgraph.v1alpha.AWSCloudTrailResumeState.start_date:type_name -> google.protobuf.Timestamp
-	62, // 57: accessgraph.v1alpha.AWSCloudTrailResumeState.end_date:type_name -> google.protobuf.Timestamp
-	62, // 58: accessgraph.v1alpha.AWSCloudTrailResumeRegionState.last_event_time:type_name -> google.protobuf.Timestamp
-	72, // 59: accessgraph.v1alpha.AWSCloudTrailEvent.cloud_trail_event:type_name -> google.protobuf.Struct
-	62, // 60: accessgraph.v1alpha.AWSCloudTrailEvent.end_time:type_name -> google.protobuf.Timestamp
-	44, // 61: accessgraph.v1alpha.AWSCloudTrailEvent.resources:type_name -> accessgraph.v1alpha.AWSCloudTrailEventResource
-	73, // 62: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	74, // 63: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
-	73, // 64: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
-	75, // 65: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
-	76, // 66: accessgraph.v1alpha.GitHubEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GithubResourceList
-	76, // 67: accessgraph.v1alpha.GitHubEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GithubResourceList
-	77, // 68: accessgraph.v1alpha.GitHubEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GithubSync
-	78, // 69: accessgraph.v1alpha.OktaAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.OktaConfigV1
-	79, // 70: accessgraph.v1alpha.OktaAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.OktaAuditLogV1
-	78, // 71: accessgraph.v1alpha.OktaAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.OktaConfigV1
-	80, // 72: accessgraph.v1alpha.OktaAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.OktaAuditLogV1Cursor
-	81, // 73: accessgraph.v1alpha.OktaEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.OktaResourceList
-	81, // 74: accessgraph.v1alpha.OktaEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.OktaResourceList
-	82, // 75: accessgraph.v1alpha.OktaEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.OktaSync
-	42, // 76: accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry.value:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeRegionState
-	0,  // 77: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
-	2,  // 78: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
-	4,  // 79: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
-	5,  // 80: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
-	10, // 81: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
-	36, // 82: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
-	19, // 83: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
-	21, // 84: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
-	23, // 85: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
-	26, // 86: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
-	28, // 87: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
-	30, // 88: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
-	33, // 89: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
-	45, // 90: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:input_type -> accessgraph.v1alpha.GitHubAuditLogStreamRequest
-	47, // 91: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:input_type -> accessgraph.v1alpha.GitHubEventsStreamRequest
-	49, // 92: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:input_type -> accessgraph.v1alpha.OktaAuditLogStreamRequest
-	51, // 93: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:input_type -> accessgraph.v1alpha.OktaEventsStreamRequest
-	1,  // 94: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
-	3,  // 95: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
-	7,  // 96: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
-	8,  // 97: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
-	16, // 98: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
-	40, // 99: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
-	20, // 100: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
-	22, // 101: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
-	25, // 102: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
-	27, // 103: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
-	29, // 104: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
-	32, // 105: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
-	35, // 106: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
-	46, // 107: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:output_type -> accessgraph.v1alpha.GitHubAuditLogStreamResponse
-	48, // 108: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:output_type -> accessgraph.v1alpha.GitHubEventsStreamResponse
-	50, // 109: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:output_type -> accessgraph.v1alpha.OktaAuditLogStreamResponse
-	52, // 110: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:output_type -> accessgraph.v1alpha.OktaEventsStreamResponse
-	94, // [94:111] is the sub-list for method output_type
-	77, // [77:94] is the sub-list for method input_type
-	77, // [77:77] is the sub-list for extension type_name
-	77, // [77:77] is the sub-list for extension extendee
-	0,  // [0:77] is the sub-list for field type_name
+	43, // 49: accessgraph.v1alpha.AWSCloudTrailEvents.events:type_name -> accessgraph.v1alpha.AWSCloudTrailEvent
+	41, // 50: accessgraph.v1alpha.AWSCloudTrailEvents.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
+	38, // 51: accessgraph.v1alpha.AWSCloudTrailStreamResponse.cloud_trail_config:type_name -> accessgraph.v1alpha.AWSCloudTrailConfig
+	41, // 52: accessgraph.v1alpha.AWSCloudTrailStreamResponse.resume_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState
+	54, // 53: accessgraph.v1alpha.AWSCloudTrailResumeState.regions_state:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry
+	62, // 54: accessgraph.v1alpha.AWSCloudTrailResumeState.start_date:type_name -> google.protobuf.Timestamp
+	62, // 55: accessgraph.v1alpha.AWSCloudTrailResumeState.end_date:type_name -> google.protobuf.Timestamp
+	62, // 56: accessgraph.v1alpha.AWSCloudTrailResumeRegionState.last_event_time:type_name -> google.protobuf.Timestamp
+	72, // 57: accessgraph.v1alpha.AWSCloudTrailEvent.cloud_trail_event:type_name -> google.protobuf.Struct
+	62, // 58: accessgraph.v1alpha.AWSCloudTrailEvent.end_time:type_name -> google.protobuf.Timestamp
+	44, // 59: accessgraph.v1alpha.AWSCloudTrailEvent.resources:type_name -> accessgraph.v1alpha.AWSCloudTrailEventResource
+	73, // 60: accessgraph.v1alpha.GitHubAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	74, // 61: accessgraph.v1alpha.GitHubAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.GitHubAuditLogV1
+	73, // 62: accessgraph.v1alpha.GitHubAuditLogStreamResponse.github_config:type_name -> accessgraph.v1alpha.GitHubConfigV1
+	75, // 63: accessgraph.v1alpha.GitHubAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.GitHubAuditLogV1Cursor
+	76, // 64: accessgraph.v1alpha.GitHubEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.GithubResourceList
+	76, // 65: accessgraph.v1alpha.GitHubEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.GithubResourceList
+	77, // 66: accessgraph.v1alpha.GitHubEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.GithubSync
+	78, // 67: accessgraph.v1alpha.OktaAuditLogStreamRequest.config:type_name -> accessgraph.v1alpha.OktaConfigV1
+	79, // 68: accessgraph.v1alpha.OktaAuditLogStreamRequest.audit_log:type_name -> accessgraph.v1alpha.OktaAuditLogV1
+	78, // 69: accessgraph.v1alpha.OktaAuditLogStreamResponse.config:type_name -> accessgraph.v1alpha.OktaConfigV1
+	80, // 70: accessgraph.v1alpha.OktaAuditLogStreamResponse.audit_log_resume_state:type_name -> accessgraph.v1alpha.OktaAuditLogV1Cursor
+	81, // 71: accessgraph.v1alpha.OktaEventsStreamRequest.upsert:type_name -> accessgraph.v1alpha.OktaResourceList
+	81, // 72: accessgraph.v1alpha.OktaEventsStreamRequest.delete:type_name -> accessgraph.v1alpha.OktaResourceList
+	82, // 73: accessgraph.v1alpha.OktaEventsStreamRequest.sync:type_name -> accessgraph.v1alpha.OktaSync
+	42, // 74: accessgraph.v1alpha.AWSCloudTrailResumeState.RegionsStateEntry.value:type_name -> accessgraph.v1alpha.AWSCloudTrailResumeRegionState
+	0,  // 75: accessgraph.v1alpha.AccessGraphService.Query:input_type -> accessgraph.v1alpha.QueryRequest
+	2,  // 76: accessgraph.v1alpha.AccessGraphService.GetFile:input_type -> accessgraph.v1alpha.GetFileRequest
+	4,  // 77: accessgraph.v1alpha.AccessGraphService.EventsStream:input_type -> accessgraph.v1alpha.EventsStreamRequest
+	5,  // 78: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:input_type -> accessgraph.v1alpha.EventsStreamV2Request
+	10, // 79: accessgraph.v1alpha.AccessGraphService.AuditLogStream:input_type -> accessgraph.v1alpha.AuditLogStreamRequest
+	36, // 80: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:input_type -> accessgraph.v1alpha.AWSCloudTrailStreamRequest
+	19, // 81: accessgraph.v1alpha.AccessGraphService.Register:input_type -> accessgraph.v1alpha.RegisterRequest
+	21, // 82: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:input_type -> accessgraph.v1alpha.ReplaceCAsRequest
+	23, // 83: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:input_type -> accessgraph.v1alpha.AWSEventsStreamRequest
+	26, // 84: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:input_type -> accessgraph.v1alpha.GitlabEventsStreamRequest
+	28, // 85: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:input_type -> accessgraph.v1alpha.EntraEventsStreamRequest
+	30, // 86: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:input_type -> accessgraph.v1alpha.AzureEventsStreamRequest
+	33, // 87: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:input_type -> accessgraph.v1alpha.NetIQEventsStreamRequest
+	45, // 88: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:input_type -> accessgraph.v1alpha.GitHubAuditLogStreamRequest
+	47, // 89: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:input_type -> accessgraph.v1alpha.GitHubEventsStreamRequest
+	49, // 90: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:input_type -> accessgraph.v1alpha.OktaAuditLogStreamRequest
+	51, // 91: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:input_type -> accessgraph.v1alpha.OktaEventsStreamRequest
+	1,  // 92: accessgraph.v1alpha.AccessGraphService.Query:output_type -> accessgraph.v1alpha.QueryResponse
+	3,  // 93: accessgraph.v1alpha.AccessGraphService.GetFile:output_type -> accessgraph.v1alpha.GetFileResponse
+	7,  // 94: accessgraph.v1alpha.AccessGraphService.EventsStream:output_type -> accessgraph.v1alpha.EventsStreamResponse
+	8,  // 95: accessgraph.v1alpha.AccessGraphService.EventsStreamV2:output_type -> accessgraph.v1alpha.EventsStreamV2Response
+	16, // 96: accessgraph.v1alpha.AccessGraphService.AuditLogStream:output_type -> accessgraph.v1alpha.AuditLogStreamResponse
+	40, // 97: accessgraph.v1alpha.AccessGraphService.AWSCloudTrailStream:output_type -> accessgraph.v1alpha.AWSCloudTrailStreamResponse
+	20, // 98: accessgraph.v1alpha.AccessGraphService.Register:output_type -> accessgraph.v1alpha.RegisterResponse
+	22, // 99: accessgraph.v1alpha.AccessGraphService.ReplaceCAs:output_type -> accessgraph.v1alpha.ReplaceCAsResponse
+	25, // 100: accessgraph.v1alpha.AccessGraphService.AWSEventsStream:output_type -> accessgraph.v1alpha.AWSEventsStreamResponse
+	27, // 101: accessgraph.v1alpha.AccessGraphService.GitlabEventsStream:output_type -> accessgraph.v1alpha.GitlabEventsStreamResponse
+	29, // 102: accessgraph.v1alpha.AccessGraphService.EntraEventsStream:output_type -> accessgraph.v1alpha.EntraEventsStreamResponse
+	32, // 103: accessgraph.v1alpha.AccessGraphService.AzureEventsStream:output_type -> accessgraph.v1alpha.AzureEventsStreamResponse
+	35, // 104: accessgraph.v1alpha.AccessGraphService.NetIQEventsStream:output_type -> accessgraph.v1alpha.NetIQEventsStreamResponse
+	46, // 105: accessgraph.v1alpha.AccessGraphService.GitHubAuditLogStream:output_type -> accessgraph.v1alpha.GitHubAuditLogStreamResponse
+	48, // 106: accessgraph.v1alpha.AccessGraphService.GitHubEventsStream:output_type -> accessgraph.v1alpha.GitHubEventsStreamResponse
+	50, // 107: accessgraph.v1alpha.AccessGraphService.OktaAuditLogStream:output_type -> accessgraph.v1alpha.OktaAuditLogStreamResponse
+	52, // 108: accessgraph.v1alpha.AccessGraphService.OktaEventsStream:output_type -> accessgraph.v1alpha.OktaEventsStreamResponse
+	92, // [92:109] is the sub-list for method output_type
+	75, // [75:92] is the sub-list for method input_type
+	75, // [75:75] is the sub-list for extension type_name
+	75, // [75:75] is the sub-list for extension extendee
+	0,  // [0:75] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_access_graph_service_proto_init() }

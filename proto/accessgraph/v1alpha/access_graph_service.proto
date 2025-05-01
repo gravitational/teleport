@@ -551,11 +551,7 @@ message AWSCloudTrailEventsFile {
 }
 
 // AWSCloudTrailConfig is the configuration for exporting AWS audit logs.
-message AWSCloudTrailConfig {
-  google.protobuf.Timestamp start_date = 1; // Start date for exporting audit logs.
-  repeated string regions = 2;
-  google.protobuf.Timestamp end_date = 3; // End date for exporting audit logs.
-}
+message AWSCloudTrailConfig {}
 
 // AuditLogEvents bundles a batch of unstructured audit log events with the
 // appropriate resume state information for the type of events being sent
