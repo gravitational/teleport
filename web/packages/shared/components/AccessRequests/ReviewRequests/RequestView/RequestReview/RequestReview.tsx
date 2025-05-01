@@ -39,7 +39,10 @@ type ReviewStateOption = Option<RequestState, React.ReactElement<any>> & {
   disabled?: boolean;
 };
 
-type SuggestedAcessListOption = Option<SuggestedAccessList, React.ReactElement<any>>;
+type SuggestedAcessListOption = Option<
+  SuggestedAccessList,
+  React.ReactElement<any>
+>;
 
 export interface RequestReviewProps {
   submitReview(s: SubmitReview): void;

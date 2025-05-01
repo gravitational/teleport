@@ -189,7 +189,7 @@ const LoginItemList = ({
     <Flex flexDirection="column" minWidth={width}>
       {inputType === MenuInputType.NONE ? (
         /* css and margin value matched with AWS Launch button <RoleItemList> */
-        (<Text
+        <Text
           px="2"
           mb={2}
           typography="body3"
@@ -197,7 +197,7 @@ const LoginItemList = ({
           backgroundColor="spotBackground.2"
         >
           {placeholder}
-        </Text>)
+        </Text>
       ) : (
         <Input
           p="2"

@@ -1,4 +1,5 @@
-import type * as PropTypes from "prop-types";
+import type * as PropTypes from 'prop-types';
+
 /**
  * Teleport
  * Copyright (C) 2024 Gravitational, Inc.

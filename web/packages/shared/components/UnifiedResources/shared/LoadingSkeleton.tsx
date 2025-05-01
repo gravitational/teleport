@@ -44,7 +44,7 @@ export function LoadingSkeleton(props: {
     <>
       {new Array(props.count).fill(undefined).map((_, i) => (
         // Using index as key here is ok because these elements never change order
-        (<Fragment key={i}>{props.Element}</Fragment>)
+        <Fragment key={i}>{props.Element}</Fragment>
       ))}
     </>
   );
