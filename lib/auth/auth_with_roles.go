@@ -3232,6 +3232,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	var user services.UserState = impersonateUser
 	if userState, err := a.authServer.GetUserLoginState(ctx, req.Username); err == nil {
 		user = userState
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
 	}
 
 	// Do not allow SSO users to be impersonated.

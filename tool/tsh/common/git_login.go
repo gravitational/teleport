@@ -147,7 +147,8 @@ func doGitHubOAuthFlow(cf *CLIConf, org string) error {
 	if len(profile.ActiveRequests) > 0 {
 		// Send to stderr in case called by `git`.
 		fmt.Fprintln(cf.Stderr(), "Reissuing certificates for access requests ...")
-		if err := reissueWithRequests(cf, tc, profile.ActiveRequests, nil /*dropRequests*/); err != nil {
+		var emptyDropRequests []string
+		if err := reissueWithRequests(cf, tc, profile.ActiveRequests, emptyDropRequests); err != nil {
 			return trace.Wrap(err)
 		}
 	}
