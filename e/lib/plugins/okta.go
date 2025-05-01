@@ -31,6 +31,17 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
 	}
 
+	var connectorInfo types.SAMLConnector
+	ssoConnectorId := oktaSpec.GetSyncSettings().SsoConnectorId
+
+	if ssoConnectorId != "" {
+		authServer := deps.parentProcess.GetAuthServer()
+		connectorInfo, err = authServer.GetSAMLConnector(ctx, ssoConnectorId, false)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching auth connector")
+		}
+	}
+
 	// If sync is not enabled (SSO-only/SCIM-only integration) then only report the plugin's
 	// status and for the done channel.
 	if !syncEnabled {
@@ -42,6 +53,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 			}
 
 			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
+				SsoConnector: connectorInfo,
 				SyncSettings: *oktaSpec.GetSyncSettings(),
 				ScimEnabled:  scimEnabled,
 			})
@@ -72,12 +84,6 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		oktaAuthProvider = oktaapi.NewSSWSAuthProvider(selectedOktaCreds.ApiToken)
 	default:
 		return func() error {
-			authServer := deps.parentProcess.GetAuthServer()
-			connectorInfo, err := authServer.GetSAMLConnector(ctx, oktaSpec.SyncSettings.SsoConnectorId, false)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
 			deps.logger.ErrorContext(ctx, "Okta sync is enabled but credentials not found. Updating plugin status, without starting the plugin")
 
 			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
@@ -86,7 +92,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				ScimEnabled:  scimEnabled,
 				SyncErr:      trace.BadParameter("Okta API credentials not found"),
 			})
-			okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_OTHER_ERROR, status)
+			okta.ReportPluginStatusError(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_OKTA_CONFIG_ERROR, status, "Sync is enabled, but Okta credentials are missing.")
 
 			<-deps.lifetime.Done()
 			return nil

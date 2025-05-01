@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -134,6 +135,12 @@ type Config struct {
 	AssignmentsService oktacommon.OktaAssignmentService
 }
 
+var (
+	ErrMissingAppId          = trace.BadParameter("user sync with Okta SAML app as a source is enabled, but app ID is missing")
+	ErrMissingSsoConnectorId = trace.BadParameter("user sync is enabled, but Okta SSO Connector is missing")
+	ErrMissingDefaultOwners  = trace.BadParameter("default owners are missing")
+)
+
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentOkta)
@@ -193,10 +200,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.SyncSettings.SyncUsers {
 		if c.SyncSettings.SsoConnectorId == "" {
-			return trace.BadParameter("user sync is enabled, but Okta SSO Connector is missing")
+			return ErrMissingSsoConnectorId
 		}
 		if c.SyncSettings.AppId == "" && c.SyncSettings.GetUserSyncSource() == types.OktaUserSyncSourceSamlApp {
-			return trace.BadParameter("user sync with Okta SAML app as a source is enabled, but app ID is missing")
+			return ErrMissingAppId
 		}
 	}
 
@@ -208,7 +215,7 @@ func (c *Config) CheckAndSetDefaults() error {
 			return trace.BadParameter("access lists is missing")
 		}
 		if len(c.SyncSettings.DefaultOwners) == 0 {
-			return trace.BadParameter("default owners is missing")
+			return ErrMissingDefaultOwners
 		}
 
 		for _, filter := range c.SyncSettings.AppFilters {
@@ -420,9 +427,9 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	// the defer call below.
 
 	defer func() {
-		statusCode := types.PluginStatusCode_RUNNING
 		if err != nil {
-			statusCode = types.PluginStatusCode_OTHER_ERROR
+			//statusCode = types.PluginStatusCode_OTHER_ERROR
+			errorCode, errorMsg := getPluginStartError(err)
 			if userSyncEnabled {
 				serviceStatus.UpdateUserSync(ctx, config.Clock.Now(), 0, err)
 			}
@@ -432,8 +439,11 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 			if accessListSyncEnabled {
 				serviceStatus.UpdateAccessListSync(ctx, config.Clock.Now(), 0, 0, err)
 			}
+
+			ReportPluginStatusError(ctx, config.Logger, config.PluginStatusSink, errorCode, oktaStatus, errorMsg)
+		} else {
+			ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink, types.PluginStatusCode_RUNNING, oktaStatus)
 		}
-		ReportPluginStatus(ctx, config.Logger, config.PluginStatusSink, statusCode, oktaStatus)
 	}()
 
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -577,6 +587,19 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	}
 
 	return s, nil
+}
+
+func getPluginStartError(err error) (types.PluginStatusCode, string) {
+	if errors.Is(err, ErrMissingAppId) {
+		return types.PluginStatusCode_OKTA_CONFIG_ERROR, "Okta SAML app ID is missing: Verify your API Services application in Okta can access your SAML application as part of the defined resource set and has all necessary scopes granted, or try setting up User Sync again."
+	}
+	if errors.Is(err, ErrMissingSsoConnectorId) {
+		return types.PluginStatusCode_OKTA_CONFIG_ERROR, "SSO Connector ID is missing: Verify your SSO Connector is configured correctly, or try setting up the integration again."
+	}
+	if errors.Is(err, ErrMissingDefaultOwners) {
+		return types.PluginStatusCode_OKTA_CONFIG_ERROR, "Default Owners are missing: Verify you have provided Default Access List Owners, or try setting up App and Group Sync again."
+	}
+	return types.PluginStatusCode_OTHER_ERROR, ""
 }
 
 // Start will start the Okta service. This service will not make any calls the Okta API while it is

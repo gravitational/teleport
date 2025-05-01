@@ -123,13 +123,18 @@ func formatError(err error) error {
 
 // ReportPluginStatus will report the plugin status to the given status sink if it exists.
 func ReportPluginStatus(ctx context.Context, log *slog.Logger, pluginStatusSink common.StatusSink, code types.PluginStatusCode, details *types.PluginOktaStatusV1) {
+	ReportPluginStatusError(ctx, log, pluginStatusSink, code, details, "")
+}
+
+func ReportPluginStatusError(ctx context.Context, log *slog.Logger, pluginStatusSink common.StatusSink, code types.PluginStatusCode, details *types.PluginOktaStatusV1, message string) {
 	if pluginStatusSink == nil {
 		return
 	}
 
 	if err := pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
-		Code:    code,
-		Details: &types.PluginStatusV1_Okta{Okta: details},
+		Code:         code,
+		Details:      &types.PluginStatusV1_Okta{Okta: details},
+		ErrorMessage: message,
 	}); err != nil {
 		log.ErrorContext(ctx, "Error emitting plugin status", "error", err)
 	}

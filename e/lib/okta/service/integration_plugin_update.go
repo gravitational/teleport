@@ -22,6 +22,15 @@ func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIn
 			oktaSpec.SyncSettings.SetUserSyncSource(types.OktaUserSyncSourceOrg)
 		}
 	}
+
+	if oktaSpec.SyncSettings.AppId == "" {
+		if err := s.updateOktaAppID(ctx, req, oktaSpec, plugin); err != nil && req.GetEnableUserSync() {
+			// On init, if UserSync is enabled but AppId is not set, the integration will fail to start,
+			// so we shouldn't allow continuing here.
+			return trace.BadParameter("Could not fetch info about your Okta SAML application. Verify your API Services application in Okta has all necessary scopes granted and can access your SAML application as part of the defined resource set.")
+		}
+	}
+
 	if req.GetEnableUserSync() {
 		if oktaSpec.SyncSettings.GetUserSyncSource().IsUnknown() {
 			oktaSpec.SyncSettings.SetUserSyncSource(types.OktaUserSyncSourceSamlApp)
@@ -35,14 +44,13 @@ func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIn
 	oktaSpec.SyncSettings.GroupFilters = req.GetAccessListSettings().GetGroupFilters()
 	oktaSpec.SyncSettings.AppFilters = req.GetAccessListSettings().GetAppFilters()
 	oktaSpec.SyncSettings.DefaultOwners = req.GetAccessListSettings().GetDefaultOwner()
-	if oktaSpec.SyncSettings.AppId == "" {
-		s.tryUpdateOktaAppID(ctx, req, oktaSpec, plugin)
-	}
+
 	plugin.Spec.Settings = &types.PluginSpecV1_Okta{Okta: oktaSpec}
+
 	return nil
 }
 
-func (s *Service) tryUpdateOktaAppID(ctx context.Context, req *oktapb.UpdateIntegrationRequest, pluginSpec *types.PluginOktaSettings, plugin types.Plugin) {
+func (s *Service) updateOktaAppID(ctx context.Context, req *oktapb.UpdateIntegrationRequest, pluginSpec *types.PluginOktaSettings, plugin types.Plugin) error {
 	params := createOktaClientParams{
 		requestCreds:         req.GetApiCredentials(),
 		orgUrl:               pluginSpec.OrgUrl,
@@ -51,11 +59,11 @@ func (s *Service) tryUpdateOktaAppID(ctx context.Context, req *oktapb.UpdateInte
 
 	appId, err := s.fetchOktaAppIdFromConnector(ctx, params, pluginSpec.SyncSettings.SsoConnectorId)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to fetch Okta App ID", "error", err)
-		return
+		return trace.Wrap(err)
 	}
 
 	pluginSpec.SyncSettings.AppId = appId
+	return nil
 }
 
 func (s *Service) fetchOktaAppIdFromConnector(ctx context.Context, createOktaClientParams createOktaClientParams, connectorId string) (appId string, err error) {

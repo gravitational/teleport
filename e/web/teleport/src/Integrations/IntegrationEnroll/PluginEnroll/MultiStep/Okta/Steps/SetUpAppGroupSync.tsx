@@ -177,6 +177,7 @@ export const AppGroupSyncForm = ({
               enableAccessListSync: true,
               enableUserSync: true,
               defaultOwners: selectedOwners.map(o => o.label),
+              enableBidirectionalSync: !!plugin?.spec?.enableBidirectionalSync,
               // Providing an empty array is equivalent to an asterisk
               [FormDataField.GroupFilters]: syncAllGroups
                 ? []
@@ -187,7 +188,14 @@ export const AppGroupSyncForm = ({
             },
           })
           .catch(withUnsupportedOktaPluginUpdateErrorConversion),
-      [appFilters, groupFilters, selectedOwners, syncAllApps, syncAllGroups]
+      [
+        appFilters,
+        groupFilters,
+        plugin?.spec?.enableBidirectionalSync,
+        selectedOwners,
+        syncAllApps,
+        syncAllGroups,
+      ]
     )
   );
 

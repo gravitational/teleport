@@ -12,6 +12,7 @@ import { capitalizeFirstLetter } from 'shared/utils/text';
 import { pluginsService } from 'e-teleport/services/plugins';
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
+import { IntegrationLike } from 'teleport/Integrations/IntegrationList';
 import { IntegrationStatus as OSSIntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   IntegrationStatusCode,
@@ -57,6 +58,7 @@ export function IntegrationStatus() {
     pluginName: name,
     pluginType: type,
     statusCode: plugin?.statusCode,
+    status: plugin?.status,
   };
 
   if (attempt.status === 'failed') {
@@ -103,12 +105,14 @@ type FeatureContainerProps = {
   pluginName: string;
   pluginType: PluginKind;
   statusCode: IntegrationStatusCode;
+  status?: IntegrationLike['status'];
 };
 const FeatureContainer: React.FC<PropsWithChildren<FeatureContainerProps>> = ({
   children,
   pluginName,
   pluginType,
   statusCode,
+  status,
 }) => {
   return (
     <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
@@ -133,7 +137,7 @@ const FeatureContainer: React.FC<PropsWithChildren<FeatureContainerProps>> = ({
         </Flex>
         {statusCode && (
           <Box mr={4}>
-            <OverallStatus statusCode={statusCode} />
+            <OverallStatus statusCode={statusCode} status={status} />
           </Box>
         )}
       </Flex>
