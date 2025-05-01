@@ -20,11 +20,11 @@ import (
 	"context"
 	"crypto"
 	"encoding/hex"
-	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/distribution/reference"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/gravitational/trace"
 	"github.com/opencontainers/go-digest"
 	"github.com/sigstore/cosign/v2/pkg/cosign"

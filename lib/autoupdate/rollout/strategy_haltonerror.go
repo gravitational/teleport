@@ -20,10 +20,10 @@ package rollout
 
 import (
 	"context"
-	"github.com/sirupsen/logrus"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"

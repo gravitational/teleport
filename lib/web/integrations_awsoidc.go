@@ -123,7 +123,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		if err != nil {
 			h.log.WithError(err).WithField("version", teleport.Version).Warn(
 				"Cannot read autoupdate target version, falling back to our own version",
-				)
+			)
 		} else {
 			teleportVersionTag = autoUpdateVersion
 		}

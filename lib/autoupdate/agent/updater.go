@@ -61,8 +61,6 @@ const (
 	// TODO(sclevine): This value is arbitrary and could be replaced by, e.g., min(1%, 200mb) in the future
 	//   to account for a range of disk sizes.
 	reservedFreeDisk = 10_000_000
-	// debugSocketFileName is the name of Teleport's debug socket in the data dir.
-	debugSocketFileName = "debug.sock" // 10 MB
 	// requiredUmask must be set before this package can be used.
 	// Use syscall.Umask to set when no other goroutines are running.
 	requiredUmask = 0o022
