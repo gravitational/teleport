@@ -16,8 +16,6 @@ OS=$({{.BinUname}} -s)
 ARCH=$({{.BinUname}} -m)
 # shellcheck enable=all
 
-teleportArgs='{{.TeleportArgs}}'
-
 teleportTarballName() {
     if [ "${OS}" = "Darwin" ]; then
         if [ "$fips" = "true"]; then
