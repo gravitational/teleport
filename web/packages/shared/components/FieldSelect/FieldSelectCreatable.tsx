@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { GroupBase, OnChangeValue, StylesConfig } from 'react-select';
+import { GroupBase, OnChangeValue } from 'react-select';
 
 import { BoxProps } from 'design/Box';
 import { useAsync } from 'shared/hooks/useAsync';
