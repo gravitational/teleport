@@ -108,6 +108,9 @@ type App struct {
 	// If this field is not empty, URI is expected to contain no port number and start with the tcp
 	// protocol.
 	TCPPorts []PortRange
+
+	// MCP contains MCP server-related configurations.
+	MCP *types.MCP
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -154,6 +157,9 @@ type PortRange struct {
 func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
+	}
+	if a.MCP != nil && a.MCP.Command != "" {
+		a.URI = types.SchemaMCPStdio
 	}
 	if a.URI == "" {
 		if a.Cloud != "" {

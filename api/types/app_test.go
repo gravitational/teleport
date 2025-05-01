@@ -603,6 +603,60 @@ func TestNewAppV3(t *testing.T) {
 			want:    nil,
 			wantErr: require.Error,
 		},
+		{
+			name: "mcp with command",
+			meta: Metadata{
+				Name: "mcp-everything",
+			},
+			spec: AppSpecV3{
+				MCP: &MCP{
+					Command:        "docker",
+					Args:           []string{"run", "-i", "--rm", "mcp/everything"},
+					RunAsLocalUser: "docker",
+				},
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "mcp-everything",
+					Namespace: "default",
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+stdio://",
+					MCP: &MCP{
+						Command:        "docker",
+						Args:           []string{"run", "-i", "--rm", "mcp/everything"},
+						RunAsLocalUser: "docker",
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp missing spec",
+			meta: Metadata{
+				Name: "mcp-missing-run-as",
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://",
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "mcp missing run_as_local_user",
+			meta: Metadata{
+				Name: "mcp-missing-spec",
+			},
+			spec: AppSpecV3{
+				MCP: &MCP{
+					Command: "docker",
+					Args:    []string{"run", "-i", "--rm", "mcp/everything"},
+				},
+			},
+			wantErr: require.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -656,5 +710,29 @@ func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
 func hasErrAndContains(msg string) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 		require.ErrorContains(t, err, msg, msgAndArgs...)
+	}
+}
+
+func TestGetMCPServerTransportType(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+		want string
+	}{
+		{
+			name: "stdio",
+			uri:  "mcp+stdio://",
+			want: MCPTransportStdio,
+		},
+		{
+			name: "unknown",
+			uri:  "http://localhost",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, GetMCPServerTransportType(tt.uri))
+		})
 	}
 }

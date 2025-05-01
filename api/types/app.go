@@ -70,6 +70,8 @@ type Application interface {
 	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
+	// IsMCP returns true if this app represents a MCP server.
+	IsMCP() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
@@ -101,6 +103,8 @@ type Application interface {
 	SetTCPPorts([]*PortRange)
 	// GetIdentityCenter fetches identity center info for the app, if any.
 	GetIdentityCenter() *AppIdentityCenter
+	// GetMCP fetches MCP specific configuration.
+	GetMCP() *MCP
 }
 
 // NewAppV3 creates a new app resource.
@@ -286,8 +290,18 @@ func (a *AppV3) IsTCP() bool {
 	return IsAppTCP(a.Spec.URI)
 }
 
+// IsMCP returns true if provided uri is an MCP app.
+func (a *AppV3) IsMCP() bool {
+	return IsAppMCP(a.Spec.URI)
+}
+
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
+}
+
+// IsAppMCP returns true if provided uri is an MCP app.
+func IsAppMCP(uri string) bool {
+	return GetMCPServerTransportType(uri) != ""
 }
 
 // GetProtocol returns the application protocol.
@@ -400,6 +414,11 @@ func (a *AppV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("app %q invalid label key: %q", a.GetName(), key)
 		}
 	}
+
+	if a.Spec.MCP != nil && a.Spec.MCP.Command != "" {
+		a.Spec.URI = SchemaMCPStdio
+	}
+
 	if a.Spec.URI == "" {
 		if a.Spec.Cloud != "" {
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
@@ -453,6 +472,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if a.IsMCP() {
+		a.SetSubKind(SubKindMCP)
+		if err := a.checkMCP(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -486,6 +512,28 @@ func (a *AppV3) checkTCPPorts() error {
 	return nil
 }
 
+func (a *AppV3) checkMCP() error {
+	switch GetMCPServerTransportType(a.Spec.URI) {
+	case MCPTransportStdio:
+		return trace.Wrap(a.checkMCPStdio())
+	default:
+		return trace.BadParameter("unsupported MCP server %q with URI %q", a.GetName(), a.Spec.URI)
+	}
+}
+
+func (a *AppV3) checkMCPStdio() error {
+	if a.Spec.MCP == nil {
+		return trace.BadParameter("MCP server %q missing mcp spec", a.GetName())
+	}
+	if a.Spec.MCP.Command == "" {
+		return trace.BadParameter("MCP server %q missing command", a.GetName())
+	}
+	if a.Spec.MCP.RunAsLocalUser == "" {
+		return trace.BadParameter("MCP server %q missing run_as_local_user", a.GetName())
+	}
+	return nil
+}
+
 // GetIdentityCenter returns the Identity Center information for the app, if any.
 // May be nil.
 func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
@@ -509,6 +557,11 @@ func (a *AppV3) IsEqual(i Application) bool {
 		return deriveTeleportEqualAppV3(a, other)
 	}
 	return false
+}
+
+// GetMCP returns MCP specific configuration.
+func (a *AppV3) GetMCP() *MCP {
+	return a.Spec.MCP
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
@@ -594,5 +647,17 @@ func (p *PortRange) String() string {
 		return strconv.Itoa(int(p.Port))
 	} else {
 		return fmt.Sprintf("%d-%d", p.Port, p.EndPort)
+	}
+}
+
+// GetMCPServerTransportType returns the transport of the MCP server based on
+// the URI. If no MCP transport type can be determined from the URI, an empty
+// string is returned.
+func GetMCPServerTransportType(uri string) string {
+	switch {
+	case strings.HasPrefix(uri, SchemaMCPStdio):
+		return MCPTransportStdio
+	default:
+		return ""
 	}
 }

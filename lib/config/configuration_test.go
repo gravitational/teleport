@@ -446,6 +446,16 @@ func TestConfigReading(t *testing.T) {
 					StaticLabels:  Labels,
 					DynamicLabels: CommandLabels,
 				},
+				{
+					Name:         "mcp-everything",
+					StaticLabels: Labels,
+					MCP: &MCP{
+						Command:        "docker",
+						RunAsLocalUser: "docker",
+						Args:           []string{"run", "-i", "--rm", "mcp/everything"},
+						StopSignal:     2,
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1642,6 +1652,16 @@ func makeConfigFixture() string {
 			PublicAddr:    "foo.example.com",
 			StaticLabels:  Labels,
 			DynamicLabels: CommandLabels,
+		},
+		{
+			Name:         "mcp-everything",
+			StaticLabels: Labels,
+			MCP: &MCP{
+				Command:        "docker",
+				Args:           []string{"run", "-i", "--rm", "mcp/everything"},
+				RunAsLocalUser: "docker",
+				StopSignal:     2,
+			},
 		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{

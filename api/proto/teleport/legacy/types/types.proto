@@ -1118,6 +1118,24 @@ message AppSpecV3 {
   // want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
   // setting this value to true will overwrite that public address in the web UI.
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
+  // MCP contains MCP server related configurations.
+  MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
+}
+
+// MCP contains MCP server-related configurations.
+message MCP {
+  // Command to launch stdio-based MCP servers.
+  string command = 1;
+  // Args to execute with the command.
+  repeated string args = 2;
+  // RunAsLocalUser is the local user account under which the command will be
+  // executed. Required for stdio-based MCP servers.
+  string run_as_local_user = 3;
+  // StopSignal specifies the OS signal to send for gracefully stopping the
+  // process. If not set, defaults to 0x2 (SIGINT) as it is a common signal for
+  // stopping programs listening on stdin. Signal 0x9 (SIGKILL) is sent
+  // automatically after 10 seconds if the process has not exited.
+  uint32 stop_signal = 4;
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

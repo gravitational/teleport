@@ -1963,6 +1963,15 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		if application.MCP != nil {
+			app.MCP = &types.MCP{
+				Command:        application.MCP.Command,
+				Args:           application.MCP.Args,
+				RunAsLocalUser: application.MCP.RunAsLocalUser,
+				StopSignal:     application.MCP.StopSignal,
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
