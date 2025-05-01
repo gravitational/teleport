@@ -51,7 +51,7 @@ import (
 )
 
 const (
-	awskmsPrefix  = "awskms:"
+	awskmsPrefix  = "awskms"
 	awsKeySep     = ":"
 	clusterTagKey = "TeleportCluster"
 
@@ -138,7 +138,16 @@ func (a *awsKMSKeystore) keyTypeDescription() string {
 	return fmt.Sprintf("AWS KMS keys in account %s and region %s", a.awsAccount, a.awsRegion)
 }
 
-func (a *awsKMSKeystore) generateKeyID(ctx context.Context, algorithm cryptosuites.Algorithm, keyUsage kmstypes.KeyUsageType) (awsKMSKeyID, error) {
+func (u keyUsage) toAWS() kmstypes.KeyUsageType {
+	switch u {
+	case keyUsageDecrypt:
+		return kmstypes.KeyUsageTypeEncryptDecrypt
+	default:
+		return kmstypes.KeyUsageTypeSignVerify
+	}
+}
+
+func (a *awsKMSKeystore) generateKeyID(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (awsKMSKeyID, error) {
 	alg, err := awsAlgorithm(algorithm)
 	if err != nil {
 		return awsKMSKeyID{}, trace.Wrap(err)
@@ -159,7 +168,7 @@ func (a *awsKMSKeystore) generateKeyID(ctx context.Context, algorithm cryptosuit
 	output, err := a.kms.CreateKey(ctx, &kms.CreateKeyInput{
 		Description: aws.String("Teleport CA key"),
 		KeySpec:     alg,
-		KeyUsage:    keyUsage,
+		KeyUsage:    usage.toAWS(),
 		Tags:        tags,
 		MultiRegion: aws.Bool(a.multiRegionEnabled),
 	})
@@ -174,7 +183,7 @@ func (a *awsKMSKeystore) generateKeyID(ctx context.Context, algorithm cryptosuit
 		arn:     keyARN,
 		account: a.awsAccount,
 		region:  a.awsRegion,
-		usage:   keyUsage,
+		usage:   usage,
 	}
 
 	return keyID, nil
@@ -184,7 +193,7 @@ func (a *awsKMSKeystore) generateKeyID(ctx context.Context, algorithm cryptosuit
 // generateSigner creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
 func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	keyID, err := a.generateKeyID(ctx, algorithm, kmstypes.KeyUsageTypeSignVerify)
+	keyID, err := a.generateKeyID(ctx, algorithm, keyUsageSign)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -200,7 +209,7 @@ func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosui
 // generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
 // identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
 func (a *awsKMSKeystore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, error) {
-	keyID, err := a.generateKeyID(ctx, algorithm, kmstypes.KeyUsageTypeEncryptDecrypt)
+	keyID, err := a.generateKeyID(ctx, algorithm, keyUsageDecrypt)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -403,7 +412,12 @@ func (a *awsKMSKeystore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return keyID.usage == kmstypes.KeyUsageTypeSignVerify && keyID.account == a.awsAccount && keyID.region == a.awsRegion, nil
+
+	if keyID.usage != keyUsageSign && keyID.usage != keyUsageNone {
+		return false, nil
+	}
+
+	return keyID.account == a.awsAccount && keyID.region == a.awsRegion, nil
 }
 
 // canDecryptWithKey returns true if this KeyStore is able to sign with the given
@@ -418,7 +432,7 @@ func (a *awsKMSKeystore) canDecryptWithKey(ctx context.Context, raw []byte, keyT
 		return false, trace.Wrap(err)
 	}
 
-	return keyID.usage == kmstypes.KeyUsageTypeEncryptDecrypt &&
+	return keyID.usage == keyUsageDecrypt &&
 		keyID.account == a.awsAccount &&
 		keyID.region == a.awsRegion, nil
 }
@@ -583,39 +597,38 @@ func (a *awsKMSKeystore) forEachKey(ctx context.Context, fn func(ctx context.Con
 
 type awsKMSKeyID struct {
 	arn, account, region string
-	usage                kmstypes.KeyUsageType
+	usage                keyUsage
 }
 
 func (a awsKMSKeyID) marshal() []byte {
-	return []byte(awskmsPrefix + a.arn + awsKeySep + string(a.usage))
+	keyParts := []string{awskmsPrefix, a.arn}
+	if a.usage != keyUsageNone {
+		keyParts = append(keyParts, string(a.usage))
+	}
+
+	return []byte(strings.Join(keyParts, awsKeySep))
 }
 
 func parseAWSKMSKeyID(raw []byte) (awsKMSKeyID, error) {
 	if keyType(raw) != types.PrivateKeyType_AWS_KMS {
 		return awsKMSKeyID{}, trace.BadParameter("unable to parse invalid AWS KMS key")
 	}
-	keyARN := strings.TrimPrefix(string(raw), awskmsPrefix)
-	parsedARN, err := arn.Parse(keyARN)
+	rawARN := strings.TrimPrefix(string(raw), awskmsPrefix+awsKeySep)
+	keyARN, err := arn.Parse(rawARN)
 	if err != nil {
 		return awsKMSKeyID{}, trace.Wrap(err, "unable parse ARN of AWS KMS key")
 	}
 
-	// usage defaults to KeyUsageTypeSignVerify because that was the only
-	// possibility before we started tracking usage on the awsKMSKeyID
-	usage := kmstypes.KeyUsageTypeSignVerify
-	resource, rawUsage, found := strings.Cut(parsedARN.Resource, awsKeySep)
-	if found {
-		parsedARN.Resource = resource
-		if kmstypes.KeyUsageType(rawUsage) == kmstypes.KeyUsageTypeEncryptDecrypt {
-			usage = kmstypes.KeyUsageTypeEncryptDecrypt
-		}
-	}
+	// key usage info will end up being appended to the arn's resource, so we need to make
+	// sure it gets reassigned properly
+	resource, usage, _ := strings.Cut(keyARN.Resource, awsKeySep)
+	keyARN.Resource = resource
 
 	return awsKMSKeyID{
-		arn:     parsedARN.String(),
-		account: parsedARN.AccountID,
-		region:  parsedARN.Region,
-		usage:   usage,
+		arn:     keyARN.String(),
+		account: keyARN.AccountID,
+		region:  keyARN.Region,
+		usage:   keyUsage(usage),
 	}, nil
 }
 

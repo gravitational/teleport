@@ -69,6 +69,15 @@ const (
 	labelCryptoAlgorithm = "key_algorithm"
 )
 
+// keyUsage marks a given key to be used either with signing or decryption
+type keyUsage string
+
+const (
+	keyUsageNone    keyUsage = ""
+	keyUsageSign    keyUsage = "sign"
+	keyUsageDecrypt keyUsage = "decrypt"
+)
+
 var (
 	signCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,

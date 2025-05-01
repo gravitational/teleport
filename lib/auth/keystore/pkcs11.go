@@ -273,6 +273,11 @@ func (p *pkcs11KeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+
+	if keyID.Usage != keyUsageSign && keyID.Usage != keyUsageNone {
+		return false, nil
+	}
+
 	return keyID.HostID == p.hostUUID, nil
 }
 
@@ -289,8 +294,7 @@ func (p *pkcs11KeyStore) canDecryptWithKey(ctx context.Context, raw []byte, keyT
 		return false, trace.Wrap(err)
 	}
 
-	// TODO (eriktate): verify this key can actually decrypt things
-	return keyID.HostID == p.hostUUID, nil
+	return keyID.Usage == keyUsageDecrypt && keyID.HostID == p.hostUUID, nil
 }
 
 // deleteKey deletes the given key from the HSM
@@ -396,8 +400,9 @@ type publicKey interface {
 }
 
 type keyID struct {
-	HostID string `json:"host_id"`
-	KeyID  string `json:"key_id"`
+	HostID string   `json:"host_id"`
+	KeyID  string   `json:"key_id"`
+	Usage  keyUsage `json:"key_usage,omitempty"`
 }
 
 func (k keyID) marshal() ([]byte, error) {
@@ -440,5 +445,6 @@ func parsePKCS11KeyID(key []byte) (keyID, error) {
 	if err := json.Unmarshal(key, &keyID); err != nil {
 		return keyID, trace.Wrap(err)
 	}
+
 	return keyID, nil
 }
