@@ -32,6 +32,7 @@ import {
   getBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
+import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { ResourceItemProps } from '../types';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
@@ -220,7 +221,9 @@ export function ResourceCard({
                 </HoverTooltip>
               </SingleLineBox>
               {hovered && <CopyButton name={name} mr={2} />}
-              {ActionButton}
+              <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
+                {ActionButton}
+              </ResourceActionButtonWrapper>
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
