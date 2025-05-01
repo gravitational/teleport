@@ -45,7 +45,7 @@ import (
 const (
 	// GCP does not allow "." or "/" in labels
 	hostLabel                      = "teleport_auth_host"
-	gcpkmsPrefix                   = "gcpkms:"
+	gcpkmsPrefix                   = "gcpkms"
 	gcpKeySep                      = ":"
 	defaultGCPRequestTimeout       = 30 * time.Second
 	defaultGCPPendingTimeout       = 2 * time.Minute
@@ -111,7 +111,7 @@ func (g *gcpKMSKeyStore) keyTypeDescription() string {
 	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
 }
 
-func (g *gcpKMSKeyStore) generateKeyID(ctx context.Context, algorithm cryptosuites.Algorithm, purpose kmspb.CryptoKey_CryptoKeyPurpose) (gcpKMSKeyID, error) {
+func (g *gcpKMSKeyStore) generateKeyID(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {
 	alg, err := gcpAlgorithm(algorithm)
 	if err != nil {
 		return gcpKMSKeyID{}, trace.Wrap(err)
@@ -124,7 +124,7 @@ func (g *gcpKMSKeyStore) generateKeyID(ctx context.Context, algorithm cryptosuit
 		Parent:      g.keyRing,
 		CryptoKeyId: keyUUID,
 		CryptoKey: &kmspb.CryptoKey{
-			Purpose: purpose,
+			Purpose: usage.toGCP(),
 			Labels: map[string]string{
 				hostLabel: g.hostUUID,
 			},
@@ -141,7 +141,7 @@ func (g *gcpKMSKeyStore) generateKeyID(ctx context.Context, algorithm cryptosuit
 
 	return gcpKMSKeyID{
 		keyVersionName: resp.Name + keyVersionSuffix,
-		usage:          getKeyUsageFromPurpose(purpose),
+		usage:          usage,
 	}, nil
 }
 
@@ -149,7 +149,7 @@ func (g *gcpKMSKeyStore) generateKeyID(ctx context.Context, algorithm cryptosuit
 // identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getSigner
 // later to get an equivalent crypto.Signer.
 func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
-	keyID, err := g.generateKeyID(ctx, algorithm, kmspb.CryptoKey_ASYMMETRIC_SIGN)
+	keyID, err := g.generateKeyID(ctx, algorithm, keyUsageSign)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -165,7 +165,7 @@ func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosui
 // identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getDecrypter
 // later to get an equivalent crypto.Decrypter.
 func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, error) {
-	keyID, err := g.generateKeyID(ctx, algorithm, kmspb.CryptoKey_ASYMMETRIC_DECRYPT)
+	keyID, err := g.generateKeyID(ctx, algorithm, keyUsageDecrypt)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -239,7 +239,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 		return false, nil
 	}
 
-	return keyID.usage == keyUsageSign, nil
+	return keyID.usage == keyUsageSign || keyID.usage == keyUsageNone, nil
 }
 
 func (g *gcpKMSKeyStore) canDecryptWithKey(ctx context.Context, raw []byte, keyType types.PrivateKeyType) (bool, error) {
@@ -444,19 +444,12 @@ func (s *kmsKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.Decrypte
 	return resp.Plaintext, nil
 }
 
-type keyUsage string
-
-const (
-	keyUsageSign    keyUsage = "sign"
-	keyUsageDecrypt keyUsage = "decrypt"
-)
-
-func getKeyUsageFromPurpose(purpose kmspb.CryptoKey_CryptoKeyPurpose) keyUsage {
-	switch purpose {
-	case kmspb.CryptoKey_ASYMMETRIC_DECRYPT:
-		return keyUsageDecrypt
+func (u keyUsage) toGCP() kmspb.CryptoKey_CryptoKeyPurpose {
+	switch u {
+	case keyUsageDecrypt:
+		return kmspb.CryptoKey_ASYMMETRIC_DECRYPT
 	default:
-		return keyUsageSign
+		return kmspb.CryptoKey_ASYMMETRIC_SIGN
 	}
 }
 
@@ -466,7 +459,12 @@ type gcpKMSKeyID struct {
 }
 
 func (g gcpKMSKeyID) marshal() []byte {
-	return []byte(gcpkmsPrefix + g.keyVersionName + gcpKeySep + string(g.usage))
+	keyParts := []string{gcpkmsPrefix, g.keyVersionName}
+	if g.usage != keyUsageNone {
+		keyParts = append(keyParts, string(g.usage))
+	}
+
+	return []byte(strings.Join(keyParts, gcpKeySep))
 }
 
 func (g gcpKMSKeyID) keyring() (string, error) {
@@ -488,14 +486,10 @@ func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {
 		return keyID, trace.BadParameter("unable to parse invalid GCP KMS key")
 	}
 	// strip gcpkms: prefix and split out usage if present
-	keyVersionName, usage, found := strings.Cut(strings.TrimPrefix(string(key), gcpkmsPrefix), gcpKeySep)
+	keyWithoutPrefix := strings.TrimPrefix(string(key), gcpkmsPrefix+gcpKeySep)
+	keyVersionName, usage, _ := strings.Cut(keyWithoutPrefix, gcpKeySep)
 
-	// usage defaults to keyUsageSign because that was the only possibility
-	// before we started tracking usage on the gcpKMSKeyID
-	keyID.usage = keyUsageSign
-	if found && keyUsage(usage) == keyUsageDecrypt {
-		keyID.usage = keyUsageDecrypt
-	}
+	keyID.usage = keyUsage(usage)
 	keyID.keyVersionName = keyVersionName
 
 	return keyID, nil
