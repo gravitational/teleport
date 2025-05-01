@@ -1240,11 +1240,6 @@ func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ semver.Ve
 	return nil
 }
 
-// DeleteTeleportVersion error stub function for deleting.
-func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
-	return nil
-}
-
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*state.Identity, error) {
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)

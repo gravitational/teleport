@@ -126,10 +126,6 @@ func validateAndUpdateTeleportVersion(
 				"upgrade_version", currentVersion.String())
 		}
 
-		if err := procStorage.DeleteTeleportVersion(ctx); err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-
 		return nil
 	}
 	return err

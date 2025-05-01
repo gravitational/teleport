@@ -85,8 +85,6 @@ type VersionStorage interface {
 	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
 	WriteTeleportVersion(ctx context.Context, version semver.Version) error
-	// DeleteTeleportVersion removes the last known Teleport version in storage.
-	DeleteTeleportVersion(ctx context.Context) error
 }
 
 // InitConfig is auth server init config
@@ -422,7 +420,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	}
 
 	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService,
-		teleport.SemVer(), cfg.SkipVersionCheck); err != nil {
+		*teleport.SemVer(), cfg.SkipVersionCheck); err != nil {
 		return trace.Wrap(err)
 	}
 
