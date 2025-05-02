@@ -303,10 +303,11 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
+	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	database := dbServer.GetDatabase()
 
 	switch {
 	case database.IsAWSHosted():
@@ -818,8 +819,8 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	return nil
 }
 
-// fetchDatabaseWithName fetch a database with provided database name.
-func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
+// fetchDatabaseServerByDatabaseName fetch a database with provided database name.
+func fetchDatabaseServerByDatabaseName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.DatabaseServer, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -839,7 +840,7 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	case 0:
 		return nil, trace.NotFound("database %q not found", databaseName)
 	default:
-		return servers[0].GetDatabase(), nil
+		return servers[0], nil
 	}
 }
 
