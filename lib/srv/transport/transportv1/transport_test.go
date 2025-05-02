@@ -101,7 +101,12 @@ func (c *echoConn) Close() error {
 type fakeDialer struct {
 	siteConns           map[string]net.Conn
 	hostConns           map[string]net.Conn
-	windowsDesktopConns map[string]net.Conn
+	windowsDesktopConns map[windowsDesktopConnKey]net.Conn
+}
+
+type windowsDesktopConnKey struct {
+	clusterName string
+	desktopName string
 }
 
 func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
@@ -124,10 +129,13 @@ func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 }
 
 func (f fakeDialer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error) {
-	key := fmt.Sprintf("%s.%s", cluster, desktopName)
+	key := windowsDesktopConnKey{
+		clusterName: cluster,
+		desktopName: desktopName,
+	}
 	conn, ok := f.windowsDesktopConns[key]
 	if !ok {
-		return nil, trace.NotFound("%s", key)
+		return nil, trace.NotFound("%+v", key)
 	}
 
 	return conn, nil
@@ -679,7 +687,6 @@ func TestService_ProxySSH(t *testing.T) {
 // * if raw messages are proxied over the stream.
 func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 	t.Parallel()
-	const fakeDesktop = "test.win_desktop"
 
 	tests := []struct {
 		name      string
@@ -802,8 +809,11 @@ func TestService_ProxyWindowsDesktopSession(t *testing.T) {
 
 			srv := newServer(t, ServerConfig{
 				Dialer: fakeDialer{
-					windowsDesktopConns: map[string]net.Conn{
-						fakeDesktop: conn,
+					windowsDesktopConns: map[windowsDesktopConnKey]net.Conn{
+						windowsDesktopConnKey{
+							clusterName: "test",
+							desktopName: "win_desktop",
+						}: conn,
 					},
 				},
 				SignerFn:          fakeSigner,
