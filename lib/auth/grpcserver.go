@@ -69,6 +69,7 @@ import (
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	secreportsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -5679,6 +5680,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	// Enterprise builds would fail with a duplicate service registered error.
 	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
 		loginrulev1pb.RegisterLoginRuleServiceServer(server, loginrulev1.NotImplementedService{})
+		secreportsv1pb.RegisterSecReportsServiceServer(server, secreportsv1pb.UnimplementedSecReportsServiceServer{})
 	}
 
 	decisionService, err := decisionv1.NewService(decisionv1.ServiceConfig{
