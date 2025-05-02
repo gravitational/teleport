@@ -1349,6 +1349,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
+
 	// add db
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: "dbdb",
@@ -1368,6 +1369,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
 
@@ -1423,6 +1425,28 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Empty(t, res.Items)
+
+	// query only databases
+	type dbResponse struct {
+		Items      []webui.Database `json:"items"`
+		TotalCount int              `json:"totalCount"`
+	}
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"1"}, "kinds": []string{types.KindDatabase}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	dbRes := dbResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbRes))
+	require.Len(t, dbRes.Items, 1)
+	require.ElementsMatch(t, dbRes.Items, []webui.Database{{
+		Kind:         types.KindDatabase,
+		Name:         "dbdb",
+		Type:         types.DatabaseTypeSelfHosted,
+		Labels:       []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol:     "test-protocol",
+		Hostname:     "test-uri",
+		URI:          "test-uri",
+		TargetHealth: types.TargetHealth{Status: "testing-status"},
+	}})
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -4116,6 +4140,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
@@ -4128,13 +4153,14 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
 	require.ElementsMatch(t, resp.Items, []webui.Database{{
-		Kind:     types.KindDatabase,
-		Name:     "dbdb",
-		Type:     types.DatabaseTypeSelfHosted,
-		Labels:   []ui.Label{{Name: "env", Value: "prod"}},
-		Protocol: "test-protocol",
-		Hostname: "test-uri",
-		URI:      "test-uri:1234",
+		Kind:         types.KindDatabase,
+		Name:         "dbdb",
+		Type:         types.DatabaseTypeSelfHosted,
+		Labels:       []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol:     "test-protocol",
+		Hostname:     "test-uri",
+		URI:          "test-uri:1234",
+		TargetHealth: types.TargetHealth{Status: "testing-status"},
 	}})
 }
 
