@@ -33,14 +33,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
-	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -509,7 +506,6 @@ type Cache struct {
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
-	crownJewelsCache             services.CrownJewels
 	databaseObjectsCache         *local.DatabaseObjectService
 	webTokenCache                types.WebTokenInterface
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
@@ -980,12 +976,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	crownJewelCache, err := local.NewCrownJewelsService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1042,7 +1032,6 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
-		crownJewelsCache:             crownJewelCache,
 		webTokenCache:                identityService.WebTokens(),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
@@ -2213,32 +2202,6 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	return rg.reader.GetDiscoveryConfig(ctx, name)
 }
 
-// ListCrownJewels returns a list of CrownJewel resources.
-func (c *Cache) ListCrownJewels(ctx context.Context, pageSize int64, nextKey string) ([]*crownjewelv1.CrownJewel, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListCrownJewels")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.crownJewels)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListCrownJewels(ctx, pageSize, nextKey)
-}
-
-// GetCrownJewel returns the specified CrownJewel resource.
-func (c *Cache) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetCrownJewel")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.crownJewels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetCrownJewel(ctx, name)
-}
-
 // GetSecurityAuditQuery returns the specified audit query resource.
 func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
@@ -2650,31 +2613,6 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
-}
-
-// GetAccessGraphSettings gets AccessGraphSettings from the backend.
-func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessGraphSettings)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
-			cfg, err := rg.reader.GetAccessGraphSettings(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		clone := protobuf.Clone(cachedCfg).(*clusterconfigpb.AccessGraphSettings)
-		return clone, nil
-	}
-	return rg.reader.GetAccessGraphSettings(ctx)
 }
 
 func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {

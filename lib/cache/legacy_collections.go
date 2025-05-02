@@ -27,8 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -89,11 +87,6 @@ type executor[T any, R any] interface {
 // noReader is returned by getReader for resources which aren't directly used by the cache, and therefore have no associated reader.
 type noReader struct{}
 
-type crownjewelsGetter interface {
-	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
-	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
-}
-
 type userTasksGetter interface {
 	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
@@ -113,7 +106,6 @@ type legacyCollections struct {
 	installers                         collectionReader[installerGetter]
 	integrations                       collectionReader[services.IntegrationsGetter]
 	userTasks                          collectionReader[userTasksGetter]
-	crownJewels                        collectionReader[crownjewelsGetter]
 	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	locks                              collectionReader[services.LockGetter]
@@ -124,7 +116,6 @@ type legacyCollections struct {
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
 	webTokens                          collectionReader[webTokenGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
-	accessGraphSettings                collectionReader[accessGraphSettingsGetter]
 	accessMonitoringRules              collectionReader[accessMonitoringRuleGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
@@ -200,15 +191,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.databaseObjects
-		case types.KindCrownJewel:
-			if c.CrownJewels == nil {
-				return nil, trace.BadParameter("missing parameter crownjewels")
-			}
-			collections.crownJewels = &genericCollection[*crownjewelv1.CrownJewel, crownjewelsGetter, crownJewelsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.crownJewels
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -311,15 +293,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessMonitoringRules
-		case types.KindAccessGraphSettings:
-			if c.ClusterConfig == nil {
-				return nil, trace.BadParameter("missing parameter ClusterConfig")
-			}
-			collections.accessGraphSettings = &genericCollection[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter, accessGraphSettingsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.accessGraphSettings
+
 		case types.KindProvisioningPrincipalState:
 			if c.ProvisioningStates == nil {
 				return nil, trace.BadParameter("missing parameter KindProvisioningState")
@@ -940,51 +914,6 @@ type staticHostUserGetter interface {
 	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
 }
 
-type crownJewelsExecutor struct{}
-
-func (crownJewelsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*crownjewelv1.CrownJewel, error) {
-	var resources []*crownjewelv1.CrownJewel
-	var nextToken string
-	for {
-		var page []*crownjewelv1.CrownJewel
-		var err error
-		page, nextToken, err = cache.CrownJewels.ListCrownJewels(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
-}
-
-func (crownJewelsExecutor) upsert(ctx context.Context, cache *Cache, resource *crownjewelv1.CrownJewel) error {
-	_, err := cache.crownJewelsCache.UpsertCrownJewel(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (crownJewelsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.crownJewelsCache.DeleteAllCrownJewels(ctx)
-}
-
-func (crownJewelsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.crownJewelsCache.DeleteCrownJewel(ctx, resource.GetName())
-}
-
-func (crownJewelsExecutor) isSingleton() bool { return false }
-
-func (crownJewelsExecutor) getReader(cache *Cache, cacheOK bool) crownjewelsGetter {
-	if cacheOK {
-		return cache.crownJewelsCache
-	}
-	return cache.Config.CrownJewels
-}
-
-var _ executor[*crownjewelv1.CrownJewel, crownjewelsGetter] = crownJewelsExecutor{}
-
 type userTasksExecutor struct{}
 
 func (userTasksExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*usertasksv1.UserTask, error) {
@@ -1385,42 +1314,3 @@ type accessMonitoringRuleGetter interface {
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 }
-
-type accessGraphSettingsExecutor struct{}
-
-func (accessGraphSettingsExecutor) getAll(ctx context.Context, cache *Cache, _ bool) ([]*clusterconfigpb.AccessGraphSettings, error) {
-	set, err := cache.ClusterConfig.GetAccessGraphSettings(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return []*clusterconfigpb.AccessGraphSettings{set}, nil
-}
-
-func (accessGraphSettingsExecutor) upsert(ctx context.Context, cache *Cache, resource *clusterconfigpb.AccessGraphSettings) error {
-	_, err := cache.clusterConfigCache.UpsertAccessGraphSettings(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (accessGraphSettingsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.clusterConfigCache.DeleteAccessGraphSettings(ctx))
-}
-
-func (accessGraphSettingsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.clusterConfigCache.DeleteAccessGraphSettings(ctx))
-}
-
-func (accessGraphSettingsExecutor) isSingleton() bool { return false }
-
-func (accessGraphSettingsExecutor) getReader(cache *Cache, cacheOK bool) accessGraphSettingsGetter {
-	if cacheOK {
-		return cache.clusterConfigCache
-	}
-	return cache.Config.ClusterConfig
-}
-
-type accessGraphSettingsGetter interface {
-	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
-}
-
-var _ executor[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter] = accessGraphSettingsExecutor{}
