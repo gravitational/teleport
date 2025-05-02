@@ -45,6 +45,9 @@ var errNoBaseURL = errors.New("baseURL is not defined")
 
 // Dir returns the path to client tools in $TELEPORT_HOME/bin.
 func Dir() (string, error) {
+	if toolsDir := os.Getenv(teleportToolsDirsEnv); toolsDir != "" {
+		return toolsDir, nil
+	}
 	home := os.Getenv(types.HomeEnvVar)
 	if home == "" {
 		var err error
@@ -53,7 +56,10 @@ func Dir() (string, error) {
 			return "", trace.Wrap(err)
 		}
 	}
-
+	home, err := filepath.Abs(home)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 	return filepath.Join(home, ".tsh", "bin"), nil
 }
 

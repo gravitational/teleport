@@ -528,6 +528,14 @@ type Config struct {
 
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+
+	// ManagedUpdates stores information about managed updates for the cluster.
+	ManagedUpdates *ManagedUpdates
+}
+
+// ManagedUpdates is structure for saving managed update related configuration.
+type ManagedUpdates struct {
+	Disabled bool
 }
 
 // CachePolicy defines cache policy for local clients
@@ -711,7 +719,12 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	if err := tools.CheckAndUpdateRemote(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify, os.Args[1:]); err != nil {
+	if _, err := tools.CheckAndUpdateRemote(
+		ctx,
+		tc.WebProxyAddr,
+		tc.InsecureSkipVerify,
+		os.Args[1:],
+	); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -901,6 +914,9 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.SSOHost = profile.SSOHost
+	if profile.ManagedUpdates != nil {
+		c.ManagedUpdates = &ManagedUpdates{Disabled: profile.ManagedUpdates.Disabled}
+	}
 
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
@@ -937,6 +953,10 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 
 // Profile converts Config to *profile.Profile.
 func (c *Config) Profile() *profile.Profile {
+	var managedUpdate *profile.ManagedUpdates
+	if c.ManagedUpdates != nil {
+		managedUpdate = &profile.ManagedUpdates{Disabled: c.ManagedUpdates.Disabled}
+	}
 	return &profile.Profile{
 		Username:                      c.Username,
 		WebProxyAddr:                  c.WebProxyAddr,
@@ -957,6 +977,7 @@ func (c *Config) Profile() *profile.Profile {
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
 		SSOHost:                       c.SSOHost,
+		ManagedUpdates:                managedUpdate,
 	}
 }
 

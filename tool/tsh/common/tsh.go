@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/autoupdate/tools/helper"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -735,10 +736,6 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
-	if err := tools.CheckAndUpdateLocal(ctx, args); err != nil {
-		return trace.Wrap(err)
-	}
-
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -1328,6 +1325,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Identity file, a proxy must be passed on the command line as well.
 	if cf.IdentityFileIn != "" && cf.Proxy == "" {
 		return trace.BadParameter("tsh --identity also requires --proxy")
+	}
+
+	if p, err := cf.GetProfile(); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	} else {
+		if err := helper.ManagedUpdateLocal(ctx, p, args); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
@@ -1950,7 +1955,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1968,12 +1973,11 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
+			if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
@@ -1988,15 +1992,13 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
-			_, err := tc.PingAndShowMOTD(cf.Context)
-			if err != nil {
+			if _, err := tc.PingAndShowMOTD(cf.Context); err != nil {
 				return trace.Wrap(err)
 			}
-
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
@@ -2064,7 +2066,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := tools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+			if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -4597,6 +4599,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
+
 	return c, nil
 }
 

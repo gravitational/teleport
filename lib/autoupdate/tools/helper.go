@@ -37,7 +37,23 @@ var (
 	version = teleport.Version
 	// baseURL is CDN URL for downloading official Teleport packages.
 	baseURL = autoupdate.DefaultBaseURL
+	// ErrDisabled returns when home folder isn't set
+	ErrDisabled = errors.New("client tools update is disabled")
 )
+
+func InitUpdater() (*Updater, error) {
+	toolsDir, err := Dir()
+	if err != nil {
+		return nil, ErrDisabled
+	}
+
+	// Overrides default base URL for custom CDN for downloading updates.
+	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
+		baseURL = envBaseURL
+	}
+
+	return NewUpdater(toolsDir, version, WithBaseURL(baseURL)), nil
+}
 
 // CheckAndUpdateLocal verifies if the TELEPORT_TOOLS_VERSION environment variable
 // is set and a version is defined (or disabled by setting it to "off"). The requested
@@ -62,12 +78,12 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 	// At process startup, check if a version has already been downloaded to
 	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
 	// environment variable. If so, re-exec that version of client tools.
-	toolsVersion, reExec, err := updater.CheckLocal()
+	resp, err := updater.CheckLocal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if reExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
+	if resp.ReExec {
+		return trace.Wrap(UpdateAndReExec(ctx, updater, resp.Version, reExecArgs))
 	}
 
 	return nil
@@ -80,31 +96,23 @@ func CheckAndUpdateLocal(ctx context.Context, reExecArgs []string) error {
 // with the updated version.
 // If $TELEPORT_HOME/bin contains downloaded client tools, it always re-executes
 // using the version from the home directory.
-func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reExecArgs []string) error {
-	toolsDir, err := Dir()
+func CheckAndUpdateRemote(ctx context.Context, proxy string, insecure bool, reExecArgs []string) (*UpdateResponse, error) {
+	updater, err := InitUpdater()
 	if err != nil {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
-		return nil
+		return nil, trace.Wrap(err)
 	}
-
-	// Overrides default base URL for custom CDN for downloading updates.
-	if envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar); envBaseURL != "" {
-		baseURL = envBaseURL
-	}
-
-	updater := NewUpdater(toolsDir, version, WithBaseURL(baseURL))
-	toolsVersion, reExec, err := updater.CheckRemote(ctx, proxy, insecure)
+	resp, err := updater.CheckRemote(ctx, proxy, insecure)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	if reExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, toolsVersion, reExecArgs))
+	if resp.ReExec {
+		return nil, trace.Wrap(UpdateAndReExec(ctx, updater, resp.Version, reExecArgs))
 	}
 
-	return nil
+	return resp, nil
 }
 
-func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) error {
+func UpdateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) error {
 	ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 	defer cancel()
 	// Download the version of client tools required by the cluster. This
