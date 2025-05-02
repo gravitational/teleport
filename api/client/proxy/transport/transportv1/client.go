@@ -123,12 +123,6 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 	}
 	tlsConn := tls.Client(conn, tlsConfig)
 	if err = tlsConn.HandshakeContext(ctx); err != nil {
-		if errors.Is(err, io.EOF) || trace.IsConnectionProblem(err) {
-			// We failed to establish the connection to the desktop service,
-			// read the error from stream.
-			_, err := stream.Recv()
-			return nil, trace.Wrap(err)
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -143,7 +137,14 @@ type desktopStream struct {
 }
 
 func (d desktopStream) Send(p []byte) error {
-	return trace.Wrap(d.stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{Data: p}))
+	err := d.stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{Data: p})
+	// Per the BidiStreamingClient.Send docs, if io.EOF is returned,
+	// the status of the stream may be discovered using Recv().
+	if errors.Is(err, io.EOF) {
+		_, err = d.stream.Recv()
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(err)
 }
 
 func (d desktopStream) Recv() ([]byte, error) {
