@@ -1319,8 +1319,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
-	printDocs := app.Command("docs", "Print CLI documentation").Hidden()
-
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
 	tid := touchid.NewCommand(app)
@@ -1747,8 +1745,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
-	case printDocs.FullCommand():
-		utils.PrintCLIDocs(os.Stdout, app)
 	default:
 		// Handle commands that might not be available.
 		switch {
