@@ -504,7 +504,6 @@ type Cache struct {
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
 	databaseObjectsCache         *local.DatabaseObjectService
-	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	userGroupsCache              services.UserGroups
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
@@ -956,12 +955,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dynamicDesktopsService, err := local.NewDynamicWindowsDesktopService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
 		Backend: config.Backend})
 	if err != nil {
@@ -1000,7 +993,6 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
-		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		userGroupsCache:              userGroupsCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: identityService,
@@ -1858,32 +1850,6 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	defer rg.Release()
 
 	return rg.reader.GetNetworkRestrictions(ctx)
-}
-
-// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
-func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDynamicWindowsDesktop(ctx, name)
-}
-
-// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
-func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.dynamicWindowsDesktops)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }
 
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.

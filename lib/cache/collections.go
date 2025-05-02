@@ -77,6 +77,7 @@ type collections struct {
 	kubeClusters                     *collection[types.KubeCluster, kubeClusterIndex]
 	windowsDesktops                  *collection[types.WindowsDesktop, windowsDesktopIndex]
 	windowsDesktopServices           *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
+	dynamicWindowsDesktops           *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
 	userGroups                       *collection[types.UserGroup, userGroupIndex]
 	identityCenterAccounts           *collection[*identitycenterv1.Account, identityCenterAccountIndex]
 	identityCenterAccountAssignments *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
@@ -267,6 +268,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.windowsDesktopServices = collect
 			out.byKind[resourceKind] = out.windowsDesktopServices
+		case types.KindDynamicWindowsDesktop:
+			collect, err := newDynamicWindowsDesktopCollection(c.DynamicWindowsDesktops, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.dynamicWindowsDesktops = collect
+			out.byKind[resourceKind] = out.dynamicWindowsDesktops
 		case types.KindUserGroup:
 			collect, err := newUserGroupCollection(c.UserGroups, watch)
 			if err != nil {

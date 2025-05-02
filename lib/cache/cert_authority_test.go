@@ -94,7 +94,6 @@ func TestNodeCAFiltering(t *testing.T) {
 		DynamicAccess:           p.cache.dynamicAccessCache,
 		Presence:                p.cache.presenceCache,
 		Restrictions:            p.cache.restrictionsCache,
-		DynamicWindowsDesktops:  p.cache.dynamicWindowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		StaticHostUsers:         p.staticHostUsers,
