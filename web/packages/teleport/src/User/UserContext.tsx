@@ -51,12 +51,7 @@ export interface UserContextValue {
   getClusterPinnedResources: (clusterId: string) => Promise<string[]>;
 }
 
-export const UserContext = createContext<UserContextValue>({
-  preferences: makeDefaultUserPreferences(),
-  updatePreferences: () => Promise.reject('unimplemented'),
-  updateClusterPinnedResources: () => Promise.reject('unimplemented'),
-  getClusterPinnedResources: () => Promise.reject('unimplemented'),
-});
+export const UserContext = createContext<UserContextValue>(null);
 
 export function useUser(): UserContextValue {
   return useContext(UserContext);

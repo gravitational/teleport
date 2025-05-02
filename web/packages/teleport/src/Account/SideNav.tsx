@@ -1,0 +1,137 @@
+import React, { useEffect, useState } from 'react';
+import { useHistory } from 'react-router';
+import { NavLink, useLocation } from 'react-router-dom';
+import styled from 'styled-components';
+
+import cfg from 'teleport/config';
+
+import { preferencesHeadings } from './Preferences';
+import { securityHeadings } from './SecuritySettings';
+
+const SideNavWrapper = styled.aside`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+`;
+
+const SectionTitle = styled.div`
+  display: flex;
+  flex-basis: 100%;
+  padding-top: ${p => p.theme.space[2]}px;
+  padding-bottom: ${p => p.theme.space[2]}px;
+  padding-left: ${p => p.theme.space[2]}px;
+  border-radius: ${p => p.theme.radii[2]}px;
+  cursor: pointer;
+  text-decoration: none;
+  color: ${p => p.theme.colors.text.main};
+  font-weight: ${p => p.theme.bold};
+  font-size: ${p => p.theme.fontSizes[3]}px;
+
+  &.active {
+    background: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+    border-left: ${p => p.theme.borders[3]}
+      ${p => p.theme.colors.interactive.solid.primary.default};
+    padding-left: ${p => p.theme.space[1]}px;
+  }
+
+  &:hover:not(.active) {
+    background: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+  }
+`;
+
+const LinkList = styled.ul`
+  list-style: none;
+  padding: ${p => p.theme.space[0]}px;
+  margin: ${p => p.theme.space[0]}px;
+`;
+
+const HeadingItem = styled.a`
+  text-decoration: none;
+  display: flex;
+  flex-basis: 100%;
+  padding-top: ${p => p.theme.space[2]}px;
+  padding-bottom: ${p => p.theme.space[2]}px;
+  padding-left: ${p => p.theme.space[4]}px;
+  color: ${p => p.theme.colors.text.slightlyMuted};
+  
+  &:hover {
+    color: ${p => p.theme.colors.text.main};
+  }
+`;
+
+export interface Heading {
+  name: string;
+  id: string;
+}
+
+export type Headings = Heading[];
+
+export const SideNav: React.FC = () => {
+  const history = useHistory();
+  const location = useLocation();
+
+  const navigateTo = (path: string) => {
+    history.replace(path);
+
+    const idToScrollTo = path.includes('#') ? path.split('#')[1] : null;
+
+    // If there's an ID found, scroll to it
+    if (idToScrollTo) {
+      // setTimeout is used to ensure the DOM is rendered before
+      // trying to scroll to it. The DOM re-renders if the user
+      // clicks on a subheading that is on a different page.
+      setTimeout(() => {
+        const element = document.getElementById(idToScrollTo);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 0);
+    }
+  };
+
+  const navItems = [
+    {
+      page: { name: 'Security', link: cfg.routes.accountSecurity },
+      headings: securityHeadings(),
+    },
+    {
+      page: { name: 'Preferences', link: cfg.routes.accountPreferences },
+      headings: preferencesHeadings(),
+    },
+  ];
+
+  return (
+    <SideNavWrapper>
+      {navItems.map(group => {
+        // Check if this section is active based on the current path
+        const isSectionActive = location.pathname === group.page.link;
+
+        return (
+          <div key={group.page.name}>
+            <SectionTitle
+              className={isSectionActive ? 'active' : ''}
+              onClick={() => navigateTo(group.page.link)}
+            >
+              {group.page.name}
+            </SectionTitle>
+            <LinkList>
+              {group.headings.map(heading => (
+                <li key={heading.name}>
+                  <HeadingItem
+                    href={`${group.page.link}#${heading.id}`}
+                    onClick={e => {
+                      e.preventDefault();
+                      navigateTo(`${group.page.link}#${heading.id}`);
+                    }}
+                  >
+                    {heading.name}
+                  </HeadingItem>
+                </li>
+              ))}
+            </LinkList>
+          </div>
+        );
+      })}
+    </SideNavWrapper>
+  );
+};
