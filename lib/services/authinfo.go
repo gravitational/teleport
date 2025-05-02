@@ -21,17 +21,17 @@ package services
 import (
 	"context"
 
-	authinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
+	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 )
 
-// AuthInfoService stores information about auth server.
-type AuthInfoService interface {
-	// GetAuthInfo gets the AuthInfo singleton resource.
-	GetAuthInfo(ctx context.Context) (*authinfov1.AuthInfo, error)
-	// CreateAuthInfo creates the AuthInfo singleton resource.
-	CreateAuthInfo(ctx context.Context, info *authinfov1.AuthInfo) (*authinfov1.AuthInfo, error)
-	// UpdateAuthInfo updates the AuthInfo singleton resource.
-	UpdateAuthInfo(ctx context.Context, info *authinfov1.AuthInfo) (*authinfov1.AuthInfo, error)
-	// DeleteAuthInfo deletes the AuthInfo singleton resource.
-	DeleteAuthInfo(ctx context.Context) error
+// BackendInfoService stores information about auth server.
+type BackendInfoService interface {
+	// GetAuthInfo gets the BackendInfo singleton resource.
+	GetBackendInfo(ctx context.Context) (*backendinfov1.BackendInfo, error)
+	// CreateAuthInfo creates the BackendInfo singleton resource.
+	CreateBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error)
+	// UpdateAuthInfo updates the BackendInfo singleton resource.
+	UpdateBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error)
+	// DeleteAuthInfo deletes the BackendInfo singleton resource.
+	DeleteBackendInfo(ctx context.Context) error
 }

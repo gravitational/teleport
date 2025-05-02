@@ -28,34 +28,34 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	authinfo1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
+	backendinfo1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 // TestAutoInfoServiceCRUD verifies create/read/update/delete methods of the backend service
-// for AuthInfo resource.
+// for BackendInfo resource.
 func TestAutoInfoServiceCRUD(t *testing.T) {
 	t.Parallel()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	service, err := NewAuthInfoService(bk)
+	service, err := NewBackendInfoService(bk)
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	info := &authinfo1pb.AuthInfo{
-		Kind:     types.KindAuthInfo,
+	info := &backendinfo1pb.BackendInfo{
+		Kind:     types.KindBackendInfo,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: types.MetaNameAuthInfo},
-		Spec: &authinfo1pb.AuthInfoSpec{
+		Metadata: &headerv1.Metadata{Name: types.MetaNameBackendInfo},
+		Spec: &backendinfo1pb.BackendInfoSpec{
 			TeleportVersion: "1.2.3",
 		},
 	}
 
-	created, err := service.CreateAuthInfo(ctx, info)
+	created, err := service.CreateBackendInfo(ctx, info)
 	require.NoError(t, err)
 	diff := cmp.Diff(info, created,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
@@ -64,7 +64,7 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	require.Empty(t, diff)
 	require.NotEmpty(t, created.GetMetadata().GetRevision())
 
-	got, err := service.GetAuthInfo(ctx)
+	got, err := service.GetBackendInfo(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(info, got,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
@@ -74,20 +74,20 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
 	info.Spec.TeleportVersion = "3.2.1"
-	updated, err := service.UpdateAuthInfo(ctx, info)
+	updated, err := service.UpdateBackendInfo(ctx, info)
 	require.NoError(t, err)
 	require.NotEqual(t, got.GetSpec().GetTeleportVersion(), updated.GetSpec().GetTeleportVersion())
 
-	err = service.DeleteAuthInfo(ctx)
+	err = service.DeleteBackendInfo(ctx)
 	require.NoError(t, err)
 
-	_, err = service.GetAuthInfo(ctx)
+	_, err = service.GetBackendInfo(ctx)
 	var notFoundError *trace.NotFoundError
 	require.ErrorAs(t, err, &notFoundError)
 
 	// If we try to conditionally update a missing resource, we receive
 	// a CompareFailed instead of a NotFound.
 	var revisionMismatchError *trace.CompareFailedError
-	_, err = service.UpdateAuthInfo(ctx, info)
+	_, err = service.UpdateBackendInfo(ctx, info)
 	require.ErrorAs(t, err, &revisionMismatchError)
 }

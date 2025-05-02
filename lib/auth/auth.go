@@ -441,10 +441,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
 		}
 	}
-	if cfg.AuthInfo == nil {
-		cfg.AuthInfo, err = local.NewAuthInfoService(cfg.Backend)
+	if cfg.BackendInfo == nil {
+		cfg.BackendInfo, err = local.NewBackendInfoService(cfg.Backend)
 		if err != nil {
-			return nil, trace.Wrap(err, "creating AuthInfo service")
+			return nil, trace.Wrap(err, "creating BackendInfo service")
 		}
 	}
 
@@ -553,7 +553,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
 		SigstorePolicies:                cfg.SigstorePolicies,
 		HealthCheckConfig:               cfg.HealthCheckConfig,
-		AuthInfoService:                 cfg.AuthInfo,
+		BackendInfoService:              cfg.BackendInfo,
 	}
 
 	as := Server{
@@ -790,7 +790,7 @@ type Services struct {
 	services.WorkloadIdentityX509Overrides
 	services.SigstorePolicies
 	services.HealthCheckConfig
-	services.AuthInfoService
+	services.BackendInfoService
 }
 
 // GetWebSession returns existing web session described by req.

@@ -14,27 +14,27 @@
 
 syntax = "proto3";
 
-package teleport.authinfo.v1;
+package teleport.backendinfo.v1;
 
 import "teleport/header/v1/metadata.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1;authinfov1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1;backendinfov1";
 
-// AuthInfo is a singleton resource that holds meta-information for the cluster's auth service.
+// BackendInfo is a singleton resource that holds meta-information for the cluster's auth service.
 // It is used to store the auth instance last known version and is managed by the major version
 // check validator. After a cluster upgrade with a new version of the auth service, this
 // information is overridden with data from the new auth instance.
-message AuthInfo {
+message BackendInfo {
   string kind = 1;
   string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
 
-  AuthInfoSpec spec = 5;
+  BackendInfoSpec spec = 5;
 }
 
-// AuthInfoSpec encodes the parameters auth server meta-information.
-message AuthInfoSpec {
+// BackendInfoSpec encodes the parameters auth server meta-information.
+message BackendInfoSpec {
   // teleport_version advertises the version of the auth server, e.g., "17.3.3" (without the leading "v").
   string teleport_version = 1;
 }

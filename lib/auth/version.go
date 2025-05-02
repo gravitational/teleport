@@ -27,8 +27,8 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	authinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
-	"github.com/gravitational/teleport/api/types/authinfo"
+	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
+	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -37,7 +37,7 @@ const (
 	// skipVersionUpgradeCheckEnv is environment variable key for disabling the check
 	// major version upgrade check.
 	skipVersionUpgradeCheckEnv = "TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK"
-	// versionUpgradeCheckMaxWriteRetry is the number of retries for conditional updates of the AuthInfo resource.
+	// versionUpgradeCheckMaxWriteRetry is the number of retries for conditional updates of the BackendInfo resource.
 	versionUpgradeCheckMaxWriteRetry = 5
 )
 
@@ -46,7 +46,7 @@ const (
 func validateAndUpdateTeleportVersion(
 	ctx context.Context,
 	procStorage VersionStorage,
-	backendStorage services.AuthInfoService,
+	backendStorage services.BackendInfoService,
 	currentVersion semver.Version,
 	skipVersionCheck bool,
 ) error {
@@ -54,8 +54,10 @@ func validateAndUpdateTeleportVersion(
 
 	// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
 	// Fallback to local process storage for backward compatibility with previous versions.
+	cleanProcVersion := true
 	teleportVersion, err := procStorage.GetTeleportVersion(ctx)
 	if trace.IsNotFound(err) {
+		cleanProcVersion = false
 		teleportVersion = currentVersion
 	} else if err != nil {
 		return trace.Wrap(err)
@@ -63,25 +65,25 @@ func validateAndUpdateTeleportVersion(
 
 	var createNewResource bool
 	for range versionUpgradeCheckMaxWriteRetry {
-		authInfo, err := backendStorage.GetAuthInfo(ctx)
+		backendInfo, err := backendStorage.GetBackendInfo(ctx)
 		if trace.IsNotFound(err) {
-			authInfo, err = authinfo.NewAuthInfo(&authinfov1.AuthInfoSpec{TeleportVersion: teleportVersion.String()})
+			createNewResource = true
+			backendInfo, err = backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{TeleportVersion: teleportVersion.String()})
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			createNewResource = true
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if !skip {
-			lastKnownVersion, err := semver.NewVersion(authInfo.GetSpec().GetTeleportVersion())
+			lastKnownVersion, err := semver.NewVersion(backendInfo.GetSpec().GetTeleportVersion())
 			if err != nil {
-				return trace.Wrap(err, "failed to parse teleport version: %+q", authInfo.GetSpec().GetTeleportVersion())
+				return trace.Wrap(err, "failed to parse teleport version: %+q", backendInfo.GetSpec().GetTeleportVersion())
 			}
 			// The last known version is already updated to the current one.
 			// Skip any further checks and resource updates.
-			if lastKnownVersion.Equal(currentVersion) {
+			if !createNewResource && lastKnownVersion.Equal(currentVersion) {
 				return nil
 			}
 			if currentVersion.Major-lastKnownVersion.Major > 1 {
@@ -100,30 +102,38 @@ func validateAndUpdateTeleportVersion(
 			}
 		}
 
-		authInfo.GetSpec().TeleportVersion = currentVersion.String()
+		backendInfo.GetSpec().TeleportVersion = currentVersion.String()
 
 		if createNewResource {
-			_, err = backendStorage.CreateAuthInfo(ctx, authInfo)
+			_, err = backendStorage.CreateBackendInfo(ctx, backendInfo)
 			if trace.IsAlreadyExists(err) {
 				err = trace.Wrap(err)
-				slog.WarnContext(ctx, "Failed to create AuthInfo resource", "error", err)
+				slog.WarnContext(ctx, "Failed to create BackendInfo resource", "error", err)
 				continue
 			} else if err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
-			_, err = backendStorage.UpdateAuthInfo(ctx, authInfo)
+			_, err = backendStorage.UpdateBackendInfo(ctx, backendInfo)
 			if errors.Is(err, backend.ErrIncorrectRevision) || trace.IsNotFound(err) {
 				err = trace.Wrap(err)
-				slog.WarnContext(ctx, "Failed to update AuthInfo resource", "error", err)
+				slog.WarnContext(ctx, "Failed to update BackendInfo resource", "error", err)
 				continue
 			} else if err != nil {
 				return trace.Wrap(err)
 			}
 		}
+
 		if skip {
 			slog.WarnContext(ctx, "Version check skipped, Teleport might perform unsupported backend version transitions",
 				"upgrade_version", currentVersion.String())
+		}
+
+		// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
+		if cleanProcVersion {
+			if err := procStorage.DeleteTeleportVersion(ctx); err != nil {
+				slog.ErrorContext(ctx, "Failed to delete Teleport version from process storage", "error", err)
+			}
 		}
 
 		return nil

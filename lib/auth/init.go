@@ -85,6 +85,8 @@ type VersionStorage interface {
 	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
 	WriteTeleportVersion(ctx context.Context, version semver.Version) error
+	// DeleteTeleportVersion removes the last known Teleport version in storage.
+	DeleteTeleportVersion(ctx context.Context) error
 }
 
 // InitConfig is auth server init config
@@ -366,8 +368,8 @@ type InitConfig struct {
 	// HealthCheckConfig manages health check config resources.
 	HealthCheckConfig services.HealthCheckConfig
 
-	// AuthInfo is a service of auth server information.
-	AuthInfo services.AuthInfoService
+	// BackendInfo is a service of backend information.
+	BackendInfo services.BackendInfoService
 
 	// SkipVersionCheck skips version check during major version upgrade/downgrade.
 	SkipVersionCheck bool
@@ -419,7 +421,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.AuthInfoService,
+	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService,
 		*teleport.SemVer(), cfg.SkipVersionCheck); err != nil {
 		return trace.Wrap(err)
 	}

@@ -212,7 +212,7 @@ func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 
 // GetTeleportVersion reads the last known Teleport version from storage.
 func (p *ProcessStorage) GetTeleportVersion(ctx context.Context) (semver.Version, error) {
-	item, err := p.stateStorage.Get(ctx, backend.NewKey(teleportPrefix, lastKnownVersion))
+	item, err := p.BackendStorage.Get(ctx, backend.NewKey(teleportPrefix, lastKnownVersion))
 	if err != nil {
 		return semver.Version{}, trace.Wrap(err)
 	}
@@ -229,7 +229,16 @@ func (p *ProcessStorage) WriteTeleportVersion(ctx context.Context, version semve
 		Key:   backend.NewKey(teleportPrefix, lastKnownVersion),
 		Value: []byte(version.String()),
 	}
-	_, err := p.stateStorage.Put(ctx, item)
+	_, err := p.BackendStorage.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteTeleportVersion removes last known Teleport version from the process storage.
+func (p *ProcessStorage) DeleteTeleportVersion(ctx context.Context) error {
+	err := p.BackendStorage.Delete(ctx, backend.NewKey(teleportPrefix, lastKnownVersion))
 	if err != nil {
 		return trace.Wrap(err)
 	}

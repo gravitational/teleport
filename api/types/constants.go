@@ -516,11 +516,11 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
-	// KindAuthInfo contains auth server info.
-	KindAuthInfo = "auth_info"
+	// KindBackendInfo contains backend info.
+	KindBackendInfo = "backend_info"
 
-	// MetaNameAuthInfo name auth server info entity.
-	MetaNameAuthInfo = "auth-info"
+	// MetaNameBackendInfo name backend info entity.
+	MetaNameBackendInfo = "backend-info"
 
 	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
 	// service to match with a single discovered instance.

@@ -47,11 +47,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
-	authinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/authinfo/v1"
+	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/authinfo"
+	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -2241,7 +2241,7 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			defer cancel()
 
 			authCfg := setupConfig(t)
-			service, err := local.NewAuthInfoService(authCfg.Backend)
+			service, err := local.NewBackendInfoService(authCfg.Backend)
 			require.NoError(t, err)
 
 			if test.initialProcVersion != "" {
@@ -2249,11 +2249,11 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if test.initialVersion != "" {
-				authInfo, err := authinfo.NewAuthInfo(&authinfov1.AuthInfoSpec{
+				backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
 					TeleportVersion: semver.New(test.initialVersion).String(),
 				})
 				require.NoError(t, err)
-				_, err = service.CreateAuthInfo(ctx, authInfo)
+				_, err = service.CreateBackendInfo(ctx, backendInfo)
 				require.NoError(t, err)
 			}
 			if test.skipCheck {
@@ -2266,11 +2266,16 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+			// Verifies that version is removed from process storage.
+			if test.initialProcVersion != "" && !test.expectError {
+				_, err := authCfg.VersionStorage.GetTeleportVersion(ctx)
+				require.True(t, trace.IsNotFound(err))
+			}
 
 			if test.expectedVersion != "" {
-				authInfo, err := service.GetAuthInfo(ctx)
+				backendInfo, err := service.GetBackendInfo(ctx)
 				require.NoError(t, err)
-				require.Equal(t, test.expectedVersion, authInfo.GetSpec().GetTeleportVersion())
+				require.Equal(t, test.expectedVersion, backendInfo.GetSpec().GetTeleportVersion())
 			}
 		})
 	}
