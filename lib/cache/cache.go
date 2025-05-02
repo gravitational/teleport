@@ -521,7 +521,6 @@ type Cache struct {
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
-	oktaCache                    services.Okta
 	integrationsCache            services.Integrations
 	userTasksCache               services.UserTasks
 	discoveryConfigsCache        services.DiscoveryConfigs
@@ -936,12 +935,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	oktaCache, err := local.NewOktaService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1080,7 +1073,6 @@ func New(config Config) (*Cache, error) {
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
-		oktaCache:                    oktaCache,
 		integrationsCache:            integrationsCache,
 		userTasksCache:               userTasksCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
@@ -2322,58 +2314,6 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 	}
 	defer rg.Release()
 	return rg.reader.GetSAMLIdPServiceProvider(ctx, name)
-}
-
-// ListOktaImportRules returns a paginated list of all Okta import rule resources.
-func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey string) ([]types.OktaImportRule, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaImportRules")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaImportRules)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListOktaImportRules(ctx, pageSize, nextKey)
-}
-
-// GetOktaImportRule returns the specified Okta import rule resources.
-func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaImportRule")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaImportRules)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetOktaImportRule(ctx, name)
-}
-
-// ListOktaAssignments returns a paginated list of all Okta assignment resources.
-func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey string) ([]types.OktaAssignment, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaAssignments")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaAssignments)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListOktaAssignments(ctx, pageSize, nextKey)
-}
-
-// GetOktaAssignment returns the specified Okta assignment resources.
-func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaAssignment")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.oktaAssignments)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetOktaAssignment(ctx, name)
 }
 
 // ListIntegrations returns a paginated list of all Integrations resources.

@@ -123,8 +123,6 @@ type legacyCollections struct {
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	locks                              collectionReader[services.LockGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
-	oktaAssignments                    collectionReader[oktaAssignmentGetter]
-	oktaImportRules                    collectionReader[oktaImportRuleGetter]
 	proxies                            collectionReader[services.ProxyGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
 	samlIdPServiceProviders            collectionReader[samlIdPServiceProviderGetter]
@@ -294,25 +292,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.samlIdPServiceProviders
-
-		case types.KindOktaImportRule:
-			if c.Okta == nil {
-				return nil, trace.BadParameter("missing parameter Okta")
-			}
-			collections.oktaImportRules = &genericCollection[types.OktaImportRule, oktaImportRuleGetter, oktaImportRulesExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.oktaImportRules
-		case types.KindOktaAssignment:
-			if c.Okta == nil {
-				return nil, trace.BadParameter("missing parameter Okta")
-			}
-			collections.oktaAssignments = &genericCollection[types.OktaAssignment, oktaAssignmentGetter, oktaAssignmentsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.oktaAssignments
 		case types.KindIntegration:
 			if c.Integrations == nil {
 				return nil, trace.BadParameter("missing parameter Integrations")
@@ -1392,120 +1371,6 @@ type samlIdPServiceProviderGetter interface {
 }
 
 var _ executor[types.SAMLIdPServiceProvider, samlIdPServiceProviderGetter] = samlIdPServiceProvidersExecutor{}
-
-type oktaImportRulesExecutor struct{}
-
-func (oktaImportRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaImportRule, error) {
-	var (
-		startKey  string
-		resources []types.OktaImportRule
-	)
-	for {
-		var importRules []types.OktaImportRule
-		var err error
-		importRules, startKey, err = cache.Okta.ListOktaImportRules(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, importRules...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return resources, nil
-}
-
-func (oktaImportRulesExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaImportRule) error {
-	_, err := cache.oktaCache.CreateOktaImportRule(ctx, resource)
-	if trace.IsAlreadyExists(err) {
-		_, err = cache.oktaCache.UpdateOktaImportRule(ctx, resource)
-	}
-	return trace.Wrap(err)
-}
-
-func (oktaImportRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.oktaCache.DeleteAllOktaImportRules(ctx)
-}
-
-func (oktaImportRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.oktaCache.DeleteOktaImportRule(ctx, resource.GetName())
-}
-
-func (oktaImportRulesExecutor) isSingleton() bool { return false }
-
-func (oktaImportRulesExecutor) getReader(cache *Cache, cacheOK bool) oktaImportRuleGetter {
-	if cacheOK {
-		return cache.oktaCache
-	}
-	return cache.Config.Okta
-}
-
-type oktaImportRuleGetter interface {
-	ListOktaImportRules(context.Context, int, string) ([]types.OktaImportRule, string, error)
-	GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error)
-}
-
-var _ executor[types.OktaImportRule, oktaImportRuleGetter] = oktaImportRulesExecutor{}
-
-type oktaAssignmentsExecutor struct{}
-
-func (oktaAssignmentsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaAssignment, error) {
-	var (
-		startKey  string
-		resources []types.OktaAssignment
-	)
-	for {
-		var assignments []types.OktaAssignment
-		var err error
-		assignments, startKey, err = cache.Okta.ListOktaAssignments(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, assignments...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return resources, nil
-}
-
-func (oktaAssignmentsExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaAssignment) error {
-	_, err := cache.oktaCache.CreateOktaAssignment(ctx, resource)
-	if trace.IsAlreadyExists(err) {
-		_, err = cache.oktaCache.UpdateOktaAssignment(ctx, resource)
-	}
-	return trace.Wrap(err)
-}
-
-func (oktaAssignmentsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.oktaCache.DeleteAllOktaAssignments(ctx)
-}
-
-func (oktaAssignmentsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.oktaCache.DeleteOktaAssignment(ctx, resource.GetName())
-}
-
-func (oktaAssignmentsExecutor) isSingleton() bool { return false }
-
-func (oktaAssignmentsExecutor) getReader(cache *Cache, cacheOK bool) oktaAssignmentGetter {
-	if cacheOK {
-		return cache.oktaCache
-	}
-	return cache.Config.Okta
-}
-
-type oktaAssignmentGetter interface {
-	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
-	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
-}
-
-var _ executor[types.OktaAssignment, oktaAssignmentGetter] = oktaAssignmentsExecutor{}
 
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {
