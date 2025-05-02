@@ -155,10 +155,16 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 			}
 		}
 
+		var roots root.TrustedMaterialCollection
 		for idx, trustedRoot := range v.Keyless.GetTrustedRoots() {
-			if _, err := root.NewTrustedRootFromJSON([]byte(trustedRoot)); err != nil {
+			root, err := root.NewTrustedRootFromJSON([]byte(trustedRoot))
+			if err != nil {
 				return trace.BadParameter("spec.keyless.trusted_roots[%d]: failed to parse trusted root: %v", idx, err)
 			}
+			roots = append(roots, root)
+		}
+		if len(roots) != 0 && len(roots.CTLogs()) == 0 && len(roots.TimestampingAuthorities()) == 0 {
+			return trace.BadParameter("spec.keyless.trusted_roots: must configure at least one transparency log or timestamp authority")
 		}
 	}
 
