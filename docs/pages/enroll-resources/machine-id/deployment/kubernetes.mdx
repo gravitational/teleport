@@ -6,6 +6,8 @@ description: How to install and configure Machine ID on Kubernetes
 This guide shows you how to deploy the Machine ID daemon `tbot`, on a Kubernetes
 cluster.
 
+## How it works
+
 In the setup we demonstrate in this guide, `tbot` runs as a Kubernetes
 deployment. It writes output credentials to a Kubernetes secret, which can then
 be mounted in the pods that need to use the credentials. While `tbot` can also

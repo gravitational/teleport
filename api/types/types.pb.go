@@ -9383,7 +9383,7 @@ type KubernetesResource struct {
 	Name string `protobuf:"bytes,3,opt,name=Name,proto3" json:"name,omitempty"`
 	// Verbs are the allowed Kubernetes verbs for the following resource.
 	Verbs []string `protobuf:"bytes,4,rep,name=Verbs,proto3" json:"verbs,omitempty"`
-	// APIGroup specifies the API group of the resource.
+	// APIGroup specifies the Kubernetes API group of the Kubernetes resource.
 	// It supports wildcards.
 	APIGroup             string   `protobuf:"bytes,5,opt,name=APIGroup,proto3" json:"api_group,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

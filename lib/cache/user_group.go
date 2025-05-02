@@ -26,16 +26,18 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
-const userGroupStoreNameIndex = "name"
+type userGroupIndex string
 
-func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collection[types.UserGroup], error) {
+const userGroupNameIndex userGroupIndex = "name"
+
+func newUserGroupCollection(u services.UserGroups, w types.WatchKind) (*collection[types.UserGroup, userGroupIndex], error) {
 	if u == nil {
 		return nil, trace.BadParameter("missing parameter UserGroups")
 	}
 
-	return &collection[types.UserGroup]{
-		store: newStore(map[string]func(types.UserGroup) string{
-			userGroupStoreNameIndex: func(r types.UserGroup) string {
+	return &collection[types.UserGroup, userGroupIndex]{
+		store: newStore(map[userGroupIndex]func(types.UserGroup) string{
+			userGroupNameIndex: func(r types.UserGroup) string {
 				return r.GetName()
 			},
 		}),
@@ -86,7 +88,7 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 	}
 
 	var groups []types.UserGroup
-	for r := range rg.store.resources(userGroupStoreNameIndex, nextKey, "") {
+	for r := range rg.store.resources(userGroupNameIndex, nextKey, "") {
 		if len(groups) == pageSize {
 			return groups, r.GetName(), nil
 		}
@@ -113,6 +115,6 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 		return group, trace.Wrap(err)
 	}
 
-	group, err := rg.store.get(userGroupStoreNameIndex, name)
+	group, err := rg.store.get(userGroupNameIndex, name)
 	return group.Clone(), trace.Wrap(err)
 }

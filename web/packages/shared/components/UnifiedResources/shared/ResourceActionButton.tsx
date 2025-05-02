@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type YamlParseRequest = {
-  yaml: string;
-};
+import styled, { css } from 'styled-components';
 
-export type YamlStringifyRequest<T> = {
-  resource: T;
-};
+/**
+ * Wrapper to apply shared styles across action buttons that does
+ * not require request. This is to help distinguish between
+ * requestable and non requestable buttons.
+ */
+export const ResourceActionButtonWrapper = styled.div<{
+  requiresRequest: boolean;
+}>`
+  line-height: 0;
 
-export enum YamlSupportedResourceKind {
-  AccessMonitoringRule = 'access_monitoring_rule',
-  Role = 'role',
-  ProvisionToken = 'token',
-}
+  ${p =>
+    !p.requiresRequest &&
+    css`
+      button,
+      a {
+        background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+        border: none;
+      }
+    `}
+`;

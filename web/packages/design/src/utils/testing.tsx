@@ -25,6 +25,7 @@ import {
   render as testingRender,
   waitFor,
   waitForElementToBeRemoved,
+  within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactNode } from 'react';
@@ -78,8 +79,8 @@ screen.debug = () => {
 };
 
 type RenderOptions = {
-  wrapper: React.FC;
-  container: HTMLElement;
+  wrapper?: React.FC;
+  container?: HTMLElement;
 };
 
 export {
@@ -95,4 +96,5 @@ export {
   Router,
   userEvent,
   waitForElementToBeRemoved,
+  within,
 };

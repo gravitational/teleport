@@ -2448,7 +2448,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						"kubernetes_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"api_group": {
-									Description: "APIGroup specifies the API group of the resource. It supports wildcards.",
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -2942,7 +2942,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						"kubernetes_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"api_group": {
-									Description: "APIGroup specifies the API group of the resource. It supports wildcards.",
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},

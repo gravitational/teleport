@@ -29,16 +29,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const workloadIdentityStoreNameIndex = "name"
+type workloadIdentityIndex string
 
-func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types.WatchKind) (*collection[*workloadidentityv1pb.WorkloadIdentity], error) {
+const workloadIdentityNameIndex workloadIdentityIndex = "name"
+
+func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types.WatchKind) (*collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter WorkloadIdentities")
 	}
 
-	return &collection[*workloadidentityv1pb.WorkloadIdentity]{
-		store: newStore(map[string]func(*workloadidentityv1pb.WorkloadIdentity) string{
-			workloadIdentityStoreNameIndex: func(r *workloadidentityv1pb.WorkloadIdentity) string {
+	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
+		store: newStore(map[workloadIdentityIndex]func(*workloadidentityv1pb.WorkloadIdentity) string{
+			workloadIdentityNameIndex: func(r *workloadidentityv1pb.WorkloadIdentity) string {
 				return r.GetMetadata().GetName()
 			},
 		}),
@@ -79,10 +81,10 @@ func (c *Cache) ListWorkloadIdentities(ctx context.Context, pageSize int, nextTo
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWorkloadIdentities")
 	defer span.End()
 
-	lister := genericLister[*workloadidentityv1pb.WorkloadIdentity]{
+	lister := genericLister[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		cache:        c,
 		collection:   c.collections.workloadIdentity,
-		index:        workloadIdentityStoreNameIndex,
+		index:        workloadIdentityNameIndex,
 		upstreamList: c.Config.WorkloadIdentity.ListWorkloadIdentities,
 		nextToken: func(t *workloadidentityv1pb.WorkloadIdentity) string {
 			return t.GetMetadata().GetName()
@@ -98,10 +100,10 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workload
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWorkloadIdentity")
 	defer span.End()
 
-	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity]{
+	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		cache:       c,
 		collection:  c.collections.workloadIdentity,
-		index:       workloadIdentityStoreNameIndex,
+		index:       workloadIdentityNameIndex,
 		upstreamGet: c.Config.WorkloadIdentity.GetWorkloadIdentity,
 		clone:       utils.CloneProtoMsg[*workloadidentityv1pb.WorkloadIdentity],
 	}

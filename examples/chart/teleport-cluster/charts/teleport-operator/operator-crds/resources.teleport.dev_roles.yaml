@@ -271,8 +271,8 @@ spec:
                     items:
                       properties:
                         api_group:
-                          description: APIGroup specifies the API group of the resource.
-                            It supports wildcards.
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
                           type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
@@ -863,8 +863,8 @@ spec:
                     items:
                       properties:
                         api_group:
-                          description: APIGroup specifies the API group of the resource.
-                            It supports wildcards.
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
                           type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
@@ -1752,8 +1752,8 @@ spec:
                     items:
                       properties:
                         api_group:
-                          description: APIGroup specifies the API group of the resource.
-                            It supports wildcards.
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
                           type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
@@ -2344,8 +2344,8 @@ spec:
                     items:
                       properties:
                         api_group:
-                          description: APIGroup specifies the API group of the resource.
-                            It supports wildcards.
+                          description: APIGroup specifies the Kubernetes API group
+                            of the Kubernetes resource. It supports wildcards.
                           type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.

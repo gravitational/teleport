@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -506,7 +505,6 @@ type Cache struct {
 
 	trustCache                   services.Trust
 	clusterConfigCache           services.ClusterConfigurationInternal
-	autoUpdateCache              *local.AutoUpdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
 	accessCache                  services.Access
@@ -578,15 +576,15 @@ func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[
 
 // acquireReadGuard provides a readGuard that may be used to determine how
 // a cache read should operate. The returned guard *must* be released to prevent deadlocks.
-func acquireReadGuard[T any](cache *Cache, c *collection[T]) (readGuard[T], error) {
+func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
 	if cache.closed.Load() {
-		return readGuard[T]{}, trace.Errorf("cache is closed")
+		return readGuard[T, I]{}, trace.Errorf("cache is closed")
 	}
 	cache.rw.RLock()
 
 	if cache.ok {
 		if _, kindOK := cache.confirmedKinds[resourceKind{kind: c.watch.Kind, subkind: c.watch.SubKind}]; kindOK {
-			return readGuard[T]{
+			return readGuard[T, I]{
 				cacheRead: true,
 				release:   cache.rw.RUnlock,
 				store:     c.store,
@@ -595,7 +593,7 @@ func acquireReadGuard[T any](cache *Cache, c *collection[T]) (readGuard[T], erro
 	}
 
 	cache.rw.RUnlock()
-	return readGuard[T]{
+	return readGuard[T, I]{
 		cacheRead: false,
 	}, nil
 }
@@ -649,20 +647,20 @@ func (r *legacyReadGuard[R]) IsCacheRead() bool {
 	return r.release != nil
 }
 
-type readGuard[T any] struct {
+type readGuard[T any, I comparable] struct {
 	cacheRead bool
-	store     *store[T]
+	store     *store[T, I]
 	once      sync.Once
 	release   func()
 }
 
-func (r *readGuard[T]) ReadCache() bool {
+func (r *readGuard[T, I]) ReadCache() bool {
 	return r.cacheRead
 }
 
 // Release releases the read lock if it is held.  This method
 // can be called multiple times.
-func (r *readGuard[T]) Release() {
+func (r *readGuard[T, I]) Release() {
 	r.once.Do(func() {
 		if r.release == nil {
 			return
@@ -998,12 +996,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateCache, err := local.NewAutoUpdateService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -1073,7 +1065,6 @@ func New(config Config) (*Cache, error) {
 		fnCache:                      fnCache,
 		trustCache:                   local.NewCAService(config.Backend),
 		clusterConfigCache:           clusterConfigCache,
-		autoUpdateCache:              autoUpdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
 		accessCache:                  local.NewAccessService(config.Backend),
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
@@ -1856,79 +1847,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	}
 
 	return nil
-}
-
-type autoUpdateCacheKey struct {
-	kind string
-}
-
-// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
-func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
-			cfg, err := rg.reader.GetAutoUpdateConfig(ctx)
-			return cfg, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return protobuf.Clone(cachedConfig).(*autoupdate.AutoUpdateConfig), nil
-	}
-	return rg.reader.GetAutoUpdateConfig(ctx)
-}
-
-// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
-func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateVersions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-			version, err := rg.reader.GetAutoUpdateVersion(ctx)
-			return version, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return protobuf.Clone(cachedVersion).(*autoupdate.AutoUpdateVersion), nil
-	}
-	return rg.reader.GetAutoUpdateVersion(ctx)
-}
-
-// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
-func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.autoUpdateAgentRollouts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	if !rg.IsCacheRead() {
-		cachedAgentRollout, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
-			version, err := rg.reader.GetAutoUpdateAgentRollout(ctx)
-			return version, err
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return protobuf.Clone(cachedAgentRollout).(*autoupdate.AutoUpdateAgentRollout), nil
-	}
-	return rg.reader.GetAutoUpdateAgentRollout(ctx)
 }
 
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
@@ -2973,7 +2891,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 	switch req.ResourceType {
 	case types.KindDatabaseServer:
 		resp, err := buildListResourcesResponse(
-			c.collections.dbServers.store.resources(databaseServerStoreNameIndex, req.StartKey, ""),
+			c.collections.dbServers.store.resources(databaseServerNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.DatabaseServer.CloneResource,
@@ -2981,7 +2899,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindDatabaseService:
 		resp, err := buildListResourcesResponse(
-			c.collections.dbServices.store.resources(databaseServiceStoreNameIndex, req.StartKey, ""),
+			c.collections.dbServices.store.resources(databaseServiceNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			func(d types.DatabaseService) types.ResourceWithLabels {
@@ -2991,7 +2909,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindAppServer:
 		resp, err := buildListResourcesResponse(
-			c.collections.appServers.store.resources(appServerStoreNameIndex, req.StartKey, ""),
+			c.collections.appServers.store.resources(appServerNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.AppServer.CloneResource,
@@ -2999,7 +2917,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindNode:
 		resp, err := buildListResourcesResponse(
-			c.collections.nodes.store.resources(nodeStoreNameIndex, req.StartKey, ""),
+			c.collections.nodes.store.resources(nodeNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.Server.CloneResource,
@@ -3007,7 +2925,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindWindowsDesktopService:
 		resp, err := buildListResourcesResponse(
-			c.collections.windowsDesktopServices.store.resources(windowsDesktopServiceStoreNameIndex, req.StartKey, ""),
+			c.collections.windowsDesktopServices.store.resources(windowsDesktopServiceNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			func(d types.WindowsDesktopService) types.ResourceWithLabels {
@@ -3017,7 +2935,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindKubeServer:
 		resp, err := buildListResourcesResponse(
-			c.collections.kubeServers.store.resources(kubeServerStoreNameIndex, req.StartKey, ""),
+			c.collections.kubeServers.store.resources(kubeServerNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			types.KubeServer.CloneResource,
@@ -3025,7 +2943,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 		return resp, trace.Wrap(err)
 	case types.KindUserGroup:
 		resp, err := buildListResourcesResponse(
-			c.collections.userGroups.store.resources(userGroupStoreNameIndex, req.StartKey, ""),
+			c.collections.userGroups.store.resources(userGroupNameIndex, req.StartKey, ""),
 			limit,
 			filter,
 			func(g types.UserGroup) types.ResourceWithLabels {
@@ -3036,7 +2954,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 	case types.KindIdentityCenterAccount:
 		resp, err := buildListResourcesResponse(
 			func(yield func(types.ResourceWithLabels) bool) {
-				for account := range c.collections.identityCenterAccounts.store.resources(identityCenterAccountStoreNameIndex, req.StartKey, "") {
+				for account := range c.collections.identityCenterAccounts.store.resources(identityCenterAccountNameIndex, req.StartKey, "") {
 					if !yield(types.Resource153ToResourceWithLabels(account)) {
 						return
 					}
@@ -3055,7 +2973,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 	case types.KindIdentityCenterAccountAssignment:
 		resp, err := buildListResourcesResponse(
 			func(yield func(types.ResourceWithLabels) bool) {
-				for assignment := range c.collections.identityCenterAccountAssignments.store.resources(identityCenterAccountAssignmentStoreNameIndex, req.StartKey, "") {
+				for assignment := range c.collections.identityCenterAccountAssignments.store.resources(identityCenterAccountAssignmentNameIndex, req.StartKey, "") {
 					if !yield(types.Resource153ToResourceWithLabels(assignment)) {
 						return
 					}

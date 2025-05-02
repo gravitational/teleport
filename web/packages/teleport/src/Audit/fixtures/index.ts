@@ -3327,6 +3327,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL001E',
@@ -3334,6 +3335,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL002I',
@@ -3341,6 +3343,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL002E',
@@ -3348,6 +3351,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL003I',
@@ -3355,6 +3359,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL003E',
@@ -3362,6 +3367,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL004I',
@@ -3369,6 +3375,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL004E',
@@ -3376,12 +3383,14 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL005I',
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3394,6 +3403,7 @@ export const events = [
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3406,6 +3416,7 @@ export const events = [
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3418,6 +3429,7 @@ export const events = [
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3430,6 +3442,7 @@ export const events = [
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3442,6 +3455,7 @@ export const events = [
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'carrot',
@@ -3460,6 +3474,7 @@ export const events = [
     event: 'access_list.member.delete_all_members',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     updated_by: 'mike',
   },
   {
@@ -3467,6 +3482,7 @@ export const events = [
     event: 'access_list.member.delete_all_members',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     updated_by: 'mike',
   },
   {

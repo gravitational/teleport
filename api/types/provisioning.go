@@ -136,6 +136,8 @@ type ProvisionToken interface {
 	SetAllowRules([]*TokenRule)
 	// GetGCPRules will return the GCP rules within this token.
 	GetGCPRules() *ProvisionTokenSpecV2GCP
+	// GetGithubRules will return the GitHub rules within this token.
+	GetGithubRules() *ProvisionTokenSpecV2GitHub
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -442,6 +444,11 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 // GetGCPRules will return the GCP rules within this token.
 func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
+}
+
+// GetGithubRules will return the GitHub rules within this token.
+func (p *ProvisionTokenV2) GetGithubRules() *ProvisionTokenSpecV2GitHub {
+	return p.Spec.GitHub
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
