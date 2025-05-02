@@ -205,7 +205,7 @@ func (a *Server) issueBoundKeypairChallenge(
 		challenge,
 		string(solutionResponse.ChallengeResponse.Solution),
 	); err != nil {
-		// TODO: access denied instead?
+		// TODO: Consider access denied instead?
 		return trace.Wrap(err, "validating challenge response")
 	}
 
