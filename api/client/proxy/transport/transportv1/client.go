@@ -90,6 +90,12 @@ func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string,
 		cancel()
 		return nil, trace.Wrap(err)
 	}
+
+	if !stop() {
+		cancel()
+		return nil, trace.Wrap(connCtx.Err(), "unable to establish desktop session")
+	}
+
 	return nc, nil
 }
 
