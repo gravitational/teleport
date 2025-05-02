@@ -29,6 +29,7 @@ import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
 
 import type { MfaChallengeResponse } from '../mfa';
+import { ResourceStatus } from '../resources';
 
 export type UnifiedResource =
   | App
@@ -64,6 +65,7 @@ export type ResourceFilter = {
   pinnedOnly?: boolean;
   searchAsRoles?: '' | 'yes';
   includedResourceMode?: IncludedResourceMode;
+  statuses?: ResourceStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };

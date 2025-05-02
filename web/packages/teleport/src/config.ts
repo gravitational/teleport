@@ -46,7 +46,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
 import type { MfaChallengeResponse } from './services/mfa';
-import { KindAuthConnectors } from './services/resources';
+import { KindAuthConnectors, ResourceStatus } from './services/resources';
 
 export type Cfg = typeof cfg;
 const cfg = {
@@ -1531,6 +1531,7 @@ export interface UrlResourcesParams {
   searchAsRoles?: 'yes' | '';
   pinnedOnly?: boolean;
   includedResourceMode?: IncludedResourceMode;
+  statuses?: ResourceStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 }

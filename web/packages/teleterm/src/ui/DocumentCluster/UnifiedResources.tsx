@@ -518,6 +518,7 @@ const mapToSharedResource = (
           ).title,
           protocol: database.protocol as DbProtocol,
           requiresRequest: resource.requiresRequest,
+          targetHealth: { status: database.target_health?.status },
         },
         ui: {
           ActionButton: <ConnectDatabaseActionButton database={database} />,

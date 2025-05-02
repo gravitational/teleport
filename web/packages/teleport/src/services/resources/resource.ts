@@ -64,7 +64,127 @@ class ResourceService {
         const items = json?.items || [];
 
         return {
-          agents: items.map(makeUnifiedResource),
+          agents: [
+            // {
+            //   kind: 'db',
+            //   name: 'chocolate-shake',
+            //   protocol: 'mongodb',
+            //   type: 'rds',
+            //   targetHealth: {
+            //     status: 'unknown',
+            //   },
+            //   labels: [
+            //     {
+            //       name: 'hello',
+            //       value: 'kitty',
+            //     },
+            //     {
+            //       name: 'engine-version',
+            //       value: '16.3',
+            //     },
+            //     {
+            //       name: 'HAPPY',
+            //       value: 'HALLOWEEN',
+            //     },
+            //     {
+            //       name: 'vpc-id',
+            //       value: '123ajdflaksjflasjdlfkajsdfklajsdlfkjsakldfjasdlf',
+            //     },
+            //     {
+            //       name: 'new',
+            //       value: 'years',
+            //     },
+            //   ],
+            //   hostname: 'chocolate-shake',
+            //   uri: 'chocolate-shake:5432',
+            // },
+            // {
+            //   kind: 'db',
+            //   name: 'chocolate-shake-NO-LABELS',
+            //   protocol: 'mongodb',
+            //   type: 'rds',
+            //   targetHealth: {
+            //     status: 'unknown',
+            //   },
+            //   labels: [],
+            //   hostname: 'chocolate-shake',
+            //   uri: 'chocolate-shake:5432',
+            // },
+            ...items,
+            // {
+            //   kind: 'db',
+            //   name: 'rds-kimlisa-30',
+            //   desc: '',
+            //   protocol: 'postgres',
+            //   type: 'rds',
+            //   targetHealth: {
+            //     status: 'healthy',
+            //   },
+            //   labels: [
+            //     {
+            //       name: 'account-id',
+            //       value: '278576220453',
+            //     },
+            //     {
+            //       name: 'engine-version',
+            //       value: '16.3',
+            //     },
+            //     {
+            //       name: 'merry',
+            //       value: 'christmas',
+            //     },
+            //   ],
+            //   hostname: 'kimlisa-30.caelergz70vo.us-east-1.rds.amazonaws.com',
+            //   uri: 'kimlisa-30.caelergz70vo.us-east-1.rds.amazonaws.com:5432',
+            //   aws: {
+            //     region: 'us-east-1',
+            //     rds: {
+            //       instance_id: 'kimlisa-30',
+            //       resource_id: 'db-IXAT4NJNP7X3UUFBXTLVKKHYPI',
+            //       iam_auth: false,
+            //       subnets: [],
+            //       vpc_id: 'vpc-092c26a0e0e802e92',
+            //     },
+            //     account_id: '278576220453',
+            //     iam_policy_status: 'IAM_POLICY_STATUS_FAILED',
+            //     status: 'available',
+            //   },
+            //   supports_interactive: true,
+            // },
+            // {
+            //   kind: 'db',
+            //   name: 'pumpkin-pie-somg-long-kind-of-name',
+            //   protocol: 'mysql',
+            //   type: 'rds',
+            //   targetHealth: {
+            //     status: 'unhealthy',
+            //   },
+            //   labels: [
+            //     {
+            //       name: 'account-id',
+            //       value: '278576220453',
+            //     },
+            //     {
+            //       name: 'engine-version',
+            //       value: '16.3',
+            //     },
+            //     {
+            //       name: 'merry',
+            //       value: 'christmas',
+            //     },
+            //     {
+            //       name: 'vpc-id',
+            //       value: '123ajdflaksjflasjdlfkajsdfklajsdlfkjsakldfjasdlf',
+            //     },
+            //     {
+            //       name: 'merry',
+            //       value: 'christmas',
+            //     },
+            //   ],
+            //   hostname: 'pumpkin-pie',
+            //   uri: 'pumpkin-pie:5432',
+            // },
+          ].map(makeUnifiedResource),
           startKey: json?.startKey,
           totalCount: json?.totalCount,
         };

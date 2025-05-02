@@ -195,6 +195,7 @@ export function ClusterResources({
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
             includedResourceMode: params.includedResourceMode,
+            statuses: params.statuses,
           },
           signal
         );
@@ -213,6 +214,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         params.includedResourceMode,
+        params.statuses,
         teleCtx.resourceService,
       ]
     ),

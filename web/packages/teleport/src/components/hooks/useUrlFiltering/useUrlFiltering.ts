@@ -25,6 +25,7 @@ import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabe
 
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
 import history from 'teleport/services/history';
+import { ResourceStatus } from 'teleport/services/resources';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 
@@ -87,6 +88,7 @@ export function useUrlFiltering(
         kinds: newParams.kinds,
         isAdvancedSearch: !!newParams.query,
         pinnedOnly: newParams.pinnedOnly,
+        statuses: newParams.statuses,
       })
     );
   }
@@ -129,6 +131,9 @@ export default function getResourceUrlQueryParams(
   const pinnedOnly = searchParams.get('pinnedOnly');
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
+  const statuses = searchParams.has('status')
+    ? (searchParams.getAll('status') as ResourceStatus[])
+    : null;
 
   const sortParam = sort ? sort.split(':') : null;
 
@@ -144,6 +149,7 @@ export default function getResourceUrlQueryParams(
     query,
     search,
     kinds,
+    statuses,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
     // Conditionally adds the pinnedResources field based on whether its true or not

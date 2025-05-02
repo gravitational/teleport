@@ -37,8 +37,10 @@ export function useInfiniteScroll({
 
   const recreateObserver = useCallback(() => {
     observer.current?.disconnect();
+    console.log('---- 2 recreateObserver (trigger.current): ', trigger.current);
     if (trigger.current) {
       observer.current = new IntersectionObserver(entries => {
+        console.log('---- 3 entries', trigger.current, entries, observer);
         if (entries[0]?.isIntersecting) {
           fetch();
         }
@@ -48,6 +50,7 @@ export function useInfiniteScroll({
   }, [fetch]);
 
   const setTrigger = (el: Element | null) => {
+    console.log('---- 1 setTrigger : ', el);
     trigger.current = el;
     recreateObserver();
   };
@@ -60,9 +63,11 @@ export function useInfiniteScroll({
   // switching this to `useEffect` and rapidly changing filtering data on the
   // resources list page).
   useLayoutEffect(() => {
+    console.log('----- 0 initial useLayoutEffect', trigger?.current);
     // triggers the initial request
-    recreateObserver();
+    // recreateObserver();
     return () => {
+      console.log('--- disconnecting', trigger.current);
       observer.current?.disconnect();
     };
   }, [recreateObserver]);
