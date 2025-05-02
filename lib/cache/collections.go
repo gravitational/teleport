@@ -107,6 +107,9 @@ type collections struct {
 	integrations                     *collection[types.Integration, integrationIndex]
 	pluginStaticCredentials          *collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]
 	accessMonitoringRules            *collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]
+	webTokens                        *collection[types.WebToken, webTokenIndex]
+	uiConfigs                        *collection[types.UIConfig, webUIConfigIndex]
+	installers                       *collection[types.Installer, installerIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -516,6 +519,30 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.accessMonitoringRules = collect
 			out.byKind[resourceKind] = out.accessMonitoringRules
+		case types.KindUIConfig:
+			collect, err := newWebUIConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.uiConfigs = collect
+			out.byKind[resourceKind] = out.uiConfigs
+		case types.KindWebToken:
+			collect, err := newWebTokenCollection(c.WebToken, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.webTokens = collect
+			out.byKind[resourceKind] = out.webTokens
+		case types.KindInstaller:
+			collect, err := newInstallerCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.installers = collect
+			out.byKind[resourceKind] = out.installers
 		}
 	}
 

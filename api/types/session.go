@@ -522,9 +522,17 @@ type WebToken interface {
 	SetUser(user string)
 	// String returns the text representation of this token
 	String() string
+	// Clone returns a copy of the token.
+	Clone() WebToken
 }
 
 var _ WebToken = &WebTokenV3{}
+
+// Clone returns a copy of the token.
+// GetMetadata returns the token metadata
+func (r *WebTokenV3) Clone() WebToken {
+	return utils.CloneProtoMsg(r)
+}
 
 // GetMetadata returns the token metadata
 func (r *WebTokenV3) GetMetadata() Metadata {
