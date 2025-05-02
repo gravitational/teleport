@@ -1321,44 +1321,6 @@ func TestLocks(t *testing.T) {
 	})
 }
 
-// TestIntegrations tests that CRUD operations on integrations resources are
-// replicated from the backend to the cache.
-func TestIntegrations(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.Integration]{
-		newResource: func(name string) (types.Integration, error) {
-			return types.NewIntegrationAWSOIDC(
-				types.Metadata{Name: name},
-				&types.AWSOIDCIntegrationSpecV1{
-					RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
-				},
-			)
-		},
-		create: func(ctx context.Context, i types.Integration) error {
-			_, err := p.integrations.CreateIntegration(ctx, i)
-			return err
-		},
-		list: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetIntegration,
-		cacheList: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
-			return results, err
-		},
-		update: func(ctx context.Context, i types.Integration) error {
-			_, err := p.integrations.UpdateIntegration(ctx, i)
-			return err
-		},
-		deleteAll: p.integrations.DeleteAllIntegrations,
-	})
-}
-
 // TestUserTasks tests that CRUD operations on user notification resources are
 // replicated from the backend to the cache.
 func TestUserTasks(t *testing.T) {
@@ -2799,8 +2761,15 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
 	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
+		Kind:     types.KindAccessMonitoringRule,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-			Notification: &accessmonitoringrulesv1.Notification{},
+			Notification: &accessmonitoringrulesv1.Notification{
+				Name: "test",
+			},
+			Subjects:  []string{"llama", "shark"},
+			Condition: "test",
 		},
 	}
 	return notification

@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -103,6 +104,9 @@ type collections struct {
 	accessListReviews                *collection[*accesslist.Review, accessListReviewIndex]
 	crownJewels                      *collection[*crownjewelv1.CrownJewel, crownJewelIndex]
 	accessGraphSettings              *collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]
+	integrations                     *collection[types.Integration, integrationIndex]
+	pluginStaticCredentials          *collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]
+	accessMonitoringRules            *collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -488,6 +492,30 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.accessGraphSettings = collect
 			out.byKind[resourceKind] = out.accessGraphSettings
+		case types.KindIntegration:
+			collect, err := newIntegrationCollection(c.Integrations, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.integrations = collect
+			out.byKind[resourceKind] = out.integrations
+		case types.KindPluginStaticCredentials:
+			collect, err := newPluginStaticCredentialsCollection(c.PluginStaticCredentials, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.pluginStaticCredentials = collect
+			out.byKind[resourceKind] = out.pluginStaticCredentials
+		case types.KindAccessMonitoringRule:
+			collect, err := newAccessMonitoringRuleCollection(c.AccessMonitoringRules, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessMonitoringRules = collect
+			out.byKind[resourceKind] = out.accessMonitoringRules
 		}
 	}
 

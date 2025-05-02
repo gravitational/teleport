@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -510,7 +509,6 @@ type Cache struct {
 	webTokenCache                types.WebTokenInterface
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	userGroupsCache              services.UserGroups
-	integrationsCache            services.Integrations
 	userTasksCache               services.UserTasks
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
@@ -519,7 +517,6 @@ type Cache struct {
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
-	accessMontoringRuleCache     services.AccessMonitoringRules
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
@@ -922,12 +919,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	integrationsCache, err := local.NewIntegrationsService(config.Backend, local.WithIntegrationsServiceCacheMode(true))
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	userTasksCache, err := local.NewUserTasksService(config.Backend)
 	if err != nil {
 		cancel()
@@ -953,12 +944,6 @@ func New(config Config) (*Cache, error) {
 	}
 
 	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	accessMonitoringRuleCache, err := local.NewAccessMonitoringRulesService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1034,9 +1019,7 @@ func New(config Config) (*Cache, error) {
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
 		webTokenCache:                identityService.WebTokens(),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
-		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		userGroupsCache:              userGroupsCache,
-		integrationsCache:            integrationsCache,
 		userTasksCache:               userTasksCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: identityService,
@@ -2124,32 +2107,6 @@ func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, ne
 	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }
 
-// ListIntegrations returns a paginated list of all Integrations resources.
-func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.integrations)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListIntegrations(ctx, pageSize, nextKey)
-}
-
-// GetIntegration returns the specified Integration resources.
-func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.integrations)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetIntegration(ctx, name)
-}
-
 // ListUserTasks returns a list of UserTask resources.
 func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasks")
@@ -2354,49 +2311,6 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 	}
 	defer rg.Release()
 	return uls, trace.Wrap(err)
-}
-
-// ListAccessMonitoringRules returns a paginated list of access monitoring rules.
-func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, nextToken string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	out, nextKey, err := rg.reader.ListAccessMonitoringRules(ctx, pageSize, nextToken)
-	return out, nextKey, trace.Wrap(err)
-}
-
-// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
-func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessMonitoringRules")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	out, nextKey, err := rg.reader.ListAccessMonitoringRulesWithFilter(ctx, req)
-	return out, nextKey, trace.Wrap(err)
-}
-
-// GetAccessMonitoringRule returns the specified AccessMonitoringRule resources.
-func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessMonitoringRule")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessMonitoringRules)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessMonitoringRule(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

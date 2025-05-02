@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -104,22 +103,18 @@ type legacyCollections struct {
 	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
 	installers                         collectionReader[installerGetter]
-	integrations                       collectionReader[services.IntegrationsGetter]
 	userTasks                          collectionReader[userTasksGetter]
 	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	locks                              collectionReader[services.LockGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
-	proxies                            collectionReader[services.ProxyGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
 	uiConfigs                          collectionReader[uiConfigGetter]
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
 	webTokens                          collectionReader[webTokenGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
-	accessMonitoringRules              collectionReader[accessMonitoringRuleGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
-	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 	gitServers                         collectionReader[services.GitServerGetter]
 }
 
@@ -218,15 +213,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
-		case types.KindIntegration:
-			if c.Integrations == nil {
-				return nil, trace.BadParameter("missing parameter Integrations")
-			}
-			collections.integrations = &genericCollection[types.Integration, services.IntegrationsGetter, integrationsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.integrations
 		case types.KindUserTask:
 			if c.UserTasks == nil {
 				return nil, trace.BadParameter("missing parameter user tasks")
@@ -287,13 +273,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.staticHostUsers
-		case types.KindAccessMonitoringRule:
-			if c.AccessMonitoringRules == nil {
-				return nil, trace.BadParameter("missing parameter AccessMonitoringRule")
-			}
-			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
-			collections.byKind[resourceKind] = collections.accessMonitoringRules
-
 		case types.KindProvisioningPrincipalState:
 			if c.ProvisioningStates == nil {
 				return nil, trace.BadParameter("missing parameter KindProvisioningState")
@@ -316,21 +295,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.identityCenterPrincipalAssignments
-
-		case types.KindPluginStaticCredentials:
-			if c.PluginStaticCredentials == nil {
-				return nil, trace.BadParameter("missing parameter PluginStaticCredentials")
-			}
-			collections.pluginStaticCredentials = &genericCollection[
-				types.PluginStaticCredentials,
-				pluginStaticCredentialsGetter,
-				pluginStaticCredentialsExecutor,
-			]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.pluginStaticCredentials
-
 		case types.KindGitServer:
 			if c.GitServers == nil {
 				return nil, trace.BadParameter("missing parameter GitServers")
@@ -973,58 +937,6 @@ type resourceGetter interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-type integrationsExecutor struct{}
-
-func (integrationsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Integration, error) {
-	var (
-		startKey  string
-		resources []types.Integration
-	)
-	for {
-		var igs []types.Integration
-		var err error
-		igs, startKey, err = cache.Integrations.ListIntegrations(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, igs...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return resources, nil
-}
-
-func (integrationsExecutor) upsert(ctx context.Context, cache *Cache, resource types.Integration) error {
-	_, err := cache.integrationsCache.CreateIntegration(ctx, resource)
-	if trace.IsAlreadyExists(err) {
-		_, err = cache.integrationsCache.UpdateIntegration(ctx, resource)
-	}
-	return trace.Wrap(err)
-}
-
-func (integrationsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.integrationsCache.DeleteAllIntegrations(ctx)
-}
-
-func (integrationsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.integrationsCache.DeleteIntegration(ctx, resource.GetName())
-}
-
-func (integrationsExecutor) isSingleton() bool { return false }
-
-func (integrationsExecutor) getReader(cache *Cache, cacheOK bool) services.IntegrationsGetter {
-	if cacheOK {
-		return cache.integrationsCache
-	}
-	return cache.Config.Integrations
-}
-
-var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExecutor{}
-
 type discoveryConfigExecutor struct{}
 
 func (discoveryConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*discoveryconfig.DiscoveryConfig, error) {
@@ -1265,52 +1177,3 @@ func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.Use
 }
 
 var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}
-
-type accessMonitoringRulesExecutor struct{}
-
-func (accessMonitoringRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
-	var nextToken string
-	for {
-		var page []*accessmonitoringrulesv1.AccessMonitoringRule
-		var err error
-		page, nextToken, err = cache.AccessMonitoringRules.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
-}
-
-func (accessMonitoringRulesExecutor) upsert(ctx context.Context, cache *Cache, resource *accessmonitoringrulesv1.AccessMonitoringRule) error {
-	_, err := cache.accessMontoringRuleCache.UpsertAccessMonitoringRule(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (accessMonitoringRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessMontoringRuleCache.DeleteAllAccessMonitoringRules(ctx)
-}
-
-func (accessMonitoringRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessMontoringRuleCache.DeleteAccessMonitoringRule(ctx, resource.GetName())
-}
-
-func (accessMonitoringRulesExecutor) isSingleton() bool { return false }
-
-func (accessMonitoringRulesExecutor) getReader(cache *Cache, cacheOK bool) accessMonitoringRuleGetter {
-	if cacheOK {
-		return cache.accessMontoringRuleCache
-	}
-	return cache.Config.AccessMonitoringRules
-}
-
-type accessMonitoringRuleGetter interface {
-	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
-	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-}
