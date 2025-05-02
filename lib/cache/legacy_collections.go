@@ -112,7 +112,6 @@ type legacyCollections struct {
 	accessListMembers                  collectionReader[accessListMembersGetter]
 	accessListReviews                  collectionReader[accessListReviewsGetter]
 	tunnelConnections                  collectionReader[tunnelConnectionGetter]
-	appSessions                        collectionReader[appSessionGetter]
 	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
 	installers                         collectionReader[installerGetter]
@@ -125,12 +124,8 @@ type legacyCollections struct {
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	proxies                            collectionReader[services.ProxyGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
-	samlIdPServiceProviders            collectionReader[samlIdPServiceProviderGetter]
-	samlIdPSessions                    collectionReader[samlIdPSessionGetter]
-	snowflakeSessions                  collectionReader[snowflakeSessionGetter]
 	uiConfigs                          collectionReader[uiConfigGetter]
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
-	webSessions                        collectionReader[webSessionGetter]
 	webTokens                          collectionReader[webTokenGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
 	accessGraphSettings                collectionReader[accessGraphSettingsGetter]
@@ -190,45 +185,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-		case types.KindWebSession:
-			switch watch.SubKind {
-			case types.KindAppSession:
-				if c.AppSession == nil {
-					return nil, trace.BadParameter("missing parameter AppSession")
-				}
-				collections.appSessions = &genericCollection[types.WebSession, appSessionGetter, appSessionExecutor]{
-					cache: c,
-					watch: watch,
-				}
-				collections.byKind[resourceKind] = collections.appSessions
-			case types.KindSnowflakeSession:
-				if c.SnowflakeSession == nil {
-					return nil, trace.BadParameter("missing parameter SnowflakeSession")
-				}
-				collections.snowflakeSessions = &genericCollection[types.WebSession, snowflakeSessionGetter, snowflakeSessionExecutor]{
-					cache: c,
-					watch: watch,
-				}
-				collections.byKind[resourceKind] = collections.snowflakeSessions
-			case types.KindSAMLIdPSession:
-				if c.SAMLIdPSession == nil {
-					return nil, trace.BadParameter("missing parameter SAMLIdPSession")
-				}
-				collections.samlIdPSessions = &genericCollection[types.WebSession, samlIdPSessionGetter, samlIdPSessionExecutor]{
-					cache: c,
-					watch: watch,
-				}
-				collections.byKind[resourceKind] = collections.samlIdPSessions
-			case types.KindWebSession:
-				if c.WebSession == nil {
-					return nil, trace.BadParameter("missing parameter WebSession")
-				}
-				collections.webSessions = &genericCollection[types.WebSession, webSessionGetter, webSessionExecutor]{
-					cache: c,
-					watch: watch,
-				}
-				collections.byKind[resourceKind] = collections.webSessions
-			}
+
 		case types.KindWebToken:
 			if c.WebToken == nil {
 				return nil, trace.BadParameter("missing parameter WebToken")
@@ -283,15 +240,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
-		case types.KindSAMLIdPServiceProvider:
-			if c.SAMLIdPServiceProviders == nil {
-				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
-			}
-			collections.samlIdPServiceProviders = &genericCollection[types.SAMLIdPServiceProvider, samlIdPServiceProviderGetter, samlIdPServiceProvidersExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.samlIdPServiceProviders
 		case types.KindIntegration:
 			if c.Integrations == nil {
 				return nil, trace.BadParameter("missing parameter Integrations")
@@ -678,216 +626,6 @@ func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.Dat
 }
 
 var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
-
-type appSessionExecutor struct{}
-
-func (appSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	var (
-		startKey string
-		sessions []types.WebSession
-	)
-	for {
-		webSessions, nextKey, err := cache.AppSession.ListAppSessions(ctx, 0, startKey, "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if !loadSecrets {
-			for i := 0; i < len(webSessions); i++ {
-				webSessions[i] = webSessions[i].WithoutSecrets()
-			}
-		}
-
-		sessions = append(sessions, webSessions...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return sessions, nil
-}
-
-func (appSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
-	return cache.appSessionCache.UpsertAppSession(ctx, resource)
-}
-
-func (appSessionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.appSessionCache.DeleteAllAppSessions(ctx)
-}
-
-func (appSessionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.appSessionCache.DeleteAppSession(ctx, types.DeleteAppSessionRequest{
-		SessionID: resource.GetName(),
-	})
-}
-
-func (appSessionExecutor) isSingleton() bool { return false }
-
-func (appSessionExecutor) getReader(cache *Cache, cacheOK bool) appSessionGetter {
-	if cacheOK {
-		return cache.appSessionCache
-	}
-	return cache.Config.AppSession
-}
-
-type appSessionGetter interface {
-	GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error)
-	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
-}
-
-var _ executor[types.WebSession, appSessionGetter] = appSessionExecutor{}
-
-type snowflakeSessionExecutor struct{}
-
-func (snowflakeSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	webSessions, err := cache.SnowflakeSession.GetSnowflakeSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !loadSecrets {
-		for i := 0; i < len(webSessions); i++ {
-			webSessions[i] = webSessions[i].WithoutSecrets()
-		}
-	}
-
-	return webSessions, nil
-}
-
-func (snowflakeSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
-	return cache.snowflakeSessionCache.UpsertSnowflakeSession(ctx, resource)
-}
-
-func (snowflakeSessionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.snowflakeSessionCache.DeleteAllSnowflakeSessions(ctx)
-}
-
-func (snowflakeSessionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.snowflakeSessionCache.DeleteSnowflakeSession(ctx, types.DeleteSnowflakeSessionRequest{
-		SessionID: resource.GetName(),
-	})
-}
-
-func (snowflakeSessionExecutor) isSingleton() bool { return false }
-
-func (snowflakeSessionExecutor) getReader(cache *Cache, cacheOK bool) snowflakeSessionGetter {
-	if cacheOK {
-		return cache.snowflakeSessionCache
-	}
-	return cache.Config.SnowflakeSession
-}
-
-type snowflakeSessionGetter interface {
-	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
-}
-
-var _ executor[types.WebSession, snowflakeSessionGetter] = snowflakeSessionExecutor{}
-
-//nolint:revive // Because we want this to be IdP.
-type samlIdPSessionExecutor struct{}
-
-func (samlIdPSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	var (
-		startKey string
-		sessions []types.WebSession
-	)
-	for {
-		webSessions, nextKey, err := cache.SAMLIdPSession.ListSAMLIdPSessions(ctx, 0, startKey, "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if !loadSecrets {
-			for i := 0; i < len(webSessions); i++ {
-				webSessions[i] = webSessions[i].WithoutSecrets()
-			}
-		}
-
-		sessions = append(sessions, webSessions...)
-
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
-	}
-	return sessions, nil
-}
-
-func (samlIdPSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
-	return cache.samlIdPSessionCache.UpsertSAMLIdPSession(ctx, resource)
-}
-
-func (samlIdPSessionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.samlIdPSessionCache.DeleteAllSAMLIdPSessions(ctx)
-}
-
-func (samlIdPSessionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.samlIdPSessionCache.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
-		SessionID: resource.GetName(),
-	})
-}
-
-func (samlIdPSessionExecutor) isSingleton() bool { return false }
-
-func (samlIdPSessionExecutor) getReader(cache *Cache, cacheOK bool) samlIdPSessionGetter {
-	if cacheOK {
-		return cache.samlIdPSessionCache
-	}
-	return cache.Config.SAMLIdPSession
-}
-
-type samlIdPSessionGetter interface {
-	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
-}
-
-var _ executor[types.WebSession, samlIdPSessionGetter] = samlIdPSessionExecutor{}
-
-type webSessionExecutor struct{}
-
-func (webSessionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebSession, error) {
-	webSessions, err := cache.WebSession.List(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !loadSecrets {
-		for i := 0; i < len(webSessions); i++ {
-			webSessions[i] = webSessions[i].WithoutSecrets()
-		}
-	}
-
-	return webSessions, nil
-}
-
-func (webSessionExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebSession) error {
-	return cache.webSessionCache.Upsert(ctx, resource)
-}
-
-func (webSessionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.webSessionCache.DeleteAll(ctx)
-}
-
-func (webSessionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.webSessionCache.Delete(ctx, types.DeleteWebSessionRequest{
-		SessionID: resource.GetName(),
-	})
-}
-
-func (webSessionExecutor) isSingleton() bool { return false }
-
-func (webSessionExecutor) getReader(cache *Cache, cacheOK bool) webSessionGetter {
-	if cacheOK {
-		return cache.webSessionCache
-	}
-	return cache.Config.WebSession
-}
-
-type webSessionGetter interface {
-	Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
-}
-
-var _ executor[types.WebSession, webSessionGetter] = webSessionExecutor{}
 
 type webTokenExecutor struct{}
 
@@ -1313,64 +1051,6 @@ func (userTasksExecutor) getReader(cache *Cache, cacheOK bool) userTasksGetter {
 }
 
 var _ executor[*usertasksv1.UserTask, userTasksGetter] = userTasksExecutor{}
-
-//nolint:revive // Because we want this to be IdP.
-type samlIdPServiceProvidersExecutor struct{}
-
-func (samlIdPServiceProvidersExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.SAMLIdPServiceProvider, error) {
-	var (
-		startKey string
-		sps      []types.SAMLIdPServiceProvider
-	)
-	for {
-		var samlProviders []types.SAMLIdPServiceProvider
-		var err error
-		samlProviders, startKey, err = cache.SAMLIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, startKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		sps = append(sps, samlProviders...)
-
-		if startKey == "" {
-			break
-		}
-	}
-
-	return sps, nil
-}
-
-func (samlIdPServiceProvidersExecutor) upsert(ctx context.Context, cache *Cache, resource types.SAMLIdPServiceProvider) error {
-	err := cache.samlIdPServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
-	if trace.IsAlreadyExists(err) {
-		err = cache.samlIdPServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
-	}
-	return trace.Wrap(err)
-}
-
-func (samlIdPServiceProvidersExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.samlIdPServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx)
-}
-
-func (samlIdPServiceProvidersExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.samlIdPServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, resource.GetName())
-}
-
-func (samlIdPServiceProvidersExecutor) isSingleton() bool { return false }
-
-func (samlIdPServiceProvidersExecutor) getReader(cache *Cache, cacheOK bool) samlIdPServiceProviderGetter {
-	if cacheOK {
-		return cache.samlIdPServiceProvidersCache
-	}
-	return cache.Config.SAMLIdPServiceProviders
-}
-
-type samlIdPServiceProviderGetter interface {
-	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
-	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
-}
-
-var _ executor[types.SAMLIdPServiceProvider, samlIdPServiceProviderGetter] = samlIdPServiceProvidersExecutor{}
 
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {

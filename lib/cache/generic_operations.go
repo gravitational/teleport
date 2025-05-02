@@ -57,7 +57,10 @@ func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, err
 	}
 
 	out, err := rg.store.get(g.index, identifier)
-	return g.clone(out), trace.Wrap(err)
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+	return g.clone(out), nil
 }
 
 // genericLister is a helper to retrieve a page of items from a cache collection.
