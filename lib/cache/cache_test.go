@@ -1223,34 +1223,6 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-// TestUserTasks tests that CRUD operations on user notification resources are
-// replicated from the backend to the cache.
-func TestUserTasks(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs153[*usertasksv1.UserTask]{
-		newResource: func(name string) (*usertasksv1.UserTask, error) {
-			return newUserTasks(t), nil
-		},
-		create: func(ctx context.Context, item *usertasksv1.UserTask) error {
-			_, err := p.userTasks.CreateUserTask(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
-			return items, trace.Wrap(err)
-		},
-		deleteAll: p.userTasks.DeleteAllUserTasks,
-	})
-}
-
 func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	t.Helper()
 
@@ -1394,33 +1366,6 @@ func TestSecurityReportState(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		deleteAll: p.secReports.DeleteAllSecurityReportsStates,
-	})
-}
-
-// TestUserLoginStates tests that CRUD operations on user login state resources are
-// replicated from the backend to the cache.
-func TestUserLoginStates(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
-		newResource: func(name string) (*userloginstate.UserLoginState, error) {
-			return newUserLoginState(t, name), nil
-		},
-		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
-			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
-			return trace.Wrap(err)
-		},
-		list:      p.userLoginStates.GetUserLoginStates,
-		cacheGet:  p.cache.GetUserLoginState,
-		cacheList: p.cache.GetUserLoginStates,
-		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
-			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
-			return trace.Wrap(err)
-		},
-		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
 	})
 }
 

@@ -42,13 +42,11 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/api/types/userloginstate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -508,11 +506,9 @@ type Cache struct {
 	databaseObjectsCache         *local.DatabaseObjectService
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	userGroupsCache              services.UserGroups
-	userTasksCache               services.UserTasks
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
-	userLoginStateCache          services.UserLoginStates
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
@@ -918,12 +914,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	userTasksCache, err := local.NewUserTasksService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	discoveryConfigsCache, err := local.NewDiscoveryConfigService(config.Backend)
 	if err != nil {
 		cancel()
@@ -931,12 +921,6 @@ func New(config Config) (*Cache, error) {
 	}
 
 	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	userLoginStatesCache, err := local.NewUserLoginStateService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -1018,11 +1002,9 @@ func New(config Config) (*Cache, error) {
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		userGroupsCache:              userGroupsCache,
-		userTasksCache:               userTasksCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
-		userLoginStateCache:          userLoginStatesCache,
 		databaseObjectsCache:         databaseObjectsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
@@ -1904,32 +1886,6 @@ func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, ne
 	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }
 
-// ListUserTasks returns a list of UserTask resources.
-func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, nextKey string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListUserTasks")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userTasks)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListUserTasks(ctx, pageSize, nextKey, filters)
-}
-
-// GetUserTask returns the specified UserTask resource.
-func (c *Cache) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUserTask")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userTasks)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetUserTask(ctx, name)
-}
-
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
 func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListDiscoveryConfigs")
@@ -2071,43 +2027,6 @@ func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, nex
 	}
 	defer rg.Release()
 	return rg.reader.ListSecurityReportsStates(ctx, pageSize, nextKey)
-}
-
-// GetUserLoginStates returns the all user login state resources.
-func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginStates")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userLoginStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetUserLoginStates(ctx)
-}
-
-// GetUserLoginState returns the specified user login state resource.
-func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginState")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userLoginStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uls, err := rg.reader.GetUserLoginState(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if uls, err := c.Config.UserLoginStates.GetUserLoginState(ctx, name); err == nil {
-			return uls, nil
-		}
-	}
-	defer rg.Release()
-	return uls, trace.Wrap(err)
 }
 
 // ListResources is a part of auth.Cache implementation
