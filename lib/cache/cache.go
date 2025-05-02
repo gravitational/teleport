@@ -507,7 +507,6 @@ type Cache struct {
 	secReportsCache              services.SecReports
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService

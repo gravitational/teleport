@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -101,8 +100,6 @@ type legacyCollections struct {
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
-	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
-	gitServers                         collectionReader[services.GitServerGetter]
 }
 
 // setupLegacyCollections returns a registry of legacyCollections.
