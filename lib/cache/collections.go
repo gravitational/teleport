@@ -88,6 +88,8 @@ type collections struct {
 	autoUpdateConfig                 *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
 	autoUpdateVerion                 *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
 	autoUpdateRollout                *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
+	oktaImportRules                  *collection[types.OktaImportRule, oktaImportRuleIndex]
+	oktaAssignments                  *collection[types.OktaAssignment, oktaAssignmentIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -374,6 +376,22 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.autoUpdateRollout = collect
 			out.byKind[resourceKind] = out.autoUpdateRollout
+		case types.KindOktaImportRule:
+			collect, err := newOktaImportRuleCollection(c.Okta, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.oktaImportRules = collect
+			out.byKind[resourceKind] = out.oktaImportRules
+		case types.KindOktaAssignment:
+			collect, err := newOktaImportAssignmentCollection(c.Okta, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.oktaAssignments = collect
+			out.byKind[resourceKind] = out.oktaAssignments
 		}
 	}
 
