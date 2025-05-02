@@ -214,6 +214,12 @@ func TestValidateSigstorePolicy(t *testing.T) {
 			},
 			err: "spec.requirements: is required",
 		},
+		"empty requirements": {
+			mod: func(p *workloadidentityv1.SigstorePolicy) {
+				p.Spec.Requirements = &workloadidentityv1.SigstorePolicyRequirements{}
+			},
+			err: "spec.requirements: either artifact_signature or attestations is required",
+		},
 		"required attestation empty predicate": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
 				p.Spec.Requirements.Attestations = []*workloadidentityv1.InTotoAttestationMatcher{
@@ -221,6 +227,17 @@ func TestValidateSigstorePolicy(t *testing.T) {
 				}
 			},
 			err: "spec.requirements.attestations[0].predicate_type: is required",
+		},
+		"attestations and artifact signature": {
+			mod: func(p *workloadidentityv1.SigstorePolicy) {
+				p.Spec.Requirements = &workloadidentityv1.SigstorePolicyRequirements{
+					ArtifactSignature: true,
+					Attestations: []*workloadidentityv1.InTotoAttestationMatcher{
+						{PredicateType: "https://slsa.dev/provenance/v1"},
+					},
+				}
+			},
+			err: "spec.requirements: artifact_signature and attestations are mutually exclusive",
 		},
 	}
 	for name, tc := range testCases {

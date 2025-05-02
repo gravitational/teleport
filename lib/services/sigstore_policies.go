@@ -162,7 +162,17 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 		}
 	}
 
-	for idx, attestation := range s.GetSpec().GetRequirements().GetAttestations() {
+	requirements := s.GetSpec().GetRequirements()
+
+	if requirements.GetArtifactSignature() && len(requirements.GetAttestations()) != 0 {
+		return trace.BadParameter("spec.requirements: artifact_signature and attestations are mutually exclusive")
+	}
+
+	if !requirements.GetArtifactSignature() && len(requirements.GetAttestations()) == 0 {
+		return trace.BadParameter("spec.requirements: either artifact_signature or attestations is required")
+	}
+
+	for idx, attestation := range requirements.GetAttestations() {
 		if attestation.GetPredicateType() == "" {
 			return trace.BadParameter("spec.requirements.attestations[%d].predicate_type: is required", idx)
 		}
