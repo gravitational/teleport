@@ -252,6 +252,20 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList
 				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
 		)
 		return len(o.Items) > 0, true, nil
+	case *corev1.ReplicationController:
+		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
+		if err != nil {
+			d.log.WarnContext(ctx, "Unable to compile regex expressions within kubernetes_resources", "error", err)
+		}
+		// if err is not nil or result is false, we should not include it.
+		return result, false, nil
+	case *corev1.ReplicationControllerList:
+		o.Items = slices.FromPointers(
+			filterResourceList(
+				d.kind, d.group, d.verb,
+				slices.ToPointers(o.Items), d.allowedResources, d.deniedResources, d.log),
+		)
+		return len(o.Items) > 0, true, nil
 	case *corev1.ServiceAccount:
 		result, err := filterResource(d.kind, d.group, d.verb, o, d.allowedResources, d.deniedResources)
 		if err != nil {
