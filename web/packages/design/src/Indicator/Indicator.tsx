@@ -53,16 +53,16 @@ export function Indicator({ delay = 'short', ...iconProps }: IndicatorProps) {
     <StyledSpinner
       {...iconProps}
       data-testid="indicator"
-      isVisible={isVisible}
+      $isVisible={isVisible}
     />
   );
 }
 
-const StyledSpinner = styled(SpinnerIcon)<{ isVisible: boolean }>`
+const StyledSpinner = styled(SpinnerIcon)<{ $isVisible: boolean }>`
   color: ${props =>
     props.color || props.theme.colors.interactive.tonal.neutral[2]};
   display: inline-block;
-  opacity: ${props => (props.isVisible ? 1 : 0)};
+  opacity: ${props => (props.$isVisible ? 1 : 0)};
   transition: opacity 0.2s;
   ${({ size = '48px' }) => `
     height: ${size};

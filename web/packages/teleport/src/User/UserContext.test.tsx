@@ -29,6 +29,8 @@ import cfg from 'teleport/config';
 import { KeysEnum } from 'teleport/services/storageService';
 import { UserContextProvider } from 'teleport/User';
 import { useUser } from 'teleport/User/UserContext';
+import { ThemeProvider } from 'styled-components';
+import lightTheme from 'design/theme/themes/lightTheme';
 
 function ThemeName() {
   const { preferences } = useUser();
@@ -54,11 +56,13 @@ describe('user context - success state', () => {
 
   it('should render with the settings from the backend', async () => {
     render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
+      <ThemeProvider theme={lightTheme}>
+        <MemoryRouter>
+          <UserContextProvider>
+            <ThemeName />
+          </UserContextProvider>
+        </MemoryRouter>
+      </ThemeProvider>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -81,11 +85,13 @@ describe('user context - error state', () => {
 
   it('should render with the default settings', async () => {
     render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
+      <ThemeProvider theme={lightTheme}>
+        <MemoryRouter>
+          <UserContextProvider>
+            <ThemeName />
+          </UserContextProvider>
+        </MemoryRouter>
+      </ThemeProvider>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -102,11 +108,13 @@ describe('user context - error state', () => {
     );
 
     render(
-      <MemoryRouter>
-        <UserContextProvider>
-          <ThemeName />
-        </UserContextProvider>
-      </MemoryRouter>
+      <ThemeProvider theme={lightTheme}>
+        <MemoryRouter>
+          <UserContextProvider>
+            <ThemeName />
+          </UserContextProvider>
+        </MemoryRouter>
+      </ThemeProvider>
     );
 
     const theme = await screen.findByText(/theme: dark/i);

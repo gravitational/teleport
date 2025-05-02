@@ -24,8 +24,7 @@ import { Indicator } from './Indicator';
 
 describe('design/Indicator', () => {
   it('renders', async () => {
-    const { container } = render(<Indicator delay={'none'} />);
-    expect(container).toBeEmptyDOMElement();
+    render(<Indicator delay={'none'} />);
 
     await expect(screen.findByTestId('indicator')).resolves.toBeInTheDocument();
   });

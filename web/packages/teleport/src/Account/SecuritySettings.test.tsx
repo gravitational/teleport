@@ -20,15 +20,18 @@ import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { render, screen, waitFor } from 'design/utils/testing';
+import { useStore } from 'shared/libs/stores';
 
 import { ContextProvider } from 'teleport';
-import { AccountPage as Account } from 'teleport/Account/Account';
+import { SecuritySettings } from 'teleport/Account/SecuritySettings';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import auth from 'teleport/services/auth/auth';
 import MfaService, { MfaDevice } from 'teleport/services/mfa';
 import { PasswordState } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
+import { Account } from './Account';
+import useManageDevices from './ManageDevices/useManageDevices';
 
 const defaultAuthType = cfg.auth.second_factor;
 const defaultPasswordless = cfg.auth.allowPasswordless;
@@ -39,10 +42,35 @@ afterEach(() => {
   cfg.auth.allowPasswordless = defaultPasswordless;
 });
 
+function SecuritySettingsWrapper({ ctx }: { ctx: TeleportContext }) {
+  const storeUser = useStore(ctx.storeUser);
+  const isSso = storeUser.isSso();
+  const manageDevicesState = useManageDevices(ctx);
+
+  const canAddPasskeys = cfg.isPasswordlessEnabled();
+  const canAddMfa = cfg.isMfaEnabled();
+
+  function onPasswordChange() {
+    storeUser.setState({ passwordState: PasswordState.PASSWORD_STATE_SET });
+  }
+
+  return (
+    <SecuritySettings
+      isSso={isSso}
+      canAddPasskeys={canAddPasskeys}
+      canAddMfa={canAddMfa}
+      passwordState={storeUser.getPasswordState()}
+      {...manageDevicesState}
+      onPasswordChange={onPasswordChange}
+      addNotification={jest.fn()}
+    />
+  );
+}
+
 async function renderComponent(ctx: TeleportContext) {
   render(
     <ContextProvider ctx={ctx}>
-      <Account />
+      <SecuritySettingsWrapper ctx={ctx} />
     </ContextProvider>
   );
   await waitFor(() => {
@@ -231,7 +259,7 @@ test('loading state', async () => {
 
   render(
     <ContextProvider ctx={ctx}>
-      <Account />
+      <SecuritySettingsWrapper ctx={ctx}/>
     </ContextProvider>
   );
 
