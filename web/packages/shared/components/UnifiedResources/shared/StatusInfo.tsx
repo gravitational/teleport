@@ -259,9 +259,11 @@ function UnhealthyServerList({ servers }: { servers: SharedResourceServer[] }) {
       <Text>
         <InfoField>UUID:</InfoField> {server.hostId}
       </Text>
-      <Text>
-        <InfoField>Reason:</InfoField> {server.targetHealth?.error}
-      </Text>
+      {server.targetHealth?.error && (
+        <Text>
+          <InfoField>Reason:</InfoField> {server.targetHealth.error}
+        </Text>
+      )}
     </Flex>
   ));
 }
