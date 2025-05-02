@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build docs
+
 package utils
 
 import (
@@ -25,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrintCLIDocs(t *testing.T) {
+func TestUpdateAppUsageTemplate(t *testing.T) {
 	tests := []struct {
 		name            string
 		makeApp         func() *kingpin.Application
@@ -120,7 +122,7 @@ Arguments:
 myapp.
 
 @@@code
-$ myapp [<flags>]
+$ myapp [<flags>] <command> [<args> ...]
 @@@
 
 This is the main CLI tool.
@@ -358,7 +360,6 @@ $ myapp kubectl
 			name: "main command env vars",
 			makeApp: func() *kingpin.Application {
 				app := InitCLIParser("myapp", "This is the main CLI tool.")
-				app.Arg("config", "The location of the config file").Envar("MYAPP_CONFIG").Default("config.yaml").String()
 				app.Flag("verbosity", "Verbosity level.").Default("3").Envar("MYAPP_VERBOSITY").Int()
 				return app
 			},
@@ -372,14 +373,7 @@ Global environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|@MYAPP_CONFIG@|@config.yaml@ (optional)|The location of the config file|
 |@MYAPP_VERBOSITY@|@3@|Verbosity level.|
-
-Arguments:
-
-|Argument|Default|Description|
-|---|---|---|
-|config|@config.yaml@ (optional)|The location of the config file|
 
 `,
 		},
@@ -430,9 +424,23 @@ Arguments:
 		t.Run(tt.name, func(t *testing.T) {
 			app := tt.makeApp()
 			var buffer bytes.Buffer
+			app.UsageWriter(&buffer)
+			args := []string{"help"}
 			app.Terminate(func(int) {})
-			PrintCLIDocs(&buffer, app)
-			require.Contains(t, buffer.String(), strings.ReplaceAll(tt.expectSubstring, "@", "`"))
+			UpdateAppUsageTemplate(app, args)
+
+			// kingpin only adds a help command if there is at least
+			// one subcommand. Make sure that all test cases
+			// introduce a help command.
+			app.HelpCommand = app.Command("help", "Print help for the application.")
+			// HelpCommand is triggered on PreAction during Parse.
+			// See kingpin.Application.init for more details.
+			_, err := app.Parse(args)
+			require.NoError(t, err)
+			expected := strings.ReplaceAll(tt.expectSubstring, "@", "`")
+			if !strings.Contains(buffer.String(), expected) {
+				t.Fatalf("could not find the expected substring in the following reference page:\n\n%v", buffer.String())
+			}
 		})
 	}
 }
