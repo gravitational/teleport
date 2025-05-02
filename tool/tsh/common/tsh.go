@@ -1330,7 +1330,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if p, err := cf.GetProfile(); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	} else {
-		if err := helper.ManagedUpdateLocal(ctx, p, args); err != nil {
+		if err := helper.CheckAndUpdateLocal(ctx, p, args); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1955,7 +1955,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
+		if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1973,7 +1973,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
+			if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1992,7 +1992,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
+			if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -2066,7 +2066,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := helper.ManagedUpdateRemote(cf.Context, tc, reExecArgs); err != nil {
+			if err := tc.CheckAndUpdateRemote(cf.Context, reExecArgs); err != nil {
 				return trace.Wrap(err)
 			}
 		}

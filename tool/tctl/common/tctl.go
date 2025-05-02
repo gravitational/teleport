@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/autoupdate/tools/helper"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -73,11 +73,7 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(ctx context.Context, commands []CLICommand) {
-	if err := tools.CheckAndUpdateLocal(ctx, os.Args[1:]); err != nil {
-		utils.FatalError(err)
-	}
-
-	err := TryRun(commands, os.Args[1:])
+	err := TryRun(ctx, commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
@@ -89,7 +85,7 @@ func Run(ctx context.Context, commands []CLICommand) {
 
 // TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
 // This is useful for testing tctl, because we can capture the returned error in tests.
-func TryRun(commands []CLICommand, args []string) error {
+func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
 	// app is the command line parser
@@ -164,7 +160,11 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	cfg.Debug = ccf.Debug
 
-	ctx := context.Background()
+	profile, err := tctlcfg.ReadCurrentProfile(cfg.TeleportHome)
+	if err := helper.CheckAndUpdateLocal(ctx, profile, os.Args[1:]); err != nil {
+		utils.FatalError(err)
+	}
+
 	clientFunc := commonclient.GetInitFunc(ccf, cfg)
 	// Execute whatever is selected.
 	for _, c := range commands {

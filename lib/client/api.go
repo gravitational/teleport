@@ -77,7 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -713,18 +712,14 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// Save profile to record proxy credentials
-	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
-		log.WarnContext(ctx, "Failed to save profile", "error", err)
+	// Verifies managed updates and modifies client config before profile is saved.
+	if err := tc.CheckAndUpdateRemote(ctx, os.Args[1:]); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := tools.CheckAndUpdateRemote(
-		ctx,
-		tc.WebProxyAddr,
-		tc.InsecureSkipVerify,
-		os.Args[1:],
-	); err != nil {
+	// Save profile to record proxy credentials.
+	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
+		log.WarnContext(ctx, "Failed to save profile", "error", err)
 		return trace.Wrap(err)
 	}
 
