@@ -18,17 +18,15 @@ package desktop
 
 import (
 	"context"
-	"net"
-
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Connect starts a remote desktop session.
@@ -61,76 +59,49 @@ func Connect(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToD
 	}
 	defer conn.Close()
 
-	tdpConn := tdp.NewConn(conn)
-	defer tdpConn.Close()
-
 	// Now that we have a connection to the desktop service, we can
 	// send the username.
+	tdpConn := tdp.NewConn(conn)
+	defer tdpConn.Close()
 	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: login})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(proxyTdpConn(conn, tdpConn, stream))
+	downstreamRW, err := streamutils.NewReadWriter(&clientStream{
+		stream: stream,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(tdp.ProxyConn(ctx, downstreamRW, conn))
 }
 
-// proxyTdpConn proxies messages between upstream tdp connection and downstream bidi stream.
-func proxyTdpConn(
-	upstreamConn net.Conn,
-	upstreamConnTdp *tdp.Conn,
-	downstreamConn grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse],
-) error {
-	errCh := make(chan error, 2)
+// clientStream implements the [streamutils.Source] interface
+// for a [teletermv1.TerminalService_ConnectToDesktopClient].
+type clientStream struct {
+	stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse]
+}
 
-	// Upstream → Downstream (tdp.Conn → gRPC)
-	go func() {
-		for {
-			// We avoid using io.Copy here, as we want to make sure
-			// each TDP message is sent as a unit so that a single
-			// 'message' event is emitted in the JS TDP client.
-			// Internal buffer of io.Copy could split one message
-			// into multiple downstreamConn.Send() calls.
-			readMsg, err := upstreamConnTdp.ReadMessage()
-			if err != nil {
-				errCh <- err
-				return
-			}
+func (d clientStream) Send(p []byte) error {
+	return trace.Wrap(d.stream.Send(&api.ConnectToDesktopResponse{Data: p}))
+}
 
-			encoded, err := readMsg.Encode()
-			if err != nil {
-				errCh <- err
-				return
-			}
+func (d clientStream) Recv() ([]byte, error) {
+	msg, err := d.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-			msg := &api.ConnectToDesktopResponse{Data: encoded}
-			if err := downstreamConn.Send(msg); err != nil {
-				errCh <- err
-				return
-			}
-		}
-	}()
+	if msg.GetTargetDesktop().GetDesktopUri() != "" || msg.GetTargetDesktop().GetLogin() != "" {
+		return nil, trace.BadParameter("target desktop can be send only in the first message")
+	}
 
-	// Downstream → Upstream (gRPC → net.Conn)
-	go func() {
-		for {
-			resp, err := downstreamConn.Recv()
-			switch {
-			case utils.IsOKNetworkError(err):
-				errCh <- nil
-				return
-			case err != nil:
-				errCh <- err
-				return
-			}
+	data := msg.GetData()
+	if data == nil {
+		return nil, trace.BadParameter("received invalid message")
+	}
 
-			_, err = upstreamConn.Write(resp.Data)
-			if err != nil {
-				errCh <- err
-				return
-			}
-		}
-	}()
-
-	// Wait for one side to finish
-	return <-errCh
+	return data, nil
 }

@@ -20,12 +20,15 @@ package tdp
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"io"
 	"net"
 	"sync"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Conn is a desktop protocol connection.
@@ -163,4 +166,106 @@ func IsFatalErr(err error) bool {
 	}
 
 	return !IsNonFatalErr(err)
+}
+
+// ProxyConn does a bidirectional copy between the connection to the browser/Connect
+// (client) and the mTLS connection to Windows Desktop Service (server).
+func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
+	errCh := make(chan error, 2)
+	var closeOnce sync.Once
+	close := func() {
+		client.Close()
+		server.Close()
+	}
+	defer closeOnce.Do(close)
+
+	sendTDPAlert := func(err error, severity Severity) error {
+		msg := Alert{Message: err.Error(), Severity: severity}
+		b, err := msg.Encode()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = client.Write(b)
+		return trace.Wrap(err)
+	}
+
+	// Server -> Client
+	go func() {
+		defer closeOnce.Do(close)
+
+		// We avoid using io.Copy here, as we want to make sure
+		// each TDP message is sent as a unit so that a single
+		// 'message' event is emitted in the JS TDP client.
+		// Internal buffer of io.Copy could split one message
+		// into multiple downstreamConn.Send() calls.
+		tdpConn := NewConn(server)
+		defer tdpConn.Close()
+
+		// we don't care about the content of the message, we just
+		// need to split the stream into individual messages and
+		// write them to the client
+		for {
+			msg, err := tdpConn.ReadMessage()
+			if err != nil {
+				isFatal := IsFatalErr(err)
+				severity := SeverityError
+				if !isFatal {
+					severity = SeverityWarning
+				}
+				sendErr := sendTDPAlert(err, severity)
+
+				// If the error wasn't fatal and we successfully
+				// sent it back to the client, continue.
+				if !isFatal && sendErr == nil {
+					continue
+				}
+
+				// If the error was fatal or we failed to send it back
+				// to the client, send it to the errs channel and end
+				// the session.
+				if sendErr != nil {
+					err = sendErr
+				}
+				errCh <- err
+				return
+			}
+			encoded, err := msg.Encode()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			_, err = client.Write(encoded)
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}
+	}()
+
+	// Client -> Server
+	go func() {
+		defer closeOnce.Do(close)
+
+		_, err := io.Copy(server, client)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		return
+	}()
+
+	var errs []error
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil && !utils.IsOKNetworkError(err) {
+				errs = append(errs, err)
+			}
+		case <-ctx.Done():
+			// Cause(ctx) returns ctx.Err() if no cause is provided.
+			return trace.Wrap(context.Cause(ctx))
+		}
+	}
+
+	return trace.NewAggregate(errs...)
 }

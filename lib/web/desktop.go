@@ -19,20 +19,15 @@
 package web
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/tls"
 	"errors"
-	"io"
-	"log/slog"
-	"net"
-	"net/http"
-	"sync"
-
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"log/slog"
+	"net/http"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -209,10 +203,10 @@ func (h *Handler) createDesktopConnection(
 	// for the rest of the connection
 	withheld = nil
 
-	// proxyWebsocketConn hangs here until connection is closed
+	// tdp.ProxyConn hangs here until connection is closed.
 	handleProxyWebsocketConnErr(
 		ctx,
-		proxyWebsocketConn(ws, serviceConnTLS),
+		tdp.ProxyConn(ctx, &WebsocketIO{Conn: ws}, serviceConnTLS),
 		log,
 	)
 
@@ -451,110 +445,6 @@ func readUsername(r *http.Request) (string, error) {
 func readClientScreenSpec(ws *websocket.Conn) (*tdp.ClientScreenSpec, error) {
 	tdpConn := tdp.NewConn(&WebsocketIO{Conn: ws})
 	return tdpConn.ReadClientScreenSpec()
-}
-
-// proxyWebsocketConn does a bidrectional copy between the websocket
-// connection to the browser (ws) and the mTLS connection to Windows
-// Desktop Serivce (wds)
-func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
-	var closeOnce sync.Once
-	close := func() {
-		ws.Close()
-		wds.Close()
-	}
-
-	errs := make(chan error, 2)
-
-	go func() {
-		defer closeOnce.Do(close)
-
-		// we avoid using io.Copy here, as we want to make sure
-		// each TDP message is sent as a unit so that a single
-		// 'message' event is emitted in the browser
-		// (io.Copy's internal buffer could split one message
-		// into multiple ws.WriteMessage calls)
-		tc := tdp.NewConn(wds)
-
-		// we don't care about the content of the message, we just
-		// need to split the stream into individual messages and
-		// write them to the websocket
-		for {
-			msg, err := tc.ReadMessage()
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			} else if err != nil {
-				isFatal := tdp.IsFatalErr(err)
-				severity := tdp.SeverityError
-				if !isFatal {
-					severity = tdp.SeverityWarning
-				}
-				sendErr := sendTDPAlert(ws, err, severity)
-
-				// If the error wasn't fatal and we successfully
-				// sent it back to the client, continue.
-				if !isFatal && sendErr == nil {
-					continue
-				}
-
-				// If the error was fatal or we failed to send it back
-				// to the client, send it to the errs channel and end
-				// the session.
-				if sendErr != nil {
-					err = sendErr
-				}
-				errs <- err
-				return
-			}
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			}
-			if err != nil {
-				errs <- err
-				return
-			}
-		}
-	}()
-
-	go func() {
-		defer closeOnce.Do(close)
-
-		var buf bytes.Buffer
-		for {
-			_, reader, err := ws.NextReader()
-			switch {
-			case utils.IsOKNetworkError(err):
-				errs <- nil
-				return
-			case err != nil:
-				errs <- err
-				return
-			}
-			buf.Reset()
-			if _, err := io.Copy(&buf, reader); err != nil {
-				errs <- err
-				return
-			}
-
-			if _, err := wds.Write(buf.Bytes()); err != nil {
-				errs <- trace.Wrap(err, "sending TDP message to desktop agent")
-				return
-			}
-		}
-	}()
-
-	var retErrs []error
-	for i := 0; i < 2; i++ {
-		retErrs = append(retErrs, <-errs)
-	}
-	return trace.NewAggregate(retErrs...)
 }
 
 // handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
