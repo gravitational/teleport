@@ -62,7 +62,7 @@ which in-toto attestation predicate types are required or whether a `cosign`
 [simple signing-based](https://github.com/sigstore/cosign/blob/b438935ad3b7ecf83b9b652c22cb03c45723cf61/specs/SIGNATURE_SPEC.md)
 artifact signature is required.
 
-## `SigstorePolicy` Resource
+## SigstorePolicy Resource
 
 ```yaml
 kind: sigstore_policy
@@ -206,7 +206,7 @@ entries, signatures only need to match one of them, for example: if there are
 multiple transparency logs configured, a signature only needs to be included in
 one of them to be validated.
 
-## `WorkloadIdentity` Rules
+## WorkloadIdentity Rules
 
 In order to apply a policy when Teleport is deciding whether to issue a SVID,
 call the `sigstore.policy_satisfied` function from your `WorkloadIdentity` rule
@@ -232,7 +232,7 @@ spec:
           sigstore.policy_satisfied("github-provenance", "security-scan") || sigstore.policy_satisfied("security-team-signoff")
 ```
 
-## `tbot` configuration
+## tbot configuration
 
 ```yaml
 services:
