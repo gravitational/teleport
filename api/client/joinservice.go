@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -268,6 +269,10 @@ func (c *JoinServiceClient) RegisterUsingOracleMethod(
 	return certs, nil
 }
 
+// RegisterUsingBoundKeypairMethod attempts to register the caller using
+// bound-keypair join method. If successful, a certificate bundle is returned,
+// or an error. Clients must provide a callback to handle interactive challenges
+// and keypair rotation requests.
 func (c *JoinServiceClient) RegisterUsingBoundKeypairMethod(
 	ctx context.Context,
 	initReq *proto.RegisterUsingBoundKeypairInitialRequest,
@@ -296,7 +301,7 @@ func (c *JoinServiceClient) RegisterUsingBoundKeypairMethod(
 	// here instead to ensure we handle everything.
 	for {
 		res, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, trace.Wrap(err, "receiving intermediate bound keypair join response")
