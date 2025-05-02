@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+//go:build docs
+
 package utils
 
 import (
 	"bytes"
 	_ "embed"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 
@@ -269,9 +270,10 @@ func formatUsageArg(arg *kingpin.ArgModel) string {
 }
 
 // formatHelp prints help text to include in a Markdown table cell. It escapes
-// curly braces to avoid breaking the MDX parser.
+// curly braces to avoid breaking the MDX parser, and it escapes pipes to
+// avoid breaking the cell.
 func formatHelp(help string) string {
-	return strings.NewReplacer("{", `\{`, "}", `\}`).Replace(help)
+	return strings.NewReplacer("{", `\{`, "}", `\}`, "|", `\|`).Replace(help)
 }
 
 // docsUsageTemplate is a help text template for CLI reference documentation.
@@ -280,10 +282,9 @@ func formatHelp(help string) string {
 //go:embed docs-usage.md.tmpl
 var docsUsageTemplate string
 
-// PrintCLIDocs updates app's kingpin usage template to print a docs page, then
-// prints the usage string to usageWriter.
-func PrintCLIDocs(usageWriter io.Writer, app *kingpin.Application) {
-	app.UsageWriter(usageWriter)
+// UpdateAppUsageTemplate updates the app usage template to print a reference
+// guide for the CLI application.
+func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
 	app.UsageFuncs(map[string]any{
 		"AnyEnvVarsForCmd":            anyEnvVarsForCmd,
 		"AnyVisibleFlags":             anyVisibleFlags,
@@ -295,5 +296,4 @@ func PrintCLIDocs(usageWriter io.Writer, app *kingpin.Application) {
 		"SortCommandsByName":          sortCommandsByName,
 	})
 	app.UsageTemplate(docsUsageTemplate)
-	app.Usage(nil)
 }
