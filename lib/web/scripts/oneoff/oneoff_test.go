@@ -1,18 +1,20 @@
 /*
-Copyright 2023 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package oneoff
 
@@ -46,15 +48,15 @@ func TestOneOffScript(t *testing.T) {
 
 	unameMock, err := bintest.NewMock("uname")
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		assert.NoError(t, unameMock.Close())
-	}()
+	})
 
 	mktempMock, err := bintest.NewMock("mktemp")
 	require.NoError(t, err)
-	defer func() {
+	t.Cleanup(func() {
 		assert.NoError(t, mktempMock.Close())
-	}()
+	})
 
 	sudoMock, err := bintest.NewMock("sudo")
 	require.NoError(t, err)
@@ -79,9 +81,9 @@ func TestOneOffScript(t *testing.T) {
 
 		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
 		require.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			assert.NoError(t, teleportMock.Close())
-		}()
+		})
 
 		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
 		require.NoError(t, err)
@@ -90,7 +92,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.Equal(t, "/teleport-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
 			http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
-		defer func() { testServer.Close() }()
+		t.Cleanup(func() { testServer.Close() })
 
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
@@ -104,7 +106,7 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
@@ -179,7 +181,7 @@ func TestOneOffScript(t *testing.T) {
 		require.True(t, mktempMock.Check(t))
 		require.True(t, teleportMock.Check(t))
 
-		require.Contains(t, string(out), "> ./bin/teleport version")
+		require.Contains(t, string(out), "teleport version")
 		require.Contains(t, string(out), teleportVersionOutput)
 		require.Contains(t, string(out), "Test was a success.")
 
@@ -252,13 +254,13 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Windows")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.Error(t, err, string(out))
@@ -272,13 +274,13 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("apple-silicon")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.Error(t, err, string(out))
@@ -320,9 +322,9 @@ func TestOneOffScript(t *testing.T) {
 
 		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
 		require.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			assert.NoError(t, teleportMock.Close())
-		}()
+		})
 
 		modules.SetTestModules(t, &modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
@@ -334,7 +336,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.Equal(t, "/teleport-ent-v13.1.0-linux-amd64-bin.tar.gz", req.URL.Path)
 			http.ServeContent(w, req, "teleport-ent-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
 		}))
-		defer func() { testServer.Close() }()
+		t.Cleanup(func() { testServer.Close() })
 
 		script, err := BuildScript(OneOffScriptParams{
 			BinUname:        unameMock.Path,
@@ -348,14 +350,14 @@ func TestOneOffScript(t *testing.T) {
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
-		mktempMock.Expect("-d").AndWriteToStdout(testWorkingDir)
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
 		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
 
 		err = os.WriteFile(scriptLocation, []byte(script), 0700)
 		require.NoError(t, err)
 
 		// execute script
-		out, err := exec.Command("bash", scriptLocation).CombinedOutput()
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
 
 		// validate
 		require.NoError(t, err, string(out))
@@ -364,7 +366,7 @@ func TestOneOffScript(t *testing.T) {
 		require.True(t, mktempMock.Check(t))
 		require.True(t, teleportMock.Check(t))
 
-		require.Contains(t, string(out), "> ./bin/teleport version")
+		require.Contains(t, string(out), "/bin/teleport version")
 		require.Contains(t, string(out), teleportVersionOutput)
 		require.Contains(t, string(out), "Test was a success.")
 	})

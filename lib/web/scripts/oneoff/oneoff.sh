@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 set -eu
 
 cdnBaseURL='{{.CDNBaseURL}}'
@@ -11,10 +11,13 @@ packageSuffix='{{ if .TeleportFIPS }}fips-{{ end }}bin.tar.gz'
 fips='{{ if .TeleportFIPS }}true{{ end }}'
 
 # shellcheck disable=all
-tempDir=$({{.BinMktemp}} -d)
+# Use $HOME or / as base dir
+tempDir=$({{.BinMktemp}} -d -p ${HOME:-}/)
 OS=$({{.BinUname}} -s)
 ARCH=$({{.BinUname}} -m)
 # shellcheck enable=all
+
+trap 'rm -rf -- "$tempDir"' EXIT
 
 teleportTarballName() {
     if [ "${OS}" = "Darwin" ]; then
@@ -41,9 +44,7 @@ teleportTarballName() {
     fi;
 }
 
-function main() {
-    pushd $tempDir > /dev/null
-
+main() {
     tarballName=$(teleportTarballName)
     echo "Downloading from ${cdnBaseURL}/${tarballName} and extracting teleport to ${tempDir} ..."
     curl --show-error --fail --location "${cdnBaseURL}/${tarballName}" | tar xzf - -C "${tempDir}" "${teleportFlavor}/${entrypoint}"
@@ -54,4 +55,4 @@ function main() {
     {{.TeleportCommandPrefix}} "${tempDir}/bin/${entrypoint}" ${entrypointArgs} $@ && echo "$successMessage"
 }
 
-main
+main $@

@@ -19,13 +19,14 @@ package oneoff
 import (
 	"bytes"
 	_ "embed"
+	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	"slices"
 	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -40,7 +41,13 @@ const (
 
 	// binMktemp is the default binary name for creating temporary directories.
 	binMktemp = "mktemp"
+
+	// PrefixSUDO is a Teleport Command Prefix that executes with higher privileges
+	// Use with caution.
+	PrefixSUDO = "sudo"
 )
+
+var allowedCommandPrefix = []string{PrefixSUDO}
 
 var (
 	//go:embed oneoff.sh
@@ -114,12 +121,16 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 		p.BinMktemp = binMktemp
 	}
 
-	if p.CDNBaseURL == "" {
-		p.CDNBaseURL = teleportCDNLocation
+	if p.binSudo == "" {
+		p.binSudo = PrefixSUDO
 	}
 
 	if p.TeleportVersion == "" {
-		p.TeleportVersion = "v" + teleport.Version
+		p.TeleportVersion = "v" + api.Version
+	}
+
+	if p.CDNBaseURL == "" {
+		p.CDNBaseURL = teleportassets.CDNBaseURL()
 	}
 	p.CDNBaseURL = strings.TrimRight(p.CDNBaseURL, "/")
 
@@ -135,6 +146,14 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 
 	if p.SuccessMessage == "" {
 		p.SuccessMessage = "Completed successfully."
+	}
+
+	switch p.TeleportCommandPrefix {
+	case PrefixSUDO:
+		p.TeleportCommandPrefix = p.binSudo
+	case "":
+	default:
+		return trace.BadParameter("invalid command prefix %q, only %v are supported", p.TeleportCommandPrefix, allowedCommandPrefix)
 	}
 
 	return nil
