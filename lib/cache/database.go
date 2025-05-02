@@ -24,7 +24,10 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -210,4 +213,83 @@ func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*coll
 		},
 		watch: w,
 	}, nil
+}
+
+type databaseObjectIndex string
+
+const databaseObjectNameIndex databaseObjectIndex = "name"
+
+func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.WatchKind) (*collection[*dbobjectv1.DatabaseObject, databaseObjectIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter DatabaseObjects")
+	}
+
+	return &collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
+		store: newStore(map[databaseObjectIndex]func(*dbobjectv1.DatabaseObject) string{
+			databaseObjectNameIndex: func(r *dbobjectv1.DatabaseObject) string {
+				return r.GetMetadata().GetName()
+			},
+		}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
+			var out []*dbobjectv1.DatabaseObject
+			var nextToken string
+			for {
+				var page []*dbobjectv1.DatabaseObject
+				var err error
+
+				page, nextToken, err = upstream.ListDatabaseObjects(ctx, 0, nextToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				out = append(out, page...)
+				if nextToken == "" {
+					break
+				}
+			}
+			return out, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *dbobjectv1.DatabaseObject {
+			return &dbobjectv1.DatabaseObject{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
+	defer span.End()
+
+	getter := genericGetter[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
+		cache:       c,
+		collection:  c.collections.databaseObjects,
+		index:       databaseObjectNameIndex,
+		upstreamGet: c.Config.DatabaseObjects.GetDatabaseObject,
+		clone:       utils.CloneProtoMsg[*dbobjectv1.DatabaseObject],
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabaseObjects")
+	defer span.End()
+
+	lister := genericLister[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
+		cache:        c,
+		collection:   c.collections.databaseObjects,
+		index:        databaseObjectNameIndex,
+		upstreamList: c.Config.DatabaseObjects.ListDatabaseObjects,
+		nextToken: func(dbo *dbobjectv1.DatabaseObject) string {
+			return dbo.GetMetadata().GetName()
+		},
+		clone: utils.CloneProtoMsg[*dbobjectv1.DatabaseObject],
+	}
+	out, next, err := lister.list(ctx, size, pageToken)
+	return out, next, trace.Wrap(err)
 }

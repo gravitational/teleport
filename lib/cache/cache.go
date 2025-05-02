@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -502,7 +501,6 @@ type Cache struct {
 	dynamicAccessCache           services.DynamicAccessExt
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
-	databaseObjectsCache         *local.DatabaseObjectService
 	userGroupsCache              services.UserGroups
 	discoveryConfigsCache        services.DiscoveryConfigs
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
@@ -924,12 +922,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -990,7 +982,6 @@ func New(config Config) (*Cache, error) {
 		discoveryConfigsCache:        discoveryConfigsCache,
 		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
-		databaseObjectsCache:         databaseObjectsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		staticHostUsersCache:         staticHostUserCache,
@@ -1774,30 +1765,6 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 	}
 	defer rg.Release()
 	return rg.reader.GetStaticHostUser(ctx, name)
-}
-
-func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseObjects)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDatabaseObject(ctx, name)
-}
-
-func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabaseObjects")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.databaseObjects)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
 }
 
 // GetNetworkRestrictions gets the network restrictions.

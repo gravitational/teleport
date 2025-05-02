@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -97,7 +96,6 @@ type legacyCollections struct {
 	auditQueries                       collectionReader[services.SecurityAuditQueryGetter]
 	secReports                         collectionReader[services.SecurityReportGetter]
 	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
-	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
@@ -120,15 +118,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-		case types.KindDatabaseObject:
-			if c.DatabaseObjects == nil {
-				return nil, trace.BadParameter("missing parameter DatabaseObject")
-			}
-			collections.databaseObjects = &genericCollection[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter, databaseObjectExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.databaseObjects
 		case types.KindNetworkRestrictions:
 			if c.Restrictions == nil {
 				return nil, trace.BadParameter("missing parameter Restrictions")
@@ -308,51 +297,6 @@ type userGetter interface {
 }
 
 var _ executor[types.User, userGetter] = userExecutor{}
-
-type databaseObjectExecutor struct{}
-
-func (databaseObjectExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
-	var out []*dbobjectv1.DatabaseObject
-	var nextToken string
-	for {
-		var page []*dbobjectv1.DatabaseObject
-		var err error
-
-		page, nextToken, err = cache.DatabaseObjects.ListDatabaseObjects(ctx, 0, nextToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			break
-		}
-	}
-	return out, nil
-}
-
-func (databaseObjectExecutor) upsert(ctx context.Context, cache *Cache, resource *dbobjectv1.DatabaseObject) error {
-	_, err := cache.databaseObjectsCache.UpsertDatabaseObject(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (databaseObjectExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.databaseObjectsCache.DeleteAllDatabaseObjects(ctx))
-}
-
-func (databaseObjectExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.databaseObjectsCache.DeleteDatabaseObject(ctx, resource.GetName()))
-}
-
-func (databaseObjectExecutor) isSingleton() bool { return false }
-
-func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.DatabaseObjectsGetter {
-	if cacheOK {
-		return cache.databaseObjectsCache
-	}
-	return cache.Config.DatabaseObjects
-}
-
-var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
 
 type networkRestrictionsExecutor struct{}
 

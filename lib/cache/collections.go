@@ -25,6 +25,7 @@ import (
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -121,6 +122,7 @@ type collections struct {
 	userTasks                        *collection[*usertasksv1.UserTask, userTaskIndex]
 	userLoginStates                  *collection[*userloginstate.UserLoginState, userLoginStateIndex]
 	gitServers                       *collection[types.Server, gitServerIndex]
+	databaseObjects                  *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -239,6 +241,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.dbServices = collect
 			out.byKind[resourceKind] = out.dbServices
+		case types.KindDatabaseObject:
+			collect, err := newDatabaseObjectCollection(c.DatabaseObjects, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.databaseObjects = collect
+			out.byKind[resourceKind] = out.databaseObjects
 		case types.KindKubeServer:
 			collect, err := newKubernetesServerCollection(c.Presence, watch)
 			if err != nil {
