@@ -46,15 +46,21 @@ func (s *Handler) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectTo
 		return trace.Wrap(err)
 	}
 
-	if msg.TargetDesktop == nil {
-		return trace.Wrap(trace.BadParameter("first message must contain a target desktop"))
+	desktopURI := msg.GetTargetDesktop().GetDesktopUri()
+	login := msg.GetTargetDesktop().GetLogin()
+	if desktopURI == "" || login == "" {
+		return trace.BadParameter("first message must contain a target desktop")
 	}
 
-	parsed, err := uri.Parse(msg.TargetDesktop.DesktopUri)
+	if msg.GetData() != nil {
+		return trace.BadParameter("first message must not contain data")
+	}
+
+	parsed, err := uri.Parse(desktopURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = s.DaemonService.ConnectToDesktop(stream, parsed.GetClusterURI(), parsed.GetWindowsDesktopName(), msg.TargetDesktop.Login)
+	err = s.DaemonService.ConnectToDesktop(stream, parsed.GetClusterURI(), parsed.GetWindowsDesktopName(), login)
 	return trace.Wrap(err)
 }

@@ -4153,7 +4153,8 @@ func (x *TargetDesktop) GetLogin() string {
 // Request for ConnectToDesktop.
 type ConnectToDesktopRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// A chunk of data from the connection. Can be nonempty even in the first message, but it's also legal for it to be empty.
+	// Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
+	// Must be empty in the first message and nonempty in subsequent messages.
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	// Target desktop and login. Must be set in the first message and unset in subsequent messages.
 	TargetDesktop *TargetDesktop `protobuf:"bytes,2,opt,name=target_desktop,json=targetDesktop,proto3" json:"target_desktop,omitempty"`
@@ -4208,7 +4209,7 @@ func (x *ConnectToDesktopRequest) GetTargetDesktop() *TargetDesktop {
 // Response for ConnectToDesktop.
 type ConnectToDesktopResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// A chunk of data from the connection.
+	// Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
 	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

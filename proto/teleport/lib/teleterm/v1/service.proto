@@ -688,7 +688,8 @@ message TargetDesktop {
 
 // Request for ConnectToDesktop.
 message ConnectToDesktopRequest {
-  // A chunk of data from the connection. Can be nonempty even in the first message, but it's also legal for it to be empty.
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
+  // Must be empty in the first message and nonempty in subsequent messages.
   bytes data = 1;
   // Target desktop and login. Must be set in the first message and unset in subsequent messages.
   TargetDesktop target_desktop = 2;
@@ -696,6 +697,6 @@ message ConnectToDesktopRequest {
 
 // Response for ConnectToDesktop.
 message ConnectToDesktopResponse {
-  // A chunk of data from the connection.
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
   bytes data = 1;
 }
