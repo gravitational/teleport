@@ -43,6 +43,15 @@ type SessionRecordingConfig interface {
 	// SetProxyChecksHostKeys sets if the proxy will check host keys.
 	SetProxyChecksHostKeys(bool)
 
+	// GetEncrypted gets if session recordings should be encrypted or not.
+	GetEncrypted() bool
+
+	// GetStatus gets the status for session recording config
+	GetStatus() SessionRecordingConfigStatus
+
+	// SetStatus sets the cluster's session recording status.
+	SetStatus(SessionRecordingConfigStatus)
+
 	// Clone returns a copy of the resource.
 	Clone() SessionRecordingConfig
 }
@@ -161,6 +170,26 @@ func (c *SessionRecordingConfigV2) GetProxyChecksHostKeys() bool {
 // SetProxyChecksHostKeys sets if the proxy will check host keys.
 func (c *SessionRecordingConfigV2) SetProxyChecksHostKeys(t bool) {
 	c.Spec.ProxyChecksHostKeys = NewBoolOption(t)
+}
+
+// GetEncrypted gets if session recordings should be encrypted or not.
+func (c *SessionRecordingConfigV2) GetEncrypted() bool {
+	encryption := c.Spec.Encryption
+	if encryption == nil {
+		return false
+	}
+
+	return encryption.Enabled
+}
+
+// GetStatus gets if session recordings should be encrypted or not.
+func (c *SessionRecordingConfigV2) GetStatus() SessionRecordingConfigStatus {
+	return c.Status
+}
+
+// SetStatus sets the cluster's session recording status.
+func (c *SessionRecordingConfigV2) SetStatus(status SessionRecordingConfigStatus) {
+	c.Status = status
 }
 
 // Clone returns a copy of the resource.
