@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"io"
 	"net/http"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -120,9 +119,6 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
-	}
-	if resourceKind == utils.KubeCustomResource {
-		resourceKind = path.Join(sess.apiResource.apiGroup, sess.apiResource.apiGroupVersion, sess.apiResource.resourceKind)
 	}
 	verb := sess.requestVerb
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.

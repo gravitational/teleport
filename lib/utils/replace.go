@@ -135,16 +135,17 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 		if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 			continue
 		}
-		if input.APIGroup != resource.APIGroup && resource.APIGroup != types.Wildcard {
-			continue
-		}
-		switch ok, err := MatchString(input.Name, resource.Name); {
-		case err != nil:
-			return false, nil, trace.Wrap(err)
-		case !ok:
-			continue
-		}
 
+		if ok, err := MatchString(input.APIGroup, resource.APIGroup); err != nil {
+			return false, nil, trace.Wrap(err)
+		} else if !ok {
+			continue
+		}
+		if ok, err := MatchString(input.Name, resource.Name); err != nil {
+			return false, nil, trace.Wrap(err)
+		} else if !ok {
+			continue
+		}
 		if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
 			return false, nil, trace.Wrap(err)
 		} else if !ok {
@@ -235,17 +236,20 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 				continue
 			}
-			if input.APIGroup != resource.APIGroup && resource.APIGroup != types.Wildcard {
+			if ok, err := MatchString(input.APIGroup, resource.APIGroup); err != nil {
+				return false, trace.Wrap(err)
+			} else if !ok {
 				continue
 			}
-			switch ok, err := MatchString(input.Name, resource.Name); {
-			case err != nil:
+			if ok, err := MatchString(input.Name, resource.Name); err != nil {
 				return false, trace.Wrap(err)
-			case !ok:
+			} else if !ok {
 				continue
-			case ok && input.Namespace == "" && isClusterWideResource:
+			}
+			if input.Namespace == "" && isClusterWideResource {
 				return true, nil
 			}
+
 			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
@@ -324,7 +328,9 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 				continue
 			}
 			// If the group doesn't match and is not wildcard, skip.
-			if input.APIGroup != resource.APIGroup && resource.APIGroup != types.Wildcard {
+			if ok, err := MatchString(input.APIGroup, resource.APIGroup); err != nil {
+				return false, trace.Wrap(err)
+			} else if !ok {
 				continue
 			}
 			// if the resource is cluster-wide, the command is deny and it's a wildcard resource
@@ -342,12 +348,12 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, resources []typ
 			if input.Namespace == "" && isAllowOrFullDeny {
 				return isAllowOrFullDeny, nil
 			}
-			switch ok, err := MatchString(input.Namespace, resource.Namespace); {
-			case err != nil:
+			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
 				return false, trace.Wrap(err)
-			case !ok:
+			} else if !ok {
 				continue
-			case ok && (!isDeny || isDeny && resource.Name == types.Wildcard):
+			}
+			if !isDeny || isDeny && resource.Name == types.Wildcard {
 				return !isDeny || isDeny && resource.Name == types.Wildcard, nil
 			}
 		}
