@@ -181,39 +181,6 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 	return resourceType, ok
 }
 
-// defaultRBACResources is a map of supported resources and their corresponding
-// teleport resource kind for the purpose of resource rbac.
-// TODO(@creack): Remove this (keep a form of it for maybedowngraderole).
-var defaultRBACResources = rbacSupportedResources{
-	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
-	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
-	{apiGroup: "core", resourceKind: "configmaps"}:                                types.KindKubeConfigmap,
-	{apiGroup: "core", resourceKind: "namespaces"}:                                types.KindKubeNamespace,
-	{apiGroup: "core", resourceKind: "services"}:                                  types.KindKubeService,
-	{apiGroup: "core", resourceKind: "endpoints"}:                                 types.KindKubeService,
-	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           types.KindKubeServiceAccount,
-	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
-	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
-	{apiGroup: "core", resourceKind: "persistentvolumeclaims"}:                    types.KindKubePersistentVolumeClaim,
-	{apiGroup: "core", resourceKind: "replicationcontrollers"}:                    types.KindKubeReplicationController,
-	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
-	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
-	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
-	{apiGroup: "apps", resourceKind: "daemonsets"}:                                types.KindKubeDaemonSet,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         types.KindKubeClusterRole,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                types.KindKubeRole,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  types.KindKubeClusterRoleBinding,
-	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         types.KindKubeRoleBinding,
-	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 types.KindKubeCronjob,
-	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
-	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
-	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
-	{apiGroup: "extensions", resourceKind: "deployments"}:                         types.KindKubeDeployment,
-	{apiGroup: "extensions", resourceKind: "replicasets"}:                         types.KindKubeReplicaSet,
-	{apiGroup: "extensions", resourceKind: "daemonsets"}:                          types.KindKubeDaemonSet,
-	{apiGroup: "extensions", resourceKind: "ingresses"}:                           types.KindKubeIngress,
-}
-
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
 func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types.KubernetesResource, apiResource, error) {
@@ -229,17 +196,19 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types
 	}
 
 	resourceType, ok := rbacSupportedTypes.getTeleportResourceKindFromAPIResource(apiResource)
-	switch {
-	case !ok:
-		// if the resource is not supported, return nil.
+	if !ok {
+		// If the resource is not supported, return nil.
 		return nil, apiResource, nil
-	case apiResource.resourceName == "" && verb != types.KubeVerbCreate:
-		// if the resource is supported but the resource name is not present and not a create request,
-		// return nil because it's a list request.
-		return nil, apiResource, nil
+	}
 
-	case apiResource.resourceName == "" && verb == types.KubeVerbCreate:
-		// If the request is a create request, extract the resource name from the request body.
+	// If the resource is supported but the resource name is not present and not a create request,
+	// return nil because it's a list request.
+	if apiResource.resourceName == "" && verb != types.KubeVerbCreate {
+		return nil, apiResource, nil
+	}
+
+	// If the request is a create request, extract the resource name from the request body.
+	if apiResource.resourceName == "" && verb == types.KubeVerbCreate {
 		var err error
 		if apiResource.resourceName, err = extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource)); err != nil {
 			return nil, apiResource, trace.Wrap(err)
