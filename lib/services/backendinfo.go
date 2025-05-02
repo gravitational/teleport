@@ -24,14 +24,16 @@ import (
 	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 )
 
-// BackendInfoService stores information about auth server.
+// BackendInfoService stores information about the backend.
 type BackendInfoService interface {
-	// GetAuthInfo gets the BackendInfo singleton resource.
+	// GetBackendInfo gets the BackendInfo singleton resource.
 	GetBackendInfo(ctx context.Context) (*backendinfov1.BackendInfo, error)
-	// CreateAuthInfo creates the BackendInfo singleton resource.
+	// CreateBackendInfo creates the BackendInfo singleton resource.
 	CreateBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error)
-	// UpdateAuthInfo updates the BackendInfo singleton resource.
+	// UpdateBackendInfo updates the BackendInfo singleton resource.
 	UpdateBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error)
-	// DeleteAuthInfo deletes the BackendInfo singleton resource.
+	// UpsertBackendInfo create or update the BackendInfo singleton resource.
+	UpsertBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error)
+	// DeleteBackendInfo deletes the BackendInfo singleton resource.
 	DeleteBackendInfo(ctx context.Context) error
 }

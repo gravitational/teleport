@@ -38,12 +38,12 @@ const (
 
 // BackendInfoService is responsible for managing the information about backend.
 type BackendInfoService struct {
-	authInfo *generic.ServiceWrapper[*backendinfov1.BackendInfo]
+	backendInfo *generic.ServiceWrapper[*backendinfov1.BackendInfo]
 }
 
 // NewBackendInfoService returns a new BackendInfoService.
 func NewBackendInfoService(b backend.Backend) (*BackendInfoService, error) {
-	authInfo, err := generic.NewServiceWrapper(
+	backendInfo, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*backendinfov1.BackendInfo]{
 			Backend:       b,
 			ResourceKind:  types.KindBackendInfo,
@@ -60,30 +60,36 @@ func NewBackendInfoService(b backend.Backend) (*BackendInfoService, error) {
 	}
 
 	return &BackendInfoService{
-		authInfo: authInfo,
+		backendInfo: backendInfo,
 	}, nil
 }
 
 // GetBackendInfo gets the BackendInfo singleton resource.
 func (s *BackendInfoService) GetBackendInfo(ctx context.Context) (*backendinfov1.BackendInfo, error) {
-	info, err := s.authInfo.GetResource(ctx, types.MetaNameBackendInfo)
+	info, err := s.backendInfo.GetResource(ctx, types.MetaNameBackendInfo)
 	return info, trace.Wrap(err)
 }
 
 // CreateBackendInfo creates the BackendInfo singleton resource.
 func (s *BackendInfoService) CreateBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error) {
-	info, err := s.authInfo.CreateResource(ctx, info)
+	info, err := s.backendInfo.CreateResource(ctx, info)
 	return info, trace.Wrap(err)
 }
 
 // UpdateBackendInfo updates the BackendInfo singleton resource.
 func (s *BackendInfoService) UpdateBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error) {
-	info, err := s.authInfo.ConditionalUpdateResource(ctx, info)
+	info, err := s.backendInfo.ConditionalUpdateResource(ctx, info)
+	return info, trace.Wrap(err)
+}
+
+// UpsertBackendInfo creates or updates the BackendInfo singleton resource.
+func (s *BackendInfoService) UpsertBackendInfo(ctx context.Context, info *backendinfov1.BackendInfo) (*backendinfov1.BackendInfo, error) {
+	info, err := s.backendInfo.UpsertResource(ctx, info)
 	return info, trace.Wrap(err)
 }
 
 // DeleteBackendInfo deletes the BackendInfo singleton resource.
 func (s *BackendInfoService) DeleteBackendInfo(ctx context.Context) error {
-	err := s.authInfo.DeleteResource(ctx, types.MetaNameBackendInfo)
+	err := s.backendInfo.DeleteResource(ctx, types.MetaNameBackendInfo)
 	return trace.Wrap(err)
 }

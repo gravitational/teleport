@@ -421,9 +421,14 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(err)
 	}
 
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService,
-		*teleport.SemVer(), cfg.SkipVersionCheck); err != nil {
-		return trace.Wrap(err)
+	if cfg.SkipVersionCheck {
+		if err := upsertTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// if bootstrap resources are supplied, use them to bootstrap backend state

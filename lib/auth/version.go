@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"os"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -34,9 +33,6 @@ import (
 )
 
 const (
-	// skipVersionUpgradeCheckEnv is environment variable key for disabling the check
-	// major version upgrade check.
-	skipVersionUpgradeCheckEnv = "TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK"
 	// versionUpgradeCheckMaxWriteRetry is the number of retries for conditional updates of the BackendInfo resource.
 	versionUpgradeCheckMaxWriteRetry = 5
 )
@@ -48,10 +44,7 @@ func validateAndUpdateTeleportVersion(
 	procStorage VersionStorage,
 	backendStorage services.BackendInfoService,
 	currentVersion semver.Version,
-	skipVersionCheck bool,
 ) error {
-	skip := skipVersionCheck || os.Getenv(skipVersionUpgradeCheckEnv) != ""
-
 	// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
 	// Fallback to local process storage for backward compatibility with previous versions.
 	cleanProcVersion := true
@@ -76,30 +69,28 @@ func validateAndUpdateTeleportVersion(
 			return trace.Wrap(err)
 		}
 
-		if !skip {
-			lastKnownVersion, err := semver.NewVersion(backendInfo.GetSpec().GetTeleportVersion())
-			if err != nil {
-				return trace.Wrap(err, "failed to parse teleport version: %+q", backendInfo.GetSpec().GetTeleportVersion())
-			}
-			// The last known version is already updated to the current one.
-			// Skip any further checks and resource updates.
-			if !createNewResource && lastKnownVersion.Equal(currentVersion) {
-				return nil
-			}
-			if currentVersion.Major-lastKnownVersion.Major > 1 {
-				return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
-					"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
-					"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
-					"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-					lastKnownVersion, currentVersion.String(), lastKnownVersion.Major+1)
-			}
-			if lastKnownVersion.Major > currentVersion.Major {
-				return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
-					"Teleport doesn't support major version downgrade.\n Please downgrade "+
-					"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
-					"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
-					lastKnownVersion, currentVersion.String(), lastKnownVersion.Major-1)
-			}
+		lastKnownVersion, err := semver.NewVersion(backendInfo.GetSpec().GetTeleportVersion())
+		if err != nil {
+			return trace.Wrap(err, "failed to parse teleport version: %+q", backendInfo.GetSpec().GetTeleportVersion())
+		}
+		// The last known version is already updated to the current one.
+		// Skip any further checks and resource updates.
+		if !createNewResource && lastKnownVersion.Equal(currentVersion) {
+			return nil
+		}
+		if currentVersion.Major-lastKnownVersion.Major > 1 {
+			return trace.BadParameter("Unsupported upgrade path detected: from %v to %v. "+
+				"Teleport supports direct upgrades to the next major version only.\n Please upgrade "+
+				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+				lastKnownVersion, currentVersion.String(), lastKnownVersion.Major+1)
+		}
+		if lastKnownVersion.Major > currentVersion.Major {
+			return trace.BadParameter("Unsupported downgrade path detected: from %v to %v. "+
+				"Teleport doesn't support major version downgrade.\n Please downgrade "+
+				"your cluster to version %d.x.x first. See compatibility guarantees for details: "+
+				"https://goteleport.com/docs/upgrading/overview/#component-compatibility.",
+				lastKnownVersion, currentVersion.String(), lastKnownVersion.Major-1)
 		}
 
 		backendInfo.GetSpec().TeleportVersion = currentVersion.String()
@@ -124,19 +115,41 @@ func validateAndUpdateTeleportVersion(
 			}
 		}
 
-		if skip {
-			slog.WarnContext(ctx, "Version check skipped, Teleport might perform unsupported backend version transitions",
-				"upgrade_version", currentVersion.String())
-		}
-
 		// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
 		if cleanProcVersion {
 			if err := procStorage.DeleteTeleportVersion(ctx); err != nil {
-				slog.ErrorContext(ctx, "Failed to delete Teleport version from process storage", "error", err)
+				return trace.Wrap(err)
 			}
 		}
 
 		return nil
 	}
 	return err
+}
+
+// upsertTeleportVersion overrides major version persistent in the backend.
+func upsertTeleportVersion(
+	ctx context.Context,
+	procStorage VersionStorage,
+	backendStorage services.BackendInfoService,
+	currentVersion semver.Version,
+) error {
+	backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
+		TeleportVersion: currentVersion.String(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err = backendStorage.UpsertBackendInfo(ctx, backendInfo); err != nil {
+		return trace.Wrap(err)
+	}
+	slog.WarnContext(ctx, "Version check skipped, Teleport might perform unsupported backend version transitions",
+		"upgrade_version", currentVersion.String())
+
+	// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
+	if err := procStorage.DeleteTeleportVersion(ctx); err != nil && !trace.IsNotFound(err) {
+		slog.ErrorContext(ctx, "Failed to delete Teleport version from process storage", "error", err)
+	}
+
+	return nil
 }
