@@ -62,9 +62,9 @@ type RegisterTPMChallengeResponseFunc func(challenge *proto.TPMEncryptedCredenti
 type RegisterOracleChallengeResponseFunc func(challenge string) (*proto.OracleSignedRequest, error)
 
 // RegisterUsingBoundKeypairChallengeResponseFunc is a function to be passed to
-// RegisterUsingBoundKeypair. It must return a message containing a signed
-// response for the given challenge, or an error.
-type RegisterUsingBoundKeypairChallengeResponseFunc func(publicKey string, challenge string) (*proto.RegisterUsingBoundKeypairChallengeResponse, error)
+// RegisterUsingBoundKeypair. It must return a new follow-up request for the
+// server response, or an error.
+type RegisterUsingBoundKeypairChallengeResponseFunc func(challenge *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error)
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
@@ -303,21 +303,8 @@ func (c *JoinServiceClient) RegisterUsingBoundKeypairMethod(
 		}
 
 		switch kind := res.GetResponse().(type) {
-		case *proto.RegisterUsingBoundKeypairMethodResponse_Challenge:
-			solution, err := challengeFunc(kind.Challenge.PublicKey, kind.Challenge.Challenge)
-			if err != nil {
-				return nil, trace.Wrap(err, "solving challenge")
-			}
-
-			err = stream.Send(&proto.RegisterUsingBoundKeypairMethodRequest{
-				Payload: &proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{
-					ChallengeResponse: solution,
-				},
-			})
-			if err != nil {
-				return nil, trace.Wrap(err, "sending solution")
-			}
 		case *proto.RegisterUsingBoundKeypairMethodResponse_Certs:
+			// If we get certs, we're done, so just return the result.
 			certs := kind.Certs.GetCerts()
 			if certs == nil {
 				return nil, trace.BadParameter("expected Certs, got %T", kind.Certs.Certs)
@@ -332,7 +319,15 @@ func (c *JoinServiceClient) RegisterUsingBoundKeypairMethod(
 
 			return certs, nil
 		default:
-			return nil, trace.BadParameter("received unexpected challenge response: %v", res.GetResponse())
+			// Forward all other responses to the challenge handler.
+			nextRequest, err := challengeFunc(res)
+			if err != nil {
+				return nil, trace.Wrap(err, "solving challenge")
+			}
+
+			if err := stream.Send(nextRequest); err != nil {
+				return nil, trace.Wrap(err, "sending solution")
+			}
 		}
 	}
 

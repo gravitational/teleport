@@ -380,8 +380,6 @@ func (s *JoinServiceGRPCServer) registerUsingOracleMethod(srv proto.JoinService_
 func (s *JoinServiceGRPCServer) RegisterUsingBoundKeypairMethod(
 	srv proto.JoinService_RegisterUsingBoundKeypairMethodServer,
 ) error {
-	slog.DebugContext(srv.Context(), "RegisterUsingBoundKeypairMethod()")
-
 	return trace.Wrap(s.handleStreamingRegistration(srv.Context(), types.JoinMethodBoundKeypair, func() error {
 		return trace.Wrap(s.registerUsingBoundKeypair(srv))
 	}))
@@ -389,8 +387,6 @@ func (s *JoinServiceGRPCServer) RegisterUsingBoundKeypairMethod(
 
 func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_RegisterUsingBoundKeypairMethodServer) error {
 	ctx := srv.Context()
-
-	slog.DebugContext(srv.Context(), "registerUsingBoundKeypair()")
 
 	// Get initial payload from the client
 	req, err := srv.Recv()
@@ -416,25 +412,17 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 		return trace.Wrap(err, "setting client address")
 	}
 
-	slog.DebugContext(srv.Context(), "registerUsingBoundKeypair(): preflight complete, attempting to relay challenges")
-
 	setBotParameters(ctx, initReq.JoinRequest)
 
-	certs, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(publicKey string, challenge string) (*proto.RegisterUsingBoundKeypairChallengeResponse, error) {
+	certs, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
 		// First, forward the challenge from Auth to the client.
-		err := srv.Send(&proto.RegisterUsingBoundKeypairMethodResponse{
-			Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
-				Challenge: &proto.RegisterUsingBoundKeypairChallenge{
-					PublicKey: publicKey,
-					Challenge: challenge,
-				},
-			},
-		})
+		err := srv.Send(resp)
 		if err != nil {
 			return nil, trace.Wrap(
 				err, "forwarding challenge to client",
 			)
 		}
+
 		// Get response from Client
 		req, err := srv.Recv()
 		if err != nil {
@@ -442,20 +430,14 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 				err, "receiving challenge solution from client",
 			)
 		}
-		challengeResponse := req.GetChallengeResponse()
-		if challengeResponse == nil {
-			return nil, trace.BadParameter(
-				"expected non-nil ChallengeResponse payload",
-			)
-		}
 
-		return challengeResponse, nil
+		return req, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	slog.DebugContext(srv.Context(), "registerUsingBoundKeypair(): challenge ceremony complete, sending cert bundle")
+	slog.DebugContext(srv.Context(), "challenge ceremony complete, sending cert bundle")
 
 	// finally, send the certs on the response stream
 	return trace.Wrap(srv.Send(&proto.RegisterUsingBoundKeypairMethodResponse{

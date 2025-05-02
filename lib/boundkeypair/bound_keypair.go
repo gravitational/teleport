@@ -34,6 +34,9 @@ const (
 	challengeExpiration time.Duration = time.Minute
 )
 
+// ChallengeDocument is a bound keypair challenge document. These documents are
+// sent in JSON form to clients attempting to authenticate, and are expected to
+// be sent back signed with a known public key.
 type ChallengeDocument struct {
 	*jwt.Claims
 
@@ -41,6 +44,8 @@ type ChallengeDocument struct {
 	Nonce string `json:"nonce"`
 }
 
+// ChallengeValidator is used to issue and validate bound keypair challenges for
+// a given public key.
 type ChallengeValidator struct {
 	clock clockwork.Clock
 
@@ -86,7 +91,10 @@ func (v *ChallengeValidator) IssueChallenge() (*ChallengeDocument, error) {
 	}, nil
 }
 
-func (v *ChallengeValidator) ValidateChallengeResponse(nonce string, compactResponse string) error {
+// ValidateChallengeResponse validates a signed challenge document, ensuring the
+// signature matches the requested public key, and that the claims pass JWT
+// validation.
+func (v *ChallengeValidator) ValidateChallengeResponse(issued *ChallengeDocument, compactResponse string) error {
 	token, err := jwt.ParseSigned(compactResponse)
 	if err != nil {
 		return trace.Wrap(err, "parsing signed response")
@@ -97,10 +105,7 @@ func (v *ChallengeValidator) ValidateChallengeResponse(nonce string, compactResp
 		return trace.Wrap(err)
 	}
 
-	// TODO: this doesn't actually validate that the time-based fields are still
-	// what we assigned above; a hostile client could set their own values here.
-	// This may not be a realistic problem, but we might want to check it
-	// anyway.
+	// Validate the challenge document claims per JWT rules.
 	const leeway time.Duration = time.Minute
 	if err := document.Claims.ValidateWithLeeway(jwt.Expected{
 		Issuer:   v.clusterName,
@@ -111,7 +116,19 @@ func (v *ChallengeValidator) ValidateChallengeResponse(nonce string, compactResp
 		return trace.Wrap(err, "validating challenge claims")
 	}
 
-	if subtle.ConstantTimeCompare([]byte(nonce), []byte(document.Nonce)) == 0 {
+	// JWT validation won't check equality on the time fields, so we'll manually
+	// check them.
+	if issued.Claims.IssuedAt != document.Claims.IssuedAt {
+		return trace.AccessDenied("invalid challenge document")
+	}
+	if issued.Claims.Expiry != document.Claims.Expiry {
+		return trace.AccessDenied("invalid challenge document")
+	}
+	if issued.Claims.NotBefore != document.Claims.NotBefore {
+		return trace.AccessDenied("invalid challenge document")
+	}
+
+	if subtle.ConstantTimeCompare([]byte(issued.Nonce), []byte(document.Nonce)) == 0 {
 		return trace.AccessDenied("invalid nonce")
 	}
 

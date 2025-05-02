@@ -1,3 +1,4 @@
+// join_bound_keypair.go
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -132,25 +133,16 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 		return trace.Wrap(err)
 	}
 
-	// TODO: Populate initial_join_secret if needed, but only if no previous
-	// resource exists.
+	// TODO: Follow up with proper checking for a preexisting resource so
+	// generated fields are handled properly, i.e. initial secret generation.
 
-	// TODO: Probably won't want to tweak status here; that's best done during
-	// the join ceremony.
-	// if tokenV2.Status == nil {
-	// 	tokenV2.Status = &types.ProvisionTokenStatusV2{}
-	// }
-
-	// if tokenV2.Status.BoundKeypair == nil {
-	// 	tokenV2.Status.BoundKeypair = a.initialBoundKeypairStatus(spec)
-	// }
-
-	// TODO: Follow up changes to include:
-	// - Compare and swap / conditional updates
-	// - Proper checking for previous resource
 	return trace.Wrap(a.UpsertToken(ctx, token))
 }
 
+// issueBoundKeypairChallenge creates a new challenge for the given marshalled
+// public key in ssh authorized_keys format, requests a solution from the
+// client using the given `challengeResponse` function, and validates the
+// response.
 func (a *Server) issueBoundKeypairChallenge(
 	ctx context.Context,
 	marshalledKey string,
@@ -175,7 +167,7 @@ func (a *Server) issueBoundKeypairChallenge(
 		return trace.Wrap(err)
 	}
 
-	a.logger.DebugContext(ctx, "Server.issueBoundKeypairChallenge(): preflight complete, issuing challenge", "pk", marshalledKey, "id", keyID)
+	a.logger.DebugContext(ctx, "issuing bound keypair challenge", "keyID", keyID)
 
 	validator, err := boundkeypair.NewChallengeValidator(keyID, clusterName.GetClusterName(), key)
 	if err != nil {
@@ -187,28 +179,37 @@ func (a *Server) issueBoundKeypairChallenge(
 		return trace.Wrap(err, "generating a challenge document")
 	}
 
-	a.logger.DebugContext(ctx, "Server.issueBoundKeypairChallenge(): issued new challenge", "challenge", challenge)
-
 	marshalledChallenge, err := json.Marshal(challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "requesting signed bound keypair joining challenge")
-
-	response, err := challengeResponse(marshalledKey, string(marshalledChallenge))
+	response, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
+		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
+			Challenge: &proto.RegisterUsingBoundKeypairChallenge{
+				PublicKey: marshalledKey,
+				Challenge: string(marshalledChallenge),
+			},
+		},
+	})
 	if err != nil {
 		return trace.Wrap(err, "requesting a signed challenge")
 	}
 
-	a.logger.DebugContext(ctx, "Server.issueBoundKeypairChallenge(): challenge complete, verifying", "response", response)
+	solutionResponse, ok := response.Payload.(*proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse)
+	if !ok {
+		return trace.BadParameter("client provided unexpected challenge response type %T", response.Payload)
+	}
 
-	if err := validator.ValidateChallengeResponse(challenge.Nonce, string(response.Solution)); err != nil {
+	if err := validator.ValidateChallengeResponse(
+		challenge,
+		string(solutionResponse.ChallengeResponse.Solution),
+	); err != nil {
 		// TODO: access denied instead?
 		return trace.Wrap(err, "validating challenge response")
 	}
 
-	a.logger.InfoContext(ctx, "bound keypair challenge response verified successfully")
+	a.logger.InfoContext(ctx, "bound keypair challenge response verified successfully", "keyID", keyID)
 
 	return nil
 }
@@ -216,35 +217,45 @@ func (a *Server) issueBoundKeypairChallenge(
 // boundKeypairStatusMutator is a function called to mutate a bound keypair
 // status during a call to PatchProvisionToken(). These functions may be called
 // repeatedly if e.g. revision checks fail. To ensure invariants remain in
-// place, mutator functions may make assertions
-type boundKeypairStatusMutator func(*types.ProvisionTokenStatusV2BoundKeypair) error
+// place, mutator functions may make assertions to ensure the provided backend
+// state is still sane before the update is committed.
+type boundKeypairStatusMutator func(*types.ProvisionTokenSpecV2BoundKeypair, *types.ProvisionTokenStatusV2BoundKeypair) error
 
-func mutateStatusConsumeJoin(unlimited bool, expectRemainingJoins uint32) boundKeypairStatusMutator {
+// mutateStatusConsumeJoin consumes a "hard" join on the backend, incrementing
+// the join counter. This verifies that the backend join count has not changed,
+// and that total join count is at least the value when the mutator was created.
+func mutateStatusConsumeJoin(unlimited bool, expectJoinCount uint32, expectMinTotalJoins uint32) boundKeypairStatusMutator {
 	now := time.Now()
 
-	return func(status *types.ProvisionTokenStatusV2BoundKeypair) error {
+	return func(spec *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
 		// Ensure we have the expected number of rejoins left to prevent going
 		// below zero.
-		// TODO: this could be >=? would avoid breaking if this happens to
-		// collide with a user incrementing TotalJoins.
-		if status.RemainingJoins != expectRemainingJoins {
+		if status.JoinCount != expectJoinCount {
 			return trace.AccessDenied("unexpected backend state")
+		}
+
+		// Ensure the allowed join count has at least not decreased, but allow
+		// for collision with potentially increased values.
+		if spec.Joining.TotalJoins < expectMinTotalJoins {
+			return trace.AccessDenied("unexpected backend state")
+		}
+
+		if !unlimited {
+			return trace.NotImplemented("only unlimited rejoining is currently supported")
 		}
 
 		status.JoinCount += 1
 		status.LastJoinedAt = &now
 
-		if !unlimited {
-			// TODO: decrement remaining joins (not yet implemented.)
-			return trace.NotImplemented("only unlimited rejoining is currently supported")
-		}
-
 		return nil
 	}
 }
 
+// mutateStatusBoundPublicKey is a mutator that updates the bound public key
+// value. It ensures the backend public key is still the expected value before
+// performing the update.
 func mutateStatusBoundPublicKey(newPublicKey, expectPreviousKey string) boundKeypairStatusMutator {
-	return func(status *types.ProvisionTokenStatusV2BoundKeypair) error {
+	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
 		if status.BoundPublicKey != expectPreviousKey {
 			return trace.AccessDenied("unexpected backend state")
 		}
@@ -255,8 +266,11 @@ func mutateStatusBoundPublicKey(newPublicKey, expectPreviousKey string) boundKey
 	}
 }
 
+// mutateStatusBoundBotInstance updates the bot instance ID currently bound to
+// this token. It ensures the expected previous ID is still the bound value
+// before performing the update.
 func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance string) boundKeypairStatusMutator {
-	return func(status *types.ProvisionTokenStatusV2BoundKeypair) error {
+	return func(_ *types.ProvisionTokenSpecV2BoundKeypair, status *types.ProvisionTokenStatusV2BoundKeypair) error {
 		if status.BoundBotInstanceID != expectPreviousBotInstance {
 			return trace.AccessDenied("unexpected backend state")
 		}
@@ -267,13 +281,13 @@ func mutateStatusBoundBotInstance(newBotInstance, expectPreviousBotInstance stri
 	}
 }
 
+// RegisterUsingBoundKeypairMethod handles joining requests for the bound
+// keypair join method.
 func (a *Server) RegisterUsingBoundKeypairMethod(
 	ctx context.Context,
 	req *proto.RegisterUsingBoundKeypairInitialRequest,
 	challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
 ) (_ *proto.Certs, err error) {
-	a.logger.DebugContext(ctx, "Server.RegisterUsingBoundKeypairMethod()", "req", req)
-
 	var provisionToken types.ProvisionToken
 	var joinFailureMetadata any
 	defer func() {
@@ -321,6 +335,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	hasBoundPublicKey := status.BoundPublicKey != ""
 	hasBoundBotInstance := status.BoundBotInstanceID != ""
 	hasIncomingBotInstance := req.JoinRequest.BotInstanceID != ""
+	hasJoinsRemaining := status.JoinCount < spec.Joining.TotalJoins
 	expectNewBotInstance := false
 
 	// Mutators to use during the token resource status patch at the end.
@@ -338,8 +353,8 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, trace.BadParameter("an initial public key is required")
 		}
 
-		if !spec.Joining.Unlimited && status.RemainingJoins == 0 {
-			return nil, trace.AccessDenied("no rejoins remaining")
+		if !spec.Joining.Unlimited && !hasJoinsRemaining {
+			return nil, trace.AccessDenied("no joins remaining")
 		}
 
 		if err := a.issueBoundKeypairChallenge(
@@ -354,7 +369,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		mutators = append(
 			mutators,
 			mutateStatusBoundPublicKey(spec.Onboarding.InitialPublicKey, ""),
-			mutateStatusConsumeJoin(spec.Joining.Unlimited, status.RemainingJoins),
+			mutateStatusConsumeJoin(spec.Joining.Unlimited, status.JoinCount, spec.Joining.TotalJoins),
 		)
 
 		expectNewBotInstance = true
@@ -385,7 +400,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	case hasBoundPublicKey && hasBoundBotInstance && !hasIncomingBotInstance:
 		// Hard rejoin case, the client identity expired and a new bot instance
 		// is required. Consumes a rejoin.
-		if !spec.Joining.Unlimited && status.RemainingJoins == 0 {
+		if !spec.Joining.Unlimited && !hasJoinsRemaining {
 			return nil, trace.AccessDenied("no rejoins remaining")
 		}
 
@@ -399,10 +414,8 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 		mutators = append(
 			mutators,
-			mutateStatusConsumeJoin(spec.Joining.Unlimited, status.RemainingJoins),
+			mutateStatusConsumeJoin(spec.Joining.Unlimited, status.JoinCount, spec.Joining.TotalJoins),
 		)
-
-		// TODO: decrement remaining joins
 
 		expectNewBotInstance = true
 	default:
@@ -417,13 +430,18 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		return nil, trace.BadParameter("unexpected state")
 	}
 
-	if req.NewPublicKey != "" {
-		// TODO
-		return nil, trace.NotImplemented("key rotation not yet implemented")
+	if spec.RotateOnNextRenewal {
+		// TODO, to be implemented in a future PR
+		return nil, trace.NotImplemented("key rotation not yet supported")
 	}
 
 	a.logger.DebugContext(ctx, "Server.RegisterUsingBoundKeypairMethod(): challenge verified, issuing certs")
 
+	// TODO: We should pass along the previous bot instance ID - if any - based
+	// on the join state, once that is implemented. It will need to be passed
+	// either via extended claims, or by a new protected field in the join
+	// request like the current bot instance ID, i.e. cleared when set by an
+	// untrusted source.
 	certs, botInstanceID, err := a.generateCertsBot(
 		ctx,
 		ptv2,
@@ -449,7 +467,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			// Apply all mutators. Individual mutators may make additional
 			// assertions to ensure invariants haven't changed.
 			for _, mutator := range mutators {
-				if err := mutator(ptv2.Status.BoundKeypair); err != nil {
+				if err := mutator(ptv2.Spec.BoundKeypair, ptv2.Status.BoundKeypair); err != nil {
 					return nil, trace.Wrap(err, "applying status mutator")
 				}
 			}
