@@ -440,13 +440,16 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 		return trace.Wrap(err, "failed receiving first message")
 	}
 
+	desktopName := req.GetDialTarget().GetDesktopName()
+	cluster := req.GetDialTarget().GetCluster()
+
 	// Validate the target.
-	if req.DialTarget == nil {
+	if desktopName == "" || cluster == "" {
 		return trace.BadParameter("first message must contain a dial target")
 	}
-
-	desktopName := req.DialTarget.GetDesktopName()
-	cluster := req.DialTarget.GetCluster()
+	if req.GetData() != nil {
+		return trace.BadParameter("first message must not contain data")
+	}
 
 	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
 	if err != nil {
@@ -478,6 +481,11 @@ func (s windowsDesktopStream) Recv() ([]byte, error) {
 	message, err := s.stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Dial target must be empty in subsequent messages.
+	if message.GetDialTarget().GetDesktopName() != "" || message.GetDialTarget().GetCluster() != "" {
+		return nil, trace.BadParameter("received invalid message")
 	}
 
 	data := message.GetData()
