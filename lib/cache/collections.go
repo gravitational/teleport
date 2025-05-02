@@ -27,6 +27,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -75,6 +76,7 @@ type collections struct {
 	dbServices                       *collection[types.DatabaseService, databaseServiceIndex]
 	kubeServers                      *collection[types.KubeServer, kubeServerIndex]
 	kubeClusters                     *collection[types.KubeCluster, kubeClusterIndex]
+	kubeWaitingContainers            *collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]
 	windowsDesktops                  *collection[types.WindowsDesktop, windowsDesktopIndex]
 	windowsDesktopServices           *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
 	dynamicWindowsDesktops           *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
@@ -252,6 +254,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.kubeClusters = collect
 			out.byKind[resourceKind] = out.kubeClusters
+		case types.KindKubeWaitingContainer:
+			collect, err := newKubernetesWaitingContainerCollection(c.KubeWaitingContainers, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.kubeWaitingContainers = collect
+			out.byKind[resourceKind] = out.kubeWaitingContainers
 		case types.KindWindowsDesktop:
 			collect, err := newWindowsDesktopCollection(c.WindowsDesktops, watch)
 			if err != nil {

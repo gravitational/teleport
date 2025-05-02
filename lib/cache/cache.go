@@ -39,7 +39,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -937,12 +936,6 @@ func New(config Config) (*Cache, error) {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
-	kubeWaitingContsCache, err := local.NewKubeWaitingContainerService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1000,7 +993,6 @@ func New(config Config) (*Cache, error) {
 		databaseObjectsCache:         databaseObjectsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		kubeWaitingContsCache:        kubeWaitingContsCache,
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
@@ -1756,36 +1748,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	}
 
 	return nil
-}
-
-// ListKubernetesWaitingContainers lists Kubernetes ephemeral
-// containers that are waiting to be created until moderated
-// session conditions are met.
-func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeWaitingContainers)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
-}
-
-// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
-// container that are waiting to be created until moderated
-// session conditions are met.
-func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.kubeWaitingContainers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetKubernetesWaitingContainer(ctx, req)
 }
 
 // ListStaticHostUsers lists static host users.
