@@ -21,6 +21,8 @@ package auth
 import (
 	"cmp"
 	"context"
+	"crypto"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -31,6 +33,7 @@ import (
 	"sync"
 	"time"
 
+	"filippo.io/age"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1005,9 +1008,197 @@ func initializeClusterNetworkingConfig(ctx context.Context, asrv *Server, newNet
 	return trace.LimitExceeded("failed to initialize cluster networking config in %v iterations", iterationLimit)
 }
 
+func handleSessionRecordingChange(ctx context.Context, asrv *Server) error {
+	keyStore := asrv.keyStore
+	log := asrv.logger
+
+	log.InfoContext(ctx, "fetching recording config")
+	recConfig, err := asrv.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err, "fetching recording config")
+	}
+
+	if !recConfig.GetEncrypted() {
+		log.InfoContext(ctx, "recording encryption disabled, bailing")
+		return nil
+	}
+
+	log.InfoContext(ctx, "recording encryption enabled, checking for active keys")
+	status := recConfig.GetStatus()
+	var activeKeys []*types.WrappedKey
+	if status.Keyset != nil {
+		activeKeys = status.Keyset.ActiveKeys
+	}
+
+	// no keys present, need to generate the initial active keypair
+	if len(activeKeys) == 0 {
+		log.InfoContext(ctx, "no active keys, generating initial keyset")
+		wrappingPair, err := keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingEncryption)
+		if err != nil {
+			return trace.Wrap(err, "generating wrapping key")
+		}
+
+		ident, err := age.GenerateX25519Identity()
+		if err != nil {
+			return trace.Wrap(err, "generating age encryption key")
+		}
+
+		encryptedIdent, err := keys.EncryptWithPublicKeyPEM(wrappingPair.PublicKey, []byte(ident.String()))
+		if err != nil {
+			return trace.Wrap(err, "wrapping encryption key")
+		}
+
+		wrappedKey := types.WrappedKey{
+			WrappingPair: wrappingPair,
+			WrappedPair: &types.EncryptionKeyPair{
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PrivateKey:     encryptedIdent,
+				PublicKey:      []byte(ident.Recipient().String()),
+			},
+		}
+		recConfig.SetStatus(types.SessionRecordingConfigStatus{
+			Keyset: &types.EncryptionKeySet{
+				ActiveKeys: []*types.WrappedKey{&wrappedKey},
+			},
+		})
+
+		log.InfoContext(ctx, "updating session recording encryption active keys")
+		_, err = asrv.UpdateSessionRecordingConfig(ctx, recConfig)
+		return trace.Wrap(err)
+	}
+
+	log.InfoContext(ctx, "searching for accessible active key")
+	var activeKey *types.WrappedKey
+	var decrypter crypto.Decrypter
+	var unfulfilledKeys []*types.WrappedKey
+	var ownUnfulfilledKey bool
+	rotatedSet := make(map[*types.WrappedKey]struct{})
+	for _, key := range activeKeys {
+		if key.WrappedPair == nil {
+			unfulfilledKeys = append(unfulfilledKeys, key)
+		}
+
+		decrypter, err = keyStore.GetDecrypter(ctx, key.WrappingPair)
+		if err != nil {
+			continue
+		}
+
+		// if we make it to this section the key is owned by the current auth server
+		activeKey = key
+		if key.WrappedPair == nil {
+			ownUnfulfilledKey = true
+		}
+
+		if key.Rotate {
+			rotatedSet[key] = struct{}{}
+		}
+	}
+
+	if ownUnfulfilledKey {
+		log.InfoContext(ctx, "detected unfulfilled key, nothing more to do")
+		return nil
+	}
+
+	if activeKey == nil || activeKey.Rotate {
+		log.InfoContext(ctx, "no accessible keys, generating empty key to be fulfilled")
+		keypair, err := keyStore.NewEncryptionKeyPair(ctx, cryptosuites.RecordingEncryption)
+		if err != nil {
+			return trace.Wrap(err, "generating keypair for new wrapped key")
+		}
+		status.Keyset.ActiveKeys = append(activeKeys, &types.WrappedKey{
+			WrappingPair: keypair,
+		})
+
+		recConfig.SetStatus(status)
+		_, err = asrv.UpdateSessionRecordingConfig(ctx, recConfig)
+		return trace.Wrap(err, "updating session recording config")
+	}
+
+	var shouldUpdate bool
+	log.InfoContext(ctx, "key is accessible, fulfilling empty keys", "keys_waiting", len(unfulfilledKeys))
+	for _, key := range unfulfilledKeys {
+		decryptionKey, err := decrypter.Decrypt(rand.Reader, activeKey.WrappedPair.PrivateKey, nil)
+		if err != nil {
+			return trace.Wrap(err, "decrypting known key")
+		}
+
+		encryptedKey, err := keys.EncryptWithPublicKeyPEM(key.WrappingPair.PublicKey, decryptionKey)
+		if err != nil {
+			return trace.Wrap(err, "reencrypting decryption key")
+		}
+
+		key.WrappedPair = &types.EncryptionKeyPair{
+			PrivateKey: encryptedKey,
+			PublicKey:  activeKey.WrappedPair.PublicKey,
+		}
+
+		shouldUpdate = true
+	}
+
+	var cleanActiveKeys []*types.WrappedKey
+	var rotatedKeys []*types.WrappedKey
+	for _, key := range activeKeys {
+		if _, ok := rotatedSet[key]; !ok {
+			cleanActiveKeys = append(cleanActiveKeys, key)
+			continue
+		}
+		rotatedKeys = append(rotatedKeys, key)
+	}
+
+	if len(rotatedKeys) > 0 {
+		shouldUpdate = true
+		status.Keyset.ActiveKeys = cleanActiveKeys
+		// TODO (eriktate): if moving rotated keys becomes a manual step, just remove the next line
+		status.Keyset.RotatedKeys = append(status.Keyset.RotatedKeys, rotatedKeys...)
+	}
+
+	if shouldUpdate {
+		recConfig.SetStatus(status)
+		if _, err = asrv.UpdateSessionRecordingConfig(ctx, recConfig); err != nil {
+			return trace.Wrap(err, "updating session recording config")
+		}
+	}
+
+	return nil
+}
+
 func initializeSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
+	w, err := asrv.NewWatcher(asrv.closeCtx, types.Watch{
+		Name: "session_recording_config watcher",
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindSessionRecordingConfig,
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		for {
+			select {
+			case ev := <-w.Events():
+				if ev.Type != types.OpPut {
+					continue
+				}
+
+				for _ = range 3 {
+					if err := handleSessionRecordingChange(asrv.closeCtx, asrv); err == nil {
+						break
+					}
+
+					asrv.logger.ErrorContext(ctx, "failed to handle session recording config change", "error", err)
+				}
+
+			case <-w.Done():
+				return
+			}
+		}
+	}()
+
 	const iterationLimit = 3
-	for i := 0; i < iterationLimit; i++ {
+	for _ = range iterationLimit {
 		storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

@@ -2389,6 +2389,16 @@ message SessionRecordingConfigV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  SessionRecordingConfigStatus Status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
+}
+
+// SessionRecordingEncryptionConfig configures if and how session recordings
+// should be encrypted.
+message SessionRecordingEncryptionConfig {
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled"];
 }
 
 // SessionRecordingConfigSpecV2 is the actual data we care about
@@ -2404,6 +2414,14 @@ message SessionRecordingConfigSpecV2 {
     (gogoproto.jsontag) = "proxy_checks_host_keys",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  SessionRecordingEncryptionConfig encryption = 3;
+}
+
+// SessionRecordingConfigStatus contains the currently active encryption keys used
+// for encrypted session recording.
+message SessionRecordingConfigStatus {
+  repeated EncryptionKey encryption_keys = 1 [(gogoproto.jsontag) = "encryption_key"];
 }
 
 // AuthPreferenceV2 implements the AuthPreference interface.
