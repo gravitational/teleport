@@ -3665,6 +3665,10 @@ message KubernetesResource {
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
   // Verbs are the allowed Kubernetes verbs for the following resource.
   repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
+
+  // APIGroup specifies the Kubernetes API group of the Kubernetes resource.
+  // It supports wildcards.
+  string APIGroup = 5 [(gogoproto.jsontag) = "api_group,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -7270,6 +7274,10 @@ enum PluginStatusCode {
   // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
   // that the bot has not been invited to a channel that it is configured to post in.
   SLACK_NOT_IN_CHANNEL = 10;
+
+  // OKTA_CONFIG_ERROR is an Okta-specific code that indicates a configuration error with setup or
+  // permissions within Okta.
+  OKTA_CONFIG_ERROR = 20;
 }
 
 // OktaPluginSyncStatusCode indicates the possible states of an Okta
@@ -8370,7 +8378,7 @@ message TargetHealth {
   string Address = 1 [(gogoproto.jsontag) = "address,omitempty"];
   // Protocol is the health check protocol such as "tcp".
   string Protocol = 2 [(gogoproto.jsontag) = "protocol,omitempty"];
-  // Status is the health status, one of "", "disabled", "initialized", "healthy", "unhealthy".
+  // Status is the health status, one of "", "unknown", "healthy", "unhealthy".
   string Status = 3 [(gogoproto.jsontag) = "status,omitempty"];
   // TransitionTimestamp is the time that the last status transition occurred.
   google.protobuf.Timestamp TransitionTimestamp = 4 [

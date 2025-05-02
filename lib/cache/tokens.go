@@ -25,16 +25,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const staticTokensStoreNameIndex = "name"
+type staticTokensIndex string
 
-func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.StaticTokens], error) {
+const staticTokensNameIndex staticTokensIndex = "name"
+
+func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKind) (*collection[types.StaticTokens, staticTokensIndex], error) {
 	if c == nil {
 		return nil, trace.BadParameter("missing parameter ClusterConfig")
 	}
 
-	return &collection[types.StaticTokens]{
-		store: newStore(map[string]func(types.StaticTokens) string{
-			staticTokensStoreNameIndex: func(u types.StaticTokens) string {
+	return &collection[types.StaticTokens, staticTokensIndex]{
+		store: newStore(map[staticTokensIndex]func(types.StaticTokens) string{
+			staticTokensNameIndex: func(u types.StaticTokens) string {
 				return u.GetName()
 			},
 		}),
@@ -70,7 +72,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	defer rg.Release()
 
 	if rg.ReadCache() {
-		st, err := rg.store.get(staticTokensStoreNameIndex, types.MetaNameStaticTokens)
+		st, err := rg.store.get(staticTokensNameIndex, types.MetaNameStaticTokens)
 		return st.Clone(), trace.Wrap(err)
 	}
 
@@ -78,16 +80,18 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	return st, trace.Wrap(err)
 }
 
-const provisionTokenStoreNameIndex = "name"
+type provisionTokenIndex string
 
-func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*collection[types.ProvisionToken], error) {
+const provisionTokenStoreNameIndex provisionTokenIndex = "name"
+
+func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*collection[types.ProvisionToken, provisionTokenIndex], error) {
 	if p == nil {
 		return nil, trace.BadParameter("missing parameter Provisioner")
 	}
 
-	return &collection[types.ProvisionToken]{
-		store: newStore(map[string]func(types.ProvisionToken) string{
-			staticTokensStoreNameIndex: func(u types.ProvisionToken) string {
+	return &collection[types.ProvisionToken, provisionTokenIndex]{
+		store: newStore(map[provisionTokenIndex]func(types.ProvisionToken) string{
+			provisionTokenStoreNameIndex: func(u types.ProvisionToken) string {
 				return u.GetName()
 			},
 		}),

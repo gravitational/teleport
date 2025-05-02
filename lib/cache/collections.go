@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -53,32 +54,42 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	provisionTokens                  *collection[types.ProvisionToken]
-	staticTokens                     *collection[types.StaticTokens]
-	certAuthorities                  *collection[types.CertAuthority]
-	users                            *collection[types.User]
-	roles                            *collection[types.Role]
-	authServers                      *collection[types.Server]
-	proxyServers                     *collection[types.Server]
-	nodes                            *collection[types.Server]
-	apps                             *collection[types.Application]
-	appServers                       *collection[types.AppServer]
-	dbs                              *collection[types.Database]
-	dbServers                        *collection[types.DatabaseServer]
-	dbServices                       *collection[types.DatabaseService]
-	kubeServers                      *collection[types.KubeServer]
-	kubeClusters                     *collection[types.KubeCluster]
-	windowsDesktops                  *collection[types.WindowsDesktop]
-	windowsDesktopServices           *collection[types.WindowsDesktopService]
-	userGroups                       *collection[types.UserGroup]
-	identityCenterAccounts           *collection[*identitycenterv1.Account]
-	identityCenterAccountAssignments *collection[*identitycenterv1.AccountAssignment]
-	healthCheckConfig                *collection[*healthcheckconfigv1.HealthCheckConfig]
-	reverseTunnels                   *collection[types.ReverseTunnel]
-	spiffeFederations                *collection[*machineidv1.SPIFFEFederation]
-	workloadIdentity                 *collection[*workloadidentityv1.WorkloadIdentity]
-	userNotifications                *collection[*notificationsv1.Notification]
-	globalNotifications              *collection[*notificationsv1.GlobalNotification]
+	provisionTokens                  *collection[types.ProvisionToken, provisionTokenIndex]
+	staticTokens                     *collection[types.StaticTokens, staticTokensIndex]
+	certAuthorities                  *collection[types.CertAuthority, certAuthorityIndex]
+	users                            *collection[types.User, userIndex]
+	roles                            *collection[types.Role, roleIndex]
+	authServers                      *collection[types.Server, authServerIndex]
+	proxyServers                     *collection[types.Server, proxyServerIndex]
+	nodes                            *collection[types.Server, nodeIndex]
+	apps                             *collection[types.Application, appIndex]
+	appServers                       *collection[types.AppServer, appServerIndex]
+	dbs                              *collection[types.Database, databaseIndex]
+	dbServers                        *collection[types.DatabaseServer, databaseServerIndex]
+	dbServices                       *collection[types.DatabaseService, databaseServiceIndex]
+	kubeServers                      *collection[types.KubeServer, kubeServerIndex]
+	kubeClusters                     *collection[types.KubeCluster, kubeClusterIndex]
+	windowsDesktops                  *collection[types.WindowsDesktop, windowsDesktopIndex]
+	windowsDesktopServices           *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
+	userGroups                       *collection[types.UserGroup, userGroupIndex]
+	identityCenterAccounts           *collection[*identitycenterv1.Account, identityCenterAccountIndex]
+	identityCenterAccountAssignments *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
+	healthCheckConfig                *collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]
+	reverseTunnels                   *collection[types.ReverseTunnel, reverseTunnelIndex]
+	spiffeFederations                *collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex]
+	workloadIdentity                 *collection[*workloadidentityv1.WorkloadIdentity, workloadIdentityIndex]
+	userNotifications                *collection[*notificationsv1.Notification, userNotificationIndex]
+	globalNotifications              *collection[*notificationsv1.GlobalNotification, globalNotificationIndex]
+	clusterName                      *collection[types.ClusterName, clusterNameIndex]
+	auditConfig                      *collection[types.ClusterAuditConfig, clusterAuditConfigIndex]
+	networkingConfig                 *collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]
+	authPreference                   *collection[types.AuthPreference, authPreferenceIndex]
+	sessionRecordingConfig           *collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]
+	autoUpdateConfig                 *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
+	autoUpdateVerion                 *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
+	autoUpdateRollout                *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
+	oktaImportRules                  *collection[types.OktaImportRule, oktaImportRuleIndex]
+	oktaAssignments                  *collection[types.OktaAssignment, oktaAssignmentIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -301,6 +312,86 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.globalNotifications = collect
 			out.byKind[resourceKind] = out.globalNotifications
+		case types.KindClusterName:
+			collect, err := newClusterNameCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.clusterName = collect
+			out.byKind[resourceKind] = out.clusterName
+		case types.KindClusterAuditConfig:
+			collect, err := newClusterAuditConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.auditConfig = collect
+			out.byKind[resourceKind] = out.auditConfig
+		case types.KindClusterNetworkingConfig:
+			collect, err := newClusterNetworkingConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.networkingConfig = collect
+			out.byKind[resourceKind] = out.networkingConfig
+		case types.KindClusterAuthPreference:
+			collect, err := newAuthPreferenceCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.authPreference = collect
+			out.byKind[resourceKind] = out.authPreference
+		case types.KindSessionRecordingConfig:
+			collect, err := newSessionRecordingConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.sessionRecordingConfig = collect
+			out.byKind[resourceKind] = out.sessionRecordingConfig
+		case types.KindAutoUpdateConfig:
+			collect, err := newAutoUpdateConfigCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateConfig = collect
+			out.byKind[resourceKind] = out.autoUpdateConfig
+		case types.KindAutoUpdateVersion:
+			collect, err := newAutoUpdateVersionCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateVerion = collect
+			out.byKind[resourceKind] = out.autoUpdateVerion
+		case types.KindAutoUpdateAgentRollout:
+			collect, err := newAutoUpdateRolloutCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateRollout = collect
+			out.byKind[resourceKind] = out.autoUpdateRollout
+		case types.KindOktaImportRule:
+			collect, err := newOktaImportRuleCollection(c.Okta, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.oktaImportRules = collect
+			out.byKind[resourceKind] = out.oktaImportRules
+		case types.KindOktaAssignment:
+			collect, err := newOktaImportAssignmentCollection(c.Okta, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.oktaAssignments = collect
+			out.byKind[resourceKind] = out.oktaAssignments
 		}
 	}
 
