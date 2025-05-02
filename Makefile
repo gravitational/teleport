@@ -1912,3 +1912,11 @@ dump-preset-roles:
 .PHONY: test-e2e
 test-e2e: ensure-webassets
 	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
+
+.PHONY: cli-docs-tsh
+cli-docs-tsh:
+	# Not executing go run since we don't want to redirect linker warnings
+	# along with the docs page content.
+	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
+	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
+	rm $(BUILDDIR)/tshdocs
