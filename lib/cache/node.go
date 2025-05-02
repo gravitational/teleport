@@ -29,7 +29,7 @@ import (
 
 type nodeIndex string
 
-const nodeNameIndex = "name"
+const nodeNameIndex nodeIndex = "name"
 
 func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[types.Server, nodeIndex], error) {
 	if p == nil {

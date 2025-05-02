@@ -120,6 +120,7 @@ type collections struct {
 	remoteClusters                   *collection[types.RemoteCluster, remoteClusterIndex]
 	userTasks                        *collection[*usertasksv1.UserTask, userTaskIndex]
 	userLoginStates                  *collection[*userloginstate.UserLoginState, userLoginStateIndex]
+	gitServers                       *collection[types.Server, gitServerIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -610,6 +611,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.userLoginStates = collect
 			out.byKind[resourceKind] = out.userLoginStates
+		case types.KindGitServer:
+			collect, err := newGitServerCollection(c.GitServers, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.gitServers = collect
+			out.byKind[resourceKind] = out.gitServers
 		}
 	}
 

@@ -103,6 +103,7 @@ type legacyCollections struct {
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
+	pluginStaticCredentials            collectionReader[pluginStaticCredentialsGetter]
 	gitServers                         collectionReader[services.GitServerGetter]
 }
 
@@ -195,19 +196,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.identityCenterPrincipalAssignments
-		case types.KindGitServer:
-			if c.GitServers == nil {
-				return nil, trace.BadParameter("missing parameter GitServers")
-			}
-			collections.gitServers = &genericCollection[
-				types.Server,
-				services.GitServerGetter,
-				gitServerExecutor,
-			]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.gitServers
 		default:
 			if _, ok := c.collections.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
