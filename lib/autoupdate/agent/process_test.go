@@ -200,6 +200,7 @@ func TestWaitForStablePID(t *testing.T) {
 			finalPID: 2,
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			ctx, cancel := context.WithCancel(ctx)
@@ -277,6 +278,7 @@ func TestTickFile(t *testing.T) {
 			errored: false,
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			filePath := filepath.Join(t.TempDir(), "file")
 
@@ -346,6 +348,7 @@ func TestParseSystemdVersion(t *testing.T) {
 			name: "empty",
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			v, ok := parseSystemDVersion([]byte(tt.output))
 			if tt.version == 0 {

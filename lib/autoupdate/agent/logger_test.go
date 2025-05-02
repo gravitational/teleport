@@ -159,6 +159,7 @@ func TestProgressLogger(t *testing.T) {
 			},
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			out := &bytes.Buffer{}
 			ll := progressLogger{

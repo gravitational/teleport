@@ -113,6 +113,7 @@ func TestNewRevisionFromDir(t *testing.T) {
 			errMatch: "missing",
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			rev, err := NewRevisionFromDir(tt.dir)
 			if tt.errMatch != "" {
@@ -222,6 +223,7 @@ func TestValidateConfigSpec(t *testing.T) {
 			errMatch: "must use TLS",
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateConfigSpec(&tt.config, OverrideConfig{UpdateSpec: tt.override})
 			if tt.errMatch != "" {

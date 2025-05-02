@@ -125,6 +125,7 @@ func TestNewNamespace(t *testing.T) {
 			errMatch:  "reserved",
 		},
 	} {
+		p := p
 		t.Run(p.name, func(t *testing.T) {
 			log := slog.Default()
 			ctx := context.Background()
@@ -157,6 +158,7 @@ func TestWriteConfigFiles(t *testing.T) {
 			namespace: "test",
 		},
 	} {
+		p := p
 		t.Run(p.name, func(t *testing.T) {
 			log := slog.Default()
 			linkDir := t.TempDir()
@@ -337,6 +339,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ns := &Namespace{
 				log:              slog.Default(),

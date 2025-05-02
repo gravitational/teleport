@@ -72,6 +72,7 @@ func TestWarnUmask(t *testing.T) {
 		{old: 0o666, warn: true},
 		{old: 0o777, warn: true},
 	} {
+		tt := tt
 		t.Run(fmt.Sprintf("old umask %o", tt.old), func(t *testing.T) {
 			ctx := context.Background()
 			out := &bytes.Buffer{}
@@ -126,6 +127,7 @@ func TestUpdater_Disable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			ns := &Namespace{installDir: dir}
@@ -213,6 +215,7 @@ func TestUpdater_Unpin(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			ns := &Namespace{installDir: dir}
@@ -706,6 +709,7 @@ func TestUpdater_Update(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var requestedGroup string
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -988,6 +992,7 @@ func TestUpdater_LinkPackage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			ns := &Namespace{installDir: dir}
@@ -1301,6 +1306,7 @@ func TestUpdater_Remove(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			ns := &Namespace{installDir: dir}
@@ -1659,6 +1665,7 @@ func TestUpdater_Install(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			ns := &Namespace{
@@ -1854,6 +1861,7 @@ func TestSameProxies(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			s := sameProxies(tt.a, tt.b)
 			require.Equal(t, tt.match, s)
@@ -1942,6 +1950,7 @@ func TestUpdater_Setup(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ns := &Namespace{}
 			updater, err := NewLocalUpdater(LocalUpdaterConfig{}, ns)
@@ -2044,6 +2053,7 @@ func TestFindDBPID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			existing := filepath.Join(t.TempDir(), "existing")
 			if tt.existingID != "" {
