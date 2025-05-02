@@ -74,7 +74,7 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 		return nil, trace.NotFound("no Windows desktops were found")
 	}
 
-	var validServiceIDs []string
+	validServiceIDs := make([]string, 0, len(winDesktops))
 	for _, desktop := range winDesktops {
 		if desktop.GetHostID() == "" {
 			// desktops with empty host ids are invalid and should
@@ -88,9 +88,6 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 		conn, err := tryConnect(ctx, id, config)
 		if err == nil {
 			return conn, nil
-		}
-		if !trace.IsConnectionProblem(err) {
-			return nil, trace.WrapWithMessage(err, "error connecting to windows_desktop_service %q", id)
 		}
 		config.Log.WarnContext(ctx, "failed to connect to windows_desktop_service",
 			"windows_desktop_service_id", id,
