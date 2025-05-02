@@ -90,6 +90,11 @@ type collections struct {
 	autoUpdateRollout                *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
 	oktaImportRules                  *collection[types.OktaImportRule, oktaImportRuleIndex]
 	oktaAssignments                  *collection[types.OktaAssignment, oktaAssignmentIndex]
+	samlIdPServiceProviders          *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
+	samlIdPSessions                  *collection[types.WebSession, samlIdPSessionIndex]
+	webSessions                      *collection[types.WebSession, webSessionIndex]
+	appSessions                      *collection[types.WebSession, appSessionIndex]
+	snowflakeSessions                *collection[types.WebSession, snowflakeSessionIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -392,6 +397,49 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.oktaAssignments = collect
 			out.byKind[resourceKind] = out.oktaAssignments
+		case types.KindSAMLIdPServiceProvider:
+			collect, err := newSAMLIdPServiceProviderCollection(c.SAMLIdPServiceProviders, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.samlIdPServiceProviders = collect
+			out.byKind[resourceKind] = out.samlIdPServiceProviders
+		case types.KindWebSession:
+			switch watch.SubKind {
+			case types.KindAppSession:
+				collect, err := newAppSessionCollection(c.AppSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.appSessions = collect
+				out.byKind[resourceKind] = out.appSessions
+			case types.KindSnowflakeSession:
+				collect, err := newSnowflakeSessionCollection(c.SnowflakeSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.snowflakeSessions = collect
+				out.byKind[resourceKind] = out.snowflakeSessions
+			case types.KindSAMLIdPSession:
+				collect, err := newSAMLIdPSessionCollection(c.SAMLIdPSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.samlIdPSessions = collect
+				out.byKind[resourceKind] = out.samlIdPSessions
+			case types.KindWebSession:
+				collect, err := newWebSessionCollection(c.WebSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.webSessions = collect
+				out.byKind[resourceKind] = out.webSessions
+			}
 		}
 	}
 

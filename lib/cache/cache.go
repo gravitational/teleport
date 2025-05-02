@@ -513,13 +513,8 @@ type Cache struct {
 	restrictionsCache            services.Restrictions
 	crownJewelsCache             services.CrownJewels
 	databaseObjectsCache         *local.DatabaseObjectService
-	appSessionCache              services.AppSession
-	snowflakeSessionCache        services.SnowflakeSession
-	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
-	webSessionCache              types.WebSessionInterface
 	webTokenCache                types.WebTokenInterface
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
-	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
 	integrationsCache            services.Integrations
 	userTasksCache               services.UserTasks
@@ -922,13 +917,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	//nolint:revive // Because we want this to be IdP.
-	samlIdPServiceProvidersCache, err := local.NewSAMLIdPServiceProviderService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	userGroupsCache, err := local.NewUserGroupService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1064,14 +1052,9 @@ func New(config Config) (*Cache, error) {
 		presenceCache:                local.NewPresenceService(config.Backend),
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
 		crownJewelsCache:             crownJewelCache,
-		appSessionCache:              identityService,
-		snowflakeSessionCache:        identityService,
-		samlIdPSessionCache:          identityService,
-		webSessionCache:              identityService.WebSessions(),
 		webTokenCache:                identityService.WebTokens(),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
-		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
 		integrationsCache:            integrationsCache,
 		userTasksCache:               userTasksCache,
@@ -2047,105 +2030,6 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 	return rg.reader.GetStaticHostUser(ctx, name)
 }
 
-// GetAppSession gets an application web session.
-func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	sess, err := rg.reader.GetAppSession(ctx, req)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load session from upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-
-	return sess, trace.Wrap(err)
-}
-
-// ListAppSessions returns a page of application web sessions.
-func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAppSessions")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.appSessions)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAppSessions(ctx, pageSize, pageToken, user)
-}
-
-// GetSnowflakeSession gets Snowflake web session.
-func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.snowflakeSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	sess, err := rg.reader.GetSnowflakeSession(ctx, req)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-
-	return sess, trace.Wrap(err)
-}
-
-// GetSAMLIdPSession gets a SAML IdP session.
-func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	sess, err := rg.reader.GetSAMLIdPSession(ctx, req)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.SAMLIdPSession.GetSAMLIdPSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-
-	return sess, trace.Wrap(err)
-}
-
 func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
 	defer span.End()
@@ -2168,35 +2052,6 @@ func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken str
 	}
 	defer rg.Release()
 	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
-}
-
-// GetWebSession gets a regular web session.
-func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWebSession")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.webSessions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	sess, err := rg.reader.Get(ctx, req)
-
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load sessionfrom upstream",
-				"session_kind", sess.GetSubKind(),
-				"session", sess.GetName(),
-			)
-			return sess, nil
-		}
-	}
-	return sess, trace.Wrap(err)
 }
 
 // GetWebToken gets a web token.
@@ -2288,32 +2143,6 @@ func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, ne
 	}
 	defer rg.Release()
 	return rg.reader.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
-}
-
-// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
-func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPServiceProviders)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSAMLIdPServiceProviders(ctx, pageSize, nextKey)
-}
-
-// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
-func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.samlIdPServiceProviders)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSAMLIdPServiceProvider(ctx, name)
 }
 
 // ListIntegrations returns a paginated list of all Integrations resources.

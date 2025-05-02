@@ -1288,40 +1288,6 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-// TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
-// replicated from the backend to the cache.
-func TestSAMLIdPServiceProviders(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.SAMLIdPServiceProvider]{
-		newResource: func(name string) (types.SAMLIdPServiceProvider, error) {
-			return types.NewSAMLIdPServiceProvider(
-				types.Metadata{
-					Name: name,
-				},
-				types.SAMLIdPServiceProviderSpecV1{
-					EntityDescriptor: testEntityDescriptor,
-					EntityID:         "IAMShowcase",
-				})
-		},
-		create: p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
-		list: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			results, _, err := p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetSAMLIdPServiceProvider,
-		cacheList: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			results, _, err := p.cache.ListSAMLIdPServiceProviders(ctx, 0, "")
-			return results, err
-		},
-		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
-		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
-	})
-}
-
 // TestLocks tests that CRUD operations on lock resources are
 // replicated from the backend to the cache.
 func TestLocks(t *testing.T) {
