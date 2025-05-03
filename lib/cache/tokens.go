@@ -35,11 +35,11 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 	}
 
 	return &collection[types.StaticTokens, staticTokensIndex]{
-		store: newStore(map[staticTokensIndex]func(types.StaticTokens) string{
-			staticTokensNameIndex: func(u types.StaticTokens) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.StaticTokens.Clone,
+			map[staticTokensIndex]func(types.StaticTokens) string{
+				staticTokensNameIndex: types.StaticTokens.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.StaticTokens, error) {
 			token, err := c.GetStaticTokens()
 			if err != nil {
@@ -49,8 +49,8 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.StaticTokens {
 			return &types.StaticTokensV2{
-				Kind:    types.KindStaticTokens,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: types.MetaNameStaticTokens,
 				},
@@ -90,21 +90,21 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 	}
 
 	return &collection[types.ProvisionToken, provisionTokenIndex]{
-		store: newStore(map[provisionTokenIndex]func(types.ProvisionToken) string{
-			provisionTokenStoreNameIndex: func(u types.ProvisionToken) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.ProvisionToken.Clone,
+			map[provisionTokenIndex]func(types.ProvisionToken) string{
+				provisionTokenStoreNameIndex: types.ProvisionToken.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ProvisionToken, error) {
 			tokens, err := p.GetTokens(ctx)
 			return tokens, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.ProvisionToken {
 			return &types.ProvisionTokenV2{
-				Kind:    types.KindToken,
+				Kind:    hdr.Kind,
 				Version: hdr.Version,
 				Metadata: types.Metadata{
-					Name: hdr.GetName(),
+					Name: hdr.Metadata.Name,
 				},
 			}
 		},

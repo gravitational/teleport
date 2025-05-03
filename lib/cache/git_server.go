@@ -39,11 +39,11 @@ func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind
 	}
 
 	return &collection[types.Server, gitServerIndex]{
-		store: newStore(map[gitServerIndex]func(types.Server) string{
-			gitServerNameIndex: func(u types.Server) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.Server.DeepCopy,
+			map[gitServerIndex]func(types.Server) string{
+				gitServerNameIndex: types.Server.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
 			var all []types.Server
 			var nextToken string
@@ -90,7 +90,6 @@ func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, er
 		collection:  c.collections.gitServers,
 		index:       gitServerNameIndex,
 		upstreamGet: c.Config.GitServers.GetGitServer,
-		clone:       types.Server.DeepCopy,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
@@ -108,7 +107,6 @@ func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken stri
 		nextToken: func(t types.Server) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.Server.DeepCopy,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)

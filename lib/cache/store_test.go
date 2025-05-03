@@ -27,6 +27,7 @@ import (
 
 func TestResourceStore(t *testing.T) {
 	store := newStore(
+		func(i int) int { return i },
 		map[string]func(i int) string{
 			"numbers":    strconv.Itoa,
 			"characters": func(i int) string { return strconv.FormatUint(uint64(i), 16) },

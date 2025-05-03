@@ -20,11 +20,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,11 +38,13 @@ func newUserTaskCollection(upstream services.UserTasks, w types.WatchKind) (*col
 	}
 
 	return &collection[*usertasksv1.UserTask, userTaskIndex]{
-		store: newStore(map[userTaskIndex]func(*usertasksv1.UserTask) string{
-			userTaskNameIndex: func(r *usertasksv1.UserTask) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			proto.CloneOf[*usertasksv1.UserTask],
+			map[userTaskIndex]func(*usertasksv1.UserTask) string{
+				userTaskNameIndex: func(r *usertasksv1.UserTask) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*usertasksv1.UserTask, error) {
 			var resources []*usertasksv1.UserTask
 			var nextToken string
@@ -90,7 +92,6 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, pageToken str
 		nextToken: func(t *usertasksv1.UserTask) string {
 			return t.GetMetadata().Name
 		},
-		clone: utils.CloneProtoMsg[*usertasksv1.UserTask],
 		filter: func(ut *usertasksv1.UserTask) bool {
 			return services.MatchUserTask(ut, filters)
 		},
@@ -109,7 +110,6 @@ func (c *Cache) GetUserTask(ctx context.Context, name string) (*usertasksv1.User
 		collection:  c.collections.userTasks,
 		index:       userTaskNameIndex,
 		upstreamGet: c.Config.UserTasks.GetUserTask,
-		clone:       utils.CloneProtoMsg[*usertasksv1.UserTask],
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

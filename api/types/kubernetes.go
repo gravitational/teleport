@@ -74,7 +74,7 @@ type KubeCluster interface {
 	// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
-	Copy() *KubernetesClusterV3
+	Copy() KubeCluster
 	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
 	// isn't running on a cloud provider.
 	GetCloud() string
@@ -117,7 +117,7 @@ func NewKubernetesClusterV3FromLegacyCluster(namespace string, cluster *Kubernet
 // but without secrets/credentials.
 func NewKubernetesClusterV3WithoutSecrets(cluster KubeCluster) (*KubernetesClusterV3, error) {
 	// Force a copy of the cluster to deep copy the Metadata fields.
-	copiedCluster := cluster.Copy()
+	copiedCluster := cluster.Copy().(*KubernetesClusterV3)
 	clusterWithoutCreds, err := NewKubernetesClusterV3(
 		copiedCluster.Metadata,
 		KubernetesClusterSpecV3{
@@ -337,7 +337,7 @@ func (k *KubernetesClusterV3) String() string {
 }
 
 // Copy returns a copy of this resource.
-func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
+func (k *KubernetesClusterV3) Copy() KubeCluster {
 	return utils.CloneProtoMsg(k)
 }
 

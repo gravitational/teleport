@@ -37,11 +37,11 @@ func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKi
 	}
 
 	return &collection[types.WebSession, webSessionIndex]{
-		store: newStore(map[webSessionIndex]func(types.WebSession) string{
-			webSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.WebSession.Copy,
+			map[webSessionIndex]func(types.WebSession) string{
+				webSessionNameIndex: types.WebSession.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
 			webSessions, err := upstream.List(ctx)
 			if err != nil {
@@ -86,7 +86,6 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 			session, err := c.Config.WebSession.Get(ctx, types.GetWebSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
-		clone: types.WebSession.Copy,
 	}
 	out, err := getter.get(ctx, req.SessionID)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -116,14 +115,14 @@ func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*
 	}
 
 	return &collection[types.WebSession, appSessionIndex]{
-		store: newStore(map[appSessionIndex]func(types.WebSession) string{
-			appSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-			appSessionUserIndex: func(r types.WebSession) string {
-				return r.GetUser() + "/" + r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.WebSession.Copy,
+			map[appSessionIndex]func(types.WebSession) string{
+				appSessionNameIndex: types.WebSession.GetName,
+				appSessionUserIndex: func(r types.WebSession) string {
+					return r.GetUser() + "/" + r.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
 			var startKey string
 			var sessions []types.WebSession
@@ -179,7 +178,6 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 			session, err := c.Config.AppSession.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
-		clone: types.WebSession.Copy,
 	}
 	out, err := getter.get(ctx, req.SessionID)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -253,11 +251,11 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 	}
 
 	return &collection[types.WebSession, snowflakeSessionIndex]{
-		store: newStore(map[snowflakeSessionIndex]func(types.WebSession) string{
-			snowflakeSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.WebSession.Copy,
+			map[snowflakeSessionIndex]func(types.WebSession) string{
+				snowflakeSessionNameIndex: types.WebSession.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
 			webSessions, err := upstream.GetSnowflakeSessions(ctx)
 			if err != nil {
@@ -302,7 +300,6 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 			session, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
-		clone: types.WebSession.Copy,
 	}
 	out, err := getter.get(ctx, req.SessionID)
 	if trace.IsNotFound(err) && !upstreamRead {

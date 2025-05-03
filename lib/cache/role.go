@@ -35,18 +35,18 @@ func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.
 	}
 
 	return &collection[types.Role, roleIndex]{
-		store: newStore(map[roleIndex]func(types.Role) string{
-			roleNameIndex: func(r types.Role) string {
-				return r.GetName()
-			},
-		}),
+		store: newStore(
+			types.Role.Clone,
+			map[roleIndex]func(types.Role) string{
+				roleNameIndex: types.Role.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Role, error) {
 			return a.GetRoles(ctx)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Role {
 			return &types.RoleV6{
-				Kind:    types.KindRole,
-				Version: types.V7,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
