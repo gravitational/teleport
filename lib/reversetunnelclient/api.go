@@ -47,10 +47,6 @@ type DialParams struct {
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
 
-	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
-	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
-	IsAgentlessNode bool
-
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.
 	AgentlessSigner ssh.Signer

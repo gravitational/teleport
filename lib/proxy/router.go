@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -229,61 +228,45 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 	span.AddEvent("retrieved target server")
 
+	serverID := target.GetName() + "." + clusterName
 	principals := []string{
 		host,
-		// Add in principal for when nodes are on leaf clusters.
+		// Required when nodes are in leaf clusters.
 		host + "." + clusterName,
 	}
+	proxyIDs := target.GetProxyIDs()
 
-	var (
-		isAgentlessNode bool
-		serverID        string
-		serverAddr      string
-		proxyIDs        []string
-		sshSigner       ssh.Signer
-	)
+	// add ip if it exists to the principals
+	serverAddr := target.GetAddr()
+	switch {
+	case serverAddr != "":
+		h, _, err := net.SplitHostPort(serverAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	if target != nil {
-		proxyIDs = target.GetProxyIDs()
-		serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
+		principals = append(principals, h)
+	case serverAddr == "" && target.GetUseTunnel():
+		serverAddr = reversetunnelclient.LocalNode
+	}
 
-		// add hostUUID.cluster to the principals
-		principals = append(principals, serverID)
+	// If the node is a registered openssh node don't set agentGetter
+	// so a SSH user agent will not be created when connecting to the remote node.
+	var sshSigner ssh.Signer
+	if target.IsOpenSSHNode() {
+		agentGetter = nil
 
-		// add ip if it exists to the principals
-		serverAddr = target.GetAddr()
-
-		switch {
-		case serverAddr != "":
-			h, _, err := net.SplitHostPort(serverAddr)
+		if target.GetSubKind() == types.SubKindOpenSSHNode {
+			// If the node is of SubKindOpenSSHNode, create the signer.
+			client, err := r.GetSiteClient(ctx, clusterName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			principals = append(principals, h)
-		case serverAddr == "" && target.GetUseTunnel():
-			serverAddr = reversetunnelclient.LocalNode
-		}
-		// If the node is a registered openssh node don't set agentGetter
-		// so a SSH user agent will not be created when connecting to the remote node.
-		if target.IsOpenSSHNode() {
-			agentGetter = nil
-			isAgentlessNode = true
-
-			if target.GetSubKind() == types.SubKindOpenSSHNode {
-				// If the node is of SubKindOpenSSHNode, create the signer.
-				client, err := r.GetSiteClient(ctx, clusterName)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				sshSigner, err = signer(ctx, r.localAccessPoint, client)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
+			sshSigner, err = signer(ctx, r.localAccessPoint, client)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 		}
-	} else {
-		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
 
 	conn, err := site.Dial(reversetunnelclient.DialParams{
@@ -291,7 +274,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
-		IsAgentlessNode:       isAgentlessNode,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            apiutils.Deduplicate(principals),
@@ -519,7 +501,11 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 		server = matches[0]
 	}
 
-	if routeMatcher.MatchesServerIDs() && server == nil {
+	if server != nil {
+		return server, nil
+	}
+
+	if routeMatcher.MatchesServerIDs() {
 		idType := "UUID"
 		if aws.IsEC2NodeID(host) {
 			idType = "EC2"
@@ -528,7 +514,7 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 		return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, host)
 	}
 
-	return server, nil
+	return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 }
 
 // DialSite establishes a connection to the auth server in the provided
