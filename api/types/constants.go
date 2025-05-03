@@ -888,7 +888,8 @@ const (
 	CloudGCP = "GCP"
 
 	// SchemaMCPStdio is a URI schema for the stdio-based MCP servers.
-	SchemaMCPStdio = "mcp+stdio://"
+	SchemaMCPStdio    = "mcp+stdio://"
+	MCPTransportStdio = "stdio"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"

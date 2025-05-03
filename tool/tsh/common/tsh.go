@@ -1334,6 +1334,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
+	mcpCmd := newMCPCommands(app, &cf)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1737,6 +1738,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case mcpCmd.list.FullCommand():
+		err = mcpCmd.list.run(&cf)
+	case mcpCmd.connect.FullCommand():
+		err = mcpCmd.connect.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

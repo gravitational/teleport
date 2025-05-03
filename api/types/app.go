@@ -304,6 +304,9 @@ func (a *AppV3) GetProtocol() string {
 	if a.IsTCP() {
 		return "TCP"
 	}
+	if a.IsMCP() {
+		return "MCP"
+	}
 	return "HTTP"
 }
 
@@ -635,5 +638,15 @@ func (p *PortRange) String() string {
 		return strconv.Itoa(int(p.Port))
 	} else {
 		return fmt.Sprintf("%d-%d", p.Port, p.EndPort)
+	}
+}
+
+// GetMCPServerTransportType returns the transport of the MCP server based on the URI.
+func GetMCPServerTransportType(uri string) string {
+	switch {
+	case strings.HasPrefix(uri, SchemaMCPStdio):
+		return MCPTransportStdio
+	default:
+		return "unknown"
 	}
 }

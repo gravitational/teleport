@@ -54,6 +54,7 @@ import (
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
+	"github.com/gravitational/teleport/lib/srv/mcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -175,6 +176,7 @@ type ConnectionsHandler struct {
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
+	mcpServer  *mcp.Server
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -272,6 +274,14 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 	c.tcpServer = tcpServer
+
+	// Handle MCP servers.
+	c.mcpServer, err = mcp.NewServer(mcp.ServerConfig{
+		Emitter: c.cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
@@ -583,10 +593,13 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
 	if err != nil {
-		if !app.IsTCP() {
-			c.setConnAuth(tlsConn, err)
-		} else {
+		switch {
+		case app.IsTCP():
 			return nil, trace.Wrap(err)
+		case app.IsMCP():
+			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedAppConnection(ctx, tlsConn, err))
+		default:
+			c.setConnAuth(tlsConn, err)
 		}
 	} else {
 		// Monitor the connection an update the context.
@@ -602,17 +615,21 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 
 	// Application access supports plain TCP connections which are handled
 	// differently than HTTP requests from web apps.
-	if app.IsTCP() {
+	switch {
+	case app.IsTCP():
 		identity := authCtx.Identity.GetIdentity()
 		defer cancel(nil)
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
+	case app.IsMCP():
+		defer cancel(nil)
+		return nil, trace.Wrap(c.mcpServer.HandleAuthorizedAppConnection(ctx, tlsConn, authCtx, app))
+	default:
+		cleanup := func() {
+			cancel(nil)
+			c.deleteConnAuth(tlsConn)
+		}
+		return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
 	}
-
-	cleanup := func() {
-		cancel(nil)
-		c.deleteConnAuth(tlsConn)
-	}
-	return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
 }
 
 // handleHTTPApp handles connection for an HTTP application.
