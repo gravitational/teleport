@@ -291,10 +291,6 @@ type Config struct {
 	Stderr io.Writer
 	Stdin  io.Reader
 
-	// ExitStatus carries the returned value (exit status) of the remote
-	// process execution (via SSH exec)
-	ExitStatus int
-
 	// SiteName specifies site to execute operation,
 	// if omitted, first available site will be selected
 	SiteName string
@@ -1266,6 +1262,9 @@ type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (
 // TeleportClient is NOT safe for concurrent use.
 type TeleportClient struct {
 	Config
+	exitStatus int
+	statusMu   sync.Mutex
+
 	localAgent *LocalKeyAgent
 
 	// OnChannelRequest gets called when SSH channel requests are
@@ -1330,6 +1329,22 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	return tc, nil
+}
+
+// ExitStatus returns the exit status of the most recent SSH command. It is the
+// caller's responsibility to ensure the command has finished before checking
+// the exit status.
+func (tc *TeleportClient) ExitStatus() int {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	return tc.exitStatus
+}
+
+// SetExitStatus sets the exit status of the most recent SSH command.
+func (tc *TeleportClient) SetExitStatus(status int) {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	tc.exitStatus = status
 }
 
 func (tc *TeleportClient) stdin() prompt.StdinReader {
@@ -2163,7 +2178,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		tc.Config.HostLogin,
 	)
 	if err != nil {
-		tc.ExitStatus = 1
+		tc.SetExitStatus(1)
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
@@ -2953,7 +2968,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 				WithLabeledOutput(width),
 				WithOutput(stdout, stderr),
 			)
-			// Use the status from the error to avoid a race on tc.ExitStatus.
+			// Use the status from the error to avoid a race on the exit status.
 			exitStatus := getExitStatus(err)
 			if err != nil && exitStatus == 0 {
 				fmt.Fprintln(stderr, err)
