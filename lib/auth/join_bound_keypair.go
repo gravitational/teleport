@@ -20,6 +20,7 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
 	"time"
 
@@ -33,6 +34,13 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 )
+
+type boundKeypairValidator interface {
+	IssueChallenge() (*boundkeypair.ChallengeDocument, error)
+	ValidateChallengeResponse(issued *boundkeypair.ChallengeDocument, compactResponse string) error
+}
+
+type createBoundKeypairValidator func(subject string, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error)
 
 // validateBoundKeypairTokenSpec performs some basic validation checks on a
 // bound_keypair-type join token.
@@ -162,7 +170,7 @@ func (a *Server) issueBoundKeypairChallenge(
 
 	a.logger.DebugContext(ctx, "issuing bound keypair challenge", "key_id", keyID)
 
-	validator, err := boundkeypair.NewChallengeValidator(keyID, clusterName.GetClusterName(), key)
+	validator, err := a.createBoundKeypairValidator(keyID, clusterName.GetClusterName(), key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -372,7 +380,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		return nil, trace.BadParameter("cannot perform first bound keypair join with existing credentials")
 	case hasBoundPublicKey && !hasBoundBotInstance:
 		// TODO: Bad backend state, or maybe an incomplete previous join
-		// attempt. This shouldn't be possible state, but we should handle it
+		// attempt. This shouldn't be a possible state, but we should handle it
 		// sanely anyway.
 		return nil, trace.BadParameter("bad backend state, please recreate the join token")
 	case hasBoundPublicKey && hasBoundBotInstance && hasIncomingBotInstance:
@@ -468,6 +476,8 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 			return nil, trace.Wrap(err, "committing updated token state, please try again")
 		}
 	}
+
+	// TODO: need to return public key here for inclusion in the certs response.
 
 	return certs, trace.Wrap(err)
 }

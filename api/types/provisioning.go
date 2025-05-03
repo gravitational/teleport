@@ -193,6 +193,26 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	return t, nil
 }
 
+// NewProvisionTokenFromSpecAndStatus returns a new provision token with the given spec.
+func NewProvisionTokenFromSpecAndStatus(
+	token string, expires time.Time,
+	spec ProvisionTokenSpecV2,
+	status *ProvisionTokenStatusV2,
+) (ProvisionToken, error) {
+	t := &ProvisionTokenV2{
+		Metadata: Metadata{
+			Name:    token,
+			Expires: &expires,
+		},
+		Spec:   spec,
+		Status: status,
+	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
+}
+
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in tests
 func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
