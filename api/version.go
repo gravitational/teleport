@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.4.7"
+const Version = "17.4.7-dev.tigrato.1"
 
 const VersionMajor = 17
 const VersionMinor = 4
 const VersionPatch = 7
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.tigrato.1"
 const VersionMetadata = ""
