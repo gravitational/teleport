@@ -1842,16 +1842,11 @@ func (p *networkRestrictionsParser) match(key backend.Key) bool {
 func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(restrictionsPrefix, network)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
 		return &types.ResourceHeader{
 			Kind:    types.KindNetworkRestrictions,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      types.MetaNameNetworkRestrictions,
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil

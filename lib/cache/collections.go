@@ -125,6 +125,7 @@ type collections struct {
 	gitServers                       *collection[types.Server, gitServerIndex]
 	databaseObjects                  *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
 	staticHostUsers                  *collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]
+	networkRestrictions              *collection[types.NetworkRestrictions, networkingRestrictionIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -639,6 +640,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.staticHostUsers = collect
 			out.byKind[resourceKind] = out.staticHostUsers
+		case types.KindNetworkRestrictions:
+			collect, err := newNetworkingRestrictionCollection(c.Restrictions, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.networkRestrictions = collect
+			out.byKind[resourceKind] = out.networkRestrictions
 		}
 	}
 
