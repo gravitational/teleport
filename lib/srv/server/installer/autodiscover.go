@@ -33,6 +33,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
@@ -88,9 +89,14 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// TokenName is the token name to be used by the instance to join the cluster.
 	TokenName string
 
-	// aptPublicKeyEndpoint contains the URL for the APT public key.
-	// Defaults to: https://apt.releases.teleport.dev/gpg
-	aptPublicKeyEndpoint string
+	// defaultVersion is the version used to compute whether the production or development repositories should be used.
+	// If auto upgrades are enabled, then the defaultVersion is ignored.
+	// Defaults to api.SemVersion.
+	defaultVersion *semver.Version
+
+	// aptRepoKeyEndpointOverride contains the URL for the APT public key.
+	// Used for testing.
+	aptRepoKeyEndpointOverride string
 
 	// fsRootPrefix is the prefix to use when reading operating system information and when installing teleport.
 	// Used for testing.
@@ -108,6 +114,10 @@ type AutoDiscoverNodeInstallerConfig struct {
 func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 	if c == nil {
 		return trace.BadParameter("install teleport config is required")
+	}
+
+	if c.defaultVersion == nil {
+		c.defaultVersion = api.SemVersion
 	}
 
 	if c.fsRootPrefix == "" {
@@ -407,7 +417,7 @@ func (ani *AutoDiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 		"version_id", linuxInfo.VersionID,
 	)
 
-	packageManager, err := packagemanager.PackageManagerForSystem(linuxInfo, ani.fsRootPrefix, ani.binariesLocation, ani.aptPublicKeyEndpoint)
+	packageManager, err := packagemanager.PackageManagerForSystem(linuxInfo, ani.fsRootPrefix, ani.binariesLocation, ani.aptRepoKeyEndpointOverride)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -429,7 +439,8 @@ func (ani *AutoDiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 	}
 	packagesToInstall = append(packagesToInstall, packagemanager.PackageVersion{Name: ani.TeleportPackage, Version: targetVersion})
 
-	if err := packageManager.AddTeleportRepository(ctx, linuxInfo, ani.RepositoryChannel); err != nil {
+	productionRepo := useProductionRepo(packagesToInstall, ani.defaultVersion)
+	if err := packageManager.AddTeleportRepository(ctx, linuxInfo, ani.RepositoryChannel, productionRepo); err != nil {
 		return trace.BadParameter("failed to add teleport repository to system: %v", err)
 	}
 	if err := packageManager.InstallPackages(ctx, packagesToInstall); err != nil {
@@ -437,6 +448,25 @@ func (ani *AutoDiscoverNodeInstaller) installTeleportFromRepo(ctx context.Contex
 	}
 
 	return nil
+}
+
+// useProductionRepo returns whether this is a production installation.
+// In case of an error, it returns true to default to ensure only production binaries are available.
+func useProductionRepo(packagesToInstall []packagemanager.PackageVersion, defaultVersion *semver.Version) bool {
+	for _, p := range packagesToInstall {
+		if p.Version == "" {
+			continue
+		}
+
+		ver, err := semver.NewVersion(p.Version)
+		if err != nil {
+			return true
+		}
+
+		return ver.PreRelease == ""
+	}
+
+	return defaultVersion.PreRelease == ""
 }
 
 func (ani *AutoDiscoverNodeInstaller) getIMDSClient(ctx context.Context) (imds.Client, error) {
