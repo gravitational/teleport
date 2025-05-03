@@ -36,11 +36,11 @@ func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (
 	}
 
 	return &collection[types.ReverseTunnel, reverseTunnelIndex]{
-		store: newStore(map[reverseTunnelIndex]func(types.ReverseTunnel) string{
-			reverseTunnelNameIndex: func(r types.ReverseTunnel) string {
-				return r.GetName()
-			},
-		}),
+		store: newStore(
+			types.ReverseTunnel.Clone,
+			map[reverseTunnelIndex]func(types.ReverseTunnel) string{
+				reverseTunnelNameIndex: types.ReverseTunnel.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.ReverseTunnel, error) {
 			var out []types.ReverseTunnel
 			var nextToken string
@@ -86,7 +86,6 @@ func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken 
 		nextToken: func(t types.ReverseTunnel) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.ReverseTunnel.Clone,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)

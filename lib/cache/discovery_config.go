@@ -37,11 +37,13 @@ func newDiscoveryConfigCollection(upstream services.DiscoveryConfigs, w types.Wa
 	}
 
 	return &collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]{
-		store: newStore(map[discoveryConfigIndex]func(*discoveryconfig.DiscoveryConfig) string{
-			discoveryConfigNameIndex: func(r *discoveryconfig.DiscoveryConfig) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			(*discoveryconfig.DiscoveryConfig).Clone,
+			map[discoveryConfigIndex]func(*discoveryconfig.DiscoveryConfig) string{
+				discoveryConfigNameIndex: func(r *discoveryconfig.DiscoveryConfig) string {
+					return r.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*discoveryconfig.DiscoveryConfig, error) {
 			var discoveryConfigs []*discoveryconfig.DiscoveryConfig
 			var nextToken string
@@ -90,9 +92,6 @@ func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, pageToke
 		nextToken: func(t *discoveryconfig.DiscoveryConfig) string {
 			return t.GetMetadata().Name
 		},
-		clone: func(dc *discoveryconfig.DiscoveryConfig) *discoveryconfig.DiscoveryConfig {
-			return dc.Clone()
-		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -108,9 +107,6 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 		collection:  c.collections.discoveryConfigs,
 		index:       discoveryConfigNameIndex,
 		upstreamGet: c.Config.DiscoveryConfigs.GetDiscoveryConfig,
-		clone: func(dc *discoveryconfig.DiscoveryConfig) *discoveryconfig.DiscoveryConfig {
-			return dc.Clone()
-		},
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

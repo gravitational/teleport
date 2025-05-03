@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/secreports"
@@ -165,42 +164,6 @@ func (r resourceKind) String() string {
 	}
 	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
-
-type userExecutor struct{}
-
-func (userExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.User, error) {
-	return cache.Users.GetUsers(ctx, loadSecrets)
-}
-
-func (userExecutor) upsert(ctx context.Context, cache *Cache, resource types.User) error {
-	_, err := cache.usersCache.UpsertUser(ctx, resource)
-	return err
-}
-
-func (userExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.usersCache.DeleteAllUsers(ctx)
-}
-
-func (userExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.usersCache.DeleteUser(ctx, resource.GetName())
-}
-
-func (userExecutor) isSingleton() bool { return false }
-
-func (userExecutor) getReader(cache *Cache, cacheOK bool) userGetter {
-	if cacheOK {
-		return cache.usersCache
-	}
-	return cache.Config.Users
-}
-
-type userGetter interface {
-	GetUser(ctx context.Context, user string, withSecrets bool) (types.User, error)
-	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
-	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-}
-
-var _ executor[types.User, userGetter] = userExecutor{}
 
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {
