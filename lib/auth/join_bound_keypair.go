@@ -1,4 +1,3 @@
-// join_bound_keypair.go
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -24,6 +23,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair/experiment"
 	"github.com/gravitational/teleport/lib/jwt"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
 )
 
 // validateBoundKeypairTokenSpec performs some basic validation checks on a
@@ -65,13 +65,6 @@ func validateBoundKeypairTokenSpec(spec *types.ProvisionTokenSpecV2BoundKeypair)
 	}
 
 	return nil
-}
-
-func (a *Server) initialBoundKeypairStatus(spec *types.ProvisionTokenSpecV2BoundKeypair) *types.ProvisionTokenStatusV2BoundKeypair {
-	return &types.ProvisionTokenStatusV2BoundKeypair{
-		InitialJoinSecret: spec.Onboarding.InitialJoinSecret,
-		BoundPublicKey:    spec.Onboarding.InitialPublicKey,
-	}
 }
 
 func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.ProvisionToken) error {
@@ -139,7 +132,7 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 	return trace.Wrap(a.UpsertToken(ctx, token))
 }
 
-// issueBoundKeypairChallenge creates a new challenge for the given marshalled
+// issueBoundKeypairChallenge creates a new challenge for the given marshaled
 // public key in ssh authorized_keys format, requests a solution from the
 // client using the given `challengeResponse` function, and validates the
 // response.
@@ -167,7 +160,7 @@ func (a *Server) issueBoundKeypairChallenge(
 		return trace.Wrap(err)
 	}
 
-	a.logger.DebugContext(ctx, "issuing bound keypair challenge", "keyID", keyID)
+	a.logger.DebugContext(ctx, "issuing bound keypair challenge", "key_id", keyID)
 
 	validator, err := boundkeypair.NewChallengeValidator(keyID, clusterName.GetClusterName(), key)
 	if err != nil {
@@ -209,7 +202,7 @@ func (a *Server) issueBoundKeypairChallenge(
 		return trace.Wrap(err, "validating challenge response")
 	}
 
-	a.logger.InfoContext(ctx, "bound keypair challenge response verified successfully", "keyID", keyID)
+	a.logger.InfoContext(ctx, "bound keypair challenge response verified successfully", "key_id", keyID)
 
 	return nil
 }
@@ -421,9 +414,9 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 	default:
 		a.logger.ErrorContext(
 			ctx, "unexpected state",
-			"hasBoundPublicKey", hasBoundPublicKey,
-			"hasBoundBotInstance", hasBoundBotInstance,
-			"hasIncomingBotInstance", hasIncomingBotInstance,
+			"has_bound_public_key", hasBoundPublicKey,
+			"has_bound_bot_instance", hasBoundBotInstance,
+			"has_incoming_bot_instance", hasIncomingBotInstance,
 			"spec", spec,
 			"status", status,
 		)
@@ -434,8 +427,6 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		// TODO, to be implemented in a future PR
 		return nil, trace.NotImplemented("key rotation not yet supported")
 	}
-
-	a.logger.DebugContext(ctx, "Server.RegisterUsingBoundKeypairMethod(): challenge verified, issuing certs")
 
 	// TODO: We should pass along the previous bot instance ID - if any - based
 	// on the join state, once that is implemented. It will need to be passed
@@ -474,7 +465,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 
 			return ptv2, nil
 		}); err != nil {
-			return nil, trace.Wrap(err, "commiting updated token state, please try again")
+			return nil, trace.Wrap(err, "committing updated token state, please try again")
 		}
 	}
 
