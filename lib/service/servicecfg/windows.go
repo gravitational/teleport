@@ -99,6 +99,8 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string
+	// RDPPort is the RDP port to register for each host discovered with this configuration.
+	RDPPort int
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.

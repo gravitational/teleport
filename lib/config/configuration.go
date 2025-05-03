@@ -23,6 +23,7 @@
 package config
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"errors"
@@ -2096,6 +2097,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				BaseDN:          dc.BaseDN,
 				Filters:         dc.Filters,
 				LabelAttributes: dc.LabelAttributes,
+				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
 		)
 	}

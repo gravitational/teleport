@@ -2595,6 +2595,9 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 }
 
 // TracingService contains configuration for the tracing_service.

@@ -105,6 +105,9 @@ windows_desktop_service:
       # The key of the label will be "ldap/" + the value of the attribute.
       label_attributes:
         - location
+      # (optional) The port to use for RDP.
+      # Defaults to 3389 if unspecified.
+      rdp_port: 3389
 
   # (optional) interval at which to run desktop discovery
   discovery_interval: 10m

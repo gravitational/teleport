@@ -86,6 +86,7 @@ mode from now on.
 Teleport's LDAP-based discovery mechanism for Windows desktops now supports:
 
 - a configurable discovery interval
+- custom RDP ports
 - the ability to run multiple separate discovery configurations, allowing you to
   configure finely-grained discovery policies without running multiple agents
 
@@ -101,6 +102,7 @@ windows_desktop_service:
 +  discovery_configs:
 +    - base_dn: '*'
 +      label_attributes: [ department ]
++      rdp_port: 9989 # optional, defaults to 3389
 ```
 
 ## 16.0.0 (xx/xx/xx)

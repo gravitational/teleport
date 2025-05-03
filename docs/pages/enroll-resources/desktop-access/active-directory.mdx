@@ -687,12 +687,16 @@ configuration. You can set `base_dn` to a wildcard `'*` to search from the root
 of the domain, or you can specify an alternate base distinguished name to search
 from.
 
+By default, all hosts discovered via LDAP will be registered with a port of 3389.
+You can override the RDP port for each discovery configuration.
+
 ```yaml
 windows_desktop_service:
   enabled: true
   discovery_configs:
     - base_dn: 'OU=prod,DC=example,DC=com'
     - base_dn: 'OU=staging,DC=example,DC=com'
+      rdp_port: 9989
 ```
 
 ### Filters
