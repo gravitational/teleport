@@ -111,6 +111,8 @@ type collections struct {
 	uiConfigs                        *collection[types.UIConfig, webUIConfigIndex]
 	installers                       *collection[types.Installer, installerIndex]
 	locks                            *collection[types.Lock, lockIndex]
+	tunnelConnections                *collection[types.TunnelConnection, tunnelConnectionIndex]
+	remoteClusters                   *collection[types.RemoteCluster, remoteClusterIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -552,6 +554,22 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.locks = collect
 			out.byKind[resourceKind] = out.locks
+		case types.KindTunnelConnection:
+			collect, err := newTunnelConnectionCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.tunnelConnections = collect
+			out.byKind[resourceKind] = out.tunnelConnections
+		case types.KindRemoteCluster:
+			collect, err := newRemoteClusterCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.remoteClusters = collect
+			out.byKind[resourceKind] = out.remoteClusters
 		}
 	}
 
