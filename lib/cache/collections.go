@@ -31,6 +31,7 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -123,6 +124,7 @@ type collections struct {
 	userLoginStates                  *collection[*userloginstate.UserLoginState, userLoginStateIndex]
 	gitServers                       *collection[types.Server, gitServerIndex]
 	databaseObjects                  *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
+	staticHostUsers                  *collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -629,6 +631,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.gitServers = collect
 			out.byKind[resourceKind] = out.gitServers
+		case types.KindStaticHostUser:
+			collect, err := newStaticHostUserCollection(c.StaticHostUsers, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.staticHostUsers = collect
+			out.byKind[resourceKind] = out.staticHostUsers
 		}
 	}
 
