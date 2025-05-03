@@ -69,6 +69,7 @@ export enum RoleVersion {
   V5 = 'v5',
   V6 = 'v6',
   V7 = 'v7',
+  V8 = 'v8',
 }
 
 /**
@@ -224,6 +225,7 @@ export enum ResourceKind {
   GithubConnector = 'github',
   GlobalNotification = 'global_notification',
   HeadlessAuthentication = 'headless_authentication',
+  HealthCheckConfig = 'health_check_config',
   Identity = 'identity',
   IdentityCenterAccount = 'aws_ic_account',
   IdentityCenterAccountAssignment = 'aws_ic_account_assignment',

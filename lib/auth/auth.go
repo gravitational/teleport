@@ -84,8 +84,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -1172,6 +1174,10 @@ type Server struct {
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 
+	// sigstorePolicyEvaluator checks workload signatures and attestations
+	// against Sigstore policies.
+	sigstorePolicyEvaluator workloadidentityv1.SigstorePolicyEvaluator
+
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
 }
@@ -1866,7 +1872,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		v := vc.Normalize(handle.Hello().Version)
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
@@ -1915,7 +1921,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
@@ -1971,11 +1977,6 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 		return
 	}
 
-	// randomize the order to optimize for multiple auth servers running in parallel
-	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
-		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
-	})
-
 	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
 	updateLimit := remoteClusterRefreshLimit
 	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
@@ -1985,7 +1986,8 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	}
 
 	var updateCount int
-	for _, remoteCluster := range remoteClusters {
+	// randomize the order to optimize for multiple auth servers running in parallel
+	for _, remoteCluster := range utils.ShuffleVisit(remoteClusters) {
 		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
 			a.logger.ErrorContext(ctx, "Failed to perform remote cluster status refresh", "error", err)
 		} else if updated {
@@ -3830,7 +3832,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.ProxyAddress, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -4925,7 +4927,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 	var rsp proto.InventoryStatusSummary
 	if req.Connected {
-		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
 		})
 
@@ -5288,6 +5290,19 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
 
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestCreateEvent{
+		UserName:      req.GetUser(),
+		ResourceKinds: apiutils.Deduplicate(resources),
+	})
+
 	// Create a notification.
 	var notificationText string
 	// If this is a resource request.
@@ -5624,7 +5639,33 @@ func (a *Server) submitAccessReview(
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 
+	var resources = []string{}
+	if len(req.GetRoles()) != 0 {
+		resources = append(resources, types.KindRole)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		resources = append(resources, resource.Kind)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.AccessRequestReviewEvent{
+		UserName:      params.Review.Author,
+		ResourceKinds: apiutils.Deduplicate(resources),
+		IsBotReviewed: (params.Review.Author == teleport.SystemAccessApproverUserName),
+		ProposedState: prehogProposedStateFromRequestState(params.Review.ProposedState),
+	})
+
 	return req, nil
+}
+
+func prehogProposedStateFromRequestState(state types.RequestState) prehogv1a.AccessRequestReviewEvent_ProposedState {
+	switch state {
+	case types.RequestState_APPROVED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_APPROVED
+	case types.RequestState_DENIED:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_DENIED
+	default:
+		return prehogv1a.AccessRequestReviewEvent_PROPOSED_STATE_UNSPECIFIED
+	}
 }
 
 // generateAccessRequestReviewedNotification returns the notification object for a notification notifying a user of their
@@ -7205,7 +7246,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRedirectURL string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -7311,7 +7352,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRed
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, challengeExtensions); err != nil {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7621,7 +7662,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add TLS keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -7668,6 +7709,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SAMLIdPCATLS
 	case types.SPIFFECA:
 		return cryptosuites.SPIFFECATLS
+	case types.AWSRACA:
+		return cryptosuites.AWSRACATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }
@@ -7942,4 +7985,25 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
+}
+
+// SetSigstorePolicyEvaluator sets the SigstorePolicyEvaluator. It's called from
+// the enterprise auth plugin.
+func (s *Server) SetSigstorePolicyEvaluator(eval workloadidentityv1.SigstorePolicyEvaluator) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.sigstorePolicyEvaluator = eval
+}
+
+// GetSigstorePolicyEvaluator returns the configured SigstorePolicyEvaluator. If
+// none is configured, the Community Edition implementation will be returned.
+func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyEvaluator {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if e := s.sigstorePolicyEvaluator; e != nil {
+		return e
+	}
+	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
 }

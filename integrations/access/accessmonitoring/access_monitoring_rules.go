@@ -156,7 +156,7 @@ func (amrh *RuleHandler) RecipientsFromAccessMonitoringRules(ctx context.Context
 		if !match {
 			continue
 		}
-		for _, recipient := range rule.Spec.Notification.Recipients {
+		for _, recipient := range rule.GetSpec().GetNotification().GetRecipients() {
 			rec, err := amrh.fetchRecipientCallback(ctx, recipient)
 			if err != nil {
 				log.WarnContext(ctx, "Failed to fetch plugin recipients based on Access monitoring rule recipients", "error", err)
@@ -183,7 +183,7 @@ func (amrh *RuleHandler) RawRecipientsFromAccessMonitoringRules(ctx context.Cont
 		if !match {
 			continue
 		}
-		for _, recipient := range rule.Spec.Notification.Recipients {
+		for _, recipient := range rule.GetSpec().GetNotification().GetRecipients() {
 			recipientSet.Add(recipient)
 		}
 	}
@@ -230,7 +230,7 @@ func (amrh *RuleHandler) getAccessMonitoringRules() map[string]*accessmonitoring
 }
 
 func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-	if amr.Spec.Notification.Name != amrh.pluginName {
+	if amr.GetSpec().GetNotification().GetName() != amrh.pluginName {
 		return false
 	}
 	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {

@@ -90,6 +90,9 @@ const (
 	// attributeTerraformJoinAudienceTag is the attribute configuring the audience tag when using the `terraform` join
 	// method.
 	attributeTerraformJoinAudienceTag = "audience_tag"
+	// attributeTerraformGitlabIDTokenEnvVar is the attribute configuring the environment variable used to fetch the ID
+	// token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`.
+	attributeTerraformGitlabIDTokenEnvVar = "gitlab_id_token_env_var"
 )
 
 type RetryConfig struct {
@@ -146,6 +149,11 @@ type providerData struct {
 	JoinToken types.String `tfsdk:"join_token"`
 	// AudienceTag is the audience  tag for the `terraform` join method
 	AudienceTag types.String `tfsdk:"audience_tag"`
+	// GitlabIDTokenEnvVar is the environment variable used to fetch the ID
+	// token issued by GitLab for the `gitlab` join method. If unset, this
+	// defaults to `TBOT_GITLAB_JWT`. Useful in cases where multiple Teleport
+	// clusters are managed by the same GitLab job.
+	GitlabIDTokenEnvVar types.String `tfsdk:"gitlab_id_token_env_var"`
 }
 
 // New returns an empty provider struct
@@ -261,6 +269,12 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Name of the optional audience tag used for native Machine ID joining with the `terraform` method. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCloudJoinAudienceTag),
+			},
+			attributeTerraformGitlabIDTokenEnvVar: {
+				Type:        types.StringType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: fmt.Sprintf("Environment variable used to fetch the ID token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`. This can also be set with the environment variable `%s`.", constants.EnvVarGitlabIDTokenEnvVar),
 			},
 		},
 	}, nil
@@ -520,6 +534,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
 	}, nil
 }
 
@@ -550,6 +565,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
+		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
 	}, nil
 }
 

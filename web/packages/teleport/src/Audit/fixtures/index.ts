@@ -251,6 +251,13 @@ export const events = [
     uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
   },
   {
+    id: '66b827b2-1b0b-512b-965d-6c789388d3c9',
+    code: 'T5005I',
+    event: 'access_request.expire',
+    time: '2020-06-05T19:26:53Z',
+    uid: '68a83a99-73ce-4bd7-bbf7-99103c2ba6a0',
+  },
+  {
     'addr.local': '172.10.1.1:3022',
     'addr.remote': '172.10.1.254:46992',
     code: 'T2006I',
@@ -3320,6 +3327,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL001E',
@@ -3327,6 +3335,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL002I',
@@ -3334,6 +3343,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL002E',
@@ -3341,6 +3351,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL003I',
@@ -3348,6 +3359,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL003E',
@@ -3355,6 +3367,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL004I',
@@ -3362,6 +3375,7 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL004E',
@@ -3369,12 +3383,14 @@ export const events = [
     time: '2023-05-08T19:21:36.144Z',
     name: 'access-list',
     updated_by: 'mike',
+    access_list_title: 'example_title',
   },
   {
     code: 'TAL005I',
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3387,6 +3403,7 @@ export const events = [
     event: 'access_list.member.add',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3399,6 +3416,7 @@ export const events = [
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3411,6 +3429,7 @@ export const events = [
     event: 'access_list.member.update',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3423,6 +3442,7 @@ export const events = [
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'user',
@@ -3435,6 +3455,7 @@ export const events = [
     event: 'access_list.member.delete',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     members: [
       {
         member_name: 'carrot',
@@ -3453,6 +3474,7 @@ export const events = [
     event: 'access_list.member.delete_all_members',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     updated_by: 'mike',
   },
   {
@@ -3460,6 +3482,7 @@ export const events = [
     event: 'access_list.member.delete_all_members',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
+    access_list_title: 'example_title',
     updated_by: 'mike',
   },
   {

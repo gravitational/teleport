@@ -7,6 +7,8 @@ AKS Auto-Discovery can automatically
 discover any AKS cluster and enroll it in Teleport if its tags match the
 configured labels.
 
+## How it works
+
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
 (!docs/pages/includes/discovery/same-host-tip.mdx serviceName="Kubernetes" resourceDesc="cluster" !)
@@ -234,13 +236,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "aks-prod"
   azure:
   - types: ["aks"]
@@ -250,7 +252,7 @@ discovery_service:
     tags:
       "env": "prod"
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier

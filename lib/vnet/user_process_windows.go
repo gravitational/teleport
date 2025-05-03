@@ -38,47 +38,37 @@ import (
 // interface that the admin process uses to query application names and get user
 // certificates for apps. It returns a [ProcessManager] which controls the
 // lifecycle of both the user and admin processes.
-func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm *ProcessManager, nsi NetworkStackInfo, err error) {
-	// Make sure to close the process manager if returning a non-nil error.
-	defer func() {
-		if pm != nil && err != nil {
-			pm.Close()
-		}
-	}()
-
-	// On Windows the interface name is a constant.
-	nsi.IfaceName = tunInterfaceName
-
+func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (*ProcessManager, *vnetv1.NetworkStackInfo, error) {
 	ipcCreds, err := newIPCCredentials()
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "creating credentials for IPC")
+		return nil, nil, trace.Wrap(err, "creating credentials for IPC")
 	}
 	serverTLSConfig, err := ipcCreds.server.serverTLSConfig()
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "generating gRPC server TLS config")
+		return nil, nil, trace.Wrap(err, "generating gRPC server TLS config")
 	}
 
 	u, err := user.Current()
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "getting current OS user")
+		return nil, nil, trace.Wrap(err, "getting current OS user")
 	}
 	// Uid is documented to be the user's SID on Windows.
 	userSID := u.Uid
 
 	credDir, err := os.MkdirTemp("", "vnet_service_certs")
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "creating temp dir for service certs")
+		return nil, nil, trace.Wrap(err, "creating temp dir for service certs")
 	}
 	if err := secureCredDir(credDir, userSID); err != nil {
-		return nil, nsi, trace.Wrap(err, "applying permissions to service credential dir")
+		return nil, nil, trace.Wrap(err, "applying permissions to service credential dir")
 	}
-	if err := ipcCreds.client.write(credDir); err != nil {
-		return nil, nsi, trace.Wrap(err, "writing service IPC credentials")
+	if err := ipcCreds.client.write(credDir, 0200); err != nil {
+		return nil, nil, trace.Wrap(err, "writing service IPC credentials")
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		return nil, nsi, trace.Wrap(err, "listening on tcp socket")
+		return nil, nil, trace.Wrap(err, "listening on tcp socket")
 	}
 	// grpcServer.Serve takes ownership of (and closes) the listener.
 	grpcServer := grpc.NewServer(
@@ -122,7 +112,13 @@ func runPlatformUserProcess(ctx context.Context, config *UserProcessConfig) (pm 
 		grpcServer.GracefulStop()
 		return nil
 	})
-	return pm, nsi, nil
+
+	select {
+	case nsi := <-svc.networkStackInfo:
+		return pm, nsi, nil
+	case <-processCtx.Done():
+		return nil, nil, trace.Wrap(pm.Wait(), "process manager exited before network stack info was received")
+	}
 }
 
 // secureCredDir sets ACLs so that the current user can write and delete

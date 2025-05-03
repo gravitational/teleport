@@ -72,7 +72,7 @@ export function Details() {
       {integration && (
         <AwsOidcHeader integration={integration} resource={resourceKind} />
       )}
-      <FeatureBox maxWidth={1440} margin="auto" gap={3} paddingLeft={5}>
+      <FeatureBox maxWidth={1440} margin="auto" gap={3}>
         <>
           {integration && (
             <>

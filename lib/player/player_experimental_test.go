@@ -25,8 +25,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/gravitational/teleport/lib/player"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/player"
 )
 
 /*
