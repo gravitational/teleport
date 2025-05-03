@@ -105,6 +105,9 @@ windows_desktop_service:
       # The key of the label will be "ldap/" + the value of the attribute.
       label_attributes:
         - location
+      # (optional) The port to use for RDP.
+      # Defaults to 3389 if unspecified.
+      rdp_port: 3389
 
   # (optional) configure a set of label selectors for dynamic registration.
   # If specified, this service will monitor the cluster for dynamic_windows_desktop
