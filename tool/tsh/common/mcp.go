@@ -19,19 +19,24 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -41,16 +46,32 @@ import (
 )
 
 type mcpCommands struct {
+	login   *mcpLoginCommand
 	list    *mcpListCommand
 	connect *mcpConnectCommand
+	// TODO(greedy52) implement logout command
 }
 
 func newMCPCommands(app *kingpin.Application, cf *CLIConf) mcpCommands {
 	mcp := app.Command("mcp", "View and control available MCP servers")
 	return mcpCommands{
+		login:   newMCPLoginCommand(mcp, cf),
 		list:    newMCPListCommand(mcp, cf),
 		connect: newMCPConnectCommand(mcp, cf),
 	}
+}
+
+func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand {
+	cmd := &mcpLoginCommand{
+		CmdClause: parent.Command("login", "Login to MCP servers and update client configurations"),
+	}
+
+	cmd.Flag("all", "Login to all MCP servers. Mutually exclusive with --labels or --query.").Short('R').BoolVar(&cf.ListAll)
+	cmd.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
+	cmd.Flag("format", "\"claude\" for updating Claude Desktop configuration. \"json\" for printing out the configuration in JSON.").Short('f').StringVar(&cf.Format)
+	cmd.Arg("name", "Name of the MCP server").StringVar(&cf.AppName)
+	return cmd
 }
 
 func newMCPListCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpListCommand {
@@ -74,32 +95,215 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 	return cmd
 }
 
+type mcpLoginCommand struct {
+	*kingpin.CmdClause
+}
+
+func (c *mcpLoginCommand) run(cf *CLIConf) error {
+	cf.Confirm = true
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	mcpServers, err := c.findMCPServers(cf, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.loginAll(cf, tc, mcpServers); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(greedy52) maybe use template?
+	fmt.Fprintln(cf.Stdout(), "Logged into Teleport MCP server(s).")
+	for mcpServer := range slices.Values(mcpServers) {
+		fmt.Fprintf(cf.Stdout(), "- %s\n", mcpServer.GetName())
+	}
+	fmt.Fprintln(cf.Stdout(), "")
+
+	switch cf.Format {
+	case "":
+		return c.autoDetectOrJSON(cf, mcpServers)
+	case "json":
+		return c.printJSON(cf, mcpServers)
+	case "claude":
+		return c.maybeClaude(cf, mcpServers)
+	default:
+		return trace.BadParameter("unsupported format %q", cf.Format)
+	}
+}
+
+func (c *mcpLoginCommand) loginAll(cf *CLIConf, tc *client.TeleportClient, mcpServers []types.Application) error {
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(greedy52) run in errgroup.
+	for mcpServer := range slices.Values(mcpServers) {
+		appCertParams := client.ReissueParams{
+			RouteToCluster: tc.SiteName,
+			RouteToApp: proto.RouteToApp{
+				Name:        mcpServer.GetName(),
+				PublicAddr:  mcpServer.GetPublicAddr(),
+				ClusterName: tc.SiteName,
+				URI:         mcpServer.GetURI(),
+			},
+			AccessRequests: profile.ActiveRequests,
+		}
+
+		key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *mcpLoginCommand) findMCPServers(cf *CLIConf, tc *client.TeleportClient) ([]types.Application, error) {
+	selectors := resourceSelectors{
+		kind:   "app",
+		name:   cf.AppName,
+		labels: cf.Labels,
+		query:  cf.PredicateExpression,
+	}
+	switch {
+	case cf.ListAll && !selectors.IsEmpty():
+		return nil, trace.BadParameter("cannot use --labels or --query with --all")
+	case !cf.ListAll && selectors.IsEmpty():
+		return nil, trace.BadParameter("MCP server name is required. Check 'tsh mcp ls' for a list of available MCP servers.")
+	}
+
+	return getMCPServers(cf, tc)
+}
+
+func (c *mcpLoginCommand) autoDetectOrJSON(cf *CLIConf, mcpServers []types.Application) error {
+	foundClaude, _ := claude.ConfigExists()
+	if foundClaude {
+		if err := cf.PromptConfirmation("Found Claude Desktop configuration. Update it?"); err == nil {
+			return trace.Wrap(c.updateAndPrintClaude(cf, mcpServers))
+		}
+	}
+	return trace.Wrap(c.printJSON(cf, mcpServers))
+}
+
+func (c *mcpLoginCommand) maybeClaude(cf *CLIConf, mcpServers []types.Application) error {
+	foundClaude, err := claude.ConfigExists()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if foundClaude {
+		return trace.Wrap(c.updateAndPrintClaude(cf, mcpServers))
+	}
+	fmt.Fprintln(cf.Stdout(), "Claude Desktop configuration not found. Printing out JSON configuration instead.")
+	return trace.Wrap(c.printJSON(cf, mcpServers))
+}
+
+func (c *mcpLoginCommand) printJSON(cf *CLIConf, mcpServers []types.Application) error {
+	fmt.Fprintln(cf.Stdout(), "Here is a sample JSON configuration for launching Teleport MCP servers:")
+	config := &claude.Config{
+		MCPServers: appsToMCPServersMap(cf, mcpServers),
+	}
+	dump, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(cf.Stdout(), string(dump))
+	return nil
+}
+
+func (c *mcpLoginCommand) updateAndPrintClaude(cf *CLIConf, mcpServers []types.Application) error {
+	// TODO(greedy52) refactor, like we already found it
+	configPath, err := claude.ConfigPath()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), `Found Claude Desktop configuration at:
+%s
+
+Claude Desktop configuration will be updated automatically. Logged in Teleport
+MCP servers will be prefixed with "teleport-" in this configuration.
+
+`, configPath)
+
+	if err := claude.UpdateConfigWithMCPServers(cf.Context, appsToMCPServersMap(cf, mcpServers)); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(cf.Stdout(), `Run "tsh mcp logout" to remove the configuration from Claude Desktop.
+
+You may need to restart Claude Desktop to reload these new configurations. If
+you encounter a "disconnected" error when tsh session expires, you may also need
+to restart Claude Desktop after logging in a new tsh session.`)
+	return nil
+}
+
+func appsToMCPServersMap(cf *CLIConf, mcpServers []types.Application) map[string]claude.MCPServer {
+	var envs map[string]string
+	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
+		envs = map[string]string{
+			types.HomeEnvVar: filepath.Clean(homeDir),
+		}
+	}
+
+	ret := make(map[string]claude.MCPServer)
+	for name := range types.ResourceNames(mcpServers) {
+		localName := "teleport-" + name
+		ret[localName] = claude.MCPServer{
+			Command: cf.executablePath,
+			Args:    []string{"mcp", "connect", name},
+			Envs:    envs,
+		}
+	}
+	return ret
+}
+
 type mcpListCommand struct {
 	*kingpin.CmdClause
 }
 
 func (c *mcpListCommand) run(cf *CLIConf) error {
-	mcpServers, err := c.getMCPServers(cf)
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	mcpServers, err := getMCPServers(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(c.print(cf, mcpServers))
 }
 
-func (c *mcpListCommand) getMCPServers(cf *CLIConf) ([]types.Application, error) {
-	tc, err := makeClient(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func getMCPServers(cf *CLIConf, tc *client.TeleportClient) (mcpServers []types.Application, err error) {
+	filter := tc.ResourceFilter(types.KindAppServer)
+	if cf.AppName != "" {
+		filter.PredicateExpression = makeNamePredicate(cf.AppName)
+	} else {
+		// Filter by MCP schema.
+		filter.PredicateExpression = makePredicateConjunction(
+			filter.PredicateExpression,
+			"hasPrefix(resource.spec.uri, \"mcp+\")",
+		)
 	}
 
-	// Filter by MCP schema.
-	filter := tc.ResourceFilter(types.KindAppServer)
-	filter.PredicateExpression = makePredicateConjunction(
-		filter.PredicateExpression,
-		"hasPrefix(resource.spec.uri, \"mcp+\")",
-	)
-
-	var mcpServers []types.Application
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		mcpServers, err = tc.ListApps(cf.Context, filter)
 		return trace.Wrap(err)
@@ -135,7 +339,7 @@ func (c *mcpListCommand) print(cf *CLIConf, mcpServers []types.Application) erro
 
 func (c *mcpListCommand) printText(cf *CLIConf, mcpServers []types.Application) error {
 	t := asciitable.MakeTable([]string{"Name", "Description", "Type", "labels"})
-	for _, mcpServer := range mcpServers {
+	for mcpServer := range slices.Values(mcpServers) {
 		t.AddRow([]string{
 			mcpServer.GetName(),
 			mcpServer.GetDescription(),

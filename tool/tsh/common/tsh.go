@@ -1738,6 +1738,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case mcpCmd.login.FullCommand():
+		err = mcpCmd.login.run(&cf)
 	case mcpCmd.list.FullCommand():
 		err = mcpCmd.list.run(&cf)
 	case mcpCmd.connect.FullCommand():
