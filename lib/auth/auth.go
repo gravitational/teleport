@@ -373,6 +373,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating WorkloadIdentityX509Revocation service")
 		}
 	}
+	if cfg.BackendInfo == nil {
+		cfg.BackendInfo, err = local.NewBackendInfoService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BackendInfo service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -471,6 +477,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StaticHostUser:                  cfg.StaticHostUsers,
 		WorkloadIdentities:              cfg.WorkloadIdentity,
 		WorkloadIdentityX509Revocations: cfg.WorkloadIdentityX509Revocations,
+		BackendInfoService:              cfg.BackendInfo,
 	}
 
 	as := Server{
@@ -687,6 +694,7 @@ type Services struct {
 	services.AutoUpdateService
 	services.WorkloadIdentities
 	services.WorkloadIdentityX509Revocations
+	services.BackendInfoService
 }
 
 // GetWebSession returns existing web session described by req.

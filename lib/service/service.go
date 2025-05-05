@@ -2018,12 +2018,17 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	// Environment variable for disabling the check major version upgrade check and overrides
+	// latest known version in backend.
+	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                 b,
 			VersionStorage:          process.storage,
+			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			AutoUpdateService:       cfg.AutoUpdateService,
