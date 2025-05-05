@@ -141,6 +141,7 @@ func (p *pkcs11KeyStore) generateSigner(ctx context.Context, alg cryptosuites.Al
 		return nil, nil, trace.Wrap(err)
 	}
 
+	id.Usage = keyUsageSign
 	rawTeleportID, err := id.marshal()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -185,6 +186,7 @@ func (p *pkcs11KeyStore) generateDecrypter(ctx context.Context, alg cryptosuites
 		return nil, nil, trace.Wrap(err)
 	}
 
+	id.Usage = keyUsageDecrypt
 	rawTeleportID, err := id.marshal()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
