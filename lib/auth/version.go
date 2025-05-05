@@ -117,7 +117,7 @@ func validateAndUpdateTeleportVersion(
 
 		// TODO(vapopov): DELETE IN v19.0.0 – the last known version should already be migrated to backend storage.
 		if cleanProcVersion {
-			if err := procStorage.DeleteTeleportVersion(ctx); err != nil {
+			if err := procStorage.DeleteTeleportVersion(ctx); err != nil && !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 		}
