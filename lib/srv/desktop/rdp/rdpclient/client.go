@@ -260,7 +260,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 		"-nolock",
 		"-dpms",
 		"-displayfd", fmt.Sprintf("%d", w.Fd()),
-		"-screen", "0", fmt.Sprintf("%dx%dx24", c.requestedWidth, c.requestedHeight),
+		"-screen", "0", fmt.Sprintf("%dx%dx16", c.requestedWidth, c.requestedHeight),
 		"-nolisten", "tcp",
 		"-iglx")
 	if err := xvfb.Start(); err != nil {
