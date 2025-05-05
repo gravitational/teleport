@@ -1234,16 +1234,16 @@ func TestGoodbye(t *testing.T) {
 			}
 			require.NoError(t, upstream.Send(ctx, downstreamHello))
 
-			// Test execution part 1: Validating that calling SendGoodbye does
+			// Test execution part 1: Validating that calling SetAndSendGoodbye does
 			// cause the downstream handler t send a goodbye.
 
-			// Fire a routine that will call SendGoodbye
+			// Fire a routine that will call SetAndSendGoodbye
 			// Then send a Pong message to indicate the test is done.
 			nonce := rand.Int()
 			go func() {
 				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				handle.SendGoodbye(ctx, test.deleteResources, test.softReload)
+				handle.SetAndSendGoodbye(ctx, test.deleteResources, test.softReload)
 
 				// After calling the goodbye, we do a little hack by sending a pong
 				// This will allow us to know that this routine is done on the other side of the test

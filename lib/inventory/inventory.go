@@ -76,7 +76,7 @@ type DownstreamHandle interface {
 	// In case of soft-reloads, the termination process can take up to 30 hours.
 	// The Goodbye message may indicate the reason for the connection termination
 	// (shutdown versus soft-reload).
-	SendGoodbye(context.Context, bool, bool) error
+	SetAndSendGoodbye(context.Context, bool, bool) error
 	// GetUpstreamLabels gets the labels received from upstream.
 	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
@@ -434,7 +434,7 @@ func (h *downstreamHandle) Close() error {
 
 // SendGoodbye crafts a goodbye message, save it, waits for a working stream and sends it to the auth.
 // If the downstreamHandle were to reconnect later, the h.autoEmitGoodbye routine would re-emit it.
-func (h *downstreamHandle) SendGoodbye(ctx context.Context, deleteResources bool, softReload bool) error {
+func (h *downstreamHandle) SetAndSendGoodbye(ctx context.Context, deleteResources bool, softReload bool) error {
 	goodbye := &proto.UpstreamInventoryGoodbye{DeleteResources: deleteResources, SoftReload: softReload}
 	h.goodbye.Store(goodbye)
 
