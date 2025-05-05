@@ -631,32 +631,32 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 	}
 
 	client := a.mrk
-	out, err := client.DescribeKey(ctx, &kms.DescribeKeyInput{
+	describeKeyOut, err := client.DescribeKey(ctx, &kms.DescribeKeyInput{
 		KeyId: aws.String(key.id),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	currRegion, err := keyIDFromArn(*out.KeyMetadata.Arn)
+	currRegion, err := keyIDFromArn(*describeKeyOut.KeyMetadata.Arn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.waitForKeyEnabled(ctx, client, currRegion); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if out.KeyMetadata.MultiRegionConfiguration == nil {
+	if describeKeyOut.KeyMetadata.MultiRegionConfiguration == nil {
 		return nil, trace.Errorf("kms key %s missing multi-region configuration", currRegion.arn)
 	}
 
-	currPrimary, err := keyIDFromArn(*out.KeyMetadata.MultiRegionConfiguration.PrimaryKey.Arn)
+	currPrimary, err := keyIDFromArn(*describeKeyOut.KeyMetadata.MultiRegionConfiguration.PrimaryKey.Arn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var replicas []awsKMSKeyID
 	for _, replica := range append(
-		out.KeyMetadata.MultiRegionConfiguration.ReplicaKeys,
-		*out.KeyMetadata.MultiRegionConfiguration.PrimaryKey,
+		describeKeyOut.KeyMetadata.MultiRegionConfiguration.ReplicaKeys,
+		*describeKeyOut.KeyMetadata.MultiRegionConfiguration.PrimaryKey,
 	) {
 		key, err := keyIDFromArn(*replica.Arn)
 		if err != nil {
