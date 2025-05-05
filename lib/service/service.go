@@ -6407,13 +6407,14 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
 	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
 
-	if process.forkedTeleportCount.Load() == 0 {
-		if process.inventoryHandle != nil {
-			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
-			}
+	hasChildren := process.forkedTeleportCount.Load() > 0
+	if process.inventoryHandle != nil {
+		deleteResources := !hasChildren
+		if err := process.inventoryHandle.SetAndSendGoodbye(ctx, deleteResources, hasChildren); err != nil {
+			process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
 		}
-	} else {
+	}
+	if hasChildren {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 

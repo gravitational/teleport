@@ -2659,6 +2659,9 @@ message UpstreamInventoryGoodbye {
   // DeleteResources indicates that any heartbeats received from
   // the instance should be terminated when the stream is closed.
   bool DeleteResources = 1;
+  // SoftReload indicates that the instance started a new Teleport process
+  // and will gracefully exit once all the currently served sessions are over.
+  bool SoftReload = 2;
 }
 
 // InventoryStatusRequest requests inventory status info.
