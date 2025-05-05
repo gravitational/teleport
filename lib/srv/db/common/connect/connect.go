@@ -300,10 +300,16 @@ func Connect(ctx context.Context, params ConnectParams) (net.Conn, ConnectStats,
 		return nil, stats, trace.Wrap(err)
 	}
 
+	// group the servers by target health, shuffle each group, and then iterate
+	// over the concatenated groups in order ascending order of health.
+	groups := types.GroupByTargetHealth(params.Servers)
+	params.ShuffleFunc(groups.Healthy)
+	params.ShuffleFunc(groups.Unhealthy)
+	params.ShuffleFunc(groups.Unknown)
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
-	for _, server := range params.ShuffleFunc(params.Servers) {
+	for _, server := range groups.Concat() {
 		stats.attemptedServers++
 		params.Logger.DebugContext(ctx, "Dialing to database service.", "server", server)
 		tlsConfig, err := GetServerTLSConfig(ctx, ServerTLSConfigParams{

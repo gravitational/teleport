@@ -35,6 +35,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -94,7 +95,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
 func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) (*topology.Config, description.ServerSelector, error) {
-	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx)
+	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -216,19 +217,36 @@ func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Ses
 	return authenticator, nil
 }
 
-func makeClientOptionsFromDatabaseURI(sessionCtx *common.Session) (*options.ClientOptions, error) {
+func makeClientOptionsFromDatabaseURI(uri string) (*options.ClientOptions, error) {
 	clientCfg := options.Client()
 	clientCfg.SetServerSelectionTimeout(common.DefaultMongoDBServerSelectionTimeout)
-	if strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDB) ||
-		strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDBSRV) {
-		clientCfg.ApplyURI(sessionCtx.Database.GetURI())
+	if strings.HasPrefix(uri, connstring.SchemeMongoDB) ||
+		strings.HasPrefix(uri, connstring.SchemeMongoDBSRV) {
+		clientCfg.ApplyURI(uri)
 	} else {
-		clientCfg.Hosts = []string{sessionCtx.Database.GetURI()}
+		clientCfg.Hosts = []string{uri}
 	}
 	if err := clientCfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return clientCfg, nil
+}
+
+// NewEndpointsResolverFunc returns a health check target endpoint resolver.
+// SRV URI (mongodb+srv://) is resolved to a seed list from DNS SRV record
+// https://www.mongodb.com/docs/manual/reference/connection-string/#srv-connection-format
+func NewEndpointsResolverFunc(uri string) healthcheck.EndpointsResolverFunc {
+	return func(ctx context.Context) ([]string, error) {
+		clientCfg, err := makeClientOptionsFromDatabaseURI(uri)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		endpoints := make([]string, 0, len(clientCfg.Hosts))
+		for _, host := range clientCfg.Hosts {
+			endpoints = append(endpoints, address.Address(host).String())
+		}
+		return endpoints, nil
+	}
 }
 
 // getServerSelector returns selector for picking the server to connect to,

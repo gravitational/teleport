@@ -20,6 +20,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	libcloud "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -43,6 +47,31 @@ type connector struct {
 	databaseUser  string
 	databaseName  string
 	startupParams map[string]string
+}
+
+// NewEndpointsResolverFunc returns a health check target endpoint resolver.
+func NewEndpointsResolverFunc(uri string) healthcheck.EndpointsResolverFunc {
+	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", uri))
+	if err != nil {
+		return func(_ context.Context) ([]string, error) {
+			return nil, trace.Wrap(err, "failed to parse postgres URI")
+		}
+	}
+
+	endpoints := make([]string, 0, len(config.Fallbacks)+1)
+	hostPort := net.JoinHostPort(config.Host, strconv.Itoa(int(config.Port)))
+	endpoints = append(endpoints, hostPort)
+	for _, fb := range config.Fallbacks {
+		hostPort := net.JoinHostPort(fb.Host, strconv.Itoa(int(fb.Port)))
+		// pgconn duplicates the host/port in its fallbacks for some reason, so
+		// we de-duplicate and preserve the fallback order
+		if !slices.Contains(endpoints, hostPort) {
+			endpoints = append(endpoints, hostPort)
+		}
+	}
+	return func(_ context.Context) ([]string, error) {
+		return endpoints, nil
+	}
 }
 
 func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error) {

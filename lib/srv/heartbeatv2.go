@@ -401,6 +401,11 @@ func (h *HeartbeatV2) run() {
 		case <-h.closeContext.Done():
 			return
 		}
+
+		// check if we are closing to avoid randomly looping back into the sender
+		if h.closing() {
+			return
+		}
 	}
 }
 
@@ -502,7 +507,14 @@ func (h *HeartbeatV2) onHeartbeat(err error) {
 	if h.onHeartbeatInner == nil {
 		return
 	}
+	if h.closing() {
+		return
+	}
 	h.onHeartbeatInner(err)
+}
+
+func (h *HeartbeatV2) closing() bool {
+	return h.closeContext.Err() != nil
 }
 
 // heartbeatV2Driver is the pluggable core of the HeartbeatV2 type. A service needing to use HeartbeatV2 should

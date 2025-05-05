@@ -16,6 +16,11 @@ limitations under the License.
 
 package types
 
+import (
+	"slices"
+	"time"
+)
+
 // TargetHealthProtocol is the network protocol for a health checker.
 type TargetHealthProtocol string
 
@@ -53,3 +58,47 @@ const (
 	// encountered an internal error (this is a bug).
 	TargetHealthTransitionReasonInternalError TargetHealthTransitionReason = "internal_error"
 )
+
+// GetTransitionTimestamp returns transition timestamp
+func (t *TargetHealth) GetTransitionTimestamp() time.Time {
+	if t.TransitionTimestamp == nil {
+		return time.Time{}
+	}
+	return *t.TransitionTimestamp
+}
+
+type targetHealthGetter interface {
+	GetTargetHealth() TargetHealth
+}
+
+// GroupByTargetHealth groups resources by target health and returns [TargetHealthGroups].
+func GroupByTargetHealth[T targetHealthGetter](resources []T) TargetHealthGroups[T] {
+	var groups TargetHealthGroups[T]
+	for _, r := range resources {
+		switch TargetHealthStatus(r.GetTargetHealth().Status) {
+		case TargetHealthStatusHealthy:
+			groups.Healthy = append(groups.Healthy, r)
+		case TargetHealthStatusUnhealthy:
+			groups.Unhealthy = append(groups.Unhealthy, r)
+		default:
+			groups.Unknown = append(groups.Unknown, r)
+		}
+	}
+	return groups
+}
+
+// TargetHealthGroups holds resources grouped by target health status.
+type TargetHealthGroups[T targetHealthGetter] struct {
+	// Healthy is the resources with [TargetHealthStatusHealthy].
+	Healthy []T
+	// Unhealthy is the resources with [TargetHealthStatusUnhealthy].
+	Unhealthy []T
+	// Unknown is the resources with [TargetHealthStatusUnknown].
+	Unknown []T
+}
+
+// Concat returns the target health groups concatenated in healthy, unknown,
+// unhealthy order.
+func (t *TargetHealthGroups[T]) Concat() []T {
+	return slices.Concat(t.Healthy, t.Unknown, t.Unhealthy)
+}
