@@ -677,15 +677,14 @@ func (m *Manager) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) err
 	return trace.Wrap(m.backendForNewKeys.deleteUnusedKeys(ctx, activeKeys))
 }
 
-// ApplyConfig ensures each key has the lastest key store configuration
-// applied. An updated key
-// AWSKMS: Ensures multi-region keys are replicated.
-func (m *Manager) ApplyConfig(ctx context.Context, keyID []byte) ([]byte, error) {
+// ApplyMultiRegionConfig configures the given keyID with the current multi-region
+// parameters. This is currently only implemented for AWS KMS.
+func (m *Manager) ApplyMultiRegionConfig(ctx context.Context, keyID []byte) ([]byte, error) {
 	backend, ok := m.backendForNewKeys.(*awsKMSKeystore)
 	if !ok {
 		return keyID, nil
 	}
-	keyID, err := backend.applyConfig(ctx, keyID)
+	keyID, err := backend.applyMultiRegionConfig(ctx, keyID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

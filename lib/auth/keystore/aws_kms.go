@@ -201,7 +201,7 @@ func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	keyID, err := a.applyConfigToKeyID(ctx, key)
+	keyID, err := a.applyMRKConfig(ctx, key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -599,7 +599,7 @@ type stsClient interface {
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
-func (a *awsKMSKeystore) applyConfig(ctx context.Context, keyID []byte) ([]byte, error) {
+func (a *awsKMSKeystore) applyMultiRegionConfig(ctx context.Context, keyID []byte) ([]byte, error) {
 	if keyType(keyID) != types.PrivateKeyType_AWS_KMS {
 		return keyID, nil
 	}
@@ -607,14 +607,14 @@ func (a *awsKMSKeystore) applyConfig(ctx context.Context, keyID []byte) ([]byte,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyID, err = a.applyConfigToKeyID(ctx, key)
+	keyID, err = a.applyMRKConfig(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return keyID, nil
 }
 
-func (a *awsKMSKeystore) applyConfigToKeyID(ctx context.Context, key awsKMSKeyID) ([]byte, error) {
+func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([]byte, error) {
 	if !key.isMRK() {
 		if a.multiRegionEnabled {
 			a.logger.WarnContext(ctx, "Unable to replicate single-region key. A CA rotation is required to migrate to a multi-region key.", "key_arn", key.arn)
