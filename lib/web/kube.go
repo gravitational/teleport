@@ -243,7 +243,8 @@ func (p *podExecHandler) handler(r *http.Request) error {
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	var certs *clientproto.Certs
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(stream.WSStream, p.sctx.cfg.RootClient.CreateAuthenticateChallenge, p.publicProxyAddr),
@@ -255,6 +256,8 @@ func (p *podExecHandler) handler(r *http.Request) error {
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return trace.Wrap(err, "failed performing mfa ceremony")
+	} else if result != nil {
+		certs = result.NewCerts
 	}
 
 	if certs == nil {
@@ -515,7 +518,8 @@ func (h *Handler) joinKubernetesSession(
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	var certs *clientproto.Certs
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: clt,
 		RootAuthClient:    sctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(stream.WSStream, sctx.cfg.RootClient.CreateAuthenticateChallenge, h.cfg.PublicProxyAddr),
@@ -527,6 +531,8 @@ func (h *Handler) joinKubernetesSession(
 	})
 	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
 		return trace.Wrap(err, "failed performing mfa ceremony")
+	} else if result != nil {
+		certs = result.NewCerts
 	}
 
 	if certs == nil {

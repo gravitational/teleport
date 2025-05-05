@@ -603,7 +603,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
 		MFACeremony:       newMFACeremony(wsStream, t.ctx.cfg.RootClient.CreateAuthenticateChallenge, t.proxyPublicAddr),
@@ -615,7 +615,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		return nil, trace.Wrap(err)
 	}
 
-	sshCert, err = sshutils.ParseCertificate(certs.SSH)
+	sshCert, err = sshutils.ParseCertificate(result.NewCerts.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
