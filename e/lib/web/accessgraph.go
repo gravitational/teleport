@@ -480,7 +480,7 @@ func (p *Plugin) getAccessGraphSettings(_ http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	return accessgraphui.FromProtoAccessGraphSettings(accessGraphSettings), nil
+	return accessgraphui.FromProtoAccessGraphSettings(accessGraphSettings, p.accessGraphForwarder != nil /* httpReady */), nil
 }
 
 // updateAccessGraphSettings is the handler for POST /v1/enterprise/accessgraphsettings.
@@ -525,6 +525,12 @@ func (p *Plugin) updateAccessGraphSettings(_ http.ResponseWriter, r *http.Reques
 	if accessGraphSettings.GetSpec().GetDemoMode() != clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED && req.EnableDemoMode && !canEnableDemoMode {
 		return nil, trace.AccessDenied("You do not have permission to enable Access Graph Demo Mode.")
 	}
+	// if enable demo mode, check and rebuild the accessgraphhttptransport
+	if req.EnableDemoMode && p.accessGraphForwarder == nil {
+		if err := p.checkAndBuildAccessGraphHTTPTransport(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	accessGraphSettings, err = clusterConfigClient.UpdateAccessGraphSettings(
 		r.Context(),
@@ -535,5 +541,5 @@ func (p *Plugin) updateAccessGraphSettings(_ http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return accessgraphui.FromProtoAccessGraphSettings(accessGraphSettings), nil
+	return accessgraphui.FromProtoAccessGraphSettings(accessGraphSettings, p.accessGraphForwarder != nil /* httpReady */), nil
 }

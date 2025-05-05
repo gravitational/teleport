@@ -43,7 +43,8 @@ function getDemoState({
   }
   if (
     accessGraphSettingsAttempt.data?.enable_demo_mode &&
-    accessGraphSettingsAttempt.data?.status?.initial_sync_complete
+    accessGraphSettingsAttempt.data?.status?.initial_sync_complete &&
+    accessGraphSettingsAttempt.data?.status?.http_ready
   ) {
     return RoleDiffState.DemoReady;
   }
@@ -89,11 +90,16 @@ export function usePolicyDemo(cfg: Cfg): UsePolicyDemoState {
       await new Promise(resolve => setTimeout(resolve, WAIT_FOR_SYNC_TIMEOUT)); // wait for 2 seconds after initial attempt
     }
     if (tries > WAIT_FOR_SYNC_MAX_TRIES) {
-      throw new Error('Failed to create graph. Please try again later.');
+      throw new Error(
+        'Initial resource sync is taking longer than expected. Please try again in a few minutes.'
+      );
     }
     try {
       const settings = await accessGraphService.getAccessGraphSettings();
-      if (settings.status?.initial_sync_complete) {
+      if (
+        settings.status?.initial_sync_complete &&
+        settings.status?.http_ready
+      ) {
         return true; // demo mode is ready
       }
       return await waitForInitialSyncComplete(tries + 1);

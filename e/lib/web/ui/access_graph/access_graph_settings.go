@@ -9,6 +9,7 @@ import (
 // AccessGraphSettingsStatus holds the current status information about the Access Graph service
 type AccessGraphSettingsStatus struct {
 	InitialSyncComplete bool `json:"initial_sync_complete"`
+	HTTPReady           bool `json:"http_ready"`
 }
 
 // AccessGraphSettings is the settings for the access graph.
@@ -19,7 +20,7 @@ type AccessGraphSettings struct {
 }
 
 // FromProtoAccessGraphSettings converts an AccessGraphSettings proto to AccessGraphSettings.
-func FromProtoAccessGraphSettings(proto *clusterconfigpb.AccessGraphSettings) *AccessGraphSettings {
+func FromProtoAccessGraphSettings(proto *clusterconfigpb.AccessGraphSettings, httpReady bool) *AccessGraphSettings {
 	var enableSecretsScan bool
 	if proto.GetSpec().GetSecretsScanConfig() == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED {
 		enableSecretsScan = true
@@ -32,6 +33,7 @@ func FromProtoAccessGraphSettings(proto *clusterconfigpb.AccessGraphSettings) *A
 		EnableSecretsScan: enableSecretsScan,
 		Status: AccessGraphSettingsStatus{
 			InitialSyncComplete: proto.GetStatus().GetInitialSyncComplete(),
+			HTTPReady:           httpReady,
 		},
 		EnableDemoMode: enableDemoMode,
 	}

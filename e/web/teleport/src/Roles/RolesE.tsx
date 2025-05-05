@@ -8,6 +8,7 @@ import cfg from 'teleport/config';
 import { RolesContainer as Roles } from 'teleport/Roles';
 import { unableToUpdatePreviewMessage } from 'teleport/Roles/RoleEditor/Shared';
 import { RoleDiffProps } from 'teleport/Roles/Roles';
+import { ApiError } from 'teleport/services/api/parseError';
 import { Role } from 'teleport/services/resources';
 
 import { usePolicyDemo } from './usePolicyDemo';
@@ -31,6 +32,11 @@ export const RolesE = () => {
           abortControllerRef.current?.signal
         );
       } catch (err) {
+        if (err instanceof ApiError && err.response.status === 404) {
+          throw new Error(
+            'Your graph is taking a few minutes to generate. After the initial generation, you will be able to preview access updates based on your role changes. Please try again in a few minutes.'
+          );
+        }
         throw new Error(unableToUpdatePreviewMessage, { cause: err });
       }
     }, [])

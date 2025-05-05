@@ -210,7 +210,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 			p.Logger.ErrorContext(ctx, "Failed to get access graph config from the Auth server", "error", err)
 			return trace.Wrap(err)
 		default:
-			if rsp.GetEnabled() {
+			if rsp.GetEnabled() || p.h.GetClusterFeatures().Cloud {
 				p.Config.AccessGraph = &AccessGraphConfig{
 					Addr:     rsp.GetAddress(),
 					CA:       rsp.GetCa(),

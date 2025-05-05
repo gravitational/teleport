@@ -11,6 +11,7 @@ export type AccessGraphSettings = {
   status: {
     // initial_sync_complete is true if the cluster has synced its resources with TAG at least once.
     initial_sync_complete: boolean;
+    http_ready: boolean;
   };
 };
 

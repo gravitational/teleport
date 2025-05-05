@@ -52,6 +52,7 @@ test('should return DEMO_READY state when demo mode is enabled and sync is compl
     enable_demo_mode: true,
     status: {
       initial_sync_complete: true,
+      http_ready: true,
     },
   });
 
@@ -67,6 +68,7 @@ test('should return WAITING_FOR_SYNC state when enabling demo mode', async () =>
     enable_demo_mode: true,
     status: {
       initial_sync_complete: false,
+      http_ready: false,
     },
   });
 
@@ -108,18 +110,21 @@ describe('waitForInitialSync', () => {
         enable_demo_mode: true,
         status: {
           initial_sync_complete: false,
+          http_ready: false,
         },
       })
       .mockResolvedValue({
         enable_demo_mode: true,
         status: {
           initial_sync_complete: false,
+          http_ready: false,
         },
       })
       .mockResolvedValue({
         enable_demo_mode: true,
         status: {
           initial_sync_complete: true,
+          http_ready: true,
         },
       });
 
@@ -147,6 +152,7 @@ describe('waitForInitialSync', () => {
         enable_demo_mode: true,
         status: {
           initial_sync_complete: false,
+          http_ready: false,
         },
       })
       .mockRejectedValue(error);
@@ -170,6 +176,7 @@ describe('waitForInitialSync', () => {
         enable_demo_mode: true,
         status: {
           initial_sync_complete: false,
+          http_ready: false,
         },
       });
     }
