@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/defaults"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -422,9 +423,13 @@ func writeSystemTemplate(path, t string, values any) error {
 }
 
 // ReplaceTeleportService replaces the default paths in the Teleport service config with namespaced paths.
-func (ns *Namespace) ReplaceTeleportService(cfg []byte, pathDir string) []byte {
+func (ns *Namespace) ReplaceTeleportService(cfg []byte, pathDir string, flags autoupdate.InstallFlags) []byte {
 	if pathDir == "" {
 		pathDir = ns.defaultPathDir
+	}
+	var startFlags []string
+	if flags&autoupdate.FlagFIPS != 0 {
+		startFlags = append(startFlags, "--fips")
 	}
 	for _, rep := range []struct {
 		old, new string
@@ -440,6 +445,10 @@ func (ns *Namespace) ReplaceTeleportService(cfg []byte, pathDir string) []byte {
 		{
 			old: "/run/teleport.pid",
 			new: ns.pidFile,
+		},
+		{
+			old: " start ",
+			new: " start " + strings.Join(startFlags, " ") + " ",
 		},
 	} {
 		cfg = bytes.ReplaceAll(cfg, []byte(rep.old), []byte(rep.new))
