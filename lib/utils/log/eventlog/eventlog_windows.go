@@ -112,8 +112,7 @@ func install(logName, source, msgFile string, useExpandKey bool, eventsSupported
 		return trace.AlreadyExists(`%s\%s registry key already exists`, addKeyName, source)
 	}
 
-	err = sk.SetDWordValue("CustomSource", 1)
-	if err != nil {
+	if err := sk.SetDWordValue("CustomSource", 1); err != nil {
 		return trace.Wrap(err)
 	}
 	if useExpandKey {
@@ -124,8 +123,7 @@ func install(logName, source, msgFile string, useExpandKey bool, eventsSupported
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = sk.SetDWordValue("TypesSupported", eventsSupported)
-	if err != nil {
+	if err := sk.SetDWordValue("TypesSupported", eventsSupported); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
