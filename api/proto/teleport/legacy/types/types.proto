@@ -822,6 +822,9 @@ message InstanceFilter {
 
   // NewerThanVersion is an optional exclusive lower version bound.
   string NewerThanVersion = 7;
+
+  // UpdateGroup matches instance update group if specified.
+  string UpdateGroup = 8;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth Service instance in a Teleport cluster.

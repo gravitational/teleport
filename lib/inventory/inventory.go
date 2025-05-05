@@ -614,6 +614,7 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
+		UpdaterInfo:             hello.GetUpdaterInfo(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
