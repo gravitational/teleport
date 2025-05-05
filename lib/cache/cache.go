@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -62,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/services/simple"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -522,7 +520,6 @@ type Cache struct {
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	secReportsCache              services.SecReports
 	userLoginStateCache          services.UserLoginStates
-	accessListCache              *simple.AccessListService
 	eventsFanout                 *services.FanoutV2
 	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
@@ -959,12 +956,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessListCache, err := simple.NewAccessListService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	databaseObjectsCache, err := local.NewDatabaseObjectService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1062,7 +1053,6 @@ func New(config Config) (*Cache, error) {
 		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
 		userLoginStateCache:          userLoginStatesCache,
-		accessListCache:              accessListCache,
 		databaseObjectsCache:         databaseObjectsCache,
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
@@ -2401,126 +2391,6 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 	}
 	defer rg.Release()
 	return uls, trace.Wrap(err)
-}
-
-// GetAccessLists returns a list of all access lists.
-func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessLists(ctx)
-}
-
-// ListAccessLists returns a paginated list of access lists.
-func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessLists(ctx, pageSize, nextToken)
-}
-
-// GetAccessList returns the specified access list resource.
-func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessList")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessLists)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	item, err := rg.reader.GetAccessList(ctx, name)
-	if trace.IsNotFound(err) && rg.IsCacheRead() {
-		// release read lock early
-		rg.Release()
-		// fallback is sane because method is never used
-		// in construction of derivative caches.
-		if item, err := c.Config.AccessLists.GetAccessList(ctx, name); err == nil {
-			return item, nil
-		}
-	}
-	return item, trace.Wrap(err)
-}
-
-// CountAccessListMembers will count all access list members.
-func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/CountAccessListMembers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return 0, 0, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.CountAccessListMembers(ctx, accessListName)
-}
-
-// ListAccessListMembers returns a paginated list of all access list members.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member list.
-func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessListMembers(ctx, accessListName, pageSize, pageToken)
-}
-
-// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAllAccessListMembers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAllAccessListMembers(ctx, pageSize, pageToken)
-}
-
-// GetAccessListMember returns the specified access list member resource.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member record.
-func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListMembers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
-}
-
-// ListAccessListReviews will list access list reviews for a particular access list.
-func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListReviews")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.accessListReviews)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListAccessListReviews(ctx, accessList, pageSize, pageToken)
 }
 
 // ListAccessMonitoringRules returns a paginated list of access monitoring rules.

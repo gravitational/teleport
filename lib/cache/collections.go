@@ -28,6 +28,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -95,6 +96,9 @@ type collections struct {
 	webSessions                      *collection[types.WebSession, webSessionIndex]
 	appSessions                      *collection[types.WebSession, appSessionIndex]
 	snowflakeSessions                *collection[types.WebSession, snowflakeSessionIndex]
+	accessLists                      *collection[*accesslist.AccessList, accessListIndex]
+	accessListMembers                *collection[*accesslist.AccessListMember, accessListMemberIndex]
+	accessListReviews                *collection[*accesslist.Review, accessListReviewIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -440,6 +444,30 @@ func setupCollections(c Config) (*collections, error) {
 				out.webSessions = collect
 				out.byKind[resourceKind] = out.webSessions
 			}
+		case types.KindAccessList:
+			collect, err := newAccessListCollection(c.AccessLists, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessLists = collect
+			out.byKind[resourceKind] = out.accessLists
+		case types.KindAccessListMember:
+			collect, err := newAccessListMemberCollection(c.AccessLists, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessListMembers = collect
+			out.byKind[resourceKind] = out.accessListMembers
+		case types.KindAccessListReview:
+			collect, err := newAccessListReviewCollection(c.AccessLists, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessListReviews = collect
+			out.byKind[resourceKind] = out.accessListReviews
 		}
 	}
 
