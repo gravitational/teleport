@@ -40,7 +40,8 @@
     "@xterm/xterm": "^5.5.0",
     "create-react-class": "^15.6.3",
     "events": "3.3.0",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "6"
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
