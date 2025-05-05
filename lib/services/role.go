@@ -1607,7 +1607,7 @@ func isLegacySAMLRBAC(roleVersion string) bool {
 // For Teleport role version v7 and below (legacy SAML IdP RBAC), only MFA
 // and IDP role option is checked.
 // For Teleport role version v8 and above (non-legacy SAML IdP RBAC),
-// labels and MFA is checked.
+// labels, MFA and Device Trust is checked.
 // IDP option in the auth preference is checked in both the cases.
 func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if authPref != nil {

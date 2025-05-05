@@ -95,7 +95,7 @@ type AccessChecker interface {
 	// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
 	// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 	// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
-	// for labels and MFA.
+	// for labels, MFA and Device Trust.
 	CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
@@ -483,7 +483,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 // CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
 // It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 // role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
-// for labels and MFA.
+// for labels, MFA and Device Trust.
 func (a *accessChecker) CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
