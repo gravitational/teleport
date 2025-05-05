@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { Routes } from 'react-router';
 
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
@@ -27,7 +28,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Route, Switch } from 'teleport/components/Router';
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
 import useTeleport from 'teleport/useTeleport';
@@ -38,7 +39,7 @@ import { buildACL } from './utils';
 
 export function Clusters() {
   return (
-    <Switch>
+    <Routes>
       <Route
         key="cluster-list"
         exact
@@ -50,7 +51,7 @@ export function Clusters() {
         path={cfg.routes.manageCluster}
         component={ManageCluster}
       />
-    </Switch>
+    </Routes>
   );
 }
 

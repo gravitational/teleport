@@ -16,15 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Routes } from 'react-router';
+
 import { LoginFailed as CardFailed } from 'design/CardError';
 
 import { LogoHero } from 'teleport/components/LogoHero';
-import { Route, Switch } from 'teleport/components/Router';
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 export function LoginFailed() {
   return (
-    <Switch>
+    <Routes>
       <Route path={cfg.routes.loginErrorCallback}>
         <LoginFailedComponent message="Unable to process SSO callback." />
       </Route>
@@ -32,7 +34,7 @@ export function LoginFailed() {
         <LoginFailedComponent message="You are not authorized, please contact your SSO administrator." />
       </Route>
       <Route component={LoginFailed} />
-    </Switch>
+    </Routes>
   );
 }
 

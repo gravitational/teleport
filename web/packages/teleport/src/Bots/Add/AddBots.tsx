@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Routes } from 'react-router';
+
 import { FeatureBox } from 'teleport/components/Layout';
-import { Route, Switch } from 'teleport/components/Router';
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 import { BotFlowType } from '../types';
@@ -27,13 +29,13 @@ import GitHubActionsFlow from './GitHubActions';
 export function AddBots() {
   return (
     <FeatureBox>
-      <Switch>
+      <Routes>
         <Route
           path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
           component={GitHubActionsFlow}
         />
         <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />
-      </Switch>
+      </Routes>
     </FeatureBox>
   );
 }
