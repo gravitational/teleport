@@ -1560,34 +1560,6 @@ func TestUserLoginStates(t *testing.T) {
 	})
 }
 
-// TestCrownJewel tests that CRUD operations on user notification resources are
-// replicated from the backend to the cache.
-func TestCrownJewel(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs153[*crownjewelv1.CrownJewel]{
-		newResource: func(name string) (*crownjewelv1.CrownJewel, error) {
-			return newCrownJewel(t, name), nil
-		},
-		create: func(ctx context.Context, item *crownjewelv1.CrownJewel) error {
-			_, err := p.crownJewels.CreateCrownJewel(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
-			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
-			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		deleteAll: p.crownJewels.DeleteAllCrownJewels,
-	})
-}
-
 func TestDatabaseObjects(t *testing.T) {
 	t.Parallel()
 

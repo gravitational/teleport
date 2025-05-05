@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -99,6 +101,8 @@ type collections struct {
 	accessLists                      *collection[*accesslist.AccessList, accessListIndex]
 	accessListMembers                *collection[*accesslist.AccessListMember, accessListMemberIndex]
 	accessListReviews                *collection[*accesslist.Review, accessListReviewIndex]
+	crownJewels                      *collection[*crownjewelv1.CrownJewel, crownJewelIndex]
+	accessGraphSettings              *collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -468,6 +472,22 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.accessListReviews = collect
 			out.byKind[resourceKind] = out.accessListReviews
+		case types.KindCrownJewel:
+			collect, err := newCrownJewelCollection(c.CrownJewels, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.crownJewels = collect
+			out.byKind[resourceKind] = out.crownJewels
+		case types.KindAccessGraphSettings:
+			collect, err := newAccessGraphSettingsCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessGraphSettings = collect
+			out.byKind[resourceKind] = out.accessGraphSettings
 		}
 	}
 
