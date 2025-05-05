@@ -29,8 +29,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -191,5 +194,143 @@ func TestFetchMySQLVersionDoesntBlock(t *testing.T) {
 		require.Contains(t, err.Error(), "i/o timeout")
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "connection should return before")
+	}
+}
+
+type fakeDB struct {
+	types.Database
+	uri        string
+	isCloudSQL bool
+}
+
+func (f fakeDB) IsCloudSQL() bool {
+	return f.isCloudSQL
+}
+
+func (f fakeDB) GetGCP() types.GCPCloudSQL {
+	return types.GCPCloudSQL{
+		ProjectID:  "<project-id>",
+		InstanceID: "<instance-id>",
+	}
+}
+
+func (f fakeDB) GetURI() string {
+	return f.uri
+}
+
+type fakeResolverClients struct {
+	getClientErr error
+	client       *mocks.GCPSQLAdminClientMock
+}
+
+func (f fakeResolverClients) GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error) {
+	return f.client, f.getClientErr
+}
+
+func TestNewEndpointsResolver(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	tests := []struct {
+		desc          string
+		db            types.Database
+		clients       resolverClients
+		wantEndpoints []string
+		wantErr       string
+	}{
+		{
+			desc:          "default",
+			db:            fakeDB{uri: "example.com:3306"},
+			wantEndpoints: []string{"example.com:3306"},
+		},
+		{
+			desc: "cloudsql db failed to get admin client",
+			db:   fakeDB{uri: "example.com:3306", isCloudSQL: true},
+			clients: fakeResolverClients{
+				getClientErr: trace.Errorf("failed to get Cloud SQL admin client"),
+			},
+			wantErr: "failed to get Cloud SQL admin client",
+		},
+		{
+			desc: "cloudsql db requires ssl",
+			db:   fakeDB{uri: "example.com:3306", isCloudSQL: true},
+			clients: fakeResolverClients{
+				client: &mocks.GCPSQLAdminClientMock{
+					DatabaseInstance: &sqladmin.DatabaseInstance{
+						Settings: &sqladmin.Settings{
+							IpConfiguration: &sqladmin.IpConfiguration{
+								RequireSsl: true,
+							},
+						},
+					},
+				},
+			},
+			wantEndpoints: []string{"example.com:3307"},
+		},
+		{
+			desc: "cloudsql db non-default port is not overridden when ssl is required",
+			db:   fakeDB{uri: "example.com:1234", isCloudSQL: true},
+			clients: fakeResolverClients{
+				client: &mocks.GCPSQLAdminClientMock{
+					DatabaseInstance: &sqladmin.DatabaseInstance{
+						Settings: &sqladmin.Settings{
+							IpConfiguration: &sqladmin.IpConfiguration{
+								RequireSsl: true,
+							},
+						},
+					},
+				},
+			},
+			wantEndpoints: []string{"example.com:1234"},
+		},
+		{
+			desc: "cloudsql db does not require ssl",
+			db:   fakeDB{uri: "example.com:3306", isCloudSQL: true},
+			clients: fakeResolverClients{
+				client: &mocks.GCPSQLAdminClientMock{
+					DatabaseInstance: &sqladmin.DatabaseInstance{
+						Settings: &sqladmin.Settings{
+							IpConfiguration: &sqladmin.IpConfiguration{
+								RequireSsl: false,
+							},
+						},
+					},
+				},
+			},
+			wantEndpoints: []string{"example.com:3306"},
+		},
+		{
+			desc: "cloudsql db access denied to check ssl setting ",
+			db:   fakeDB{uri: "example.com:3306", isCloudSQL: true},
+			clients: fakeResolverClients{
+				client: &mocks.GCPSQLAdminClientMock{
+					GetDatabaseInstanceError: trace.AccessDenied("unauthorized"),
+				},
+			},
+			wantEndpoints: []string{"example.com:3306"},
+		},
+		{
+			desc: "cloudsql db other error when checking ssl setting ",
+			db:   fakeDB{uri: "example.com:3306", isCloudSQL: true},
+			clients: fakeResolverClients{
+				client: &mocks.GCPSQLAdminClientMock{
+					GetDatabaseInstanceError: trace.NotFound("not found"),
+				},
+			},
+			wantErr: "Failed to get Cloud SQL instance information",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			resolver, err := newEndpointsResolver(test.db, test.clients)
+			require.NoError(t, err)
+			got, err := resolver.Resolve(ctx)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.EqualValues(t, test.wantEndpoints, got)
+		})
 	}
 }
