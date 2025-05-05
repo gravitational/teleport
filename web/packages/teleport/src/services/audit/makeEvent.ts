@@ -2169,6 +2169,52 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a health check config [${name}]`;
     },
   },
+  [eventCodes.MCP_SESSION_START]: {
+    type: 'mcp.session.start',
+    desc: 'MCP Session Started',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] has connected to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_END]: {
+    type: 'mcp.session.end',
+    desc: 'MCP Session Ended',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] has disconnected from MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_REQUEST]: {
+    type: 'mcp.session.request',
+    desc: 'MCP Session Request',
+    format: ({ user, app_name, json_rpc }) => {
+      if (json_rpc.method_name) {
+        return `User [${user}] sent an MCP request [${json_rpc.method}] for [${json_rpc.method_name}] to MCP server [${app_name}]`;
+      }
+      return `User [${user}] sent an MCP request [${json_rpc.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
+    type: 'mcp.session.request',
+    desc: 'MCP Session Request Failure',
+    format: ({ user, app_name, json_rpc}) => {
+      if (json_rpc.method_name) {
+        return `User [${user}] was denied access to an MCP request [${json_rpc.method}] for [${json_rpc.method_name}] to MCP server [${app_name}]`;
+      }
+      return `User [${user}] was denied access to an MCP request [${json_rpc.method}] to MCP server [${app_name}]`;
+    },
+  },
+  [eventCodes.MCP_SESSION_NOTIFICATION]: {
+    type: 'mcp.session.notification',
+    desc: 'MCP Session Notification',
+    format: ({ user, app_name, json_rpc }) => {
+      if (json_rpc) {
+        return `User [${user}] sent an MCP notification [${json_rpc.method}] to MCP server [${app_name}]`;
+      }
+      return `User [${user}] sent an MCP notification to MCP server [${app_name}]`;
+    },
+  },
 };
 
 const unknownFormatter = {

@@ -732,6 +732,13 @@ const (
 	// sync attempt failure code.
 	AWSICResourceSyncFailureCode = "TAIC001E"
 
+	// TODO(greedy52)
+	MCPSessionStartCode          = "TMCP001I"
+	MCPSessionEndCode            = "TMCP002I"
+	MCPSessionRequestCode        = "TMCP003I"
+	MCPSessionRequestFailureCode = "TMCP003E"
+	MCPSessionNotificationCode   = "TMCP004I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

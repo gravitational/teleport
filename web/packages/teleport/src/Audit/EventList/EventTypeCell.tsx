@@ -311,6 +311,11 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: Icons.Info,
   [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.MCP_SESSION_START]: Icons.Info,
+  [eventCodes.MCP_SESSION_END]: Icons.Info,
+  [eventCodes.MCP_SESSION_REQUEST]: Icons.Info,
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: Icons.Warning,
+  [eventCodes.MCP_SESSION_NOTIFICATION]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

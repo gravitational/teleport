@@ -292,11 +292,15 @@ func (a *AppV3) IsTCP() bool {
 
 // IsMCP returns true if this app represents a TCP endpoint.
 func (a *AppV3) IsMCP() bool {
-	return strings.HasPrefix(a.Spec.URI, SchemaMCPStdio)
+	return IsAppMCP(a.Spec.URI)
 }
 
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
+}
+
+func IsAppMCP(uri string) bool {
+	return strings.HasPrefix(uri, SchemaMCPStdio)
 }
 
 // GetProtocol returns the application protocol.

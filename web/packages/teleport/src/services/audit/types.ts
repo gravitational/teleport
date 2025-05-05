@@ -330,6 +330,11 @@ export const eventCodes = {
   HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
   HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
   HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
+  MCP_SESSION_START: 'TMCP001I',
+  MCP_SESSION_END: 'TMCP002I',
+  MCP_SESSION_REQUEST: 'TMCP003I',
+  MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
+  MCP_SESSION_NOTIFICATION: 'TMCP004I',
 } as const;
 
 /**
@@ -1899,6 +1904,49 @@ export type RawEvents = {
   [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
     typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
     HasName
+  >;
+  [eventCodes.MCP_SESSION_START]: RawEvent<
+      typeof eventCodes.MCP_SESSION_START,
+      {
+        sid: string;
+        app_name: string;
+      }
+  >;
+  [eventCodes.MCP_SESSION_END]: RawEvent<
+      typeof eventCodes.MCP_SESSION_END,
+      {
+        sid: string;
+        app_name: string;
+      }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
+      typeof eventCodes.MCP_SESSION_REQUEST,
+      {
+        app_name: string;
+        json_rpc: {
+          method?: string;
+          method_name?: string;
+        }
+      }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: RawEvent<
+      typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
+      {
+        app_name: string;
+        json_rpc: {
+          method?: string;
+          method_name?: string;
+        }
+      }
+  >;
+  [eventCodes.MCP_SESSION_NOTIFICATION]: RawEvent<
+      typeof eventCodes.MCP_SESSION_NOTIFICATION,
+      {
+        app_name: string;
+        json_rpc: {
+          method?: string;
+        }
+      }
   >;
 };
 

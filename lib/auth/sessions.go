@@ -608,6 +608,11 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
 	UserLoginCount.Inc()
 
+	// Shortcut for MCP apps to skip app session start event.
+	if types.IsAppMCP(req.AppURI) {
+		return session, nil
+	}
+
 	// Extract the identity of the user from the certificate, this will include metadata from any actively assumed access requests.
 	certificate, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
 	if err != nil {

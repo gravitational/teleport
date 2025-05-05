@@ -277,7 +277,9 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Handle MCP servers.
 	c.mcpServer, err = mcp.NewServer(mcp.ServerConfig{
-		Emitter: c.cfg.Emitter,
+		ParentCtx: c.closeContext,
+		Emitter:   c.cfg.Emitter,
+		ServerID:  c.cfg.HostID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

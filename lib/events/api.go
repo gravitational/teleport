@@ -903,6 +903,12 @@ const (
 	// HealthCheckConfigDeleteEvent is emitted when a health check config
 	// resource is deleted.
 	HealthCheckConfigDeleteEvent = "health_check_config.delete"
+
+	// TODO(greedy52) add description
+	MCPSessionStartEvent        = "mcp.session.start"
+	MCPSessionEndEvent          = "mcp.session.end"
+	MCPSessionRequestEvent      = "mcp.session.request"
+	MCPSessionNotificationEvent = "mcp.session.notification"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

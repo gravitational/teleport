@@ -2536,3 +2536,17 @@ func (m *SigstorePolicyUpdate) TrimToMaxSize(int) AuditEvent {
 func (m *SigstorePolicyDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+// TODO(greedy52) implement trimming
+func (m *MCPSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+func (m *MCPSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+func (m *MCPSessionRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+func (m *MCPSessionNotification) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}

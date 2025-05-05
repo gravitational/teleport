@@ -29,7 +29,10 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -39,6 +42,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -46,12 +50,27 @@ import (
 
 // ServerConfig is the config for the MCP forward server.
 type ServerConfig struct {
-	Emitter apievents.Emitter
-	Log     *slog.Logger
+	ParentCtx context.Context
+	Emitter   apievents.Emitter
+	Log       *slog.Logger
+	ServerID  string
 }
 
 // CheckAndSetDefaults checks values and sets defaults
 func (c *ServerConfig) CheckAndSetDefaults() error {
+	if c.ParentCtx == nil {
+		return trace.BadParameter("missing ParentCtx")
+	}
+	if c.Emitter == nil {
+		return trace.BadParameter("missing Emitter")
+	}
+	if c.Log == nil {
+		c.Log = slog.With(teleport.ComponentKey, "mcp")
+	}
+	return nil
+	if c.ServerID == "" {
+		return trace.BadParameter("missing ServerID")
+	}
 	if c.Emitter == nil {
 		return trace.BadParameter("missing Emitter")
 	}
@@ -78,66 +97,122 @@ func NewServer(c ServerConfig) (*Server, error) {
 
 // HandleAuthorizedAppConnection handles an authorized client connection.
 func (s *Server) HandleAuthorizedAppConnection(ctx context.Context, clientConn net.Conn, authCtx *authz.Context, app types.Application) error {
+	identity := authCtx.Identity.GetIdentity()
+	sessionCtx := &sessionCtx{
+		clientConn: clientConn,
+		authCtx:    authCtx,
+		identity:   identity,
+		app:        app,
+		serverID:   s.cfg.ServerID,
+		log: s.cfg.Log.With(
+			"session", identity.RouteToApp.SessionID,
+			"app", app.GetName(),
+			"user", identity.Username,
+		),
+		emitter: s.cfg.Emitter,
+	}
 	switch types.GetMCPServerTransportType(app.GetURI()) {
 	case types.MCPTransportStdio:
-		return trace.Wrap(s.handleStdio(ctx, clientConn, authCtx, app))
+		return trace.Wrap(s.handleStdio(ctx, sessionCtx))
 	default:
 		return trace.BadParameter("unsupported MCP server transport type: %v", types.GetMCPServerTransportType(app.GetURI()))
 	}
 }
 
-func (s *Server) handleStdio(ctx context.Context, clientConn net.Conn, authCtx *authz.Context, app types.Application) error {
-	mcpSpec := app.GetMCP()
+type sessionCtx struct {
+	clientConn net.Conn
+	authCtx    *authz.Context
+	identity   tlsca.Identity
+	app        types.Application
+	serverID   string
+	log        *slog.Logger
+	emitter    apievents.Emitter
+}
+
+func (s *Server) handleStdio(ctx context.Context, sessionCtx *sessionCtx) error {
+	mcpSpec := sessionCtx.app.GetMCP()
 	if mcpSpec == nil {
 		return trace.BadParameter("missing MCP spec")
 	}
 
-	identity := authCtx.Identity.GetIdentity()
-	log := s.cfg.Log.With("session", identity.RouteToApp.SessionID, "app", app.GetName(), "user", identity.Username)
-
-	log.DebugContext(ctx, "Running mcp",
+	sessionCtx.log.DebugContext(ctx, "Running mcp",
 		"cmd", mcpSpec.Command,
 		"args", mcpSpec.Args,
 	)
 
+	processDone := make(chan struct{}, 1)
+	defer close(processDone)
 	cmd := exec.CommandContext(ctx, mcpSpec.Command, mcpSpec.Args...)
+	cmd.Cancel = sync.OnceValue(func() error {
+		// TODO(greedy52) how to do this properly?
+		if path.Base(mcpSpec.Command) == "docker" {
+			cmd.Process.Signal(syscall.SIGINT)
+		} else {
+			cmd.Process.Signal(syscall.SIGTERM)
+		}
+		select {
+		case <-processDone:
+			sessionCtx.log.DebugContext(s.cfg.ParentCtx, "Process exited gracefully")
+			return nil
+		case <-time.After(10 * time.Second):
+			sessionCtx.log.DebugContext(s.cfg.ParentCtx, "Process did not exit gracefully, killing with SIGKILL")
+			return cmd.Process.Kill()
+		}
+	})
 	if err := s.setRunAsLocalUser(ctx, cmd, mcpSpec.RunAsLocalUser); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Response may come from the server or from internal access check.
-	responseWriter := utils.NewSyncWriter(clientConn)
+	responseWriter := utils.NewSyncWriter(sessionCtx.clientConn)
 
 	// Parse incoming request, then forward or reject.
-	// TODO(greedy52) convert this to a proper MCP server.
+	// TODO(greedy52) refactor
 	in, out := io.Pipe()
 	requestReader := &requestReader{
-		clientConn:     clientConn,
-		authCtx:        authCtx,
-		app:            app,
+		parentCtx: s.cfg.ParentCtx,
+		closeCommand: func() {
+			if err := cmd.Cancel(); err != nil {
+				sessionCtx.log.ErrorContext(ctx, "Failed to kill process", "error", err)
+			}
+		},
+		sessionCtx:     sessionCtx,
 		responseWriter: responseWriter,
 		out:            out,
-		log:            log.With("stdio", "stdin"),
 	}
 	go requestReader.process(ctx)
 
+	// TODO(greedy52) refactor trace logger to avoid new logger when not
+	// necessary.
 	cmd.Stdin = in
-	cmd.Stdout = io.MultiWriter(responseWriter, newTraceLogWriter(ctx, log.With("stdio", "stdout")))
-	cmd.Stderr = newTraceLogWriter(ctx, log.With("stdio", "stderr"))
-	return trace.Wrap(cmd.Run())
+	cmd.Stdout = io.MultiWriter(responseWriter, newTraceLogWriter(ctx, sessionCtx.log.With("stdio", "stdout")))
+	cmd.Stderr = newTraceLogWriter(ctx, sessionCtx.log.With("stdio", "stderr"))
+
+	emitStartEvent(s.cfg.ParentCtx, sessionCtx)
+	defer emitEndEvent(s.cfg.ParentCtx, sessionCtx)
+	if err := cmd.Start(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := cmd.Wait(); err != nil {
+		processDone <- struct{}{}
+		sessionCtx.log.DebugContext(ctx, "Failed to wait for process", "error", err)
+	}
+	return nil
 }
 
 type requestReader struct {
-	clientConn     net.Conn
-	authCtx        *authz.Context
-	app            types.Application
+	parentCtx context.Context
+	*sessionCtx
 	responseWriter io.Writer
-	log            *slog.Logger
+	closeCommand   func()
 	out            *io.PipeWriter
 }
 
 func (r *requestReader) process(ctx context.Context) {
+	r.log.DebugContext(ctx, "Started request reader")
+	defer r.log.DebugContext(ctx, "Finished request reader")
 	defer r.clientConn.Close()
+	defer r.closeCommand()
 
 	lineReader := bufio.NewReader(r.clientConn)
 	for {
@@ -146,9 +221,7 @@ func (r *requestReader) process(ctx context.Context) {
 		}
 		line, err := lineReader.ReadString('\n')
 		if err != nil {
-			if err != io.EOF {
-				r.out.CloseWithError(err)
-			}
+			r.out.CloseWithError(err)
 			if !utils.IsOKNetworkError(err) {
 				r.log.ErrorContext(ctx, "Failed to read request from client", "error", err)
 			}
@@ -176,14 +249,14 @@ func (r *requestReader) shouldForwardLine(ctx context.Context, line string) bool
 	switch {
 	case msg.ID != nil && msg.Method == mcp.MethodToolsCall:
 		if authErr := r.checkToolAccess(ctx, &msg); authErr != nil {
-			r.audit(ctx, &msg, authErr)
+			emitRequestEvent(r.parentCtx, r.sessionCtx, &msg, authErr)
 			r.replyToolResultWithError(ctx, &msg, authErr)
 			return false
 		}
 	}
 
 	if shouldEmitMCPEvent(msg.Method) {
-		r.audit(ctx, &msg, nil)
+		emitRequestEvent(r.parentCtx, r.sessionCtx, &msg, nil)
 	}
 	return true
 }
@@ -213,7 +286,7 @@ func (r *requestReader) replyToolResultWithError(ctx context.Context, msg *baseM
 		Result: &mcp.CallToolResult{
 			Content: []mcp.Content{mcp.TextContent{
 				Type: "text",
-				Text: fmt.Sprintf("Access denied to this MCP tool: %v. RBAC is enforced by your Teleport roles.", authErr),
+				Text: fmt.Sprintf("Access denied to this MCP tool: %v. RBAC is enforced by your Teleport roles. You can run 'tsh mcp ls -v' to find out which tools you have access to. Or contact your Teleport Adminstrators for more details.", authErr),
 			}},
 			IsError: false,
 		},
@@ -227,10 +300,6 @@ func (r *requestReader) replyToolResultWithError(ctx context.Context, msg *baseM
 	if _, err := fmt.Fprintf(r.responseWriter, "%s\n", respBytes); err != nil {
 		r.log.ErrorContext(ctx, "Failed to send JSON RPC response", "error", err)
 	}
-}
-
-func (r *requestReader) audit(ctx context.Context, msg *baseMessage, err error) {
-	r.log.DebugContext(ctx, "Received request", "method", msg.Method)
 }
 
 type traceLogWriter struct {
