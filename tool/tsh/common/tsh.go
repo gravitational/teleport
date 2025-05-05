@@ -1617,6 +1617,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.exec.run(&cf)
 	case kube.join.FullCommand():
 		err = kube.join.run(&cf)
+	case kube.kubeswitch.FullCommand():
+		err = kube.kubeswitch.run(&cf)
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
 	case proxySSH.FullCommand():

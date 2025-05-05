@@ -34,8 +34,11 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	kubeswitchplugins "github.com/danielfoehrkn/kubeswitch/pkg/store/plugins"
+	kubeswitchtypes "github.com/danielfoehrkn/kubeswitch/pkg/store/types"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/go-plugin"
 	dockerterm "github.com/moby/term"
 	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
@@ -49,6 +52,7 @@ import (
 	"k8s.io/client-go/pkg/apis/clientauthentication"
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
@@ -83,6 +87,7 @@ type kubeCommands struct {
 	sessions    *kubeSessionsCommand
 	exec        *kubeExecCommand
 	join        *kubeJoinCommand
+	kubeswitch  *kubeSwitchCommand
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
@@ -94,8 +99,97 @@ func newKubeCommand(app *kingpin.Application) kubeCommands {
 		sessions:    newKubeSessionsCommand(kube),
 		exec:        newKubeExecCommand(kube),
 		join:        newKubeJoinCommand(kube),
+		kubeswitch:  newKubeSwitchCommand(kube),
 	}
 	return cmds
+}
+
+type kubeSwitchCommand struct {
+	*kingpin.CmdClause
+}
+
+func newKubeSwitchCommand(parent *kingpin.CmdClause) *kubeSwitchCommand {
+	c := &kubeSwitchCommand{
+		CmdClause: parent.Command("switch", "Switch the current kubectl context to the specified cluster."),
+	}
+
+	return c
+}
+
+type Store struct {
+	Tc *client.TeleportClient
+	Cf *CLIConf
+}
+
+func (s *Store) GetID(ctx context.Context) (string, error) {
+	return "teleport", nil
+}
+
+// GetContextPrefix returns the context prefix
+func (s *Store) GetContextPrefix(ctx context.Context, path string) (string, error) {
+	return "example", nil
+}
+
+// VerifyKubeconfigPaths verifies the kubeconfig paths
+func (s *Store) VerifyKubeconfigPaths(ctx context.Context) error {
+	return nil
+}
+
+// StartSearch starts the search
+func (s *Store) StartSearch(ctx context.Context, channel chan kubeswitchtypes.SearchResult) {
+	_, clusters, err := fetchKubeClusters(ctx, s.Tc)
+	if err != nil {
+		channel <- kubeswitchtypes.SearchResult{
+			KubeconfigPath: "",
+			Error:          fmt.Errorf("failed to fetch clusters: %w", err),
+		}
+		return
+	}
+	for _, cluster := range clusters {
+		channel <- kubeswitchtypes.SearchResult{
+			KubeconfigPath: cluster.GetName(),
+			Error:          nil,
+		}
+	}
+}
+
+// GetKubeconfigForPath gets the kubeconfig for the path
+func (s *Store) GetKubeconfigForPath(ctx context.Context, path string, tags map[string]string) ([]byte, error) {
+	kubeStatus, err := fetchKubeStatus(ctx, s.Tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values, err := buildKubeConfigUpdate(s.Cf, kubeStatus, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config, err := kubeconfig.GenerateConfig(nil, *values, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	file, err := clientcmd.Write(*config)
+	return file, trace.Wrap(err)
+}
+
+func (c *kubeSwitchCommand) run(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	plugin.Serve(&plugin.ServeConfig{
+		HandshakeConfig: kubeswitchplugins.Handshake,
+		Plugins: map[string]plugin.Plugin{
+			"store": &kubeswitchplugins.StorePlugin{Impl: &Store{Tc: tc, Cf: cf}},
+		},
+
+		// A non-nil value here enables gRPC serving for this plugin...
+		GRPCServer: plugin.DefaultGRPCServer,
+	})
+
+	return nil
 }
 
 type kubeJoinCommand struct {
