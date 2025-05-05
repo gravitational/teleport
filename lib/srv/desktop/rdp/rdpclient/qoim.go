@@ -21,91 +21,106 @@
 package rdpclient
 
 import (
-	"bytes"
 	"encoding/binary"
-	"slices"
+	"io"
+	"unsafe"
 )
 
-const QoiOpIndex = 0x00       // 00xxxxxx
-const QoiOpDiff = 0x40        // 01xxxxxx
-const QoiOpLuma = 0x80        // 10xxxxxx
-const QoiOpRun = 0xc0         // 11xxxxxx
-const QoiOpRgb = 0xfe         // 11111110
-const QoiOpExtendedRun = 0xff // 11111111
+const opIndex = 0x40       // 01xxxxxx
+const opDiff = 0x80        // 10xxxxxx
+const opLuma = 0xc0        // 110xxxxx
+const opRun = 0xc4         // 111xxxxx
+const opExtendedRun = 0xfe // 11111110
+const opRgb = 0xff         // 11111111
 
-func encode(data []byte, buf *bytes.Buffer) {
-	pxPrev := []byte{0, 0, 0, 0}
-	hashPrev := hashIndex(pxPrev)
-	index := [64][]byte{}
-	indexAllowed := false
+type pixel struct {
+	value uint16
+	r     uint16
+	g     uint16
+	b     uint16
+}
+
+func encode(data []byte, buf io.Writer) {
+	l := len(data) / 2
+	ptr := (*uint16)(unsafe.Pointer(&data[0]))
+	pixels := unsafe.Slice(ptr, l)
+	pxPrev := decode(0)
+	hash := hashIndex(pxPrev)
+	index := [64]uint16{}
 	run := 0
-	for px := range slices.Chunk(data, 4) {
-		if slices.Equal(px, pxPrev) {
+	for _, p := range pixels {
+		if p == pxPrev.value {
 			run += 1
-		} else {
-			if run != 0 {
-				pushRun(buf, hashPrev, indexAllowed, run)
-				run = 0
-			}
-			indexAllowed = true
-			hashPrev = hashIndex(px)
-			indexPx := index[hashPrev]
-			if slices.Equal(indexPx, px[:3]) {
-				buf.WriteByte(QoiOpIndex | hashPrev)
-			} else {
-				index[hashPrev] = px[:3]
-				encodePixel(px, pxPrev, buf)
-			}
-			pxPrev = px
+			continue
 		}
+		if run != 0 {
+			pushRun(buf, hash, run)
+			run = 0
+		}
+		px := decode(p)
+		hash = hashIndex(px)
+		if index[hash] == px.value {
+			buf.Write([]byte{opIndex | hash})
+		} else {
+			index[hash] = px.value
+			encodePixel(px, pxPrev, buf)
+		}
+		pxPrev = px
 	}
 	if run != 0 {
-		pushRun(buf, hashPrev, indexAllowed, run)
+		pushRun(buf, hash, run)
 	}
 }
 
-func encodePixel(data []byte, pxPrev []byte, buf *bytes.Buffer) {
-	vg := data[1] - pxPrev[1]
-	vg32 := vg + 32
-	if vg32|63 == 63 {
-		vr := data[2] - pxPrev[2]
-		vb := data[0] - pxPrev[0]
+func encodePixel(px pixel, pxPrev pixel, buf io.Writer) {
+	vg := px.g - pxPrev.g
+	vg16 := vg + 16
+	if vg16|31 == 31 {
+		vr := px.r - pxPrev.r
+		vb := px.b - pxPrev.b
 		vgr := vr - vg
 		vgb := vb - vg
 		vr2, vg2, vb2 := vr+2, vg+2, vb+2
 		if vr2|vg2|vb2|3 == 3 {
-			buf.WriteByte(QoiOpDiff | (vr2 << 4) | (vg2 << 2) | vb2)
-		} else {
-			vgr8, vgb8 := vgr+8, vgb+8
-			if vgr8|vgb8|15 == 15 {
-				buf.WriteByte(QoiOpLuma | vg32)
-				buf.WriteByte((vgr8 << 4) | vgb8)
-			} else {
-				buf.WriteByte(QoiOpRgb)
-				buf.WriteByte(data[2])
-				buf.WriteByte(data[1])
-				buf.WriteByte(data[0])
-			}
+			buf.Write([]byte{byte(opDiff | (vr2 << 4) | (vg2 << 2) | vb2)})
+			return
 		}
+		vgr8, vgb8 := vgr+8, vgb+8
+		if px.value < 0x4000 && vgr8|vgb8|15 == 15 {
+			buf.Write([]byte{byte(opLuma | vg16), byte((vgr8 << 4) | vgb8)})
+			return
+		}
+	}
+	if px.value < 0x4000 {
+		buf.Write([]byte{byte(px.value >> 8), byte(px.value & 0xff)})
 	} else {
-		buf.WriteByte(QoiOpRgb)
-		buf.WriteByte(data[2])
-		buf.WriteByte(data[1])
-		buf.WriteByte(data[0])
+		buf.Write([]byte{opRgb, byte(px.value >> 8), byte(px.value & 0xff)})
 	}
 }
 
-func pushRun(buf *bytes.Buffer, hashPrev byte, indexAllowed bool, run int) {
-	if run == 1 && indexAllowed {
-		buf.WriteByte(QoiOpIndex | hashPrev)
-	} else if run > 62 {
-		buf.WriteByte(QoiOpExtendedRun)
-		buf.Write(binary.AppendUvarint(nil, uint64(run-63)))
-	} else {
-		buf.WriteByte(byte(QoiOpRun | (run - 1)))
+func pushRun(buf io.Writer, hash byte, run int) {
+	switch {
+	case run == 1:
+		buf.Write([]byte{opIndex | hash})
+	case run > 30:
+		tmp := make([]byte, binary.MaxVarintLen32+1)
+		tmp[0] = opExtendedRun
+		n := binary.PutUvarint(tmp[1:], uint64(run-31))
+		buf.Write(tmp[:n+1])
+	default:
+		buf.Write([]byte{byte(opRun | (run - 1))})
 	}
 }
 
-func hashIndex(data []byte) byte {
-	return (data[0] ^ data[1] ^ data[2]) % 64
+func hashIndex(px pixel) byte {
+	return byte((px.r ^ px.g ^ px.b) % 64)
+}
+
+func decode(px uint16) pixel {
+	return pixel{
+		value: px,
+		r:     px >> 11,
+		g:     (px >> 5) & 0x3F,
+		b:     px & 0x1F,
+	}
 }

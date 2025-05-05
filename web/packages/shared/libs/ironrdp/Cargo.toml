@@ -5,6 +5,15 @@ edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = ['-O', '--enable-bulk-memory']
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ['-O', '--enable-bulk-memory']
+
+[package.metadata.wasm-pack.profile.profiling]
+wasm-opt = ['-O', '--enable-bulk-memory']
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -24,5 +33,6 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["time"] }
 tracing-web = "0.1.2"
 uuid = { version = "1.16.0", features = ["js"] }
-wasm-bindgen = "0.2.95"
+wasm-bindgen = "0.2.93"
 web-sys = { version = "0.3.76", features = ["ImageData", "CanvasRenderingContext2d"] }
+zstd = "0.13.3"

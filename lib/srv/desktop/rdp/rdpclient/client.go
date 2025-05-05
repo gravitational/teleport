@@ -80,6 +80,7 @@ import (
 	"github.com/jezek/xgb/xfixes"
 	"github.com/jezek/xgb/xproto"
 	"github.com/jezek/xgb/xtest"
+	"github.com/klauspost/compress/zstd"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"log/slog"
@@ -317,6 +318,13 @@ func (c *Client) runLocal(ctx context.Context) error {
 	group.Go(func() error {
 		i := int64(0)
 		totalDuration := 0 * time.Millisecond
+		totalSize := 1
+		compressedSize := 0
+		var buf bytes.Buffer
+		encoder, err := zstd.NewWriter(&buf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		for {
 			for e, er := dial.PollForEvent(); e != nil || er != nil; e, er = dial.PollForEvent() {
 			}
@@ -333,7 +341,11 @@ func (c *Client) runLocal(ctx context.Context) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				var buf bytes.Buffer
+				if len(replay.Data) == 0 {
+					continue
+				}
+				buf.Reset()
+				encoder.Reset(&buf)
 				buf.Grow(len(replay.Data) / 4)
 				if err := binary.Write(&buf, binary.BigEndian, rect.X); err != nil {
 					return trace.Wrap(err)
@@ -347,16 +359,19 @@ func (c *Client) runLocal(ctx context.Context) error {
 				if err := binary.Write(&buf, binary.BigEndian, rect.Height); err != nil {
 					return trace.Wrap(err)
 				}
-				encode(replay.Data, &buf)
-				if buf.Len() > 0 {
-					if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
-						return trace.Wrap(err)
-					}
+				encode(replay.Data, encoder)
+				if err := encoder.Close(); err != nil {
+					return trace.Wrap(err)
 				}
 				duration := time.Now().Sub(start)
 				totalDuration += duration
+				totalSize += len(replay.Data)
+				compressedSize += buf.Len()
 				if duration > 10*time.Millisecond {
 					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration)
+				}
+				if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
+					return trace.Wrap(err)
 				}
 			}
 			select {
@@ -366,7 +381,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 			}
 			i++
 			if i%25 == 0 {
-				c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms", totalDuration.Milliseconds()/i))
+				c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms, compression rate: %d%", totalDuration.Milliseconds()/i, compressedSize*100/totalSize))
 			}
 		}
 	})
