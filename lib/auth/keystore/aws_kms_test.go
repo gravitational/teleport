@@ -796,7 +796,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 			}, opts)
 			require.NoError(t, err)
 
-			id, err := mgr.ApplyConfig(ctx, kp.Key)
+			id, err := mgr.ApplyMultiRegionConfig(ctx, kp.Key)
 			require.NoError(t, err)
 
 			key, err = parseAWSKMSKeyID(id)

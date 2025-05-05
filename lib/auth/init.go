@@ -834,7 +834,7 @@ func applyAuthorityConfig(ctx context.Context, asrv *Server, ca types.CertAuthor
 	)
 
 	apply := func(curr []byte) ([]byte, error) {
-		next, err := asrv.keyStore.ApplyConfig(ctx, curr)
+		next, err := asrv.keyStore.ApplyMultiRegionConfig(ctx, curr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
