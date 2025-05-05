@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Routes } from 'react-router';
+
 import { Flex } from 'design';
 
 import {
@@ -23,7 +25,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { Route, Switch } from 'teleport/components/Router';
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 import { NoCodeIntegrationDescription } from './common';
@@ -34,13 +36,13 @@ import { MachineIDIntegrationSection } from './MachineIDIntegrationSection';
 export function IntegrationEnroll() {
   return (
     <FeatureBox>
-      <Switch>
+      <Routes>
         {getRoutesToEnrollIntegrations()}
         <Route
           path={cfg.routes.integrationEnroll}
           component={IntegrationPicker}
         />
-      </Switch>
+      </Routes>
     </FeatureBox>
   );
 }

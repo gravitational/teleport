@@ -26,7 +26,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, Routes, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -42,7 +42,7 @@ import { BannerList } from 'teleport/components/BannerList';
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
-import { Redirect, Route, Switch } from 'teleport/components/Router';
+import { Redirect, Route } from 'teleport/components/Router';
 import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
@@ -274,7 +274,7 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   const features = useFeatures();
   const routes = renderRoutes(features, lockedFeatures);
 
-  return <Switch>{routes}</Switch>;
+  return <Routes>{routes}</Routes>;
 }
 
 // This context allows children components to disable this min-width in case they want to be able to shrink smaller.

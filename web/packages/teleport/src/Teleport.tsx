@@ -19,10 +19,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
+import { Routes } from 'react-router';
 
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
-import { Route, Router, Switch } from 'teleport/components/Router';
+import { Route, Router } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
@@ -96,24 +97,24 @@ const Teleport: React.FC<Props> = props => {
           <LayoutContextProvider>
             <Router history={history}>
               <Suspense fallback={null}>
-                <Switch>
+                <Routes>
                   {createPublicRoutes()}
                   <Route path={cfg.routes.root}>
                     <Authenticated>
                       <UserContextProvider>
                         <TeleportContextProvider ctx={ctx}>
-                          <Switch>
+                          <Routes>
                             <Route
                               path={cfg.routes.appLauncher}
                               component={AppLauncher}
                             />
                             <Route>{createPrivateRoutes()}</Route>
-                          </Switch>
+                          </Routes>
                         </TeleportContextProvider>
                       </UserContextProvider>
                     </Authenticated>
                   </Route>
-                </Switch>
+                </Routes>
               </Suspense>
             </Router>
           </LayoutContextProvider>
@@ -190,13 +191,13 @@ export function getSharedPublicRoutes() {
 
 function privateOSSRoutes() {
   return (
-    <Switch>
+    <Routes>
       {getSharedPrivateRoutes()}
       <Route
         path={cfg.routes.root}
         render={() => <Main features={getOSSFeatures()} />}
       />
-    </Switch>
+    </Routes>
   );
 }
 

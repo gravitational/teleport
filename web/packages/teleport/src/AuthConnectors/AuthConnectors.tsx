@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useHistory } from 'react-router';
+import { Routes, useHistory } from 'react-router';
 
 import { Alert, Box, Flex, Indicator } from 'design';
 import { H2 } from 'design/Text/Text';
@@ -33,7 +33,7 @@ import {
   ResponsiveFeatureHeader,
 } from 'teleport/AuthConnectors/styles/AuthConnectors.styles';
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
-import { Route, Switch } from 'teleport/components/Router';
+import { Route } from 'teleport/components/Router';
 import useResources from 'teleport/components/useResources';
 import cfg from 'teleport/config';
 import { DefaultAuthConnector, Resource } from 'teleport/services/resources';
@@ -54,7 +54,7 @@ export const description =
  */
 export function AuthConnectorsContainer() {
   return (
-    <Switch>
+    <Routes>
       <Route
         key="auth-connector-edit"
         path={cfg.routes.ssoConnector.edit}
@@ -71,7 +71,7 @@ export function AuthConnectorsContainer() {
         exact
         render={() => <AuthConnectors />}
       />
-    </Switch>
+    </Routes>
   );
 }
 

@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Route, Switch } from 'teleport/components/Router';
+import { Routes } from 'react-router';
+
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Details } from 'teleport/Integrations/status/AwsOidc/Details/Details';
 import { Tasks } from 'teleport/Integrations/status/AwsOidc/Tasks/Tasks';
@@ -27,7 +29,7 @@ import { AwsOidcDashboard } from './AwsOidcDashboard';
 export function AwsOidcRoutes() {
   return (
     <AwsOidcStatusProvider>
-      <Switch>
+      <Routes>
         <Route
           key="aws-oidc-resource-table"
           exact
@@ -46,7 +48,7 @@ export function AwsOidcRoutes() {
           path={cfg.routes.integrationStatus}
           component={AwsOidcDashboard}
         />
-      </Switch>
+      </Routes>
     </AwsOidcStatusProvider>
   );
 }
