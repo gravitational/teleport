@@ -23,7 +23,6 @@ package eventlog
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/registry"
@@ -64,7 +63,7 @@ func Remove(logName, source string) error {
 }
 
 func makeLogKeyName(logName string) string {
-	return fmt.Sprintf(`SYSTEM\CurrentControlSet\Services\EventLog\%s`, logName)
+	return `SYSTEM\CurrentControlSet\Services\EventLog\` + logName
 }
 
 // install is a copy of [eventlog.Install] that makes it possible to create a new log under logName
