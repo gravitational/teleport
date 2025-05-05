@@ -1569,14 +1569,11 @@ func checkAccessToSAMLIdP(state AccessState, role types.Role) error {
 	}
 
 	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
-
 	options := role.GetOptions()
-
 	// This should never happen, but we should make sure that we don't get a nil pointer error here.
 	if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
 		return nil
 	}
-
 	// If any role specifically denies access to the IdP, we'll return AccessDenied.
 	if !options.IDP.SAML.Enabled.Value {
 		return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
@@ -1611,7 +1608,7 @@ func isLegacySAMLRBAC(roleVersion string) bool {
 // and IDP role option is checked.
 // For Teleport role version v8 and above (non-legacy SAML IdP RBAC),
 // labels and MFA is checked.
-// IdP option in the auth preference is checked in both the cases.
+// IDP option in the auth preference is checked in both the cases.
 func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
@@ -1638,7 +1635,7 @@ func (set RoleSet) CheckAccessToSAMLIdPV2(r AccessCheckable, traits wrappers.Tra
 	// We checked for empty roleset early on this method. Reaching this part
 	// and zero non-legacy roleset means that the user was allowed access
 	// with legacy roles. We'll honor that and return, otherwise, checkAccess
-	// will deny access on empty role.
+	// will deny access on empty role set.
 	if len(v8RoleSet) == 0 {
 		return nil
 	}

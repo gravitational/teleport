@@ -93,8 +93,8 @@ type AccessChecker interface {
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 
 	// CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
-	// It checks for both the legacy RBAC (role v7 and below) that checks for idp
-	// option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
+	// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
+	// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
 	// for labels and MFA.
 	CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error
 
@@ -481,8 +481,8 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 }
 
 // CheckAccessToSAMLIdPV2 checks access to SAML IdP service provider resource.
-// It checks for both the legacy RBAC (role v7 and below) that checks for idp
-// option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
+// It checks for both the legacy RBAC (role v7 and below) that checks for IDP
+// role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
 // for labels and MFA.
 func (a *accessChecker) CheckAccessToSAMLIdPV2(r AccessCheckable, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {

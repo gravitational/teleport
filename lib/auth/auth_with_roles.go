@@ -2074,7 +2074,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = servers.AsResources()
 
-		// TODO(sshah) DELETE IN 17.0
+	// TODO(sshah) DELETE IN 17.0
 	case types.KindAppOrSAMLIdPServiceProvider:
 		appsAndServiceProviders, err := a.GetAppServersAndSAMLIdPServiceProviders(ctx, req.Namespace)
 		if err != nil {
