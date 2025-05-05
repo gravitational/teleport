@@ -21,7 +21,6 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -141,12 +140,6 @@ func (c *mcpLoginCommand) loginAll(cf *CLIConf, tc *client.TeleportClient, mcpSe
 	}
 	defer clusterClient.Close()
 
-	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer rootClient.Close()
-
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
@@ -165,7 +158,7 @@ func (c *mcpLoginCommand) loginAll(cf *CLIConf, tc *client.TeleportClient, mcpSe
 			AccessRequests: profile.ActiveRequests,
 		}
 
-		key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)
+		key, _, err := clusterClient.IssueUserCertsWithMFA(cf.Context, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -356,20 +349,54 @@ type mcpConnectCommand struct {
 }
 
 func (c *mcpConnectCommand) run(cf *CLIConf) error {
-	// Avoid printing to stdout from onAppLogin.
-	// TODO(greedy52) refactor onAppLogin.
-	cf.OverrideStdout = io.Discard
-	err := onAppLogin(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	cert, err := loadAppCertificate(tc, cf.AppName)
+	mcpServers, err := getMCPServers(cf, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch len(mcpServers) {
+	case 0:
+		return trace.NotFound("no MCP servers found")
+	case 1:
+	default:
+		logger.WarnContext(cf.Context, "multiple MCP servers found, using the first one")
+	}
+
+	// TODO(greedy52) load active cert?
+	mcpServer := mcpServers[0]
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(greedy52) refactor
+	appCertParams := client.ReissueParams{
+		RouteToCluster: tc.SiteName,
+		RouteToApp: proto.RouteToApp{
+			Name:        mcpServer.GetName(),
+			PublicAddr:  mcpServer.GetPublicAddr(),
+			ClusterName: tc.SiteName,
+			URI:         mcpServer.GetURI(),
+		},
+		AccessRequests: profile.ActiveRequests,
+	}
+
+	// Do NOT write the keyring to avoid race condition when AI clients connect
+	// multiple of them at the same time.
+	keyRing, err := tc.IssueUserCertsWithMFA(cf.Context, appCertParams)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	credential, ok := keyRing.AppTLSCredentials[mcpServer.GetName()]
+	if !ok {
+		return trace.BadParameter("failed to find certificate for %q", mcpServer.GetName())
+	}
+	cert, err := credential.TLSCertificate()
 	if err != nil {
 		return trace.Wrap(err)
 	}
