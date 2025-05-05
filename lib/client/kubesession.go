@@ -172,9 +172,7 @@ func kubeSessionNetDialer(ctx context.Context, cfg KubeSessionConfig) client.Con
 func handleResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {
 	streamResizes := stream.ResizeQueue()
 	terminalResizes := term.Subscribe()
-	defer func() {
-		stream.Close()
-	}()
+	defer stream.Close()
 	for {
 		select {
 		case <-ctx.Done():
