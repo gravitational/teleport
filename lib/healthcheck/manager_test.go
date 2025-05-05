@@ -35,6 +35,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -100,13 +101,14 @@ func TestNewManager(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			mgr, err := NewManager(test.cfg)
+			mgr, err := NewManager(context.Background(), test.cfg)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Nil(t, mgr)
 				return
 			}
 			require.NoError(t, err)
+			require.NoError(t, mgr.Close())
 			require.NotNil(t, mgr)
 		})
 	}
@@ -131,7 +133,7 @@ func TestManager(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	eventsCh := make(chan testEvent, 1024)
-	mgr, err := NewManager(ManagerConfig{
+	mgr, err := NewManager(ctx, ManagerConfig{
 		Component:               "test",
 		Events:                  local.NewEventsService(bk),
 		HealthCheckConfigReader: healthConfigSvc,
@@ -139,6 +141,9 @@ func TestManager(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, mgr.Start(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, mgr.Close())
+	})
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		mgr := mgr.(*manager)
@@ -250,7 +255,7 @@ func TestManager(t *testing.T) {
 		denyAll(devDB.GetName()),
 	)
 	requireTargetHealth(t, devDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
-	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonInit)
+	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// another check should reach the prodHCC configured threshold.
 	awaitTestEvents(t, eventsCh, clock,
@@ -291,7 +296,7 @@ func TestManager(t *testing.T) {
 		expect(devFail, prodFail),
 		deny(prodPass, devPass),
 	)
-	requireTargetHealth(t, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonInit)
+	requireTargetHealth(t, devDB, types.TargetHealthStatusUnhealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// the next dev check should update health status because the unhealthy threshold was met
 	awaitTestEvents(t, eventsCh, clock,
@@ -389,7 +394,10 @@ func healthCheckConfigFixture(t *testing.T, name string) *healthcheckconfigv1.He
 	out, err := healthcheckconfig.NewHealthCheckConfig(name,
 		&healthcheckconfigv1.HealthCheckConfigSpec{
 			Match: &healthcheckconfigv1.Matcher{
-				DbLabelsExpression: `labels["*"] == "*"`,
+				DbLabels: []*labelv1.Label{{
+					Name:   types.Wildcard,
+					Values: []string{types.Wildcard},
+				}},
 			},
 			Interval:           durationpb.New(apidefaults.HealthCheckInterval),
 			Timeout:            durationpb.New(apidefaults.HealthCheckTimeout),

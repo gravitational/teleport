@@ -49,6 +49,8 @@ type Manager interface {
 	RemoveTarget(r types.ResourceWithLabels) error
 	// GetTargetHealth returns the health of a given resource.
 	GetTargetHealth(r types.ResourceWithLabels) (*types.TargetHealth, error)
+	// Close closes the health check manager and stops all health checkers.
+	Close() error
 }
 
 // ManagerConfig is the configuration options for [Manager].
@@ -81,31 +83,29 @@ func (c *ManagerConfig) checkAndSetDefaults() error {
 }
 
 // NewManager creates a new unstarted health check [Manager].
-func NewManager(cfg ManagerConfig) (Manager, error) {
-	mgr, err := newManager(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return mgr, nil
-}
-
-func newManager(cfg ManagerConfig) (*manager, error) {
+func NewManager(ctx context.Context, cfg ManagerConfig) (Manager, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(ctx)
 	mgr := &manager{
-		cfg:     cfg,
-		logger:  slog.With(teleport.ComponentKey, cfg.Component),
-		workers: make(map[resourceKey]*worker),
+		closeContext: ctx,
+		closeFn:      cancel,
+		cfg:          cfg,
+		logger:       slog.With(teleport.ComponentKey, cfg.Component),
+		initCh:       make(chan struct{}),
+		workers:      make(map[resourceKey]*worker),
 	}
 	return mgr, nil
 }
 
 // manager implements [Manager].
 type manager struct {
-	cfg           ManagerConfig
-	configWatcher *services.HealthCheckConfigWatcher
-	logger        *slog.Logger
+	cfg          ManagerConfig
+	closeContext context.Context
+	closeFn      context.CancelFunc
+	initCh       chan struct{}
+	logger       *slog.Logger
 
 	// mu guards concurrent access to the monitored health check configs and
 	// target resource workers.
@@ -143,6 +143,17 @@ func (m *manager) Start(ctx context.Context) error {
 	return nil
 }
 
+func (m *manager) waitForInit(ctx context.Context) error {
+	select {
+	case <-m.initCh:
+		return nil
+	case <-m.closeContext.Done():
+		return trace.Wrap(m.closeContext.Err())
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
 // supportedTargetKinds is a list of resource kinds that support health checks.
 var supportedTargetKinds = []string{
 	types.KindDatabase,
@@ -158,6 +169,9 @@ func (m *manager) AddTarget(ctx context.Context, target Target) error {
 		return trace.BadParameter("health check target resource kind %q is not supported", resource.GetKind())
 	}
 
+	if err := m.waitForInit(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	key := newResourceKey(resource)
@@ -213,6 +227,20 @@ func (m *manager) GetTargetHealth(r types.ResourceWithLabels) (*types.TargetHeal
 	return worker.GetTargetHealth(), nil
 }
 
+// Close closes the health check manager and stops all health checkers.
+func (m *manager) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.closeFn()
+	var errors []error
+	for _, w := range m.workers {
+		errors = append(errors, w.Close())
+	}
+	clear(m.workers)
+	clear(m.configs)
+	return trace.NewAggregate(errors...)
+}
+
 // startConfigWatcher starts a watcher for health check config resources.
 func (m *manager) startConfigWatcher(ctx context.Context) error {
 	watcher, err := services.NewHealthCheckConfigWatcher(ctx,
@@ -229,8 +257,8 @@ func (m *manager) startConfigWatcher(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	m.configWatcher = watcher
 	m.logger.DebugContext(ctx, "Started health check config resource watcher")
+	var initOnce sync.Once
 	go func() {
 		defer watcher.Close()
 		defer m.logger.DebugContext(ctx, "Stopped health check config resource watcher")
@@ -238,7 +266,10 @@ func (m *manager) startConfigWatcher(ctx context.Context) error {
 			select {
 			case configs := <-watcher.ResourcesC:
 				m.updateConfigs(ctx, configs)
+				initOnce.Do(func() { close(m.initCh) })
 			case <-watcher.Done():
+				return
+			case <-m.closeContext.Done():
 				return
 			}
 		}
@@ -269,12 +300,18 @@ func (m *manager) updateConfigs(ctx context.Context, cs []*healthcheckconfigv1.H
 // The config for a worker may change if its target resource labels change
 // dynamically.
 func (m *manager) startWorkerUpdater(ctx context.Context) {
-	updateInterval := interval.New(interval.Config{
-		Duration: time.Minute,
-		Jitter:   retryutils.SeventhJitter,
-		Clock:    m.cfg.Clock,
-	})
 	go func() {
+		if err := m.waitForInit(ctx); err != nil {
+			m.logger.ErrorContext(ctx, "Failed to start health check worker updater",
+				"error", err,
+			)
+			return
+		}
+		updateInterval := interval.New(interval.Config{
+			Duration: time.Minute,
+			Jitter:   retryutils.SeventhJitter,
+			Clock:    m.cfg.Clock,
+		})
 		defer updateInterval.Stop()
 		for {
 			select {
@@ -283,6 +320,8 @@ func (m *manager) startWorkerUpdater(ctx context.Context) {
 				m.updateWorkersLocked(ctx)
 				m.mu.Unlock()
 			case <-ctx.Done():
+				return
+			case <-m.closeContext.Done():
 				return
 			}
 		}
