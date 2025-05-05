@@ -196,6 +196,14 @@ At the moment it's not possible to enable debug logs in the VNet daemon.
 
 {/* TODO: DELETE IN 21.0.0 */}
 Before version 18.0.0, VNet logs were saved in `/var/log/vnet.log`.
+
+If the error is related to Teleport Connect not being able to start VNet or issues with code
+signing, searching through `/var/log/com.apple.xpc.launchd/launchd.log` for `tsh` soon after
+attempting to start VNet might also bring up relevant information:
+
+```code
+$ grep tsh /var/log/com.apple.xpc.launchd/launchd.log
+```
 </TabItem>
 <TabItem label="Windows">
 Logs are saved to a custom log in Event Log called Teleport. To browse them, open [Event
