@@ -230,21 +230,13 @@ func (s *AutoUpdateService) DeleteAutoUpdateAgentRollout(ctx context.Context) er
 // ListAutoUpdateAgentReports returns a paginated list of AutoUpdateAgentReport resources.
 func (s *AutoUpdateService) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error) {
 	agentReports, nextKey, err := s.report.ListResources(ctx, pageSize, pageToken)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return agentReports, nextKey, nil
+	return agentReports, nextKey, trace.Wrap(err)
 }
 
 // GetAutoUpdateAgentReport returns the specified AutoUpdateAgentReport resource.
 func (s *AutoUpdateService) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error) {
 	agentReport, err := s.report.GetResource(ctx, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return agentReport, nil
+	return agentReport, trace.Wrap(err)
 }
 
 // CreateAutoUpdateAgentReport creates a new AutoUpdateAgentReport resource.
