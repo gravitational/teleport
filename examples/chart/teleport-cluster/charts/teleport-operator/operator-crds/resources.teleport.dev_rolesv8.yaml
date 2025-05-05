@@ -304,6 +304,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  mcp:
+                    description: MCPPermissions defines MCP servers related permissions.
+                    nullable: true
+                    properties:
+                      tools:
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -892,6 +902,16 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  mcp:
+                    description: MCPPermissions defines MCP servers related permissions.
+                    nullable: true
+                    properties:
+                      tools:
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true

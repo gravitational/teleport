@@ -64,6 +64,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
 |logins|[]string|Logins is a list of *nix system logins.|
+|mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specallowrequest)||
@@ -122,6 +123,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.allow.mcp
+
+|Field|Type|Description|
+|---|---|---|
+|tools|[]string||
 
 ### spec.allow.request
 
@@ -245,6 +252,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
 |logins|[]string|Logins is a list of *nix system logins.|
+|mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specdenyrequest)||
@@ -303,6 +311,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.deny.mcp
+
+|Field|Type|Description|
+|---|---|---|
+|tools|[]string||
 
 ### spec.deny.request
 
@@ -529,6 +543,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
 |logins|[]string|Logins is a list of *nix system logins.|
+|mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specallowrequest)||
@@ -587,6 +602,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.allow.mcp
+
+|Field|Type|Description|
+|---|---|---|
+|tools|[]string||
 
 ### spec.allow.request
 
@@ -710,6 +731,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
 |logins|[]string|Logins is a list of *nix system logins.|
+|mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specdenyrequest)||
@@ -768,6 +790,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.deny.mcp
+
+|Field|Type|Description|
+|---|---|---|
+|tools|[]string||
 
 ### spec.deny.request
 
