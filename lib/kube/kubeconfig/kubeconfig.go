@@ -139,29 +139,44 @@ func Update(path string, v Values, storeAllCAs bool) error {
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
 func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
-	contextTmpl, err := parseContextOverrideTemplate(v.OverrideContext)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	config, err := LoadConfig(path, fs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	c, err := GenerateConfig(config, v, storeAllCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return SaveConfig(path, *c, fs)
+}
+
+func GenerateConfig(config *clientcmdapi.Config, v Values, storeAllCAs bool) (*clientcmdapi.Config, error) {
+	if config == nil {
+		config = clientcmdapi.NewConfig()
+	}
+
 	var clusterCAs [][]byte
+	var err error
 	if storeAllCAs {
 		clusterCAs = v.Credentials.TLSCAs()
 	} else {
 		clusterCAs, err = v.Credentials.RootClusterCAs()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
+	}
+
+	contextTmpl, err := parseContextOverrideTemplate(v.OverrideContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	cas := bytes.Join(clusterCAs, []byte("\n"))
 	if len(cas) == 0 {
-		return trace.BadParameter("TLS trusted CAs missing in provided credentials")
+		return nil, trace.BadParameter("TLS trusted CAs missing in provided credentials")
 	}
 	config.Clusters[v.TeleportClusterName] = &clientcmdapi.Cluster{
 		Server:                   v.ClusterAddr,
@@ -184,7 +199,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 			authName := contextName
 			if contextTmpl != nil {
 				if contextName, err = executeKubeContextTemplate(contextTmpl, v.TeleportClusterName, c); err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 			}
 			execArgs := []string{
@@ -218,11 +233,11 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 			contextName := ContextName(v.TeleportClusterName, v.SelectCluster)
 			if contextTmpl != nil {
 				if contextName, err = executeKubeContextTemplate(contextTmpl, v.TeleportClusterName, v.SelectCluster); err != nil {
-					return trace.Wrap(err)
+					return nil, trace.Wrap(err)
 				}
 			}
 			if _, ok := config.Contexts[contextName]; !ok {
-				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
+				return nil, trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
 			}
 			setSelectedExtension(config.Contexts, config.CurrentContext, v.TeleportClusterName)
 			config.CurrentContext = contextName
@@ -233,7 +248,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 		// It is a limitation because the certificate embeds the cluster name, and
 		// Teleport relies on it to forward requests to the correct cluster.
 		if len(v.KubeClusters) > 1 {
-			return trace.BadParameter("Multi-cluster mode not supported when using Credentials")
+			return nil, trace.BadParameter("Multi-cluster mode not supported when using Credentials")
 		}
 
 		clusterName := v.TeleportClusterName
@@ -254,7 +269,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 		keyPEM, err := v.Credentials.TLSPrivateKey.SoftwarePrivateKeyPEM()
 		if err == nil {
 			if len(v.Credentials.TLSCert) == 0 {
-				return trace.BadParameter("TLS certificate missing in provided credentials")
+				return nil, trace.BadParameter("TLS certificate missing in provided credentials")
 			}
 
 			config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
@@ -265,12 +280,12 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 			setSelectedExtension(config.Contexts, config.CurrentContext, clusterName)
 			config.CurrentContext = contextName
 		} else if !trace.IsBadParameter(err) {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		log.WarnContext(context.Background(), "Kubernetes integration is not supported when logging in with a hardware private key", "error", err)
 	}
 
-	return SaveConfig(path, *config, fs)
+	return config, nil
 }
 
 func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth, kubeName, namespace string) {
