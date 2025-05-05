@@ -24,7 +24,7 @@ import (
 	"os"
 	"testing"
 
-	pivgo "github.com/go-piv/piv-go/piv"
+	pivgo "github.com/go-piv/piv-go/v2/piv"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
