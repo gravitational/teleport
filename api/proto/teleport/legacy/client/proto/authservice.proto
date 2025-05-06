@@ -2098,6 +2098,17 @@ message ListUnifiedResourcesRequest {
   bool IncludeLogins = 12 [(gogoproto.jsontag) = "include_logins,omitempty"];
   // IncludeRequestable indicates that the response should include resources that the user must request access to.
   bool IncludeRequestable = 14 [(gogoproto.jsontag) = "include_proto,omitempty"];
+  // HealthStatuses is a list of requested health statuses where:
+  //  - unhealthy: return resources with health state == unhealthy
+  //  - healthy: return resources with health state == healthy
+  //  - unknown: return resources with health state == unknown or state == ""
+  //  - empty list: no health status filters are applied.
+  //
+  // If there's more than one status requested, it's whichever status matches first.
+  //
+  // Note: Currenly only supported for db_servers. If statuses are requested for
+  // unsupported kinds, no results for that unsupported kind will return.
+  repeated string HealthStatuses = 15 [(gogoproto.jsontag) = "health_statuses,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.

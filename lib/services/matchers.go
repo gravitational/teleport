@@ -292,6 +292,8 @@ type MatchResourceFilter struct {
 	// It will filter out any kind not present in the list. If the list is not present or empty
 	// then all kinds are valid and will be returned (still subject to other included filters)
 	Kinds []string
+	// HealthStatusMap is used to match against resource health status.
+	HealthStatusMap map[string]string
 }
 
 // IsSimple is used to short-circuit matching when a filter doesn't specify anything more
