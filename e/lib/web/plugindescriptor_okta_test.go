@@ -928,7 +928,7 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 				"orgURL":    {oktaTestOrg},
 				"scimToken": {oktaSCIMToken},
 			},
-			expectedPattern: "either request credentials or plugin credential ref missing",
+			expectedPattern: "Okta API credentials not provided in the request and Okta plugin does not exist",
 		}, {
 			name: "missing-scim-token",
 			form: url.Values{

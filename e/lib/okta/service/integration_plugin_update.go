@@ -24,7 +24,7 @@ func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIn
 	}
 
 	if oktaSpec.SyncSettings.AppId == "" {
-		if err := s.updateOktaAppID(ctx, req, oktaSpec, plugin); err != nil && req.GetEnableUserSync() {
+		if err := s.updateOktaAppID(ctx, req, plugin); err != nil && req.GetEnableUserSync() {
 			// On init, if UserSync is enabled but AppId is not set, the integration will fail to start,
 			// so we shouldn't allow continuing here.
 			return trace.BadParameter("Could not fetch info about your Okta SAML application. Verify your API Services application in Okta has all necessary scopes granted and can access your SAML application as part of the defined resource set.")
@@ -50,29 +50,24 @@ func (s *Service) updatePluginOktaSpec(ctx context.Context, req *oktapb.UpdateIn
 	return nil
 }
 
-func (s *Service) updateOktaAppID(ctx context.Context, req *oktapb.UpdateIntegrationRequest, pluginSpec *types.PluginOktaSettings, plugin types.Plugin) error {
-	params := createOktaClientParams{
-		requestCreds:         req.GetApiCredentials(),
-		orgUrl:               pluginSpec.OrgUrl,
-		pluginStaticCredsRef: plugin.GetCredentials().GetStaticCredentialsRef(),
-	}
-
-	appId, err := s.fetchOktaAppIdFromConnector(ctx, params, pluginSpec.SyncSettings.SsoConnectorId)
+func (s *Service) updateOktaAppID(ctx context.Context, req *oktapb.UpdateIntegrationRequest, plugin *types.PluginV1) error {
+	appId, err := s.fetchOktaAppIdFromConnector(ctx, req, plugin)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	pluginSpec.SyncSettings.AppId = appId
+	plugin.Spec.GetOkta().SyncSettings.AppId = appId
 	return nil
 }
 
-func (s *Service) fetchOktaAppIdFromConnector(ctx context.Context, createOktaClientParams createOktaClientParams, connectorId string) (appId string, err error) {
-	oktaClient, err := s.createOktaClient(ctx, createOktaClientParams)
+func (s *Service) fetchOktaAppIdFromConnector(ctx context.Context, req *oktapb.UpdateIntegrationRequest, plugin *types.PluginV1) (appId string, err error) {
+	oktaClient, err := s.createOktaClient(ctx, newUpdateIntegrationRequestWithOrgURL(req, plugin), plugin)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	connector, err := s.authService.GetSAMLConnector(ctx, connectorId, false)
+	connectorID := plugin.Spec.GetOkta().GetSyncSettings().SsoConnectorId
+	connector, err := s.authService.GetSAMLConnector(ctx, connectorID, false)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

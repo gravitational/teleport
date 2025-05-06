@@ -73,7 +73,7 @@ func (s *Service) pluginInstallCreateSAMLConnector(ctx context.Context, req *okt
 		}
 		return connInfo, nil
 	}
-	oktaClient, err := s.createOktaClientForPluginInstall(ctx, req, nil)
+	oktaClient, err := s.createOktaClient(ctx, req, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,7 +106,7 @@ func (s *Service) pluginInstallReuseExistingSAMLConnector(ctx context.Context, r
 		}
 		return connInfo, nil
 	}
-	oktaClient, err := s.createOktaClientForPluginInstall(ctx, req, samlConnector)
+	oktaClient, err := s.createOktaClient(ctx, req, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,11 +201,7 @@ func (s *Service) setAppId(ctx context.Context, info *sso.SAMLConnectorInfo, req
 		return trace.BadParameter("Okta organization URL missing in the create integration request")
 	}
 
-	createOktaClientParams := createOktaClientParams{
-		requestCreds: req.GetApiCredentials(),
-		orgUrl:       req.GetOktaOrganizationUrl(),
-	}
-	oktaClient, err := s.createOktaClient(ctx, createOktaClientParams)
+	oktaClient, err := s.createOktaClient(ctx, req, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}

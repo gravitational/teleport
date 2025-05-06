@@ -56,30 +56,36 @@ func buildCredentialsInfo(creds []*types.PluginStaticCredentialsV1) *types.Plugi
 	return &out
 }
 
-type createOktaClientParams struct {
-	orgUrl               string
-	requestCreds         *oktapb.OktaAPICredentials
-	pluginStaticCredsRef *types.PluginStaticCredentialsRef
-}
-
-// createOktaClient creates Okta client from the request payload or saved credentials.
-// This function is shared function between Create and Update plugin flow.
-// The credentials from the request payload have higher priority than the saved credentials
-// to support the case when the user wants to update the Okta credentials.
-func (s *Service) createOktaClient(ctx context.Context, params createOktaClientParams) (oktaapi.Interface, error) {
-	if params.orgUrl == "" {
-		return nil, trace.BadParameter("missing Okta organization URL")
-	}
-
+// createOktaClient creates Okta client from the request payload or saved credentials. The
+// credentials from the request payload have higher priority than the stored plugin credentials. If
+// the client can't be created from the request and plugin are nil then createOktaClient will make
+// an attempt to fetch the plugin from the backend.
+func (s *Service) createOktaClient(ctx context.Context, req requestWithCredentials, plugin *types.PluginV1) (oktaapi.Interface, error) {
+	var orgURL string
 	var selectedCreds oktaplugin.SelectedOktaCredentials
 	switch {
-	case params.requestCreds != nil:
-		selectedCreds = oktaplugin.SelectedOktaCredentials{
-			OauthClientId: params.requestCreds.GetOauthId(),
-			ApiToken:      params.requestCreds.GetSswsBearerToken(),
+	case req != nil && req.GetApiCredentials() != nil:
+		if req.GetOktaOrganizationUrl() == "" {
+			return nil, trace.BadParameter("request has credentials but no Okta org URL")
 		}
-	case params.pluginStaticCredsRef != nil:
-		staticCreds, err := oktaplugin.GetStaticCredentials(ctx, s.credsBackend, params.pluginStaticCredsRef)
+		orgURL = req.GetOktaOrganizationUrl()
+		selectedCreds = oktaplugin.SelectedOktaCredentials{
+			OauthClientId: req.GetApiCredentials().GetOauthId(),
+			ApiToken:      req.GetApiCredentials().GetSswsBearerToken(),
+		}
+	case plugin == nil:
+		var err error
+		plugin, err = oktaplugin.Get(ctx, s.pluginBackend, true /* withSecrets */)
+		if trace.IsNotFound(err) {
+			return nil, trace.BadParameter("Okta API credentials not provided in the request and Okta plugin does not exist")
+		} else if err != nil {
+			return nil, trace.Wrap(err, "getting Okta plugin")
+		}
+		fallthrough
+	default:
+		orgURL = plugin.Spec.GetOkta().OrgUrl
+		staticCredsRef := plugin.GetCredentials().GetStaticCredentialsRef()
+		staticCreds, err := oktaplugin.GetStaticCredentials(ctx, s.credsBackend, staticCredsRef)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -87,8 +93,6 @@ func (s *Service) createOktaClient(ctx context.Context, params createOktaClientP
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	default:
-		return nil, trace.BadParameter("either request credentials or plugin credential ref missing")
 	}
 
 	var authProvider oktaapi.AuthProvider
@@ -111,7 +115,7 @@ func (s *Service) createOktaClient(ctx context.Context, params createOktaClientP
 			Transport: s.roundTripper,
 			Timeout:   defaults.HTTPRequestTimeout,
 		},
-		OrgUrl:       params.orgUrl,
+		OrgUrl:       orgURL,
 		AuthProvider: authProvider,
 		Log:          s.logger,
 	})

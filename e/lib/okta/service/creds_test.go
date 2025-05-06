@@ -17,7 +17,7 @@ import (
 // Verifies that if plugin credentials are used then the Okta org URL is also taken from plugin. To
 // mitigate the potential issue of capturing exiting Okta API token from the plugin by providing a
 // malicious org URL.
-func Test_createOktaClientForCache_orgUrl(t *testing.T) {
+func Test_createOktaClient_orgUrl(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -26,9 +26,7 @@ func Test_createOktaClientForCache_orgUrl(t *testing.T) {
 	maliciousOrgUrl := "https://evil.okta.example.com"
 	goodOrgUrl := "https://good.okta.example.com"
 
-	plugin := oktatest.NewPlugin(t)
-	// TODO(kopiczko) replace with oktatest.WithOrgUrl(goodOrgUrl) when implemented in OSS
-	plugin.Spec.GetOkta().OrgUrl = goodOrgUrl
+	plugin := oktatest.NewPlugin(t, oktatest.WithOrgURL(goodOrgUrl))
 	oktatest.UpsertPlugin(t, svc.pluginBackend, plugin)
 
 	staticCreds := oktatest.NewPluginStaticCredentials(t, plugin,
@@ -36,9 +34,11 @@ func Test_createOktaClientForCache_orgUrl(t *testing.T) {
 	)
 	oktatest.UpsertPluginStaticCredentials(t, svc.credsBackend, staticCreds)
 
-	client, err := svc.createOktaClientForCache(ctx, &oktav1.GetAppsRequest{
-		OktaOrganizationUrl: maliciousOrgUrl,
-	})
+	req := &oktav1.GetAppsRequest{
+		ApiCredentials:      nil,             // no API credentials
+		OktaOrganizationUrl: maliciousOrgUrl, // but malicious org URL trying to intercept the credentials from the plugin
+	}
+	client, err := svc.createOktaClient(ctx, req, nil)
 	require.NoError(t, err)
 	require.NotEqual(t, maliciousOrgUrl, client.GetOrgUrl())
 	require.Equal(t, goodOrgUrl, client.GetOrgUrl())
