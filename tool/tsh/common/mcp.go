@@ -825,7 +825,7 @@ as "start_key"" in the next call for pagination.
 
 	mcpServer.AddTool(
 		mcp.NewTool(
-			"teleport_access_request",
+			"teleport_create_access_request",
 			mcp.WithDescription(`Create Teleport access request.
 
 The tool takes a mandatory "role" parameter that indicates a Teleport role
@@ -857,6 +857,34 @@ an access request should be submitted for.
 				return nil, trace.Wrap(err)
 			}
 
+			return mcp.NewToolResultText(string(result)), nil
+		},
+	)
+
+	mcpServer.AddTool(
+		mcp.NewTool(
+			"teleport_list_access_request",
+			mcp.WithDescription(`List Teleport access request and show their details.
+
+The proposed_state has the following possible values:
+NONE = 0, PENDING = 1, APPROVED = 2, DENIED = 3, PROMOTED = 4
+`),
+			mcp.WithString("id", mcp.Description("Optional id to filter requests by")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			filter := types.AccessRequestFilter{}
+			id, ok := request.Params.Arguments["id"].(string)
+			if ok && id != "" {
+				filter.ID = id
+			}
+			resp, err := authClient.GetAccessRequests(ctx, filter)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			result, err := json.Marshal(resp)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			return mcp.NewToolResultText(string(result)), nil
 		},
 	)
