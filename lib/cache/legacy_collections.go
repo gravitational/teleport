@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
-	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -101,11 +100,9 @@ type legacyCollections struct {
 	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
 	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
-	userTasks                          collectionReader[userTasksGetter]
 	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
-	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
@@ -152,15 +149,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
-		case types.KindUserTask:
-			if c.UserTasks == nil {
-				return nil, trace.BadParameter("missing parameter user tasks")
-			}
-			collections.userTasks = &genericCollection[*usertasksv1.UserTask, userTasksGetter, userTasksExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.userTasks
 		case types.KindDiscoveryConfig:
 			if c.DiscoveryConfigs == nil {
 				return nil, trace.BadParameter("missing parameter DiscoveryConfigs")
@@ -188,12 +176,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.secReportsStates = &genericCollection[*secreports.ReportState, services.SecurityReportStateGetter, secReportStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.secReportsStates
-		case types.KindUserLoginState:
-			if c.UserLoginStates == nil {
-				return nil, trace.BadParameter("missing parameter UserLoginStates")
-			}
-			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
-			collections.byKind[resourceKind] = collections.userLoginStates
 		case types.KindKubeWaitingContainer:
 			if c.KubeWaitingContainers == nil {
 				return nil, trace.BadParameter("missing parameter KubeWaitingContainers")
@@ -605,51 +587,6 @@ type staticHostUserGetter interface {
 	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
 }
 
-type userTasksExecutor struct{}
-
-func (userTasksExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*usertasksv1.UserTask, error) {
-	var resources []*usertasksv1.UserTask
-	var nextToken string
-	for {
-		var page []*usertasksv1.UserTask
-		var err error
-		page, nextToken, err = cache.UserTasks.ListUserTasks(ctx, 0 /* page size */, nextToken, &usertasksv1.ListUserTasksFilters{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
-}
-
-func (userTasksExecutor) upsert(ctx context.Context, cache *Cache, resource *usertasksv1.UserTask) error {
-	_, err := cache.userTasksCache.UpsertUserTask(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (userTasksExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.userTasksCache.DeleteAllUserTasks(ctx)
-}
-
-func (userTasksExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.userTasksCache.DeleteUserTask(ctx, resource.GetName())
-}
-
-func (userTasksExecutor) isSingleton() bool { return false }
-
-func (userTasksExecutor) getReader(cache *Cache, cacheOK bool) userTasksGetter {
-	if cacheOK {
-		return cache.userTasksCache
-	}
-	return cache.Config.UserTasks
-}
-
-var _ executor[*usertasksv1.UserTask, userTasksGetter] = userTasksExecutor{}
-
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {
 	legacyCollection
@@ -873,34 +810,3 @@ func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
 }
 
 var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}
-
-type userLoginStateExecutor struct{}
-
-func (userLoginStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
-	resources, err := cache.UserLoginStates.GetUserLoginStates(ctx)
-	return resources, trace.Wrap(err)
-}
-
-func (userLoginStateExecutor) upsert(ctx context.Context, cache *Cache, resource *userloginstate.UserLoginState) error {
-	_, err := cache.userLoginStateCache.UpsertUserLoginState(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (userLoginStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.userLoginStateCache.DeleteAllUserLoginStates(ctx)
-}
-
-func (userLoginStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.userLoginStateCache.DeleteUserLoginState(ctx, resource.GetName())
-}
-
-func (userLoginStateExecutor) isSingleton() bool { return false }
-
-func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.UserLoginStatesGetter {
-	if cacheOK {
-		return cache.userLoginStateCache
-	}
-	return cache.Config.UserLoginStates
-}
-
-var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}

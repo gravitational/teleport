@@ -29,9 +29,11 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -113,6 +115,8 @@ type collections struct {
 	locks                            *collection[types.Lock, lockIndex]
 	tunnelConnections                *collection[types.TunnelConnection, tunnelConnectionIndex]
 	remoteClusters                   *collection[types.RemoteCluster, remoteClusterIndex]
+	userTasks                        *collection[*usertasksv1.UserTask, userTaskIndex]
+	userLoginStates                  *collection[*userloginstate.UserLoginState, userLoginStateIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -449,6 +453,7 @@ func setupCollections(c Config) (*collections, error) {
 
 				out.samlIdPSessions = collect
 				out.byKind[resourceKind] = out.samlIdPSessions
+
 			case types.KindWebSession:
 				collect, err := newWebSessionCollection(c.WebSession, watch)
 				if err != nil {
@@ -570,6 +575,22 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.remoteClusters = collect
 			out.byKind[resourceKind] = out.remoteClusters
+		case types.KindUserTask:
+			collect, err := newUserTaskCollection(c.UserTasks, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userTasks = collect
+			out.byKind[resourceKind] = out.userTasks
+		case types.KindUserLoginState:
+			collect, err := newUserLoginStateCollection(c.UserLoginStates, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userLoginStates = collect
+			out.byKind[resourceKind] = out.userLoginStates
 		}
 	}
 
