@@ -447,13 +447,21 @@ func (ns *Namespace) ReplaceTeleportService(cfg []byte, pathDir string, flags au
 			new: ns.pidFile,
 		},
 		{
-			old: " start ",
-			new: " start " + strings.Join(startFlags, " ") + " ",
+			old: "/teleport start ",
+			new: "/teleport start " + joinTerminal(startFlags, " "),
 		},
 	} {
 		cfg = bytes.ReplaceAll(cfg, []byte(rep.old), []byte(rep.new))
 	}
 	return cfg
+}
+
+func joinTerminal(s []string, sep string) string {
+	v := strings.Join(s, sep)
+	if len(v) > 0 {
+		return v + sep
+	}
+	return v
 }
 
 func (ns *Namespace) LogWarnings(ctx context.Context, pathDir string) {
