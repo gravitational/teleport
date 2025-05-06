@@ -393,7 +393,7 @@ func TestReplaceTeleportService(t *testing.T) {
 
 	const defaultService = `
 [Unit]
-Description=Teleport Service FIPS
+Description=Teleport Service
 After=network.target
 
 [Service]
