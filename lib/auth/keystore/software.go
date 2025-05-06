@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
+const softwareHash = crypto.SHA256
+
 type softwareKeyStore struct {
 	rsaKeyPairSource RSAKeyPairSource
 }
@@ -79,16 +81,25 @@ func (s *softwareKeyStore) generateSigner(ctx context.Context, alg cryptosuites.
 	return privateKeyPEM, signer, trace.Wrap(err)
 }
 
-// softwareDecrypter captures and supplies the default opts that should be provided
+// oaepDecrypter captures and supplies the default opts that should be provided
 // at decryption time for convenience
-type softwareDecrypter struct {
+type oaepDecrypter struct {
 	crypto.Decrypter
-	opts crypto.DecrypterOpts
+	hash crypto.Hash
 }
 
-func (d softwareDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.DecrypterOpts) ([]byte, error) {
+func newOAEPDecrypter(hash crypto.Hash, decrypter crypto.Decrypter) oaepDecrypter {
+	return oaepDecrypter{
+		Decrypter: decrypter,
+		hash:      hash,
+	}
+}
+
+func (d oaepDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.DecrypterOpts) ([]byte, error) {
 	if opts == nil {
-		opts = d.opts
+		opts = &rsa.OAEPOptions{
+			Hash: d.hash,
+		}
 	}
 
 	plaintext, err := d.Decrypter.Decrypt(rand, ciphertext, opts)
@@ -98,28 +109,23 @@ func (d softwareDecrypter) Decrypt(rand io.Reader, ciphertext []byte, opts crypt
 // generateDecrypter creates a new private key and returns its identifier and a [crypto.Decrypter]. The returned
 // identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getDecrypter later to get
 // an equivalent crypto.Decrypter.
-func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, error) {
+func (s *softwareKeyStore) generateDecrypter(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
 	key, err := cryptosuites.GenerateDecrypterWithAlgorithm(alg)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	decrypter := softwareDecrypter{
-		Decrypter: key,
-	}
-
+	var decrypter crypto.Decrypter = key
 	if alg == cryptosuites.RSA2048 {
-		decrypter.opts = &rsa.OAEPOptions{
-			Hash: crypto.SHA256,
-		}
+		decrypter = newOAEPDecrypter(softwareHash, decrypter)
 	}
 
 	privateKeyPEM, err := keys.MarshalDecrypter(key)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, softwareHash, trace.Wrap(err)
 	}
 
-	return privateKeyPEM, decrypter, trace.Wrap(err)
+	return privateKeyPEM, decrypter, softwareHash, trace.Wrap(err)
 }
 
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
@@ -128,7 +134,7 @@ func (s *softwareKeyStore) getSigner(ctx context.Context, rawKey []byte, publicK
 }
 
 // getDecrypter returns a crypto.Decrypter for the given pem-encoded private key.
-func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Decrypter, error) {
+func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	privateKey, err := keys.ParsePrivateKey(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -139,10 +145,7 @@ func (s *softwareKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publ
 		return nil, trace.Errorf("unsupported encryption key type %T", privateKey.Signer)
 	}
 
-	return softwareDecrypter{
-		Decrypter: decrypter,
-		opts:      &rsa.OAEPOptions{Hash: crypto.SHA256},
-	}, nil
+	return newOAEPDecrypter(softwareHash, decrypter), nil
 }
 
 // canSignWithKey returns true if the given key is a raw key.
@@ -156,7 +159,7 @@ func (s *softwareKeyStore) canDecryptWithKey(ctx context.Context, rawKey []byte,
 		return false, nil
 	}
 
-	if _, err := s.getDecrypter(ctx, rawKey, nil); err != nil {
+	if _, err := s.getDecrypter(ctx, rawKey, nil, softwareHash); err != nil {
 		return false, nil
 	}
 

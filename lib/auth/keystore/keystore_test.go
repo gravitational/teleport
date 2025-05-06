@@ -349,7 +349,8 @@ func TestManager(t *testing.T) {
 
 			// Try encrypting and decrypting some data
 			msg := []byte("teleport")
-			ciphertext, err := keys.EncryptWithPublicKeyPEM(encKeyPair.PublicKey, msg)
+			require.NoError(t, err)
+			ciphertext, err := encKeyPair.EncryptOAEP(msg)
 			require.NoError(t, err)
 
 			plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, nil)

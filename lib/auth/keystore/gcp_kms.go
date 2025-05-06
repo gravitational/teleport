@@ -47,6 +47,7 @@ const (
 	hostLabel                      = "teleport_auth_host"
 	gcpkmsPrefix                   = "gcpkms"
 	gcpKeySep                      = ":"
+	gcpHash                        = crypto.SHA256
 	defaultGCPRequestTimeout       = 30 * time.Second
 	defaultGCPPendingTimeout       = 2 * time.Minute
 	defaultGCPPendingRetryInterval = 5 * time.Second
@@ -164,17 +165,17 @@ func (g *gcpKMSKeyStore) generateSigner(ctx context.Context, algorithm cryptosui
 // generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
 // identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getDecrypter
 // later to get an equivalent crypto.Decrypter.
-func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, error) {
+func (g *gcpKMSKeyStore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
 	keyID, err := g.generateKeyID(ctx, algorithm, keyUsageDecrypt)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, gcpHash, trace.Wrap(err)
 	}
 
 	decrypter, err := g.newKmsKey(ctx, keyID)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, gcpHash, trace.Wrap(err)
 	}
-	return keyID.marshal(), decrypter, nil
+	return keyID.marshal(), decrypter, gcpHash, nil
 }
 
 func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
@@ -198,7 +199,7 @@ func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey
 }
 
 // getDecrypter returns a crypto.Decrypter for the given pem-encoded private key.
-func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Decrypter, error) {
+func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
