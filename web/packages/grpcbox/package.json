@@ -1,0 +1,8 @@
+{
+  "name": "@gravitational/grpcbox",
+  "license": "Apache-2.0",
+  "private": true,
+  "devDependencies": {
+    "@protobuf-ts/plugin": "^2.9.3"
+  }
+}
