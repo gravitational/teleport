@@ -7,7 +7,6 @@ toolchain go1.24.1
 require (
 	github.com/charlievieth/strcase v0.0.5
 	github.com/coreos/go-semver v0.3.1
-	github.com/go-piv/piv-go v1.11.0
 	github.com/go-piv/piv-go/v2 v2.3.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
@@ -54,3 +53,5 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/go-piv/piv-go/v2 => ../../../piv-go/v2
