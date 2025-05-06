@@ -177,7 +177,7 @@ class AuthSettings$Type extends MessageType<AuthSettings> {
     constructor() {
         super("teleport.lib.teleterm.v1.AuthSettings", [
             { no: 1, name: "local_auth_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "auth_providers", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => AuthProvider },
+            { no: 4, name: "auth_providers", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AuthProvider },
             { no: 5, name: "has_message_of_the_day", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 6, name: "auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "allow_passwordless", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
