@@ -253,6 +253,7 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 	}
 
 	start := accessListName
+	end := sortcache.NextKey(accessListName + "/")
 	if pageToken != "" {
 		start += "/" + pageToken
 	}
@@ -262,7 +263,7 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 	}
 
 	var out []*accesslist.AccessListMember
-	for member := range rg.store.resources(accessListMemberNameIndex, start, "") {
+	for member := range rg.store.resources(accessListMemberNameIndex, start, end) {
 		if len(out) == pageSize {
 			return out, accessListName + "/" + member.GetName(), nil
 		}
