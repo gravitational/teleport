@@ -214,7 +214,8 @@ When a join occurs via the Azure DevOps join method, the Join RPC shall:
 6. Validate that the issuer of the ID Token matches the value we would expect
    given the configured OrganizationID.
 7. Extract the claims from the ID Token.
-8. Validate these claims against the conf
+8. Validate these claims against the configured allow rules in the
+   ProvisionToken.
 
 ### UX
 
