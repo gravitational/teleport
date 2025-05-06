@@ -255,7 +255,7 @@ export function Preferences({
           <SingleRowBox>
             <Header
               title="Theme"
-              description="Choose if Teleport's Appearance should be light or dark, or follow your computer's settings."
+              description="Choose if Teleport's appearance should be light or dark, or follow your computer's settings."
               icon={<Icon.Desktop />}
               actions={
                 <Box>
@@ -351,6 +351,7 @@ export function Preferences({
                   value={layoutValue}
                   placeholder="Select Language/Country"
                   options={layoutOptions}
+                  aria-label="keyboard layout select"
                 />
               </Box>
             }
