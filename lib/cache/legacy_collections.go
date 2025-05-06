@@ -26,8 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -90,11 +88,9 @@ type legacyCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
 	byKind map[resourceKind]legacyCollection
 
-	auditQueries                       collectionReader[services.SecurityAuditQueryGetter]
-	secReports                         collectionReader[services.SecurityReportGetter]
-	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
-	provisioningStates                 collectionReader[provisioningStateGetter]
-	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
+	auditQueries     collectionReader[services.SecurityAuditQueryGetter]
+	secReports       collectionReader[services.SecurityReportGetter]
+	secReportsStates collectionReader[services.SecurityReportStateGetter]
 }
 
 // setupLegacyCollections returns a registry of legacyCollections.
@@ -131,28 +127,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.secReportsStates = &genericCollection[*secreports.ReportState, services.SecurityReportStateGetter, secReportStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.secReportsStates
-		case types.KindProvisioningPrincipalState:
-			if c.ProvisioningStates == nil {
-				return nil, trace.BadParameter("missing parameter KindProvisioningState")
-			}
-			collections.provisioningStates = &genericCollection[*provisioningv1.PrincipalState, provisioningStateGetter, provisioningStateExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.provisioningStates
-		case types.KindIdentityCenterPrincipalAssignment:
-			if c.IdentityCenter == nil {
-				return nil, trace.BadParameter("missing parameter IdentityCenter")
-			}
-			collections.identityCenterPrincipalAssignments = &genericCollection[
-				*identitycenterv1.PrincipalAssignment,
-				identityCenterPrincipalAssignmentGetter,
-				identityCenterPrincipalAssignmentExecutor,
-			]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.identityCenterPrincipalAssignments
 		default:
 			if _, ok := c.collections.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
