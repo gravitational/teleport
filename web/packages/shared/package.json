@@ -15,7 +15,7 @@
   "dependencies": {
     "@gravitational/design": "workspace:*",
     "@xterm/addon-search": "^0.15.0",
-    "ace-builds": "1.39.1",
+    "ace-builds": "1.41.0",
     "events": "3.3.0",
     "highlight-words-core": "^1.2.3"
   }
