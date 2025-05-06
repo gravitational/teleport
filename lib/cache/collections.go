@@ -21,13 +21,19 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -88,6 +94,29 @@ type collections struct {
 	autoUpdateConfig                 *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
 	autoUpdateVerion                 *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
 	autoUpdateRollout                *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
+	oktaImportRules                  *collection[types.OktaImportRule, oktaImportRuleIndex]
+	oktaAssignments                  *collection[types.OktaAssignment, oktaAssignmentIndex]
+	samlIdPServiceProviders          *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
+	samlIdPSessions                  *collection[types.WebSession, samlIdPSessionIndex]
+	webSessions                      *collection[types.WebSession, webSessionIndex]
+	appSessions                      *collection[types.WebSession, appSessionIndex]
+	snowflakeSessions                *collection[types.WebSession, snowflakeSessionIndex]
+	accessLists                      *collection[*accesslist.AccessList, accessListIndex]
+	accessListMembers                *collection[*accesslist.AccessListMember, accessListMemberIndex]
+	accessListReviews                *collection[*accesslist.Review, accessListReviewIndex]
+	crownJewels                      *collection[*crownjewelv1.CrownJewel, crownJewelIndex]
+	accessGraphSettings              *collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]
+	integrations                     *collection[types.Integration, integrationIndex]
+	pluginStaticCredentials          *collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]
+	accessMonitoringRules            *collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]
+	webTokens                        *collection[types.WebToken, webTokenIndex]
+	uiConfigs                        *collection[types.UIConfig, webUIConfigIndex]
+	installers                       *collection[types.Installer, installerIndex]
+	locks                            *collection[types.Lock, lockIndex]
+	tunnelConnections                *collection[types.TunnelConnection, tunnelConnectionIndex]
+	remoteClusters                   *collection[types.RemoteCluster, remoteClusterIndex]
+	userTasks                        *collection[*usertasksv1.UserTask, userTaskIndex]
+	userLoginStates                  *collection[*userloginstate.UserLoginState, userLoginStateIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -374,6 +403,194 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.autoUpdateRollout = collect
 			out.byKind[resourceKind] = out.autoUpdateRollout
+		case types.KindOktaImportRule:
+			collect, err := newOktaImportRuleCollection(c.Okta, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.oktaImportRules = collect
+			out.byKind[resourceKind] = out.oktaImportRules
+		case types.KindOktaAssignment:
+			collect, err := newOktaImportAssignmentCollection(c.Okta, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.oktaAssignments = collect
+			out.byKind[resourceKind] = out.oktaAssignments
+		case types.KindSAMLIdPServiceProvider:
+			collect, err := newSAMLIdPServiceProviderCollection(c.SAMLIdPServiceProviders, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.samlIdPServiceProviders = collect
+			out.byKind[resourceKind] = out.samlIdPServiceProviders
+		case types.KindWebSession:
+			switch watch.SubKind {
+			case types.KindAppSession:
+				collect, err := newAppSessionCollection(c.AppSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.appSessions = collect
+				out.byKind[resourceKind] = out.appSessions
+			case types.KindSnowflakeSession:
+				collect, err := newSnowflakeSessionCollection(c.SnowflakeSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.snowflakeSessions = collect
+				out.byKind[resourceKind] = out.snowflakeSessions
+			case types.KindSAMLIdPSession:
+				collect, err := newSAMLIdPSessionCollection(c.SAMLIdPSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.samlIdPSessions = collect
+				out.byKind[resourceKind] = out.samlIdPSessions
+
+			case types.KindWebSession:
+				collect, err := newWebSessionCollection(c.WebSession, watch)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out.webSessions = collect
+				out.byKind[resourceKind] = out.webSessions
+			}
+		case types.KindAccessList:
+			collect, err := newAccessListCollection(c.AccessLists, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessLists = collect
+			out.byKind[resourceKind] = out.accessLists
+		case types.KindAccessListMember:
+			collect, err := newAccessListMemberCollection(c.AccessLists, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessListMembers = collect
+			out.byKind[resourceKind] = out.accessListMembers
+		case types.KindAccessListReview:
+			collect, err := newAccessListReviewCollection(c.AccessLists, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessListReviews = collect
+			out.byKind[resourceKind] = out.accessListReviews
+		case types.KindCrownJewel:
+			collect, err := newCrownJewelCollection(c.CrownJewels, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.crownJewels = collect
+			out.byKind[resourceKind] = out.crownJewels
+		case types.KindAccessGraphSettings:
+			collect, err := newAccessGraphSettingsCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessGraphSettings = collect
+			out.byKind[resourceKind] = out.accessGraphSettings
+		case types.KindIntegration:
+			collect, err := newIntegrationCollection(c.Integrations, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.integrations = collect
+			out.byKind[resourceKind] = out.integrations
+		case types.KindPluginStaticCredentials:
+			collect, err := newPluginStaticCredentialsCollection(c.PluginStaticCredentials, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.pluginStaticCredentials = collect
+			out.byKind[resourceKind] = out.pluginStaticCredentials
+		case types.KindAccessMonitoringRule:
+			collect, err := newAccessMonitoringRuleCollection(c.AccessMonitoringRules, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.accessMonitoringRules = collect
+			out.byKind[resourceKind] = out.accessMonitoringRules
+		case types.KindUIConfig:
+			collect, err := newWebUIConfigCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.uiConfigs = collect
+			out.byKind[resourceKind] = out.uiConfigs
+		case types.KindWebToken:
+			collect, err := newWebTokenCollection(c.WebToken, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.webTokens = collect
+			out.byKind[resourceKind] = out.webTokens
+		case types.KindInstaller:
+			collect, err := newInstallerCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.installers = collect
+			out.byKind[resourceKind] = out.installers
+		case types.KindLock:
+			collect, err := newLockCollection(c.Access, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.locks = collect
+			out.byKind[resourceKind] = out.locks
+		case types.KindTunnelConnection:
+			collect, err := newTunnelConnectionCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.tunnelConnections = collect
+			out.byKind[resourceKind] = out.tunnelConnections
+		case types.KindRemoteCluster:
+			collect, err := newRemoteClusterCollection(c.Trust, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.remoteClusters = collect
+			out.byKind[resourceKind] = out.remoteClusters
+		case types.KindUserTask:
+			collect, err := newUserTaskCollection(c.UserTasks, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userTasks = collect
+			out.byKind[resourceKind] = out.userTasks
+		case types.KindUserLoginState:
+			collect, err := newUserLoginStateCollection(c.UserLoginStates, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.userLoginStates = collect
+			out.byKind[resourceKind] = out.userLoginStates
 		}
 	}
 

@@ -40,6 +40,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
@@ -49,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -249,7 +249,7 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Groups: testGroups, Mode: services.HostUserModeDrop})
+		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{Groups: testGroups, Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportDropGroup)
@@ -274,10 +274,10 @@ func TestRootHostUsers(t *testing.T) {
 		_, err := user.LookupGroupId(testGID)
 		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
 
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{
-			Mode: services.HostUserModeDrop,
-			UID:  testUID,
-			GID:  testGID,
+		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP,
+			Uid:  testUID,
+			Gid:  testGID,
 		})
 		require.NoError(t, err)
 
@@ -303,7 +303,7 @@ func TestRootHostUsers(t *testing.T) {
 		expectedHome := filepath.Join("/home", testuser)
 		require.NoDirExists(t, expectedHome)
 
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep})
+		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP})
 		require.NoError(t, err)
 		require.Nil(t, closer)
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportKeepGroup}) })
@@ -330,8 +330,8 @@ func TestRootHostUsers(t *testing.T) {
 			cleanupUsersAndGroups([]string{testuser}, nil)
 		})
 		closer, err := users.UpsertUser(testuser,
-			services.HostUsersInfo{
-				Mode: services.HostUserModeDrop,
+			&decisionpb.HostUsersInfo{
+				Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP,
 			})
 		require.NoError(t, err)
 		err = sudoers.WriteSudoers(testuser, []string{"ALL=(ALL) ALL"})
@@ -360,13 +360,13 @@ func TestRootHostUsers(t *testing.T) {
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
 		for _, user := range deleteableUsers {
-			_, err := users.UpsertUser(user, services.HostUsersInfo{Mode: services.HostUserModeDrop})
+			_, err := users.UpsertUser(user, &decisionpb.HostUsersInfo{Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP})
 			require.NoError(t, err)
 		}
 
 		// this user should not be in the service group as it was created with mode keep.
-		closer, err := users.UpsertUser("teleport-user4", services.HostUsersInfo{
-			Mode: services.HostUserModeKeep,
+		closer, err := users.UpsertUser("teleport-user4", &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 		})
 		require.NoError(t, err)
 		require.Nil(t, closer)
@@ -421,9 +421,9 @@ func TestRootHostUsers(t *testing.T) {
 
 				// Verify that the user is created with the first set of groups.
 				users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-				_, err := users.UpsertUser(testuser, services.HostUsersInfo{
+				_, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{
 					Groups: tc.firstGroups,
-					Mode:   services.HostUserModeKeep,
+					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				})
 				require.NoError(t, err)
 				u, err := user.Lookup(testuser)
@@ -431,9 +431,9 @@ func TestRootHostUsers(t *testing.T) {
 				requireUserInGroups(t, u, tc.firstGroups)
 
 				// Verify that the user is updated with the second set of groups.
-				_, err = users.UpsertUser(testuser, services.HostUsersInfo{
+				_, err = users.UpsertUser(testuser, &decisionpb.HostUsersInfo{
 					Groups: tc.secondGroups,
-					Mode:   services.HostUserModeKeep,
+					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 				})
 				require.NoError(t, err)
 				u, err = user.Lookup(testuser)
@@ -460,22 +460,22 @@ func TestRootHostUsers(t *testing.T) {
 
 		// Create a user with a named shell expected to be available in the PATH
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-		_, err := users.UpsertUser(namedShellUser, services.HostUsersInfo{
-			Mode:  services.HostUserModeKeep,
+		_, err := users.UpsertUser(namedShellUser, &decisionpb.HostUsersInfo{
+			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "bash",
 		})
 		require.NoError(t, err)
 
 		// Create a user with an absolute path to a shell
-		_, err = users.UpsertUser(absoluteShellUser, services.HostUsersInfo{
-			Mode:  services.HostUserModeKeep,
+		_, err = users.UpsertUser(absoluteShellUser, &decisionpb.HostUsersInfo{
+			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "/usr/bin/bash",
 		})
 		require.NoError(t, err)
 
 		// Create a user with the host default shell (default behavior)
-		_, err = users.UpsertUser(defaultShellUser, services.HostUsersInfo{
-			Mode:  services.HostUserModeKeep,
+		_, err = users.UpsertUser(defaultShellUser, &decisionpb.HostUsersInfo{
+			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "zsh",
 		})
 		require.NoError(t, err)
@@ -502,8 +502,8 @@ func TestRootHostUsers(t *testing.T) {
 		assert.NotEqual(t, expectedShell, userShells[defaultShellUser])
 
 		// User's shell should not be overwritten when updating, only when creating a new host user
-		_, err = users.UpsertUser(namedShellUser, services.HostUsersInfo{
-			Mode:  services.HostUserModeKeep,
+		_, err = users.UpsertUser(namedShellUser, &decisionpb.HostUsersInfo{
+			Mode:  decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Shell: "sh",
 		})
 		require.NoError(t, err)
@@ -533,8 +533,8 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, hasExpirations)
 
 		// Upsert a new user which should have the expirations removed
-		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
-			Mode: services.HostUserModeKeep,
+		_, err = users.UpsertUser(expiredUser, &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 		})
 		require.NoError(t, err)
 
@@ -556,8 +556,8 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, hasExpirations)
 
 		// Update user without any changes
-		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
-			Mode: services.HostUserModeKeep,
+		_, err = users.UpsertUser(expiredUser, &decisionpb.HostUsersInfo{
+			Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 		})
 		require.NoError(t, err)
 
@@ -572,8 +572,8 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, hasExpirations)
 
 		// Update user with changes
-		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
-			Mode:   services.HostUserModeKeep,
+		_, err = users.UpsertUser(expiredUser, &decisionpb.HostUsersInfo{
+			Mode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 			Groups: []string{"test-group"},
 		})
 		require.NoError(t, err)
@@ -590,7 +590,7 @@ func TestRootHostUsers(t *testing.T) {
 		_, err := host.UserAdd(testuser, nil, host.UserOpts{})
 		require.NoError(t, err)
 
-		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: services.HostUserModeKeep, Groups: []string{types.TeleportKeepGroup}})
+		closer, err := users.UpsertUser(testuser, &decisionpb.HostUsersInfo{Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP, Groups: []string{types.TeleportKeepGroup}})
 		require.NoError(t, err)
 		require.Nil(t, closer)
 

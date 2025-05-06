@@ -856,6 +856,9 @@ message InstanceFilter {
 
   // NewerThanVersion is an optional exclusive lower version bound.
   string NewerThanVersion = 7;
+
+  // UpdateGroup matches instance update group if specified.
+  string UpdateGroup = 8;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth Service instance in a Teleport cluster.
@@ -3646,6 +3649,10 @@ message KubernetesResource {
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
   // Verbs are the allowed Kubernetes verbs for the following resource.
   repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
+
+  // APIGroup specifies the Kubernetes API group of the Kubernetes resource.
+  // It supports wildcards.
+  string APIGroup = 5 [(gogoproto.jsontag) = "api_group,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -5741,13 +5748,9 @@ message LockTarget {
   // Login specifies the name of a local UNIX user.
   string Login = 3 [(gogoproto.jsontag) = "login,omitempty"];
 
-  // Node specifies the UUID of a Teleport node.
-  // A matching node is also prevented from heartbeating to the Auth Service.
-  // DEPRECATED: use ServerID instead.
-  string Node = 4 [
-    deprecated = true,
-    (gogoproto.jsontag) = "node,omitempty"
-  ];
+  // Node was deprecated in favor of ServerID.
+  reserved 4;
+  reserved "Node";
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];
