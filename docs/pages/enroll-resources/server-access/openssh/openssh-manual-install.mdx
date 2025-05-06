@@ -17,6 +17,8 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 - [Session sharing](../../../connect-your-client/tsh.mdx)
 - [Advanced session recording](../guides/bpf-session-recording.mdx)
 
+## How it works
+
 Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles.
 
 If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically generated certificate signed by a Teleport CA. This allows the
