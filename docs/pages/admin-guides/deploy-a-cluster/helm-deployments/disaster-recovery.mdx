@@ -1,0 +1,338 @@
+---
+title: Managing Disaster Recovery in an Amazon EKS Teleport Cluster
+description: Provides guidance for planning a strategy for restoring a self-hosted Teleport cluster on EKS after a regional outage.
+---
+
+In case of an outage in your cloud provider region, you need to ensure that you
+can restore your Teleport cluster to working order. This guide provides an
+overview of a disaster recovery approach for self-hosted Teleport clusters.
+
+The guide assumes that your self-hosted Teleport cluster runs on Amazon Elastic
+Kubernetes Service and uses the `teleport-cluster` Helm chart. The
+`teleport-cluster` Helm chart is the recommended approach for quickly getting
+started with self-hosting a Teleport cluster on Kubernetes, and you can read
+about how to get started with the chart in [Deploy Teleport on
+Kubernetes](./kubernetes-cluster.mdx).
+
+## How it works
+
+In the approach we explain in this guide, AWS backs up the Teleport Auth Service
+backends to a secondary region. If the primary region becomes unavailable due to
+an outage, an admin redeploys the cluster to the secondary region, configuring
+the Teleport Auth Service to connect to new backends in the region. 
+
+Since Teleport certificate authorities are already backed up in the new region,
+running Teleport Agents and bots outside the unavailable region do not need to
+reconnect to the cluster. In this disaster recovery scenario, the recovery time
+objective depends on the time it takes to redeploy the Auth Service and Proxy
+Service in the new region.
+
+## Prerequisites
+
+- Your self-hosted Teleport cluster was launched using the `teleport-cluster`
+  Helm chart. We recommend reading [Deploying a High Availability Teleport
+  Cluster](../high-availability.mdx) for a high-level architectural outline of a
+  self-hosted Teleport cluster.
+- You are using Amazon DynamoDB for the cluster state backend and audit event
+  backend, and using Amazon S3 for your session recording backend. For
+  information on selecting Teleport backends, see [Storage
+  Backends](../../../reference/backends.mdx).
+
+<Admonition type="danger">
+
+This guide is not intended to be a runbook for a regional outage.
+
+Read this guide to help prepare your disaster recovery plan, including any
+runbooks and automation. We strongly recommend that you regularly test your plan
+to prevent issues.
+
+</Admonition>
+
+## Step 1/5. Back up Auth Service backends
+
+The first step in setting up a disaster recovery procedure for your Teleport
+cluster on Amazon EKS is to back up your Teleport Auth Service backends to a
+secondary region. If the primary region becomes unavailable, the backend
+replicas in the secondary region will be ready for your new cluster to connect
+to once you redeploy it in the secondary region.
+
+### Cluster state backend
+
+With a backup of the cluster state backend, the Teleport Auth Service can use
+its existing certificate authorities to sign certificates for cluster
+components. If you restore a Teleport cluster with a new backend, and do not
+have a backup, you will need to configure cluster components, such as
+self-hosted databases protected by Teleport, to trust the new CAs.
+
+Read the [Amazon DynamoDB
+documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Backup-and-Restore.html)
+to plan your backup procedure.
+
+<details>
+<summary>AWS Key Management Service users</summary>
+
+If the Teleport Auth Service in your cluster uses Amazon Key Management Service
+for certificate authority private keys, you must replicate your keys to the new
+AWS region before reinstalling the `teleport-cluster` Helm chart. See the [AWS
+documentation](https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html")
+for information about using KMS keys in multiple regions. 
+
+Note that KMS support is only possible in the `teleport-cluster` Helm chart
+using the `auth.teleportConfig` values field ([chart
+reference](../../../reference/helm-reference/teleport-cluster.mdx/#authteleportconfig),
+and is not recommended for most `teleport-cluster` users.
+
+</details>
+
+### Audit event backend
+
+In addition to the cluster state backend, you must also back up the audit event
+backend to a secondary region in order to retain access to audit events. As with
+the cluster state backend read the [Amazon DynamoDB
+documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Backup-and-Restore.html)
+to plan your backup procedure.
+
+### Session recording backend
+
+To retain access to your session recordings in the case of region-wide
+unavailability, you need to back up your session recordings to the secondary
+region. When you redeploy the Teleport Auth Service to the new region, you can
+configure it to connect to an S3 bucket in the new region.
+
+You can use S3 replication rules to create continuous backups from your primary
+region to the backup region. Follow the [Multi-Region
+Blueprint](../multi-region-blueprint.mdx#setting-up-multi-region-aws-s3-replication)
+guide to plan multi-region S3 bucket replication for your session recording
+backend.
+
+## Step 2/5. Impose a change freeze
+
+If a Teleport admin updates a record on the cluster state backend after the last
+backup, and restores the backend from the backup during a disaster recovery
+procedure, the update will not be reflected on the backend. You can ensure that
+your Teleport cluster returns to an expected state by imposing a change freeze.
+
+You can impose a change freeze by locking Teleport roles that include
+permissions to edit dynamic resources. Teleport roles allow access to modifying
+dynamic resources with the `spec.allow.rules` field. 
+
+You can use the following `jq` command to list all roles with one or more rule
+that grants permissions to modify backend resources. This example assumes that
+there is a role called `locksmith` that allows the user to create, list, read,
+and delete locks. It skips the `locksmith` user so you can remove the lock after
+restoring the cluster:
+
+```code
+$ tctl get roles --format json | jq -r '.[] | select(.metadata.name != "locksmith" and .spec.allow.rules) | .metadata.name'
+dashboard-admin
+dashboard-user
+device-admin
+device-enroll
+group-access
+```
+
+Teleport grants access to certificate authority rotations using the
+`spec.allow.rules` field - on the `cert_authority` resource - so using role
+locking to impose a change freeze will also unintended certificate authority
+rotations during the disaster recovery procedure.
+
+Create a lock using a `tctl lock` command. The following example locks the
+`contractor` role for 24 hours:
+
+```code
+$ tctl lock --role=contractor --message="change freeze during disaster recovery" --ttl=24h
+```
+
+Note that users with permissions to execute commands directly on the Auth
+Service pod can still make changes to the backend using `tctl`.
+
+## Step 3/5. Stop the existing cluster
+
+When you detect a zonal or regional outage, it is important that you cleanly
+stop the existing Teleport cluster. While outages at the cloud provider level
+disrupt the expected functioning of a Teleport cluster, some operations in your
+cluster may continue successfully. After the outage has concluded, services that
+remained functional or come back online can cause the cluster to behave in
+unexpected ways.
+
+1. Stop any Teleport Auth Service and Proxy Service pods in your cluster:
+
+   ```code
+   $ kubectl -n teleport delete deployment/teleport-cluster-auth
+   $ kubectl -n teleport delete deployment/teleport-cluster-proxy
+   ```
+
+1. Teleport Agents can remain connected to a Teleport cluster even after an
+   outage has caused it to become unavailable. For any Agents running outside
+   the region affected by the disaster, plan to restart them once you have
+   changed the DNS record for your Teleport cluster to terminate any lingering
+   connections. If you have deployed agents in the affected region, you will
+   need to redeploy them to the new region after relaunching the Auth Service
+   and Proxy Service.
+ 
+## Step 4/5. Relaunch the Auth Service and Proxy Service
+
+Now that there is a backup of the Auth Service backend, you are safe to deploy
+the Teleport cluster in a new region.  
+
+### Update your values file
+
+When deploying the Teleport Auth Service and Proxy Service to the new region,
+you need to update the following fields in the values file for the
+`teleport-cluster` Helm chart:
+
+- `aws.region`
+- `aws.backendTable`
+- `aws.auditLogTable`
+- `aws.sessionRecordingBucket`
+
+You may need to update other values to match third-party dependencies of the
+Teleport cluster. For example, if you plan to deploy `cert-manager` to handle
+Teleport Proxy Service certificates instead of Let's Encrypt, you need to set
+the `certManager.issuerName` field to match the name of the `cert-manager`
+Issuer in your Kubernetes cluster. 
+
+We recommend reading [Running an HA Teleport Cluster Using AWS, EKS, and
+Helm](./aws.mdx) so you can make sure that you have accounted for any
+third-party dependencies you need to manage in the new AWS region.
+
+### Update IAM configurations
+
+You also need to ensure that the roles used by the Auth Service and Proxy
+Service grant the services permissions to access backends in the new region.
+Make sure that the trust policies associated with these roles grant access to
+principals in the new region.
+
+### Provision credentials to the load balancer  
+
+The `teleport-cluster` Helm chart deploys a Kubernetes service that, by default,
+has the `LoadBalancer` type. Reinstalling the Helm chart in your new AWS region
+recreates the load balancer. 
+
+If you are using AWS Certificate Manager or `cert-manager` to provision TLS
+credentials for your load balancer, you must create a new certificate and
+private key before installing the chart in the new region.
+
+For guidance on configuring your EKS cluster to use ACM and `cert-manager` with
+the Teleport Proxy Service load balancer, see [Configure TLS certificates for
+Teleport](./aws/#step-47-configure-tls-certificates-for-teleport).
+
+### Reinstall the Helm chart
+
+1. Install the `teleport-cluster` Helm chart using the new values:
+
+   ```code
+   $ helm install teleport-cluster teleport/teleport-cluster \
+     --version (=teleport.version=) \
+     --values teleport-cluster-values.yaml
+   ```
+
+1. After installing the `teleport-cluster` chart, wait a minute or so and ensure
+   that both the Auth Service and Proxy Service pods are running:
+
+   ```code
+   $ kubectl get pods
+   NAME                                      READY   STATUS    RESTARTS   AGE
+   teleport-cluster-auth-000000000-00000     1/1     Running   0          114s
+   teleport-cluster-proxy-0000000000-00000   1/1     Running   0          114s
+   ```
+
+1. Once the Teleport Auth Service is running on the new cluster, make sure that
+   you have applied Teleport dynamic resources against the new cluster so the
+   Teleport Kubernetes operator can manage them. 
+
+   You should manage your Teleport resources as a set of Kubernetes manifests
+   applied using a GitOps tool like Flux CD so that, when you launch the new
+   cluster, you can readily apply them.
+
+<Admonition type="warning">
+
+Note that, by the time you have redeployed the Auth Service and Proxy Service,
+any Machine & Workload Identity bots that have joined the cluster with a static
+token will likely miss their renewal periods and become locked out of the
+cluster until the Teleport Auth Service can issue new tokens. We recommend using
+delegated join methods to prevent this scenario. 
+
+</Admonition>
+
+## Step 5/6. Remove the change freeze
+
+Now that the Teleport cluster is back online in your new region, you can remove
+the change freeze so admins can modify resources on the cluster state backend.
+
+Use the `tctl rm lock/<lock_id>` command to remove each lock. If you provided
+each lock with a similar `--message` flag value when creating the locks, you can
+remove all locks you created with a single command. This command removes all
+locks with a message that includes the substring `change freeze`:
+
+```code
+$ tctl get lock --format=json \
+  | jq -r '.[] | select(.spec.message and (.spec.message | contains("change freeze"))) | .metadata.name' \
+  | xargs -I{} tctl rm lock/{}
+```
+
+## Step 6/6. Update DNS records
+
+Once you have launched your Teleport cluster in the new AWS region, you must
+ensure that Route 53 DNS records point to the new cluster.
+
+Ensure that existing DNS records for the Teleport Proxy Service in your cluster
+have a low TTL, e.g., one minute. We expect that DNS resolvers in your users'
+networks honor the TTLs of DNS records to prevent issues with propagating
+records.
+
+(!docs/pages/includes/self-hosted-helm-dns.mdx!)
+
+## Guidance  
+
+Assuming that you have planned your disaster recovery strategy around the steps
+we lay out in this guide, we recommend the following practices.
+  
+### Testing your disaster recovery procedure
+
+We strongly recommended testing your disaster recovery plan. Schedule time to
+stop your Teleport cluster in one region and redeploy in another one using your
+backup of the Auth Service cluster state backend. After redeploying your
+cluster, ensure that users can continue to connect to Teleport-protected
+resources.
+
+Common causes of disaster recovery failures include:
+- **Misconfigured IAM settings:** The Teleport Auth Service in your first region
+  can access its backend, for example, but in the second region, the Auth
+  Service has a role with insufficient permissions.
+- **Misconfigured backend connections:** The Teleport Auth Service is configured
+  with an incorrect cluster state backend URL in the new region, meaning that
+  when it starts up, it fails to retrieve its existing CAs and bootstraps
+  instead with a self-signed certificate.
+
+### Shortening the recovery time objective
+
+When planning a Teleport disaster recovery plan, the main consideration for
+estimating a recovery time objective is how long it will take for the Teleport
+Auth Service to come online in your secondary region.
+
+You can expect the disaster recovery procedure outlined in this guide to take at
+least an hour, though the precise details depend on your infrastructure and
+organization. To arrive at an exact benchmark, we strongly recommend [testing
+your disaster recovery procedure](#testing-your-disaster-recovery-procedure).
+
+You can take measures to shorten the recovery time objective of your disaster
+recovery procedure. Possibilities include:
+
+- Restore your cluster state and audit event backend tables from backup prior to
+  reinstalling the `teleport-cluster` Helm chart, so the Teleport Auth Service
+  does not need to initialize any tables itself.
+- Run the Auth Service, Proxy Service, and backend services in the secondary
+  region before any regional outage takes place. When there are redundant
+  Teleport cluster deployments across multiple regions, there is no need to lose
+  availability while waiting for your cluster to deploy to a new region. Read
+  about the architecture of a multi-region Teleport deployment in the
+  [Multi-Region Blueprint](../multi-region-blueprint.mdx) guide.
+
+## Further reading
+
+- Read the [Backup and Restore](../../management/operations/backup-restore.mdx)
+  guide for general information on backing up your Teleport cluster backends.
+- For more information on preventing Teleport roles from making changes to your
+  cluster state backend, read [Session and Identity
+  Locking](../../access-controls/guides/locking.mdx).
