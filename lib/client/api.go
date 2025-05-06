@@ -1949,10 +1949,6 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 		opt(&options)
 	}
 
-	if options.ForkAfterAuthentication && len(command) == 0 {
-		return trace.BadParameter("fork after authentication not allowed for interactive sessions")
-	}
-
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")

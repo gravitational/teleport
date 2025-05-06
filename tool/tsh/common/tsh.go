@@ -905,7 +905,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete").Short('f').BoolVar(&cf.ForkAfterAuthentication)
-	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked").Hidden().Uint64Var(&cf.forkSignalFd)
+	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication.").Hidden().Uint64Var(&cf.forkSignalFd)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -4051,6 +4051,9 @@ func onSSH(cf *CLIConf) error {
 	tc.Stdin = os.Stdin
 
 	if cf.ForkAfterAuthentication && cf.forkSignalFd == 0 {
+		if len(cf.RemoteCommand) == 0 {
+			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
+		}
 		cmd, err := client.BuildForkAuthenticateCommand(client.BuildForkAuthenticateCommandParams{
 			GetArgs: func(signalFd uint64) []string {
 				args := make([]string, 0, len(cf.originalArgs)+2)
@@ -4071,7 +4074,14 @@ func onSSH(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(client.RunForkAuthenticateChild(cf.Context, cmd))
+		if err := client.RunForkAuthenticateChild(cf.Context, cmd); err != nil {
+			var execErr *exec.ExitError
+			if errors.As(trace.Unwrap(err), &execErr) {
+				err = &common.ExitCodeError{Code: execErr.ExitCode()}
+			}
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
 	err = retryWithAccessRequest(cf, tc, func() error {

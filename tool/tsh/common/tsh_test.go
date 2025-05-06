@@ -30,6 +30,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -204,7 +205,7 @@ func handleReexec() {
 	// Allows test to refer to tsh binary in tests.
 	// Needed for tests that generate OpenSSH config by tsh config command where
 	// tsh proxy ssh command is used as ProxyCommand.
-	if os.Getenv(tshBinMainTestEnv) != "" {
+	if os.Getenv(tshBinMainTestEnv) != "" || isReexec() {
 		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
 			// unset this env var so child processes started by 'tsh ssh'
 			// will be executed correctly below.
@@ -229,6 +230,10 @@ func handleReexec() {
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
 	}
+}
+
+func isReexec() bool {
+	return slices.Contains(os.Args, "--fork-signal-fd")
 }
 
 type cliModules struct{}
@@ -7455,4 +7460,104 @@ func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, Cl
 	}
 
 	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
+}
+
+func TestSSHForkAfterAuthentication(t *testing.T) {
+	u, err := user.Current()
+	require.NoError(t, err)
+	accessRole, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			Logins: []string{u.Username},
+		},
+	})
+	require.NoError(t, err)
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{accessRole.GetName()})
+
+	fakeNode, err := types.NewNode("fake", types.SubKindTeleportNode, types.ServerSpecV2{}, map[string]string{"foo": "bar"})
+	require.NoError(t, err)
+
+	tmpHomeDir := filepath.Join(t.TempDir(), ".tsh")
+	t.Setenv(types.HomeEnvVar, tmpHomeDir)
+
+	tsrv := testserver.MakeTestServer(t,
+		testserver.WithSSHLabel("foo", "bar"),
+		testserver.WithBootstrap(connector, accessRole, alice),
+		testserver.WithLogger(slog.New(slog.DiscardHandler)),
+	)
+	t.Cleanup(func() { require.NoError(t, tsrv.Close()) })
+	_, err = tsrv.GetAuthServer().UpsertNode(t.Context(), fakeNode)
+	require.NoError(t, err)
+	proxyAddr, err := tsrv.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(t.Context(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.Addr,
+	}, setMockSSOLogin(tsrv.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		target     string
+		command    []string
+		assert     assert.ErrorAssertionFunc
+		expectFile bool
+	}{
+		{
+			name:       "ok",
+			target:     tsrv.Config.Hostname,
+			command:    []string{"echo", "hello", ">", "test.txt"},
+			assert:     assert.NoError,
+			expectFile: true,
+		},
+		{
+			name:       "not allowed on multiple nodes",
+			target:     "foo=bar",
+			command:    []string{"echo", "hello", ">", "test.txt"},
+			assert:     assert.Error,
+			expectFile: false,
+		},
+		{
+			name:       "not allowed for interactive commands",
+			target:     tsrv.Config.Hostname,
+			command:    []string{},
+			assert:     assert.Error,
+			expectFile: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testFile := filepath.Join(t.TempDir(), "test.txt")
+			cmd := make([]string, 0, len(tc.command))
+			for _, arg := range tc.command {
+				cmd = append(cmd, strings.ReplaceAll(arg, "test.txt", testFile))
+			}
+			err = Run(t.Context(), append([]string{
+				"ssh",
+				"--insecure",
+				"-f",
+				"--no-relogin",
+				"--request-mode=off",
+				u.Username + "@" + tc.target,
+			}, cmd...))
+			tc.assert(t, err)
+			if tc.expectFile {
+				assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+					assert.FileExists(collect, testFile)
+				}, 5*time.Second, 100*time.Millisecond)
+			} else {
+				assert.Never(t, func() bool {
+					_, err := os.Stat(testFile)
+					return !errors.Is(err, os.ErrNotExist)
+				}, 5*time.Second, 100*time.Millisecond)
+			}
+		})
+	}
 }

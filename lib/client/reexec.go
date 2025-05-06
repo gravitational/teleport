@@ -44,7 +44,7 @@ func BuildForkAuthenticateCommand(params BuildForkAuthenticateCommandParams) (*F
 	}, nil
 }
 
-func RunForkAuthenticateChild(ctx context.Context, cmd *ForkAuthenticateCommand) (err error) {
+func RunForkAuthenticateChild(ctx context.Context, cmd *ForkAuthenticateCommand) error {
 	defer cmd.disownSignal.Close()
 	disownReady := make(chan error, 1)
 	go func() {
