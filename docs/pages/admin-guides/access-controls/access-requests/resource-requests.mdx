@@ -257,6 +257,11 @@ Use the `tsh request drop` command to "drop" the request and resume regular acce
 $ tsh request drop
 ```
 
+When you drop an Access Request, Teleport issues a new user certificate. The new
+certificate retains the expiration of the previous certificate. Once your
+session expires and you reauthenticate to Teleport, you receive a user
+certificate with your user's originally configured time to live.
+
 ## Next Steps
 
 ### Automatically request access for SSH
