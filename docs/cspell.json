@@ -881,6 +881,7 @@
     "setspn",
     "sharded",
     "signup",
+    "sigstore",
     "skipreconcile",
     "slacktokenfromsecret",
     "sles",
