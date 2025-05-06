@@ -18,9 +18,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 
@@ -92,20 +90,4 @@ func ParsePublicKey(keyPEM []byte) (crypto.PublicKey, error) {
 	// be set to the error from the parse function that usually matches the PEM
 	// block type.
 	return nil, trace.Wrap(preferredErr, "parsing public key PEM")
-}
-
-// EncryptWithPublicKeyPEM is a helper for encrypting data with a PEM encoded public key.
-func EncryptWithPublicKeyPEM(keyPEM []byte, plaintext []byte) ([]byte, error) {
-	pub, err := ParsePublicKey(keyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch pubKey := pub.(type) {
-	case *rsa.PublicKey:
-		ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pubKey, plaintext, nil)
-		return ciphertext, trace.Wrap(err)
-	default:
-		return nil, trace.BadParameter("unsupported encryption public key type %T", pub)
-	}
 }
