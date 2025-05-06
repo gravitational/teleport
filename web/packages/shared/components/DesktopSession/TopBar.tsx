@@ -64,7 +64,7 @@ export default function TopBar(props: Props) {
 
       {isConnected && (
         <Flex px={3}>
-          <Flex alignItems="center">
+          <Flex alignItems="center" gap={3}>
             {latency && <LatencyDiagnostic latency={latency} />}
             <HoverTooltip
               tipContent={directorySharingToolTip(
@@ -73,13 +73,13 @@ export default function TopBar(props: Props) {
               )}
               placement="bottom"
             >
-              <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
+              <FolderShared style={primaryOnTrue(isSharingDirectory)} />
             </HoverTooltip>
             <HoverTooltip
               tipContent={clipboardSharingMessage}
               placement="bottom"
             >
-              <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
+              <Clipboard style={primaryOnTrue(isSharingClipboard)} />
             </HoverTooltip>
             <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
           </Flex>
