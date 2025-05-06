@@ -1,12 +1,11 @@
-package auth
+package auth_test
 
 import (
 	"context"
-	"crypto"
-	"crypto/tls"
-	"encoding/base64"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,32 +14,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
-	directory "google.golang.org/api/admin/directory/v1"
-	"google.golang.org/api/cloudidentity/v1"
-	"google.golang.org/api/option"
+	"github.com/zitadel/oidc/v3/example/server/storage"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/op"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/sshutils"
+	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/loginrule"
-	"github.com/gravitational/teleport/e/lib/loginrule/storage"
+	loginrulestorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -51,36 +43,221 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
-	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
-type OIDCSuite struct {
-	a       *auth.Server
-	b       backend.Backend
-	c       clocki.FakeClock
-	oas     *OIDCAuthService
-	emitter *eventstest.MockRecorderEmitter
+// user wraps a [storage.User] with additional claims.
+type user struct {
+	*storage.User
+	Claims map[string]any
 }
 
-func setUpSuite(t *testing.T) *OIDCSuite {
-	s := OIDCSuite{
-		emitter: &eventstest.MockRecorderEmitter{},
+type userStore struct {
+	users map[string]user
+}
+
+// ExampleClientID is only used in the example server
+func (u userStore) ExampleClientID() string {
+	return "service"
+}
+
+func (u userStore) GetUserByID(id string) *storage.User {
+	return u.users[id].User
+}
+
+func (u userStore) GetUserByUsername(username string) *storage.User {
+	for _, user := range u.users {
+		if user.Username == username {
+			return user.User
+		}
+	}
+	return nil
+}
+
+func newUserStore(users []user) userStore {
+	store := userStore{users: make(map[string]user)}
+	for _, u := range users {
+		store.users[u.ID] = u
 	}
 
+	return store
+}
+
+// store wraps [storage.Storage] for the sole purpose of injecting
+// additional claims that it does not support into the user info
+// and auth requests.
+type store struct {
+	*storage.Storage
+	userStore userStore
+}
+
+func (s store) SetUserinfoFromToken(ctx context.Context, userinfo *oidc.UserInfo, tokenID, subject, origin string) error {
+	if err := s.Storage.SetUserinfoFromToken(ctx, userinfo, tokenID, subject, origin); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Inject any custom claims that may have
+	// been specified for the user.
+	u, ok := s.userStore.users[subject]
+	if !ok || len(u.Claims) == 0 {
+		return nil
+	}
+
+	if userinfo.Claims == nil {
+		userinfo.Claims = map[string]any{}
+	}
+
+	for k, v := range u.Claims {
+		if _, ok := userinfo.Claims[k]; !ok {
+			userinfo.Claims[k] = v
+		}
+	}
+
+	return nil
+}
+
+type authRequest struct {
+	authTime time.Time
+	acr      string
+	op.AuthRequest
+}
+
+func (a authRequest) GetACR() string {
+	return a.acr
+}
+
+func (a authRequest) GetAuthTime() time.Time {
+	return a.authTime
+}
+
+func (s store) augmentAuthRequest(req op.AuthRequest) op.AuthRequest {
+	storageReq, ok := req.(*storage.AuthRequest)
+	if !ok {
+		return req
+	}
+
+	// Inject any custom claims that may have
+	// been specified for the user.
+	u, ok := s.userStore.users[storageReq.UserID]
+	if !ok || len(u.Claims) == 0 {
+		return req
+	}
+
+	augmentedReq := authRequest{
+		AuthRequest: req,
+	}
+
+	if acr, ok := u.Claims["acr"]; ok {
+		switch v := acr.(type) {
+		case string:
+			augmentedReq.acr = v
+		}
+	}
+
+	if authTime, ok := u.Claims["auth_time"]; ok {
+		augmentedReq.authTime = time.Unix(int64(authTime.(float64)), 0)
+	}
+
+	return augmentedReq
+}
+
+func (s store) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthRequest, userID string) (op.AuthRequest, error) {
+	req, err := s.Storage.CreateAuthRequest(ctx, authReq, userID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.augmentAuthRequest(req), nil
+
+}
+
+func (s store) AuthRequestByCode(ctx context.Context, code string) (op.AuthRequest, error) {
+	req, err := s.Storage.AuthRequestByCode(ctx, code)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.augmentAuthRequest(req), nil
+}
+
+func (s store) AuthRequestByID(ctx context.Context, id string) (op.AuthRequest, error) {
+	req, err := s.Storage.AuthRequestByID(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.augmentAuthRequest(req), nil
+}
+
+type oidcSuiteOpts struct {
+	users    []user
+	insecure bool
+	license  eauth.License
+	clock    clocki.FakeClock
+	proxy    func(http.Handler) http.Handler
+}
+
+func insecureOIDCSuite() func(*oidcSuiteOpts) {
+	return func(opts *oidcSuiteOpts) {
+		opts.insecure = true
+	}
+}
+
+func overrideUsers(users []user) func(*oidcSuiteOpts) {
+	return func(opts *oidcSuiteOpts) {
+		opts.users = users
+	}
+}
+
+func overrideLicense(license eauth.License) func(*oidcSuiteOpts) {
+	return func(opts *oidcSuiteOpts) {
+		opts.license = license
+	}
+}
+
+func overrideClock(clock clocki.FakeClock) func(*oidcSuiteOpts) {
+	return func(opts *oidcSuiteOpts) {
+		opts.clock = clock
+	}
+}
+
+func proxyOP(p func(http.Handler) http.Handler) func(*oidcSuiteOpts) {
+	return func(opts *oidcSuiteOpts) {
+		opts.proxy = p
+	}
+}
+
+type OIDCSuite struct {
+	authServer  *auth.Server
+	backend     backend.Backend
+	clock       clocki.FakeClock
+	oidcService *eauth.OIDCAuthService
+	emitter     *eventstest.MockRecorderEmitter
+	idpServer   *httptest.Server
+	connector   *types.OIDCConnectorV3
+	store       *store
+}
+
+func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	ctx := context.Background()
-	s.c = clockwork.NewFakeClockAt(time.Now())
+
+	o := oidcSuiteOpts{
+		license: eauth.ValidLicense{},
+		clock:   clockwork.NewFakeClock(),
+		proxy:   func(h http.Handler) http.Handler { return h },
+	}
+
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	var err error
-	s.b, err = memory.New(memory.Config{
+	bk, err := memory.New(memory.Config{
 		Context: ctx,
-		Clock:   s.c,
+		Clock:   o.clock,
 	})
 	require.NoError(t, err)
 
@@ -92,84 +269,509 @@ func setUpSuite(t *testing.T) *OIDCSuite {
 	authConfig := &auth.InitConfig{
 		VersionStorage:         auth.NewFakeTeleportVersion(),
 		ClusterName:            clusterName,
-		Backend:                s.b,
+		Backend:                bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		Clock:                  o.clock,
 	}
-	s.a, err = auth.NewServer(authConfig)
+	authServer, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
 
-	s.oas, err = NewOIDCAuthService(&OIDCAuthServiceConfig{Auth: s.a, License: ValidLicense{}, Emitter: s.emitter})
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	s.a.SetOIDCService(s.oas)
 
-	return &s
-}
+	s := &httptest.Server{
+		Listener: ln,
+		Config:   &http.Server{},
+	}
+	t.Cleanup(s.Close)
 
-// createInsecureOIDCClient creates an insecure client for testing.
-func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc.Client {
-	conf := oidcConfig(connector, "")
-	conf.HTTPClient = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+	defaultUsers := []user{
+		{
+			User: &storage.User{
+				ID:            "id1",
+				Username:      "test-user",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User",
+				Email:         "test-user@example.com",
+				EmailVerified: true,
+				IsAdmin:       true,
+			},
+			Claims: map[string]any{
+				"groups": []string{"access"},
+			},
+		},
+		{
+			User: &storage.User{
+				ID:        "id2",
+				Username:  "test-user2",
+				Password:  "verysecure",
+				FirstName: "Test",
+				LastName:  "User2",
+				Email:     "test-user2@example.com",
+			},
+			Claims: map[string]any{
+				"groups": []string{"access"},
+			},
+		},
+		{
+			User: &storage.User{
+				ID:            "id3",
+				Username:      "test-user3",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User3",
+				Email:         "test-user3@example.com",
+				EmailVerified: true,
+			},
+			Claims: map[string]any{
+				"groups": []string{"access"},
+			},
+		},
+		{
+			User: &storage.User{
+				ID:            "no-groups",
+				Username:      "test-user4",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User4",
+				Email:         "test-user4@example.com",
+				EmailVerified: true,
+			},
+			Claims: map[string]any{
+				"animal": []string{"llama"},
 			},
 		},
 	}
-	client, err := oidc.NewClient(conf)
+
+	if len(o.users) > 0 {
+		defaultUsers = o.users
+	}
+
+	defaultClients := map[string]*storage.Client{
+		"test": storage.WebClient("test", "secret", "http://example.com"),
+	}
+
+	usersStore := newUserStore(defaultUsers)
+	opStore := &store{
+		userStore: usersStore,
+		Storage: storage.NewStorageWithClients(
+			usersStore,
+			defaultClients,
+		),
+	}
+	oidcKeySet := &op.OpenIDKeySet{Storage: opStore}
+
+	provider, err := op.NewProvider(
+		&op.Config{
+			CryptoKey:                sha256.Sum256([]byte("test")),
+			DefaultLogoutRedirectURI: "/logged-out",
+			CodeMethodS256:           true,
+			AuthMethodPost:           true,
+			AuthMethodPrivateKeyJWT:  true,
+			GrantTypeRefreshToken:    true,
+			RequestObjectSupported:   true,
+			SupportedClaims:          op.DefaultSupportedClaims,
+			DeviceAuthorization: op.DeviceAuthorizationConfig{
+				Lifetime:     5 * time.Minute,
+				PollInterval: 5 * time.Second,
+				UserFormPath: "/device",
+				UserCode:     op.UserCodeBase20,
+			},
+		},
+		opStore,
+		func(insecure bool) (op.IssuerFromRequest, error) {
+			return func(r *http.Request) string {
+				return s.URL
+			}, nil
+		},
+		op.WithAllowInsecure(),
+		op.WithAccessTokenKeySet(oidcKeySet),
+		op.WithIDTokenHintKeySet(oidcKeySet),
+	)
 	require.NoError(t, err)
-	client.SyncProviderConfig(context.Background(), connector.GetIssuerURL())
-	return client
+
+	s.Config.Handler = o.proxy(op.RegisterLegacyServer(op.NewLegacyServer(provider, *op.DefaultEndpoints), op.AuthorizeCallbackHandler(provider)))
+
+	if o.insecure {
+		s.Start()
+	} else {
+		s.StartTLS()
+	}
+
+	connector := &types.OIDCConnectorV3{
+		Kind:    types.KindOIDCConnector,
+		Version: types.V3,
+		Metadata: types.Metadata{
+			Name: "test-connector",
+		},
+		Spec: types.OIDCConnectorSpecV3{
+			IssuerURL:    s.URL,
+			ClientID:     "test",
+			ClientSecret: "secret",
+			Provider:     "test",
+			Display:      "test",
+			Scope:        []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
+			ClaimsToRoles: []types.ClaimMapping{
+				{
+					Claim: "groups",
+					Value: "access",
+					Roles: []string{"access"},
+				},
+			},
+			RedirectURLs: wrappers.Strings{
+				s.URL + "/proxy/oidc/callback",
+			},
+		},
+	}
+
+	c, err := authServer.CreateOIDCConnector(ctx, connector)
+	require.NoError(t, err)
+
+	require.NoError(t, authServer.SetClusterName(
+		&types.ClusterNameV2{
+			Kind:     types.KindClusterName,
+			Version:  types.V2,
+			Metadata: types.Metadata{},
+			Spec: types.ClusterNameSpecV2{
+				ClusterName: "test.example.com",
+				ClusterID:   "test",
+			},
+		},
+	))
+
+	_, err = authServer.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	_, err = authServer.CreateAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
+
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		LockGetter: authServer,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Client:    authServer,
+			Component: "test",
+		},
+	})
+	require.NoError(t, err)
+
+	authServer.SetLockWatcher(lockWatcher)
+
+	var keySet types.CAKeySet
+	sshKeyPair, err := authServer.GetKeyStore().NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+	require.NoError(t, err)
+	keySet.SSH = append(keySet.SSH, sshKeyPair)
+
+	tlsKeyPair, err := authServer.GetKeyStore().NewTLSKeyPair(ctx, "test.example.com", cryptosuites.UserCASSH)
+	require.NoError(t, err)
+	keySet.TLS = append(keySet.TLS, tlsKeyPair)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "test.example.com",
+		ActiveKeys:  keySet,
+	})
+	require.NoError(t, err)
+
+	err = authServer.CreateCertAuthority(ctx, ca)
+	require.NoError(t, err)
+
+	oidcService, err := eauth.NewOIDCAuthService(&eauth.OIDCAuthServiceConfig{
+		Auth:    authServer,
+		License: o.license,
+		Emitter: emitter,
+		Client:  s.Client(),
+	})
+	require.NoError(t, err)
+	authServer.SetOIDCService(oidcService)
+
+	_, err = authServer.CreateRole(ctx, services.NewPresetAccessRole())
+	require.NoError(t, err)
+
+	return &OIDCSuite{
+		authServer:  authServer,
+		backend:     bk,
+		clock:       o.clock,
+		oidcService: oidcService,
+		emitter:     emitter,
+		idpServer:   s,
+		connector:   c.(*types.OIDCConnectorV3),
+		store:       opStore,
+	}
 }
 
-func TestCreateOIDCUser(t *testing.T) {
+func (s *OIDCSuite) authenticateUser(ctx context.Context, user string, req types.OIDCAuthRequest) (string, *authclient.OIDCAuthResponse, error) {
+	authRequest, err := s.oidcService.CreateOIDCAuthRequest(ctx, req)
+	if err != nil {
+		return "", nil, err
+	}
+
+	request, err := s.store.CreateAuthRequest(
+		ctx,
+		&oidc.AuthRequest{
+			Scopes:      []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
+			ClientID:    s.connector.GetClientID(),
+			RedirectURI: s.connector.GetRedirectURLs()[0],
+			State:       authRequest.StateToken,
+			Display:     "none",
+		},
+		user,
+	)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if err := s.store.SaveAuthCode(ctx, request.GetID(), "test"); err != nil {
+		return "", nil, err
+	}
+
+	resp, err := s.oidcService.ValidateOIDCAuthCallback(ctx, url.Values{
+		"code":  []string{"test"},
+		"state": []string{authRequest.StateToken},
+	})
+	if err != nil {
+
+		return "", nil, err
+	}
+
+	return authRequest.StateToken, resp, nil
+}
+
+func (s *OIDCSuite) authenticateUserWithMFA(ctx context.Context, user string, sd *services.SSOMFASessionData, req types.OIDCAuthRequest) (*authclient.OIDCAuthResponse, error) {
+	authRequest, err := s.oidcService.CreateOIDCAuthRequestForMFA(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	sd.RequestID = authRequest.StateToken
+	if err := s.authServer.UpsertSSOMFASessionData(ctx, sd); err != nil {
+		return nil, err
+	}
+
+	request, err := s.store.CreateAuthRequest(
+		ctx,
+		&oidc.AuthRequest{
+			Scopes:      []string{oidc.ScopeOpenID, oidc.ScopeEmail, oidc.ScopeProfile},
+			ClientID:    s.connector.GetClientID(),
+			RedirectURI: s.connector.GetRedirectURLs()[0],
+			State:       authRequest.StateToken,
+			Display:     "none",
+		},
+		user,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.store.SaveAuthCode(ctx, request.GetID(), "test"); err != nil {
+		return nil, err
+	}
+
+	resp, err := s.oidcService.ValidateOIDCAuthCallback(ctx, url.Values{
+		"code":  []string{"test"},
+		"state": []string{authRequest.StateToken},
+	})
+	if err != nil {
+
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func TestCreateOIDCAuthRequest(t *testing.T) {
 	t.Parallel()
+	suite := newOIDCSuite(t)
+
+	tests := []struct {
+		name      string
+		req       types.OIDCAuthRequest
+		assertion func(t *testing.T, req *types.OIDCAuthRequest, err error)
+	}{
+		{
+			name: "test flow",
+			req: types.OIDCAuthRequest{
+				ConnectorID:   "test-flow-connector",
+				SSOTestFlow:   true,
+				ConnectorSpec: &suite.connector.Spec,
+			},
+			assertion: func(t *testing.T, req *types.OIDCAuthRequest, err error) {
+				require.NoError(t, err)
+				require.NotEmpty(t, req.RedirectURL)
+			},
+		},
+		{
+			name: "test flow custom client redirect",
+			req: types.OIDCAuthRequest{
+				ConnectorID:       "test-flow-connector",
+				SSOTestFlow:       true,
+				ConnectorSpec:     &suite.connector.Spec,
+				ClientRedirectURL: "http://test.example.com/callback?secret_key=test",
+			},
+			assertion: func(t *testing.T, req *types.OIDCAuthRequest, err error) {
+				require.ErrorContains(t, err, "custom client redirect URLs are not allowed in SSO test")
+				require.Nil(t, req)
+			},
+		},
+		{
+			name: "oidc login",
+			req: types.OIDCAuthRequest{
+				ConnectorID: suite.connector.GetName(),
+			},
+			assertion: func(t *testing.T, req *types.OIDCAuthRequest, err error) {
+				require.NoError(t, err)
+				require.NotEmpty(t, req.RedirectURL)
+			},
+		},
+		{
+			name: "invalid connector",
+			req: types.OIDCAuthRequest{
+				ConnectorID: "fake-connector",
+			},
+			assertion: func(t *testing.T, req *types.OIDCAuthRequest, err error) {
+				require.ErrorContains(t, err, "OpenID connector 'fake-connector' is not configured")
+				require.Nil(t, req)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp, err := suite.oidcService.CreateOIDCAuthRequest(context.Background(), test.req)
+			test.assertion(t, resp, err)
+		})
+	}
+}
+
+func TestValidateOIDCAuthCallback(t *testing.T) {
+	t.Parallel()
+	suite := newOIDCSuite(t)
+
+	tests := []struct {
+		name          string
+		userID        string
+		createSession bool
+		testFlow      bool
+		q             url.Values
+		assertion     func(t *testing.T, resp *authclient.OIDCAuthResponse, err error)
+	}{
+		{
+			name:   "successful authentication",
+			userID: "id1",
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.Nil(t, resp.Session)
+
+				u, err := suite.authServer.GetUser(context.Background(), "test-user@example.com", false)
+				require.NoError(t, err)
+				require.NotNil(t, u)
+				require.NotNil(t, u.GetCreatedBy())
+				require.Equal(t, suite.connector.GetName(), u.GetCreatedBy().Connector.ID)
+			},
+		},
+		{
+			name:     "test flow",
+			userID:   "id3",
+			testFlow: true,
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.Nil(t, resp.Session)
+
+				u, err := suite.authServer.GetUser(context.Background(), "test-user3@example.com", false)
+				require.True(t, trace.IsNotFound(err))
+				require.Nil(t, u)
+			},
+		},
+		{
+			name:          "successful authentication with session",
+			userID:        "id3",
+			createSession: true,
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.NotNil(t, resp.Session)
+
+				u, err := suite.authServer.GetUser(context.Background(), "test-user3@example.com", false)
+				require.NoError(t, err)
+				require.NotNil(t, u)
+				require.NotNil(t, u.GetCreatedBy())
+				require.Equal(t, suite.connector.GetName(), u.GetCreatedBy().Connector.ID)
+			},
+		},
+		{
+			name:   "email not verified",
+			userID: "id2",
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.ErrorContains(t, err, "email not verified by OIDC provider")
+				require.Nil(t, resp)
+			},
+		},
+		{
+			name:   "no claims to roles",
+			userID: "no-groups",
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.ErrorContains(t, err, "No roles mapped from claims")
+				require.Nil(t, resp)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			req := types.OIDCAuthRequest{
+				ConnectorID:      suite.connector.GetName(),
+				CreateWebSession: test.createSession,
+				CheckUser:        true,
+				SSOTestFlow:      test.testFlow,
+			}
+			if test.testFlow {
+				req.ConnectorSpec = &suite.connector.Spec
+			}
+
+			_, resp, err := suite.authenticateUser(ctx, test.userID, req)
+			test.assertion(t, resp, err)
+		})
+	}
+}
+
+func TestOIDCUserCreation(t *testing.T) {
+	t.Parallel()
+	suite := newOIDCSuite(t)
 	ctx := context.Background()
 
-	s := setUpSuite(t)
-
-	// Dry-run creation of OIDC user.
-	user, err := s.oas.createOIDCUser(ctx, &auth.CreateUserParams{
-		ConnectorName: "oidcService",
-		Username:      "foo@example.com",
-		Roles:         []string{"admin"},
-		SessionTTL:    1 * time.Minute,
-	}, true)
-	require.NoError(t, err)
-	require.Equal(t, "foo@example.com", user.GetName())
-
-	// Dry-run must not create a user.
-	_, err = s.a.GetUser(ctx, "foo@example.com", false)
-	require.Error(t, err)
-
-	// Create OIDC user with 1 minute expiry.
-	_, err = s.oas.createOIDCUser(ctx, &auth.CreateUserParams{
-		ConnectorName: "oidcService",
-		Username:      "foo@example.com",
-		Roles:         []string{"admin"},
-		SessionTTL:    1 * time.Minute,
-	}, false)
+	_, _, err := suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+		ConnectorID: suite.connector.GetName(),
+		CheckUser:   true,
+		CertTTL:     time.Minute,
+	})
 	require.NoError(t, err)
 
-	// Within that 1 minute period the user should still exist.
-	user, err = s.a.GetUser(ctx, "foo@example.com", false)
+	u, err := suite.authServer.GetUser(ctx, "test-user@example.com", false)
 	require.NoError(t, err)
 
-	// Create the same user again and validate that the user was
-	// successfully updated
-	user2, err := s.oas.createOIDCUser(ctx, &auth.CreateUserParams{
-		ConnectorName: "oidcService",
-		Username:      "foo@example.com",
-		Roles:         []string{"admin"},
-		SessionTTL:    1 * time.Minute,
-	}, false)
+	_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+		ConnectorID: suite.connector.GetName(),
+		CheckUser:   true,
+		CertTTL:     time.Minute,
+	})
 	require.NoError(t, err)
-	require.NotEqual(t, user.GetRevision(), user2.GetRevision())
-	require.Equal(t, user.GetName(), user2.GetName())
+
+	u2, err := suite.authServer.GetUser(ctx, "test-user@example.com", false)
+	require.NoError(t, err)
+
+	require.NotEqual(t, u.GetRevision(), u2.GetRevision())
+	require.Equal(t, u.GetName(), u2.GetName())
 
 	// Advance time 2 minutes, the user should be gone.
-	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUser(ctx, "foo@example.com", false)
+	suite.clock.Advance(2 * time.Minute)
+	_, err = suite.authServer.GetUser(ctx, "test-user@example.com", false)
 	require.Error(t, err)
 }
 
@@ -177,55 +779,108 @@ func TestCreateOIDCUser(t *testing.T) {
 // trace.NotFound similar to an invalid userinfo endpoint. For these users,
 // all claim information is already within the token and additional claim
 // information does not need to be fetched.
-func TestUserInfoBlockHTTP(t *testing.T) {
+func TestOIDCBlockHTTPUserInfo(t *testing.T) {
 	t.Parallel()
 
+	suite := newOIDCSuite(t, insecureOIDCSuite())
+
 	ctx := context.Background()
-	s := setUpSuite(t)
 
-	// Create configurable IdP to use in tests.
-	idp := NewFakeOIDCIdP(t, false)
-
-	// Create OIDC connector and client.
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.S.URL,
-		ClientID:      "00000000000000000000000000000000",
-		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+	_, _, err := suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+		ConnectorID: suite.connector.GetName(),
+		CheckUser:   true,
+		CertTTL:     time.Minute,
 	})
+	// The email_verified claim for the user is only populated from the information retrieved
+	// via the user info endpoint. This validates that when the user info endpoint
+	// is insecure that we do not enrich the user and the appropriate error is returned.
+	require.ErrorContains(t, err, "email not verified by OIDC provider")
+
+	suite.connector.Spec.AllowUnverifiedEmail = true
+	_, err = suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 	require.NoError(t, err)
 
-	oidcClient, err := s.oas.getCachedOIDCClient(ctx, connector, "", false)
-	require.NoError(t, err)
+	_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+		ConnectorID: suite.connector.GetName(),
+		CheckUser:   true,
+		CertTTL:     time.Minute,
+	})
 
-	// Verify HTTP endpoints return trace.NotFound.
-	_, err = claimsFromUserInfo(oidcClient.client, idp.S.URL, "")
-	fixtures.AssertNotFound(t, err)
+	// The role mapping claims for the user are only populated from the information retrieved
+	// via the user info endpoint. This validates that when the user info endpoint
+	// is insecure that we do not enrich the user and the appropriate error is returned.
+	require.ErrorContains(t, err, "No roles mapped from claims")
 }
 
 // TestUserInfoBadStatus asserts that a 4xx response from userinfo results
-// in AccessDenied.
+// in claims only being take from the id token.
 func TestUserInfoBadStatus(t *testing.T) {
 	t.Parallel()
 
-	// Create configurable IdP to use in tests.
-	idp := NewFakeOIDCIdP(t, true)
-
-	// Create OIDC connector and client.
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.S.URL,
-		ClientID:      "00000000000000000000000000000000",
-		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+	// Tests provide no claims in the id token that are mapped to roles.
+	// When userinfo requests fail, but do not abort authentication, it's
+	// expected that the error returned indicates no roles were mapped from
+	// the limited claims.
+	mappingError := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+		require.ErrorContains(t, err, "No roles mapped from claims", i...)
 	})
-	require.NoError(t, err)
-	oidcClient := createInsecureOIDCClient(t, connector)
 
-	// Verify HTTP endpoints return trace.AccessDenied.
-	_, err = claimsFromUserInfo(oidcClient, idp.S.URL, "")
-	fixtures.AssertAccessDenied(t, err)
+	tests := []struct {
+		name       string
+		statusCode int
+		assertion  require.ErrorAssertionFunc
+	}{
+		{
+			name:       http.StatusText(http.StatusInternalServerError),
+			statusCode: http.StatusInternalServerError,
+			assertion:  require.Error,
+		},
+		{
+			name:       http.StatusText(http.StatusBadRequest),
+			statusCode: http.StatusBadRequest,
+			assertion:  mappingError,
+		},
+		{
+			name:       http.StatusText(http.StatusUnauthorized),
+			statusCode: http.StatusUnauthorized,
+			assertion:  mappingError,
+		}, {
+			name:       http.StatusText(http.StatusForbidden),
+			statusCode: http.StatusForbidden,
+			assertion:  mappingError,
+		}, {
+			name:       http.StatusText(http.StatusMethodNotAllowed),
+			statusCode: http.StatusMethodNotAllowed,
+			assertion:  mappingError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			suite := newOIDCSuite(t, proxyOP(func(h http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if strings.Contains(r.URL.Path, "userinfo") {
+						w.WriteHeader(test.statusCode)
+						return
+					}
+
+					h.ServeHTTP(w, r)
+
+				})
+			}))
+
+			ctx := context.Background()
+			suite.connector.Spec.AllowUnverifiedEmail = true
+			_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+			require.NoError(t, err)
+
+			_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+				ConnectorID: suite.connector.GetName(),
+				CheckUser:   true,
+			})
+			test.assertion(t, err)
+		})
+	}
 }
 
 func TestSSODiagnostic(t *testing.T) {
@@ -240,10 +895,11 @@ func TestSSODiagnostic(t *testing.T) {
 	tests := []struct {
 		name            string
 		claimsToRoles   []types.ClaimMapping
-		claims          map[string]any
+		user            user
 		traitsMap       map[string][]string
 		expectRoles     []string
-		expectTraits    map[string][]string
+		expectGroups    []string
+		expectTraits    map[string]string
 		wantValidateErr error
 		loginHooks      []auth.LoginHook
 	}{
@@ -256,18 +912,34 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			claims: map[string]any{
-				"email_verified": true,
-				"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-				"email":          "superuser@example.com",
-				"sub":            "00001234abcd",
-				"exp":            1652091713.0,
+			user: user{
+				User: &storage.User{
+					ID:            "00001234abcd",
+					Username:      "test-user",
+					Password:      "verysecure",
+					FirstName:     "Test",
+					LastName:      "User",
+					Email:         "superuser@example.com",
+					EmailVerified: true,
+					IsAdmin:       true,
+				},
+				Claims: map[string]any{
+					"groups": []string{"everyone", "idp-admin", "idp-dev"},
+					"exp":    1652091713.0,
+				},
 			},
-			expectRoles: []string{"access"},
-			expectTraits: map[string][]string{
-				"email":  {"superuser@example.com"},
-				"groups": {"everyone", "idp-admin", "idp-dev"},
-				"sub":    {"00001234abcd"},
+			expectRoles:  []string{"access"},
+			expectGroups: []string{"everyone", "idp-admin", "idp-dev"},
+			expectTraits: map[string]string{
+				"email":              "superuser@example.com",
+				"sub":                "00001234abcd",
+				"aud":                "test",
+				"azp":                "test",
+				"family_name":        "User",
+				"given_name":         "Test",
+				"name":               "Test User",
+				"preferred_username": "test-user",
+				"client_id":          "test",
 			},
 			loginHooks: []auth.LoginHook{
 				loginHook,
@@ -283,14 +955,23 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			claims: map[string]any{
-				"email_verified": true,
-				"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-				"email":          "superuser@example.com",
-				"sub":            "00001234abcd",
-				"exp":            1652091713.0,
+			user: user{
+				User: &storage.User{
+					ID:            "00001234abcd",
+					Username:      "test-user",
+					Password:      "verysecure",
+					FirstName:     "Test",
+					LastName:      "User",
+					Email:         "superuser@example.com",
+					EmailVerified: true,
+					IsAdmin:       true,
+				},
+				Claims: map[string]any{
+					"groups": []string{"everyone", "idp-admin", "idp-dev"},
+					"exp":    1652091713.0,
+				},
 			},
-			wantValidateErr: ErrOIDCNoRoles,
+			wantValidateErr: eauth.ErrOIDCNoRoles,
 		},
 		{
 			// Test that login rules can influence mapped roles.
@@ -302,10 +983,20 @@ func TestSSODiagnostic(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-			claims: map[string]any{
-				"groups": []string{"everyone", "idp-admin", "idp-dev"},
-				"email":  "superuser@example.com",
-				"sub":    "00001234abcd",
+			user: user{
+				User: &storage.User{
+					ID:            "00001234abcd",
+					Username:      "test-user",
+					Password:      "verysecure",
+					FirstName:     "Test",
+					LastName:      "User",
+					Email:         "superuser@example.com",
+					EmailVerified: true,
+				},
+				Claims: map[string]any{
+					"groups": []string{"everyone", "idp-admin", "idp-dev"},
+					"exp":    1652091713.0,
+				},
 			},
 			traitsMap: map[string][]string{
 				"email": {"external.email"},
@@ -315,10 +1006,10 @@ func TestSSODiagnostic(t *testing.T) {
 						external.groups)`,
 				},
 			},
-			expectRoles: []string{"access"},
-			expectTraits: map[string][]string{
-				"email":  {"superuser@example.com"},
-				"groups": {"everyone", "idp-admin", "idp-dev", "rule-access"},
+			expectRoles:  []string{"access"},
+			expectGroups: []string{"everyone", "idp-admin", "idp-dev", "rule-access"},
+			expectTraits: map[string]string{
+				"email": "superuser@example.com",
 			},
 		},
 	}
@@ -326,40 +1017,26 @@ func TestSSODiagnostic(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			s := setUpSuite(t)
+
+			suite := newOIDCSuite(t, overrideUsers([]user{
+				tc.user,
+			}))
+			suite.connector.Spec.ClaimsToRoles = tc.claimsToRoles
+			_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+			require.NoError(t, err)
 
 			loginHookCounter.Store(0)
 			for _, hook := range tc.loginHooks {
-				s.a.RegisterLoginHook(hook)
+				suite.authServer.RegisterLoginHook(hook)
 			}
 
 			var expectLoginRules []string
 			if len(tc.traitsMap) > 0 {
-				installLoginRule(ctx, t, s.a, s.b, tc.traitsMap)
+				installLoginRule(ctx, t, suite.authServer, suite.backend, tc.traitsMap)
 				expectLoginRules = append(expectLoginRules, "testrule")
 			}
 
-			// Create configurable IdP to use in tests.
-			idp := NewFakeOIDCIdP(t, false /* tls */)
-
-			// create role referenced in request.
-			_, err := auth.CreateRole(ctx, s.a, "access", types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Logins: []string{"dummy"},
-				},
-			})
-			require.NoError(t, err)
-
-			// connector spec
-			spec := types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.S.URL,
-				ClientID:      "00000000000000000000000000000000",
-				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-				Display:       "Test",
-				Scope:         []string{"groups"},
-				ClaimsToRoles: tc.claimsToRoles,
-				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-			}
+			suite.emitter.Reset()
 
 			addr := utils.MustParseAddr("1.1.1.1:42")
 			oidcRequest := types.OIDCAuthRequest{
@@ -367,27 +1044,11 @@ func TestSSODiagnostic(t *testing.T) {
 				Type:          constants.OIDC,
 				CertTTL:       defaults.OIDCAuthRequestTTL,
 				SSOTestFlow:   true,
-				ConnectorSpec: &spec,
+				ConnectorSpec: &suite.connector.Spec,
 				ClientLoginIP: addr.String(),
 			}
 
-			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
-			require.NoError(t, err)
-			require.NotNil(t, request)
-			require.NotEmpty(t, request.RedirectURL)
-
-			values := url.Values{
-				"code":  []string{"XXX-code"},
-				"state": []string{request.StateToken},
-			}
-
-			// override getClaimsFun.
-			s.oas.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
-				return tc.claims, nil
-			}
-
-			s.emitter.Reset()
-			resp, err := s.oas.ValidateOIDCAuthCallback(ctx, values)
+			reqID, resp, err := suite.authenticateUser(ctx, tc.user.ID, oidcRequest)
 			if tc.wantValidateErr != nil {
 				require.ErrorIs(t, err, tc.wantValidateErr)
 				return
@@ -397,76 +1058,111 @@ func TestSSODiagnostic(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			require.Equal(t, &authclient.OIDCAuthResponse{
-				Username: "superuser@example.com",
-				Identity: types.ExternalIdentity{
-					ConnectorID: "-sso-test-okta",
-					Username:    "superuser@example.com",
-				},
-				Req: OIDCAuthRequestFromProto(request),
-			}, resp)
-			require.NotNil(t, s.emitter.LastEvent())
-			require.Equal(t, events.UserLoginEvent, s.emitter.LastEvent().GetType())
-			require.IsType(t, &apievents.UserLogin{}, s.emitter.LastEvent())
-			loginEvt := s.emitter.LastEvent().(*apievents.UserLogin)
-			require.Equal(t, addr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
-
-			diagCtx := auth.SSODiagContext{}
-
-			resp, loginIP, err := s.oas.validateOIDCAuthCallback(ctx, &diagCtx, values)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Equal(t, &authclient.OIDCAuthResponse{
-				Username: "superuser@example.com",
-				Identity: types.ExternalIdentity{
-					ConnectorID: "-sso-test-okta",
-					Username:    "superuser@example.com",
-				},
-				Req: OIDCAuthRequestFromProto(request),
-			}, resp)
-			diff := cmp.Diff(types.SSODiagnosticInfo{
-				TestFlow: true,
-				Success:  true,
-				CreateUserParams: &types.CreateUserParams{
-					ConnectorName: "-sso-test-okta",
-					Username:      "superuser@example.com",
-					Logins:        nil,
-					KubeGroups:    nil,
-					KubeUsers:     nil,
-					Roles:         tc.expectRoles,
-					Traits:        tc.expectTraits,
-					SessionTTL:    600000000000,
-				},
-				OIDCClaimsToRoles:         tc.claimsToRoles,
-				OIDCClaimsToRolesWarnings: nil,
-				OIDCClaims:                tc.claims,
-				OIDCIdentity: &types.OIDCIdentity{
-					ID:        "00001234abcd",
-					Name:      "",
-					Email:     "superuser@example.com",
-					ExpiresAt: diagCtx.Info.OIDCIdentity.ExpiresAt,
-				},
-				OIDCTraitsFromClaims: tc.expectTraits,
-				OIDCConnectorTraitMapping: []types.TraitMapping{
-					{
-						Trait: tc.claimsToRoles[0].Claim,
-						Value: tc.claimsToRoles[0].Value,
-						Roles: tc.claimsToRoles[0].Roles,
+			require.Empty(t, cmp.Diff(
+				&authclient.OIDCAuthResponse{
+					Username: "superuser@example.com",
+					Identity: types.ExternalIdentity{
+						ConnectorID: "-sso-test-okta",
+						Username:    "superuser@example.com",
 					},
 				},
-				AppliedLoginRules: expectLoginRules,
-			}, diagCtx.Info, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
-			require.Empty(t, diff, "diagnostic info does not match expected")
-			require.Equal(t, addr.String(), loginIP)
+				resp,
+				cmpopts.IgnoreFields(authclient.OIDCAuthResponse{}, "Req")),
+			)
+			require.NotNil(t, suite.emitter.LastEvent())
+			require.Equal(t, events.UserLoginEvent, suite.emitter.LastEvent().GetType())
+			require.IsType(t, &apievents.UserLogin{}, suite.emitter.LastEvent())
+			loginEvt := suite.emitter.LastEvent().(*apievents.UserLogin)
+			require.Equal(t, addr.String(), loginEvt.ConnectionMetadata.RemoteAddr)
 
-			require.Equal(t, len(tc.loginHooks)*2, int(loginHookCounter.Load()))
+			diagInfo, err := suite.authServer.GetSSODiagnosticInfo(ctx, types.KindOIDC, reqID)
+			require.NoError(t, err)
+
+			diff := cmp.Diff(
+				diagInfo,
+				&types.SSODiagnosticInfo{
+					TestFlow: true,
+					Success:  true,
+					CreateUserParams: &types.CreateUserParams{
+						ConnectorName: "-sso-test-okta",
+						Username:      "superuser@example.com",
+						Logins:        nil,
+						KubeGroups:    nil,
+						KubeUsers:     nil,
+						Roles:         tc.expectRoles,
+						SessionTTL:    600000000000,
+					},
+					OIDCClaimsToRoles:         tc.claimsToRoles,
+					OIDCClaimsToRolesWarnings: nil,
+					OIDCClaims:                tc.user.Claims,
+					OIDCIdentity: &types.OIDCIdentity{
+						ID:        "00001234abcd",
+						Name:      "Test User",
+						Email:     "superuser@example.com",
+						ExpiresAt: diagInfo.OIDCIdentity.ExpiresAt,
+					},
+					OIDCConnectorTraitMapping: []types.TraitMapping{
+						{
+							Trait: tc.claimsToRoles[0].Claim,
+							Value: tc.claimsToRoles[0].Value,
+							Roles: tc.claimsToRoles[0].Roles,
+						},
+					},
+					AppliedLoginRules: expectLoginRules,
+				},
+				cmpopts.SortSlices(func(a, b string) bool { return a < b }),
+				cmpopts.IgnoreFields(types.CreateUserParams{}, "Traits"),
+				cmpopts.IgnoreFields(types.SSODiagnosticInfo{}, "OIDCClaims", "OIDCTraitsFromClaims"),
+			)
+			require.Empty(t, diff, "diagnostic info does not match expected")
+
+			assert.Empty(t, cmp.Diff(tc.expectGroups, diagInfo.CreateUserParams.Traits["groups"],
+				cmpopts.SortSlices(func(a string, b string) bool {
+					return a < b
+				})))
+
+			claimGroups := diagInfo.OIDCClaims["groups"].([]any)
+			groups := make([]string, 0, len(claimGroups))
+			for _, g := range claimGroups {
+				groups = append(groups, g.(string))
+			}
+			assert.Empty(t, cmp.Diff(tc.user.Claims["groups"], groups,
+				cmpopts.SortSlices(func(a string, b string) bool {
+					return a < b
+				})))
+			assert.Empty(t, cmp.Diff(
+				tc.expectGroups, diagInfo.OIDCTraitsFromClaims["groups"],
+				cmpopts.SortSlices(func(a string, b string) bool {
+					return a < b
+				})))
+
+			for traitName, traitValue := range tc.expectTraits {
+				v, ok := diagInfo.CreateUserParams.Traits[traitName]
+				assert.True(t, ok)
+				assert.Equal(t, []string{traitValue}, v)
+
+				claim, ok := diagInfo.OIDCClaims[traitName]
+				assert.True(t, ok)
+				switch claim.(type) {
+				case string:
+					assert.Equal(t, traitValue, claim)
+				case []any:
+					assert.Equal(t, []any{traitValue}, claim)
+				}
+
+				trait, ok := diagInfo.OIDCTraitsFromClaims[traitName]
+				assert.True(t, ok)
+				assert.Equal(t, []string{traitValue}, trait)
+			}
+
+			require.Equal(t, len(tc.loginHooks), int(loginHookCounter.Load()))
 		})
 	}
 }
 
 func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backend.Backend, traitsMap map[string][]string) {
 	// Install login rules plugin.
-	ruleStorage := storage.New(b)
+	ruleStorage := loginrulestorage.New(b)
 	evaluator := loginrule.NewEvaluator(ruleStorage)
 	a.SetLoginRuleEvaluator(evaluator)
 
@@ -490,491 +1186,232 @@ func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backe
 	require.NoError(t, err)
 }
 
-// TestPingProvider confirms that the client_secret_post auth
-// method was set for a oauthclient.
-func TestPingProvider(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	s := setUpSuite(t)
-
-	// Create configurable IdP to use in tests.
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-
-	// Create and upsert oidc connector into identity
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.S.URL,
-		ClientID:      "00000000000000000000000000000000",
-		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:      teleport.Ping,
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	})
-	require.NoError(t, err)
-	_, err = s.a.CreateOIDCConnector(ctx, connector)
-	require.NoError(t, err)
-
-	for _, req := range []types.OIDCAuthRequest{
-		{
-			ConnectorID: "test-connector",
-		}, {
-			SSOTestFlow: true,
-			ConnectorID: "test-connector",
-			ConnectorSpec: &types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.S.URL,
-				ClientID:      "00000000000000000000000000000000",
-				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-				Provider:      teleport.Ping,
-				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-			},
-		},
-	} {
-		t.Run(fmt.Sprintf("Test SSOFlow: %v", req.SSOTestFlow), func(t *testing.T) {
-			oidcConnector, oidcClient, err := s.oas.getOIDCConnectorAndClient(ctx, req, false)
-			require.NoError(t, err)
-
-			oac, err := getOAuthClient(oidcClient, oidcConnector)
-			require.NoError(t, err)
-
-			// authMethod should be client secret post now
-			require.Equal(t, oauth2.AuthMethodClientSecretPost, oac.GetAuthMethod())
-		})
-	}
-}
-
-func TestOIDCClientProviderSync(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	// Create configurable IdP to use in tests.
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-
-	// Create OIDC connector and client.
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.S.URL,
-		ClientID:      "00000000000000000000000000000000",
-		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:      teleport.Ping,
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	})
-	require.NoError(t, err)
-
-	client, err := newOIDCClient(ctx, connector, "proxy.example.com")
-	require.NoError(t, err)
-
-	// first sync should complete successfully
-	require.NoError(t, client.waitFirstSync(100*time.Millisecond))
-	require.NoError(t, client.syncCtx.Err())
-
-	// Create OIDC client with a canceled ctx
-	canceledCtx, cancel := context.WithCancel(ctx)
-	cancel()
-
-	client, err = newOIDCClient(canceledCtx, connector, "proxy.example.com")
-	require.NoError(t, err)
-
-	// provider sync goroutine should end and first sync should fail
-	require.ErrorIs(t, client.syncCtx.Err(), context.Canceled)
-	err = client.waitFirstSync(100 * time.Millisecond)
-	require.Error(t, err)
-	require.ErrorIs(t, err, context.Canceled)
-
-	// Create OIDC connector and client without an issuer URL for provider syncing
-	connectorNoIssuer, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		ClientID:      "00000000000000000000000000000000",
-		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:      teleport.Ping,
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	})
-	require.NoError(t, err)
-
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	client, err = newOIDCClient(timeoutCtx, connectorNoIssuer, "proxy.example.com")
-	require.NoError(t, err)
-
-	// first sync should fail after the given timeout and cancel the sync goroutine.
-	err = client.waitFirstSync(100 * time.Millisecond)
-	require.Error(t, err)
-	require.True(t, trace.IsConnectionProblem(err))
-	require.ErrorIs(t, client.syncCtx.Err(), context.Canceled)
-}
-
-func TestOIDCClientCache(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	s := setUpSuite(t)
-
-	// Create configurable IdP to use in tests.
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-	connectorSpec := types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.S.URL,
-		ClientID:      "00000000000000000000000000000000",
-		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-		Provider:      teleport.Ping,
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	}
-	connector, err := types.NewOIDCConnector("test-connector", connectorSpec)
-	require.NoError(t, err)
-
-	// Create and cache a new oidc client
-	client, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
-	require.NoError(t, err)
-
-	// The next call should return the same client (compare memory address)
-	cachedClient, err := s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
-	require.NoError(t, err)
-	require.Same(t, client, cachedClient)
-
-	// Canceling provider sync on a cached client should cause it to be replaced
-	client.syncCancel()
-	cachedClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
-	require.NoError(t, err)
-	require.NotSame(t, client, cachedClient)
-
-	// Certain changes to the connector should cause the cached client to be refreshed
-	originalClient := cachedClient
-	for _, tc := range []struct {
-		desc            string
-		mutateConnector func(types.OIDCConnector)
-		clientAssertion require.ComparisonAssertionFunc
-	}{
-		{
-			desc: "IssuerURL",
-			mutateConnector: func(conn types.OIDCConnector) {
-				conn.SetIssuerURL(NewFakeOIDCIdP(t, false /* tls */).S.URL)
-			},
-			clientAssertion: require.NotSame,
-		},
-		{
-			desc: "ClientID",
-			mutateConnector: func(conn types.OIDCConnector) {
-				conn.SetClientID("11111111111111111111111111111111")
-			},
-			clientAssertion: require.NotSame,
-		},
-		{
-			desc: "ClientSecret",
-			mutateConnector: func(conn types.OIDCConnector) {
-				conn.SetClientSecret("1111111111111111111111111111111111111111111111111111111111111111")
-			},
-			clientAssertion: require.NotSame,
-		},
-		{
-			desc: "RedirectURLs",
-			mutateConnector: func(conn types.OIDCConnector) {
-				conn.SetRedirectURLs([]string{"https://other.example.com/v1/webapi/oidc/callback"})
-			},
-			clientAssertion: require.NotSame,
-		},
-		{
-			desc: "Scope",
-			mutateConnector: func(conn types.OIDCConnector) {
-				conn.SetScope([]string{"groups"})
-			},
-			clientAssertion: require.NotSame,
-		},
-		{
-			desc: "Prompt - no refresh",
-			mutateConnector: func(conn types.OIDCConnector) {
-				conn.SetPrompt("none")
-			},
-			clientAssertion: require.Same,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			newConnector, err := types.NewOIDCConnector("test-connector", connectorSpec)
-			require.NoError(t, err)
-			tc.mutateConnector(newConnector)
-
-			client, err = s.oas.getCachedOIDCClient(ctx, newConnector, "proxy.example.com", false)
-			require.NoError(t, err)
-			tc.clientAssertion(t, client, originalClient)
-
-			// reset cached client to the original client for remaining tests
-			originalClient, err = s.oas.getCachedOIDCClient(ctx, connector, "proxy.example.com", false)
-			require.NoError(t, err)
-		})
-	}
-}
-
-func TestOIDCGoogle(t *testing.T) {
-	t.Parallel()
-
-	directGroups := map[string][]string{
-		"alice@foo.example":  {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
-		"bob@foo.example":    {"group1@foo.example"},
-		"carlos@bar.example": {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
-	}
-
-	// group2@sub.foo.example is in group3@bar.example and group3@bar.example is in group4@bar.example
-	strictDirectGroups := map[string][]string{
-		"alice@foo.example":  {"group1@foo.example", "group2@sub.foo.example"},
-		"bob@foo.example":    {"group1@foo.example"},
-		"carlos@bar.example": {"group1@foo.example", "group2@sub.foo.example"},
-	}
-	directIndirectGroups := map[string][]string{
-		"alice@foo.example":  {"group3@bar.example"},
-		"bob@foo.example":    {},
-		"carlos@bar.example": {"group3@bar.example"},
-	}
-	indirectGroups := map[string][]string{
-		"alice@foo.example":  {"group4@bar.example"},
-		"bob@foo.example":    {},
-		"carlos@bar.example": {"group4@bar.example"},
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/admin/directory/v1/groups", func(rw http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "GET", r.Method)
-
-		email := r.URL.Query().Get("userKey")
-		require.NotEmpty(t, email)
-		require.Contains(t, directGroups, email)
-
-		domain := r.URL.Query().Get("domain")
-
-		resp := &directory.Groups{}
-		for _, groupEmail := range directGroups[email] {
-			if domain == "" || strings.HasSuffix(groupEmail, "@"+domain) {
-				resp.Groups = append(resp.Groups, &directory.Group{Email: groupEmail})
-			}
-		}
-
-		require.NoError(t, json.NewEncoder(rw).Encode(resp))
-	})
-	mux.HandleFunc("/v1/groups/-/memberships:searchTransitiveGroups", func(rw http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "GET", r.Method)
-		q := r.URL.Query().Get("query")
-
-		// hacky solution but the query parameter of searchTransitiveGroups is also pretty hacky
-		prefix := "member_key_id == '"
-		suffix := "' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels"
-		require.True(t, strings.HasPrefix(q, prefix))
-		require.True(t, strings.HasSuffix(q, suffix))
-		email := strings.TrimSuffix(strings.TrimPrefix(q, prefix), suffix)
-		require.NotEmpty(t, email)
-		require.Contains(t, directGroups, email)
-
-		resp := &cloudidentity.SearchTransitiveGroupsResponse{}
-
-		for relationType, groupEmails := range map[string][]string{
-			"DIRECT":              strictDirectGroups[email],
-			"DIRECT_AND_INDIRECT": directIndirectGroups[email],
-			"INDIRECT":            indirectGroups[email],
-		} {
-			for _, groupEmail := range groupEmails {
-				resp.Memberships = append(resp.Memberships, &cloudidentity.GroupRelation{
-					GroupKey: &cloudidentity.EntityKey{
-						Id: groupEmail,
-					},
-					Labels: map[string]string{
-						"cloudidentity.googleapis.com/groups.discussion_forum": "",
-					},
-					RelationType: relationType,
-				})
-			}
-		}
-
-		require.NoError(t, json.NewEncoder(rw).Encode(resp))
-	})
-
-	ts := httptest.NewServer(mux)
-	t.Cleanup(ts.Close)
-	testOptions := []option.ClientOption{option.WithEndpoint(ts.URL), option.WithoutAuthentication()}
-
-	ctx := context.Background()
-
-	for _, testCase := range []struct {
-		email, domain                string
-		transitive, direct, filtered []string
-	}{
-		{
-			"alice@foo.example", "foo.example",
-			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
-			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
-			[]string{"group1@foo.example"},
-		},
-		{
-			"bob@foo.example", "foo.example",
-			[]string{"group1@foo.example"},
-			[]string{"group1@foo.example"},
-			[]string{"group1@foo.example"},
-		},
-		{
-			"carlos@bar.example", "bar.example",
-			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
-			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
-			[]string{"group3@bar.example"},
-		},
-	} {
-		// transitive groups
-		groups, err := groupsFromGoogleCloudIdentity(ctx, testCase.email, testOptions...)
-		require.NoError(t, err)
-		require.ElementsMatch(t, testCase.transitive, groups)
-
-		// direct groups, unfiltered
-		groups, err = groupsFromGoogleDirectory(ctx, testCase.email, "", testOptions...)
-		require.NoError(t, err)
-		require.ElementsMatch(t, testCase.direct, groups)
-
-		// direct groups, filtered by domain
-		groups, err = groupsFromGoogleDirectory(ctx, testCase.email, testCase.domain, testOptions...)
-		require.NoError(t, err)
-		require.ElementsMatch(t, testCase.filtered, groups)
-	}
-}
-
 func TestEmailVerifiedClaim(t *testing.T) {
-	tests := []struct {
-		claims        map[string]interface{}
-		expectedError string
-	}{
+	t.Parallel()
+
+	users := []user{
 		{
-			claims: map[string]interface{}{
+			User: &storage.User{
+				ID:            "id1",
+				Username:      "test-user",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User",
+				Email:         "test-user@example.com",
+				EmailVerified: true,
+			},
+			Claims: map[string]any{
+				"groups": []string{"access"},
+			},
+		},
+		{
+			User: &storage.User{
+				ID:            "id2",
+				Username:      "test-user2",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User",
+				Email:         "test-user2@example.com",
+				EmailVerified: false,
+			},
+			Claims: map[string]any{
+				"groups": []string{"access"},
+			},
+		},
+		{
+			User: &storage.User{
+				ID:        "id3",
+				Username:  "test-user3",
+				Password:  "verysecure",
+				FirstName: "Test",
+				LastName:  "User",
+				Email:     "test-user3@example.com",
+			},
+			Claims: map[string]any{
+				"groups":         []string{"access"},
 				"email_verified": "true",
 			},
-			expectedError: "",
 		},
 		{
-			claims: map[string]interface{}{
+			User: &storage.User{
+				ID:        "id4",
+				Username:  "test-user4",
+				Password:  "verysecure",
+				FirstName: "Test",
+				LastName:  "User",
+				Email:     "test-user4@example.com",
+			},
+			Claims: map[string]any{
+				"groups":         []string{"access"},
 				"email_verified": "false",
 			},
-			expectedError: "email not verified by OIDC provider",
 		},
 		{
-			claims: map[string]interface{}{
-				"email_verified": false,
+			User: &storage.User{
+				ID:        "id5",
+				Username:  "test-user5",
+				Password:  "verysecure",
+				FirstName: "Test",
+				LastName:  "User",
+				Email:     "test-user5@example.com",
 			},
-			expectedError: "email not verified by OIDC provider",
-		},
-		{
-			claims: map[string]interface{}{
-				"email_verified": true,
-			},
-			expectedError: "",
-		},
-		{
-			claims: map[string]interface{}{
+			Claims: map[string]any{
+				"groups":         []string{"access"},
 				"email_verified": "random_value",
 			},
-			expectedError: "unable to parse oidc claim: \"email_verified\", must be either 'true' or 'false', got 'random_value'",
+		},
+		{
+			User: &storage.User{
+				ID:        "id6",
+				Username:  "test-user6",
+				Password:  "verysecure",
+				FirstName: "Test",
+				LastName:  "User",
+				Email:     "test-user6@example.com",
+			},
+			Claims: map[string]any{
+				"groups":         []string{"access"},
+				"email_verified": "",
+			},
+		},
+	}
+
+	suite := newOIDCSuite(t, overrideUsers(users))
+	ctx := context.Background()
+
+	unverifiedErrorAssertion := func(t require.TestingT, err error, i ...any) {
+		require.ErrorContains(t, err, "email not verified by OIDC provider")
+	}
+
+	tests := []struct {
+		name      string
+		userID    string
+		assertion require.ErrorAssertionFunc
+	}{
+		{
+			name:      "email verified in user",
+			userID:    users[0].ID,
+			assertion: require.NoError,
+		},
+		{
+			name:      "email not verified in user",
+			userID:    users[1].ID,
+			assertion: unverifiedErrorAssertion,
+		},
+		{
+			name:      "email verified in claims",
+			userID:    users[2].ID,
+			assertion: require.NoError,
+		},
+		{
+			name:      "email not verified in claims",
+			userID:    users[3].ID,
+			assertion: unverifiedErrorAssertion,
+		},
+		{
+			name:      "bogus email verified claims",
+			userID:    users[4].ID,
+			assertion: unverifiedErrorAssertion,
+		},
+		{
+			name:      "empty email verified claims",
+			userID:    users[5].ID,
+			assertion: unverifiedErrorAssertion,
 		},
 	}
 
 	for _, test := range tests {
-		err := checkEmailVerifiedClaim(test.claims)
-		if test.expectedError == "" {
-			require.NoError(t, err)
-		} else {
-			require.ErrorContains(t, err, test.expectedError)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			_, _, err := suite.authenticateUser(ctx, test.userID, types.OIDCAuthRequest{
+				ConnectorID: suite.connector.GetName(),
+			})
+
+			test.assertion(t, err)
+		})
 	}
 }
 
 // TestUsernameClaim ensures that the `username_claim` field in an OIDC config is handled correctly.
 func TestUsernameClaim(t *testing.T) {
-	ctx := context.Background()
-	s := setUpSuite(t)
-	idp := NewFakeOIDCIdP(t, false /* tls */)
+	t.Parallel()
 
-	diagCtx := auth.SSODiagContext{}
+	const usernameClaim = "the_username_claim"
 
-	// Create role that will be mapped to the user.
-	_, err := auth.CreateRole(ctx, s.a, "access", types.RoleSpecV6{
-		Allow: types.RoleConditions{},
-	})
-	require.NoError(t, err)
-	require.NoError(t, err)
-
-	// Create claims with "preferred_username" field.
-	claims := map[string]interface{}{
-		"email_verified":     true,
-		"groups":             []string{"everyone"},
-		"email":              "test-user@example.com",
-		"sub":                "00001234abcd",
-		"exp":                1652091713.0,
-		"preferred_username": "Teleport_TestUser",
+	users := []user{
+		{
+			User: &storage.User{
+				ID:            "id1",
+				Username:      "test-user",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User",
+				Email:         "test-user@example.com",
+				EmailVerified: true,
+			},
+			Claims: map[string]any{
+				"groups":      []string{"access"},
+				usernameClaim: "USER1",
+			},
+		},
+		{
+			User: &storage.User{
+				ID:            "id2",
+				Username:      "test-user2",
+				Password:      "verysecure",
+				FirstName:     "Test",
+				LastName:      "User",
+				Email:         "test-user2@example.com",
+				EmailVerified: true,
+			},
+			Claims: map[string]any{
+				"groups": []string{"access"},
+			},
+		},
 	}
 
-	// Create identity from the claims.
-	ident, err := oidc.IdentityFromClaims(claims)
+	suite := newOIDCSuite(t, overrideUsers(users))
+	ctx := context.Background()
+
+	suite.connector.Spec.UsernameClaim = usernameClaim
+	_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 	require.NoError(t, err)
 
 	tests := []struct {
-		desc             string
-		spec             types.OIDCConnectorSpecV3
+		name             string
+		userID           string
 		expectedUsername string
-		expectedError    string
+		assertion        require.ErrorAssertionFunc
 	}{
 		{
-			desc: "username_claim specified with correct claim (login hooks called)",
-			spec: types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.S.URL,
-				ClientID:      "000",
-				ClientSecret:  "0000",
-				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
-				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-				UsernameClaim: "preferred_username",
-			},
-			expectedUsername: "Teleport_TestUser",
+			name:             "custom username claim provided",
+			userID:           users[0].ID,
+			expectedUsername: users[0].Claims[usernameClaim].(string),
+			assertion:        require.NoError,
 		},
 		{
-			desc: "username_claim specified with incorrect claim",
-			spec: types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.S.URL,
-				ClientID:      "000",
-				ClientSecret:  "0000",
-				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
-				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-				UsernameClaim: "prefred_usrnam",
+			name:   "no custom username claim provided",
+			userID: users[1].ID,
+			assertion: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, `The configured username_claim of "the_username_claim" was not received from the IdP`)
 			},
-			expectedError: "The configured username_claim of \"prefred_usrnam\" was not received from the IdP. Please update the username_claim in connector \"okta-oidc\".",
-		},
-		{
-			desc: "no username_claim specified, default to using email",
-			spec: types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.S.URL,
-				ClientID:      "000",
-				ClientSecret:  "0000",
-				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
-				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-			},
-			expectedUsername: "test-user@example.com",
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.desc, func(t *testing.T) {
-			// Create OIDC connector with UsernameClaim specified.
-			connector, err := types.NewOIDCConnector("okta-oidc", tc.spec)
-			require.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, err := suite.authenticateUser(ctx, test.userID, types.OIDCAuthRequest{
+				ConnectorID: suite.connector.GetName(),
+			})
 
-			// Create OIDC request.
-			oidcRequest := types.OIDCAuthRequest{
-				ConnectorID:   "okta-oidc",
-				Type:          constants.OIDC,
-				CertTTL:       defaults.OIDCAuthRequestTTL,
-				SSOTestFlow:   true,
-				ConnectorSpec: &tc.spec,
-			}
-			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
-			require.NoError(t, err)
-			require.NotEmpty(t, request.RedirectURL)
+			test.assertion(t, err)
 
-			// Generate the userCreateParams for the OIDC user.
-			createUserParams, err := s.oas.calculateOIDCUser(ctx, &diagCtx, connector, claims, ident, request)
-			if tc.expectedError != "" {
-				require.ErrorContains(t, err, tc.expectedError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedUsername, createUserParams.Username)
+			if err != nil {
+				return
 			}
+
+			u, err := suite.authServer.GetUser(ctx, test.expectedUsername, false)
+			require.NoError(t, err)
+			require.NotNil(t, u)
 		})
 	}
 }
@@ -983,29 +1420,16 @@ func TestUsernameClaim(t *testing.T) {
 func TestReqMaxAge(t *testing.T) {
 	t.Parallel()
 
+	suite := newOIDCSuite(t)
 	ctx := context.Background()
-	s := setUpSuite(t)
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-
-	connectorSpec := types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.S.URL,
-		ClientID:      "000",
-		ClientSecret:  "0000",
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-		UsernameClaim: "preferred_username",
-	}
 
 	tests := []struct {
 		name              string
 		maxAge            *types.MaxAge
 		expectedReqMaxAge string
-		expectedErr       string
 	}{
 		{
-			name:              "empty",
-			maxAge:            nil,
-			expectedReqMaxAge: "",
+			name: "empty",
 		},
 		{
 			name:              "zero",
@@ -1019,525 +1443,136 @@ func TestReqMaxAge(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			spec := connectorSpec
-			spec.MaxAge = tt.maxAge
+	for _, test := range tests {
+		suite.connector.Spec.MaxAge = test.maxAge
+		_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+		require.NoError(t, err)
 
-			oidcRequest := types.OIDCAuthRequest{
-				ConnectorID:   "okta-oidc",
-				Type:          constants.OIDC,
-				CertTTL:       defaults.OIDCAuthRequestTTL,
-				SSOTestFlow:   true,
-				ConnectorSpec: &spec,
-			}
-			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
-			require.NoError(t, err)
-			require.NotEmpty(t, request.RedirectURL)
+		oidcRequest := types.OIDCAuthRequest{
+			ConnectorID:   "okta-oidc",
+			Type:          constants.OIDC,
+			CertTTL:       defaults.OIDCAuthRequestTTL,
+			SSOTestFlow:   true,
+			ConnectorSpec: &suite.connector.Spec,
+		}
+		request, err := suite.oidcService.CreateOIDCAuthRequest(ctx, oidcRequest)
+		require.NoError(t, err)
+		require.NotEmpty(t, request.RedirectURL)
 
-			redirURL, err := url.Parse(request.RedirectURL)
-			require.NoError(t, err)
-			maxAge := redirURL.Query().Get("max_age")
-			require.Equal(t, tt.expectedReqMaxAge, maxAge)
-		})
+		redirURL, err := url.Parse(request.RedirectURL)
+		require.NoError(t, err)
+		maxAge := redirURL.Query().Get("max_age")
+		require.Equal(t, test.expectedReqMaxAge, maxAge)
+
 	}
 }
 
 func TestValidateACRValues(t *testing.T) {
-	tests := []struct {
-		comment       string
-		inIDToken     string
-		inACRValue    string
-		inACRProvider string
-		outIsValid    require.ErrorAssertionFunc
-	}{
-		{
-			"0 - default, acr values match",
-			`
-{
-	"acr": "foo",
-	"aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo",
-			"",
-			require.NoError,
-		},
-		{
-			"1 - default, acr values do not match",
-			`
-{
-	"acr": "foo",
-	"aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"bar",
-			"",
-			require.Error,
-		},
-		{
-			"2 - netiq, acr values match",
-			`
-{
-    "acr": {
-        "values": [
-            "foo/bar/baz"
-        ]
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.NoError,
-		},
-		{
-			"3 - netiq, invalid format",
-			`
-{
-    "acr": {
-        "values": "foo/bar/baz"
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.Error,
-		},
-		{
-			"4 - netiq, invalid value",
-			`
-{
-    "acr": {
-        "values": [
-            "foo/bar/baz/qux"
-        ]
-    },
-    "aud": "00000000-0000-0000-0000-000000000000",
-    "exp": 1111111111
-}
-			`,
-			"foo/bar/baz",
-			"netiq",
-			require.Error,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.comment, func(t *testing.T) {
-			t.Parallel()
-			var claims jose.Claims
-			err := json.Unmarshal([]byte(tt.inIDToken), &claims)
-			require.NoError(t, err)
-
-			err = validateACRValues(tt.inACRValue, tt.inACRProvider, claims)
-			tt.outIsValid(t, err)
-		})
-	}
-}
-
-func TestOIDCAuthRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.OIDC: {Enabled: true},
-		}},
-	})
-
-	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{})
-
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-
-	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	access1Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-1", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDCRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access2Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-2", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDC},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	access3Role, err := auth.CreateRole(ctx, srv.Auth(), "test-access-3", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDC, types.KindOIDCRequest},
-					Verbs:     []string{types.VerbCreate},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	readerRole, err := auth.CreateRole(ctx, srv.Auth(), "test-access-4", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindOIDCRequest},
-					Verbs:     []string{types.VerbRead},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	const defaultRedirectURL = "https://localhost:3080/v1/webapi/oidc/callback"
-	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.S.URL,
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURLs: []string{
-			defaultRedirectURL,
-			"https://alternate.example.com:3080/v1/webapi/oidc/callback",
-		},
-		Display: "sign in with example.com",
-		Scope:   []string{"foo", "bar"},
-		ClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "groups",
-				Value: "idp-admin",
-				Roles: []string{"access"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	_, err = srv.Auth().CreateOIDCConnector(context.Background(), conn)
-	require.NoError(t, err)
-
-	reqNormal := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-	reqTest := types.OIDCAuthRequest{
-		ConnectorID: conn.GetName(),
-		Type:        constants.OIDC,
-		SSOTestFlow: true,
-		ConnectorSpec: &types.OIDCConnectorSpecV3{
-			IssuerURL:    idp.S.URL,
-			ClientID:     "example-client-id",
-			ClientSecret: "example-client-secret",
-			RedirectURLs: []string{defaultRedirectURL},
-			Display:      "sign in with example.com",
-			Scope:        []string{"foo", "bar"},
-			ClaimsToRoles: []types.ClaimMapping{
-				{
-					Claim: "groups",
-					Value: "idp-admin",
-					Roles: []string{"access"},
-				},
-			},
-		},
-	}
+	t.Parallel()
 
 	tests := []struct {
-		desc               string
-		roles              []string
-		request            types.OIDCAuthRequest
-		expectAccessDenied bool
-		expectRedirectURL  string
+		name      string
+		acrClaim  any
+		acrValue  string
+		provider  string
+		assertion require.ErrorAssertionFunc
 	}{
 		{
-			desc:               "empty role - no access",
-			roles:              []string{emptyRole.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
+			name:      "default, acr values match",
+			acrClaim:  "foo",
+			acrValue:  "foo",
+			assertion: require.NoError,
 		},
 		{
-			desc:               "can create regular request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-			expectRedirectURL:  defaultRedirectURL,
+			name:      "default, acr values do not match",
+			acrClaim:  "foo",
+			acrValue:  "bar",
+			assertion: require.Error,
 		},
 		{
-			desc:               "cannot create sso test request with normal access",
-			roles:              []string{access1Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create normal request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "cannot create sso test request with connector access",
-			roles:              []string{access2Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: true,
-		},
-		{
-			desc:               "can create regular request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqNormal,
-			expectAccessDenied: false,
-			expectRedirectURL:  defaultRedirectURL,
-		},
-		{
-			desc:               "can create sso test request with combined access",
-			roles:              []string{access3Role.GetName()},
-			request:            reqTest,
-			expectAccessDenied: false,
-			expectRedirectURL:  defaultRedirectURL,
-		},
-		{
-			desc:  "can create regular request with alternate redirect url",
-			roles: []string{access3Role.GetName()},
-			request: types.OIDCAuthRequest{
-				ConnectorID:  conn.GetName(),
-				Type:         constants.OIDC,
-				ProxyAddress: "https://alternate.example.com:3080",
+			name: "netiq, acr values match",
+			acrClaim: map[string][]string{
+				"values": {
+					"foo/bar/baz",
+				},
 			},
-			expectAccessDenied: false,
-			expectRedirectURL:  "https://alternate.example.com:3080/v1/webapi/oidc/callback",
+			acrValue:  "foo/bar/baz",
+			provider:  "netiq",
+			assertion: require.NoError,
+		},
+		{
+			name: "netiq, invalid format",
+			acrClaim: map[string]string{
+				"values": "foo/bar/baz",
+			},
+			acrValue:  "foo/bar/baz",
+			provider:  "netiq",
+			assertion: require.Error,
+		},
+		{
+			name: "netiq, invalid value",
+			acrClaim: map[string][]string{
+				"values": {
+					"foo/bar/baz/qux",
+				},
+			},
+
+			acrValue:  "foo/bar/baz",
+			provider:  "netiq",
+			assertion: require.Error,
 		},
 	}
 
-	user, err := auth.CreateUser(ctx, srv.Auth(), "dummy")
-	require.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			suite := newOIDCSuite(t, overrideUsers([]user{
+				{
+					User: &storage.User{
+						ID:            "user1",
+						Username:      "test-user",
+						Password:      "verysecure",
+						FirstName:     "Test",
+						LastName:      "User",
+						Email:         "test-user@example.com",
+						EmailVerified: true,
+					},
+					Claims: map[string]any{
+						"acr":    test.acrClaim,
+						"groups": []string{"access"},
+					},
+				},
+			}))
 
-	userReader, err := auth.CreateUser(ctx, srv.Auth(), "dummy-reader", readerRole)
-	require.NoError(t, err)
+			suite.connector.Spec.Provider = test.provider
+			suite.connector.Spec.ACR = test.acrValue
 
-	clientReader, err := srv.NewClient(auth.TestUser(userReader.GetName()))
-	require.NoError(t, err)
-
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			user.SetRoles(tt.roles)
-			user, err = srv.Auth().UpsertUser(ctx, user)
+			ctx := context.Background()
+			_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 			require.NoError(t, err)
 
-			client, err := srv.NewClient(auth.TestUser(user.GetName()))
-			require.NoError(t, err)
-
-			request, err := client.CreateOIDCAuthRequest(ctx, tt.request)
-			if tt.expectAccessDenied {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
-				return
-			} else {
-				redirectURL, err := url.ParseRequestURI(request.RedirectURL)
-				require.NoError(t, err)
-				require.Equal(t, tt.expectRedirectURL, redirectURL.Query().Get("redirect_uri"))
-			}
-
-			require.NoError(t, err)
-			require.NotEmpty(t, request.StateToken)
-			require.Equal(t, tt.request.ConnectorID, request.ConnectorID)
-
-			requestCopy, err := clientReader.GetOIDCAuthRequest(ctx, request.StateToken)
-			require.NoError(t, err)
-			require.Equal(t, request, requestCopy)
-		})
-	}
-}
-
-// TestOIDCAuthCompat attempts to test OIDC SSO authentication from the
-// perspective of an Auth service receiving requests from a proxy service. The
-// Auth service on major version N should support proxies on version N and N-1,
-// which may send a single user public key or split SSH and TLS public keys.
-func TestOIDCAuthCompat(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.OIDC: {Enabled: true},
-		}},
-	})
-
-	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *auth.TestTLSServerConfig) {
-		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
-		require.NoError(t, err)
-		reg := plugin.NewRegistry()
-		reg.Add(authPlugin)
-		cfg.APIConfig.PluginRegistry = reg
-	})
-
-	// There is no real OIDC IdP, override valid claims for a test user.
-	SetStaticOIDCTestClaims(t, srv.Auth(), map[string]any{
-		"groups": []string{"devs"},
-		"email":  "alice@example.com",
-		"sub":    "00001234abcd",
-	})
-
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-
-	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.S.URL,
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-		ClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "groups",
-				Value: "devs",
-				Roles: []string{"access"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	_, err = srv.Auth().CreateOIDCConnector(context.Background(), conn)
-	require.NoError(t, err)
-
-	_, err = auth.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	proxyClient, err := srv.NewClient(auth.TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
-
-	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(sshKey.Public())
-	require.NoError(t, err)
-	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
-
-	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		desc                         string
-		pubKey, sshPubKey, tlsPubKey []byte
-		expectSSHSubjectKey          ssh.PublicKey
-		expectTLSSubjectKey          crypto.PublicKey
-	}{
-		{
-			desc: "no keys",
-		},
-		{
-			desc:                "single key",
-			pubKey:              sshPubBytes,
-			expectSSHSubjectKey: sshPub,
-			expectTLSSubjectKey: sshKey.Public(),
-		},
-		{
-			desc:                "split keys",
-			sshPubKey:           sshPubBytes,
-			tlsPubKey:           tlsPubBytes,
-			expectSSHSubjectKey: sshPub,
-			expectTLSSubjectKey: tlsKey.Public(),
-		},
-		{
-			desc:                "only ssh",
-			sshPubKey:           sshPubBytes,
-			expectSSHSubjectKey: sshPub,
-		},
-		{
-			desc:                "only tls",
-			tlsPubKey:           tlsPubBytes,
-			expectTLSSubjectKey: tlsKey.Public(),
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			req, err := proxyClient.CreateOIDCAuthRequest(ctx, types.OIDCAuthRequest{
-				ConnectorID:  conn.GetName(),
-				Type:         constants.OIDC,
-				PublicKey:    tc.pubKey,
-				SshPublicKey: tc.sshPubKey,
-				TlsPublicKey: tc.tlsPubKey,
-				CertTTL:      apidefaults.MinCertDuration,
-				CheckUser:    true,
+			_, _, err = suite.authenticateUser(ctx, "user1", types.OIDCAuthRequest{
+				ConnectorID: suite.connector.GetName(),
 			})
-			require.NoError(t, err, "creating OIDC auth request")
-
-			values := url.Values{
-				"code":  []string{"XXX-code"},
-				"state": []string{req.StateToken},
-			}
-			resp, err := proxyClient.ValidateOIDCAuthCallback(ctx, values)
-			require.NoError(t, err, "validating OIDC auth callback")
-
-			// The proxy should get back the keys exactly as it sent them. Older
-			// proxies won't look for the new split keys, and they do check for
-			// the old single key to tell if this was a console or web request.
-			require.Equal(t, tc.pubKey, resp.Req.PublicKey) //nolint:staticcheck // SA1019. Checking deprecated field expected by older clients.
-			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
-			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
-
-			// Make sure the subject key in the issued SSH cert matches the
-			// expected key and didn't get accidentally switched.
-			if tc.expectSSHSubjectKey != nil {
-				sshCert, err := sshutils.ParseCertificate(resp.Cert)
-				require.NoError(t, err)
-				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
-			} else {
-				// No SSH cert should be issued if we didn't ask for one.
-				require.Empty(t, resp.Cert)
-			}
-
-			// Make sure the subject key in the issued TLS cert matches the
-			// expected key and didn't get accidentally switched.
-			if tc.expectTLSSubjectKey != nil {
-				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
-				require.NoError(t, err)
-				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
-			} else {
-				// No TLS cert should be issued if we didn't ask for one.
-				require.Empty(t, resp.TLSCert)
-			}
+			test.assertion(t, err)
 		})
 	}
 }
 
 func TestOIDCLicense(t *testing.T) {
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-
-	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.S.URL,
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-		ClaimsToRoles: []types.ClaimMapping{
-			{
-				Claim: "groups",
-				Value: "idp-admin",
-				Roles: []string{"access"},
-			},
-		},
-	})
-	require.NoError(t, err)
+	t.Parallel()
 
 	tests := []struct {
 		name        string
-		license     License
+		license     eauth.License
 		expectError bool
 	}{
 		{
 			name:    "valid license",
-			license: ValidLicense{},
+			license: eauth.ValidLicense{},
 		},
 		{
 			name:        "disabled license",
-			license:     DisabledLicense{},
+			license:     eauth.DisabledLicense{},
 			expectError: true,
 		},
 	}
@@ -1545,12 +1580,11 @@ func TestOIDCLicense(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			srv := newTestTLSServer(t, tt.license)
-			_, err := srv.Auth().CreateOIDCConnector(ctx, conn)
-			require.NoError(t, err)
 
-			req := types.OIDCAuthRequest{ConnectorID: conn.GetName(), Type: constants.OIDC}
-			_, err = srv.Auth().CreateOIDCAuthRequest(ctx, req)
+			suite := newOIDCSuite(t, overrideLicense(tt.license))
+
+			req := types.OIDCAuthRequest{ConnectorID: suite.connector.GetName(), Type: constants.OIDC}
+			_, err := suite.oidcService.CreateOIDCAuthRequest(ctx, req)
 			if tt.expectError {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
@@ -1561,84 +1595,60 @@ func TestOIDCLicense(t *testing.T) {
 	}
 }
 
-func TestServer_ValidateOIDCResponse_MFA(t *testing.T) {
-	ctx := context.Background()
-
+func TestValidateOIDCResponseMFA(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.OIDC: {Enabled: true},
 		}},
 	})
 
-	srv := testserver.MakeTestServer(t)
-	a := srv.GetAuthServer()
-
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	oas := registerOIDCService(t, &OIDCAuthServiceConfig{Auth: a, License: ValidLicense{}, Emitter: mockEmitter})
-
-	idp := NewFakeOIDCIdP(t, false /* tls */)
-	connectorName := "oidc-connector"
-	conn, err := types.NewOIDCConnector(connectorName, types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.S.URL,
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-		ClaimsToRoles: []types.ClaimMapping{
+	clock := clockwork.NewFakeClock()
+	suite := newOIDCSuite(t,
+		overrideClock(clock),
+		overrideUsers([]user{
 			{
-				Claim: "groups",
-				Value: "idp-admin",
-				Roles: []string{"access"},
+				User: &storage.User{
+					ID:            "id1",
+					Username:      "test-user",
+					Password:      "verysecure",
+					FirstName:     "Test",
+					LastName:      "User",
+					Email:         "test-user@example.com",
+					EmailVerified: true,
+					IsAdmin:       true,
+				},
+				Claims: map[string]any{
+					"groups":    []string{"access"},
+					"auth_time": float64(clock.Now().Unix()),
+				},
 			},
-		},
-		MFASettings: &types.OIDCConnectorMFASettings{
-			Enabled:      true,
-			ClientId:     "example-client-id",
-			ClientSecret: "example-client-secret",
-		},
-	})
-	require.NoError(t, err)
+		}))
 
-	_, err = a.CreateOIDCConnector(context.Background(), conn)
-	require.NoError(t, err)
-
-	request, err := oas.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
-		ConnectorID: connectorName,
-		Type:        constants.OIDC,
-		CheckUser:   true,
-	})
-	require.NoError(t, err)
-
-	// override getClaimsFun.
-	username := "superuser@example.com"
-	oas.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
-		return map[string]any{
-			"email_verified": true,
-			"groups":         []string{"idp-admin"},
-			"email":          username,
-			"sub":            "00001234abcd",
-			"exp":            float64(time.Now().Add(time.Hour).Unix()),
-			// required since max_age=0.
-			"auth_time": float64(time.Now().Unix()),
-		}, nil
+	suite.connector.Spec.MFASettings = &types.OIDCConnectorMFASettings{
+		Enabled:      true,
+		ClientId:     suite.connector.GetClientID(),
+		ClientSecret: suite.connector.GetClientSecret(),
 	}
+
+	ctx := context.Background()
+	_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name              string
 		mutateSessionData func(sd *services.SSOMFASessionData)
 		checkError        assert.ErrorAssertionFunc
-		checkResponse     func(t *testing.T, resp *authclient.OIDCAuthResponse)
+		checkResponse     func(t *testing.T, token string, resp *authclient.OIDCAuthResponse)
 	}{
 		{
 			name:       "OK valid MFA session",
 			checkError: assert.NoError,
-			checkResponse: func(t *testing.T, resp *authclient.OIDCAuthResponse) {
+			checkResponse: func(t *testing.T, token string, resp *authclient.OIDCAuthResponse) {
 				require.NotEmpty(t, resp)
 				assert.NotEmpty(t, resp.MFAToken)
 
 				// MFA session data token should match the response.
-				sd, err := a.GetSSOMFASessionData(ctx, request.StateToken)
+				sd, err := suite.authServer.GetSSOMFASessionData(ctx, token)
 				assert.NoError(t, err)
 				assert.Equal(t, resp.MFAToken, sd.Token)
 			},
@@ -1648,7 +1658,7 @@ func TestServer_ValidateOIDCResponse_MFA(t *testing.T) {
 			mutateSessionData: func(sd *services.SSOMFASessionData) {
 				sd.Username = "unknown"
 			},
-			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+			checkError: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},
@@ -1657,7 +1667,7 @@ func TestServer_ValidateOIDCResponse_MFA(t *testing.T) {
 			mutateSessionData: func(sd *services.SSOMFASessionData) {
 				sd.ConnectorID = "unknown"
 			},
-			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+			checkError: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},
@@ -1666,34 +1676,35 @@ func TestServer_ValidateOIDCResponse_MFA(t *testing.T) {
 			mutateSessionData: func(sd *services.SSOMFASessionData) {
 				sd.ConnectorType = "unknown"
 			},
-			checkError: func(t assert.TestingT, err error, i ...interface{}) bool {
+			checkError: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			// Add SSO MFA session data for the saml auth request. This should result in an MFA token being created.
+			// Add SSO MFA session data for the oidc auth request. This should result in an MFA token being created.
 			sd := &services.SSOMFASessionData{
-				RequestID:     request.StateToken,
-				Username:      username,
-				ConnectorID:   connectorName,
+				Username:      "test-user@example.com",
+				ConnectorID:   suite.connector.GetName(),
 				ConnectorType: constants.OIDC,
 			}
 			if tt.mutateSessionData != nil {
 				tt.mutateSessionData(sd)
 			}
-			err = a.UpsertSSOMFASessionData(ctx, sd)
-			require.NoError(t, err)
 
-			// check ValidateSAMLResponse
-			response, err := oas.ValidateOIDCAuthCallback(context.Background(), url.Values{
-				"code":  []string{"XXX-code"},
-				"state": []string{request.StateToken},
-			})
+			response, err := suite.authenticateUserWithMFA(ctx, "id1",
+				sd,
+				types.OIDCAuthRequest{
+					ConnectorID:      suite.connector.GetName(),
+					Type:             constants.OIDC,
+					CreateWebSession: true,
+					CheckUser:        true,
+				},
+			)
 			tt.checkError(t, err)
 
 			if tt.checkResponse != nil {
-				tt.checkResponse(t, response)
+				tt.checkResponse(t, sd.RequestID, response)
 			}
 		})
 	}
@@ -1714,13 +1725,14 @@ func TestOIDCRoleMapping(t *testing.T) {
 	require.NoError(t, err)
 
 	// create some claims
-	var claims = make(jose.Claims)
-	claims.Add("roles", "teleport-user")
-	claims.Add("email", "foo@example.com")
-	claims.Add("nickname", "foo")
-	claims.Add("full_name", "foo bar")
+	claims := map[string]any{
+		"roles":     "teleport-user",
+		"email":     "foo@example.com",
+		"nickname":  "foo",
+		"full_name": "foo bar",
+	}
 
-	traits := OIDCClaimsToTraits(claims)
+	traits := eauth.OIDCClaimsToTraits(claims)
 	require.Len(t, traits, 4)
 
 	_, roles := services.TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
@@ -1728,117 +1740,10 @@ func TestOIDCRoleMapping(t *testing.T) {
 	require.Equal(t, "user", roles[0])
 }
 
-// TestIDTokenHeaders verifies that id token jwts that contain headers
-// with and without numeric values are unmarshaled properly.
-func TestIDTokenHeaders(t *testing.T) {
-	// Create configurable IdP to use in tests.
-	idp := NewFakeOIDCIdP(t, true)
-
-	// Create OIDC connector and client.
-	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.S.URL,
-		ClientID:      "00000000000000000000000000000000",
-		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-	})
-	require.NoError(t, err)
-
-	conf := oidcConfig(connector, "")
-	conf.HTTPClient = &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-	conf.KeySet = *key.NewPublicKeySet([]jose.JWK{idp.pk.JWK()}, time.Now().Add(time.Hour))
-	client, err := oidc.NewClient(conf)
-	require.NoError(t, err)
-	client.SyncProviderConfig(context.Background(), connector.GetIssuerURL())
-
-	clt := createInsecureOIDCClient(t, connector)
-
-	tests := []struct {
-		name    string
-		headers map[string]any
-	}{
-		{
-			name: "non-string headers",
-			headers: map[string]any{
-				jose.HeaderMediaType:    "JWT",
-				jose.HeaderKeyAlgorithm: idp.pk.JWK().Alg,
-				jose.HeaderKeyID:        idp.pk.JWK().ID,
-				"version":               1.0,
-			},
-		},
-		{
-			name: "string only headers",
-			headers: map[string]any{
-				jose.HeaderMediaType:    "JWT",
-				jose.HeaderKeyAlgorithm: idp.pk.JWK().Alg,
-				jose.HeaderKeyID:        idp.pk.JWK().ID,
-				"version":               "1.0",
-			},
-		},
-	}
-
-	expectedClaims := map[string]any{
-		"groups": []string{"devs"},
-		"email":  "alice@example.com",
-		"sub":    "00001234abcd",
-		"exp":    float64(time.Now().Add(time.Hour).Unix()),
-		"iss":    idp.S.URL,
-		"iat":    time.Now().Unix(),
-		"aud":    connector.GetClientID(),
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			payload, err := json.Marshal(expectedClaims)
-			require.NoError(t, err)
-
-			header, err := json.Marshal(map[string]any{
-				jose.HeaderMediaType:    "JWT",
-				jose.HeaderKeyAlgorithm: idp.pk.JWK().Alg,
-				jose.HeaderKeyID:        idp.pk.JWK().ID,
-				"version":               1.0,
-			})
-			require.NoError(t, err)
-
-			// The JWT is constructed by hand to acomadate header
-			// values that may not be a string instead of using
-			// [jose.NewJWT] and updating the header after the fact.
-			jwt := strings.TrimRight(base64.URLEncoding.EncodeToString(header), "=") + "." +
-				strings.TrimRight(base64.URLEncoding.EncodeToString(payload), "=")
-
-			sig, err := idp.pk.Signer().Sign([]byte(jwt))
-			require.NoError(t, err)
-
-			jwt += "." + strings.TrimRight(base64.URLEncoding.EncodeToString(sig), "=")
-
-			claims, err := claimsFromIDToken(clt, jwt)
-			require.NoError(t, err)
-
-			assert.Len(t, claims, len(expectedClaims))
-			rawClaims, err := json.Marshal(claims)
-			require.NoError(t, err)
-
-			assert.JSONEq(t, string(payload), string(rawClaims))
-		})
-	}
-}
-
 // TestLargePayload verifies that large payloads from
 // discovery requests are rejected.
 func TestLargePayload(t *testing.T) {
-	clt := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
+	t.Parallel()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
@@ -1849,17 +1754,39 @@ func TestLargePayload(t *testing.T) {
 	srv := httptest.NewTLSServer(mux)
 	t.Cleanup(srv.Close)
 
-	r := oidc.NewHTTPProviderConfigGetter(clt, srv.URL)
-	_, err := r.Get()
-	assert.Error(t, err)
-	assert.ErrorContains(t, err, "response exceeds maximum size of")
+	suite := newOIDCSuite(t)
+	suite.connector.Spec.IssuerURL = srv.URL
+
+	ctx := context.Background()
+	_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
+	require.NoError(t, err)
+
+	_, err = suite.oidcService.CreateOIDCAuthRequest(
+		context.Background(),
+		types.OIDCAuthRequest{ConnectorID: suite.connector.GetName()},
+	)
+	require.ErrorContains(t, err, "response exceeds maximum size of")
 }
 
 // TestDiscoveryURL verifies that query parameters set on the issuer url
 // are passed along to discovery requests.
 func TestDiscoveryURL(t *testing.T) {
+	t.Parallel()
+
+	suite := newOIDCSuite(t)
+
 	mux := http.NewServeMux()
 	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(srv.Close)
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	params := u.Query()
+	params.Add("a", "b")
+	params.Add("c", "d")
+	u.RawQuery = params.Encode()
+
 	requestedURL := make(chan *url.URL, 1)
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1872,28 +1799,21 @@ func TestDiscoveryURL(t *testing.T) {
 		"userinfo_endpoint": "%[1]v/userinfo",
 		"subject_types_supported": ["public"],
 		"id_token_signing_alg_values_supported": ["HS256", "RS256"]
-}`, srv.URL)
+}`, u.String())
 	})
-	t.Cleanup(srv.Close)
 
-	u, err := url.Parse(srv.URL)
+	connector := proto.Clone(suite.connector).(*types.OIDCConnectorV3)
+	connector.Spec.IssuerURL = u.String()
+
+	ctx := context.Background()
+	_, err = suite.authServer.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 
-	params := u.Query()
-	params.Add("a", "b")
-	params.Add("c", "d")
-	u.RawQuery = params.Encode()
-
-	clt := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-	r := oidc.NewHTTPProviderConfigGetter(clt, u.String())
-	_, err = r.Get()
-	assert.NoError(t, err)
+	_, err = suite.oidcService.CreateOIDCAuthRequest(
+		context.Background(),
+		types.OIDCAuthRequest{ConnectorID: connector.GetName()},
+	)
+	require.NoError(t, err)
 
 	select {
 	case u := <-requestedURL:

@@ -27,16 +27,21 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/e/lib/loginrule"
+	loginrulestorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -869,6 +874,32 @@ func newTestConnectorSpec() types.SAMLConnectorSpecV2 {
 		Provider:          "",
 		EncryptionKeyPair: nil,
 	}
+}
+
+func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backend.Backend, traitsMap map[string][]string) {
+	// Install login rules plugin.
+	ruleStorage := loginrulestorage.New(b)
+	evaluator := loginrule.NewEvaluator(ruleStorage)
+	a.SetLoginRuleEvaluator(evaluator)
+
+	if len(traitsMap) == 0 {
+		return
+	}
+
+	// Create login rule and upsert to backend.
+	rule := &loginrulepb.LoginRule{
+		Metadata: &types.Metadata{
+			Name: "testrule",
+		},
+		TraitsMap: make(map[string]*wrappers.StringValues),
+	}
+	for trait, values := range traitsMap {
+		rule.TraitsMap[trait] = &wrappers.StringValues{
+			Values: values,
+		}
+	}
+	_, err := ruleStorage.CreateLoginRule(ctx, rule)
+	require.NoError(t, err)
 }
 
 func TestServer_ValidateSAMLResponse(t *testing.T) {

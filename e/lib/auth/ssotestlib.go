@@ -1,9 +1,7 @@
 package auth
 
 import (
-	"context"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -13,17 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/key"
-	"github.com/coreos/go-oidc/oidc"
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -33,31 +26,15 @@ import (
 // tests. At the moment it creates an HTTP server and only responds to the
 // "/.well-known/openid-configuration" endpoint.
 type FakeOIDCIdP struct {
-	S  *httptest.Server
-	pk *key.PrivateKey
+	S *httptest.Server
 }
 
 // NewFakeOIDCIdP creates a new instance of a configurable IdP.
 func NewFakeOIDCIdP(t *testing.T, tls bool) *FakeOIDCIdP {
-	priv, err := key.GeneratePrivateKey()
-	if err != nil {
-		t.Fatalf("failed to generate private key, error=%v", err)
-	}
-
-	s := FakeOIDCIdP{
-		pk: priv,
-	}
+	s := FakeOIDCIdP{}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", s.configurationHandler)
-	mux.HandleFunc("/jwks", func(w http.ResponseWriter, r *http.Request) {
-		d := struct {
-			Keys []jose.JWK `json:"keys"`
-		}{
-			Keys: []jose.JWK{priv.JWK()},
-		}
-		json.NewEncoder(w).Encode(&d)
-	})
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	})
@@ -83,20 +60,6 @@ func (s *FakeOIDCIdP) configurationHandler(w http.ResponseWriter, r *http.Reques
 	"subject_types_supported": ["public"],
 	"id_token_signing_alg_values_supported": ["HS256", "RS256"]
 }`, s.S.URL)
-}
-
-// SetStaticOIDCTestClaims sets the OIDCAuthService on [srv] to always use the
-// static [claims] when looking up OIDC claims for any user.
-func SetStaticOIDCTestClaims(t *testing.T, srv *auth.Server, claims map[string]any) {
-	oas, err := NewOIDCAuthService(&OIDCAuthServiceConfig{
-		Auth:    srv,
-		License: ValidLicense{},
-	})
-	require.NoError(t, err)
-	oas.getClaimsFun = func(_ context.Context, _ *oidc.Client, _ types.OIDCConnector, _ string) (jose.Claims, error) {
-		return claims, nil
-	}
-	srv.SetOIDCService(oas)
 }
 
 // FakeSAMLIdP is a fully-functional SAML IdP that can be used to serve SSO
@@ -159,7 +122,7 @@ func NewFakeSAMLIdP(t *testing.T, clock clockwork.Clock) *FakeSAMLIdP {
 	return f
 }
 
-// ServerSSO is how tests should interact with the IdP. ServeSSO will handle a
+// ServeSSO is how tests should interact with the IdP. ServeSSO will handle a
 // SAML redirect URL and respond with a signed response.
 func (f *FakeSAMLIdP) ServeSSO(url string) (string, error) {
 	w := httptest.NewRecorder()

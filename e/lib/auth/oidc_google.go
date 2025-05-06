@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	directory "google.golang.org/api/admin/directory/v1"
@@ -42,10 +42,9 @@ func isGoogleWorkspaceConnector(connector types.OIDCConnector) bool {
 // and it will add claims based on the fetched data. The current implementation
 // adds a "groups" claim containing the Google Groups that the user is a member
 // of.
-func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector, claims jose.Claims) (jose.Claims, error) {
-	email, exists, err := claims.StringClaim("email")
-	if err != nil || !exists {
-		return nil, trace.BadParameter("no `email` in oauth claims for Google Workspace account")
+func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector, idToken *oidc.Tokens[*oidc.IDTokenClaims]) error {
+	if idToken.IDTokenClaims.Email == "" {
+		return trace.BadParameter("no `email` in oauth claims for Google Workspace account")
 	}
 
 	var googleGroups []string
@@ -57,74 +56,71 @@ func addGoogleWorkspaceClaims(ctx context.Context, connector types.OIDCConnector
 	case types.V3:
 		credentials, err := getGoogleWorkspaceCredentials(ctx, connector, cloudidentity.CloudIdentityGroupsReadonlyScope)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		if credentials != nil {
-			logger.DebugContext(ctx, "fetching transitive Google groups email", "email", email)
-			googleGroups, err = groupsFromGoogleCloudIdentity(ctx, email, option.WithTokenSource(credentials))
+			logger.DebugContext(ctx, "fetching transitive Google groups email", "email", idToken.IDTokenClaims.Email)
+			googleGroups, err = groupsFromGoogleCloudIdentity(ctx, idToken.IDTokenClaims.Email, option.WithTokenSource(credentials))
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		} else {
 			credentials, err := getGoogleWorkspaceCredentials(ctx, connector, directory.AdminDirectoryGroupReadonlyScope)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 
 			if credentials == nil {
-				return nil, trace.BadParameter("invalid Google Workspace credentials for scopes %v or %v",
+				return trace.BadParameter("invalid Google Workspace credentials for scopes %v or %v",
 					cloudidentity.CloudIdentityGroupsReadonlyScope, directory.AdminDirectoryGroupReadonlyScope)
 			}
 
-			logger.DebugContext(ctx, "fetching direct Google groups with no domain filtering for email", "email", email)
-			googleGroups, err = groupsFromGoogleDirectory(ctx, email, "", option.WithTokenSource(credentials))
+			logger.DebugContext(ctx, "fetching direct Google groups with no domain filtering for email", "email", idToken.IDTokenClaims.Email)
+			googleGroups, err = groupsFromGoogleDirectory(ctx, idToken.IDTokenClaims.Email, "", option.WithTokenSource(credentials))
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		}
 
 	// for the V2 connector we always try to use the Admin SDK Directory API to
 	// fetch direct groups filtered by domain, for backwards compatibility
 	case types.V2:
-		hostedDomain, exists, err := claims.StringClaim("hd")
-		if err != nil || !exists {
-			return nil, trace.BadParameter("no `hd` in oauth claims for Google Workspace account")
+		hostedDomain, exists := idToken.IDTokenClaims.Claims["hd"].(string)
+		if !exists {
+			return trace.BadParameter("no `hd` in oauth claims for Google Workspace account")
 		}
 
 		credentials, err := getGoogleWorkspaceCredentials(ctx, connector, directory.AdminDirectoryGroupReadonlyScope)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		if credentials == nil {
-			return nil, trace.BadParameter("invalid Google Workspace credentials for scope %v", directory.AdminDirectoryGroupReadonlyScope)
+			return trace.BadParameter("invalid Google Workspace credentials for scope %v", directory.AdminDirectoryGroupReadonlyScope)
 		}
 
 		logger.DebugContext(ctx, "fetching direct Google groups for email, filtering by domain",
-			"email", email,
+			"email", idToken.IDTokenClaims.Email,
 			"domain", hostedDomain,
 		)
-		googleGroups, err = groupsFromGoogleDirectory(ctx, email, hostedDomain, option.WithTokenSource(credentials))
+		googleGroups, err = groupsFromGoogleDirectory(ctx, idToken.IDTokenClaims.Email, hostedDomain, option.WithTokenSource(credentials))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	default:
-		return nil, trace.BadParameter("OIDC connector resource version %v is not supported", connector.GetVersion())
+		return trace.BadParameter("OIDC connector resource version %v is not supported", connector.GetVersion())
 	}
 
-	if len(googleGroups) > 0 {
-		googleClaims := jose.Claims{googleGroupsClaim: googleGroups}
-		logger.DebugContext(ctx, "Retrieved claims from Google Workspace", "claims", googleClaims)
-		claims, err = mergeClaims(claims, googleClaims)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
+	if len(googleGroups) == 0 {
 		logger.DebugContext(ctx, "No Google Workspace claims")
+		return nil
 	}
 
-	return claims, nil
+	logger.DebugContext(ctx, "Retrieved groups from Google Workspace", "groups", googleGroups)
+	idToken.IDTokenClaims.Claims[googleGroupsClaim] = googleGroups
+
+	return nil
 }
 
 func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConnector, scopes ...string) (oauth2.TokenSource, error) {
