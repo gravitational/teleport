@@ -59,7 +59,7 @@ type joinServiceClient interface {
 		ctx context.Context,
 		req *proto.RegisterUsingBoundKeypairInitialRequest,
 		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-	) (*proto.Certs, error)
+	) (*proto.Certs, string, error)
 	RegisterUsingToken(
 		ctx context.Context,
 		req *types.RegisterUsingTokenRequest,
@@ -414,7 +414,7 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 
 	setBotParameters(ctx, initReq.JoinRequest)
 
-	certs, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
+	certs, pubKey, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
 		// First, forward the challenge from Auth to the client.
 		err := srv.Send(resp)
 		if err != nil {
@@ -443,7 +443,8 @@ func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_
 	return trace.Wrap(srv.Send(&proto.RegisterUsingBoundKeypairMethodResponse{
 		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Certs{
 			Certs: &proto.RegisterUsingBoundKeypairCertificates{
-				Certs: certs,
+				Certs:     certs,
+				PublicKey: pubKey,
 			},
 		},
 	}))

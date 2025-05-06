@@ -93,7 +93,7 @@ func (c *mockJoinServiceClient) RegisterUsingBoundKeypairMethod(
 	ctx context.Context,
 	req *proto.RegisterUsingBoundKeypairInitialRequest,
 	challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-) (*proto.Certs, error) {
+) (*proto.Certs, string, error) {
 	c.gotBoundKeypairInitReq = req
 	resp, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
 		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
@@ -104,12 +104,12 @@ func (c *mockJoinServiceClient) RegisterUsingBoundKeypairMethod(
 		},
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	c.gotBoundKeypairChallengeResponse = resp
 
-	return c.returnCerts, c.returnError
+	return c.returnCerts, c.boundKeypairPublicKey, c.returnError
 }
 
 func (c *mockJoinServiceClient) RegisterUsingOracleMethod(
@@ -646,7 +646,7 @@ func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.
 				"_proxy": testPack.proxyClient,
 			} {
 				t.Run(tc.desc+suffix, func(t *testing.T) {
-					certs, err := clt.RegisterUsingBoundKeypairMethod(
+					certs, pubKey, err := clt.RegisterUsingBoundKeypairMethod(
 						context.Background(), tc.req, challengeResponder,
 					)
 					if tc.challengeResponseErr != nil {
@@ -670,6 +670,8 @@ func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.
 						tc.challengeResponse,
 						testPack.mockAuthServer.gotBoundKeypairChallengeResponse,
 					)
+
+					require.Equal(t, tc.publicKey, pubKey)
 				})
 			}
 		})
