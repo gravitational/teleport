@@ -962,7 +962,7 @@ export const CertReissueError = new CertReissueError$Type();
 class InvalidLocalPort$Type extends MessageType<InvalidLocalPort> {
     constructor() {
         super("teleport.lib.teleterm.v1.InvalidLocalPort", [
-            { no: 1, name: "tcp_ports", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PortRange }
+            { no: 1, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
         ]);
     }
     create(value?: PartialMessage<InvalidLocalPort>): InvalidLocalPort {
