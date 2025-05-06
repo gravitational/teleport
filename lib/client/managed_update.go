@@ -38,7 +38,7 @@ import (
 func (tc *TeleportClient) CheckAndUpdateRemote(ctx context.Context, reExecArgs []string) error {
 	updater, err := helper.NewDefaultUpdater()
 	if errors.Is(err, helper.ErrDisabled) {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		slog.WarnContext(ctx, "Client tools update is disabled")
 		return nil
 	} else if err != nil {
 		return trace.Wrap(err)

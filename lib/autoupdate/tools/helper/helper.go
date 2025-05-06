@@ -69,7 +69,7 @@ func NewDefaultUpdater() (*tools.Updater, error) {
 func CheckAndUpdateLocal(ctx context.Context, p *profile.Profile, reExecArgs []string) error {
 	updater, err := NewDefaultUpdater()
 	if errors.Is(err, ErrDisabled) {
-		slog.WarnContext(ctx, "Client tools update is disabled", "error", err)
+		slog.WarnContext(ctx, "Client tools update is disabled")
 		return nil
 	} else if err != nil {
 		return trace.Wrap(err)

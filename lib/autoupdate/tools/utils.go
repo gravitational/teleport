@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/packaging"
 )
 
 var ErrNoBaseURL = errors.New("baseURL is not defined")
@@ -137,6 +138,21 @@ func GetReExecFromVersion(ctx context.Context) string {
 		}
 	}
 	return reExecFromVersion
+}
+
+// CleanUp cleans the tools directory with downloaded versions.
+func CleanUp(toolsDir string, tools []string) error {
+	var aggErr []error
+	for _, tool := range tools {
+		if err := os.RemoveAll(filepath.Join(toolsDir, tool)); err != nil {
+			aggErr = append(aggErr, err)
+		}
+	}
+	if err := packaging.RemoveWithSuffix(toolsDir, updatePackageSuffix, nil); err != nil {
+		aggErr = append(aggErr, err)
+	}
+
+	return trace.NewAggregate(aggErr...)
 }
 
 // packageURL defines URLs to the archive and their archive sha256 hash file, and marks

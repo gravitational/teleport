@@ -1257,6 +1257,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
+	// Client-tools managed updates commands.
+	autoupdate := newAutoUpdateCommand(app)
+
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := fido2.NewCommand(app)
 	tid := touchid.NewCommand(app)
@@ -1686,6 +1689,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
+	case autoupdate.update.FullCommand():
+		err = autoupdate.update.run(&cf)
+	case autoupdate.clean.FullCommand():
+		err = autoupdate.clean.run()
 	default:
 		// Handle commands that might not be available.
 		switch {
