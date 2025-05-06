@@ -29,9 +29,13 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -43,6 +47,7 @@ import (
 	pgmcp "github.com/gravitational/teleport/lib/client/db/postgres/mcp"
 	"github.com/gravitational/teleport/lib/client/mcp/claude"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -57,7 +62,9 @@ type mcpCommands struct {
 	logout  *mcpLogoutCommand
 	list    *mcpListCommand
 	connect *mcpConnectCommand
+
 	db      *mcpDBCommand
+	toolbox *mcpToolboxCommand
 }
 
 func newMCPCommands(app *kingpin.Application, cf *CLIConf) mcpCommands {
@@ -68,6 +75,7 @@ func newMCPCommands(app *kingpin.Application, cf *CLIConf) mcpCommands {
 		list:    newMCPListCommand(mcp, cf),
 		connect: newMCPConnectCommand(mcp, cf),
 		db:      newMCPDBCommand(mcp),
+		toolbox: newMCPToolboxCommand(mcp, cf),
 	}
 }
 
@@ -81,6 +89,7 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	cmd.Flag("format", "\"claude\" for updating Claude Desktop configuration. \"json\" for printing out the configuration in JSON.").Short('f').StringVar(&cf.Format)
 	cmd.Arg("name", "Name of the MCP server").StringVar(&cf.AppName)
+	cmd.Flag("toolbox", "Add Teleport's toolbox MCP server in your client configuration.").BoolVar(&cmd.toolbox)
 	return cmd
 }
 
@@ -107,6 +116,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 
 type mcpLoginCommand struct {
 	*kingpin.CmdClause
+	toolbox bool
 }
 
 func (c *mcpLoginCommand) run(cf *CLIConf) error {
@@ -121,16 +131,18 @@ func (c *mcpLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := c.loginAll(cf, tc, mcpServers); err != nil {
-		return trace.Wrap(err)
-	}
+	if len(mcpServers) > 0 {
+		if err := c.loginAll(cf, tc, mcpServers); err != nil {
+			return trace.Wrap(err)
+		}
 
-	// TODO(greedy52) maybe use template?
-	fmt.Fprintln(cf.Stdout(), "Logged into Teleport MCP server(s).")
-	for mcpServer := range slices.Values(mcpServers) {
-		fmt.Fprintf(cf.Stdout(), "- %s\n", mcpServer.GetName())
+		// TODO(greedy52) maybe use template?
+		fmt.Fprintln(cf.Stdout(), "Logged into Teleport MCP server(s).")
+		for mcpServer := range slices.Values(mcpServers) {
+			fmt.Fprintf(cf.Stdout(), "- %s\n", mcpServer.GetName())
+		}
+		fmt.Fprintln(cf.Stdout(), "")
 	}
-	fmt.Fprintln(cf.Stdout(), "")
 
 	switch cf.Format {
 	case "":
@@ -192,6 +204,9 @@ func (c *mcpLoginCommand) findMCPServers(cf *CLIConf, tc *client.TeleportClient)
 	case cf.ListAll && !selectors.IsEmpty():
 		return nil, trace.BadParameter("cannot use --labels or --query with --all")
 	case !cf.ListAll && selectors.IsEmpty():
+		if c.toolbox {
+			return nil, nil
+		}
 		return nil, trace.BadParameter("MCP server name is required. Check 'tsh mcp ls' for a list of available MCP servers.")
 	}
 
@@ -223,7 +238,7 @@ func (c *mcpLoginCommand) detectClaudeOrJSON(cf *CLIConf, mcpServers []types.App
 func (c *mcpLoginCommand) printJSON(cf *CLIConf, mcpServers []types.Application) error {
 	fmt.Fprintln(cf.Stdout(), "Here is a sample JSON configuration for launching Teleport MCP servers:")
 	config := &claude.Config{
-		MCPServers: appsToMCPServersMap(cf, mcpServers),
+		MCPServers: c.populateMCPServersMap(cf, mcpServers),
 	}
 	dump, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
@@ -231,6 +246,17 @@ func (c *mcpLoginCommand) printJSON(cf *CLIConf, mcpServers []types.Application)
 	}
 	fmt.Fprintln(cf.Stdout(), string(dump))
 	return nil
+}
+
+func (c *mcpLoginCommand) populateMCPServersMap(cf *CLIConf, mcpServers []types.Application) map[string]claude.MCPServer {
+	servers := appsToMCPServersMap(cf, mcpServers)
+	if c.toolbox {
+		servers["teleport-toolbox"] = addEnvsToMCPServer(cf, claude.MCPServer{
+			Command: cf.executablePath,
+			Args:    []string{"mcp", "toolbox"},
+		})
+	}
+	return servers
 }
 
 func (c *mcpLoginCommand) updateAndPrintClaude(cf *CLIConf, mcpServers []types.Application) error {
@@ -248,7 +274,7 @@ MCP servers will be prefixed with "teleport-" in this configuration.
 
 `, configPath)
 
-	if err := claude.UpdateConfigWithMCPServers(cf.Context, appsToMCPServersMap(cf, mcpServers)); err != nil {
+	if err := claude.UpdateConfigWithMCPServers(cf.Context, c.populateMCPServersMap(cf, mcpServers)); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Fprintln(cf.Stdout(), `Run "tsh mcp logout" to remove the configuration from Claude Desktop.
@@ -259,22 +285,25 @@ to restart Claude Desktop after logging in a new tsh session.`)
 	return nil
 }
 
-func appsToMCPServersMap(cf *CLIConf, mcpServers []types.Application) map[string]claude.MCPServer {
+func addEnvsToMCPServer(cf *CLIConf, mcpServer claude.MCPServer) claude.MCPServer {
 	var envs map[string]string
 	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
 		envs = map[string]string{
 			types.HomeEnvVar: filepath.Clean(homeDir),
 		}
 	}
+	mcpServer.Envs = envs
+	return mcpServer
+}
 
+func appsToMCPServersMap(cf *CLIConf, mcpServers []types.Application) map[string]claude.MCPServer {
 	ret := make(map[string]claude.MCPServer)
 	for name := range types.ResourceNames(mcpServers) {
 		localName := "teleport-" + name
-		ret[localName] = claude.MCPServer{
+		ret[localName] = addEnvsToMCPServer(cf, claude.MCPServer{
 			Command: cf.executablePath,
 			Args:    []string{"mcp", "connect", name},
-			Envs:    envs,
-		}
+		})
 	}
 	return ret
 }
@@ -698,6 +727,143 @@ func (c *mcpDBCommand) getDatabases(ctx context.Context, sc *sharedDatabaseExecC
 	})
 
 	return dbsList, trace.Wrap(err)
+}
+
+type mcpToolboxCommand struct {
+	*kingpin.CmdClause
+}
+
+func newMCPToolboxCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpToolboxCommand {
+	cmd := &mcpToolboxCommand{
+		CmdClause: parent.Command("toolbox", "Start a local MCP server for various Teleport tools like access request, search audit events."),
+	}
+	return cmd
+}
+
+func (c *mcpToolboxCommand) run(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var clusterClient *client.ClusterClient
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	authClient := clusterClient.AuthClient
+
+	mcpServer := server.NewMCPServer(
+		"teleport_toolbox",
+		teleport.Version,
+		server.WithInstructions(`Teleport is the easiest, most secure way to access and protect all your infrastructure. Teleport logs cluster activity by emitting various events into its audit log.`),
+	)
+	mcpServer.AddTool(
+		mcp.NewTool(
+			"teleport_search_events",
+			mcp.WithDescription(`Search Teleport audit events.
+
+The tool takes in two mandatory parameters "from" and "to" which are the
+searching time range. The time must be in RFC3339 formats. 
+An optional "start_key"" param can be used to perform pagination where returned
+by previous call.
+
+The response is a list of audit events found in that time period, maximum 100
+per call. If more events are available, it will return a "next_key"" to be used
+as "start_key"" in the next call for pagination.
+`),
+			mcp.WithString("from", mcp.Required(), mcp.Description("oldest date of returned events, in RFC3339 format")),
+			mcp.WithString("to", mcp.Required(), mcp.Description("newest date of returned events, in RFC3339 format")),
+			mcp.WithString("start_key", mcp.Description("key to start pagination from, if any")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			fromStr, ok := request.Params.Arguments["from"].(string)
+			if !ok {
+				return nil, trace.BadParameter("missing string parameter 'from'")
+			}
+			toStr, ok := request.Params.Arguments["to"].(string)
+			if !ok {
+				return nil, trace.BadParameter("missing string parameter 'to'")
+			}
+			from, err := time.Parse(time.RFC3339, fromStr)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to parse 'from' as RFC3339 format")
+			}
+			to, err := time.Parse(time.RFC3339, toStr)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to parse 'to' as RFC3339 format")
+			}
+			req := libevents.SearchEventsRequest{
+				From:  from,
+				To:    to,
+				Limit: 100,
+			}
+			startKey, ok := request.Params.Arguments["start_key"].(string)
+			if ok {
+				req.StartKey = startKey
+			}
+
+			events, nextKey, err := authClient.SearchEvents(cf.Context, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			result, err := json.Marshal(map[string]any{
+				"events":   events,
+				"next_key": nextKey,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mcp.NewToolResultText(string(result)), nil
+		},
+	)
+
+	mcpServer.AddTool(
+		mcp.NewTool(
+			"teleport_access_request",
+			mcp.WithDescription(`Create Teleport access request.
+
+The tool takes a mandatory "role" parameter that indicates a Teleport role
+an access request should be submitted for.
+`),
+			mcp.WithString("role", mcp.Required(), mcp.Description("role name to request")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			role, ok := request.Params.Arguments["role"].(string)
+			if !ok {
+				return nil, trace.BadParameter("missing string parameter 'role'")
+			}
+
+			accessRequest, err := types.NewAccessRequest(
+				uuid.NewString(),
+				tc.Username,
+				role)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			createdRequest, err := authClient.CreateAccessRequestV2(cf.Context, accessRequest)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			result, err := json.Marshal(createdRequest)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return mcp.NewToolResultText(string(result)), nil
+		},
+	)
+
+	return trace.Wrap(
+		server.NewStdioServer(mcpServer).Listen(cf.Context, cf.Stdin(), cf.Stdout()),
+	)
 }
 
 var (

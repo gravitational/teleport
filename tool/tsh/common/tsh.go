@@ -1743,8 +1743,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.clone.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
-	case mcpCmd.db.FullCommand():
-		err = mcpCmd.db.run(&cf)
 	case mcpCmd.login.FullCommand():
 		err = mcpCmd.login.run(&cf)
 	case mcpCmd.list.FullCommand():
@@ -1753,6 +1751,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.connect.run(&cf)
 	case mcpCmd.logout.FullCommand():
 		err = mcpCmd.logout.run(&cf)
+	case mcpCmd.db.FullCommand():
+		err = mcpCmd.db.run(&cf)
+	case mcpCmd.toolbox.FullCommand():
+		err = mcpCmd.toolbox.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
