@@ -37,7 +37,7 @@ spec:
   - access_request
   states:
   - testing
-  condition: some condition
+  condition: "true"
   notification:
     recipients:
     - llama
@@ -54,7 +54,7 @@ func TestCreateAccessMonitoringRule(t *testing.T) {
 
 	ruleMatchingValidYaml, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessRequest},
-		Condition: "some condition",
+		Condition: "true",
 		States:    []string{"testing"},
 		Notification: &pb.Notification{
 			Name:       "slack",
@@ -65,7 +65,7 @@ func TestCreateAccessMonitoringRule(t *testing.T) {
 
 	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessRequest},
-		Condition: "some condition2",
+		Condition: "true",
 		States:    []string{"testing2"},
 		Notification: &pb.Notification{
 			Name:       "slack",
@@ -129,7 +129,7 @@ func TestUpdateAccessMonitoringRule(t *testing.T) {
 
 	ruleMatchingValidYaml, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessRequest},
-		Condition: "some condition",
+		Condition: "true",
 		States:    []string{"testing"},
 		Notification: &pb.Notification{
 			Name:       "slack",
@@ -151,7 +151,7 @@ spec:
   - access_request
   states:
   - testing
-  condition: updating condition by yaml
+  condition: "false"
   notification:
     recipients:
     - llama
@@ -172,7 +172,7 @@ version: v1
 			updateByYaml: updatedYaml,
 			paramName:    "rule1",
 			getUpdateRule: func() *pb.AccessMonitoringRule {
-				createdRule.Spec.Condition = "updating condition by yaml"
+				createdRule.Spec.Condition = "false"
 				return createdRule
 			},
 		},
@@ -192,7 +192,7 @@ version: v1
 			desc:      "udpate by resource object",
 			paramName: "rule1",
 			getUpdateRule: func() *pb.AccessMonitoringRule {
-				createdRule.Spec.Condition = "updating condition by yaml"
+				createdRule.Spec.Condition = "false"
 				return createdRule
 			},
 		},
@@ -235,7 +235,7 @@ func TestDeleteAccessMonitoringRule(t *testing.T) {
 
 	rule, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessRequest},
-		Condition: "some condition",
+		Condition: "true",
 		States:    []string{"testing"},
 		Notification: &pb.Notification{
 			Name:       "slack",
@@ -271,7 +271,7 @@ func TestGetAccessMonitoringRules_NoFilters(t *testing.T) {
 
 	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessRequest},
-		Condition: "some condition",
+		Condition: "true",
 		Notification: &pb.Notification{
 			Name: "slack",
 		},
@@ -282,7 +282,7 @@ func TestGetAccessMonitoringRules_NoFilters(t *testing.T) {
 
 	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{"somethingElse"},
-		Condition: "some condition",
+		Condition: "true",
 		Notification: &pb.Notification{
 			Name: "slack",
 		},
@@ -293,7 +293,7 @@ func TestGetAccessMonitoringRules_NoFilters(t *testing.T) {
 
 	rule3, err := services.NewAccessMonitoringRuleWithLabels("rule3", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{"somethingElse2"},
-		Condition: "some condition",
+		Condition: "true",
 		Notification: &pb.Notification{
 			Name: "slack",
 		},
@@ -344,7 +344,7 @@ func TestGetAccessMonitoringRules_WithAccessRequestFilter(t *testing.T) {
 	for i := 0; i < len(randomSubjects); i++ {
 		rule, err := services.NewAccessMonitoringRuleWithLabels(fmt.Sprintf("rule%v", i), nil, &pb.AccessMonitoringRuleSpec{
 			Subjects:  []string{randomSubjects[i]},
-			Condition: "some condition",
+			Condition: "true",
 			Notification: &pb.Notification{
 				Name: "slack",
 			},
