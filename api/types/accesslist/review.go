@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/header/convert/legacy"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Review is an access list review resource.
@@ -112,6 +113,13 @@ func (r *Review) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (r *Review) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(r.Metadata)
+}
+
+// Clone returns a copy of the review.
+func (a *Review) Clone() *Review {
+	var copy *Review
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
 }
 
 func (r *ReviewSpec) UnmarshalJSON(data []byte) error {
