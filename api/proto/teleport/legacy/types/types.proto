@@ -1240,6 +1240,8 @@ message EncryptionKeyPair {
   bytes PrivateKey = 2 [(gogoproto.jsontag) = "private_key,omitempty"];
   // PrivateKeyType is the type of the PrivateKey.
   PrivateKeyType PrivateKeyType = 3 [(gogoproto.jsontag) = "private_key_type,omitempty"];
+  // Hash function used to OAEP encrypt/decrypt data.
+  uint32 Hash = 4 [(gogoproto.jsontag) = "hash,omitempty"];
 }
 
 // WrappedKey wraps a PrivateKey using an asymmetric keypair.
