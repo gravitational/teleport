@@ -86,6 +86,8 @@ export interface UserPreferences {
     discoverResourcePreferences?: DiscoverResourcePreferences;
     /**
      * keyboard_layout is the layout used by the user in Windows Desktop sessions
+     * keyboard layout identifiers can be found here:
+     * https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
      *
      * @generated from protobuf field: int32 keyboard_layout = 9;
      */

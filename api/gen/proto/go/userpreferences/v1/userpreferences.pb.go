@@ -54,6 +54,8 @@ type UserPreferences struct {
 	// discover_resource_preferences are user preferences saved for the discover resource web UI.
 	DiscoverResourcePreferences *DiscoverResourcePreferences `protobuf:"bytes,8,opt,name=discover_resource_preferences,json=discoverResourcePreferences,proto3" json:"discover_resource_preferences,omitempty"`
 	// keyboard_layout is the layout used by the user in Windows Desktop sessions
+	// keyboard layout identifiers can be found here:
+	// https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
 	KeyboardLayout int32 `protobuf:"varint,9,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
