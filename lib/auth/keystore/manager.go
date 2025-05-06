@@ -197,6 +197,8 @@ type Options struct {
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
+	// Hash function to use with keystores that support a configurable hash.
+	Hash crypto.Hash
 
 	awsKMSClient      kmsClient
 	awsSTSClient      stsClient

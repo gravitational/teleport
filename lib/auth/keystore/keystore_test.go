@@ -584,12 +584,15 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 	})
 
 	if config, ok := softHSMTestConfig(t); ok {
-		backend, err := newPKCS11KeyStore(&config.PKCS11, &baseOpts)
+		hsmOpts := baseOpts
+		// softhsm2 seems to only support OAEP with SHA1
+		hsmOpts.Hash = crypto.SHA1
+		backend, err := newPKCS11KeyStore(&config.PKCS11, &hsmOpts)
 		require.NoError(t, err)
 		backends = append(backends, &backendDesc{
 			name:            "softhsm",
 			config:          config,
-			opts:            &baseOpts,
+			opts:            &hsmOpts,
 			backend:         backend,
 			expectedKeyType: types.PrivateKeyType_PKCS11,
 			unusedRawKey:    unusedPKCS11Key,
