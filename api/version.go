@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.0.0-dev.fred-oprt-3"
+const Version = "18.0.0-dev.fred-oprt-4"
 
 const VersionMajor = 18
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.fred-oprt-3"
+const VersionPreRelease = "dev.fred-oprt-4"
 const VersionMetadata = ""
