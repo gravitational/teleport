@@ -31,7 +31,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
@@ -318,7 +318,7 @@ export function Navigation({
   showPoweredByLogo?: boolean;
 }) {
   const features = useFeatures();
-  const history = useHistory();
+  const location = useLocation();
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
   const [targetSection, setTargetSection] = useState<NavigationSection | null>(
@@ -339,8 +339,8 @@ export function Navigation({
     };
   }, []);
   const currentView = useMemo(
-    () => getNavSubsectionForRoute(features, history.location),
-    [features, history.location]
+    () => getNavSubsectionForRoute(features, location),
+    [features, location]
   );
 
   const stickyMode = preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
@@ -378,7 +378,7 @@ export function Navigation({
       updatePreferences,
       searchParams,
     });
-  }, [clusterId, preferences, updatePreferences]);
+  }, [clusterId, preferences, updatePreferences, location.search]);
 
   const handleSetExpandedSection = useCallback(
     (section: NavigationSection) => {
@@ -455,7 +455,7 @@ export function Navigation({
   const hideNav = features.find(
     f =>
       f.route &&
-      matchPath(history.location.pathname, {
+      matchPath(location.pathname, {
         path: f.route.path,
         exact: f.route.exact ?? false,
       })

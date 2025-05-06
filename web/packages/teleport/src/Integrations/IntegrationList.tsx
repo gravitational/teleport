@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -61,11 +61,11 @@ export type IntegrationLike =
   | ExternalAuditStorageIntegration;
 
 export function IntegrationList(props: Props) {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   function handleRowClick(row: IntegrationLike) {
     if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
-    history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
+    navigate(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
@@ -185,12 +185,6 @@ export function IntegrationList(props: Props) {
                   <MenuButton>
                     <MenuItem
                       as={InternalRouteLink}
-                      to={{
-                        pathname: cfg.getIntegrationEnrollRoute(
-                          IntegrationKind.ExternalAuditStorage
-                        ),
-                        state: { continueDraft: true },
-                      }}
                       to={cfg.getIntegrationEnrollRoute(
                         IntegrationKind.ExternalAuditStorage
                       )}

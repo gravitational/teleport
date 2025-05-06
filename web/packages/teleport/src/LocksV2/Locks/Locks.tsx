@@ -18,7 +18,7 @@
 
 import { formatRelative } from 'date-fns';
 import { Fragment, useEffect, useState } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { Button, Label as Pill } from 'design';
 import { Danger } from 'design/Alert';
@@ -40,8 +40,9 @@ import { DeleteLockDialogue } from './DeleteLockDialogue';
 
 export function Locks() {
   const ctx = useTeleport();
-  const history = useHistory();
-  const location = useLocation<{ createdLocks: Lock[] }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as { createdLocks: Lock[] };
   const { attempt, run } = useAttempt();
   const [locks, setLocks] = useState<Lock[]>([]);
   const [lockToDelete, setLockToDelete] = useState<Lock>();
@@ -53,15 +54,15 @@ export function Locks() {
         // If location state was set, user is coming back from
         // creating a set of locks. Because of possible cache lagging,
         // we will manually add missing new locks to the fetched list.
-        if (location.state?.createdLocks) {
+        if (state?.createdLocks) {
           const seenLock = {};
           updatedLocks.forEach(lock => (seenLock[lock.name] = true));
-          location.state.createdLocks.forEach(lock => {
+          state.createdLocks.forEach(lock => {
             if (!seenLock[lock.name]) {
               updatedLocks.push(lock);
             }
           });
-          history.replace({ state: {} }); // Clear loc state afterwards.
+          navigate(location.pathname, { replace: true, state: {} }); // Clear loc state afterwards
         }
         setLocks(updatedLocks);
       })
