@@ -10,27 +10,41 @@ import (
 	"github.com/gravitational/trace"
 )
 
-type ForkAuthenticateCommand struct {
-	*exec.Cmd
-	disownSignal io.ReadCloser
-}
-
-type BuildForkAuthenticateCommandParams struct {
+// ForkAuthenticateParams are the parameters to RunForkAuthenticate.
+type ForkAuthenticateParams struct {
+	// GetArgs gets the arguments to re-exec with, excluding the executable
+	// (equivalent to os.Args[1:]).
 	GetArgs func(signalFd uint64) []string
-	Stdin   io.Reader
-	Stdout  io.Writer
-	Stderr  io.Writer
+	// Stdin is the child process' stdin.
+	Stdin io.Reader
+	// Stdout is the child process' stdout.
+	Stdout io.Writer
+	// Stderr is the child process' stderr.
+	Stderr io.Writer
 }
 
-func BuildForkAuthenticateCommand(params BuildForkAuthenticateCommandParams) (*ForkAuthenticateCommand, error) {
+// RunForkAuthenticate re-execs the current executable and waits for any of
+// the following:
+//   - The child process exits (usually in error).
+//   - The child process signals the parent that it is ready to be disowned.
+//   - The context is canceled.
+func RunForkAuthenticate(ctx context.Context, params ForkAuthenticateParams) error {
+	cmd, disownSignal, err := buildForkAuthenticateCommand(params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return runForkAuthenticateChild(ctx, cmd, disownSignal)
+}
+
+func buildForkAuthenticateCommand(params ForkAuthenticateParams) (cmd *exec.Cmd, disownSignal io.ReadCloser, err error) {
 	executable, err := os.Executable()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	cmd := exec.Command(executable)
+	cmd = exec.Command(executable)
 	pipeR, pipeW, err := os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	signalFd := addSignalFdToChild(cmd, pipeW)
 	cmd.Args = append(cmd.Args, params.GetArgs(signalFd)...)
@@ -38,17 +52,16 @@ func BuildForkAuthenticateCommand(params BuildForkAuthenticateCommandParams) (*F
 	cmd.Stdout = params.Stdout
 	cmd.Stderr = params.Stderr
 
-	return &ForkAuthenticateCommand{
-		Cmd:          cmd,
-		disownSignal: pipeR,
-	}, nil
+	return cmd, pipeR, nil
 }
 
-func RunForkAuthenticateChild(ctx context.Context, cmd *ForkAuthenticateCommand) error {
-	defer cmd.disownSignal.Close()
+func runForkAuthenticateChild(ctx context.Context, cmd *exec.Cmd, disownSignal io.ReadCloser) error {
+	defer disownSignal.Close()
 	disownReady := make(chan error, 1)
 	go func() {
-		_, err := cmd.disownSignal.Read(make([]byte, 1))
+		// The child process will close the pipe when it has authenticated
+		// and is ready to be disowned.
+		_, err := disownSignal.Read(make([]byte, 1))
 		if errors.Is(err, io.EOF) {
 			err = nil
 		}

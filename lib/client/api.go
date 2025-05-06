@@ -1900,9 +1900,13 @@ type SSHOptions struct {
 	// machine. If provided, it will be used instead of establishing a connection
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
+	// OnAuthenticate is a function to run ater authentication completes
+	// but before the session begins.
+	OnAuthenticate func() error
+}
 
-	ForkAfterAuthentication bool
-	OnAuthenticate          func() error
+func (opts SSHOptions) forkAfterAuthentication() bool {
+	return opts.OnAuthenticate != nil
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1921,9 +1925,11 @@ func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOp
 	}
 }
 
+// WithForkAfterAuthentication indicates that tsh is currently reexec-ing
+// for --fork-after-authentication. The given function is called after
+// authentication is complete but before the session starts.
 func WithForkAfterAuthentication(onAuthenticate func() error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
-		opt.ForkAfterAuthentication = true
 		opt.OnAuthenticate = onAuthenticate
 	}
 }
@@ -1970,7 +1976,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	}
 
 	if len(nodeAddrs) > 1 {
-		if options.ForkAfterAuthentication {
+		if options.forkAfterAuthentication() {
 			return trace.BadParameter("fork after authentication not supported for commands on multiple nodes")
 		}
 		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)

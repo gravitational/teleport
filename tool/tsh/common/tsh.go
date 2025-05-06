@@ -624,11 +624,14 @@ type CLIConf struct {
 	// registry. used in tests.
 	databaseMCPRegistryOverride dbmcp.Registry
 
+	// ForkAfterAuthentication indicates that tsh should go into the background
+	// after authentication.
 	ForkAfterAuthentication bool
-
+	// forkSignalFd is the file descriptor for the child process to signal the
+	// parent when re-execing.
 	forkSignalFd uint64
-
-	originalArgs []string
+	// rawArgs are the raw arguments passed to Run().
+	rawArgs []string
 }
 
 // Stdout returns the stdout writer.
@@ -691,7 +694,6 @@ func (c *CLIConf) PromptConfirmation(question string) error {
 		return trace.Errorf("Operation canceled by user request.")
 	}
 	return nil
-
 }
 
 func Main() {
@@ -793,7 +795,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		TracingProvider:    tracing.NoopProvider(),
 		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
 		DTAutoEnroll:       dtenroll.AutoEnroll,
-		originalArgs:       args,
+		rawArgs:            args,
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -904,7 +906,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
-	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete").Short('f').BoolVar(&cf.ForkAfterAuthentication)
+	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
 	ssh.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication.").Hidden().Uint64Var(&cf.forkSignalFd)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
@@ -4054,14 +4056,14 @@ func onSSH(cf *CLIConf) error {
 		if len(cf.RemoteCommand) == 0 {
 			return trace.BadParameter("fork after authentication not allowed for interactive sessions")
 		}
-		cmd, err := client.BuildForkAuthenticateCommand(client.BuildForkAuthenticateCommandParams{
+		forkParams := client.ForkAuthenticateParams{
 			GetArgs: func(signalFd uint64) []string {
-				args := make([]string, 0, len(cf.originalArgs)+2)
-				for i, arg := range cf.originalArgs {
+				args := make([]string, 0, len(cf.rawArgs)+2)
+				for i, arg := range cf.rawArgs {
 					args = append(args, arg)
 					if arg == "ssh" {
 						args = append(args, "--fork-signal-fd", strconv.FormatUint(signalFd, 10))
-						args = append(args, cf.originalArgs[i+1:]...)
+						args = append(args, cf.rawArgs[i+1:]...)
 						return args
 					}
 				}
@@ -4070,11 +4072,8 @@ func onSSH(cf *CLIConf) error {
 			Stdin:  tc.Stdin,
 			Stdout: tc.Stdout,
 			Stderr: tc.Stderr,
-		})
-		if err != nil {
-			return trace.Wrap(err)
 		}
-		if err := client.RunForkAuthenticateChild(cf.Context, cmd); err != nil {
+		if err := client.RunForkAuthenticate(cf.Context, forkParams); err != nil {
 			var execErr *exec.ExitError
 			if errors.As(trace.Unwrap(err), &execErr) {
 				err = &common.ExitCodeError{Code: execErr.ExitCode()}
@@ -4094,7 +4093,6 @@ func onSSH(cf *CLIConf) error {
 			if cf.forkSignalFd != 0 {
 				opts = append(opts, client.WithForkAfterAuthentication(func() error {
 					disownSignal := os.NewFile(uintptr(cf.forkSignalFd), "disown")
-					disownSignal.Write([]byte("a"))
 					return trace.Wrap(disownSignal.Close())
 				}))
 			}

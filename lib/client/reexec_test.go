@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,20 +33,20 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		}
 		stdout := &bytes.Buffer{}
 		stderr := &bytes.Buffer{}
-		params := BuildForkAuthenticateCommandParams{
+		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
 			Stdout:  stdout,
 			Stderr:  stderr,
 		}
-		cmd, err := BuildForkAuthenticateCommand(params)
+		cmd, signal, err := buildForkAuthenticateCommand(params)
 		require.NoError(t, err)
 		bash, err := exec.LookPath("bash")
 		require.NoError(t, err)
 		cmd.Path = bash
 		cmd.Args[0] = bash
 
-		err = RunForkAuthenticateChild(t.Context(), cmd)
+		err = runForkAuthenticateChild(t.Context(), cmd, signal)
 		assert.NoError(t, err)
 		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.Equal(collect, "stdout: hello\n", stdout.String())
@@ -67,20 +68,20 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		}
 		stdout := &bytes.Buffer{}
 		stderr := &bytes.Buffer{}
-		params := BuildForkAuthenticateCommandParams{
+		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
 			Stdout:  stdout,
 			Stderr:  stderr,
 		}
-		cmd, err := BuildForkAuthenticateCommand(params)
+		cmd, signal, err := buildForkAuthenticateCommand(params)
 		require.NoError(t, err)
 		bash, err := exec.LookPath("bash")
 		require.NoError(t, err)
 		cmd.Path = bash
 		cmd.Args[0] = bash
 
-		err = RunForkAuthenticateChild(t.Context(), cmd)
+		err = runForkAuthenticateChild(t.Context(), cmd, signal)
 		var execErr *exec.ExitError
 		if assert.ErrorAs(t, err, &execErr) {
 			assert.Equal(t, 1, execErr.ExitCode())
@@ -98,12 +99,13 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			echo "stderr: $REPLY" >&2
 			# wait for cancellation
 			sleep 3
+			# should not be executed
 			echo "extra output"
 			`}
 		}
 		stdout := &bytes.Buffer{}
 		stderr := &bytes.Buffer{}
-		params := BuildForkAuthenticateCommandParams{
+		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
 			Stdout:  stdout,
@@ -112,7 +114,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
-		cmd, err := BuildForkAuthenticateCommand(params)
+		cmd, signal, err := buildForkAuthenticateCommand(params)
 		require.NoError(t, err)
 		bash, err := exec.LookPath("bash")
 		require.NoError(t, err)
@@ -123,7 +125,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 			Name: "RunForkAuthenticateChild",
 			Task: func(ctx context.Context) error {
-				errorCh <- RunForkAuthenticateChild(ctx, cmd)
+				errorCh <- runForkAuthenticateChild(ctx, cmd, signal)
 				return nil
 			},
 		})
@@ -141,5 +143,9 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			fmt.Println(stdout.String())
 			assert.Fail(t, "timed out waiting for child to finish")
 		}
+
+		assert.Never(t, func() bool {
+			return strings.Contains(stdout.String(), "extra output")
+		}, 4*time.Second, time.Second)
 	})
 }
