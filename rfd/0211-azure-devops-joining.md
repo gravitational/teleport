@@ -340,13 +340,15 @@ be extended to include the following information extracted from the ID token:
 - `repo_ref`
 - `run_id`
 
-### Alternatives and Out of Scope
+### Alternatives 
 
-#### Publish a Teleport Task
+#### Use Service Connection JWTs rather than Pipeline JWTs
 
 TODO
 
-#### Use Service Connection JWTs rather than Pipeline JWTs
+### Out of Scope
+
+#### Publish a Teleport Task
 
 TODO
 
