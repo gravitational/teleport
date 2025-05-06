@@ -54,6 +54,7 @@ const (
 	awskmsPrefix  = "awskms"
 	awsKeySep     = ":"
 	clusterTagKey = "TeleportCluster"
+	awsHash       = crypto.SHA256
 
 	pendingKeyBaseRetryInterval = time.Second / 2
 	pendingKeyMaxRetryInterval  = 4 * time.Second
@@ -208,18 +209,18 @@ func (a *awsKMSKeystore) generateSigner(ctx context.Context, algorithm cryptosui
 
 // generateDecrypter creates a new private key and returns its identifier and a crypto.Decrypter. The returned
 // identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
-func (a *awsKMSKeystore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, error) {
+func (a *awsKMSKeystore) generateDecrypter(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Decrypter, crypto.Hash, error) {
 	keyID, err := a.generateKeyID(ctx, algorithm, keyUsageDecrypt)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, awsHash, trace.Wrap(err)
 	}
 
 	decrypter, err := a.newKMSKey(ctx, keyID.arn)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, awsHash, trace.Wrap(err)
 	}
 
-	return keyID.marshal(), decrypter, nil
+	return keyID.marshal(), decrypter, awsHash, nil
 }
 
 func awsAlgorithm(alg cryptosuites.Algorithm) (kmstypes.KeySpec, error) {
@@ -242,7 +243,7 @@ func (a *awsKMSKeystore) getSigner(ctx context.Context, rawKey []byte, publicKey
 }
 
 // getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
-func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Decrypter, error) {
+func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error) {
 	keyID, err := parseAWSKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -147,7 +147,7 @@ type backend interface {
 
 	// generateDecrypter creates a new key pair and returns its identifier and a crypto.Decrypter. The returned
 	// identifier can be passed to getDecrypter later to get an equivalent crypto.Decrypter.
-	generateDecrypter(context.Context, cryptosuites.Algorithm) (keyID []byte, decrypter crypto.Decrypter, err error)
+	generateDecrypter(context.Context, cryptosuites.Algorithm) (keyID []byte, decrypter crypto.Decrypter, hash crypto.Hash, err error)
 
 	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
 	// The public key is passed as well so that it does not need to be fetched
@@ -157,7 +157,7 @@ type backend interface {
 	// getDecrypter returns a crypto.Decrypter for the given key identifier, if it is found.
 	// The public key is passed as well so that it does not need to be fetched
 	// from the underlying backend.
-	getDecrypter(ctx context.Context, keyID []byte, pub crypto.PublicKey) (crypto.Decrypter, error)
+	getDecrypter(ctx context.Context, keyID []byte, pub crypto.PublicKey, hash crypto.Hash) (crypto.Decrypter, error)
 
 	// canSignWithKey returns true if this backend is able to sign with the
 	// given key.
@@ -534,7 +534,7 @@ func (m *Manager) GetDecrypter(ctx context.Context, keyPair *types.EncryptionKey
 			return nil, trace.Wrap(err)
 		}
 
-		decrypter, err := backend.getDecrypter(ctx, keyPair.PrivateKey, pub)
+		decrypter, err := backend.getDecrypter(ctx, keyPair.PrivateKey, pub, crypto.Hash(keyPair.Hash))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -683,7 +683,7 @@ func (m *Manager) NewEncryptionKeyPair(ctx context.Context, purpose cryptosuites
 }
 
 func (m *Manager) newEncryptionKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.EncryptionKeyPair, error) {
-	encKey, decrypter, err := m.backendForNewKeys.generateDecrypter(ctx, alg)
+	encKey, decrypter, hash, err := m.backendForNewKeys.generateDecrypter(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -696,6 +696,7 @@ func (m *Manager) newEncryptionKeyPair(ctx context.Context, alg cryptosuites.Alg
 		PublicKey:      publicKey,
 		PrivateKey:     encKey,
 		PrivateKeyType: keyType(encKey),
+		Hash:           uint32(hash),
 	}, nil
 }
 
