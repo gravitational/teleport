@@ -99,14 +99,12 @@ type legacyCollections struct {
 	auditQueries                       collectionReader[services.SecurityAuditQueryGetter]
 	secReports                         collectionReader[services.SecurityReportGetter]
 	secReportsStates                   collectionReader[services.SecurityReportStateGetter]
-	tunnelConnections                  collectionReader[tunnelConnectionGetter]
 	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
 	userTasks                          collectionReader[userTasksGetter]
 	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
-	remoteClusters                     collectionReader[remoteClusterGetter]
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
@@ -122,24 +120,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case types.KindTunnelConnection:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.tunnelConnections = &genericCollection[types.TunnelConnection, tunnelConnectionGetter, tunnelConnectionExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.tunnelConnections
-		case types.KindRemoteCluster:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections.remoteClusters = &genericCollection[types.RemoteCluster, remoteClusterGetter, remoteClusterExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.remoteClusters
 		case types.KindAccessRequest:
 			if c.DynamicAccess == nil {
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
@@ -343,83 +323,6 @@ func (accessRequestExecutor) getReader(_ *Cache, _ bool) noReader {
 }
 
 var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
-
-type tunnelConnectionExecutor struct{}
-
-func (tunnelConnectionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.TunnelConnection, error) {
-	return cache.Trust.GetAllTunnelConnections()
-}
-
-func (tunnelConnectionExecutor) upsert(ctx context.Context, cache *Cache, resource types.TunnelConnection) error {
-	return cache.trustCache.UpsertTunnelConnection(resource)
-}
-
-func (tunnelConnectionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.trustCache.DeleteAllTunnelConnections()
-}
-
-func (tunnelConnectionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.trustCache.DeleteTunnelConnection(resource.GetSubKind(), resource.GetName())
-}
-
-func (tunnelConnectionExecutor) isSingleton() bool { return false }
-
-func (tunnelConnectionExecutor) getReader(cache *Cache, cacheOK bool) tunnelConnectionGetter {
-	if cacheOK {
-		return cache.trustCache
-	}
-	return cache.Config.Trust
-}
-
-type tunnelConnectionGetter interface {
-	GetAllTunnelConnections(opts ...services.MarshalOption) (conns []types.TunnelConnection, err error)
-	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
-}
-
-var _ executor[types.TunnelConnection, tunnelConnectionGetter] = tunnelConnectionExecutor{}
-
-type remoteClusterExecutor struct{}
-
-func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.RemoteCluster, error) {
-	return cache.Trust.GetRemoteClusters(ctx)
-}
-
-func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
-	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			cache.Logger.WarnContext(ctx, "Failed to delete remote cluster", "cluster", resource.GetName(), "error", err)
-			return trace.Wrap(err)
-		}
-	}
-	_, err = cache.trustCache.CreateRemoteCluster(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.trustCache.DeleteAllRemoteClusters(ctx)
-}
-
-func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
-}
-
-func (remoteClusterExecutor) isSingleton() bool { return false }
-
-func (remoteClusterExecutor) getReader(cache *Cache, cacheOK bool) remoteClusterGetter {
-	if cacheOK {
-		return cache.trustCache
-	}
-	return cache.Config.Trust
-}
-
-type remoteClusterGetter interface {
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
-	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
-	ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error)
-}
-
-var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
 
 type userExecutor struct{}
 
