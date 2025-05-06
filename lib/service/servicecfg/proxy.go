@@ -61,7 +61,8 @@ type ProxyConfig struct {
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
-	// PROXYAllowDowngrade
+	// PROXYAllowDowngrade controls whether or not pseudo IPv4 downgrading is allowed for
+	// IPv6 sources communicating with IPv4 destinations.
 	PROXYAllowDowngrade bool
 
 	// WebAddr is address for web portal of the proxy
