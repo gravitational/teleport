@@ -1,0 +1,62 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@protobuf-ts/plugin':
+        specifier: ^2.9.3
+        version: 2.9.3
+
+packages:
+
+  '@protobuf-ts/plugin-framework@2.10.0':
+    resolution: {integrity: sha512-EuW9irbt+w7Ml1CaAxK6xyl7pSuWVbNy0rsChxJEthMrAVTN5EPdJ3whNWvsRBa+HwRImEl8KHNnRoq/vGOHbg==}
+
+  '@protobuf-ts/plugin@2.9.3':
+    resolution: {integrity: sha512-tHYACv+nnIV2eoiMxeZhrgMqGiUktzUzrhfgnROg/rr8TecPLp9v5/yqNibN+bad5k7d57aqlTuQKhFl+J4W/g==}
+    hasBin: true
+
+  '@protobuf-ts/protoc@2.10.0':
+    resolution: {integrity: sha512-S4BtGBh22+uL5E6qLVxV0QNY6tiLVB8QL7RIkvo+KYknipZfSNwubdKy5CPkrwVXzJn4s3cx7bKx1w6BxkBIPg==}
+    hasBin: true
+
+  '@protobuf-ts/runtime-rpc@2.10.0':
+    resolution: {integrity: sha512-8CS/XPv3+pMK4v8UKhtCdvbS4h9l7aqlteKdRt0/UbIKZ8n0qHj6hX8cBhz2ngvohxCOS0N08zPr9aCLBNhW3Q==}
+
+  '@protobuf-ts/runtime@2.10.0':
+    resolution: {integrity: sha512-ypYwGg9Pn3W/2lZ7/HW60hONGuSdzphvOY8Dq7LeNttymDe0y3LaTUUMRpuGqOT6FfrWEMnfQbyqU8AAreo8wA==}
+
+  typescript@3.9.10:
+    resolution: {integrity: sha512-w6fIxVE/H1PkLKcCPsFqKE7Kv7QUwhU8qQY2MueZXWx5cPZdwFupLgKK3vntcK98BtNHZtAF4LA/yl2a7k8R6Q==}
+    engines: {node: '>=4.2.0'}
+    hasBin: true
+
+snapshots:
+
+  '@protobuf-ts/plugin-framework@2.10.0':
+    dependencies:
+      '@protobuf-ts/runtime': 2.10.0
+      typescript: 3.9.10
+
+  '@protobuf-ts/plugin@2.9.3':
+    dependencies:
+      '@protobuf-ts/plugin-framework': 2.10.0
+      '@protobuf-ts/protoc': 2.10.0
+      '@protobuf-ts/runtime': 2.10.0
+      '@protobuf-ts/runtime-rpc': 2.10.0
+      typescript: 3.9.10
+
+  '@protobuf-ts/protoc@2.10.0': {}
+
+  '@protobuf-ts/runtime-rpc@2.10.0':
+    dependencies:
+      '@protobuf-ts/runtime': 2.10.0
+
+  '@protobuf-ts/runtime@2.10.0': {}
+
+  typescript@3.9.10: {}
