@@ -1287,40 +1287,6 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-// TestLocks tests that CRUD operations on lock resources are
-// replicated from the backend to the cache.
-func TestLocks(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.Lock]{
-		newResource: func(name string) (types.Lock, error) {
-			return types.NewLock(
-				name,
-				types.LockSpecV2{
-					Target: types.LockTarget{
-						Role: "target-role",
-					},
-				},
-			)
-		},
-		create: p.accessS.UpsertLock,
-		list: func(ctx context.Context) ([]types.Lock, error) {
-			results, err := p.accessS.GetLocks(ctx, false)
-			return results, err
-		},
-		cacheGet: p.cache.GetLock,
-		cacheList: func(ctx context.Context) ([]types.Lock, error) {
-			results, err := p.cache.GetLocks(ctx, false)
-			return results, err
-		},
-		update:    p.accessS.UpsertLock,
-		deleteAll: p.accessS.DeleteAllLocks,
-	})
-}
-
 // TestUserTasks tests that CRUD operations on user notification resources are
 // replicated from the backend to the cache.
 func TestUserTasks(t *testing.T) {

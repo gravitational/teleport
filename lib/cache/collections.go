@@ -110,6 +110,7 @@ type collections struct {
 	webTokens                        *collection[types.WebToken, webTokenIndex]
 	uiConfigs                        *collection[types.UIConfig, webUIConfigIndex]
 	installers                       *collection[types.Installer, installerIndex]
+	locks                            *collection[types.Lock, lockIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -543,6 +544,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.installers = collect
 			out.byKind[resourceKind] = out.installers
+		case types.KindLock:
+			collect, err := newLockCollection(c.Access, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.locks = collect
+			out.byKind[resourceKind] = out.locks
 		}
 	}
 

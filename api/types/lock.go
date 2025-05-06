@@ -58,6 +58,8 @@ type Lock interface {
 
 	// IsInForce returns whether the lock is in force at a particular time.
 	IsInForce(time.Time) bool
+	// Clone returns a copy of the lock.
+	Clone() Lock
 }
 
 // NewLock is a convenience method to create a Lock resource.
@@ -72,6 +74,11 @@ func NewLock(name string, spec LockSpecV2) (Lock, error) {
 		return nil, trace.Wrap(err)
 	}
 	return lock, nil
+}
+
+// Clone returns a copy of the lock.
+func (c *LockV2) Clone() Lock {
+	return utils.CloneProtoMsg(c)
 }
 
 // GetVersion returns resource version.

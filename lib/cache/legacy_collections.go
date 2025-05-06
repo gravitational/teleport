@@ -105,7 +105,6 @@ type legacyCollections struct {
 	userTasks                          collectionReader[userTasksGetter]
 	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
-	locks                              collectionReader[services.LockGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
@@ -164,15 +163,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.networkRestrictions
-		case types.KindLock:
-			if c.Access == nil {
-				return nil, trace.BadParameter("missing parameter Access")
-			}
-			collections.locks = &genericCollection[types.Lock, services.LockGetter, lockExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.locks
 		case types.KindDynamicWindowsDesktop:
 			if c.WindowsDesktops == nil {
 				return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
@@ -548,35 +538,6 @@ type networkRestrictionGetter interface {
 }
 
 var _ executor[types.NetworkRestrictions, networkRestrictionGetter] = networkRestrictionsExecutor{}
-
-type lockExecutor struct{}
-
-func (lockExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Lock, error) {
-	return cache.Access.GetLocks(ctx, false)
-}
-
-func (lockExecutor) upsert(ctx context.Context, cache *Cache, resource types.Lock) error {
-	return cache.accessCache.UpsertLock(ctx, resource)
-}
-
-func (lockExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessCache.DeleteAllLocks(ctx)
-}
-
-func (lockExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.accessCache.DeleteLock(ctx, resource.GetName())
-}
-
-func (lockExecutor) isSingleton() bool { return false }
-
-func (lockExecutor) getReader(cache *Cache, cacheOK bool) services.LockGetter {
-	if cacheOK {
-		return cache.accessCache
-	}
-	return cache.Config.Access
-}
-
-var _ executor[types.Lock, services.LockGetter] = lockExecutor{}
 
 type dynamicWindowsDesktopsExecutor struct{}
 
