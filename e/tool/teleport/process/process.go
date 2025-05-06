@@ -7,7 +7,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/auth"
 	_ "github.com/gravitational/teleport/e/lib/backend/crdb"
@@ -84,10 +83,9 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		}
 	}
 
+	// TODO(kopiczko) v19: remove the whole servicecfg.OktaConfig type and its references.
 	if cfg.Okta.Enabled {
-		if err := services.InitOkta(ossProcess); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.BadParameter("okta_service configuration is not supported anymore. Please migrate to Okta plugin https://goteleport.com/docs/admin-guides/access-controls/okta/. This message will be removed in v19.")
 	}
 
 	if cfg.Jamf.Enabled() {
@@ -185,14 +183,5 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 
 // registerExpectedServices sets up the instance role -> identity event mapping.
 func registerExpectedServices(cfg *servicecfg.Config) {
-	if cfg.Okta.Enabled {
-		cfg.AdditionalExpectedRoles = append(cfg.AdditionalExpectedRoles,
-			servicecfg.RoleAndIdentityEvent{
-				Role:          types.RoleOkta,
-				IdentityEvent: services.OktaIdentityEvent,
-			})
-		cfg.AdditionalReadyEvents = append(cfg.AdditionalReadyEvents, services.OktaReady)
-	}
-
 	services.JamfRegister(cfg)
 }

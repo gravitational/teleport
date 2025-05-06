@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -45,36 +44,6 @@ type oktaSettings struct {
 func (s *oktaSettings) orgURLBase64() string {
 	orgURL := strings.TrimSuffix(s.orgUrl, "/")
 	return base64.RawURLEncoding.EncodeToString([]byte(orgURL))
-}
-
-// InitOkta will initialize and start the Okta service.
-func InitOkta(process *service.TeleportProcess) error {
-	tokenBytes, err := os.ReadFile(process.Config.Okta.APITokenPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Remove any leading and trailing whitespace from the token.
-	token := strings.TrimSpace(string(tokenBytes))
-
-	process.RegisterWithAuthServer(types.RoleOkta, OktaIdentityEvent)
-	process.RegisterCriticalFunc(oktaInit, func() error {
-		return initOktaService(process.ExitContext(), process,
-			oktaSettings{
-				orgUrl:       process.Config.Okta.APIEndpoint,
-				authProvider: oktaapi.NewSSWSAuthProvider(token),
-				syncPeriod:   process.Config.Okta.SyncSettings.AppGroupSyncPeriod,
-				syncSettings: types.PluginOktaSyncSettings{
-					SyncUsers:       false,
-					SyncAccessLists: process.Config.Okta.SyncSettings.SyncAccessLists,
-					DefaultOwners:   process.Config.Okta.SyncSettings.DefaultOwners,
-					AppFilters:      process.Config.Okta.SyncSettings.AppFilters,
-					GroupFilters:    process.Config.Okta.SyncSettings.GroupFilters,
-				},
-			},
-			process.GetID())
-	})
-	return nil
 }
 
 // OktaPluginPrams holds the parameters needed to initialize the Okta plugin.
