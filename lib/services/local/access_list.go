@@ -831,6 +831,10 @@ func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslis
 	return nil, trace.NotImplemented("AccessRequestPromote should not be called")
 }
 
+func (a *AccessListService) AccessRequestLongTermApprove(_ context.Context, _ *accesslistv1.AccessRequestLongTermApproveRequest) (*accesslistv1.AccessRequestLongTermApproveResponse, error) {
+	return nil, trace.NotImplemented("AccessRequestLongTermApprove should not be called")
+}
+
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
 	err = a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {

@@ -58,6 +58,7 @@ const (
 	AccessListService_CreateAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/CreateAccessListReview"
 	AccessListService_DeleteAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListReview"
 	AccessListService_AccessRequestPromote_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/AccessRequestPromote"
+	AccessListService_AccessRequestLongTermApprove_FullMethodName            = "/teleport.accesslist.v1.AccessListService/AccessRequestLongTermApprove"
 	AccessListService_GetSuggestedAccessLists_FullMethodName                 = "/teleport.accesslist.v1.AccessListService/GetSuggestedAccessLists"
 	AccessListService_GetInheritedGrants_FullMethodName                      = "/teleport.accesslist.v1.AccessListService/GetInheritedGrants"
 )
@@ -127,6 +128,8 @@ type AccessListServiceClient interface {
 	DeleteAccessListReview(ctx context.Context, in *DeleteAccessListReviewRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, in *AccessRequestPromoteRequest, opts ...grpc.CallOption) (*AccessRequestPromoteResponse, error)
+	// AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+	AccessRequestLongTermApprove(ctx context.Context, in *AccessRequestLongTermApproveRequest, opts ...grpc.CallOption) (*AccessRequestLongTermApproveResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access
 	// request.
 	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
@@ -382,6 +385,16 @@ func (c *accessListServiceClient) AccessRequestPromote(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *accessListServiceClient) AccessRequestLongTermApprove(ctx context.Context, in *AccessRequestLongTermApproveRequest, opts ...grpc.CallOption) (*AccessRequestLongTermApproveResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccessRequestLongTermApproveResponse)
+	err := c.cc.Invoke(ctx, AccessListService_AccessRequestLongTermApprove_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSuggestedAccessListsResponse)
@@ -467,6 +480,8 @@ type AccessListServiceServer interface {
 	DeleteAccessListReview(context.Context, *DeleteAccessListReviewRequest) (*emptypb.Empty, error)
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error)
+	// AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+	AccessRequestLongTermApprove(context.Context, *AccessRequestLongTermApproveRequest) (*AccessRequestLongTermApproveResponse, error)
 	// GetSuggestedAccessLists returns suggested access lists for an access
 	// request.
 	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
@@ -553,6 +568,9 @@ func (UnimplementedAccessListServiceServer) DeleteAccessListReview(context.Conte
 }
 func (UnimplementedAccessListServiceServer) AccessRequestPromote(context.Context, *AccessRequestPromoteRequest) (*AccessRequestPromoteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AccessRequestPromote not implemented")
+}
+func (UnimplementedAccessListServiceServer) AccessRequestLongTermApprove(context.Context, *AccessRequestLongTermApproveRequest) (*AccessRequestLongTermApproveResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AccessRequestLongTermApprove not implemented")
 }
 func (UnimplementedAccessListServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
@@ -1013,6 +1031,24 @@ func _AccessListService_AccessRequestPromote_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_AccessRequestLongTermApprove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccessRequestLongTermApproveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).AccessRequestLongTermApprove(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_AccessRequestLongTermApprove_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).AccessRequestLongTermApprove(ctx, req.(*AccessRequestLongTermApproveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_GetSuggestedAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetSuggestedAccessListsRequest)
 	if err := dec(in); err != nil {
@@ -1151,6 +1187,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AccessRequestPromote",
 			Handler:    _AccessListService_AccessRequestPromote_Handler,
+		},
+		{
+			MethodName: "AccessRequestLongTermApprove",
+			Handler:    _AccessListService_AccessRequestLongTermApprove_Handler,
 		},
 		{
 			MethodName: "GetSuggestedAccessLists",

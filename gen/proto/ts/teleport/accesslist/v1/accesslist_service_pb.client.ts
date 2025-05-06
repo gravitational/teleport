@@ -25,6 +25,8 @@ import type { GetInheritedGrantsResponse } from "./accesslist_service_pb";
 import type { GetInheritedGrantsRequest } from "./accesslist_service_pb";
 import type { GetSuggestedAccessListsResponse } from "./accesslist_service_pb";
 import type { GetSuggestedAccessListsRequest } from "./accesslist_service_pb";
+import type { AccessRequestLongTermApproveResponse } from "./accesslist_service_pb";
+import type { AccessRequestLongTermApproveRequest } from "./accesslist_service_pb";
 import type { AccessRequestPromoteResponse } from "./accesslist_service_pb";
 import type { AccessRequestPromoteRequest } from "./accesslist_service_pb";
 import type { DeleteAccessListReviewRequest } from "./accesslist_service_pb";
@@ -228,6 +230,12 @@ export interface IAccessListServiceClient {
      * @generated from protobuf rpc: AccessRequestPromote(teleport.accesslist.v1.AccessRequestPromoteRequest) returns (teleport.accesslist.v1.AccessRequestPromoteResponse);
      */
     accessRequestPromote(input: AccessRequestPromoteRequest, options?: RpcOptions): UnaryCall<AccessRequestPromoteRequest, AccessRequestPromoteResponse>;
+    /**
+     * AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+     *
+     * @generated from protobuf rpc: AccessRequestLongTermApprove(teleport.accesslist.v1.AccessRequestLongTermApproveRequest) returns (teleport.accesslist.v1.AccessRequestLongTermApproveResponse);
+     */
+    accessRequestLongTermApprove(input: AccessRequestLongTermApproveRequest, options?: RpcOptions): UnaryCall<AccessRequestLongTermApproveRequest, AccessRequestLongTermApproveResponse>;
     /**
      * GetSuggestedAccessLists returns suggested access lists for an access
      * request.
@@ -481,13 +489,22 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
         return stackIntercept<AccessRequestPromoteRequest, AccessRequestPromoteResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * AccessRequestLongTermApprove approves a long-term Access Request and adds the requester to the relevant Access List.
+     *
+     * @generated from protobuf rpc: AccessRequestLongTermApprove(teleport.accesslist.v1.AccessRequestLongTermApproveRequest) returns (teleport.accesslist.v1.AccessRequestLongTermApproveResponse);
+     */
+    accessRequestLongTermApprove(input: AccessRequestLongTermApproveRequest, options?: RpcOptions): UnaryCall<AccessRequestLongTermApproveRequest, AccessRequestLongTermApproveResponse> {
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        return stackIntercept<AccessRequestLongTermApproveRequest, AccessRequestLongTermApproveResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * GetSuggestedAccessLists returns suggested access lists for an access
      * request.
      *
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists(input: GetSuggestedAccessListsRequest, options?: RpcOptions): UnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse> {
-        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        const method = this.methods[25], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -496,7 +513,7 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
      * @generated from protobuf rpc: GetInheritedGrants(teleport.accesslist.v1.GetInheritedGrantsRequest) returns (teleport.accesslist.v1.GetInheritedGrantsResponse);
      */
     getInheritedGrants(input: GetInheritedGrantsRequest, options?: RpcOptions): UnaryCall<GetInheritedGrantsRequest, GetInheritedGrantsResponse> {
-        const method = this.methods[25], opt = this._transport.mergeOptions(options);
+        const method = this.methods[26], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetInheritedGrantsRequest, GetInheritedGrantsResponse>("unary", this._transport, method, opt, input);
     }
 }
