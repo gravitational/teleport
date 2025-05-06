@@ -195,7 +195,26 @@ as is used for other OIDC join methods (e.g `bitbucket`).
 
 ### Join RPC
 
-TODO
+The Azure DevOps join method can leverage the existing `RegisterUsingToken` gRPC
+RPC since it does not involve a challenge and response and therefore does not
+require bi-di streaming.
+
+No additional fields will need to be added to the `RegisterUsingToken` RPC 
+request or response.
+
+When a join occurs via the Azure DevOps join method, the Join RPC shall:
+
+1. Perform the standard ProvisionToken resource validation
+  (e.g. ensure the ProvisionToken has not expired ).
+2. Ensure the specified ProvisionToken is of type `azure_devops`.
+3. Fetch the well-known and JWKS based on the OrganizationID configured within
+   the ProvisionToken.
+4. Validate the provided ID Token signature using the fetched JWKS.
+5. Validate common fields within the JWT (e.g `exp`, `nbf`, `aud`).
+6. Validate that the issuer of the ID Token matches the value we would expect
+   given the configured OrganizationID.
+7. Extract the claims from the ID Token.
+8. Validate these claims against the conf
 
 ### UX
 
