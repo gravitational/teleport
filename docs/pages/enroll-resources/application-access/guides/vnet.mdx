@@ -48,10 +48,16 @@ Add a custom DNS zone. In our case the `public_addr` of the app is going to be
 `tcp-app.company.test`, so we're going to set `company.test` as `suffix`. The `spec` section of the
 config should include the `custom_dns_zones` field:
 
-```yaml
+```diff
+kind: vnet_config
+metadata:
+  name: vnet-config
+  # …
 spec:
-  custom_dns_zones:
-  - suffix: <Var name="suffix" />
++ custom_dns_zones:
++ - suffix: <Var name="suffix" />
+  # …
+version: v1
 ```
 
 <Admonition type="note" title="Relationship between suffix and public_addr">
@@ -65,7 +71,7 @@ and the suffix can be set to `bar.qux.test`.
 Set `public_addr` field of the application in the Application Service configuration file
 `/etc/teleport.yaml` and restart the `teleport` daemon.
 
-```yaml
+```diff
 version: v3
 # …
 app_service:
@@ -73,7 +79,7 @@ app_service:
   apps:
   - name: "tcp-app"
     uri: tcp://localhost:5432
-    public_addr: "<Var name="public_addr" />"
++   public_addr: "<Var name="public_addr" />"
 ```
 
 ## Step 3/3. Connect
@@ -103,9 +109,15 @@ $ tctl edit vnet_config
 
 Edit the `ipv4_cidr_range` field in the `spec` section of the config:
 
-```yaml
+```diff
+kind: vnet_config
+metadata:
+  name: vnet-config
+  # …
 spec:
-  ipv4_cidr_range: "100.64.0.0/10"
++ ipv4_cidr_range: "100.64.0.0/10"
+  # …
+version: v1
 ```
 
 <Admonition type="note" title="IPv4 address of the TUN device">
