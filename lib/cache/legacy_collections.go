@@ -102,16 +102,13 @@ type legacyCollections struct {
 	tunnelConnections                  collectionReader[tunnelConnectionGetter]
 	databaseObjects                    collectionReader[services.DatabaseObjectsGetter]
 	discoveryConfigs                   collectionReader[services.DiscoveryConfigsGetter]
-	installers                         collectionReader[installerGetter]
 	userTasks                          collectionReader[userTasksGetter]
 	kubeWaitingContainers              collectionReader[kubernetesWaitingContainerGetter]
 	staticHostUsers                    collectionReader[staticHostUserGetter]
 	locks                              collectionReader[services.LockGetter]
 	networkRestrictions                collectionReader[networkRestrictionGetter]
 	remoteClusters                     collectionReader[remoteClusterGetter]
-	uiConfigs                          collectionReader[uiConfigGetter]
 	userLoginStates                    collectionReader[services.UserLoginStatesGetter]
-	webTokens                          collectionReader[webTokenGetter]
 	dynamicWindowsDesktops             collectionReader[dynamicWindowsDesktopsGetter]
 	provisioningStates                 collectionReader[provisioningStateGetter]
 	identityCenterPrincipalAssignments collectionReader[identityCenterPrincipalAssignmentGetter]
@@ -126,24 +123,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case types.KindInstaller:
-			if c.ClusterConfig == nil {
-				return nil, trace.BadParameter("missing parameter ClusterConfig")
-			}
-			collections.installers = &genericCollection[types.Installer, installerGetter, installerConfigExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.installers
-		case types.KindUIConfig:
-			if c.ClusterConfig == nil {
-				return nil, trace.BadParameter("missing parameter ClusterConfig")
-			}
-			collections.uiConfigs = &genericCollection[types.UIConfig, uiConfigGetter, uiConfigExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.uiConfigs
 		case types.KindTunnelConnection:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -167,16 +146,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
-
-		case types.KindWebToken:
-			if c.WebToken == nil {
-				return nil, trace.BadParameter("missing parameter WebToken")
-			}
-			collections.webTokens = &genericCollection[types.WebToken, webTokenGetter, webTokenExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.webTokens
 		case types.KindDatabaseObject:
 			if c.DatabaseObjects == nil {
 				return nil, trace.BadParameter("missing parameter DatabaseObject")
@@ -542,112 +511,6 @@ func (databaseObjectExecutor) getReader(cache *Cache, cacheOK bool) services.Dat
 }
 
 var _ executor[*dbobjectv1.DatabaseObject, services.DatabaseObjectsGetter] = databaseObjectExecutor{}
-
-type webTokenExecutor struct{}
-
-func (webTokenExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.WebToken, error) {
-	return cache.WebToken.List(ctx)
-}
-
-func (webTokenExecutor) upsert(ctx context.Context, cache *Cache, resource types.WebToken) error {
-	return cache.webTokenCache.Upsert(ctx, resource)
-}
-
-func (webTokenExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.webTokenCache.DeleteAll(ctx)
-}
-
-func (webTokenExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.webTokenCache.Delete(ctx, types.DeleteWebTokenRequest{
-		Token: resource.GetName(),
-	})
-}
-
-func (webTokenExecutor) isSingleton() bool { return false }
-
-func (webTokenExecutor) getReader(cache *Cache, cacheOK bool) webTokenGetter {
-	if cacheOK {
-		return cache.webTokenCache
-	}
-	return cache.Config.WebToken
-}
-
-type webTokenGetter interface {
-	Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
-}
-
-var _ executor[types.WebToken, webTokenGetter] = webTokenExecutor{}
-
-type uiConfigExecutor struct{}
-
-func (uiConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.UIConfig, error) {
-	uiConfig, err := cache.ClusterConfig.GetUIConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []types.UIConfig{uiConfig}, nil
-}
-
-func (uiConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.UIConfig) error {
-	return cache.clusterConfigCache.SetUIConfig(ctx, resource)
-}
-
-func (uiConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.clusterConfigCache.DeleteUIConfig(ctx)
-}
-
-func (uiConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.clusterConfigCache.DeleteUIConfig(ctx)
-}
-
-func (uiConfigExecutor) isSingleton() bool { return true }
-
-func (uiConfigExecutor) getReader(cache *Cache, cacheOK bool) uiConfigGetter {
-	if cacheOK {
-		return cache.clusterConfigCache
-	}
-	return cache.Config.ClusterConfig
-}
-
-type uiConfigGetter interface {
-	GetUIConfig(context.Context) (types.UIConfig, error)
-}
-
-var _ executor[types.UIConfig, uiConfigGetter] = uiConfigExecutor{}
-
-type installerConfigExecutor struct{}
-
-func (installerConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Installer, error) {
-	return cache.ClusterConfig.GetInstallers(ctx)
-}
-
-func (installerConfigExecutor) upsert(ctx context.Context, cache *Cache, resource types.Installer) error {
-	return cache.clusterConfigCache.SetInstaller(ctx, resource)
-}
-
-func (installerConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.clusterConfigCache.DeleteAllInstallers(ctx)
-}
-
-func (installerConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.clusterConfigCache.DeleteInstaller(ctx, resource.GetName())
-}
-
-func (installerConfigExecutor) isSingleton() bool { return false }
-
-func (installerConfigExecutor) getReader(cache *Cache, cacheOK bool) installerGetter {
-	if cacheOK {
-		return cache.clusterConfigCache
-	}
-	return cache.Config.ClusterConfig
-}
-
-type installerGetter interface {
-	GetInstallers(context.Context) ([]types.Installer, error)
-	GetInstaller(ctx context.Context, name string) (types.Installer, error)
-}
-
-var _ executor[types.Installer, installerGetter] = installerConfigExecutor{}
 
 type networkRestrictionsExecutor struct{}
 

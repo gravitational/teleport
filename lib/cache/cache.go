@@ -506,7 +506,6 @@ type Cache struct {
 	presenceCache                services.Presence
 	restrictionsCache            services.Restrictions
 	databaseObjectsCache         *local.DatabaseObjectService
-	webTokenCache                types.WebTokenInterface
 	dynamicWindowsDesktopsCache  services.DynamicWindowsDesktops
 	userGroupsCache              services.UserGroups
 	userTasksCache               services.UserTasks
@@ -1017,7 +1016,6 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
 		restrictionsCache:            local.NewRestrictionsService(config.Backend),
-		webTokenCache:                identityService.WebTokens(),
 		dynamicWindowsDesktopsCache:  dynamicDesktopsService,
 		userGroupsCache:              userGroupsCache,
 		userTasksCache:               userTasksCache,
@@ -1786,50 +1784,6 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.uiConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	uiconfig, err := rg.reader.GetUIConfig(ctx)
-	return uiconfig, trace.Wrap(err)
-}
-
-// GetInstaller gets the installer script resource for the cluster
-func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.installers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	inst, err := rg.reader.GetInstaller(ctx, name)
-	return inst, trace.Wrap(err)
-}
-
-// GetInstallers gets all the installer script resources for the cluster
-func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.installers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	inst, err := rg.reader.GetInstallers(ctx)
-	return inst, trace.Wrap(err)
-}
-
 type remoteClustersCacheKey struct {
 	name string
 }
@@ -2014,19 +1968,6 @@ func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken str
 	}
 	defer rg.Release()
 	return rg.reader.ListDatabaseObjects(ctx, size, pageToken)
-}
-
-// GetWebToken gets a web token.
-func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWebToken")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.webTokens)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.Get(ctx, req)
 }
 
 // GetNetworkRestrictions gets the network restrictions.
