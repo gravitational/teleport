@@ -36,6 +36,7 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 )
 
@@ -126,6 +127,7 @@ type collections struct {
 	databaseObjects                  *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
 	staticHostUsers                  *collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]
 	networkRestrictions              *collection[types.NetworkRestrictions, networkingRestrictionIndex]
+	discoveryConfigs                 *collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -648,6 +650,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.networkRestrictions = collect
 			out.byKind[resourceKind] = out.networkRestrictions
+		case types.KindDiscoveryConfig:
+			collect, err := newDiscoveryConfigCollection(c.DiscoveryConfigs, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.discoveryConfigs = collect
+			out.byKind[resourceKind] = out.discoveryConfigs
 		}
 	}
 
