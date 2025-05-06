@@ -146,7 +146,7 @@ func (s *identityService) loadIdentityFromStore(ctx context.Context, store bot.D
 	s.log.InfoContext(
 		ctx,
 		"Loaded existing bot identity from store",
-		"identity", describeTLSIdentity(ctx, s.log, loadedIdent),
+		"identity", describeTLSIdentity(ctx, nil, s.log, loadedIdent),
 	)
 
 	now := time.Now().UTC()
@@ -221,7 +221,7 @@ func (s *identityService) Initialize(ctx context.Context) error {
 		}
 	}
 
-	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
+	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.client, s.log, newIdentity))
 	if err := identity.SaveIdentity(ctx, newIdentity, s.cfg.Storage.Destination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err)
 	}
@@ -300,13 +300,13 @@ func (s *identityService) renew(
 		return trace.Wrap(err, "renewing identity")
 	}
 
-	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
+	s.log.InfoContext(ctx, "Fetched new bot identity", "identity", describeTLSIdentity(ctx, s.client, s.log, newIdentity))
 	s.facade.Set(newIdentity)
 
 	if err := identity.SaveIdentity(ctx, newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err, "saving new identity")
 	}
-	s.log.DebugContext(ctx, "Bot identity persisted", "identity", describeTLSIdentity(ctx, s.log, newIdentity))
+	s.log.DebugContext(ctx, "Bot identity persisted", "identity", describeTLSIdentity(ctx, s.client, s.log, newIdentity))
 
 	return nil
 }
