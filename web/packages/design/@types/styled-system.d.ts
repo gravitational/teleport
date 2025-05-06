@@ -1,5 +1,3 @@
-import type * as PropTypes from 'prop-types';
-
 /**
  * Teleport
  * Copyright (C) 2024 Gravitational, Inc.
@@ -19,6 +17,8 @@ import type * as PropTypes from 'prop-types';
  */
 
 import 'styled-system';
+
+import type * as PropTypes from 'prop-types';
 
 declare module 'styled-system' {
   export function style(args: LowLevelStylefunctionArguments): styleFn;
