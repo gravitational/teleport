@@ -208,11 +208,57 @@ func TestValidateSigstorePolicy(t *testing.T) {
 			},
 			err: "spec.keyless.trusted_roots[0]: failed to parse trusted root",
 		},
+		"keyless trusted_roots contains no tlogs or timestampAuthorities": {
+			mod: func(p *workloadidentityv1.SigstorePolicy) {
+				// This is GitHub's trusted roots with the `tlogs` and timestampAuthorities`
+				// lists blanked out.
+				const root = `
+				{
+				  "mediaType": "application/vnd.dev.sigstore.trustedroot+json;version=0.1",
+				  "certificateAuthorities": [
+				    {
+				      "subject": {
+				        "organization": "GitHub, Inc.",
+				        "commonName": "Internal Services Root"
+				      },
+				      "uri": "fulcio.githubapp.com",
+				      "certChain": {
+				        "certificates": [
+				          {
+				            "rawBytes": "MIICKzCCAbCgAwIBAgIUQeyd9UH06yZ63pDuqjgUZ58CnpMwCgYIKoZIzj0EAwMwODEVMBMGA1UEChMMR2l0SHViLCBJbmMuMR8wHQYDVQQDExZGdWxjaW8gSW50ZXJtZWRpYXRlIGwxMB4XDTI0MTAwMzEyMDAwMFoXDTI1MTAwMzEyMDAwMFowODEVMBMGA1UEChMMR2l0SHViLCBJbmMuMR8wHQYDVQQDExZGdWxjaW8gSW50ZXJtZWRpYXRlIGwyMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEwvbET2w+j9j9j50iTInH1gb9GSXkpsCvWz5orX1zgme+/Qh/5gMkpfmgfOSLV2ZRgT1hzujYmnKQvP2mCxYnbwQELAkAf+VhEY/7Uw3zZvguGQSdF1cxzRHiMTOha5eFo3sweTAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0lBAwwCgYIKwYBBQUHAwMwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUMib9z4ZYBcQANTVvVCa3KoTGbBUwHwYDVR0jBBgwFoAUwOG4UqRLTz7eejgRBs9JjqFFmzMwCgYIKoZIzj0EAwMDaQAwZgIxAPIU/zlJiJrxn6oTWNdEAD/YBSnhyxcvpq1D2DzFy8E8hbkEfMZPErYL7HyoL/BkdwIxAN9KDEKyktEUBrfHehfcLAzI2kERJx+8DSslXswOIbLaeqYfWsmrQAt5C0X/nOWxXA=="
+				          },
+				          {
+				            "rawBytes": "MIICFTCCAZugAwIBAgIUD3Jlqt4qhrcZI4UnGfPGrEq/pjQwCgYIKoZIzj0EAwMwODEVMBMGA1UEChMMR2l0SHViLCBJbmMuMR8wHQYDVQQDExZJbnRlcm5hbCBTZXJ2aWNlcyBSb290MB4XDTIzMDkxMTEyMDAwMFoXDTI4MDkwOTEyMDAwMFowODEVMBMGA1UEChMMR2l0SHViLCBJbmMuMR8wHQYDVQQDExZGdWxjaW8gSW50ZXJtZWRpYXRlIGwxMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7X7nK0wC7uEmDjW+on0sXIX3FacL3hhcrhneA+M/kl1OtvQiPmFrH9lbUQqOj/AfspJ8uGY3jaq8WuSg6ghatzYfuuzLAJIK4nGpCBafncF8EynOssPq64/Dz+JUWXqlo2YwZDAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBATAdBgNVHQ4EFgQUwOG4UqRLTz7eejgRBs9JjqFFmzMwHwYDVR0jBBgwFoAUfFJ5/6rhfHEZPnXAhrQLhGkJJMwwCgYIKoZIzj0EAwMDaAAwZQIxAI8HWLrke7uzhOpwlD1cNixPmoX9XFKe7bEPozo0D+vKi0Gt6VlC7xPedFIw4/AypAIwQP+FGRWvfx0IAH5/n0aRiN7/LVpyFA5RkJASZOVOib2Y8pNuhXa9V3ZbWO6v6kW/"
+				          },
+				          {
+				            "rawBytes": "MIIB9TCCAXqgAwIBAgIUNFryA06EHDIcd5EIbe8swbl9OY4wCgYIKoZIzj0EAwMwODEVMBMGA1UEChMMR2l0SHViLCBJbmMuMR8wHQYDVQQDExZJbnRlcm5hbCBTZXJ2aWNlcyBSb290MB4XDTIzMDgwNzEyMDAwMFoXDTMzMDgwNDEyMDAwMFowODEVMBMGA1UEChMMR2l0SHViLCBJbmMuMR8wHQYDVQQDExZJbnRlcm5hbCBTZXJ2aWNlcyBSb290MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEXYaXx4H0oNuVP/2cfydA3oaafvvkkkgb5hbL8/j/BO25S7uTmDOCA5e4QLLWCKFuc+xp2j14tCH4WmHzMUDvf2tXtInVliY5wZgQMM9L6klo/IwA9x4omdcjnT+kKJAjo0UwQzAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBAjAdBgNVHQ4EFgQUfFJ5/6rhfHEZPnXAhrQLhGkJJMwwCgYIKoZIzj0EAwMDaQAwZgIxAPzXsV+eokrqOHSQZH/XhhHE1slOscKy3DQpYpYJ1AWmJ2lJu/XOmubBX5s7apllUwIxALw2Ts8CDACiK42UymC8fk6sbNfoXUAWqdyKTVt2Lst+wNdkRniGvx7jT65BKTkcsQ=="
+				          }
+				        ]
+				      },
+				      "validFor": {
+				        "start": "2024-10-07T00:00:00Z"
+				      }
+				    }
+				  ],
+				  "timestampAuthorities": [],
+				  "tlogs": []
+				}
+				`
+				p.Spec.GetKeyless().TrustedRoots = []string{root}
+			},
+			err: "spec.keyless.trusted_roots: must configure at least one transparency log or timestamp authority",
+		},
 		"no requirements": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
 				p.Spec.Requirements = nil
 			},
 			err: "spec.requirements: is required",
+		},
+		"empty requirements": {
+			mod: func(p *workloadidentityv1.SigstorePolicy) {
+				p.Spec.Requirements = &workloadidentityv1.SigstorePolicyRequirements{}
+			},
+			err: "spec.requirements: either artifact_signature or attestations is required",
 		},
 		"required attestation empty predicate": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
@@ -221,6 +267,17 @@ func TestValidateSigstorePolicy(t *testing.T) {
 				}
 			},
 			err: "spec.requirements.attestations[0].predicate_type: is required",
+		},
+		"attestations and artifact signature": {
+			mod: func(p *workloadidentityv1.SigstorePolicy) {
+				p.Spec.Requirements = &workloadidentityv1.SigstorePolicyRequirements{
+					ArtifactSignature: true,
+					Attestations: []*workloadidentityv1.InTotoAttestationMatcher{
+						{PredicateType: "https://slsa.dev/provenance/v1"},
+					},
+				}
+			},
+			err: "spec.requirements: artifact_signature and attestations are mutually exclusive",
 		},
 	}
 	for name, tc := range testCases {
