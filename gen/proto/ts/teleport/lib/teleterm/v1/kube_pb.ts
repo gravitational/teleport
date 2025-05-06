@@ -108,7 +108,7 @@ class Kube$Type extends MessageType<Kube> {
         super("teleport.lib.teleterm.v1.Kube", [
             { no: 1, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "labels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Label }
+            { no: 3, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label }
         ]);
     }
     create(value?: PartialMessage<Kube>): Kube {
@@ -172,7 +172,7 @@ class KubeResource$Type extends MessageType<KubeResource> {
             { no: 1, name: "uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "labels", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Label },
+            { no: 4, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 5, name: "cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "namespace", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
