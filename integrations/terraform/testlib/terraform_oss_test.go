@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package testlib
+package testlib_test
 
 import (
 	"testing"
@@ -22,20 +22,21 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
+	"github.com/gravitational/teleport/integrations/terraform/testlib"
 	"github.com/gravitational/teleport/lib/auth"
 )
 
 func TestTerraformOSS(t *testing.T) {
-	suite.Run(t, &TerraformSuiteOSS{
-		TerraformBaseSuite: TerraformBaseSuite{
+	suite.Run(t, &testlib.TerraformSuiteOSS{
+		TerraformBaseSuite: testlib.TerraformBaseSuite{
 			AuthHelper: &integration.MinimalAuthHelper{},
 		},
 	})
 }
 
 func TestTerraformOSSWithCache(t *testing.T) {
-	suite.Run(t, &TerraformSuiteOSSWithCache{
-		TerraformBaseSuite: TerraformBaseSuite{
+	suite.Run(t, &testlib.TerraformSuiteOSSWithCache{
+		TerraformBaseSuite: testlib.TerraformBaseSuite{
 			AuthHelper: &integration.MinimalAuthHelper{
 				AuthConfig: auth.TestAuthServerConfig{CacheEnabled: true},
 			},
