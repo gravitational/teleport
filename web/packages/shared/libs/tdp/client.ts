@@ -440,7 +440,7 @@ export class TdpClient extends EventEmitter {
     let x11Frame = this.codec.decodeX11Frame(buffer);
     let frame = decode_x11_frame(x11Frame);
       this.emit(TdpClientEvent.TDP_BMP_FRAME, {
-        image_data: new ImageData(frame.data, frame.width),
+        image_data: new ImageData(frame.data.slice(), frame.width),
         left: frame.x,
         top: frame.y
       });

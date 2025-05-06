@@ -359,13 +359,16 @@ func (c *Client) runLocal(ctx context.Context) error {
 				if err := binary.Write(&buf, binary.BigEndian, rect.Height); err != nil {
 					return trace.Wrap(err)
 				}
-				encode(replay.Data, encoder)
+				var bufbuf bytes.Buffer
+				encode(replay.Data[:int(rect.Height)*int(rect.Width)*2], &bufbuf)
+				encoder.Write(bufbuf.Bytes())
 				if err := encoder.Close(); err != nil {
 					return trace.Wrap(err)
 				}
 				duration := time.Now().Sub(start)
 				totalDuration += duration
 				totalSize += len(replay.Data)
+				c.cfg.Logger.InfoContext(ctx, fmt.Sprintf("uncompressed %dx%d %d", rect.Width, rect.Height, len(replay.Data)))
 				compressedSize += buf.Len()
 				if duration > 10*time.Millisecond {
 					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration)

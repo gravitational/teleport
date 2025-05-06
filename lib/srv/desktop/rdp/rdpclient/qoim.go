@@ -29,7 +29,7 @@ import (
 const opIndex = 0x40       // 01xxxxxx
 const opDiff = 0x80        // 10xxxxxx
 const opLuma = 0xc0        // 110xxxxx
-const opRun = 0xc4         // 111xxxxx
+const opRun = 0xe0         // 111xxxxx
 const opExtendedRun = 0xfe // 11111110
 const opRgb = 0xff         // 11111111
 
@@ -74,19 +74,19 @@ func encode(data []byte, buf io.Writer) {
 
 func encodePixel(px pixel, pxPrev pixel, buf io.Writer) {
 	vg := px.g - pxPrev.g
-	vg16 := vg + 16
+	vg16 := (vg + 16) & 63
 	if vg16|31 == 31 {
 		vr := px.r - pxPrev.r
 		vb := px.b - pxPrev.b
 		vgr := vr - vg
 		vgb := vb - vg
-		vr2, vg2, vb2 := vr+2, vg+2, vb+2
+		vr2, vg2, vb2 := (vr+2)&31, (vg+2)&63, (vb+2)&31
 		if vr2|vg2|vb2|3 == 3 {
 			buf.Write([]byte{byte(opDiff | (vr2 << 4) | (vg2 << 2) | vb2)})
 			return
 		}
-		vgr8, vgb8 := vgr+8, vgb+8
-		if px.value < 0x4000 && vgr8|vgb8|15 == 15 {
+		vgr8, vgb8 := (vgr+8)&31, (vgb+8)&31
+		if px.value >= 0x4000 && vgr8|vgb8|15 == 15 {
 			buf.Write([]byte{byte(opLuma | vg16), byte((vgr8 << 4) | vgb8)})
 			return
 		}
