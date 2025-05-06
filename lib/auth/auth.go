@@ -74,6 +74,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -441,6 +442,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating HealthCheckConfigs service")
 		}
 	}
+	if cfg.BackendInfo == nil {
+		cfg.BackendInfo, err = local.NewBackendInfoService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BackendInfo service")
+		}
+	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
@@ -547,6 +554,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WorkloadIdentityX509Overrides:   cfg.WorkloadIdentityX509Overrides,
 		SigstorePolicies:                cfg.SigstorePolicies,
 		HealthCheckConfig:               cfg.HealthCheckConfig,
+		BackendInfoService:              cfg.BackendInfo,
 	}
 
 	as := Server{
@@ -783,6 +791,7 @@ type Services struct {
 	services.WorkloadIdentityX509Overrides
 	services.SigstorePolicies
 	services.HealthCheckConfig
+	services.BackendInfoService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1872,7 +1881,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	// connected instances is a poor approximation and may lead to missed notifications if auth
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		v := vc.Normalize(handle.Hello().Version)
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
@@ -1921,7 +1930,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 func (a *Server) updateAgentMetrics() {
 	imp := newInstanceMetricsPeriodic()
 
-	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 		imp.VisitInstance(handle.Hello(), handle.AgentMetadata())
 	})
 
@@ -1977,11 +1986,6 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 		return
 	}
 
-	// randomize the order to optimize for multiple auth servers running in parallel
-	mathrand.Shuffle(len(remoteClusters), func(i, j int) {
-		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
-	})
-
 	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
 	updateLimit := remoteClusterRefreshLimit
 	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
@@ -1991,7 +1995,8 @@ func (a *Server) refreshRemoteClusters(ctx context.Context) {
 	}
 
 	var updateCount int
-	for _, remoteCluster := range remoteClusters {
+	// randomize the order to optimize for multiple auth servers running in parallel
+	for _, remoteCluster := range utils.ShuffleVisit(remoteClusters) {
 		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
 			a.logger.ErrorContext(ctx, "Failed to perform remote cluster status refresh", "error", err)
 		} else if updated {
@@ -4931,7 +4936,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 	var rsp proto.InventoryStatusSummary
 	if req.Connected {
-		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
 		})
 
@@ -7579,6 +7584,17 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
+			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
+				trace.IsNotFound(err) {
+				// Do not add extra user messages to
+				// mfa.ErrExpiredReusableMFAResponse. Doing so will prevent
+				// client-side code from using errors.Is to reliably identify
+				// this specific error after it goes through gRPC. The original
+				// error isn't particularly useful to the user anyway, so just
+				// log it at debug level.
+				a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
+				return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
 
