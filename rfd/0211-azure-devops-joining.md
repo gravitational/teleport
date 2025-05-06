@@ -177,7 +177,7 @@ this has a few ramifications:
 
 - The JWKS values could be cached across join token resources.
 - We must not assume that because an ID Token passes validation for a specific
-  well-known.
+  organization's well-known that it belongs to that specific organization.
 
 Notably, the issued JWTs include the `kid` header and this `kid` field is also
 present within the JWKS. This allows the correct JWK to be selected from the 
