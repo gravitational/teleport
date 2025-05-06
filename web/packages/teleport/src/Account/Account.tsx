@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 import { useHistory } from 'react-router';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { Flex } from 'design';
 import { Danger } from 'design/Alert';

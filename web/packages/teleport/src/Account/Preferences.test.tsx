@@ -15,21 +15,28 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import * as styledComponents from 'styled-components';
+
+import { lightTheme } from 'design/theme';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
-import { Preferences } from './Preferences';
-import TeleportContext from 'teleport/teleportContext';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
-import { ContextProvider } from '..';
+
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import TeleportContext from 'teleport/teleportContext';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import * as styledComponents from 'styled-components';
-import { lightTheme } from 'design/theme';
 
-function renderComponent(ctx: TeleportContext, setErrorMessageFn = jest.fn(), addNotificationFn = jest.fn()) {
+import { ContextProvider } from '..';
+import { Preferences } from './Preferences';
+
+function renderComponent(
+  ctx: TeleportContext,
+  setErrorMessageFn = jest.fn(),
+  addNotificationFn = jest.fn()
+) {
   render(
     <ContextProvider ctx={ctx}>
-      <Preferences 
+      <Preferences
         setErrorMessage={setErrorMessageFn}
         addNotification={addNotificationFn}
       />
@@ -37,31 +44,35 @@ function renderComponent(ctx: TeleportContext, setErrorMessageFn = jest.fn(), ad
   );
 }
 
-describe("Account/Preferences", () => {
-  it("a user can change their theme", async () => {
+describe('Account/Preferences', () => {
+  it('a user can change their theme', async () => {
     const userContext = makeTestUserContext();
-    userContext.updatePreferences = jest.fn().mockImplementation(async (prefs) => {
-      if (prefs.theme !== undefined) {
-        userContext.preferences.theme = prefs.theme;
-      }
-      return { success: true };
-    });
-    
+    userContext.updatePreferences = jest
+      .fn()
+      .mockImplementation(async prefs => {
+        if (prefs.theme !== undefined) {
+          userContext.preferences.theme = prefs.theme;
+        }
+        return { success: true };
+      });
+
     mockUserContextProviderWith(userContext);
     renderComponent(createTeleportContext());
-    
+
     expect(userContext.preferences.theme).toBe(Theme.LIGHT);
-    
+
     fireEvent.click(screen.getByRole('radio', { name: /dark/i }));
-    
+
     await waitFor(() => {
       expect(userContext.preferences.theme).toBe(Theme.DARK);
     });
   });
 
-  it("shows an error message when a theme update fails", async () => {
+  it('shows an error message when a theme update fails', async () => {
     const userContext = makeTestUserContext();
-    userContext.updatePreferences = jest.fn().mockRejectedValue(new Error("error"));
+    userContext.updatePreferences = jest
+      .fn()
+      .mockRejectedValue(new Error('error'));
     mockUserContextProviderWith(userContext);
 
     const setErrorMessageFn = jest.fn();
@@ -70,20 +81,24 @@ describe("Account/Preferences", () => {
     fireEvent.click(screen.getByRole('radio', { name: /dark/i }));
 
     await waitFor(() => {
-      expect(setErrorMessageFn).toHaveBeenCalledWith("Failed to update the keyboard layout: error");
+      expect(setErrorMessageFn).toHaveBeenCalledWith(
+        'Failed to update the keyboard layout: error'
+      );
     });
   });
 
-  it("a user can change their keyboard layout", async () => {
+  it('a user can change their keyboard layout', async () => {
     const userContext = makeTestUserContext();
-    userContext.updatePreferences = jest.fn().mockImplementation(async (prefs) => {
-      if (prefs.keyboardLayout !== undefined) {
-        userContext.preferences.keyboardLayout = prefs.keyboardLayout;
-      }
-      return { success: true };
-    });
+    userContext.updatePreferences = jest
+      .fn()
+      .mockImplementation(async prefs => {
+        if (prefs.keyboardLayout !== undefined) {
+          userContext.preferences.keyboardLayout = prefs.keyboardLayout;
+        }
+        return { success: true };
+      });
     mockUserContextProviderWith(userContext);
-    
+
     const addNotification = jest.fn();
     renderComponent(createTeleportContext(), undefined, addNotification);
 
@@ -91,25 +106,23 @@ describe("Account/Preferences", () => {
 
     const select = screen.getByLabelText('keyboard layout select');
     fireEvent.mouseDown(select);
-    
+
+    let ukOption;
     await waitFor(() => {
-      const ukOption = screen.getByText('United Kingdom', { exact: true });
-      expect(ukOption).toBeInTheDocument();
-      fireEvent.click(ukOption);
+      ukOption = screen.getByText('United Kingdom', { exact: true });
     });
+    expect(ukOption).toBeInTheDocument();
+    fireEvent.click(ukOption);
 
     await waitFor(() => {
       expect(userContext.updatePreferences).toHaveBeenCalledWith(
         expect.objectContaining({ keyboardLayout: 0x00000809 })
       );
+    });
 
-      expect(addNotification).toHaveBeenCalledWith(
-        'success',
-        {
-          title: 'Change saved',
-          isAutoRemovable: true,
-        }
-      );
+    expect(addNotification).toHaveBeenCalledWith('success', {
+      title: 'Change saved',
+      isAutoRemovable: true,
     });
   });
 
@@ -121,11 +134,11 @@ describe("Account/Preferences", () => {
 
     const userContext = makeTestUserContext();
     mockUserContextProviderWith(userContext);
-    
+
     renderComponent(createTeleportContext());
 
     expect(screen.queryByText(/theme/i)).not.toBeInTheDocument();
-    
+
     jest.restoreAllMocks();
   });
 });

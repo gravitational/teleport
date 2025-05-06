@@ -23,14 +23,15 @@ import { MemoryRouter } from 'react-router';
 
 import '@testing-library/jest-dom';
 
+import { ThemeProvider } from 'styled-components';
+
+import lightTheme from 'design/theme/themes/lightTheme';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 import { KeysEnum } from 'teleport/services/storageService';
 import { UserContextProvider } from 'teleport/User';
 import { useUser } from 'teleport/User/UserContext';
-import { ThemeProvider } from 'styled-components';
-import lightTheme from 'design/theme/themes/lightTheme';
 
 function ThemeName() {
   const { preferences } = useUser();

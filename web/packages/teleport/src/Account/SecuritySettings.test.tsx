@@ -30,7 +30,7 @@ import auth from 'teleport/services/auth/auth';
 import MfaService, { MfaDevice } from 'teleport/services/mfa';
 import { PasswordState } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
-import { Account } from './Account';
+
 import useManageDevices from './ManageDevices/useManageDevices';
 
 const defaultAuthType = cfg.auth.second_factor;
@@ -259,7 +259,7 @@ test('loading state', async () => {
 
   render(
     <ContextProvider ctx={ctx}>
-      <SecuritySettingsWrapper ctx={ctx}/>
+      <SecuritySettingsWrapper ctx={ctx} />
     </ContextProvider>
   );
 

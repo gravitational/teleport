@@ -1,6 +1,23 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import { useHistory } from 'react-router';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 
 import cfg from 'teleport/config';
@@ -53,7 +70,7 @@ const HeadingItem = styled.a`
   padding-bottom: ${p => p.theme.space[2]}px;
   padding-left: ${p => p.theme.space[4]}px;
   color: ${p => p.theme.colors.text.slightlyMuted};
-  
+
   &:hover {
     color: ${p => p.theme.colors.text.main};
   }

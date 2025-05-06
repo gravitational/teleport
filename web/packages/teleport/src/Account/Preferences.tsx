@@ -19,7 +19,7 @@
 // Layout identifiers gotten from:
 // https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Box, Flex } from 'design';
