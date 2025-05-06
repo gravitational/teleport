@@ -588,7 +588,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, l
 
 	tdpMessagesToSend := make(chan tdp.Message)
 
-	latencySupported, err := utils.MinVerWithoutPreRelease(version, "18.0.0")
+	latencySupported, err := utils.MinVerWithoutPreRelease(version, "17.5.0")
 	if err != nil {
 		return trace.Wrap(err)
 	}
