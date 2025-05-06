@@ -163,6 +163,10 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 			}
 			roots = append(roots, root)
 		}
+
+		// If the user is overriding the default (Public Good Instance) trusted
+		// roots with their own, they must specify at least one transparency log
+		// or timestamp authority that can be used to verify keyless certificates.
 		if len(roots) != 0 && len(roots.CTLogs()) == 0 && len(roots.TimestampingAuthorities()) == 0 {
 			return trace.BadParameter("spec.keyless.trusted_roots: must configure at least one transparency log or timestamp authority")
 		}
