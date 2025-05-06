@@ -36,10 +36,8 @@ export function EnrollCard({
       width="33%"
       data-testid={`${resource}-enroll`}
       as={InternalLink}
-      to={{
-        pathname: cfg.routes.discover,
-        state: { searchKeywords: resource },
-      }}
+      to={cfg.routes.discover}
+      state={{ searchKeywords: resource }}
     >
       <Flex flexDirection="column" justifyContent="space-between" height="100%">
         <Box>

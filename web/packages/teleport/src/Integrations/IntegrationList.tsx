@@ -191,6 +191,10 @@ export function IntegrationList(props: Props) {
                         ),
                         state: { continueDraft: true },
                       }}
+                      to={cfg.getIntegrationEnrollRoute(
+                        IntegrationKind.ExternalAuditStorage
+                      )}
+                      state={{ continueDraft: true }}
                     >
                       Continue Setup...
                     </MenuItem>

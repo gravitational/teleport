@@ -79,10 +79,8 @@ export function Rules() {
       emptyButton={
         <ButtonPrimary
           as={InternalLink}
-          to={{
-            pathname: cfg.routes.discover,
-            state: { searchKeywords: resourceKind },
-          }}
+          to={cfg.routes.discover}
+          state={{ searchKeywords: resourceKind }}
         >
           Add Enrollment Rule
         </ButtonPrimary>

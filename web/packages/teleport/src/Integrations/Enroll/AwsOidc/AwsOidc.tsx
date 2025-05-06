@@ -63,19 +63,15 @@ export function AwsOidc() {
         credentials when performing operations automatically such as when
         connecting{' '}
         <RouteLink
-          to={{
-            pathname: `${cfg.routes.root}/discover`,
-            state: { searchKeywords: 'ec2' },
-          }}
+          to={`${cfg.routes.root}/discover`}
+          state={{ searchKeywords: 'ec2' }}
         >
           AWS EC2
         </RouteLink>{' '}
         or{' '}
         <RouteLink
-          to={{
-            pathname: `${cfg.routes.root}/discover`,
-            state: { searchKeywords: 'rds' },
-          }}
+          to={`${cfg.routes.root}/discover`}
+          state={{ searchKeywords: 'rds' }}
         >
           AWS RDS
         </RouteLink>{' '}

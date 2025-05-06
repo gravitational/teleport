@@ -27,12 +27,7 @@ export const SingleEc2InstanceInstallation = () => (
   <Info mt={3} linkColor="buttons.link.default">
     Auto discovery will enroll all EC2 instances found in a region. If you want
     to enroll a <Mark>single</Mark> EC2 instance instead, consider following the{' '}
-    <InternalLink
-      to={{
-        pathname: cfg.routes.discover,
-        state: { searchKeywords: 'linux' },
-      }}
-    >
+    <InternalLink to={cfg.routes.discover} state={{ searchKeywords: 'linux' }}>
       Teleport service installation
     </InternalLink>{' '}
     flow.
