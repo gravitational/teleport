@@ -5767,13 +5767,9 @@ message LockTarget {
   // Login specifies the name of a local UNIX user.
   string Login = 3 [(gogoproto.jsontag) = "login,omitempty"];
 
-  // Node specifies the UUID of a Teleport node.
-  // A matching node is also prevented from heartbeating to the Auth Service.
-  // DEPRECATED: use ServerID instead.
-  string Node = 4 [
-    deprecated = true,
-    (gogoproto.jsontag) = "node,omitempty"
-  ];
+  // Node was deprecated in favor of ServerID.
+  reserved 4;
+  reserved "Node";
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];
