@@ -161,8 +161,11 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	cfg.Debug = ccf.Debug
 
 	profile, err := tctlcfg.ReadCurrentProfile(cfg.TeleportHome)
+	if err != nil && !trace.IsNotFound(err) {
+		slog.WarnContext(ctx, "Failed to read current profile", "error", err)
+	}
 	if err := helper.CheckAndUpdateLocal(ctx, profile, os.Args[1:]); err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 
 	clientFunc := commonclient.GetInitFunc(ccf, cfg)
