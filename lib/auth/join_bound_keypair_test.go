@@ -24,6 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -33,8 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type mockBoundKeypairValidator struct {
@@ -100,6 +101,8 @@ func TestServer_RegisterUsingBoundKeypairMethod(t *testing.T) {
 	require.NoError(t, err)
 
 	adminClient, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
 	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
 			Kind:    types.KindBot,
