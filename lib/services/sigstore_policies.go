@@ -155,7 +155,7 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 			}
 		}
 
-		var roots root.TrustedMaterialCollection
+		roots := make(root.TrustedMaterialCollection, 0)
 		for idx, trustedRoot := range v.Keyless.GetTrustedRoots() {
 			root, err := root.NewTrustedRootFromJSON([]byte(trustedRoot))
 			if err != nil {
