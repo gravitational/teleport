@@ -70,13 +70,18 @@ func newPKCS11KeyStore(config *servicecfg.PKCS11Config, opts *Options) (*pkcs11K
 		return nil, trace.Wrap(err, "getting PKCS#11 module info")
 	}
 
+	hash := crypto.SHA256
+	if opts.Hash != crypto.Hash(0) {
+		hash = opts.Hash
+	}
+
 	return &pkcs11KeyStore{
 		ctx:       ctx,
 		hostUUID:  opts.HostUUID,
 		log:       opts.Logger,
 		isYubiHSM: strings.HasPrefix(info.ManufacturerID, "Yubico"),
 		semaphore: make(chan struct{}, 1),
-		hash:      crypto.SHA1,
+		hash:      hash,
 	}, nil
 }
 
