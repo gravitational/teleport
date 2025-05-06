@@ -163,10 +163,8 @@ function EnrollInfo({ kind }: { kind: ResourceKind }) {
           want to enroll a <Mark>single</Mark> EC2 instance instead, consider
           following{' '}
           <InternalLink
-            to={{
-              pathname: cfg.routes.discover,
-              state: { searchKeywords: 'linux' },
-            }}
+            to={cfg.routes.discover}
+            state={{ searchKeywords: 'linux' }}
           >
             the Teleport service installation flow
           </InternalLink>

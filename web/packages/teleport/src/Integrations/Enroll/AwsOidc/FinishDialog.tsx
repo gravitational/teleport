@@ -73,12 +73,10 @@ function FooterButton({
       <ButtonPrimary
         size="large"
         as={Link}
-        to={{
-          pathname: cfg.routes.discover,
-          state: {
-            integration,
-            discover: location.state.discover,
-          },
+        to={cfg.routes.discover}
+        state={{
+          integration,
+          discover: location.state.discover,
         }}
       >
         Begin AWS Resource Enrollment
