@@ -94,13 +94,6 @@ type BoundKeypairParams struct {
 	// join using `InitialJoinSecret`, this should be nil in favor of `NewKey`.
 	CurrentKey crypto.Signer
 
-	// NewKey is a new keypair that will be registered with Auth. On an initial
-	// join when `InitialJoinSecret` is set, only a single challenge will be
-	// issued to verify this key. If this is rotating an existing registered
-	// key, a second challenge will be issued: one for the current key, to
-	// verify the client identity, and one against this new key.
-	NewKey crypto.Signer
-
 	// PreviousJoinState is the previous join state document provided by Auth
 	// alongside the previous set of certs. If this is initial registration, it
 	// can be empty.
@@ -906,11 +899,19 @@ func sshPubKeyFromSigner(signer crypto.Signer) (string, error) {
 }
 
 func registerUsingBoundKeypairMethod(
-	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
+	ctx context.Context,
+	client joinServiceClient,
+	token string,
+	hostKeys *newHostKeys,
+	params RegisterParams,
 ) (*proto.Certs, error) {
 	bkParams := params.BoundKeypairParams
 
-	// Build a map of all public keys to signers.
+	// Build a map of all public keys to signers. At the moment, this is just
+	// the current key, but may include e.g. previous and next keys for use in
+	// case of a failed rotation attempt.
+	// TODO: This implementation is likely to change when rotation is
+	// implemented.
 	signers := map[string]crypto.Signer{}
 
 	if bkParams.CurrentKey != nil {
@@ -922,68 +923,69 @@ func registerUsingBoundKeypairMethod(
 		signers[pub] = bkParams.CurrentKey
 	}
 
-	var err error
-	newSSHPub := ""
-	if bkParams.NewKey != nil {
-		newSSHPub, err = sshPubKeyFromSigner(bkParams.NewKey)
-		if err != nil {
-			return nil, trace.Wrap(err, "generating ssh public key from new key signer")
-		}
-
-		signers[newSSHPub] = bkParams.NewKey
-	}
-
 	initReq := &proto.RegisterUsingBoundKeypairInitialRequest{
 		JoinRequest:       registerUsingTokenRequestForParams(token, hostKeys, params),
 		InitialJoinSecret: bkParams.InitialJoinSecret,
 		PreviousJoinState: bkParams.PreviousJoinState,
-		NewPublicKey:      newSSHPub,
 	}
 
 	certs, err := client.RegisterUsingBoundKeypairMethod(
 		ctx,
 		initReq,
-		func(publicKey string, challenge string) (*proto.RegisterUsingBoundKeypairChallengeResponse, error) {
-			// Unlike other join methods, this function may be called multiple
-			// times to complete challenges using one or both signers, so we'll
-			// use the passed publicKey hint to resolve the proper signer to
-			// use.
-			signer, ok := signers[publicKey]
-			if !ok {
-				return nil, trace.NotFound("could not complete challenge for unknown public key: %+#v", publicKey)
-			}
+		func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
+			switch kind := resp.GetResponse().(type) {
+			case *proto.RegisterUsingBoundKeypairMethodResponse_Challenge:
+				// Unlike other join methods, this function may be called multiple
+				// times to complete challenges using one or both signers, so we'll
+				// use the passed publicKey hint to resolve the proper signer to
+				// use.
+				signer, ok := signers[kind.Challenge.PublicKey]
+				if !ok {
+					return nil, trace.NotFound("could not complete challenge for unknown public key: %+#v", kind.Challenge.PublicKey)
+				}
 
-			// TODO: might not be worth exporting this func; may be cheaper to
-			// just copy the function here instead.
-			alg, err := jwt.AlgorithmForPublicKey(signer.Public())
-			if err != nil {
-				return nil, trace.Wrap(err, "determining signing algorithm for public key")
-			}
+				// TODO: might not be worth exporting this func; may be cheaper to
+				// just copy the function here instead.
+				alg, err := jwt.AlgorithmForPublicKey(signer.Public())
+				if err != nil {
+					return nil, trace.Wrap(err, "determining signing algorithm for public key")
+				}
 
-			opts := (&jose.SignerOptions{}).WithType("JWT")
-			key := jose.SigningKey{
-				Algorithm: alg,
-				Key:       signer,
-			}
+				opts := (&jose.SignerOptions{}).WithType("JWT")
+				key := jose.SigningKey{
+					Algorithm: alg,
+					Key:       signer,
+				}
 
-			joseSigner, err := jose.NewSigner(key, opts)
-			if err != nil {
-				return nil, trace.Wrap(err, "creating signer")
-			}
+				joseSigner, err := jose.NewSigner(key, opts)
+				if err != nil {
+					return nil, trace.Wrap(err, "creating signer")
+				}
 
-			jws, err := joseSigner.Sign([]byte(challenge))
-			if err != nil {
-				return nil, trace.Wrap(err, "signing challenge")
-			}
+				jws, err := joseSigner.Sign([]byte(kind.Challenge.Challenge))
+				if err != nil {
+					return nil, trace.Wrap(err, "signing challenge")
+				}
 
-			serialized, err := jws.CompactSerialize()
-			if err != nil {
-				return nil, trace.Wrap(err, "serializing signed challenge")
-			}
+				serialized, err := jws.CompactSerialize()
+				if err != nil {
+					return nil, trace.Wrap(err, "serializing signed challenge")
+				}
 
-			return &proto.RegisterUsingBoundKeypairChallengeResponse{
-				Solution: []byte(serialized),
-			}, nil
+				return &proto.RegisterUsingBoundKeypairMethodRequest{
+					Payload: &proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{
+						ChallengeResponse: &proto.RegisterUsingBoundKeypairChallengeResponse{
+							Solution: []byte(serialized),
+						},
+					},
+				}, nil
+			case *proto.RegisterUsingBoundKeypairMethodResponse_Rotation:
+				// TODO: Follow up implementation
+				return nil, trace.NotImplemented("keypair rotation not yet implemented")
+			default:
+				// Note: certs variant is handled by RegisterUsingBoundKeypairMethod()
+				return nil, trace.BadParameter("received unexpected challenge response: %v", resp.GetResponse())
+			}
 		})
 
 	return certs, trace.Wrap(err)
