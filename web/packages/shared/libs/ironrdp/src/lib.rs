@@ -62,13 +62,8 @@ pub fn decode_x11_frame(data: &[u8]) -> Result<Frame, JsValue> {
     let width = u16::from_be_bytes(data[4..6].try_into().unwrap());
     let height = u16::from_be_bytes(data[6..8].try_into().unwrap());
     let uncompressed = zstd::decode_all(&data[8..]).map_err(|e| e.to_string())?;
-    info!("uncompressed {}", uncompressed.len());
-    if uncompressed.len() < 20 {
-        info!("data {:x?}", uncompressed);
-    }
     let mut decoded = Vec::with_capacity((width * height * 4) as usize);
     decode(&uncompressed, &mut decoded);
-    info!("decoded frame {} {}", width, decoded.len());
     Ok(Frame {
         x,
         y,

@@ -239,7 +239,8 @@ func (c *Client) Run(ctx context.Context) error {
 }
 
 func (c *Client) runLocal(ctx context.Context) error {
-	if err := c.writeConnectionActivated(0, 0, c.requestedWidth, c.requestedHeight); err != nil {
+	width := c.requestedWidth - c.requestedWidth%2
+	if err := c.writeConnectionActivated(0, 0, width, c.requestedHeight); err != nil {
 		return trace.Wrap(err)
 	}
 	r, w, err := os.Pipe()
@@ -254,13 +255,12 @@ func (c *Client) runLocal(ctx context.Context) error {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
 	xvfb := exec.CommandContext(ctx, "Xvfb",
 		"-dpi", "50",
 		"-nolock",
 		"-dpms",
 		"-displayfd", fmt.Sprintf("%d", w.Fd()),
-		"-screen", "0", fmt.Sprintf("%dx%dx16", c.requestedWidth, c.requestedHeight),
+		"-screen", "0", fmt.Sprintf("%dx%dx16", width, c.requestedHeight),
 		"-nolisten", "tcp",
 		"-iglx")
 	if err := xvfb.Start(); err != nil {
@@ -337,6 +337,12 @@ func (c *Client) runLocal(ctx context.Context) error {
 			}
 			for _, rect := range res.Rectangles {
 				start := time.Now()
+				if rect.Width%2 == 1 {
+					rect.Width += 1
+					if uint16(rect.X)+rect.Width > width {
+						rect.X -= 1
+					}
+				}
 				replay, err := xproto.GetImage(dial, xproto.ImageFormatZPixmap, root, rect.X, rect.Y, rect.Width, rect.Height, math.MaxUint32).Reply()
 				if err != nil {
 					return trace.Wrap(err)
@@ -360,7 +366,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 					return trace.Wrap(err)
 				}
 				var bufbuf bytes.Buffer
-				encode(replay.Data[:int(rect.Height)*int(rect.Width)*2], &bufbuf)
+				encode(replay.Data, &bufbuf)
 				encoder.Write(bufbuf.Bytes())
 				if err := encoder.Close(); err != nil {
 					return trace.Wrap(err)
@@ -368,7 +374,6 @@ func (c *Client) runLocal(ctx context.Context) error {
 				duration := time.Now().Sub(start)
 				totalDuration += duration
 				totalSize += len(replay.Data)
-				c.cfg.Logger.InfoContext(ctx, fmt.Sprintf("uncompressed %dx%d %d", rect.Width, rect.Height, len(replay.Data)))
 				compressedSize += buf.Len()
 				if duration > 10*time.Millisecond {
 					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration)
@@ -384,7 +389,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 			}
 			i++
 			if i%25 == 0 {
-				c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms, compression rate: %d%", totalDuration.Milliseconds()/i, compressedSize*100/totalSize))
+				c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms, compression rate: %d%%", totalDuration.Milliseconds()/i, compressedSize*100/totalSize))
 			}
 		}
 	})
