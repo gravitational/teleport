@@ -516,6 +516,12 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// KindBackendInfo contains backend info.
+	KindBackendInfo = "backend_info"
+
+	// MetaNameBackendInfo name backend info entity.
+	MetaNameBackendInfo = "backend-info"
+
 	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
 	// service to match with a single discovered instance.
 	SubKindCloudInfo = "cloud_info"
@@ -637,6 +643,9 @@ const (
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
+
+	// V8 is the eighth version of resources.
+	V8 = "v8"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"

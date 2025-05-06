@@ -21,6 +21,7 @@ package accesslists
 import (
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -302,6 +304,15 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
 }
 
+func Test_userLockedError_IsUserLocked(t *testing.T) {
+	userLockedErr := newUserLockedError("alice")
+	rawAccessDeniedErr := trace.AccessDenied("Raw AccessDenied error")
+
+	require.True(t, IsUserLocked(userLockedErr))
+	require.False(t, IsUserLocked(rawAccessDeniedErr))
+	require.True(t, trace.IsAccessDenied(userLockedErr))
+}
+
 func TestAccessListHierarchyIsOwner(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
@@ -350,7 +361,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", member1, acl1.Spec.Title))
 	// Should not have inherited ownership due to missing OwnershipRequires.
-	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 
 	// User which only meets acl1's Membership requirements.
 	stubUserMeetsMemberRequires, err := types.NewUser(member1)
@@ -364,7 +375,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsMemberRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", member1, acl4.Spec.Title))
-	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 
 	// User which meets acl1's Membership and acl1's Ownership requirements.
 	stubUserMeetsAllRequires, err := types.NewUser(member1)
@@ -380,13 +391,13 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsAllRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.NoError(t, err)
 	// Should have inherited ownership from acl1's inclusion in acl4's Owners.
-	require.Equal(t, MembershipOrOwnershipTypeInherited, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, ownershipType)
 
 	stubUserMeetsAllRequires.SetName(member2)
 	ownershipType, err = IsAccessListOwner(ctx, stubUserMeetsAllRequires, acl4, accessListAndMembersGetter, nil, clock)
 	require.NoError(t, err)
 	// Should not have ownership.
-	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, ownershipType)
 }
 
 func TestAccessListIsMember(t *testing.T) {
@@ -418,7 +429,7 @@ func TestAccessListIsMember(t *testing.T) {
 
 	membershipType, err := IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
 	require.NoError(t, err)
-	require.Equal(t, MembershipOrOwnershipTypeExplicit, membershipType)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, membershipType)
 
 	// When user is Locked, should not be considered a Member.
 	lock, err := types.NewLock("user-lock", types.LockSpecV2{
@@ -430,8 +441,44 @@ func TestAccessListIsMember(t *testing.T) {
 	locksGetter.targets[member1] = []types.Lock{lock}
 
 	membershipType, err = IsAccessListMember(ctx, stubMember1, acl1, accessListAndMembersGetter, locksGetter, clock)
-	require.ErrorIs(t, err, trace.AccessDenied("User '%s' is currently locked", member1))
-	require.Equal(t, MembershipOrOwnershipTypeNone, membershipType)
+	require.ErrorIs(t, err, trace.AccessDenied("User %q is currently locked", member1))
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, membershipType)
+}
+
+func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+	acl := newAccessList(t, "acl", clock)
+
+	// single user member
+	member := newAccessListMember(t, "acl", "u", accesslist.MembershipKindUser, clock)
+	aclGetter := &mockAccessListAndMembersGetter{
+		accessLists: map[string]*accesslist.AccessList{"acl": acl},
+		members:     map[string][]*accesslist.AccessListMember{"acl": {member}},
+	}
+
+	u, _ := types.NewUser("u")
+	u.SetRoles([]string{"wrong-role"})
+	u.SetTraits(map[string][]string{})
+	locks := &mockLocksGetter{}
+
+	// Missing membershipRequires should be AccessDenied
+	typ, err := IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", u.GetName(), acl.GetName()))
+
+	// Give correct traits/roles, but expire the membership
+	u.SetRoles([]string{"mrole1", "mrole2"})
+	u.SetTraits(map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+	// advance clock past Expires
+	clock.Advance(48 * time.Hour)
+
+	typ, err = IsAccessListMember(ctx, u, acl, aclGetter, locks, clock)
+	require.Equal(t, accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, typ)
+	require.ErrorIs(t, err, trace.AccessDenied("User '%s's membership in Access List '%s' has expired", u.GetName(), acl.GetName()))
 }
 
 func TestGetOwners(t *testing.T) {
@@ -502,8 +549,8 @@ func TestGetOwners(t *testing.T) {
 	// Note: Owners of acl2 ("ownerB") and members/owners of acl3 are not inherited by acl1
 
 	expectedOwners := map[string]bool{
-		"ownerA":  true, // Direct owner of acl1
-		"memberB": true, // Member of acl2 (owner list of acl1)
+		"ownerA":         true, // Direct owner of acl1
+		acl2m1.GetName(): true, // Member of acl2 (owner list of acl1)
 	}
 
 	actualOwners := make(map[string]bool)
@@ -523,8 +570,8 @@ func TestGetOwners(t *testing.T) {
 	//   - Members of acl3: "memberC"
 
 	expectedOwners = map[string]bool{
-		"ownerB":  true, // Direct owner of acl2
-		"memberC": true, // Member of acl3 (owner list of acl2)
+		"ownerB":         true, // Direct owner of acl2
+		acl3m1.GetName(): true, // Member of acl3 (owner list of acl2)
 	}
 
 	actualOwners = make(map[string]bool)
@@ -595,6 +642,42 @@ func TestGetInheritedGrants(t *testing.T) {
 	require.Equal(t, expectedGrants, grants)
 }
 
+func TestGetMembersFor_FlattensAndStopsOnCycles(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+
+	// A -> B -> C -> B (cycle)
+	a := newAccessList(t, "A", clock)
+	b := newAccessList(t, "B", clock)
+	c := newAccessList(t, "C", clock)
+
+	getter := &mockAccessListAndMembersGetter{
+		accessLists: map[string]*accesslist.AccessList{
+			"A": a, "B": b, "C": c,
+		},
+		members: map[string][]*accesslist.AccessListMember{
+			"A": {newAccessListMember(t, "A", "userA", accesslist.MembershipKindUser, clock),
+				newAccessListMember(t, "A", "B", accesslist.MembershipKindList, clock)},
+			"B": {newAccessListMember(t, "B", "userB", accesslist.MembershipKindUser, clock),
+				newAccessListMember(t, "B", "C", accesslist.MembershipKindList, clock)},
+			"C": {newAccessListMember(t, "C", "userC", accesslist.MembershipKindUser, clock),
+				newAccessListMember(t, "C", "B", accesslist.MembershipKindList, clock)}, // cycle back
+		},
+	}
+
+	members, err := GetMembersFor(ctx, "A", getter)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(members))
+	for _, m := range members {
+		names = append(names, m.GetName())
+	}
+	sort.Strings(names)
+
+	// Should be userA, userB, userC exactly once each
+	require.Equal(t, []string{"userA", "userB", "userC"}, names)
+}
+
 func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
 	t.Helper()
 
@@ -643,24 +726,20 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist
 	return accessList
 }
 
-func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clock clockwork.Clock) *accesslist.AccessListMember {
+func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clk clockwork.Clock) *accesslist.AccessListMember {
 	t.Helper()
 
 	member, err := accesslist.NewAccessListMember(
-		header.Metadata{
-			Name: memberName,
-		},
+		header.Metadata{Name: memberName},
 		accesslist.AccessListMemberSpec{
 			AccessList:     accessListName,
 			Name:           memberName,
-			Joined:         clock.Now().UTC(),
-			Expires:        clock.Now().UTC().Add(24 * time.Hour),
+			Joined:         clk.Now().UTC(),
+			Expires:        clk.Now().UTC().Add(24 * time.Hour),
 			Reason:         "because",
-			AddedBy:        "maxim.dietz@goteleport.com",
+			AddedBy:        "tester",
 			MembershipKind: memberKind,
-		},
-	)
+		})
 	require.NoError(t, err)
-
 	return member
 }

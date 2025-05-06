@@ -844,11 +844,29 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"aws": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"external_id": {
-						Description: "ExternalID is the AWS External ID used when assuming roles in this app.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"external_id": {
+							Description: "ExternalID is the AWS External ID used when assuming roles in this app.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"roles_anywhere_profile": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"accept_role_session_name": {
+									Description: "Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This values comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								},
+								"profile_arn": {
+									Description: "ProfileARN is the AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.",
+							Optional:    true,
+						},
+					}),
 					Description: "AWS contains additional options for AWS applications.",
 					Optional:    true,
 				},
@@ -2429,6 +2447,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"kubernetes_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"api_group": {
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"kind": {
 									Description: "Kind specifies the Kubernetes Resource type.",
 									Optional:    true,
@@ -2918,6 +2941,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"kubernetes_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"api_group": {
+									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
 								"kind": {
 									Description: "Kind specifies the Kubernetes Resource type.",
 									Optional:    true,
@@ -11277,6 +11305,58 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["roles_anywhere_profile"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+											} else {
+												obj.RolesAnywhereProfile = nil
+												if !v.Null && !v.Unknown {
+													tf := v
+													obj.RolesAnywhereProfile = &github_com_gravitational_teleport_api_types.AppAWSRolesAnywhereProfile{}
+													obj := obj.RolesAnywhereProfile
+													{
+														a, ok := tf.Attrs["profile_arn"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															} else {
+																var t string
+																if !v.Null && !v.Unknown {
+																	t = string(v.Value)
+																}
+																obj.ProfileARN = t
+															}
+														}
+													}
+													{
+														a, ok := tf.Attrs["accept_role_session_name"]
+														if !ok {
+															diags.Append(attrReadMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName"})
+														} else {
+															v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+															} else {
+																var t bool
+																if !v.Null && !v.Unknown {
+																	t = bool(v.Value)
+																}
+																obj.AcceptRoleSessionName = t
+															}
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -12495,6 +12575,82 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 											v.Value = string(obj.ExternalID)
 											v.Unknown = false
 											tf.Attrs["external_id"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["roles_anywhere_profile"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+											} else {
+												v, ok := tf.Attrs["roles_anywhere_profile"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+												if !ok {
+													v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+														AttrTypes: o.AttrTypes,
+														Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+													}
+												} else {
+													if v.Attrs == nil {
+														v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+													}
+												}
+												if obj.RolesAnywhereProfile == nil {
+													v.Null = true
+												} else {
+													obj := obj.RolesAnywhereProfile
+													tf := &v
+													{
+														t, ok := tf.AttrTypes["profile_arn"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN"})
+														} else {
+															v, ok := tf.Attrs["profile_arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.ProfileARN", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
+																v.Null = string(obj.ProfileARN) == ""
+															}
+															v.Value = string(obj.ProfileARN)
+															v.Unknown = false
+															tf.Attrs["profile_arn"] = v
+														}
+													}
+													{
+														t, ok := tf.AttrTypes["accept_role_session_name"]
+														if !ok {
+															diags.Append(attrWriteMissingDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName"})
+														} else {
+															v, ok := tf.Attrs["accept_role_session_name"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+															if !ok {
+																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																if err != nil {
+																	diags.Append(attrWriteGeneralError{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName", err})
+																}
+																v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																if !ok {
+																	diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																}
+																v.Null = bool(obj.AcceptRoleSessionName) == false
+															}
+															v.Value = bool(obj.AcceptRoleSessionName)
+															v.Unknown = false
+															tf.Attrs["accept_role_session_name"] = v
+														}
+													}
+												}
+												v.Unknown = false
+												tf.Attrs["roles_anywhere_profile"] = v
+											}
 										}
 									}
 								}
@@ -24974,6 +25130,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["api_group"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.APIGroup = t
+																		}
+																	}
+																}
 															}
 															obj.KubernetesResources[k] = t
 														}
@@ -26999,6 +27172,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 																					}
 																				}
 																			}
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["api_group"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.APIGroup = t
 																		}
 																	}
 																}
@@ -31452,6 +31642,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																	}
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["api_group"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup"})
+																} else {
+																	v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.KubernetesResources.APIGroup", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.APIGroup) == ""
+																	}
+																	v.Value = string(obj.APIGroup)
+																	v.Unknown = false
+																	tf.Attrs["api_group"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														c.Elems[k] = v
@@ -34988,6 +35200,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 																		c.Unknown = false
 																		tf.Attrs["verbs"] = c
 																	}
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["api_group"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup"})
+																} else {
+																	v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.KubernetesResources.APIGroup", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.KubernetesResources.APIGroup", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.APIGroup) == ""
+																	}
+																	v.Value = string(obj.APIGroup)
+																	v.Unknown = false
+																	tf.Attrs["api_group"] = v
 																}
 															}
 														}

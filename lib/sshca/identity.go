@@ -323,6 +323,15 @@ func (i *Identity) GetDeviceMetadata() *apievents.DeviceMetadata {
 	}
 }
 
+// GetValidBefore gets the ValidBefore time as a time.Time, preserving "zeroness" across the conversion.
+func (i *Identity) GetValidBefore() time.Time {
+	var validBefore time.Time
+	if i.ValidBefore != 0 {
+		validBefore = time.Unix(int64(i.ValidBefore), 0)
+	}
+	return validBefore
+}
+
 // DecodeIdentity decodes an ssh certificate into an identity.
 func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident := &Identity{

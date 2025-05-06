@@ -1240,27 +1240,44 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	hello := proto.UpstreamInventoryHello{
-		ServerID: cfg.HostUUID,
-		Version:  teleport.Version,
-		Services: process.getInstanceRoles(),
-		Hostname: cfg.Hostname,
-	}
-
 	upgraderKind, externalUpgrader, upgraderVersion := process.detectUpgrader()
-	hello.ExternalUpgrader = externalUpgrader
-	if upgraderVersion != nil {
-		// The UpstreamInventoryHello message wants versions with the leading "v".
-		hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+
+	getHello := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+		hello := proto.UpstreamInventoryHello{
+			ServerID:         cfg.HostUUID,
+			Version:          teleport.Version,
+			Services:         process.getInstanceRoles(),
+			Hostname:         cfg.Hostname,
+			ExternalUpgrader: externalUpgrader,
+		}
+
+		if upgraderVersion != nil {
+			// The UpstreamInventoryHello message wants versions with the leading "v".
+			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+		}
+
+		if upgraderKind == types.UpgraderKindTeleportUpdate {
+			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, cfg.HostUUID)
+			if err != nil {
+				// Failing to detect teleport-update info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
+			}
+			hello.UpdaterInfo = info
+		}
+		return hello, nil
 	}
 
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(
+	process.inventoryHandle, err = inventory.NewDownstreamHandle(
 		process.makeInventoryControlStreamWhenReady,
-		hello,
+		getHello,
 		inventory.WithDownstreamClock(process.Clock),
 	)
+	if err != nil {
+		return nil, trace.Wrap(err, "building inventory handle")
+	}
 
 	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
 		systemClock := process.Clock.Now().UTC()
@@ -1554,7 +1571,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName string, ver
 		// If this is a teleport-update managed installation, the version
 		// managed by the timer will always match the installed version of teleport.
 		kind = types.UpgraderKindTeleportUpdate
-		version = teleport.SemVersion
+		version = teleport.SemVer()
 	}
 
 	// Instances deployed using the AWS OIDC integration are automatically updated
@@ -2134,6 +2151,9 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
+	// Environment variable for disabling the check major version upgrade check and overrides
+	// latest known version in backend.
+	skipVersionCheckFromEnv := os.Getenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK") != ""
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(
@@ -2141,6 +2161,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auth.InitConfig{
 			Backend:                 b,
 			VersionStorage:          process.storage,
+			SkipVersionCheck:        cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
 			AutoUpdateService:       cfg.AutoUpdateService,
@@ -3024,13 +3045,15 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
+		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
+
 		// Provide helpful log message if listen_addr or public_addr are not being
 		// used (tunnel is used to connect to cluster).
 		//
 		// If a tunnel is not being used, set the default here (could not be done in
 		// file configuration because at that time it's not known if server is
 		// joining cluster directly or through a tunnel).
-		if conn.UseTunnel() {
+		if !useLocalListener {
 			if !cfg.SSH.Addr.IsEmpty() {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring listen_addr setting.")
 			}
@@ -3038,7 +3061,7 @@ func (process *TeleportProcess) initSSH() error {
 				logger.InfoContext(process.ExitContext(), "Connected to cluster over tunnel connection, ignoring public_addr setting.")
 			}
 		}
-		if !conn.UseTunnel() && cfg.SSH.Addr.IsEmpty() {
+		if useLocalListener && cfg.SSH.Addr.IsEmpty() {
 			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 		}
 
@@ -3157,7 +3180,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
-		if !conn.UseTunnel() {
+		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -3205,7 +3228,9 @@ func (process *TeleportProcess) initSSH() error {
 			if err := s.Start(); err != nil {
 				return trace.Wrap(err)
 			}
+		}
 
+		if conn.UseTunnel() {
 			var serverHandler reversetunnel.ServerHandler = s
 			if resumableServer != nil {
 				serverHandler = resumableServer
@@ -5565,7 +5590,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb, alpncommon.ConnHandlerSourceWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting TLS ALPN SNI proxy server on.", "listen_address", logutils.StringerAttr(listeners.alpn.Addr()))
@@ -6353,13 +6378,14 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	warnOnErr(process.ExitContext(), process.closeImportedDescriptors(""), process.logger)
 	warnOnErr(process.ExitContext(), process.stopListeners(), process.logger)
 
-	if process.forkedTeleportCount.Load() == 0 {
-		if process.inventoryHandle != nil {
-			if err := process.inventoryHandle.SendGoodbye(ctx); err != nil {
-				process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
-			}
+	hasChildren := process.forkedTeleportCount.Load() > 0
+	if process.inventoryHandle != nil {
+		deleteResources := !hasChildren
+		if err := process.inventoryHandle.SetAndSendGoodbye(ctx, deleteResources, hasChildren); err != nil {
+			process.logger.WarnContext(process.ExitContext(), "Failed sending inventory goodbye during shutdown", "error", err)
 		}
-	} else {
+	}
+	if hasChildren {
 		ctx = services.ProcessForkedContext(ctx)
 	}
 

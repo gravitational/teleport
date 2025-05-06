@@ -18,6 +18,7 @@ package teleport.workloadidentity.v1;
 
 import "teleport/trait/v1/trait.proto";
 import "teleport/workloadidentity/v1/join_attrs.proto";
+import "teleport/workloadidentity/v1/sigstore.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
 
@@ -123,6 +124,12 @@ message WorkloadAttrsSystemd {
   string service = 2;
 }
 
+// Attributes sourced from the Sigstore workload attestor.
+message WorkloadAttrsSigstore {
+  // Verificiation payloads.
+  repeated SigstoreVerificationPayload payloads = 1;
+}
+
 // The attributes provided by `tbot` regarding the workload's attestation.
 // This will be mostly unset if the workload has not requested credentials via
 // the SPIFFE Workload API.
@@ -137,6 +144,8 @@ message WorkloadAttrs {
   WorkloadAttrsDocker docker = 4;
   // The Systemd-specific attributes.
   WorkloadAttrsSystemd systemd = 5;
+  // The Sigstore-specific attributes.
+  WorkloadAttrsSigstore sigstore = 6;
 }
 
 // Attributes related to the user/bot making the request for a workload

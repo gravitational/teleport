@@ -421,14 +421,8 @@ const (
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
-	// Syslog is a mode for syslog logging
-	Syslog = "syslog"
-
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
-
-	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
-	MinimumEtcdVersion = "3.3.0"
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
 	// todo(tross): DELETE WHEN ABLE TO

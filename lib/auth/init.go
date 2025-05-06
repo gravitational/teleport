@@ -47,6 +47,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -81,9 +82,11 @@ var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
 	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+	WriteTeleportVersion(ctx context.Context, version semver.Version) error
+	// DeleteTeleportVersion removes the last known Teleport version in storage.
+	DeleteTeleportVersion(ctx context.Context) error
 }
 
 // InitConfig is auth server init config
@@ -364,6 +367,12 @@ type InitConfig struct {
 
 	// HealthCheckConfig manages health check config resources.
 	HealthCheckConfig services.HealthCheckConfig
+
+	// BackendInfo is a service of backend information.
+	BackendInfo services.BackendInfoService
+
+	// SkipVersionCheck skips version check during major version upgrade/downgrade.
+	SkipVersionCheck bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -411,8 +420,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
-		return trace.Wrap(err)
+
+	if cfg.SkipVersionCheck {
+		if err := upsertTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// if bootstrap resources are supplied, use them to bootstrap backend state
@@ -1222,13 +1238,13 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 
 		if types.IsSystemResource(user) {
 			// System resources *always* get reset on every auth startup
-			if user, err := um.UpsertUser(ctx, user); err != nil {
+			if _, err := um.UpsertUser(ctx, user); err != nil {
 				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
 			}
 			continue
 		}
 
-		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
+		if _, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
 	}
@@ -1334,7 +1350,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
@@ -1551,6 +1567,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*healthcheckconfigv1pb.HealthCheckConfig]:
+			_, err = service.UpsertHealthCheckConfig(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

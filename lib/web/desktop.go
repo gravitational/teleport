@@ -26,7 +26,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"sync"
@@ -163,9 +162,6 @@ func (h *Handler) createDesktopConnection(
 		}
 		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}
-	rand.Shuffle(len(validServiceIDs), func(i, j int) {
-		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
-	})
 
 	// Parse the private key of the user from the session context.
 	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
@@ -451,7 +447,7 @@ func (h *Handler) performSessionMFACeremony(
 		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
 	}
 
-	_, newCerts, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+	result, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
 		RootAuthClient:    sctx.cfg.RootClient,
 		MFACeremony:       mfaCeremony,
@@ -464,7 +460,7 @@ func (h *Handler) performSessionMFACeremony(
 		return nil, trace.Wrap(err)
 	}
 
-	return newCerts, nil
+	return result.NewCerts, nil
 }
 
 func readUsername(r *http.Request) (string, error) {
@@ -498,7 +494,7 @@ func (c *connector) connectToWindowsService(
 	clusterName string,
 	desktopServiceIDs []string,
 ) (conn net.Conn, version string, err error) {
-	for _, id := range desktopServiceIDs {
+	for _, id := range utils.ShuffleVisit(desktopServiceIDs) {
 		conn, ver, err := c.tryConnect(ctx, clusterName, id)
 		if err != nil && !trace.IsConnectionProblem(err) {
 			return nil, "", trace.WrapWithMessage(err,

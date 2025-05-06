@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
@@ -65,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -588,8 +588,8 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.Wrap(err)
 	}
 	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.context.User.GetName() != authclient.HostFQDN(req.HostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), authclient.HostFQDN(req.HostID, clusterName))
+	if a.context.User.GetName() != utils.HostFQDN(req.HostID, clusterName) {
+		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), utils.HostFQDN(req.HostID, clusterName))
 	}
 
 	if req.Role == types.RoleInstance {
@@ -1325,7 +1325,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	// Validate the requested kinds and precheck that the user has read/list
 	// permissions for all requested resources before doing any listing of
 	// resources to conserve resources.
-	requested := utils.Deduplicate(req.Kinds)
+	requested := apiutils.Deduplicate(req.Kinds)
 	if len(req.Kinds) == 0 {
 		requested = defaultUnifiedResourceKinds
 	}
@@ -3164,7 +3164,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var verifiedMFADeviceID string
 	if req.MFAResponse != nil {
-		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+		requiredExt := &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+		}
+		if req.AllowsMFAReuse() {
+			requiredExt.AllowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
+		}
 		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, req.GetMFAResponse(), req.Username, requiredExt)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -3412,6 +3418,13 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
+
+			BotName: getBotName(user),
+			// Always pass through a bot instance ID if available. Legacy bots
+			// joining without an instance ID may have one generated when
+			// `updateBotInstance()` is called below, and this (empty) value will be
+			// overridden.
+			BotInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

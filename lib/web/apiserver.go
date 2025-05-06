@@ -31,6 +31,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/url"
@@ -360,7 +361,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
@@ -371,7 +372,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foundApp := servers[0].GetApp()
+	foundApp := servers[rand.N(len(servers))].GetApp()
 	corsPolicy := foundApp.GetCORS()
 	if corsPolicy == nil {
 		return
@@ -642,7 +643,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 					return
 				}
 			}
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 
@@ -694,7 +695,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.logger.ErrorContext(r.Context(), "Failed to execute index page template", "error", err)
 			}
 		} else {
-			httplib.RouteNotFoundResponse(r.Context(), w, teleport.Version)
+			httplib.RouteNotFoundResponse(r.Context(), w)
 			return
 		}
 	})
@@ -1624,7 +1625,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		Auth:              authSettings,
 		Proxy:             *proxyConfig,
 		ServerVersion:     teleport.Version,
-		MinClientVersion:  teleport.MinClientVersion,
+		MinClientVersion:  teleport.MinClientSemVer().String(),
 		ClusterName:       h.auth.clusterName,
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, "" /* updater UUID */),
@@ -1656,7 +1657,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			Proxy:            *proxyConfig,
 			Auth:             webclient.AuthenticationSettings{SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite()},
 			ServerVersion:    teleport.Version,
-			MinClientVersion: teleport.MinClientVersion,
+			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          modules.GetModules().BuildType(),
 			FIPS:             modules.IsBoringBinary(),
@@ -1691,7 +1692,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 	response := &webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
+		MinClientVersion: teleport.MinClientSemVer().String(),
 		ClusterName:      h.auth.clusterName,
 	}
 
@@ -2248,7 +2249,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
-		targetVersion = teleport.SemVersion
+		targetVersion = teleport.SemVer()
 	}
 
 	instTmpl, err := template.New("").Parse(installer.GetScript())
@@ -5066,7 +5067,7 @@ func (h *Handler) ProxyWithRoles(ctx context.Context, sctx *SessionContext) (rev
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker, h.cfg.AccessPoint), nil
+	return reversetunnelclient.NewTunnelWithRoles(h.cfg.Proxy, cn.GetClusterName(), accessChecker.CheckAccessToRemoteCluster, h.cfg.AccessPoint), nil
 }
 
 // ProxyHostPort returns the address of the proxy server using --proxy
