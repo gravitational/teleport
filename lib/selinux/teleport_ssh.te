@@ -1,7 +1,8 @@
 policy_module(teleport_ssh, 1.0.0)
 
 require {
-    role unconfined_r;
+    attribute can_change_process_identity;
+    attribute can_change_process_role;
 
     type bin_t;
     type config_home_t;
@@ -24,6 +25,7 @@ require {
     type root_t;
     type security_t;
     type selinux_config_t;
+    type semanage_store_t;
     type sssd_var_lib_t;
     type syslogd_var_run_t;
     type systemd_logind_t;
@@ -78,18 +80,12 @@ files_type(teleport_ssh_upgrade_data_t);
 # Local policy
 #
 
-role unconfined_r types teleport_ssh_t;
-
 ##
 # creation of initial process
 ##
 init_daemon_domain(teleport_ssh_t, teleport_ssh_exec_t)
 # needed if run manually from terminal
 allow teleport_ssh_t teleport_ssh_exec_t:file { exec_file_perms lock entrypoint map };
-type_transition unconfined_t teleport_ssh_exec_t:process teleport_ssh_t;
-allow unconfined_t teleport_ssh_t:process transition;
-# allow SSH shell process to start a Teleport process (needed to detirmine home dir)
-allow unconfined_t teleport_ssh_exec_t:file entrypoint;
 
 ##
 # files
@@ -114,6 +110,9 @@ allow teleport_ssh_t tmp_t:file manage_file_perms;
 allow teleport_ssh_t self:fifo_file rw_fifo_file_perms;
 
 allow teleport_ssh_t machineid_t:file read_file_perms;
+
+# needed to check if this module is installed and enabled
+allow teleport_ssh_t semanage_store_t:dir list_dir_perms;
 
 # auditd logging
 allow teleport_ssh_t self:netlink_audit_socket { r_netlink_socket_perms nlmsg_relay };
@@ -184,6 +183,9 @@ allow teleport_ssh_t self:capability { chown dac_read_search dac_override fowner
 fs_search_cgroup_dirs(teleport_ssh_t);
 fs_rw_cgroup_files(teleport_ssh_t);
 
+# allow SSH shell process to start a Teleport process (needed to detirmine home dir)
+allow unconfined_t teleport_ssh_exec_t:file entrypoint;
+
 # host auth
 auth_use_nsswitch(teleport_ssh_t);
 allow teleport_ssh_t passwd_file_t:file read_file_perms;
@@ -193,6 +195,11 @@ allow chkpwd_t user_devpts_t:chr_file { read write };
 allow teleport_ssh_t chkpwd_t:process { noatsecure rlimitinh siginh };
 allow teleport_ssh_t systemd_logind_t:dbus send_msg;
 allow teleport_ssh_t self:capability { net_admin };
+
+# allow Teleport to start child processes with different SELinux users and roles,
+# needed so that the shell process is in the correct SELinux context
+typeattribute teleport_ssh_t can_change_process_identity;
+typeattribute teleport_ssh_t can_change_process_role;
 
 # login data
 allow teleport_ssh_t initrc_var_run_t:file rw_file_perms;
@@ -233,8 +240,6 @@ allow teleport_ssh_t syslogd_var_run_t:file { read_file_perms map };
 allow teleport_ssh_t tmpfs_t:filesystem getattr;
 
 allow teleport_ssh_t selinux_config_t:file read_file_perms;
-allow teleport_ssh_t security_t:dir list_dir_perms;
-allow teleport_ssh_t security_t:file { getattr open read write map };
 # these are read-only permissions: https://github.com/SELinuxProject/selinux-notebook/blob/main/src/object_classes_permissions.md#security-object-class
 allow teleport_ssh_t security_t:security { check_context compute_av compute_relabel };
 

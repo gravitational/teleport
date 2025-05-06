@@ -169,6 +169,7 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
 	github.com/opencontainers/go-digest v1.0.0
+	github.com/opencontainers/selinux v1.12.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/oracle/oci-go-sdk/v65 v65.89.3
 	github.com/parquet-go/parquet-go v0.25.0

@@ -261,6 +261,9 @@ type CommandLineFlags struct {
 
 	// DisableDebugService disables the debug service.
 	DisableDebugService bool
+
+	// SELinux enables SELinux support for the SSH service.
+	SELinux bool
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -2626,6 +2629,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	if clf.DisableDebugService {
 		cfg.DebugService.Enabled = false
+	}
+
+	if clf.SELinux {
+		cfg.SSH.SELinuxEnabled = true
 	}
 
 	if os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {

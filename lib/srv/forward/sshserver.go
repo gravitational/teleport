@@ -505,6 +505,12 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 	return &srv.HostSudoersNotImplemented{}
 }
 
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func (s *Server) GetSELinuxEnabled() bool {
+	return false
+}
+
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
 	return &types.ServerV2{

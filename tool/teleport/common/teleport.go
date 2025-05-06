@@ -199,6 +199,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
 	start.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
+	start.Flag("selinux", "Enables SELinux support for Teleport SSH and exits if SELinux is not configured correctly.").BoolVar(&ccf.SELinux)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -662,6 +663,16 @@ Examples:
 		// Catches errors in file-based configs.
 		if conf.Auth.Enabled {
 			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
+				utils.FatalError(err)
+			}
+		}
+
+		// Validate SELinux configuration if SELinux support is enabled
+		if !conf.SSH.Enabled && ccf.SELinux {
+			utils.FatalError(trace.BadParameter("--selinux is only allowed when SSH service is enabled"))
+		}
+		if ccf.SELinux {
+			if err := selinux.CheckConfiguration(); err != nil {
 				utils.FatalError(err)
 			}
 		}

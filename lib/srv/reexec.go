@@ -39,12 +39,14 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	ocselinux "github.com/opencontainers/selinux/go-selinux"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/selinux"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -158,6 +160,10 @@ type ExecCommand struct {
 	// the parent process. These files start at file descriptor 3 of the
 	// child process, and are only valid for processes without a terminal.
 	ExtraFilesLen int `json:"extra_files_len"`
+
+	// SetSELinuxContext is true when the SELinux context should be set
+	// for the child.
+	SetSELinuxContext bool `json:"set_selinux_context"`
 }
 
 // PAMConfig represents all the configuration data that needs to be passed to the child.
@@ -326,6 +332,23 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	// Set SELinux context for the child process if SELinux support is
+	// enabled so the child process will be running with the correct SELinux
+	// user, role and domain.
+	if c.SetSELinuxContext && selinux.InBuild() {
+		seContext, err := selinux.UserContext(c.Login)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("error getting SELinux context of login user: %v", err)
+		}
+
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		err = ocselinux.SetExecLabel(seContext)
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("error setting SELinux exec context: %v", err)
+		}
+	}
+
 	// Alert the parent process that the child process has completed any setup operations,
 	// and that we are now waiting for the continue signal before proceeding. This is needed
 	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
@@ -405,7 +428,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	return io.Discard, exitCode(err), trace.Wrap(err)
+	return errorWriter, exitCode(err), trace.Wrap(err)
 }
 
 // waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
