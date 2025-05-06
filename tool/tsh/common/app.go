@@ -285,6 +285,7 @@ Example command: tsh gcloud compute instances list
 `))
 
 // onAppLogout implements "tsh apps logout" command.
+// TODO(greedy52) refactor
 func onAppLogout(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
@@ -299,7 +300,10 @@ func onAppLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return trace.Wrap(logoutApps(cf, tc, profile, activeRoutes))
+}
 
+func logoutApps(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, activeRoutes []tlsca.RouteToApp) error {
 	// If a specific app name was specified, just log out of that app.
 	// Otherwise, log out of all apps.
 	var logout []tlsca.RouteToApp
@@ -322,19 +326,16 @@ func onAppLogout(cf *CLIConf) error {
 	}
 
 	for _, app := range logout {
-		err = tc.DeleteAppSession(cf.Context, app.SessionID)
-		if err != nil && !trace.IsNotFound(err) {
+		if err := tc.DeleteAppSession(cf.Context, app.SessionID); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 
-		err = tc.LogoutApp(app.Name)
-		if err != nil {
+		if err := tc.LogoutApp(app.Name); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// remove generated local files for the provided app.
-		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
-		if err != nil {
+		if err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name)); err != nil {
 			logger.WarnContext(cf.Context, "Failed to clean up app session",
 				"error", err,
 				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name))

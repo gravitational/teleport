@@ -1751,6 +1751,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.list.run(&cf)
 	case mcpCmd.connect.FullCommand():
 		err = mcpCmd.connect.run(&cf)
+	case mcpCmd.logout.FullCommand():
+		err = mcpCmd.logout.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

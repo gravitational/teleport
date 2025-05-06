@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -53,16 +54,17 @@ import (
 
 type mcpCommands struct {
 	login   *mcpLoginCommand
+	logout  *mcpLogoutCommand
 	list    *mcpListCommand
 	connect *mcpConnectCommand
 	db      *mcpDBCommand
-	// TODO(greedy52) implement logout command
 }
 
 func newMCPCommands(app *kingpin.Application, cf *CLIConf) mcpCommands {
 	mcp := app.Command("mcp", "View and control available MCP servers")
 	return mcpCommands{
 		login:   newMCPLoginCommand(mcp, cf),
+		logout:  newMCPLogoutCommand(mcp, cf),
 		list:    newMCPListCommand(mcp, cf),
 		connect: newMCPConnectCommand(mcp, cf),
 		db:      newMCPDBCommand(mcp),
@@ -136,7 +138,7 @@ func (c *mcpLoginCommand) run(cf *CLIConf) error {
 	case "json":
 		return c.printJSON(cf, mcpServers)
 	case "claude":
-		return c.maybeClaude(cf, mcpServers)
+		return c.detectClaudeOrJSON(cf, mcpServers)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -206,7 +208,7 @@ func (c *mcpLoginCommand) autoDetectOrJSON(cf *CLIConf, mcpServers []types.Appli
 	return trace.Wrap(c.printJSON(cf, mcpServers))
 }
 
-func (c *mcpLoginCommand) maybeClaude(cf *CLIConf, mcpServers []types.Application) error {
+func (c *mcpLoginCommand) detectClaudeOrJSON(cf *CLIConf, mcpServers []types.Application) error {
 	foundClaude, err := claude.ConfigExists()
 	if err != nil {
 		return trace.Wrap(err)
@@ -275,6 +277,94 @@ func appsToMCPServersMap(cf *CLIConf, mcpServers []types.Application) map[string
 		}
 	}
 	return ret
+}
+
+type mcpLogoutCommand struct {
+	*kingpin.CmdClause
+}
+
+func newMCPLogoutCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLogoutCommand {
+	cmd := &mcpLogoutCommand{
+		CmdClause: parent.Command("logout", "Logout MCP servers and remove client configurations."),
+	}
+
+	cmd.Flag("format", "\"claude\" for updating Claude Desktop configuration.").Short('f').StringVar(&cf.Format)
+	cmd.Arg("name", "Name of the MCP server").StringVar(&cf.AppName)
+	return cmd
+}
+
+func (c *mcpLogoutCommand) run(cf *CLIConf) error {
+	switch cf.Format {
+	case "claude":
+		errors := []error{
+			c.logoutClaudeDesktop(cf),
+			c.logoutApps(cf),
+		}
+		return trace.NewAggregate(errors...)
+	default:
+		return trace.Wrap(c.logoutApps(cf))
+	}
+}
+
+func (c *mcpLogoutCommand) logoutApps(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	activeRoutes, err := profile.AppsForCluster(tc.SiteName, tc.ClientStore)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// TODO filter activeRoutes by mcp servers.
+	err = logoutApps(cf, tc, profile, activeRoutes)
+	if err != nil && strings.Contains(err.Error(), "not logged into app") {
+		fmt.Fprintln(cf.Stdout(), err.Error())
+		err = nil
+	}
+	return trace.Wrap(err)
+}
+
+func (c *mcpLogoutCommand) logoutClaudeDesktop(cf *CLIConf) error {
+	config, err := claude.LoadConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var updated bool
+	for name, server := range config.MCPServers {
+		if !strings.HasPrefix(name, "teleport-") || server.Command != cf.executablePath {
+			continue
+		}
+		if cf.AppName == "" {
+			updated = true
+			fmt.Fprintf(cf.Stdout(), "Removing %q from Claude Desktop configuration.\n", name)
+			delete(config.MCPServers, name)
+			continue
+		}
+		if len(server.Args) >= 3 &&
+			server.Args[0] == "mcp" &&
+			server.Args[1] == "connect" &&
+			server.Args[2] == cf.AppName {
+			updated = true
+			fmt.Fprintf(cf.Stdout(), "Removing %q from Claude Desktop configuration.\n", name)
+			delete(config.MCPServers, name)
+		}
+	}
+
+	if err := claude.SaveConfig(cf.Context, config); err != nil {
+		return trace.Wrap(err)
+	}
+	if updated {
+		fmt.Fprintln(cf.Stdout(), "Claude Desktop configuration updated.")
+	} else {
+		fmt.Fprintln(cf.Stdout(), "No change made to Claude Desktop configuration.")
+	}
+	return nil
 }
 
 type mcpListCommand struct {
