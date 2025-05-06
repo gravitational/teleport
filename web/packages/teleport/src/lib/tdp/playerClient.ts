@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TdpClient, TdpClientEvent } from 'shared/libs/tdp';
+import { BrowserFileSystem, TdpClient, TdpClientEvent } from 'shared/libs/tdp';
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 import { throttle } from 'shared/utils/highbar';
 
@@ -54,8 +54,10 @@ export class PlayerClient extends TdpClient {
   private timeout = null;
 
   constructor({ url, setTime, setPlayerStatus, setStatusText }) {
-    super(signal =>
-      adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal)
+    super(
+      signal =>
+        adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal),
+      new BrowserFileSystem()
     );
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
