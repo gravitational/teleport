@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -255,12 +254,11 @@ func TestTeleterm(t *testing.T) {
 func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
 	t.Helper()
 
+	homeDir := t.TempDir()
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                t.TempDir(),
+		Dir:                homeDir,
+		ClientStore:        client.NewFSClientStore(homeDir),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -292,10 +290,8 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -377,10 +373,8 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -432,23 +426,23 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
 	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -502,24 +496,24 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		Clock:              storageFakeClock,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
 	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -763,12 +757,11 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			require.NoError(t, authServer.UpsertPassword(userName, []byte(userPassword)))
 
 			// Prepare daemon.Service.
+			homeDir := t.TempDir()
 			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                t.TempDir(),
+				Dir:                homeDir,
+				ClientStore:        client.NewFSClientStore(homeDir),
 				InsecureSkipVerify: true,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-					return nil
-				},
 			})
 			require.NoError(t, err)
 
@@ -882,23 +875,23 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 	// Prepare daemon.Service.
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		Clock:              fakeClock,
 		WebauthnLogin:      webauthnLogin,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
+	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemonService, err := daemon.New(daemon.Config{
-		Clock:          fakeClock,
-		Storage:        storage,
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
+		Clock:            fakeClock,
+		Storage:          storage,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
+		TshdEventsClient: tshdEventsClient,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -947,10 +940,8 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -1034,10 +1025,8 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
+		ClientStore:        tc.ClientStore,
 		InsecureSkipVerify: tc.InsecureSkipVerify,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -1264,10 +1253,8 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                tc.KeysDir,
+				ClientStore:        tc.ClientStore,
 				InsecureSkipVerify: tc.InsecureSkipVerify,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-					return nil
-				},
 			})
 			require.NoError(t, err)
 

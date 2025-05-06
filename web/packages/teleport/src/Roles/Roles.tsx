@@ -27,6 +27,12 @@ import {
   NotificationItem,
   NotificationSeverity,
 } from 'shared/components/Notification';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
@@ -36,12 +42,6 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import {
-  InfoExternalTextLink,
-  InfoGuideButton,
-  InfoParagraph,
-  ReferenceLinks,
-} from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import useResources from 'teleport/components/useResources';
 import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
 import { storageService } from 'teleport/services/storageService';
@@ -67,10 +67,6 @@ export enum RoleDiffState {
 export type RoleDiffProps = {
   roleDiffElement: React.ReactNode;
   updateRoleDiff: (role: Role) => void;
-
-  /** @deprecated Use {@link RoleDiffProps.roleDiffAttempt} instead. */
-  // TODO(bl-nero): Remove this property once the Enterprise code is updated.
-  errorMessage?: string;
 
   /**
    * State of the attempt to fetch the information required by the role diff
@@ -239,7 +235,7 @@ export function Roles(props: State & RolesProps) {
         </InfoGuideButton>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
-        <Alert children={serverSidePagination.attempt.statusText} />
+        <Alert>{serverSidePagination.attempt.statusText}</Alert>
       )}
       <Flex flex="1">
         <Box flex="1" mb="4">

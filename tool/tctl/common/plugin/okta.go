@@ -176,15 +176,15 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args installPluginArgs
 	settings := &types.PluginOktaSettings{
 		OrgUrl: oktaSettings.org.String(),
 		SyncSettings: &types.PluginOktaSyncSettings{
-			SsoConnectorId:  oktaSettings.samlConnector,
-			AppId:           oktaSettings.appID,
-			SyncUsers:       oktaSettings.userSync,
-			SyncAccessLists: oktaSettings.accessListSync,
-			DefaultOwners:   oktaSettings.defaultOwners,
-			GroupFilters:    oktaSettings.groupFilters,
-			AppFilters:      oktaSettings.appFilters,
+			SsoConnectorId:        oktaSettings.samlConnector,
+			AppId:                 oktaSettings.appID,
+			SyncUsers:             oktaSettings.userSync,
+			SyncAccessLists:       oktaSettings.accessListSync,
+			DefaultOwners:         oktaSettings.defaultOwners,
+			GroupFilters:          oktaSettings.groupFilters,
+			AppFilters:            oktaSettings.appFilters,
+			EnableSiemIntegration: oktaSettings.siemIntegration,
 		},
-		EnableSiemIntegration: oktaSettings.siemIntegration,
 	}
 	req := &pluginsv1.CreatePluginRequest{
 		Plugin: &types.PluginV1{

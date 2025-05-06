@@ -112,9 +112,32 @@ describe('validateRoleEditorModel', () => {
     ];
     model.rules = [
       {
-        id: 'dummy-id',
+        id: 'dummy-id-1',
         resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
-        verbs: [{ label: '*', value: '*' }],
+        allVerbs: true,
+        verbs: [
+          { verb: 'read', checked: true },
+          { verb: 'list', checked: true },
+          { verb: 'create', checked: true },
+          { verb: 'update', checked: true },
+          { verb: 'delete', checked: true },
+          { verb: '*', checked: true },
+        ],
+        where: '',
+        hideValidationErrors: false,
+      },
+      {
+        id: 'dummy-id-2',
+        resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
+        allVerbs: false,
+        verbs: [
+          { verb: 'read', checked: false },
+          { verb: 'list', checked: false },
+          { verb: 'create', checked: true },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: true },
+          { verb: '*', checked: false },
+        ],
         where: '',
         hideValidationErrors: false,
       },
@@ -122,13 +145,21 @@ describe('validateRoleEditorModel', () => {
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(result.metadata.valid).toBe(true);
     expect(validity(result.resources)).toEqual([true, true, true, true, true]);
-    expect(validity(result.rules)).toEqual([true]);
+    expect(validity(result.rules)).toEqual([true, true]);
     expect(result.isValid).toBe(true);
   });
 
-  test('invalid metadata', () => {
+  test('invalid role name', () => {
     const model = minimalRoleModel();
     model.metadata.name = '';
+    const result = validateRoleEditorModel(model, undefined, undefined);
+    expect(result.metadata.valid).toBe(false);
+    expect(result.isValid).toBe(false);
+  });
+
+  test('conflicting role name', () => {
+    const model = minimalRoleModel();
+    model.metadata.nameCollision = true;
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(result.metadata.valid).toBe(false);
     expect(result.isValid).toBe(false);
@@ -221,19 +252,42 @@ describe('validateRoleEditorModel', () => {
     }
   );
 
-  test('invalid Admin Rule', () => {
+  test('invalid Admin Rules', () => {
     const model = minimalRoleModel();
     model.rules = [
       {
-        id: 'dummy-id',
+        id: 'dummy-id-1',
+        // No resources
         resources: [],
-        verbs: [{ label: '*', value: '*' }],
+        allVerbs: false,
+        verbs: [
+          { verb: 'read', checked: false },
+          { verb: 'list', checked: false },
+          { verb: 'create', checked: true },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: true },
+        ],
+        where: '',
+        hideValidationErrors: false,
+      },
+      {
+        id: 'dummy-id-2',
+        resources: [{ label: ResourceKind.Node, value: ResourceKind.Node }],
+        allVerbs: false,
+        // No verbs
+        verbs: [
+          { verb: 'read', checked: false },
+          { verb: 'list', checked: false },
+          { verb: 'create', checked: false },
+          { verb: 'update', checked: false },
+          { verb: 'delete', checked: false },
+        ],
         where: '',
         hideValidationErrors: false,
       },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
-    expect(validity(result.rules)).toEqual([false]);
+    expect(validity(result.rules)).toEqual([false, false]);
     expect(result.isValid).toBe(false);
   });
 
@@ -267,6 +321,7 @@ describe('validateAdminRule', () => {
     const rule: RuleModel = {
       id: 'some-id',
       resources: [],
+      allVerbs: false,
       verbs: [],
       where: '',
       hideValidationErrors: false,

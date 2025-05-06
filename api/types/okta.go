@@ -508,32 +508,39 @@ func (o *PluginOktaSettings) GetSyncSettings() *PluginOktaSyncSettings {
 	return o.SyncSettings
 }
 
-func (o *PluginOktaSyncSettings) GetUserSyncEnabled() bool {
+func (o *PluginOktaSyncSettings) GetEnableUserSync() bool {
 	if o == nil {
 		return false
 	}
 	return o.SyncUsers
 }
 
-func (o *PluginOktaSyncSettings) GetAppGroupSyncEnabled() bool {
-	if !o.GetUserSyncEnabled() {
+func (o *PluginOktaSyncSettings) GetEnableAppGroupSync() bool {
+	if !o.GetEnableUserSync() {
 		return false
 	}
 	return !o.DisableSyncAppGroups
 }
 
-func (o *PluginOktaSyncSettings) GetAccessListSyncEnabled() bool {
+func (o *PluginOktaSyncSettings) GetEnableAccessListSync() bool {
 	if o == nil {
 		return false
 	}
 	return o.SyncAccessLists
 }
 
-func (o *PluginOktaSyncSettings) GetBidirectionalSyncEnabled() bool {
-	if !o.GetAccessListSyncEnabled() {
+func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
+	if !o.GetEnableAccessListSync() {
 		return false
 	}
 	return !o.DisableBidirectionalSync
+}
+
+func (o *PluginOktaSyncSettings) GetEnableSiemIntegration() bool {
+	if o == nil {
+		return false
+	}
+	return o.EnableSiemIntegration
 }
 
 type OktaUserSyncSource string

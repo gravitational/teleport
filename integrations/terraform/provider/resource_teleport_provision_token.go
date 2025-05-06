@@ -33,7 +33,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
 
-	token "github.com/gravitational/teleport/integrations/terraform/tfschema/token"
+	token "github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
 // resourceTeleportProvisionTokenType is the resource metadata type

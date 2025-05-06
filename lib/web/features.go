@@ -19,8 +19,6 @@
 package web
 
 import (
-	"bytes"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/entitlements"
 )
@@ -31,10 +29,6 @@ import (
 func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
-
-	if !bytes.Equal(h.clusterFeatures.CloudAnonymizationKey, features.CloudAnonymizationKey) {
-		h.logger.InfoContext(h.cfg.Context, "Received new cloud anonymization key from server")
-	}
 
 	entitlements.BackfillFeatures(&features)
 	h.clusterFeatures = features

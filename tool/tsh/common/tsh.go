@@ -67,7 +67,9 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keys"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -81,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -239,12 +242,17 @@ type CLIConf struct {
 
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
+	// DatabaseServices specifies a list of database services.
+	DatabaseServices string
 	// DatabaseUser specifies database user to embed in the certificate.
 	DatabaseUser string
 	// DatabaseName specifies database name to embed in the certificate.
 	DatabaseName string
 	// DatabaseRoles specifies database roles to embed in the certificate.
 	DatabaseRoles string
+	// DatabaseCommand specifies the command to execute.
+	DatabaseCommand string
+
 	// AppName specifies proxied application name.
 	AppName string
 	// Interactive sessions will allocate a PTY and create interactive "shell"
@@ -577,6 +585,20 @@ type CLIConf struct {
 
 	// lookPathOverride overrides return of LookPath(). used in tests.
 	lookPathOverride string
+
+	// HardwareKeyAgentServer determines whether `tsh daemon` will run the hardware key agent server.
+	HardwareKeyAgentServer bool
+	// disableHardwareKeyAgentClient determines whether the client will attempt to connect
+	// to the hardware key agent. Some commands, like login, are better with the
+	// direct PIV service so that prompts are not split between processes.
+	disableHardwareKeyAgentClient bool
+
+	// ParallelJobs specifies the number of parallel jobs allowed.
+	ParallelJobs int
+	// OutputDir specifies the directory for storing command outputs.
+	OutputDir string
+	// Confirm determines whether to provide a y/N confirmation prompt.
+	Confirm bool
 }
 
 // Stdout returns the stdout writer.
@@ -622,6 +644,23 @@ func (c *CLIConf) LookPath(file string) (string, error) {
 		return c.lookPathOverride, nil
 	}
 	return exec.LookPath(file)
+}
+
+// PromptConfirmation prompts the user for a yes/no confirmation for question.
+// The prompt is skipped unless cf.Confirm is set.
+func (c *CLIConf) PromptConfirmation(question string) error {
+	if !c.Confirm {
+		fmt.Fprintf(c.Stdout(), "Skipping confirmation for %q due to the --no-confirm flag.\n", question)
+		return nil
+	}
+
+	ok, err := prompt.Confirmation(c.Context, c.Stdout(), prompt.Stdin(), question)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.Errorf("Operation canceled by user request.")
+	}
+	return nil
 }
 
 func Main() {
@@ -858,6 +897,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStart.Flag("agents-dir", "Directory containing agent config files and data directories for Connect My Computer").StringVar(&cf.DaemonAgentsDir)
 	daemonStart.Flag("installation-id", "Unique ID identifying a specific Teleport Connect installation").StringVar(&cf.DaemonInstallationID)
+	daemonStart.Flag("hardware-key-agent", "Serve the hardware key agent as part of the daemon process").BoolVar(&cf.HardwareKeyAgentServer)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -1020,6 +1060,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	dbConnect.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 	dbConnect.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").Hidden().BoolVar(&cf.LocalProxyTunnel)
+	dbExec := db.Command("exec", "Execute database commands on target database services.")
+	dbExec.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
+	dbExec.Flag("db-name", "Database name to log in to.").Short('n').StringVar(&cf.DatabaseName)
+	dbExec.Flag("db-roles", "List of comma separate database roles to use for auto-provisioned user.").Short('r').StringVar(&cf.DatabaseRoles)
+	dbExec.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	dbExec.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbExec.Flag("parallel", "Run commands on target databases in parallel. Defaults to 1, and maximum allowed is 10.").Default("1").IntVar(&cf.ParallelJobs)
+	dbExec.Flag("output-dir", "Directory to store command output per target database service. A summary is saved as \"summary.json\".").StringVar(&cf.OutputDir)
+	dbExec.Flag("dbs", "List of comma separated target database services. Mutually exclusive with --search or --labels.").StringVar(&cf.DatabaseServices)
+	dbExec.Flag("confirm", "Confirm selected database services before executing command.").Default("true").BoolVar(&cf.Confirm)
+	dbExec.Arg("command", "Execute this command on target database services.").Required().StringVar(&cf.DatabaseCommand)
+	dbExec.Alias(dbExecHelp)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -1269,6 +1321,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	gitCmd := newGitCommands(app)
+	pivCmd := newPIVCommands(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1581,6 +1634,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDatabaseConfig(&cf)
 	case dbConnect.FullCommand():
 		err = onDatabaseConnect(&cf)
+	case dbExec.FullCommand():
+		err = onDatabaseExec(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
 	case mfa.ls.FullCommand():
@@ -1668,6 +1723,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case pivCmd.agent.FullCommand():
+		err = pivCmd.agent.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1899,6 +1956,10 @@ func onLogin(cf *CLIConf, reExecArgs ...string) error {
 		autoRequest = false
 		cf.DesiredRoles = ""
 	}
+
+	// For login operations, we use the hardware key
+	// service directly instead of the agent.
+	cf.disableHardwareKeyAgentClient = true
 
 	if cf.IdentityFileIn != "" {
 		err := flattenIdentity(cf)
@@ -3147,7 +3208,7 @@ func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecke
 		return nil, trace.BadParameter("unrecognized database type %T", db)
 	}
 
-	if db.SupportsAutoUsers() && db.GetAdminUser().Name != "" {
+	if db.IsAutoUsersEnabled() {
 		roles, err := accessChecker.CheckDatabaseRoles(db, nil)
 		if err != nil {
 			logger.WarnContext(context.Background(), "Failed to CheckDatabaseRoles for database",
@@ -3199,7 +3260,7 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	}
 
 	// Add a note for auto-provisioned user.
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
 			logger.WarnContext(context.Background(), "Failed to get DatabaseAutoUserMode for database",
@@ -4385,7 +4446,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	if cf.PIVSlot != "" {
-		c.PIVSlot = keys.PIVSlot(cf.PIVSlot)
+		c.PIVSlot = hardwarekey.PIVSlotKeyString(cf.PIVSlot)
 		if err = c.PIVSlot.Validate(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4592,10 +4653,17 @@ func setEnvVariables(c *client.Config, options Options) {
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+	var hwks hardwarekey.Service
+	if cf.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(cf.Context, nil /*prompt*/)
+	}
+
 	switch {
 	case cf.IdentityFileIn != "":
 		// Import identity file keys to in-memory client store.
-		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName, client.WithHardwareKeyService(hwks))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4604,16 +4672,16 @@ func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
 	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
 		// Store client keys in memory, where they can be exported to non-standard
 		// FS formats (e.g. identity file) or used for a single client call in memory.
-		return client.NewMemClientStore(), nil
+		return client.NewMemClientStore(client.WithHardwareKeyService(hwks)), nil
 
 	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
 		// Store client keys in memory, but save trusted certs and profile to disk.
-		clientStore := client.NewFSClientStore(cf.HomePath)
+		clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 		clientStore.KeyStore = client.NewMemKeyStore()
 		return clientStore, nil
 
 	default:
-		return client.NewFSClientStore(cf.HomePath), nil
+		return client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks)), nil
 	}
 }
 
@@ -5842,4 +5910,15 @@ func tryLockMemory(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unexpected value for --mlock, expected one of (%v)", strings.Join(mlockModes, ", "))
 	}
+}
+
+// stringFlagToStrings parses a comma-separated string from a CLIConf flag into
+// a slice of strings. It trims whitespace from each value and removes
+// duplicates.
+func stringFlagToStrings(value string) []string {
+	values := strings.Split(value, ",")
+	for i := range values {
+		values[i] = strings.TrimSpace(values[i])
+	}
+	return apiutils.Deduplicate(values)
 }

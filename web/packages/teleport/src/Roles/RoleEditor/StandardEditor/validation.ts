@@ -38,6 +38,7 @@ import {
   ResourceAccess,
   RoleEditorModel,
   RuleModel,
+  VerbModel,
 } from './standardmodel';
 
 export const kubernetesClusterWideResourceKinds: KubernetesResourceKind[] = [
@@ -120,8 +121,14 @@ function validateMetadata(
   return runRules(model, metadataRules);
 }
 
+const mustBeFalse = (message: string) => (value: boolean) => () => ({
+  valid: !value,
+  message: value ? message : '',
+});
+
 const metadataRules = {
   name: requiredField('Role name is required'),
+  nameCollision: mustBeFalse('Role with this name already exists'),
   labels: nonEmptyLabels,
 };
 export type MetadataValidationResult = RuleSetValidationResult<
@@ -217,15 +224,16 @@ const validKubernetesKind = (
     case RoleVersion.V4:
     case RoleVersion.V5:
     case RoleVersion.V6:
-      const valid = kind === 'pod';
+      const v6valid = kind === 'pod';
       return {
-        valid,
-        message: valid
+        valid: v6valid,
+        message: v6valid
           ? undefined
           : `Only pods are allowed for role version ${ver}`,
       };
 
     case RoleVersion.V7:
+    case RoleVersion.V8:
       return { valid: true };
 
     default:
@@ -329,9 +337,15 @@ export const validateAdminRule = (
   return runRules(rule, adminRuleValidationRules);
 };
 
+/** Ensures that at least one verb is checked. */
+const requiredVerbs = (message: string) => (verbs: VerbModel[]) => () => {
+  const valid = verbs.some(v => v.checked);
+  return { valid, message: valid ? '' : message };
+};
+
 const adminRuleValidationRules = {
   resources: requiredField('At least one resource kind is required'),
-  verbs: requiredField('At least one permission is required'),
+  verbs: requiredVerbs('At least one permission is required'),
 };
 export type AdminRuleValidationResult = RuleSetValidationResult<
   typeof adminRuleValidationRules

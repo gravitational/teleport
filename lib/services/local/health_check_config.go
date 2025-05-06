@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -102,4 +103,70 @@ func (s *HealthCheckConfigService) DeleteHealthCheckConfig(ctx context.Context, 
 // DeleteAllHealthCheckConfigs removes all HealthCheckConfig resources.
 func (s *HealthCheckConfigService) DeleteAllHealthCheckConfigs(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
+}
+
+func newHealthCheckConfigParser() *healthCheckConfigParser {
+	return &healthCheckConfigParser{
+		baseParser: newBaseParser(backend.NewKey(healthCheckConfigPrefix)),
+	}
+}
+
+type healthCheckConfigParser struct {
+	baseParser
+}
+
+func (healthCheckConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		components := event.Item.Key.Components()
+		if len(components) < 2 {
+			return nil, trace.NotFound("failed parsing %s", event.Item.Key)
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindHealthCheckConfig,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      components[1],
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalHealthCheckConfig(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %s is not supported", event.Type)
+	}
+}
+
+func itemFromHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) (*backend.Item, error) {
+	if err := services.ValidateHealthCheckConfig(cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rev, err := types.GetRevision(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalHealthCheckConfig(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	expires, err := types.GetExpiry(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := &backend.Item{
+		Key:      backend.NewKey(healthCheckConfigPrefix, cfg.GetMetadata().GetName()),
+		Value:    value,
+		Expires:  expires,
+		Revision: rev,
+	}
+	return item, nil
 }

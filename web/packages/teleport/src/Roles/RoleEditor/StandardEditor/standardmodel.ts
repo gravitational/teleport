@@ -53,6 +53,13 @@ import {
 import { RoleEditorModelValidationResult } from './validation';
 import { defaultOptions } from './withDefaults';
 
+export enum StandardEditorTab {
+  Overview,
+  Resources,
+  AdminRules,
+  Options,
+}
+
 export type StandardEditorModel = {
   /**
    * The role model. Can be undefined if there was an unhandled error when
@@ -70,6 +77,8 @@ export type StandardEditorModel = {
    * role.
    */
   validationResult?: RoleEditorModelValidationResult;
+  currentTab: StandardEditorTab;
+  disabledTabs: Set<StandardEditorTab>;
 };
 
 /**
@@ -98,6 +107,14 @@ export function requiresReset(rm: RoleEditorModel | undefined): boolean {
 
 export type MetadataModel = {
   name: string;
+  /**
+   * Set to `true` when we detect an existing role with the same name. This is
+   * for validation purposes only, but it's stored in the model, because our
+   * validation framework doesn't currently have a native support for
+   * asynchronous validation. This flag is only being set if a new rule is
+   * being created.
+   */
+  nameCollision: boolean;
   description?: string;
   revision?: string;
   labels: UILabel[];
@@ -251,7 +268,11 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
 ];
 export const kubernetesVerbOptionsMap = optionsToMap(kubernetesVerbOptions);
 
-export type ResourceKindOption = Option<ResourceKind, string>;
+/**
+ * An option that denotes a resource kind. The values are mostly {@link
+ * ResourceKind}, but we allow unsupported values.
+ */
+export type ResourceKindOption = Option<string, string>;
 export const resourceKindOptions: ResourceKindOption[] = Object.values(
   ResourceKind
 )
@@ -317,10 +338,24 @@ export type RuleModel = {
    * (Also: keeping track of supported resource types is hard.)
    */
   resources: readonly ResourceKindOption[];
-  verbs: readonly VerbOption[];
+
+  /**
+   * Indicates whether a wildcard verb is in the list of rule's {@link
+   * Rule.verbs}. For the purpose of model conversion, this overrides all verbs
+   * in the {@link RuleModel.verbs} list.
+   */
+  allVerbs: boolean;
+
+  /**
+   * Lists all non-wildcard verbs allowed for the currently selected {@link
+   * RuleModel.resources}, along with their checked state.
+   */
+  verbs: VerbModel[];
   where: string;
   hideValidationErrors: boolean;
 };
+
+export type VerbModel = { verb: Verb; checked: boolean };
 
 export type OptionsModel = {
   maxSessionTTL: string;
@@ -423,7 +458,7 @@ export const roleVersionOptions = Object.values(RoleVersion)
   .map(o => ({ value: o, label: o }));
 export const roleVersionOptionsMap = optionsToMap(roleVersionOptions);
 
-export const defaultRoleVersion = RoleVersion.V7;
+export const defaultRoleVersion = RoleVersion.V8;
 
 /**
  * Returns the role object with required fields defined with empty values.
@@ -554,7 +589,8 @@ export function newRuleModel(): RuleModel {
   return {
     id: crypto.randomUUID(),
     resources: [],
-    verbs: [],
+    allVerbs: false,
+    verbs: newVerbsModel([]),
     where: '',
     hideValidationErrors: true,
   };
@@ -593,7 +629,7 @@ export function roleToRoleEditorModel(
   const versionOption = getOptionOrPushError(
     version,
     roleVersionOptionsMap,
-    RoleVersion.V7,
+    RoleVersion.V8,
     'version',
     conversionErrors
   );
@@ -619,6 +655,7 @@ export function roleToRoleEditorModel(
   return {
     metadata: {
       name,
+      nameCollision: false,
       description,
       revision: originalRole?.metadata?.revision,
       labels: labelsToModel(labels),
@@ -979,38 +1016,106 @@ function ruleToModel(
   conversionErrors: ConversionError[];
 } {
   const { resources = [], verbs = [], where = '', ...unsupported } = rule;
+
   const conversionErrors = unsupportedFieldErrorsFromObject(
     pathPrefix,
     unsupported
   );
+
   const resourcesModel = resources.map(
     // Resource kind can be unknown, so we just create a necessary option on
     // the fly.
     k => resourceKindOptionsMap.get(k) ?? { label: k, value: k }
   );
-  const verbsModel = verbs.map(v => verbOptionsMap.get(v));
-  const knownVerbsModel: VerbOption[] = [];
-  verbsModel.forEach((verb, i) => {
-    if (verb !== undefined) {
-      knownVerbsModel.push(verb);
-    } else {
-      conversionErrors.push({
-        type: ConversionErrorType.UnsupportedValue,
-        path: `${pathPrefix}.verbs[${i}]`,
-      });
+
+  const allVerbs = verbs.includes('*');
+  const verbsModel = allowedVerbsForResourceKinds(resources).map(verb => ({
+    verb,
+    checked: allVerbs, // Mark all as checked if there's a wildcard.
+  }));
+
+  if (allVerbs) {
+    // If there's a wildcard, it needs to be the only verb. Other combinations
+    // are not supported because of the editor UI structure.
+    // TODO(bl-nero): Consider adding an explanation field to the conversion
+    // error type.
+    if (verbs.length > 1) {
+      conversionErrors.push(
+        unsupportedValueWithReplacement(`${pathPrefix}.verbs`, ['*'])
+      );
     }
-  });
+  } else {
+    verbs.forEach((v, i) => {
+      const vm = verbsModel.find(m => m.verb === v);
+      if (vm) {
+        vm.checked = true;
+      } else {
+        conversionErrors.push({
+          type: ConversionErrorType.UnsupportedValue,
+          path: `${pathPrefix}.verbs[${i}]`,
+        });
+      }
+    });
+  }
+
   return {
     model: {
       id: crypto.randomUUID(),
       resources: resourcesModel,
-      verbs: knownVerbsModel,
+      allVerbs,
+      verbs: verbsModel,
       where,
       hideValidationErrors: false,
     },
     conversionErrors,
   };
 }
+
+export function newVerbsModel(
+  resKindOptions: readonly ResourceKindOption[]
+): VerbModel[] {
+  const kinds = resKindOptions.map(rko => rko.value);
+  return allowedVerbsForResourceKinds(kinds).map(verb => ({
+    verb,
+    checked: false,
+  }));
+}
+
+/**
+ * Returns a list of verbs that are known to be supported by a given list of
+ * resources. This list excludes the wildcard (*) verb, which gets a special
+ * treatment in our model.
+ */
+export function allowedVerbsForResourceKinds(
+  resourceKinds: readonly string[]
+): Verb[] {
+  const verbs: Verb[] = ['read', 'list', 'create', 'update', 'delete'];
+  for (const kind of resourceKinds) {
+    if (additionalVerbs.has(kind)) {
+      verbs.push(...additionalVerbs.get(kind));
+    }
+  }
+  return verbs;
+}
+
+/** A map of known resource-type-specific verbs by resource type. */
+const additionalVerbs = new Map<string, Verb[]>([
+  [ResourceKind.Plugin, ['readnosecrets']],
+  [ResourceKind.CertAuthority, ['readnosecrets', 'rotate']],
+  [ResourceKind.WebSession, ['readnosecrets']],
+  [ResourceKind.OIDCConnector, ['readnosecrets']],
+  [ResourceKind.SAMLConnector, ['readnosecrets']],
+  [ResourceKind.GithubConnector, ['readnosecrets']],
+  [ResourceKind.Semaphore, ['readnosecrets']],
+  [ResourceKind.Device, ['create_enroll_token', 'enroll']],
+  [ResourceKind.AuditQuery, ['use']],
+  [ResourceKind.SecurityReport, ['use']],
+  [ResourceKind.Integration, ['use']],
+  [ResourceKind.AccessGraph, ['use']],
+
+  // Currently unsupported, but important for backwards compatibility.
+  ['assistant', ['use']],
+]);
 
 // These options must keep their default values, as we don't support them in
 // the standard editor, but they are required fields of the RoleOptions type.
@@ -1239,7 +1344,9 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   const { name, description, revision, labels, version, ...mRest } =
     roleModel.metadata;
   // Compile-time assert that protects us from silently losing fields.
-  mRest satisfies Record<any, never>;
+  // `nameCollision` is the only field we don't care about, since its only use
+  // is validation, and it's not expected to be included in the result.
+  mRest satisfies { nameCollision: boolean };
 
   const role: Role = {
     kind: 'role',
@@ -1321,7 +1428,9 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
   if (roleModel.rules.length > 0) {
     role.spec.allow.rules = roleModel.rules.map(role => ({
       resources: role.resources.map(r => r.value),
-      verbs: role.verbs.map(v => v.value),
+      verbs: role.allVerbs
+        ? ['*']
+        : role.verbs.filter(v => v.checked).map(v => v.verb),
       where: role.where || undefined,
     }));
   }

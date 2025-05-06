@@ -50,6 +50,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -185,6 +186,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindGitServer:                          rc.createGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.createAutoUpdateAgentRollout,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.createWorkloadIdentityX509IssuerOverride,
+		types.KindHealthCheckConfig:                  rc.createHealthCheckConfig,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -208,6 +210,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindGitServer:                          rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
 		types.KindWorkloadIdentityX509IssuerOverride: rc.updateWorkloadIdentityX509IssuerOverride,
+		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 	}
 	rc.config = config
 
@@ -1581,6 +1584,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
 		case types.IntegrationSubKindGitHub:
 			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
+		case types.IntegrationSubKindAWSRA:
+			existingIntegration.SetAWSRAIntegrationSpec(integration.GetAWSRAIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
@@ -2178,6 +2183,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
+	case types.KindHealthCheckConfig:
+		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -3535,6 +3542,32 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			}
 		}
 		return collection, nil
+	case types.KindHealthCheckConfig:
+		if rc.ref.Name != "" {
+			cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &healthCheckConfigCollection{
+				items: []*healthcheckconfigv1.HealthCheckConfig{cfg},
+			}, nil
+		}
+		var items []*healthcheckconfigv1.HealthCheckConfig
+		var token string
+		for {
+			page, nextToken, err := client.ListHealthCheckConfigs(ctx, 0, token)
+			token = nextToken
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			items = append(items, page...)
+			if token == "" {
+				break
+			}
+		}
+		return &healthCheckConfigCollection{
+			items: items,
+		}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

@@ -58,6 +58,7 @@ import {
   ServerAccess,
   WindowsDesktopAccess,
 } from './standardmodel';
+import { ActionType } from './useStandardModel';
 import {
   AppAccessValidationResult,
   DatabaseAccessValidationResult,
@@ -89,7 +90,7 @@ export const ResourcesTab = memo(function ResourcesTab({
   );
 
   const addResourceAccess = (kind: ResourceAccessKind) =>
-    dispatch({ type: 'add-resource-access', payload: { kind } });
+    dispatch({ type: ActionType.AddResourceAccess, payload: { kind } });
 
   return (
     <Flex flexDirection="column" gap={3}>
@@ -164,27 +165,27 @@ export const resourceAccessSections: Record<
   }
 > = {
   kube_cluster: {
-    title: 'Kubernetes',
+    title: 'Kubernetes Access',
     component: KubernetesAccessSection,
   },
   node: {
-    title: 'Servers',
+    title: 'SSH Server Access',
     component: ServerAccessSection,
   },
   app: {
-    title: 'Applications',
+    title: 'Application Access',
     component: AppAccessSection,
   },
   db: {
-    title: 'Databases',
+    title: 'Database Access',
     component: DatabaseAccessSection,
   },
   windows_desktop: {
-    title: 'Windows Desktops',
+    title: 'Windows Desktop Access',
     component: WindowsDesktopAccessSection,
   },
   git_server: {
-    title: 'GitHub Organizations',
+    title: 'GitHub Organization Access',
     component: GitHubOrganizationAccessSection,
   },
 };
@@ -205,11 +206,14 @@ export const ResourceAccessSection = memo(function ResourceAccessSectionRaw<
   const { component: Body, title } = resourceAccessSections[value.kind];
 
   function handleChange(val: T) {
-    dispatch({ type: 'set-resource-access', payload: val });
+    dispatch({ type: ActionType.SetResourceAccess, payload: val });
   }
 
   function handleRemove() {
-    dispatch({ type: 'remove-resource-access', payload: { kind: value.kind } });
+    dispatch({
+      type: ActionType.RemoveResourceAccess,
+      payload: { kind: value.kind },
+    });
   }
 
   return (
@@ -351,6 +355,8 @@ export function KubernetesAccessSection({
                 ],
               })
             }
+            size="small"
+            inputAlignment
           >
             <Add disabled={isProcessing} size="small" />
             {value.resources.length > 0

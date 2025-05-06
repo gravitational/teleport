@@ -163,6 +163,11 @@ export const formatters: Formatters = {
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${truncateStr(search_as_roles.join(','), 80)}]`,
   },
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: {
+    type: 'access_request.expire',
+    desc: 'Access Request Expired',
+    format: ({ id }) => `Access request [${id}] has expired`,
+  },
   [eventCodes.SESSION_COMMAND]: {
     type: 'session.command',
     desc: 'Session Command',
@@ -1493,6 +1498,27 @@ export const formatters: Formatters = {
     desc: 'Workload Identity X.509 Issuer Override Deleted',
     format: ({ user, name }) => {
       return `User [${user}] deleted a Workload Identity X.509 Issuer Override [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_CREATE]: {
+    type: 'sigstore_policy.create',
+    desc: 'Sigstore Policy Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: {
+    type: 'sigstore_policy.update',
+    desc: 'Sigstore Policy Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a Sigstore Policy [${name}]`;
+    },
+  },
+  [eventCodes.SIGSTORE_POLICY_DELETE]: {
+    type: 'sigstore_policy.delete',
+    desc: 'Sigstore Policy Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a Sigstore Policy [${name}]`;
     },
   },
   [eventCodes.LOGIN_RULE_CREATE]: {

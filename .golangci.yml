@@ -129,6 +129,10 @@ linters-settings:
             desc: 'use "github.com/gravitational/teleport/lib/msgraph" instead'
           - pkg: github.com/cloudflare/cfssl
             desc: 'use "crypto" or "x/crypto" instead'
+          - pkg: github.com/aws/aws-sdk-go/
+            desc: 'use "aws-sdk-go-v2" instead'
+          - pkg: github.com/aws/aws-sdk-go$
+            desc: 'use "aws-sdk-go-v2" instead'
       # Prevent importing any additional logging libraries.
       logging:
         deny:
@@ -169,6 +173,7 @@ linters-settings:
           - '!**/lib/srv/mock.go'
           - '!**/lib/srv/db/redis/test.go'
           - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
           - '!**/lib/teleterm/gatewaytest/**'
           - '!**/lib/utils/testhelpers.go'
           - '!**/lib/utils/testutils/**'
@@ -255,6 +260,7 @@ linters-settings:
           - '!**/lib/srv/mock.go'
           - '!**/lib/srv/db/redis/test.go'
           - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
           - '!**/lib/teleterm/gatewaytest/**'
           - '!**/lib/utils/cli.go'
           - '!**/lib/utils/testhelpers.go'

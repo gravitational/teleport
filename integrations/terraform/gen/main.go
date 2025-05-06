@@ -38,7 +38,9 @@ type payload struct {
 	GetMethod string
 	// CreateMethod represents API create method name
 	CreateMethod string
-	// CreateMethod represents API update method name
+	// UpdateMethod represents the API update method name.
+	// On services without conditional updates, you can use the Update method.
+	// On services with conditional updates, you must use the Upsert variant.
 	UpdateMethod string
 	// DeleteMethod represents API reset method used in singular resources
 	DeleteMethod string
@@ -216,7 +218,7 @@ var (
 		IfaceName:              "DynamicWindowsDesktop",
 		GetMethod:              "DynamicDesktopClient().GetDynamicWindowsDesktop",
 		CreateMethod:           "DynamicDesktopClient().CreateDynamicWindowsDesktop",
-		UpdateMethod:           "DynamicDesktopClient().UpdateDynamicWindowsDesktop",
+		UpdateMethod:           "DynamicDesktopClient().UpsertDynamicWindowsDesktop",
 		DeleteMethod:           "DynamicDesktopClient().DeleteDynamicWindowsDesktop",
 		UpsertMethodArity:      2,
 		ID:                     `desktop.Metadata.Name`,
@@ -290,7 +292,6 @@ var (
 		Kind:                   "token",
 		HasStaticID:            false,
 		SchemaPackage:          "token",
-		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/token",
 		TerraformResourceType:  "teleport_provision_token",
 		HasCheckAndSetDefaults: true,
 	}
@@ -554,7 +555,7 @@ var (
 		GetMethod:             "GetAutoUpdateVersion",
 		CreateMethod:          "CreateAutoUpdateVersion",
 		UpsertMethodArity:     2,
-		UpdateMethod:          "UpdateAutoUpdateVersion",
+		UpdateMethod:          "UpsertAutoUpdateVersion",
 		DeleteMethod:          "DeleteAutoUpdateVersion",
 		ID:                    "autoUpdateVersion.Metadata.Name",
 		Kind:                  "autoupdate_version",
@@ -581,7 +582,7 @@ var (
 		GetMethod:             "GetAutoUpdateConfig",
 		CreateMethod:          "CreateAutoUpdateConfig",
 		UpsertMethodArity:     2,
-		UpdateMethod:          "UpdateAutoUpdateConfig",
+		UpdateMethod:          "UpsertAutoUpdateConfig",
 		DeleteMethod:          "DeleteAutoUpdateConfig",
 		ID:                    "autoUpdateConfig.Metadata.Name",
 		Kind:                  "autoupdate_config",

@@ -58,7 +58,7 @@ func CompareOptions(customOpts ...cmp.Option) []cmp.Option {
 
 var defaultProtoCompareOpts = []cmp.Option{
 	protocmp.Transform(),
-	protocmp.IgnoreFields(&headerv1.Metadata{}, "labels"),
+	protocmp.IgnoreFields(&headerv1.Metadata{}, "labels", "revision"),
 }
 
 // ProtoCompareOptions returns comparison options for comparing protobuf messages.
