@@ -19,10 +19,7 @@
 package mcp
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -35,17 +32,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ServerConfig is the config for the MCP forward server.
@@ -64,15 +57,8 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing Emitter")
 	}
-	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, "mcp")
-	}
-	return nil
 	if c.ServerID == "" {
 		return trace.BadParameter("missing ServerID")
-	}
-	if c.Emitter == nil {
-		return trace.BadParameter("missing Emitter")
 	}
 	if c.Log == nil {
 		c.Log = slog.With(teleport.ComponentKey, "mcp")
@@ -95,10 +81,25 @@ func NewServer(c ServerConfig) (*Server, error) {
 	}, nil
 }
 
-// HandleAuthorizedAppConnection handles an authorized client connection.
-func (s *Server) HandleAuthorizedAppConnection(ctx context.Context, clientConn net.Conn, authCtx *authz.Context, app types.Application) error {
+func (s *Server) makeSessionCtx(ctx context.Context, clientConn net.Conn, authCtx *authz.Context, app types.Application) *sessionCtx {
 	identity := authCtx.Identity.GetIdentity()
+	allowedTools := authCtx.Checker.EnumerateEntities(
+		app,
+		func(role types.Role, condition types.RoleConditionType) []string {
+			mcpSpec := role.GetMCPPermissions(condition)
+			if mcpSpec == nil {
+				return nil
+			}
+			return mcpSpec.Tools
+		},
+		func(name string) services.RoleMatcher {
+			return &services.MCPToolMatcher{
+				RegexName: name,
+			}
+		},
+	)
 	sessionCtx := &sessionCtx{
+		parentCtx:  s.cfg.ParentCtx,
 		clientConn: clientConn,
 		authCtx:    authCtx,
 		identity:   identity,
@@ -109,24 +110,21 @@ func (s *Server) HandleAuthorizedAppConnection(ctx context.Context, clientConn n
 			"app", app.GetName(),
 			"user", identity.Username,
 		),
-		emitter: s.cfg.Emitter,
+		emitter:      s.cfg.Emitter,
+		allowedTools: allowedTools,
+		idTracker:    newIDTracker(),
 	}
+	return sessionCtx
+}
+
+// HandleAuthorizedAppConnection handles an authorized client connection.
+func (s *Server) HandleAuthorizedAppConnection(ctx context.Context, clientConn net.Conn, authCtx *authz.Context, app types.Application) error {
 	switch types.GetMCPServerTransportType(app.GetURI()) {
 	case types.MCPTransportStdio:
-		return trace.Wrap(s.handleStdio(ctx, sessionCtx))
+		return trace.Wrap(s.handleStdio(ctx, s.makeSessionCtx(ctx, clientConn, authCtx, app)))
 	default:
 		return trace.BadParameter("unsupported MCP server transport type: %v", types.GetMCPServerTransportType(app.GetURI()))
 	}
-}
-
-type sessionCtx struct {
-	clientConn net.Conn
-	authCtx    *authz.Context
-	identity   tlsca.Identity
-	app        types.Application
-	serverID   string
-	log        *slog.Logger
-	emitter    apievents.Emitter
 }
 
 func (s *Server) handleStdio(ctx context.Context, sessionCtx *sessionCtx) error {
@@ -163,29 +161,30 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx *sessionCtx) error 
 		return trace.Wrap(err)
 	}
 
+	// TODO(greedy52) merge responseWriter and requestWriter.
 	// Response may come from the server or from internal access check.
-	responseWriter := utils.NewSyncWriter(sessionCtx.clientConn)
+	responseWriter := newResponseWriter(sessionCtx)
+	go responseWriter.process(ctx)
 
 	// Parse incoming request, then forward or reject.
-	// TODO(greedy52) refactor
-	in, out := io.Pipe()
+	requestWriter, out := io.Pipe()
 	requestReader := &requestReader{
-		parentCtx: s.cfg.ParentCtx,
+		sessionCtx: sessionCtx,
 		closeCommand: func() {
+			responseWriter.toProcess.Close()
 			if err := cmd.Cancel(); err != nil {
 				sessionCtx.log.ErrorContext(ctx, "Failed to kill process", "error", err)
 			}
 		},
-		sessionCtx:     sessionCtx,
-		responseWriter: responseWriter,
-		out:            out,
+		toClient: responseWriter.toClient,
+		out:      out,
 	}
 	go requestReader.process(ctx)
 
 	// TODO(greedy52) refactor trace logger to avoid new logger when not
 	// necessary.
-	cmd.Stdin = in
-	cmd.Stdout = io.MultiWriter(responseWriter, newTraceLogWriter(ctx, sessionCtx.log.With("stdio", "stdout")))
+	cmd.Stdin = requestWriter
+	cmd.Stdout = responseWriter.fromServer
 	cmd.Stderr = newTraceLogWriter(ctx, sessionCtx.log.With("stdio", "stderr"))
 
 	emitStartEvent(s.cfg.ParentCtx, sessionCtx)
@@ -198,125 +197,6 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx *sessionCtx) error 
 		sessionCtx.log.DebugContext(ctx, "Failed to wait for process", "error", err)
 	}
 	return nil
-}
-
-type requestReader struct {
-	parentCtx context.Context
-	*sessionCtx
-	responseWriter io.Writer
-	closeCommand   func()
-	out            *io.PipeWriter
-}
-
-func (r *requestReader) process(ctx context.Context) {
-	r.log.DebugContext(ctx, "Started request reader")
-	defer r.log.DebugContext(ctx, "Finished request reader")
-	defer r.clientConn.Close()
-	defer r.closeCommand()
-
-	lineReader := bufio.NewReader(r.clientConn)
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		line, err := lineReader.ReadString('\n')
-		if err != nil {
-			r.out.CloseWithError(err)
-			if !utils.IsOKNetworkError(err) {
-				r.log.ErrorContext(ctx, "Failed to read request from client", "error", err)
-			}
-			return
-		}
-
-		r.log.Log(ctx, logutils.TraceLevel, line)
-
-		if r.shouldForwardLine(ctx, line) {
-			if _, err := r.out.Write([]byte(line)); err != nil {
-				r.log.ErrorContext(ctx, "Failed to write request to server", "error", err)
-				return
-			}
-		}
-	}
-}
-
-func (r *requestReader) shouldForwardLine(ctx context.Context, line string) bool {
-	var msg baseMessage
-	if err := json.Unmarshal([]byte(line), &msg); err != nil {
-		r.log.DebugContext(ctx, "Failed to parse request", "error", err, "line", line)
-		return true
-	}
-
-	switch {
-	case msg.ID != nil && msg.Method == mcp.MethodToolsCall:
-		if authErr := r.checkToolAccess(ctx, &msg); authErr != nil {
-			emitRequestEvent(r.parentCtx, r.sessionCtx, &msg, authErr)
-			r.replyToolResultWithError(ctx, &msg, authErr)
-			return false
-		}
-	}
-
-	if shouldEmitMCPEvent(msg.Method) {
-		emitRequestEvent(r.parentCtx, r.sessionCtx, &msg, nil)
-	}
-	return true
-}
-
-func (r *requestReader) checkToolAccess(ctx context.Context, msg *baseMessage) error {
-	toolName, ok := msg.getName()
-	if !ok {
-		return trace.BadParameter("missing tool name")
-	}
-
-	return trace.Wrap(r.authCtx.Checker.CheckAccess(
-		r.app,
-		services.AccessState{
-			MFAVerified:    true,
-			DeviceVerified: true,
-		},
-		&services.MCPToolMatcher{
-			Name: toolName,
-		},
-	))
-}
-
-func (r *requestReader) replyToolResultWithError(ctx context.Context, msg *baseMessage, authErr error) {
-	resp := mcp.JSONRPCResponse{
-		JSONRPC: mcp.JSONRPC_VERSION,
-		ID:      msg.ID,
-		Result: &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.TextContent{
-				Type: "text",
-				Text: fmt.Sprintf("Access denied to this MCP tool: %v. RBAC is enforced by your Teleport roles. You can run 'tsh mcp ls -v' to find out which tools you have access to. Or contact your Teleport Adminstrators for more details.", authErr),
-			}},
-			IsError: false,
-		},
-	}
-
-	respBytes, err := json.Marshal(resp)
-	if err != nil {
-		r.log.ErrorContext(ctx, "Failed to marshal JSON RPC response", "error", err)
-	}
-
-	if _, err := fmt.Fprintf(r.responseWriter, "%s\n", respBytes); err != nil {
-		r.log.ErrorContext(ctx, "Failed to send JSON RPC response", "error", err)
-	}
-}
-
-type traceLogWriter struct {
-	ctx context.Context
-	log *slog.Logger
-}
-
-func newTraceLogWriter(ctx context.Context, log *slog.Logger) *traceLogWriter {
-	return &traceLogWriter{
-		log: log,
-		ctx: ctx,
-	}
-}
-
-func (l *traceLogWriter) Write(p []byte) (n int, err error) {
-	l.log.Log(l.ctx, logutils.TraceLevel, string(p))
-	return len(p), nil
 }
 
 func (s *Server) setRunAsLocalUser(ctx context.Context, cmd *exec.Cmd, localUserName string) error {

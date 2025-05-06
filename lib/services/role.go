@@ -3545,6 +3545,8 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 type MCPToolMatcher struct {
 	// Name is the name of the tool.
 	Name string
+	// TODO
+	RegexName string
 }
 
 // Match matches tool name against a provided role and condition.
@@ -3552,6 +3554,10 @@ func (m *MCPToolMatcher) Match(role types.Role, condition types.RoleConditionTyp
 	var selectors []string
 	if mcp := role.GetMCPPermissions(condition); mcp != nil {
 		selectors = mcp.Tools
+	}
+
+	if m.RegexName != "" {
+		return slices.Contains(selectors, m.RegexName), nil
 	}
 
 	result, err := utils.SliceMatchesRegex(m.Name, selectors)

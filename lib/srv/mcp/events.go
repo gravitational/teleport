@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 
-	prototypes "github.com/gogo/protobuf/types"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
@@ -31,35 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-type baseMessage struct {
-	JSONRPC string            `json:"jsonrpc"`
-	Method  mcp.MCPMethod     `json:"method"`
-	ID      any               `json:"id,omitempty"`
-	Params  *apievents.Struct `json:"params,omitempty"`
-}
-
-func (m *baseMessage) protoParams() *prototypes.Struct {
-	if m.Params == nil {
-		return nil
-	}
-	return &m.Params.Struct
-}
-
-func (m *baseMessage) getName() (string, bool) {
-	if m.Params == nil {
-		return "", false
-	}
-	value, ok := m.Params.Fields["name"]
-	if !ok {
-		return "", false
-	}
-	x, ok := value.GetKind().(*prototypes.Value_StringValue)
-	if !ok {
-		return "", false
-	}
-	return x.StringValue, true
-}
 
 func shouldEmitMCPEvent(method mcp.MCPMethod) bool {
 	switch method {
@@ -105,7 +75,7 @@ func emitEndEvent(ctx context.Context, session *sessionCtx) {
 	})
 }
 
-func emitNotificationEvent(ctx context.Context, session *sessionCtx, msg *baseMessage) {
+func emitNotificationEvent(ctx context.Context, session *sessionCtx, msg *baseRequest) {
 	emitEvent(ctx, session, &apievents.MCPSessionNotification{
 		Metadata: apievents.Metadata{
 			Type:        events.MCPSessionNotificationEvent,
@@ -123,7 +93,7 @@ func emitNotificationEvent(ctx context.Context, session *sessionCtx, msg *baseMe
 	})
 }
 
-func emitRequestEvent(ctx context.Context, session *sessionCtx, msg *baseMessage, err error) {
+func emitRequestEvent(ctx context.Context, session *sessionCtx, msg *baseRequest, err error) {
 	// TODO(greedy52) is this assumption safe?
 	if msg.ID == nil {
 		emitNotificationEvent(ctx, session, msg)
