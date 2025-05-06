@@ -117,11 +117,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 	for _, watch := range watches {
 		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
-		case types.KindAccessRequest:
-			if c.DynamicAccess == nil {
-				return nil, trace.BadParameter("missing parameter DynamicAccess")
-			}
-			collections.byKind[resourceKind] = &genericCollection[types.AccessRequest, noReader, accessRequestExecutor]{cache: c, watch: watch}
 		case types.KindDatabaseObject:
 			if c.DatabaseObjects == nil {
 				return nil, trace.BadParameter("missing parameter DatabaseObject")
@@ -279,32 +274,6 @@ func (r resourceKind) String() string {
 	}
 	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
-
-type accessRequestExecutor struct{}
-
-func (accessRequestExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.AccessRequest, error) {
-	return cache.DynamicAccess.GetAccessRequests(ctx, types.AccessRequestFilter{})
-}
-
-func (accessRequestExecutor) upsert(ctx context.Context, cache *Cache, resource types.AccessRequest) error {
-	return cache.dynamicAccessCache.UpsertAccessRequest(ctx, resource)
-}
-
-func (accessRequestExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.dynamicAccessCache.DeleteAllAccessRequests(ctx)
-}
-
-func (accessRequestExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.dynamicAccessCache.DeleteAccessRequest(ctx, resource.GetName())
-}
-
-func (accessRequestExecutor) isSingleton() bool { return false }
-
-func (accessRequestExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[types.AccessRequest, noReader] = accessRequestExecutor{}
 
 type userExecutor struct{}
 
