@@ -58,7 +58,7 @@ interface FilterPanelProps {
   setParams: (params: UnifiedResourcesQueryParams) => void;
   selectVisible: () => void;
   selected: boolean;
-  BulkActions?: React.ReactElement<any>;
+  BulkActions?: React.ReactElement;
   currentViewMode: ViewMode;
   setCurrentViewMode: (viewMode: ViewMode) => void;
   expandAllLabels: boolean;

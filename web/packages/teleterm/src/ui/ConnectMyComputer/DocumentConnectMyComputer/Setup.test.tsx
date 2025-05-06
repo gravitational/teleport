@@ -111,7 +111,7 @@ describe('setup of DocumentConnectMyComputer', () => {
 });
 
 function setupAppContext(): {
-  elementToRender: React.ReactElement<any>;
+  elementToRender: React.ReactElement;
   appContext: MockAppContext;
 } {
   const cluster = makeRootCluster({

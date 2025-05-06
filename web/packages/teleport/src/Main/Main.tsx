@@ -66,7 +66,7 @@ export interface MainProps {
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
-  CustomLogo?: () => React.ReactElement<any>;
+  CustomLogo?: () => React.ReactElement;
   inviteCollaboratorsFeedback?: ReactNode;
 }
 

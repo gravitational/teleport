@@ -39,7 +39,7 @@ export const getParameterPicker = (
 
 export interface SearchPicker {
   picker: React.ComponentType<{
-    input: React.ReactElement<any>;
+    input: React.ReactElement;
   }>;
   placeholder: string;
 }

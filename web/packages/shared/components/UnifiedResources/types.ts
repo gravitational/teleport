@@ -113,7 +113,7 @@ export interface UnifiedResourceGitServer {
 }
 
 export type UnifiedResourceUi = {
-  ActionButton: React.ReactElement<any>;
+  ActionButton: React.ReactElement;
 };
 
 export type UnifiedResourceDefinition =
@@ -152,7 +152,7 @@ export interface UnifiedResourceViewItem {
   }[];
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
-  ActionButton: React.ReactElement<any>;
+  ActionButton: React.ReactElement;
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;

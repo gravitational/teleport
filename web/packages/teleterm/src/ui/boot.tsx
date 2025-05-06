@@ -82,7 +82,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   return globalsCopy;
 }
 
-function renderApp(content: React.ReactElement<any>): void {
+function renderApp(content: React.ReactElement): void {
   createRoot(document.getElementById('app')).render(content);
 }
 

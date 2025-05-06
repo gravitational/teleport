@@ -48,7 +48,7 @@ export type ModalProps = {
    * setAttribute on the outermost element. This is no longer the case, so technically this type can
    * be adjusted if needed.
    */
-  children?: React.ReactElement<any>;
+  children?: React.ReactElement;
 
   /**
    * Properties applied to the Backdrop element.

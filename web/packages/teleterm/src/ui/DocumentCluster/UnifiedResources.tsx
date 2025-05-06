@@ -586,7 +586,7 @@ function NoResources(props: {
   canUseConnectMyComputer: boolean;
   onConnectMyComputerCtaClick(): void;
 }) {
-  let $content: React.ReactElement<any>;
+  let $content: React.ReactElement;
   if (!props.canCreate) {
     $content = (
       <>

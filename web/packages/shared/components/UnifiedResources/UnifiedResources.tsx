@@ -140,13 +140,13 @@ export interface UnifiedResourcesProps {
   resourcesFetchAttempt: Attempt;
   fetchResources(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
-  Header?: React.ReactElement<any>;
+  Header?: React.ReactElement;
   /**
    * Typically used to inform the user that there are no matching resources when
    * they want to list resources without filtering the list with a search query.
    * Rendered only when the resource list is empty and there's no search query.
    * */
-  NoResources: React.ReactElement<any>;
+  NoResources: React.ReactElement;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.

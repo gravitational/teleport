@@ -35,14 +35,11 @@ import { AccessDurationReview } from '../../../AccessDuration';
 import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
 import { SubmitReview, SuggestedAccessList } from '../types';
 
-type ReviewStateOption = Option<RequestState, React.ReactElement<any>> & {
+type ReviewStateOption = Option<RequestState, React.ReactElement> & {
   disabled?: boolean;
 };
 
-type SuggestedAcessListOption = Option<
-  SuggestedAccessList,
-  React.ReactElement<any>
->;
+type SuggestedAcessListOption = Option<SuggestedAccessList, React.ReactElement>;
 
 export interface RequestReviewProps {
   submitReview(s: SubmitReview): void;

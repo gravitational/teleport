@@ -33,7 +33,7 @@ export type HybridListOpts = {
     selectedResourceKind: LockResourceKind,
     resources: any[],
     listProps: HybridListProps
-  ): React.ReactElement<any>;
+  ): React.ReactElement;
 };
 
 export function HybridList(props: CommonListProps & { opts: HybridListOpts }) {
