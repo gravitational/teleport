@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { within } from '@testing-library/react';
+import { fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { render, screen, waitFor } from 'design/utils/testing';
@@ -370,11 +370,13 @@ test('removing an MFA method', async () => {
   cfg.auth.allowPasswordless = true;
 
   await renderComponent(ctx);
-  await user.click(
+  fireEvent.click(
     within(screen.getByTestId('mfa-list')).getByRole('button', {
       name: 'Delete',
     })
   );
+  await screen.findByText('Verify my identity');
+
   await user.click(screen.getByText('Verify my identity'));
   const deleteStep = within(screen.getByTestId('delete-step'));
   await user.click(deleteStep.getByRole('button', { name: 'Delete' }));
