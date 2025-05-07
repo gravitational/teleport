@@ -70,6 +70,11 @@ app_service:
       # Specifies the local user account under which the command will be executed.
       # Required for stdio-based MCP servers.
       run_as_local_user: "dev"
+      # (Optional) Specifies the OS signal to send for gracefully stopping the
+      # process. Defaults to 0x2 (SIGINT) as it is a common signal for stopping
+      # programs listening on stdin. Signal 0x9 (SIGKILL) is sent automatically after
+      # 10 seconds if the process has not exited.
+      stop_signal: 0x2
 
   - name: "dev-slack-api"
     description: "Slack API to dev channels"
@@ -170,12 +175,10 @@ are from server "teleport-dev-files" and "teleport-dev-slack-api".
 
 <img src="assets/0209-claude-desktop-tools.png" alt="Claude Desktop tools" height="300"/>
 
+Note that only tools allowed by their Teleport roles will show up.
+
 Now start chatting with Claude to use these tools. For example, "can you
 retrieve me the content of file xxxx?", "can you search files related to xxxx?".
-
-If Claude is asked to perform a write operation, the tool invocation receives an
-access-denied error, and Claude understands the operation is denied by Teleport
-based on the context provided in the error.
 
 #### auditor - track MCP server usage
 
@@ -238,13 +241,13 @@ Since MCP servers are registered as apps, existing role option `app_labels` is
 used to control which MCP servers a role can access based on the labels of the
 MCP server apps.
 
-A new role option `mcp_tools` is introduced to apply fine-grained control on
+A new role option `mcp.tools` is introduced to apply fine-grained control on
 which tools from the MCP server should be allowed. Similar to
-`kubernetes_resources.name`, entries in `mcp_tools` also support glob and regex
+`kubernetes_resources.name`, entries in `mcp.tools` also support glob and regex
 representations to make whitelisting or blacklisting easier. If `mcp.tools` is not
 specified for a role, all tools are allowed by default. This new option
-`mcp.tools` will be enforced per JSON-RPC `tool/call` call, which will be
-detailed in the next section.
+`mcp.tools` will be enforced per JSON-RPC `tools/list` and `tools/call`, which
+will be detailed in the next section.
 
 The procedure to access an MCP server from `tsh` is the same as any other app --
 a user has to obtain a user certificate with `route_to_app` for the TLS routing
@@ -275,8 +278,18 @@ forwarded to the launched MCP server:
     error and send it back to the client connection. Do not forward the request to
     the launched MCP server in this case.
 - Record audit events for eligible messages.
+- Track the message type by the message ID.
 
-The launched MCP server should be stopped once the connection ends.
+Incoming bytes from the server are processed as below:
+- Parsed into MCP/JSON-RPC messages.
+- Look up the message type by the message ID. If the message is a response for a
+  `tools/list` call, use the access-checker to filter out the tools not allowed
+  for this identity.
+
+The launched MCP server should be stopped once the connection ends. A stop
+signal (default SIGINT) is first sent to the launched process for a graceful
+termination. SIGKILL is sent automatically after 10 seconds if the process has
+not exited.
 
 #### Implementation - "tsh mcp" commands
 
@@ -365,6 +378,13 @@ dedicated docker section in the definition and use Docker APIs to launch the
 containers. Alternatively, once support for HTTP-based MCP servers is added, we
 can move away from stdio-based MCP servers.
 
+With `tools/list` filtering, AI clients are only provided with the tools they
+are explicitly allowed to call. They will typically only be able to invoke tools
+that appear in this list. However, nothing prevents a malicious AI client (or a
+dev tool) to call a tool that is not present in `tools/list`. Therefore, the
+implementation explicitly checks `tools/call` and denies them when necessary, in
+addition to `tools/list` filtering.
+
 ## Future Development
 
 One key improvement that can be done is to move MCP servers to a standalone
@@ -424,17 +444,6 @@ re-establish the connection with Proxy when possible. Note that the local
 JSON-RPC server does NOT need to understand/implement the full MCP protocol as
 it only forwards the protocol to backend when things are good and rejects the
 request with hint when `tsh` session expires.
-
-### Phase 2 - "tools/list" filtering
-
-The initial implementation can deny access to specific tools through
-"tools/call". However, users can still see all available tools from the MCP
-server, including the ones they don't have access to.
-
-Ideally, the response of "tools/list" should be filtered so only allowed tools
-are present. However, supporting this filter requires a more complex server
-implementation and a lot driver refactoring. Special handling on
-"notifications/tools/list_changed" may also be necessary.
 
 ### Other improvements - RBAC on resources and prompts
 
