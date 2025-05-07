@@ -5177,6 +5177,9 @@ message SAMLConnectorSpecV2 {
   // ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED
   // is treated as NO.
   SAMLForceAuthn ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
+  // PreferredRequestBinding is a preferred SAML request binding method.
+  // Value be "http-post" or "http-redirect".
+  string PreferredRequestBinding = 19 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5229,6 +5232,7 @@ message SAMLAuthRequest {
   bool CheckUser = 4 [(gogoproto.jsontag) = "check_user"];
 
   // RedirectURL will be used by browser.
+  // Value only set if the PreferredRequestBinding "http-redirect".
   string RedirectURL = 5 [(gogoproto.jsontag) = "redirect_url"];
 
   // PublicKey is an optional public key, users want these
@@ -5295,6 +5299,12 @@ message SAMLAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+  // PreferredRequestBinding is a preferred SAML request binding method.
+  // Value be "http-post" or "http-redirect".
+  string PreferredRequestBinding = 23 [(gogoproto.jsontag) = "preferred_request_binding,omitempty"];
+  // PostFormData contains HTML POST form that contains the SAML request data.
+  // Value only set if the PreferredRequestBinding "http-redirect".
+  bytes PostFormData = 24 [(gogoproto.jsontag) = "post_form_data"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
