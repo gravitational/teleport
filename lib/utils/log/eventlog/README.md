@@ -77,27 +77,17 @@ an individual component in Visual Studio Installer. If you followed [the Telepor
 build process instructions](/web/packages/teleterm/README.md#native-dependencies-on-windows), then
 you most likely have installed it already.
 
-Depending on the version of SDK and MSVC, you might need to adjust the exact paths to the tools
-since the versions are included as folder names.
+To compile `msgfile.dll`, execute the following commands from the root of the repo. They should
+result in `msgfile.dll` being created in the `msgfile` directory.
 
 ```
-."C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\mc.exe" .\lib\utils\log\eventlog\msgfile.mc
+. .\build.assets\windows\build.ps1
+Compile-Message-File -MessageFile "$PWD\lib\utils\log\eventlog\msgfile.mc" -CompileDir "$PWD\msgfile"
 ```
 
-This should create `msgfile.rc` in the PWD (among other files) which we pass to `rc.exe`:
 
-```
-."C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\rc.exe" /r .\msgfile.rc
-```
-
-This should create `msgfile.res` in the PWD which we pass to `link.exe`:
-
-```
-."C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.40.33807\bin\Hostarm64\x64\link.exe" -dll -noentry -out:msgfile.dll .\msgfile.res /MACHINE:X64
-```
-
-This should finally produce `msgfile.dll` which can be distributed with the app. In Teleport Connect
-for example we distribute this file next to `tsh.exe`.
+In Teleport Connect we distribute this file next to `tsh.exe`. The path to the DLL can be specified
+as `CONNECT_MSGFILE_DLL_PATH` during `pnpm package-term`.
 
 Useful resources:
 
