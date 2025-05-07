@@ -579,7 +579,7 @@ func (x *ClusterDetails) GetFipsEnabled() bool {
 // Request message for a proxied Windows desktop session.
 type ProxyWindowsDesktopSessionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// A chunk of data from the connection. Can be nonempty even in the first message, but it's also legal for it to be empty.
+	// A chunk of data from the connection. Must be empty in the first message and nonempty in subsequent messages.
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	// Target cluster and desktop. Must be set in the first message and unset in subsequent messages.
 	DialTarget    *TargetWindowsDesktop `protobuf:"bytes,2,opt,name=dial_target,json=dialTarget,proto3" json:"dial_target,omitempty"`

@@ -19,7 +19,6 @@ package desktop
 import (
 	"context"
 	"log/slog"
-	"math/rand/v2"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -51,6 +50,7 @@ type ConnectionConfig struct {
 // DesktopsGetter is responsible for getting desktops and desktop services.
 type DesktopsGetter interface {
 	// GetWindowsDesktops returns windows desktop hosts.
+	// TODO(gzdunek): Use ListWindowsDesktops that supports pagination.
 	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 	// GetWindowsDesktopService returns a registered Windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
@@ -74,7 +74,7 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 		return nil, trace.NotFound("no Windows desktops were found")
 	}
 
-	var validServiceIDs []string
+	validServiceIDs := make([]string, 0, len(winDesktops))
 	for _, desktop := range winDesktops {
 		if desktop.GetHostID() == "" {
 			// desktops with empty host ids are invalid and should
@@ -83,26 +83,16 @@ func ConnectToWindowsService(ctx context.Context, config *ConnectionConfig) (con
 		}
 		validServiceIDs = append(validServiceIDs, desktop.GetHostID())
 	}
-	rand.Shuffle(len(validServiceIDs), func(i, j int) {
-		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
-	})
 
-	for _, id := range validServiceIDs {
+	for _, id := range utils.ShuffleVisit(validServiceIDs) {
 		conn, err := tryConnect(ctx, id, config)
-		if err != nil && !trace.IsConnectionProblem(err) {
-			return nil, trace.WrapWithMessage(err,
-				"error connecting to windows_desktop_service %q", id)
-		}
-		if trace.IsConnectionProblem(err) {
-			config.Log.WarnContext(ctx, "failed to connect to windows_desktop_service",
-				"windows_desktop_service_id", id,
-				"error", err,
-			)
-			continue
-		}
 		if err == nil {
 			return conn, nil
 		}
+		config.Log.WarnContext(ctx, "failed to connect to windows_desktop_service",
+			"windows_desktop_service_id", id,
+			"error", err,
+		)
 	}
 	return nil, trace.Errorf("failed to connect to any windows_desktop_service")
 }
