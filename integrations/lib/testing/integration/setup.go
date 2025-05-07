@@ -57,6 +57,8 @@ func (s *BaseSetup) SetupSuite(t *testing.T) {
 }
 
 func (s *BaseSetup) SetupService() {
+	s.T().Helper()
+
 	t := s.T()
 	var err error
 
@@ -75,6 +77,8 @@ func (s *AuthSetup) SetupSuite(t *testing.T) {
 }
 
 func (s *AuthSetup) SetupService(authServiceOptions ...AuthServiceOption) {
+	s.T().Helper()
+
 	s.BaseSetup.SetupService()
 	t := s.T()
 	auth, err := s.Integration.NewAuthService(authServiceOptions...)
@@ -96,6 +100,8 @@ func (s *ProxySetup) SetupSuite(t *testing.T) {
 }
 
 func (s *ProxySetup) SetupService() {
+	s.T().Helper()
+
 	s.AuthSetup.SetupService()
 	t := s.T()
 	proxy, err := s.Integration.NewProxyService(s.Auth)
@@ -112,6 +118,8 @@ func (s *SSHSetup) SetupSuite(t *testing.T) {
 }
 
 func (s *SSHSetup) SetupService() {
+	s.T().Helper()
+
 	s.ProxySetup.SetupService()
 	t := s.T()
 	ssh, err := s.Integration.NewSSHService(s.Auth)

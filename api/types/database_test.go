@@ -441,7 +441,7 @@ func TestMySQLServerVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, "", database.GetMySQLServerVersion())
+	require.Empty(t, database.GetMySQLServerVersion())
 
 	database.SetMySQLServerVersion("8.0.1")
 	require.Equal(t, "8.0.1", database.GetMySQLServerVersion())

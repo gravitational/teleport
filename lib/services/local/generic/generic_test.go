@@ -455,7 +455,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r1}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "ID"),
 	))
-	require.Equal(t, "", nextKey)
+	require.Empty(t, nextKey)
 
 	page, nextKey, err = service.ListResourcesWithFilter(ctx, 1, "", func(r *testResource) bool {
 		return r.Metadata.Name == "r2"
@@ -464,7 +464,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*testResource{r2}, page,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "ID"),
 	))
-	require.Equal(t, "", nextKey)
+	require.Empty(t, nextKey)
 }
 
 func TestGenericListResourcesWithFilterForScale(t *testing.T) {

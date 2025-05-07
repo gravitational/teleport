@@ -1070,7 +1070,7 @@ func TestProtocolString(t *testing.T) {
 		got := Protocol(i).String()
 		switch i {
 		case -1, len(protocolStrings) + 1:
-			require.Equal(t, "", got)
+			require.Empty(t, got)
 		default:
 			require.Equal(t, protocolStrings[Protocol(i)], got)
 		}

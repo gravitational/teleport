@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -340,7 +339,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	kube, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name:      "kube",
-			Namespace: apidefaults.Namespace,
+			Namespace: defaults.Namespace,
 		},
 		types.KubernetesClusterSpecV3{},
 	)
@@ -348,7 +347,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	kubeServer, err := types.NewKubernetesServerV3(
 		types.Metadata{
 			Name:      "kube_server",
-			Namespace: apidefaults.Namespace,
+			Namespace: defaults.Namespace,
 		},
 		types.KubernetesServerSpecV3{
 			Cluster: kube,

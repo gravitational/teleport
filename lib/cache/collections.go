@@ -1109,7 +1109,7 @@ func (e certAuthorityExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 		// if caType was added in this major version we might get a BadParameter
 		// error if we're connecting to an older upstream that doesn't know about it
 		if err != nil {
-			if !(types.IsUnsupportedAuthorityErr(err) && caType.NewlyAdded()) {
+			if !types.IsUnsupportedAuthorityErr(err) || !caType.NewlyAdded() {
 				return nil, trace.Wrap(err)
 			}
 			continue
