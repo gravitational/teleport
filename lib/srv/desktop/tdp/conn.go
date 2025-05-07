@@ -206,6 +206,10 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 		// write them to the client
 		for {
 			msg, err := tdpConn.ReadMessage()
+			if utils.IsOKNetworkError(err) {
+				errCh <- nil
+				return
+			}
 			if err != nil {
 				isFatal := IsFatalErr(err)
 				severity := SeverityError
@@ -214,14 +218,14 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 				}
 				sendErr := sendTDPAlert(err, severity)
 
-				// If the error wasn't fatal and we successfully
+				// If the error wasn't fatal, and we successfully
 				// sent it back to the client, continue.
 				if !isFatal && sendErr == nil {
 					continue
 				}
 
-				// If the error was fatal or we failed to send it back
-				// to the client, send it to the errs channel and end
+				// If the error was fatal, or we failed to send it back
+				// to the client, send it to the errCh channel and end
 				// the session.
 				if sendErr != nil {
 					err = sendErr
@@ -235,6 +239,10 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 				return
 			}
 			_, err = client.Write(encoded)
+			if utils.IsOKNetworkError(err) {
+				errCh <- nil
+				return
+			}
 			if err != nil {
 				errCh <- err
 				return
@@ -247,6 +255,10 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 		defer closeOnce.Do(close)
 
 		_, err := io.Copy(server, client)
+		if utils.IsOKNetworkError(err) {
+			errCh <- nil
+			return
+		}
 		if err != nil {
 			errCh <- err
 			return
@@ -258,7 +270,7 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errCh:
-			if err != nil && !utils.IsOKNetworkError(err) {
+			if err != nil {
 				errs = append(errs, err)
 			}
 		case <-ctx.Done():
