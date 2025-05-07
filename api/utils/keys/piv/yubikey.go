@@ -22,8 +22,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"strings"
@@ -54,6 +58,8 @@ type YubiKey struct {
 	serialNumber uint32
 	// version is the YubiKey's version.
 	version piv.Version
+	// pinCache can be used to skip PIN prompts for keys that have PIN caching enabled.
+	pinCache *pinCache
 }
 
 // FindYubiKey finds a YubiKey PIV card by serial number. If the provided
@@ -107,6 +113,7 @@ func findYubiKeyCards() ([]string, error) {
 
 func newYubiKey(card string) (*YubiKey, error) {
 	y := &YubiKey{
+		pinCache: newPINCache(),
 		conn: &sharedPIVConnection{
 			card: card,
 		},
@@ -140,7 +147,52 @@ const (
 	signTouchPromptDelay = time.Millisecond * 200
 )
 
+var (
+	ErrMissingTeleportCert = trace.BadParameterError{
+		Message: "hardware key agent cannot perform signatures on PIV slots that aren't configured for Teleport. " +
+			"The PIV slot should be configured automatically by the Teleport client during login. If you are " +
+			"are configuring the PIV slot manually, you must also generate a certificate in the slot with " +
+			"\"teleport\" as the organization name: " +
+			"e.g. \"ykman piv keys generate -a ECCP256 9a pub.pem && ykman piv certificate generate 9a pub.pem -s O=teleport\"",
+	}
+)
+
 func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo, prompt hardwarekey.Prompt, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	pivSlot, err := parsePIVSlot(ref.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check that the public key in the slot matches our record.
+	slotCert, err := y.conn.attest(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type cryptoPublicKeyI interface {
+		Equal(x crypto.PublicKey) bool
+	}
+	if slotPub, ok := slotCert.PublicKey.(cryptoPublicKeyI); !ok {
+		return nil, trace.BadParameter("expected crypto.PublicKey but got %T", slotCert.PublicKey)
+	} else if !slotPub.Equal(ref.PublicKey) {
+		return nil, trace.CompareFailed("public key mismatch on PIV slot 0x%x", pivSlot.Key)
+	}
+
+	// If this sign request is coming from the hardware key agent, ensure that the requested PIV
+	// slot was configured by a Teleport client, or manually configured by the user / hardware key
+	// administrator. Manual configuration is used in cases where the default PIV management key
+	// is not used, e.g. when the hardware key is managed by a third party provider by an admin.
+	if keyInfo.AgentKey {
+		cert, err := y.getCertificate(pivSlot)
+		switch {
+		case errors.Is(err, piv.ErrNotFound):
+			return nil, trace.Wrap(&ErrMissingTeleportCert, "certificate not found in PIV slot 0x%x", pivSlot.Key)
+		case err != nil:
+			return nil, trace.Wrap(err)
+		case !isTeleportMetadataCertificate(cert):
+			return nil, trace.Wrap(&ErrMissingTeleportCert, nonTeleportCertificateMessage(pivSlot, cert))
+		}
+	}
+
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 
@@ -185,8 +237,8 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 				defer touchPromptDelayTimer.Reset(signTouchPromptDelay)
 			}
 		}
-		pass, err := prompt.AskPIN(ctx, hardwarekey.PINRequired, keyInfo)
-		return pass, trace.Wrap(err)
+		pin, err := y.pinCache.PromptOrGetPIN(ctx, prompt, hardwarekey.PINRequired, keyInfo, ref.PINCacheTTL)
+		return pin, trace.Wrap(err)
 	}
 
 	pinPolicy := piv.PINPolicyNever
@@ -211,11 +263,6 @@ func (y *YubiKey) sign(ctx context.Context, ref *hardwarekey.PrivateKeyRef, keyI
 		// a previous recent call, the signature will succeed as expected of the "once" policy.
 		auth.PINPolicy = piv.PINPolicyNever
 		manualRetryWithPIN = true
-	}
-
-	pivSlot, err := parsePIVSlot(ref.SlotKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	privateKey, err := y.conn.privateKey(pivSlot, ref.PublicKey, auth)
@@ -290,7 +337,7 @@ func (y *YubiKey) Reset() error {
 }
 
 // generatePrivateKey generates a new private key in the given PIV slot.
-func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPolicy, algorithm hardwarekey.SignatureAlgorithm, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	touchPolicy := piv.TouchPolicyNever
 	if policy.TouchRequired {
 		touchPolicy = piv.TouchPolicyCached
@@ -301,8 +348,24 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		pinPolicy = piv.PINPolicyOnce
 	}
 
+	var alg piv.Algorithm
+	switch algorithm {
+	// Use ECDSA key by default.
+	case hardwarekey.SignatureAlgorithmEC256, 0:
+		alg = piv.AlgorithmEC256
+	case hardwarekey.SignatureAlgorithmEd25519:
+		// TODO(Joerger): Currently algorithms are only specified in tests, but some users pre-generate
+		// their keys in custom slots with custom algorithms, so we should try to support Ed25519 keys.
+		// Currently the Ed25519 algorithm is only supported by SoloKeys and YubiKeys v5.7.x+
+		return nil, trace.BadParameter("Ed25519 keys are not currently supported")
+	case hardwarekey.SignatureAlgorithmRSA2048:
+		alg = piv.AlgorithmRSA2048
+	default:
+		return nil, trace.BadParameter("unknown algorithm option %v", algorithm)
+	}
+
 	opts := piv.Key{
-		Algorithm:   piv.AlgorithmEC256,
+		Algorithm:   alg,
 		PINPolicy:   pinPolicy,
 		TouchPolicy: touchPolicy,
 	}
@@ -318,7 +381,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		return nil, trace.Wrap(err)
 	}
 
-	return y.getKeyRef(slot)
+	return y.getKeyRef(slot, pinCacheTTL)
 }
 
 // SetMetadataCertificate creates a self signed certificate and stores it in the YubiKey's
@@ -362,7 +425,7 @@ func (y *YubiKey) attestKey(slot piv.Slot) (slotCert *x509.Certificate, attCert 
 	return slotCert, attCert, att, nil
 }
 
-func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
+func (y *YubiKey) getKeyRef(slot piv.Slot, pinCacheTTL time.Duration) (*hardwarekey.PrivateKeyRef, error) {
 	slotCert, attCert, att, err := y.attestKey(slot)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -384,6 +447,7 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 				},
 			},
 		},
+		PINCacheTTL: pinCacheTTL,
 	}
 
 	if err := ref.Validate(); err != nil {
@@ -397,6 +461,27 @@ func (y *YubiKey) getKeyRef(slot piv.Slot) (*hardwarekey.PrivateKeyRef, error) {
 func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	err := y.conn.setPIN(oldPin, newPin)
 	return trace.Wrap(err)
+}
+
+// checkOrSetPIN prompts the user for PIN and verifies it with the YubiKey.
+// If the user provides the default PIN, they will be prompted to set a
+// non-default PIN and PUK before continuing.
+func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) error {
+	pin, err := y.pinCache.PromptOrGetPIN(ctx, prompt, hardwarekey.PINOptional, keyInfo, pinCacheTTL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch pin {
+	case piv.DefaultPIN, "":
+		pin, err = y.setPINAndPUKFromDefault(ctx, prompt, keyInfo)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		y.pinCache.setPIN(pin, pinCacheTTL)
+	}
+
+	return trace.Wrap(y.verifyPIN(pin))
 }
 
 func (y *YubiKey) setPINAndPUKFromDefault(ctx context.Context, prompt hardwarekey.Prompt, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
@@ -675,4 +760,33 @@ func SelfSignedMetadataCertificate(subject pkix.Name) (*x509.Certificate, error)
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
+}
+
+func isTeleportMetadataCertificate(cert *x509.Certificate) bool {
+	return len(cert.Subject.Organization) > 0 && cert.Subject.Organization[0] == certOrgName
+}
+
+func nonTeleportCertificateMessage(slot piv.Slot, cert *x509.Certificate) string {
+	// Gather a small list of user-readable x509 certificate fields to display to the user.
+	sum := sha256.Sum256(cert.Raw)
+	fingerPrint := hex.EncodeToString(sum[:])
+	return fmt.Sprintf(`Certificate in YubiKey PIV slot %q is not a Teleport client cert:
+Slot %s:
+	Algorithm:		%v
+	Subject DN:		%v
+	Issuer DN:		%v
+	Serial:			%v
+	Fingerprint:	%v
+	Not before:		%v
+	Not after:		%v
+`,
+		slot, slot,
+		cert.SignatureAlgorithm,
+		cert.Subject,
+		cert.Issuer,
+		cert.SerialNumber,
+		fingerPrint,
+		cert.NotBefore,
+		cert.NotAfter,
+	)
 }

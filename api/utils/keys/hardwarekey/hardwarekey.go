@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -124,6 +125,8 @@ type PrivateKeyRef struct {
 	// AttestationStatement contains the hardware private key's attestation statement, which is
 	// to attest the touch and pin requirements for this hardware private key during login.
 	AttestationStatement *AttestationStatement `json:"attestation_statement"`
+	// PINCacheTTL is how long hardware key prompts should cache the PIN for this key, if at all.
+	PINCacheTTL time.Duration `json:"pin_cache_ttl"`
 }
 
 // encode encodes a [PrivateKeyRef] to JSON.
@@ -234,8 +237,13 @@ type PrivateKeyConfig struct {
 	//   - touch & pin   -> 9d
 	//   - touch & !pin  -> 9e
 	CustomSlot PIVSlotKeyString
+	// Algorithm is the key algorithm to use. Defaults to [AlgorithmEC256].
+	// [AlgorithmEd25519] is not supported by all hardware keys.
+	Algorithm SignatureAlgorithm
 	// ContextualKeyInfo contains additional info to associate with the key.
 	ContextualKeyInfo ContextualKeyInfo
+	// PINCacheTTL is an option to enable PIN caching for this key with the specified TTL.
+	PINCacheTTL time.Duration
 }
 
 // ContextualKeyInfo contains contextual information associated with a hardware [PrivateKey].
@@ -246,4 +254,21 @@ type ContextualKeyInfo struct {
 	Username string
 	// ClusterName is a Teleport cluster name that the key is associated with.
 	ClusterName string
+	// AgentKey specifies whether this key is being utilized through an agent.
+	// The hardware key service may impose additional restrictions in this case,
+	// such as checking that the PIV slot certificate matches the Teleport client
+	// metadata certificate format, to ensure the agent doesn't provide access to
+	// non teleport client PIV keys.
+	AgentKey bool
+	// Command is the running command utilizing this key.
+	Command string
 }
+
+// SignatureAlgorithm is a signature key algorithm option.
+type SignatureAlgorithm int
+
+const (
+	SignatureAlgorithmEC256 SignatureAlgorithm = iota + 1
+	SignatureAlgorithmEd25519
+	SignatureAlgorithmRSA2048
+)

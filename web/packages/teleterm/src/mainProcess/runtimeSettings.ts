@@ -39,7 +39,7 @@ const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
 const TSH_BIN_DEFAULT_PATH_FOR_DEV = path.resolve(
   __dirname,
   '..', '..', '..', '..', '..', '..',
-  'build', 'tsh',
+  'build', process.platform === 'win32' ? 'tsh.exe' : 'tsh',
 );
 
 // Refer to the docs of RuntimeSettings type for an explanation behind dev, debug and insecure.

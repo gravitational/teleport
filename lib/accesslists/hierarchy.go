@@ -20,12 +20,14 @@ package accesslists
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/trait"
@@ -38,18 +40,6 @@ type RelationshipKind int
 const (
 	RelationshipKindMember RelationshipKind = iota
 	RelationshipKindOwner
-)
-
-// MembershipOrOwnershipType represents the type of membership or ownership a User has for an Access List.
-type MembershipOrOwnershipType int
-
-const (
-	// MembershipOrOwnershipTypeNone indicates that the User lacks valid Membership or Ownership for the Access List.
-	MembershipOrOwnershipTypeNone MembershipOrOwnershipType = iota
-	// MembershipOrOwnershipTypeExplicit indicates that the User has explicit Membership or Ownership for the Access List.
-	MembershipOrOwnershipTypeExplicit
-	// MembershipOrOwnershipTypeInherited indicates that the User has inherited Membership or Ownership for the Access List.
-	MembershipOrOwnershipTypeInherited
 )
 
 // AccessListAndMembersGetter is a minimal interface for fetching AccessLists by name, and AccessListMembers for an Access List.
@@ -83,7 +73,7 @@ func getMembersFor(ctx context.Context, accessListName string, g AccessListAndMe
 			allMembers = append(allMembers, member)
 			continue
 		}
-		childMembers, err := getMembersFor(ctx, member.Spec.Name, g, visited)
+		childMembers, err := getMembersFor(ctx, member.GetName(), g, visited)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -133,7 +123,7 @@ func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.A
 		if member.Spec.MembershipKind != accesslist.MembershipKindList {
 			continue
 		}
-		memberList, err := g.GetAccessList(ctx, member.Spec.Name)
+		memberList, err := g.GetAccessList(ctx, member.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -146,7 +136,6 @@ func ValidateAccessListWithMembers(ctx context.Context, accessList *accesslist.A
 
 // collectOwners is a helper to recursively collect all Owners for an Access List, including inherited Owners.
 func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter, owners map[string]*accesslist.Owner, visited map[string]struct{}) error {
-	//owners := make([]*accesslist.Owner, 0)
 	if _, ok := visited[accessList.GetName()]; ok {
 		return nil
 	}
@@ -164,7 +153,6 @@ func collectOwners(ctx context.Context, accessList *accesslist.AccessList, g Acc
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		//owners = append(owners, ownerMembers...)
 		for _, ownerMember := range ownerMembers {
 			owners[ownerMember.Name] = ownerMember
 		}
@@ -188,7 +176,7 @@ func collectMembersAsOwners(ctx context.Context, accessListName string, g Access
 
 	for _, member := range listMembers {
 		owners = append(owners, &accesslist.Owner{
-			Name:             member.Spec.Name,
+			Name:             member.GetName(),
 			Description:      member.Metadata.Description,
 			IneligibleStatus: "",
 			MembershipKind:   accesslist.MembershipKindUser,
@@ -224,7 +212,7 @@ func ValidateAccessListMember(
 	if member.Spec.MembershipKind != accesslist.MembershipKindList {
 		return nil
 	}
-	return validateAccessListMemberOrOwner(ctx, parentList, member.Spec.Name, RelationshipKindMember, g)
+	return validateAccessListMemberOrOwner(ctx, parentList, member.GetName(), RelationshipKindMember, g)
 }
 
 // ValidateAccessListOwner validates a new or existing AccessListOwner for an Access List.
@@ -319,7 +307,7 @@ func isReachable(
 	}
 	for _, member := range listMembers {
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			childList, err := g.GetAccessList(ctx, member.Spec.Name)
+			childList, err := g.GetAccessList(ctx, member.GetName())
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -402,7 +390,7 @@ func maxDepthDownwards(
 	}
 	for _, member := range listMembers {
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			childListName := member.Spec.Name
+			childListName := member.GetName()
 			depth, err := maxDepthDownwards(ctx, childListName, seen, g)
 			if err != nil {
 				return 0, trace.Wrap(err)
@@ -453,6 +441,26 @@ func maxDepthUpwards(
 	return maxDepth, nil
 }
 
+// userLockedError is used to check specific condition of user being locked with [IsUserLocked]. It
+// is also being matched by [trace.IsAccessDenied] while allowing creating a dynamic error message
+// containing the user name.
+type userLockedError struct{ err error }
+
+// newUserLockedError returns a new userLockedError.
+func newUserLockedError(user string) userLockedError {
+	return userLockedError{trace.AccessDenied("User %q is currently locked", user)}
+}
+
+func (e userLockedError) Unwrap() error { return e.err }
+func (e userLockedError) Error() string { return e.err.Error() }
+
+// IsUserLocked checks if the error was a result of the Access List member user having a lock.
+func IsUserLocked(err error) bool {
+	return errors.As(err, &userLockedError{})
+}
+
+// IsAccessListOwner checks if the given user is the Access List owner. It returns an error matched
+// by [IsUserLocked] if the user is locked.
 func IsAccessListOwner(
 	ctx context.Context,
 	user types.User,
@@ -460,16 +468,16 @@ func IsAccessListOwner(
 	g AccessListAndMembersGetter,
 	lockGetter services.LockGetter,
 	clock clockwork.Clock,
-) (MembershipOrOwnershipType, error) {
+) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
 		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
 			User: user.GetName(),
 		})
 		if err != nil {
-			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
 		if len(locks) > 0 {
-			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is currently locked", user.GetName())
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, newUserLockedError(user.GetName())
 		}
 	}
 
@@ -484,7 +492,7 @@ func IsAccessListOwner(
 				ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 				continue
 			}
-			return MembershipOrOwnershipTypeExplicit, nil
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
 		}
 		// Is user an inherited owner through any potential owner AccessLists?
 		if owner.MembershipKind == accesslist.MembershipKindList {
@@ -499,19 +507,21 @@ func IsAccessListOwner(
 				ownershipErr = trace.Wrap(err)
 				continue
 			}
-			if membershipType != MembershipOrOwnershipTypeNone {
+			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
 					ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 					continue
 				}
-				return MembershipOrOwnershipTypeInherited, nil
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 			}
 		}
 	}
 
-	return MembershipOrOwnershipTypeNone, trace.Wrap(ownershipErr)
+	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(ownershipErr)
 }
 
+// IsAccessListMember checks if the given user is the Access List member. It returns an error
+// matched by [IsUserLocked] if the user is locked.
 func IsAccessListMember(
 	ctx context.Context,
 	user types.User,
@@ -519,22 +529,22 @@ func IsAccessListMember(
 	g AccessListAndMembersGetter,
 	lockGetter services.LockGetter,
 	clock clockwork.Clock,
-) (MembershipOrOwnershipType, error) {
+) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
 		locks, err := lockGetter.GetLocks(ctx, true, types.LockTarget{
 			User: user.GetName(),
 		})
 		if err != nil {
-			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 		}
 		if len(locks) > 0 {
-			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is currently locked", user.GetName())
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, newUserLockedError(user.GetName())
 		}
 	}
 
 	members, err := fetchMembers(ctx, accessList.GetName(), g)
 	if err != nil {
-		return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 	}
 
 	var membershipErr error
@@ -552,7 +562,7 @@ func IsAccessListMember(
 				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
 				continue
 			}
-			return MembershipOrOwnershipTypeExplicit, nil
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
 		}
 		// Is user an inherited member through any potential member AccessLists?
 		if member.Spec.MembershipKind == accesslist.MembershipKindList {
@@ -567,7 +577,7 @@ func IsAccessListMember(
 				membershipErr = trace.Wrap(err)
 				continue
 			}
-			if membershipType != MembershipOrOwnershipTypeNone {
+			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
 				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
 					membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
 					continue
@@ -576,12 +586,12 @@ func IsAccessListMember(
 					membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
 					continue
 				}
-				return MembershipOrOwnershipTypeInherited, nil
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
 			}
 		}
 	}
 
-	return MembershipOrOwnershipTypeNone, trace.Wrap(membershipErr)
+	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.

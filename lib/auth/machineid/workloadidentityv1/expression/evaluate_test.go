@@ -19,6 +19,8 @@
 package expression_test
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,12 +34,14 @@ func TestEvaluate(t *testing.T) {
 	// True result.
 	result, err := expression.Evaluate(
 		`workload.podman.attested && workload.podman.container.image == "ubuntu"`,
-		&workloadidentityv1.Attrs{
-			Workload: &workloadidentityv1.WorkloadAttrs{
-				Podman: &workloadidentityv1.WorkloadAttrsPodman{
-					Attested: true,
-					Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
-						Image: "ubuntu",
+		&expression.Environment{
+			Attrs: &workloadidentityv1.Attrs{
+				Workload: &workloadidentityv1.WorkloadAttrs{
+					Podman: &workloadidentityv1.WorkloadAttrsPodman{
+						Attested: true,
+						Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+							Image: "ubuntu",
+						},
 					},
 				},
 			},
@@ -49,9 +53,11 @@ func TestEvaluate(t *testing.T) {
 	// False result.
 	result, err = expression.Evaluate(
 		`user.name != user.name`,
-		&workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
-				Name: "Bobby",
+		&expression.Environment{
+			Attrs: &workloadidentityv1.Attrs{
+				User: &workloadidentityv1.UserAttrs{
+					Name: "Bobby",
+				},
 			},
 		},
 	)
@@ -61,9 +67,11 @@ func TestEvaluate(t *testing.T) {
 	// Unset field (allowed in boolean expressions).
 	result, err = expression.Evaluate(
 		`user.name == ""`,
-		&workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
-				Name: "",
+		&expression.Environment{
+			Attrs: &workloadidentityv1.Attrs{
+				User: &workloadidentityv1.UserAttrs{
+					Name: "",
+				},
 			},
 		},
 	)
@@ -109,7 +117,7 @@ func TestEvaluate_Errors(t *testing.T) {
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			_, err := expression.Evaluate(tc.expr, tc.attrs)
+			_, err := expression.Evaluate(tc.expr, &expression.Environment{Attrs: tc.attrs})
 			require.ErrorContains(t, err, tc.err)
 		})
 	}
@@ -118,12 +126,14 @@ func TestEvaluate_Errors(t *testing.T) {
 func TestEvaluate_Traits(t *testing.T) {
 	result, err := expression.Evaluate(
 		`user.traits.logins.contains("root")`,
-		&workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
-				Traits: []*traitv1.Trait{
-					{
-						Key:    "logins",
-						Values: []string{"root", "alice", "bob"},
+		&expression.Environment{
+			Attrs: &workloadidentityv1.Attrs{
+				User: &workloadidentityv1.UserAttrs{
+					Traits: []*traitv1.Trait{
+						{
+							Key:    "logins",
+							Values: []string{"root", "alice", "bob"},
+						},
 					},
 				},
 			},
@@ -135,12 +145,55 @@ func TestEvaluate_Traits(t *testing.T) {
 	// Unset trait.
 	result, err = expression.Evaluate(
 		`is_empty(user.traits.logins)`,
-		&workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
-				Traits: []*traitv1.Trait{},
+		&expression.Environment{
+			Attrs: &workloadidentityv1.Attrs{
+				User: &workloadidentityv1.UserAttrs{
+					Traits: []*traitv1.Trait{},
+				},
 			},
 		},
 	)
 	require.NoError(t, err)
 	require.True(t, result)
+}
+
+func TestEvaluate_SigstorePolicies(t *testing.T) {
+	results := map[string]error{
+		"github-provenance":      nil,
+		"security-team-approval": errors.New("missing artifact signature"),
+	}
+	env := &expression.Environment{
+		SigstorePolicyEvaluator: expression.SigstorePolicyEvaluatorFunc(func(names []string) (bool, error) {
+			for _, name := range names {
+				err, ok := results[name]
+				if !ok {
+					return false, fmt.Errorf("unknown policy: %q", name)
+				}
+				if err != nil {
+					return false, nil
+				}
+			}
+			return true, nil
+		}),
+	}
+
+	result, err := expression.Evaluate(
+		`sigstore.policy_satisfied("github-provenance")`,
+		env,
+	)
+	require.NoError(t, err)
+	require.True(t, result)
+
+	result, err = expression.Evaluate(
+		`sigstore.policy_satisfied("security-team-approval")`,
+		env,
+	)
+	require.NoError(t, err)
+	require.False(t, result)
+
+	_, err = expression.Evaluate(
+		`sigstore.policy_satisfied("does-not-exist")`,
+		env,
+	)
+	require.ErrorContains(t, err, `unknown policy: "does-not-exist"`)
 }

@@ -251,6 +251,27 @@ type Status struct {
 	OwnerOf []string `json:"owner_of" yaml:"owner_of"`
 	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
 	MemberOf []string `json:"member_of" yaml:"member_of"`
+
+	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
+	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
+}
+
+// CurrentUserAssignments describes the current user's ownership and membership status in the access list.
+type CurrentUserAssignments struct {
+	// OwnershipType represents the current user's ownership type (explicit, inherited, or none) in the access list.
+	OwnershipType accesslistv1.AccessListUserAssignmentType `json:"ownership_type" yaml:"ownership_type"`
+	// MembershipType represents the current user's membership type (explicit, inherited, or none) in the access list.
+	MembershipType accesslistv1.AccessListUserAssignmentType `json:"membership_type" yaml:"membership_type"`
+}
+
+// IsMember returns true if the MembershipType is either explicit or inherited.
+func (c *CurrentUserAssignments) IsMember() bool {
+	return c.MembershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
+}
+
+// IsOwner returns true if the OwnershipType is either explicit or inherited.
+func (c *CurrentUserAssignments) IsOwner() bool {
+	return c.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 }
 
 // NewAccessList will create a new access list.
@@ -373,6 +394,11 @@ func (a *AccessList) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(a.Metadata)
 }
 
+// GetStatus returns the status of the access list.
+func (a *AccessList) GetStatus() Status {
+	return a.Status
+}
+
 // MatchSearch goes through select field values of a resource
 // and tries to match against the list of search values.
 func (a *AccessList) MatchSearch(values []string) bool {
@@ -380,8 +406,8 @@ func (a *AccessList) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
-// CloneResource returns a copy of the resource as types.ResourceWithLabels.
-func (a *AccessList) CloneResource() types.ResourceWithLabels {
+// Clone returns a copy of the list.
+func (a *AccessList) Clone() *AccessList {
 	var copy *AccessList
 	utils.StrictObjectToStruct(a, &copy)
 	return copy

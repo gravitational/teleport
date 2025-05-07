@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 import "teleport/decision/v1alpha1/denial_metadata.proto";
 import "teleport/decision/v1alpha1/permit_metadata.proto";
 import "teleport/decision/v1alpha1/request_metadata.proto";
@@ -55,27 +56,65 @@ message EvaluateSSHAccessResponse {
 // SSHAccessPermit describes the parameters/constraints of a permissible SSH
 // access attempt.
 message SSHAccessPermit {
+  reserved 2, 4, 7, 12, 13, 15, 16, 17;
+
+  // Metadata holds common authorization decision response fields.
   PermitMetadata metadata = 1;
-  repeated string logins = 2;
+
+  // ForwardAgent indicates whether or not the user is permitted to use SSH agent forwarding.
   bool forward_agent = 3;
-  google.protobuf.Duration max_session_ttl = 4;
+
+  // PortForwardMode describes the kind of port forwarding permitted during this access attempt.
   SSHPortForwardMode port_forward_mode = 5;
+
+  // ClientIdleTimeout is the time after which the server should disconnect the user for inactivity
+  // (if unspecified, the server should not disconnect the user).
   google.protobuf.Duration client_idle_timeout = 6;
-  bool disconnect_expired_cert = 7;
-  repeated string bpf = 8;
+
+  // DisconnectExpiredCert is the time after which the server should disconnect the user (if
+  // unspecified, the server should not disconnect the user).
+  google.protobuf.Timestamp disconnect_expired_cert = 25;
+
+  // BpfEvents is the list of BPF events that should be recorded for this SSH access attempt.
+  repeated string bpf_events = 8;
+
+  // X11Forwarding indicates whether or not the user is permitted to use X11 forwarding.
   bool x11_forwarding = 9;
+
+  // MaxConnections is the maximum number of concurrent connections to be enforced during access.
   int64 max_connections = 10;
+
+  // MaxSessions is the maximum number of ssh session channels to be permitted within the ssh
+  // connection.
   int64 max_sessions = 11;
-  string lock = 12;
-  bool create_host_user = 13;
+
+  // SshFileCopy indicates whether or not the user is permitted to perform file copying.
   bool ssh_file_copy = 14;
-  string create_host_user_mode = 15;
-  string create_host_user_shell = 16;
-  repeated string host_groups = 17;
+
+  // HostSudoers is the list of entries that should be included in the temporary sudoers file
+  // for this ssh access attempt.
   repeated string host_sudoers = 18;
 
+  // SessionRecordingMode indicates the kind of session recording strategy to be used during this access attempt.
   string session_recording_mode = 19;
+
+  // LockingMode indicates the kind of locking strategy to be used during this access attempt.
   string locking_mode = 20;
+
+  // PrivateKeyPolicy indicates the private key policy to be enforced for the user.
+  string private_key_policy = 21;
+
+  // LockTargets is the list of locks that must be obeyed in order for access to be permissible.
+  repeated LockTarget lock_targets = 22;
+
+  // MappedRoles is the list of cluster-local roles that the users identity maps to (NOTE: use of
+  // this field should be avoided where possible, we would like to remove dependency on it in the
+  // future).
+  repeated string mapped_roles = 23;
+
+  // HostUserInfo encodes relevant information for host user creation. Omitted if
+  // host user creation  is not permitted.
+  HostUsersInfo host_users_info = 24;
 }
 
 // SSHAccessDenial describes an SSH access denial.
@@ -90,4 +129,68 @@ enum SSHPortForwardMode {
   SSH_PORT_FORWARD_MODE_ON = 2;
   SSH_PORT_FORWARD_MODE_LOCAL = 3;
   SSH_PORT_FORWARD_MODE_REMOTE = 4;
+}
+
+// LockTarget lists the attributes used to lock a resource. This type must
+// be kept in sync with types.LockTarget.
+message LockTarget {
+  // User specifies the name of a Teleport user.
+  string user = 1;
+
+  // Role specifies the name of an RBAC role known to the root cluster.
+  // In remote clusters, this constraint is evaluated before translating to local roles.
+  string role = 2;
+
+  // Login specifies the name of a local UNIX user.
+  string login = 3;
+
+  // MFADevice specifies the UUID of a user MFA device.
+  string mfa_device = 4;
+
+  // WindowsDesktop specifies the name of a Windows desktop.
+  string windows_desktop = 5;
+
+  // AccessRequest specifies the UUID of an access request.
+  string access_request = 6;
+
+  // Device is the device ID of a trusted device.
+  // Requires Teleport Enterprise.
+  string device = 7;
+
+  // ServerID is the host id of the Teleport instance.
+  string server_id = 8;
+}
+
+// HostUserMode determines how host users should be created.
+enum HostUserMode {
+  // HostUserModeUnspecified is the default mode, for when the mode couldn't be
+  // determined from a types.CreateHostUserMode.
+  HOST_USER_MODE_UNSPECIFIED = 0;
+  // HostUserModeKeep creates a home directory and persists after a session ends.
+  HOST_USER_MODE_KEEP = 1;
+  // HostUserModeDrop does not create a home directory, and it is removed after
+  // a session ends.
+  HOST_USER_MODE_DROP = 2;
+  // HostUserModeStatic creates a home directory and exists independently of a
+  // session.
+  HOST_USER_MODE_STATIC = 3;
+}
+
+// HostUsersInfo keeps information about groups and sudoers entries
+// for a particular host user
+message HostUsersInfo {
+  // Groups is the list of groups to include host users in
+  repeated string groups = 1;
+
+  // Mode determines if a host user should be deleted after a session
+  HostUserMode mode = 2;
+
+  // Uid is the UID that the host user will be created with
+  string uid = 3;
+
+  // Gid is the GID that the host user will be created with
+  string gid = 4;
+
+  // Shell is the default login shell for a host user
+  string shell = 5;
 }

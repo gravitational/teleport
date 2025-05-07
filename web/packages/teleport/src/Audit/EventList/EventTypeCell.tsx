@@ -110,6 +110,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_REQUEST_REVIEWED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_DELETED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: Icons.Info,
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGIN]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGINFAILURE]: Icons.Info,
   [eventCodes.USER_SSO_LOGIN]: Icons.Info,
@@ -310,6 +311,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: Icons.Info,
   [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: Icons.RocketLaunch,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: Icons.Checks,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: Icons.Restore,
 };
 
 export default function renderTypeCell(event: Event) {

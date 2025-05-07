@@ -24,6 +24,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -90,6 +91,66 @@ func (x SSHPortForwardMode) Number() protoreflect.EnumNumber {
 // Deprecated: Use SSHPortForwardMode.Descriptor instead.
 func (SSHPortForwardMode) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{0}
+}
+
+// HostUserMode determines how host users should be created.
+type HostUserMode int32
+
+const (
+	// HostUserModeUnspecified is the default mode, for when the mode couldn't be
+	// determined from a types.CreateHostUserMode.
+	HostUserMode_HOST_USER_MODE_UNSPECIFIED HostUserMode = 0
+	// HostUserModeKeep creates a home directory and persists after a session ends.
+	HostUserMode_HOST_USER_MODE_KEEP HostUserMode = 1
+	// HostUserModeDrop does not create a home directory, and it is removed after
+	// a session ends.
+	HostUserMode_HOST_USER_MODE_DROP HostUserMode = 2
+	// HostUserModeStatic creates a home directory and exists independently of a
+	// session.
+	HostUserMode_HOST_USER_MODE_STATIC HostUserMode = 3
+)
+
+// Enum value maps for HostUserMode.
+var (
+	HostUserMode_name = map[int32]string{
+		0: "HOST_USER_MODE_UNSPECIFIED",
+		1: "HOST_USER_MODE_KEEP",
+		2: "HOST_USER_MODE_DROP",
+		3: "HOST_USER_MODE_STATIC",
+	}
+	HostUserMode_value = map[string]int32{
+		"HOST_USER_MODE_UNSPECIFIED": 0,
+		"HOST_USER_MODE_KEEP":        1,
+		"HOST_USER_MODE_DROP":        2,
+		"HOST_USER_MODE_STATIC":      3,
+	}
+)
+
+func (x HostUserMode) Enum() *HostUserMode {
+	p := new(HostUserMode)
+	*p = x
+	return p
+}
+
+func (x HostUserMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HostUserMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[1].Descriptor()
+}
+
+func (HostUserMode) Type() protoreflect.EnumType {
+	return &file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes[1]
+}
+
+func (x HostUserMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HostUserMode.Descriptor instead.
+func (HostUserMode) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{1}
 }
 
 // EvaluateSSHAccessRequest describes a request to evaluate whether or not a
@@ -261,29 +322,50 @@ func (*EvaluateSSHAccessResponse_Denial) isEvaluateSSHAccessResponse_Decision() 
 // SSHAccessPermit describes the parameters/constraints of a permissible SSH
 // access attempt.
 type SSHAccessPermit struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Metadata              *PermitMetadata        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	Logins                []string               `protobuf:"bytes,2,rep,name=logins,proto3" json:"logins,omitempty"`
-	ForwardAgent          bool                   `protobuf:"varint,3,opt,name=forward_agent,json=forwardAgent,proto3" json:"forward_agent,omitempty"`
-	MaxSessionTtl         *durationpb.Duration   `protobuf:"bytes,4,opt,name=max_session_ttl,json=maxSessionTtl,proto3" json:"max_session_ttl,omitempty"`
-	PortForwardMode       SSHPortForwardMode     `protobuf:"varint,5,opt,name=port_forward_mode,json=portForwardMode,proto3,enum=teleport.decision.v1alpha1.SSHPortForwardMode" json:"port_forward_mode,omitempty"`
-	ClientIdleTimeout     *durationpb.Duration   `protobuf:"bytes,6,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
-	DisconnectExpiredCert bool                   `protobuf:"varint,7,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3" json:"disconnect_expired_cert,omitempty"`
-	Bpf                   []string               `protobuf:"bytes,8,rep,name=bpf,proto3" json:"bpf,omitempty"`
-	X11Forwarding         bool                   `protobuf:"varint,9,opt,name=x11_forwarding,json=x11Forwarding,proto3" json:"x11_forwarding,omitempty"`
-	MaxConnections        int64                  `protobuf:"varint,10,opt,name=max_connections,json=maxConnections,proto3" json:"max_connections,omitempty"`
-	MaxSessions           int64                  `protobuf:"varint,11,opt,name=max_sessions,json=maxSessions,proto3" json:"max_sessions,omitempty"`
-	Lock                  string                 `protobuf:"bytes,12,opt,name=lock,proto3" json:"lock,omitempty"`
-	CreateHostUser        bool                   `protobuf:"varint,13,opt,name=create_host_user,json=createHostUser,proto3" json:"create_host_user,omitempty"`
-	SshFileCopy           bool                   `protobuf:"varint,14,opt,name=ssh_file_copy,json=sshFileCopy,proto3" json:"ssh_file_copy,omitempty"`
-	CreateHostUserMode    string                 `protobuf:"bytes,15,opt,name=create_host_user_mode,json=createHostUserMode,proto3" json:"create_host_user_mode,omitempty"`
-	CreateHostUserShell   string                 `protobuf:"bytes,16,opt,name=create_host_user_shell,json=createHostUserShell,proto3" json:"create_host_user_shell,omitempty"`
-	HostGroups            []string               `protobuf:"bytes,17,rep,name=host_groups,json=hostGroups,proto3" json:"host_groups,omitempty"`
-	HostSudoers           []string               `protobuf:"bytes,18,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
-	SessionRecordingMode  string                 `protobuf:"bytes,19,opt,name=session_recording_mode,json=sessionRecordingMode,proto3" json:"session_recording_mode,omitempty"`
-	LockingMode           string                 `protobuf:"bytes,20,opt,name=locking_mode,json=lockingMode,proto3" json:"locking_mode,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Metadata holds common authorization decision response fields.
+	Metadata *PermitMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// ForwardAgent indicates whether or not the user is permitted to use SSH agent forwarding.
+	ForwardAgent bool `protobuf:"varint,3,opt,name=forward_agent,json=forwardAgent,proto3" json:"forward_agent,omitempty"`
+	// PortForwardMode describes the kind of port forwarding permitted during this access attempt.
+	PortForwardMode SSHPortForwardMode `protobuf:"varint,5,opt,name=port_forward_mode,json=portForwardMode,proto3,enum=teleport.decision.v1alpha1.SSHPortForwardMode" json:"port_forward_mode,omitempty"`
+	// ClientIdleTimeout is the time after which the server should disconnect the user for inactivity
+	// (if unspecified, the server should not disconnect the user).
+	ClientIdleTimeout *durationpb.Duration `protobuf:"bytes,6,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
+	// DisconnectExpiredCert is the time after which the server should disconnect the user (if
+	// unspecified, the server should not disconnect the user).
+	DisconnectExpiredCert *timestamppb.Timestamp `protobuf:"bytes,25,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3" json:"disconnect_expired_cert,omitempty"`
+	// BpfEvents is the list of BPF events that should be recorded for this SSH access attempt.
+	BpfEvents []string `protobuf:"bytes,8,rep,name=bpf_events,json=bpfEvents,proto3" json:"bpf_events,omitempty"`
+	// X11Forwarding indicates whether or not the user is permitted to use X11 forwarding.
+	X11Forwarding bool `protobuf:"varint,9,opt,name=x11_forwarding,json=x11Forwarding,proto3" json:"x11_forwarding,omitempty"`
+	// MaxConnections is the maximum number of concurrent connections to be enforced during access.
+	MaxConnections int64 `protobuf:"varint,10,opt,name=max_connections,json=maxConnections,proto3" json:"max_connections,omitempty"`
+	// MaxSessions is the maximum number of ssh session channels to be permitted within the ssh
+	// connection.
+	MaxSessions int64 `protobuf:"varint,11,opt,name=max_sessions,json=maxSessions,proto3" json:"max_sessions,omitempty"`
+	// SshFileCopy indicates whether or not the user is permitted to perform file copying.
+	SshFileCopy bool `protobuf:"varint,14,opt,name=ssh_file_copy,json=sshFileCopy,proto3" json:"ssh_file_copy,omitempty"`
+	// HostSudoers is the list of entries that should be included in the temporary sudoers file
+	// for this ssh access attempt.
+	HostSudoers []string `protobuf:"bytes,18,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
+	// SessionRecordingMode indicates the kind of session recording strategy to be used during this access attempt.
+	SessionRecordingMode string `protobuf:"bytes,19,opt,name=session_recording_mode,json=sessionRecordingMode,proto3" json:"session_recording_mode,omitempty"`
+	// LockingMode indicates the kind of locking strategy to be used during this access attempt.
+	LockingMode string `protobuf:"bytes,20,opt,name=locking_mode,json=lockingMode,proto3" json:"locking_mode,omitempty"`
+	// PrivateKeyPolicy indicates the private key policy to be enforced for the user.
+	PrivateKeyPolicy string `protobuf:"bytes,21,opt,name=private_key_policy,json=privateKeyPolicy,proto3" json:"private_key_policy,omitempty"`
+	// LockTargets is the list of locks that must be obeyed in order for access to be permissible.
+	LockTargets []*LockTarget `protobuf:"bytes,22,rep,name=lock_targets,json=lockTargets,proto3" json:"lock_targets,omitempty"`
+	// MappedRoles is the list of cluster-local roles that the users identity maps to (NOTE: use of
+	// this field should be avoided where possible, we would like to remove dependency on it in the
+	// future).
+	MappedRoles []string `protobuf:"bytes,23,rep,name=mapped_roles,json=mappedRoles,proto3" json:"mapped_roles,omitempty"`
+	// HostUserInfo encodes relevant information for host user creation. Omitted if
+	// host user creation  is not permitted.
+	HostUsersInfo *HostUsersInfo `protobuf:"bytes,24,opt,name=host_users_info,json=hostUsersInfo,proto3" json:"host_users_info,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SSHAccessPermit) Reset() {
@@ -323,25 +405,11 @@ func (x *SSHAccessPermit) GetMetadata() *PermitMetadata {
 	return nil
 }
 
-func (x *SSHAccessPermit) GetLogins() []string {
-	if x != nil {
-		return x.Logins
-	}
-	return nil
-}
-
 func (x *SSHAccessPermit) GetForwardAgent() bool {
 	if x != nil {
 		return x.ForwardAgent
 	}
 	return false
-}
-
-func (x *SSHAccessPermit) GetMaxSessionTtl() *durationpb.Duration {
-	if x != nil {
-		return x.MaxSessionTtl
-	}
-	return nil
 }
 
 func (x *SSHAccessPermit) GetPortForwardMode() SSHPortForwardMode {
@@ -358,16 +426,16 @@ func (x *SSHAccessPermit) GetClientIdleTimeout() *durationpb.Duration {
 	return nil
 }
 
-func (x *SSHAccessPermit) GetDisconnectExpiredCert() bool {
+func (x *SSHAccessPermit) GetDisconnectExpiredCert() *timestamppb.Timestamp {
 	if x != nil {
 		return x.DisconnectExpiredCert
 	}
-	return false
+	return nil
 }
 
-func (x *SSHAccessPermit) GetBpf() []string {
+func (x *SSHAccessPermit) GetBpfEvents() []string {
 	if x != nil {
-		return x.Bpf
+		return x.BpfEvents
 	}
 	return nil
 }
@@ -393,46 +461,11 @@ func (x *SSHAccessPermit) GetMaxSessions() int64 {
 	return 0
 }
 
-func (x *SSHAccessPermit) GetLock() string {
-	if x != nil {
-		return x.Lock
-	}
-	return ""
-}
-
-func (x *SSHAccessPermit) GetCreateHostUser() bool {
-	if x != nil {
-		return x.CreateHostUser
-	}
-	return false
-}
-
 func (x *SSHAccessPermit) GetSshFileCopy() bool {
 	if x != nil {
 		return x.SshFileCopy
 	}
 	return false
-}
-
-func (x *SSHAccessPermit) GetCreateHostUserMode() string {
-	if x != nil {
-		return x.CreateHostUserMode
-	}
-	return ""
-}
-
-func (x *SSHAccessPermit) GetCreateHostUserShell() string {
-	if x != nil {
-		return x.CreateHostUserShell
-	}
-	return ""
-}
-
-func (x *SSHAccessPermit) GetHostGroups() []string {
-	if x != nil {
-		return x.HostGroups
-	}
-	return nil
 }
 
 func (x *SSHAccessPermit) GetHostSudoers() []string {
@@ -454,6 +487,34 @@ func (x *SSHAccessPermit) GetLockingMode() string {
 		return x.LockingMode
 	}
 	return ""
+}
+
+func (x *SSHAccessPermit) GetPrivateKeyPolicy() string {
+	if x != nil {
+		return x.PrivateKeyPolicy
+	}
+	return ""
+}
+
+func (x *SSHAccessPermit) GetLockTargets() []*LockTarget {
+	if x != nil {
+		return x.LockTargets
+	}
+	return nil
+}
+
+func (x *SSHAccessPermit) GetMappedRoles() []string {
+	if x != nil {
+		return x.MappedRoles
+	}
+	return nil
+}
+
+func (x *SSHAccessPermit) GetHostUsersInfo() *HostUsersInfo {
+	if x != nil {
+		return x.HostUsersInfo
+	}
+	return nil
 }
 
 // SSHAccessDenial describes an SSH access denial.
@@ -501,11 +562,206 @@ func (x *SSHAccessDenial) GetMetadata() *DenialMetadata {
 	return nil
 }
 
+// LockTarget lists the attributes used to lock a resource. This type must
+// be kept in sync with types.LockTarget.
+type LockTarget struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// User specifies the name of a Teleport user.
+	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// Role specifies the name of an RBAC role known to the root cluster.
+	// In remote clusters, this constraint is evaluated before translating to local roles.
+	Role string `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	// Login specifies the name of a local UNIX user.
+	Login string `protobuf:"bytes,3,opt,name=login,proto3" json:"login,omitempty"`
+	// MFADevice specifies the UUID of a user MFA device.
+	MfaDevice string `protobuf:"bytes,4,opt,name=mfa_device,json=mfaDevice,proto3" json:"mfa_device,omitempty"`
+	// WindowsDesktop specifies the name of a Windows desktop.
+	WindowsDesktop string `protobuf:"bytes,5,opt,name=windows_desktop,json=windowsDesktop,proto3" json:"windows_desktop,omitempty"`
+	// AccessRequest specifies the UUID of an access request.
+	AccessRequest string `protobuf:"bytes,6,opt,name=access_request,json=accessRequest,proto3" json:"access_request,omitempty"`
+	// Device is the device ID of a trusted device.
+	// Requires Teleport Enterprise.
+	Device string `protobuf:"bytes,7,opt,name=device,proto3" json:"device,omitempty"`
+	// ServerID is the host id of the Teleport instance.
+	ServerId      string `protobuf:"bytes,8,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LockTarget) Reset() {
+	*x = LockTarget{}
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LockTarget) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LockTarget) ProtoMessage() {}
+
+func (x *LockTarget) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LockTarget.ProtoReflect.Descriptor instead.
+func (*LockTarget) Descriptor() ([]byte, []int) {
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *LockTarget) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *LockTarget) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *LockTarget) GetLogin() string {
+	if x != nil {
+		return x.Login
+	}
+	return ""
+}
+
+func (x *LockTarget) GetMfaDevice() string {
+	if x != nil {
+		return x.MfaDevice
+	}
+	return ""
+}
+
+func (x *LockTarget) GetWindowsDesktop() string {
+	if x != nil {
+		return x.WindowsDesktop
+	}
+	return ""
+}
+
+func (x *LockTarget) GetAccessRequest() string {
+	if x != nil {
+		return x.AccessRequest
+	}
+	return ""
+}
+
+func (x *LockTarget) GetDevice() string {
+	if x != nil {
+		return x.Device
+	}
+	return ""
+}
+
+func (x *LockTarget) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// HostUsersInfo keeps information about groups and sudoers entries
+// for a particular host user
+type HostUsersInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Groups is the list of groups to include host users in
+	Groups []string `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
+	// Mode determines if a host user should be deleted after a session
+	Mode HostUserMode `protobuf:"varint,2,opt,name=mode,proto3,enum=teleport.decision.v1alpha1.HostUserMode" json:"mode,omitempty"`
+	// Uid is the UID that the host user will be created with
+	Uid string `protobuf:"bytes,3,opt,name=uid,proto3" json:"uid,omitempty"`
+	// Gid is the GID that the host user will be created with
+	Gid string `protobuf:"bytes,4,opt,name=gid,proto3" json:"gid,omitempty"`
+	// Shell is the default login shell for a host user
+	Shell         string `protobuf:"bytes,5,opt,name=shell,proto3" json:"shell,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HostUsersInfo) Reset() {
+	*x = HostUsersInfo{}
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HostUsersInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HostUsersInfo) ProtoMessage() {}
+
+func (x *HostUsersInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HostUsersInfo.ProtoReflect.Descriptor instead.
+func (*HostUsersInfo) Descriptor() ([]byte, []int) {
+	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *HostUsersInfo) GetGroups() []string {
+	if x != nil {
+		return x.Groups
+	}
+	return nil
+}
+
+func (x *HostUsersInfo) GetMode() HostUserMode {
+	if x != nil {
+		return x.Mode
+	}
+	return HostUserMode_HOST_USER_MODE_UNSPECIFIED
+}
+
+func (x *HostUsersInfo) GetUid() string {
+	if x != nil {
+		return x.Uid
+	}
+	return ""
+}
+
+func (x *HostUsersInfo) GetGid() string {
+	if x != nil {
+		return x.Gid
+	}
+	return ""
+}
+
+func (x *HostUsersInfo) GetShell() string {
+	if x != nil {
+		return x.Shell
+	}
+	return ""
+}
+
 var File_teleport_decision_v1alpha1_ssh_access_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\n" +
-	"+teleport/decision/v1alpha1/ssh_access.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1egoogle/protobuf/duration.proto\x1a0teleport/decision/v1alpha1/denial_metadata.proto\x1a0teleport/decision/v1alpha1/permit_metadata.proto\x1a1teleport/decision/v1alpha1/request_metadata.proto\x1a)teleport/decision/v1alpha1/resource.proto\x1a-teleport/decision/v1alpha1/ssh_identity.proto\"\xd1\x02\n" +
+	"+teleport/decision/v1alpha1/ssh_access.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a0teleport/decision/v1alpha1/denial_metadata.proto\x1a0teleport/decision/v1alpha1/permit_metadata.proto\x1a1teleport/decision/v1alpha1/request_metadata.proto\x1a)teleport/decision/v1alpha1/resource.proto\x1a-teleport/decision/v1alpha1/ssh_identity.proto\"\xd1\x02\n" +
 	"\x18EvaluateSSHAccessRequest\x12G\n" +
 	"\bmetadata\x18\x01 \x01(\v2+.teleport.decision.v1alpha1.RequestMetadataR\bmetadata\x12M\n" +
 	"\rssh_authority\x18\x02 \x01(\v2(.teleport.decision.v1alpha1.SSHAuthorityR\fsshAuthority\x12J\n" +
@@ -516,38 +772,57 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x06permit\x18\x01 \x01(\v2+.teleport.decision.v1alpha1.SSHAccessPermitH\x00R\x06permit\x12E\n" +
 	"\x06denial\x18\x02 \x01(\v2+.teleport.decision.v1alpha1.SSHAccessDenialH\x00R\x06denialB\n" +
 	"\n" +
-	"\bdecision\"\xa4\a\n" +
+	"\bdecision\"\xca\a\n" +
 	"\x0fSSHAccessPermit\x12F\n" +
-	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.PermitMetadataR\bmetadata\x12\x16\n" +
-	"\x06logins\x18\x02 \x03(\tR\x06logins\x12#\n" +
-	"\rforward_agent\x18\x03 \x01(\bR\fforwardAgent\x12A\n" +
-	"\x0fmax_session_ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\rmaxSessionTtl\x12Z\n" +
+	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.PermitMetadataR\bmetadata\x12#\n" +
+	"\rforward_agent\x18\x03 \x01(\bR\fforwardAgent\x12Z\n" +
 	"\x11port_forward_mode\x18\x05 \x01(\x0e2..teleport.decision.v1alpha1.SSHPortForwardModeR\x0fportForwardMode\x12I\n" +
-	"\x13client_idle_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x11clientIdleTimeout\x126\n" +
-	"\x17disconnect_expired_cert\x18\a \x01(\bR\x15disconnectExpiredCert\x12\x10\n" +
-	"\x03bpf\x18\b \x03(\tR\x03bpf\x12%\n" +
+	"\x13client_idle_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\x11clientIdleTimeout\x12R\n" +
+	"\x17disconnect_expired_cert\x18\x19 \x01(\v2\x1a.google.protobuf.TimestampR\x15disconnectExpiredCert\x12\x1d\n" +
+	"\n" +
+	"bpf_events\x18\b \x03(\tR\tbpfEvents\x12%\n" +
 	"\x0ex11_forwarding\x18\t \x01(\bR\rx11Forwarding\x12'\n" +
 	"\x0fmax_connections\x18\n" +
 	" \x01(\x03R\x0emaxConnections\x12!\n" +
-	"\fmax_sessions\x18\v \x01(\x03R\vmaxSessions\x12\x12\n" +
-	"\x04lock\x18\f \x01(\tR\x04lock\x12(\n" +
-	"\x10create_host_user\x18\r \x01(\bR\x0ecreateHostUser\x12\"\n" +
-	"\rssh_file_copy\x18\x0e \x01(\bR\vsshFileCopy\x121\n" +
-	"\x15create_host_user_mode\x18\x0f \x01(\tR\x12createHostUserMode\x123\n" +
-	"\x16create_host_user_shell\x18\x10 \x01(\tR\x13createHostUserShell\x12\x1f\n" +
-	"\vhost_groups\x18\x11 \x03(\tR\n" +
-	"hostGroups\x12!\n" +
+	"\fmax_sessions\x18\v \x01(\x03R\vmaxSessions\x12\"\n" +
+	"\rssh_file_copy\x18\x0e \x01(\bR\vsshFileCopy\x12!\n" +
 	"\fhost_sudoers\x18\x12 \x03(\tR\vhostSudoers\x124\n" +
 	"\x16session_recording_mode\x18\x13 \x01(\tR\x14sessionRecordingMode\x12!\n" +
-	"\flocking_mode\x18\x14 \x01(\tR\vlockingMode\"Y\n" +
+	"\flocking_mode\x18\x14 \x01(\tR\vlockingMode\x12,\n" +
+	"\x12private_key_policy\x18\x15 \x01(\tR\x10privateKeyPolicy\x12I\n" +
+	"\flock_targets\x18\x16 \x03(\v2&.teleport.decision.v1alpha1.LockTargetR\vlockTargets\x12!\n" +
+	"\fmapped_roles\x18\x17 \x03(\tR\vmappedRoles\x12Q\n" +
+	"\x0fhost_users_info\x18\x18 \x01(\v2).teleport.decision.v1alpha1.HostUsersInfoR\rhostUsersInfoJ\x04\b\x02\x10\x03J\x04\b\x04\x10\x05J\x04\b\a\x10\bJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12\"Y\n" +
 	"\x0fSSHAccessDenial\x12F\n" +
-	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata*\xbb\x01\n" +
+	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xee\x01\n" +
+	"\n" +
+	"LockTarget\x12\x12\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x12\x14\n" +
+	"\x05login\x18\x03 \x01(\tR\x05login\x12\x1d\n" +
+	"\n" +
+	"mfa_device\x18\x04 \x01(\tR\tmfaDevice\x12'\n" +
+	"\x0fwindows_desktop\x18\x05 \x01(\tR\x0ewindowsDesktop\x12%\n" +
+	"\x0eaccess_request\x18\x06 \x01(\tR\raccessRequest\x12\x16\n" +
+	"\x06device\x18\a \x01(\tR\x06device\x12\x1b\n" +
+	"\tserver_id\x18\b \x01(\tR\bserverId\"\x9f\x01\n" +
+	"\rHostUsersInfo\x12\x16\n" +
+	"\x06groups\x18\x01 \x03(\tR\x06groups\x12<\n" +
+	"\x04mode\x18\x02 \x01(\x0e2(.teleport.decision.v1alpha1.HostUserModeR\x04mode\x12\x10\n" +
+	"\x03uid\x18\x03 \x01(\tR\x03uid\x12\x10\n" +
+	"\x03gid\x18\x04 \x01(\tR\x03gid\x12\x14\n" +
+	"\x05shell\x18\x05 \x01(\tR\x05shell*\xbb\x01\n" +
 	"\x12SSHPortForwardMode\x12%\n" +
 	"!SSH_PORT_FORWARD_MODE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19SSH_PORT_FORWARD_MODE_OFF\x10\x01\x12\x1c\n" +
 	"\x18SSH_PORT_FORWARD_MODE_ON\x10\x02\x12\x1f\n" +
 	"\x1bSSH_PORT_FORWARD_MODE_LOCAL\x10\x03\x12 \n" +
-	"\x1cSSH_PORT_FORWARD_MODE_REMOTE\x10\x04BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
+	"\x1cSSH_PORT_FORWARD_MODE_REMOTE\x10\x04*{\n" +
+	"\fHostUserMode\x12\x1e\n" +
+	"\x1aHOST_USER_MODE_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13HOST_USER_MODE_KEEP\x10\x01\x12\x17\n" +
+	"\x13HOST_USER_MODE_DROP\x10\x02\x12\x19\n" +
+	"\x15HOST_USER_MODE_STATIC\x10\x03BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
 
 var (
 	file_teleport_decision_v1alpha1_ssh_access_proto_rawDescOnce sync.Once
@@ -561,39 +836,46 @@ func file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP() []byte {
 	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescData
 }
 
-var file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_decision_v1alpha1_ssh_access_proto_goTypes = []any{
 	(SSHPortForwardMode)(0),           // 0: teleport.decision.v1alpha1.SSHPortForwardMode
-	(*EvaluateSSHAccessRequest)(nil),  // 1: teleport.decision.v1alpha1.EvaluateSSHAccessRequest
-	(*EvaluateSSHAccessResponse)(nil), // 2: teleport.decision.v1alpha1.EvaluateSSHAccessResponse
-	(*SSHAccessPermit)(nil),           // 3: teleport.decision.v1alpha1.SSHAccessPermit
-	(*SSHAccessDenial)(nil),           // 4: teleport.decision.v1alpha1.SSHAccessDenial
-	(*RequestMetadata)(nil),           // 5: teleport.decision.v1alpha1.RequestMetadata
-	(*SSHAuthority)(nil),              // 6: teleport.decision.v1alpha1.SSHAuthority
-	(*SSHIdentity)(nil),               // 7: teleport.decision.v1alpha1.SSHIdentity
-	(*Resource)(nil),                  // 8: teleport.decision.v1alpha1.Resource
-	(*PermitMetadata)(nil),            // 9: teleport.decision.v1alpha1.PermitMetadata
-	(*durationpb.Duration)(nil),       // 10: google.protobuf.Duration
-	(*DenialMetadata)(nil),            // 11: teleport.decision.v1alpha1.DenialMetadata
+	(HostUserMode)(0),                 // 1: teleport.decision.v1alpha1.HostUserMode
+	(*EvaluateSSHAccessRequest)(nil),  // 2: teleport.decision.v1alpha1.EvaluateSSHAccessRequest
+	(*EvaluateSSHAccessResponse)(nil), // 3: teleport.decision.v1alpha1.EvaluateSSHAccessResponse
+	(*SSHAccessPermit)(nil),           // 4: teleport.decision.v1alpha1.SSHAccessPermit
+	(*SSHAccessDenial)(nil),           // 5: teleport.decision.v1alpha1.SSHAccessDenial
+	(*LockTarget)(nil),                // 6: teleport.decision.v1alpha1.LockTarget
+	(*HostUsersInfo)(nil),             // 7: teleport.decision.v1alpha1.HostUsersInfo
+	(*RequestMetadata)(nil),           // 8: teleport.decision.v1alpha1.RequestMetadata
+	(*SSHAuthority)(nil),              // 9: teleport.decision.v1alpha1.SSHAuthority
+	(*SSHIdentity)(nil),               // 10: teleport.decision.v1alpha1.SSHIdentity
+	(*Resource)(nil),                  // 11: teleport.decision.v1alpha1.Resource
+	(*PermitMetadata)(nil),            // 12: teleport.decision.v1alpha1.PermitMetadata
+	(*durationpb.Duration)(nil),       // 13: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),     // 14: google.protobuf.Timestamp
+	(*DenialMetadata)(nil),            // 15: teleport.decision.v1alpha1.DenialMetadata
 }
 var file_teleport_decision_v1alpha1_ssh_access_proto_depIdxs = []int32{
-	5,  // 0: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.metadata:type_name -> teleport.decision.v1alpha1.RequestMetadata
-	6,  // 1: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_authority:type_name -> teleport.decision.v1alpha1.SSHAuthority
-	7,  // 2: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_identity:type_name -> teleport.decision.v1alpha1.SSHIdentity
-	8,  // 3: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.node:type_name -> teleport.decision.v1alpha1.Resource
-	3,  // 4: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.permit:type_name -> teleport.decision.v1alpha1.SSHAccessPermit
-	4,  // 5: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.denial:type_name -> teleport.decision.v1alpha1.SSHAccessDenial
-	9,  // 6: teleport.decision.v1alpha1.SSHAccessPermit.metadata:type_name -> teleport.decision.v1alpha1.PermitMetadata
-	10, // 7: teleport.decision.v1alpha1.SSHAccessPermit.max_session_ttl:type_name -> google.protobuf.Duration
-	0,  // 8: teleport.decision.v1alpha1.SSHAccessPermit.port_forward_mode:type_name -> teleport.decision.v1alpha1.SSHPortForwardMode
-	10, // 9: teleport.decision.v1alpha1.SSHAccessPermit.client_idle_timeout:type_name -> google.protobuf.Duration
-	11, // 10: teleport.decision.v1alpha1.SSHAccessDenial.metadata:type_name -> teleport.decision.v1alpha1.DenialMetadata
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	8,  // 0: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.metadata:type_name -> teleport.decision.v1alpha1.RequestMetadata
+	9,  // 1: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_authority:type_name -> teleport.decision.v1alpha1.SSHAuthority
+	10, // 2: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.ssh_identity:type_name -> teleport.decision.v1alpha1.SSHIdentity
+	11, // 3: teleport.decision.v1alpha1.EvaluateSSHAccessRequest.node:type_name -> teleport.decision.v1alpha1.Resource
+	4,  // 4: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.permit:type_name -> teleport.decision.v1alpha1.SSHAccessPermit
+	5,  // 5: teleport.decision.v1alpha1.EvaluateSSHAccessResponse.denial:type_name -> teleport.decision.v1alpha1.SSHAccessDenial
+	12, // 6: teleport.decision.v1alpha1.SSHAccessPermit.metadata:type_name -> teleport.decision.v1alpha1.PermitMetadata
+	0,  // 7: teleport.decision.v1alpha1.SSHAccessPermit.port_forward_mode:type_name -> teleport.decision.v1alpha1.SSHPortForwardMode
+	13, // 8: teleport.decision.v1alpha1.SSHAccessPermit.client_idle_timeout:type_name -> google.protobuf.Duration
+	14, // 9: teleport.decision.v1alpha1.SSHAccessPermit.disconnect_expired_cert:type_name -> google.protobuf.Timestamp
+	6,  // 10: teleport.decision.v1alpha1.SSHAccessPermit.lock_targets:type_name -> teleport.decision.v1alpha1.LockTarget
+	7,  // 11: teleport.decision.v1alpha1.SSHAccessPermit.host_users_info:type_name -> teleport.decision.v1alpha1.HostUsersInfo
+	15, // 12: teleport.decision.v1alpha1.SSHAccessDenial.metadata:type_name -> teleport.decision.v1alpha1.DenialMetadata
+	1,  // 13: teleport.decision.v1alpha1.HostUsersInfo.mode:type_name -> teleport.decision.v1alpha1.HostUserMode
+	14, // [14:14] is the sub-list for method output_type
+	14, // [14:14] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_ssh_access_proto_init() }
@@ -615,8 +897,8 @@ func file_teleport_decision_v1alpha1_ssh_access_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc), len(file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   4,
+			NumEnums:      2,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

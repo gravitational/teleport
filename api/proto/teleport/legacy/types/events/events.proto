@@ -4419,6 +4419,8 @@ message IntegrationMetadata {
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
   // GitHub contains metadata for GitHub integrations.
   GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
+  // AWSRA contains metadata for AWS IAM Roles Anywhere integrations.
+  AWSRAIntegrationMetadata AWSRA = 5 [(gogoproto.jsontag) = "aws_ra,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4444,6 +4446,12 @@ message AzureOIDCIntegrationMetadata {
 message GitHubIntegrationMetadata {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+}
+
+// AWSRAIntegrationMetadata contains metadata for AWS IAM Roles Anywhere integrations.
+message AWSRAIntegrationMetadata {
+  // TrustAnchorARN contains the IAM Roles Anywhere Trust Anchor ARN used to set up the Integration.
+  string TrustAnchorARN = 1 [(gogoproto.jsontag) = "trust_anchor_arn,omitempty"];
 }
 
 // PluginCreate is emitted when a plugin resource is created.
@@ -4792,6 +4800,9 @@ message OneOf {
     events.SigstorePolicyCreate SigstorePolicyCreate = 210;
     events.SigstorePolicyUpdate SigstorePolicyUpdate = 211;
     events.SigstorePolicyDelete SigstorePolicyDelete = 212;
+    events.AutoUpdateAgentRolloutTrigger AutoUpdateAgentRolloutTrigger = 213;
+    events.AutoUpdateAgentRolloutForceDone AutoUpdateAgentRolloutForceDone = 214;
+    events.AutoUpdateAgentRolloutRollback AutoUpdateAgentRolloutRollback = 215;
   }
 }
 
@@ -7320,6 +7331,108 @@ message AutoUpdateVersionDelete {
   ];
 
   // Status indicates whether the deletion was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentRolloutTrigger is emitted when one or many groups from the auto update agent rollout are manually
+// triggered.
+message AutoUpdateAgentRolloutTrigger {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated string groups = 4;
+
+  // Status indicates whether the trigger was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentRolloutForceDone is emitted when one or many groups from the auto update agent rollout are manually
+// forced into the done state.
+message AutoUpdateAgentRolloutForceDone {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated string groups = 4;
+
+  // Status indicates whether the trigger was successful.
+  Status Status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AutoUpdateAgentRolloutRollback is emitted when one or many groups from the auto update agent rollout are manually
+// rolledback.
+message AutoUpdateAgentRolloutRollback {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated string groups = 4;
+
+  // Status indicates whether the trigger was successful.
   Status Status = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,

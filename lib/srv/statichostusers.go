@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
@@ -252,19 +253,18 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 	}
 
 	slog.DebugContext(ctx, "Attempt to update matched static host user.", "login", login)
-	ui := services.HostUsersInfo{
-		Groups:        createUser.Groups,
-		Mode:          services.HostUserModeStatic,
-		Shell:         createUser.DefaultShell,
-		TakeOwnership: createUser.TakeOwnershipIfUserExists,
+	ui := decisionpb.HostUsersInfo{
+		Groups: createUser.Groups,
+		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
+		Shell:  createUser.DefaultShell,
 	}
 	if createUser.Uid != 0 {
-		ui.UID = strconv.Itoa(int(createUser.Uid))
+		ui.Uid = strconv.Itoa(int(createUser.Uid))
 	}
 	if createUser.Gid != 0 {
-		ui.GID = strconv.Itoa(int(createUser.Gid))
+		ui.Gid = strconv.Itoa(int(createUser.Gid))
 	}
-	if _, err := s.users.UpsertUser(login, ui); err != nil {
+	if _, err := s.users.UpsertUser(login, &ui, TakeOwnershipIfUserExists(createUser.TakeOwnershipIfUserExists)); err != nil {
 		return trace.Wrap(err)
 	}
 	if s.sudoers != nil && len(createUser.Sudoers) != 0 {

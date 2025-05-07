@@ -30,7 +30,7 @@ import type {
   CreateDatabaseRequest,
   Database,
   DatabaseIamPolicyResponse,
-  DatabaseServerResponse,
+  DatabaseServer,
   DatabaseServicesResponse,
   UpdateDatabaseRequest,
 } from './types';
@@ -104,7 +104,7 @@ export function fetchDatabaseServers({
   clusterId: string;
   params: UrlResourcesParams;
   signal?: AbortSignal;
-}): Promise<DatabaseServerResponse | void> {
+}): Promise<ResourcesResponse<DatabaseServer>> {
   return (
     api
       .get(cfg.getDatabaseServerUrl(clusterId, params), signal)
@@ -112,7 +112,7 @@ export function fetchDatabaseServers({
         const items = json?.items || [];
 
         return {
-          items: items.map(makeDatabaseServer),
+          agents: items.map(makeDatabaseServer),
           startKey: json?.startKey,
         };
       })

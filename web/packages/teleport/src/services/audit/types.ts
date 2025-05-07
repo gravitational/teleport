@@ -49,6 +49,7 @@ export const eventCodes = {
   ACCESS_REQUEST_UPDATED: 'T5001I',
   ACCESS_REQUEST_DELETED: 'T5003I',
   ACCESS_REQUEST_RESOURCE_SEARCH: 'T5004I',
+  ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
   APP_SESSION_END: 'T2011I',
@@ -329,6 +330,9 @@ export const eventCodes = {
   HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
   HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
   HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
+  AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
+  AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
+  AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
 } as const;
 
 /**
@@ -350,6 +354,9 @@ export type RawEvents = {
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: RawEvent<
     typeof eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH,
     { resource_type: string; search_as_roles: string[] }
+  >;
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: RawEventAccess<
+    typeof eventCodes.ACCESS_REQUEST_EXPIRED
   >;
   [eventCodes.AUTH_ATTEMPT_FAILURE]: RawEventAuthFailure<
     typeof eventCodes.AUTH_ATTEMPT_FAILURE
@@ -1524,6 +1531,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1531,6 +1539,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_CREATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1538,6 +1547,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1545,6 +1555,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_UPDATE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1552,6 +1563,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1559,6 +1571,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_DELETE_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1566,6 +1579,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1573,6 +1587,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_REVIEW_FAILURE,
     {
       name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1598,6 +1613,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1605,6 +1621,7 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_LIST_MEMBER_DELETE_ALL_FOR_ACCESS_LIST_FAILURE,
     {
       access_list_name: string;
+      access_list_title: string;
       updated_by: string;
     }
   >;
@@ -1612,6 +1629,7 @@ export type RawEvents = {
     typeof eventCodes.USER_LOGIN_INVALID_ACCESS_LIST,
     {
       access_list_name: string;
+      access_list_title: string;
       user: string;
       missing_roles: string[];
     }
@@ -1885,6 +1903,27 @@ export type RawEvents = {
     typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
     HasName
   >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: RawEvent<
+    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK,
+    {
+      user: string;
+      groups: string[];
+    }
+  >;
 };
 
 /**
@@ -2027,6 +2066,7 @@ type RawEventAccessList<T extends EventCode> = RawEvent<
     access_list_name: string;
     members: { member_name: string }[];
     updated_by: string;
+    access_list_title: string;
   }
 >;
 

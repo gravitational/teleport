@@ -4450,101 +4450,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 	}
 }
 
-// DELETE IN 16.0
-func TestClusterAppsGet(t *testing.T) {
-	env := newWebPack(t, 1)
-
-	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-
-	type testResponse struct {
-		Items      []webui.App `json:"items"`
-		TotalCount int         `json:"totalCount"`
-	}
-
-	// add a user group
-	ug, err := types.NewUserGroup(types.Metadata{
-		Name: "ug1", Description: "ug1-description",
-	},
-		types.UserGroupSpecV1{Applications: []string{"app1"}})
-	require.NoError(t, err)
-	err = env.server.Auth().CreateUserGroup(context.Background(), ug)
-	require.NoError(t, err)
-
-	resource := &types.AppServerV3{
-		Metadata: types.Metadata{Name: "test-app"},
-		Kind:     types.KindApp,
-		Version:  types.V2,
-		Spec: types.AppServerSpecV3{
-			HostID: "hostid",
-			App: &types.AppV3{
-				Metadata: types.Metadata{
-					Name:        "app1",
-					Description: "description",
-					Labels:      map[string]string{"test-field": "test-value"},
-				},
-				Spec: types.AppSpecV3{
-					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
-					PublicAddr: "publicaddrs",
-					UserGroups: []string{"ug1", "ug2"}, // ug2 doesn't exist in the backend, so its lookup will fail.
-				},
-			},
-		},
-	}
-
-	resource2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
-		HostID: "hostid",
-		App: &types.AppV3{
-			Metadata: types.Metadata{Name: "app2"},
-			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
-		},
-	})
-	require.NoError(t, err)
-
-	// Register apps and service providers.
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
-	require.NoError(t, err)
-
-	// Make the call.
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{"sort": []string{"name"}})
-	require.NoError(t, err)
-
-	// Test correct response.
-	resp := testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []webui.App{{
-		Kind:        types.KindApp,
-		Name:        "app1",
-		Description: resource.Spec.App.GetDescription(),
-		URI:         resource.Spec.App.GetURI(),
-		PublicAddr:  resource.Spec.App.GetPublicAddr(),
-		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
-		FQDN:        resource.Spec.App.GetPublicAddr(),
-		ClusterID:   env.server.ClusterName(),
-		AWSConsole:  true,
-		UserGroups:  []webui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
-	}, {
-		Kind:       types.KindApp,
-		Name:       "app2",
-		URI:        "uri",
-		Labels:     []ui.Label{},
-		ClusterID:  env.server.ClusterName(),
-		FQDN:       "publicaddrs",
-		PublicAddr: "publicaddrs",
-		AWSConsole: false,
-	}})
-}
-
 // TestApplicationAccessDisabled makes sure application access can be disabled
 // via modules.
 func TestApplicationAccessDisabled(t *testing.T) {
@@ -4810,6 +4715,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.UpsellAlert):            {Enabled: false},
 			string(entitlements.UsageReporting):         {Enabled: false},
 			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+			string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -4995,6 +4901,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.UpsellAlert):            {Enabled: false},
 			string(entitlements.UsageReporting):         {Enabled: false},
 			string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+			string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 		},
 		PlayableDatabaseProtocols:     player.SupportedDatabaseProtocols,
 		IsPolicyRoleVisualizerEnabled: true,
@@ -9209,12 +9116,16 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	})
 	require.NoError(t, err)
 
-	inventoryHandle := inventory.NewDownstreamHandle(client.InventoryControlStream, clientproto.UpstreamInventoryHello{
-		ServerID: hostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{role},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
+		func(ctx context.Context) (clientproto.UpstreamInventoryHello, error) {
+			return clientproto.UpstreamInventoryHello{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: []types.SystemRole{role},
+				Hostname: "test",
+			}, nil
+		})
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
@@ -10981,6 +10892,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
 					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: true, Limit: 99},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: true, Limit: 99},
 				},
 			},
 			expected: &webclient.WebConfig{
@@ -11043,6 +10955,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
 					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: true, Limit: 99},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: true, Limit: 99},
 				},
 			},
 		},
@@ -11144,6 +11057,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: false},
 					string(entitlements.UsageReporting):         {Enabled: false},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 
 					// set to equivalent legacy feature
 					string(entitlements.ExternalAuditStorage):   {Enabled: true},
@@ -11272,6 +11186,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.OIDC):                   {Enabled: true},
 					string(entitlements.Policy):                 {Enabled: true},
 					string(entitlements.SAML):                   {Enabled: true},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
 					string(entitlements.AccessLists):       {Enabled: true, Limit: 88},
 					string(entitlements.AccessMonitoring):  {Enabled: true, Limit: 88},
@@ -11381,6 +11296,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.UpsellAlert):            {Enabled: false},
 					string(entitlements.UsageReporting):         {Enabled: false},
 					string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+					string(entitlements.AccessGraphDemoMode):    {Enabled: false},
 				},
 			},
 		},

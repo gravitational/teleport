@@ -29,14 +29,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[types.User], error) {
+type userIndex string
+
+const userNameIndex userIndex = "name"
+
+func newUserCollection(u services.UsersService, w types.WatchKind) (*collection[types.User, userIndex], error) {
 	if u == nil {
 		return nil, trace.BadParameter("missing parameter UsersService")
 	}
 
-	return &collection[types.User]{
-		store: newStore(map[string]func(types.User) string{
-			"name": func(u types.User) string {
+	return &collection[types.User, userIndex]{
+		store: newStore(map[userIndex]func(types.User) string{
+			userNameIndex: func(u types.User) string {
 				return u.GetName()
 			},
 		}),
@@ -76,7 +80,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 		return user, trace.Wrap(err)
 	}
 
-	u, err := rg.store.get("name", name)
+	u, err := rg.store.get(userNameIndex, name)
 	if err != nil {
 		// release read lock early
 		rg.Release()
@@ -118,8 +122,8 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 		return users, trace.Wrap(err)
 	}
 
-	users := make([]types.User, 0, c.collections.users.store.len())
-	for u := range rg.store.resources("name", "", "") {
+	users := make([]types.User, 0, rg.store.len())
+	for u := range rg.store.resources(userNameIndex, "", "") {
 		if withSecrets {
 			users = append(users, u.Clone())
 		} else {
@@ -158,7 +162,7 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 	}
 
 	var resp userspb.ListUsersResponse
-	for u := range rg.store.resources("name", req.PageToken, "") {
+	for u := range rg.store.resources(userNameIndex, req.PageToken, "") {
 		uv2, ok := u.(*types.UserV2)
 		if !ok {
 			continue
