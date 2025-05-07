@@ -17,6 +17,7 @@
 package log
 
 import (
+	"bytes"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -73,10 +74,10 @@ func newEventLogWriter(source string) (*eventLogWriter, error) {
 	}, nil
 }
 
-func (e *eventLogWriter) Write(bytes []byte, rawComponent string, level slog.Level) error {
+func (e *eventLogWriter) Write(bs []byte, rawComponent string, level slog.Level) error {
 	// SlogTextHandler always adds a newline at the end and Event Log, unlike os_log, doesn't
 	// automatically trim trailing newlines.
-	bytesWithoutNewline := bytes[:len(bytes)-1]
+	bytesWithoutNewline := bytes.TrimRight(bs, " ")
 
 	switch level {
 	case slog.LevelWarn:
