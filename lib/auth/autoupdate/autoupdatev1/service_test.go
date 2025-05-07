@@ -18,11 +18,13 @@ package autoupdatev1
 
 import (
 	"context"
+	"strconv"
 	"testing"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -32,261 +34,16 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func TestAutoUpdateCRUD(t *testing.T) {
-	t.Parallel()
-
-	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...interface{}) {
-			require.True(t, traceFn(err), "received an un-expected error: %v", err)
-		}
-	}
-
-	ctx, localClient, resourceSvc := initSvc(t, "test-cluster", &eventstest.MockRecorderEmitter{})
-	initialConfig, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
-			Mode: "enabled",
-		},
-	})
-	require.NoError(t, err)
-	initialVersion, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
-			TargetVersion: "1.2.3",
-		},
-	})
-	require.NoError(t, err)
-
-	tt := []struct {
-		Name         string
-		Role         types.RoleSpecV6
-		Setup        func(t *testing.T, dcName string)
-		Test         func(ctx context.Context, resourceSvc *Service, dcName string) error
-		ErrAssertion require.ErrorAssertionFunc
-	}{
-		// Read
-		{
-			Name: "allowed read access to auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbRead},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		{
-			Name: "no access to auto update resources",
-			Role: types.RoleSpecV6{},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		// Create
-		{
-			Name: "no access to create auto update resources",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to create auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbCreate},
-				}}},
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		// Update
-		{
-			Name: "no access to update auto update resources",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to update auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbUpdate},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		// Upsert
-		{
-			Name: "no access to upsert auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbUpdate}, // missing VerbCreate
-				}}},
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to upsert auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
-					Config: initialConfig,
-				})
-				_, errVersion := resourceSvc.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
-					Version: initialVersion,
-				})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-		// Delete
-		{
-			Name: "no access to delete auto update resources",
-			Role: types.RoleSpecV6{},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: requireTraceErrorFn(trace.IsAccessDenied),
-		},
-		{
-			Name: "access to delete auto update resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindAutoUpdateConfig, types.KindAutoUpdateVersion},
-					Verbs:     []string{types.VerbDelete},
-				}}},
-			},
-			Setup: func(t *testing.T, dcName string) {
-				_, err := localClient.CreateAutoUpdateConfig(ctx, initialConfig)
-				require.NoError(t, err)
-				_, err = localClient.CreateAutoUpdateVersion(ctx, initialVersion)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, dcName string) error {
-				_, errConfig := resourceSvc.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
-				_, errVersion := resourceSvc.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
-				return trace.NewAggregate(errConfig, errVersion)
-			},
-			ErrAssertion: require.NoError,
-		},
-	}
-
-	for _, tc := range tt {
-		tc := tc
-		t.Run(tc.Name, func(t *testing.T) {
-			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
-
-			dcName := uuid.NewString()
-			if tc.Setup != nil {
-				tc.Setup(t, dcName)
-			}
-
-			err := tc.Test(localCtx, resourceSvc, dcName)
-			tc.ErrAssertion(t, err)
-			err = localClient.DeleteAutoUpdateConfig(ctx)
-			if !trace.IsNotFound(err) {
-				require.NoError(t, err)
-			}
-			err = localClient.DeleteAutoUpdateVersion(ctx)
-			if !trace.IsNotFound(err) {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestAutoUpdateConfigEvents(t *testing.T) {
-	role := types.RoleSpecV6{
-		Allow: types.RoleConditions{Rules: []types.Rule{{
-			Resources: []string{types.KindAutoUpdateConfig},
-			Verbs:     []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete},
-		}}},
-	}
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	ctx, localClient, service := initSvc(t, "test-cluster", mockEmitter)
-	localCtx := authorizerForDummyUser(t, ctx, role, localClient)
+	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	ctx := context.Background()
 
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
@@ -295,7 +52,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.CreateAutoUpdateConfig(localCtx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: config})
+	_, err = service.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: config})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateConfigCreateEvent, mockEmitter.LastEvent().GetType())
@@ -303,7 +60,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigCreate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpdateAutoUpdateConfig(localCtx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{Config: config})
+	_, err = service.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{Config: config})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -311,7 +68,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpsertAutoUpdateConfig(localCtx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{Config: config})
+	_, err = service.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{Config: config})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -319,7 +76,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.DeleteAutoUpdateConfig(localCtx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
+	_, err = service.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateConfigDeleteEvent, mockEmitter.LastEvent().GetType())
@@ -329,15 +86,10 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 }
 
 func TestAutoUpdateVersionEvents(t *testing.T) {
-	role := types.RoleSpecV6{
-		Allow: types.RoleConditions{Rules: []types.Rule{{
-			Resources: []string{types.KindAutoUpdateVersion},
-			Verbs:     []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete},
-		}}},
-	}
+	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	ctx, localClient, service := initSvc(t, "test-cluster", mockEmitter)
-	localCtx := authorizerForDummyUser(t, ctx, role, localClient)
+	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
+	ctx := context.Background()
 
 	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
 		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
@@ -346,7 +98,7 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = service.CreateAutoUpdateVersion(localCtx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: config})
+	_, err = service.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: config})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateVersionCreateEvent, mockEmitter.LastEvent().GetType())
@@ -354,7 +106,7 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionCreate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpdateAutoUpdateVersion(localCtx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{Version: config})
+	_, err = service.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{Version: config})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -362,7 +114,7 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpsertAutoUpdateVersion(localCtx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{Version: config})
+	_, err = service.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{Version: config})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -370,7 +122,7 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.DeleteAutoUpdateVersion(localCtx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
+	_, err = service.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateVersionDeleteEvent, mockEmitter.LastEvent().GetType())
@@ -379,101 +131,398 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	mockEmitter.Reset()
 }
 
-func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
-	// Create role
-	roleName := "role-" + uuid.NewString()
-	role, err := types.NewRole(roleName, roleSpec)
-	require.NoError(t, err)
-
-	err = localClient.CreateRole(ctx, role)
-	require.NoError(t, err)
-
-	// Create user
-	user, err := types.NewUser("user-" + uuid.NewString())
-	require.NoError(t, err)
-	user.AddRole(roleName)
-	err = localClient.CreateUser(user)
-	require.NoError(t, err)
-
-	return authz.ContextWithUser(ctx, authz.LocalUser{
-		Username: user.GetName(),
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-			Groups:   []string{role.GetName()},
-		},
-	})
+type fakeChecker struct {
+	allowedVerbs []string
+	builtinRole  *authz.BuiltinRole
+	services.AccessChecker
 }
 
-type localClient interface {
-	CreateUser(user types.User) error
-	CreateRole(ctx context.Context, role types.Role) error
-	services.AutoUpdateService
-}
-
-func initSvc(t *testing.T, clusterName string, emitter apievents.Emitter) (context.Context, localClient, *Service) {
-	ctx := context.Background()
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
-	trustSvc := local.NewCAService(backend)
-	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewTestIdentityService(backend)
-
-	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
-	require.NoError(t, err)
-	require.NoError(t, clusterConfigSvc.SetAuthPreference(ctx, types.DefaultAuthPreference()))
-	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
-	require.NoError(t, clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
-	require.NoError(t, clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
-
-	accessPoint := struct {
-		services.ClusterConfiguration
-		services.Trust
-		services.RoleGetter
-		services.UserGetter
-	}{
-		ClusterConfiguration: clusterConfigSvc,
-		Trust:                trustSvc,
-		RoleGetter:           roleSvc,
-		UserGetter:           userSvc,
+func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
+	if resource == types.KindAutoUpdateConfig || resource == types.KindAutoUpdateVersion || resource == types.KindAutoUpdateAgentRollout {
+		for _, allowedVerb := range f.allowedVerbs {
+			if allowedVerb == verb {
+				return nil
+			}
+		}
 	}
 
-	accessService := local.NewAccessService(backend)
-	eventService := local.NewEventsService(backend)
-	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Client:    eventService,
-			Component: "test",
-		},
-		LockGetter: accessService,
+	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
+}
+
+func (f fakeChecker) HasRole(name string) bool {
+	if f.builtinRole == nil {
+		return false
+	}
+	return name == f.builtinRole.Role.String()
+}
+
+func (f fakeChecker) identityGetter() authz.IdentityGetter {
+	if f.builtinRole != nil {
+		return *f.builtinRole
+	}
+	return nil
+}
+
+func newService(t *testing.T, checker fakeChecker, emitter apievents.Emitter) *Service {
+	t.Helper()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	storage, err := local.NewAutoUpdateService(bk)
+	require.NoError(t, err)
+
+	return newServiceWithStorage(t, checker, storage, emitter)
+}
+
+func newServiceWithStorage(t *testing.T, checker fakeChecker, storage services.AutoUpdateService, emitter apievents.Emitter) *Service {
+	t.Helper()
+
+	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+		user, err := types.NewUser("alice")
+		if err != nil {
+			return nil, err
+		}
+
+		return &authz.Context{
+			User:     user,
+			Checker:  checker,
+			Identity: checker.identityGetter(),
+		}, nil
 	})
-	require.NoError(t, err)
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-	})
-	require.NoError(t, err)
-
-	localResourceService, err := local.NewAutoUpdateService(backend)
-	require.NoError(t, err)
-
-	resourceSvc, err := NewService(ServiceConfig{
-		Backend:    localResourceService,
-		Cache:      localResourceService,
+	service, err := NewService(ServiceConfig{
 		Authorizer: authorizer,
+		Backend:    storage,
+		Cache:      storage,
 		Emitter:    emitter,
 	})
 	require.NoError(t, err)
+	return service
+}
 
-	return ctx, struct {
-		*local.AccessService
-		*local.IdentityService
-		*local.AutoUpdateService
+func TestComputeMinRolloutTime(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		groups        []*autoupdatev1pb.AgentAutoUpdateGroup
+		expectedHours int
 	}{
-		AccessService:     roleSvc,
-		IdentityService:   userSvc,
-		AutoUpdateService: localResourceService,
-	}, resourceSvc
+		{
+			name:          "nil groups",
+			groups:        nil,
+			expectedHours: 0,
+		},
+		{
+			name:          "empty groups",
+			groups:        []*autoupdatev1pb.AgentAutoUpdateGroup{},
+			expectedHours: 0,
+		},
+		{
+			name: "single group",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name: "g1",
+				},
+			},
+			expectedHours: 1,
+		},
+		{
+			name: "two groups, same day, different start hour, no wait time",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 4,
+				},
+			},
+			// g1 updates from 2:00 to 3:00, g2 updates from 4:00 to 5:00, rollout updates from 2:00 to 5:00.
+			expectedHours: 3,
+		},
+		{
+			name: "two groups, same day, same start hour, no wait time",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 2,
+				},
+			},
+			// g1 and g2 can't update at the same time, the g1 updates from 2:00 to 3:00 days one,
+			// and g2 updates from 2:00 to 3:00 the next day. Total update spans from 2:00 day 1, to 3:00 day 2
+			expectedHours: 25,
+		},
+		{
+			name: "two groups, cannot happen on the same day because of wait_hours",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 4,
+					WaitHours: 6,
+				},
+			},
+			// g1 updates from 2:00 to 3:00. At 4:00 g2 can't update yet, so we wait the next day.
+			// On day 2, g2 updates from 4:00 to 5:00. Rollout spans from 2:00 day on to 7:00 day 2.
+			expectedHours: 27,
+		},
+		{
+			name: "two groups, wait hours is several days",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 4,
+					WaitHours: 48,
+				},
+			},
+			// g1 updates from 2:00 to 3:00. At 4:00 g2 can't update yet, so we wait 2 days.
+			// On day 3, g2 updates from 4:00 to 5:00. Rollout spans from 2:00 day on to 7:00 day 3.
+			expectedHours: 51,
+		},
+		{
+			name: "two groups, one wait hour",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 2,
+				},
+				{
+					Name:      "g2",
+					StartHour: 3,
+					WaitHours: 1,
+				},
+			},
+			expectedHours: 2,
+		},
+		{
+			name: "two groups different days",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 23,
+				},
+				{
+					Name:      "g2",
+					StartHour: 1,
+				},
+			},
+			expectedHours: 3,
+		},
+		{
+			name: "two groups different days, hour diff == wait hours == 1 day",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 12,
+				},
+				{
+					Name:      "g2",
+					StartHour: 12,
+					WaitHours: 24,
+				},
+			},
+			expectedHours: 25,
+		},
+		{
+			name: "two groups different days, hour diff == wait hours",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 12,
+				},
+				{
+					Name:      "g2",
+					StartHour: 11,
+					WaitHours: 23,
+				},
+			},
+			expectedHours: 24,
+		},
+		{
+			name: "everything at once",
+			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
+				{
+					Name:      "g1",
+					StartHour: 23,
+				},
+				{
+					Name:      "g2",
+					StartHour: 1,
+					WaitHours: 4,
+				},
+				{
+					Name:      "g3",
+					StartHour: 1,
+				},
+				{
+					Name:      "g4",
+					StartHour: 10,
+					WaitHours: 6,
+				},
+			},
+			expectedHours: 60,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expectedHours, computeMinRolloutTime(tt.groups))
+		})
+	}
+}
+
+func generateGroups(n int, days []string) []*autoupdatev1pb.AgentAutoUpdateGroup {
+	groups := make([]*autoupdatev1pb.AgentAutoUpdateGroup, n)
+	for i := range groups {
+		groups[i] = &autoupdatev1pb.AgentAutoUpdateGroup{
+			Name:      strconv.Itoa(i),
+			Days:      days,
+			StartHour: int32(i % 24),
+		}
+	}
+	return groups
+}
+
+func TestValidateServerSideAgentConfig(t *testing.T) {
+	cloudModules := &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	}
+	selfHostedModules := &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud: false,
+		},
+	}
+	tests := []struct {
+		name      string
+		config    *autoupdatev1pb.AutoUpdateConfigSpecAgents
+		modules   modules.Modules
+		expectErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "empty agent config",
+			modules:   selfHostedModules,
+			config:    nil,
+			expectErr: require.NoError,
+		},
+		{
+			name:    "over max groups time-based",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:                      autoupdate.AgentsUpdateModeEnabled,
+				Strategy:                  autoupdate.AgentsStrategyTimeBased,
+				MaintenanceWindowDuration: durationpb.New(time.Hour),
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsTimeBasedStrategy+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "over max groups halt-on-error",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategy+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "over max groups halt-on-error cloud",
+			modules: cloudModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud+1, cloudGroupUpdateDays),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "cloud should reject custom weekdays",
+			modules: cloudModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "self-hosted should allow custom weekdays",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
+				},
+			},
+			expectErr: require.NoError,
+		},
+		{
+			name:    "cloud should reject long rollouts",
+			modules: cloudModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
+						{Name: "g1", Days: cloudGroupUpdateDays},
+						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+					},
+				},
+			},
+			expectErr: require.Error,
+		},
+		{
+			name:    "self-hosted should allow long rollouts",
+			modules: selfHostedModules,
+			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+				Mode:     autoupdate.AgentsUpdateModeEnabled,
+				Strategy: autoupdate.AgentsStrategyHaltOnError,
+				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
+						{Name: "g1", Days: cloudGroupUpdateDays},
+						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+					},
+				},
+			},
+			expectErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test setup: crafing a config and setting modules
+			config, err := autoupdate.NewAutoUpdateConfig(
+				&autoupdatev1pb.AutoUpdateConfigSpec{
+					Tools:  nil,
+					Agents: tt.config,
+				})
+			require.NoError(t, err)
+			modules.SetTestModules(t, tt.modules)
+
+			// Test execution.
+			tt.expectErr(t, validateServerSideAgentConfig(config))
+		})
+	}
 }

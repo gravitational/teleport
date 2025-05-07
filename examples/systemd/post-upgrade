@@ -1,11 +1,5 @@
 #!/bin/bash
 
-# this post upgrade script is run each time the teleport package is upgraded
+# This post upgrade script is run each time the teleport package is upgraded.
 
 set -eu
-
-# skip reload and restart when systemd is disabled. This is only relevant when
-# testing in a container.
-if [ -d /run/systemd/system ]; then
-    systemctl --system daemon-reload >/dev/null || true
-fi

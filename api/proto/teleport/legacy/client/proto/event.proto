@@ -41,7 +41,11 @@ enum Operation {
 message Event {
   reserved 7;
   reserved 49;
+  reserved 63;
+  reserved 68;
   reserved "ExternalCloudAudit";
+  reserved "StaticHostUser";
+  reserved "AutoUpdateAgentPlan";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -156,5 +160,7 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateConfig AutoUpdateConfig = 64;
     // AutoUpdateVersion is a resource for autoupdate version.
     teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
+    // AutoUpdateVersion is a resource for controlling the autoupdate agent rollout.
+    teleport.autoupdate.v1.AutoUpdateAgentRollout AutoUpdateAgentRollout = 71;
   }
 }

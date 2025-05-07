@@ -274,7 +274,13 @@ const (
 	// ComponentAssist represents Teleport Assist
 	ComponentAssist = "assist"
 
-	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
+	// ComponentUpdater represents the teleport-update binary.
+	ComponentUpdater = "updater"
+
+	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
+	ComponentRolloutController = "rollout-controller"
+
+	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
 	// IterationsEnvVar sets tests iterations to run
