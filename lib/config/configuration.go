@@ -277,8 +277,14 @@ type IntegrationConfAccessGraphAWSSync struct {
 // IntegrationConfAccessGraphAzureSync contains the arguments of
 // `teleport integration configure access-graph azure` command.
 type IntegrationConfAccessGraphAzureSync struct {
-	// ManagedIdentity is the principal performing the discovery
-	ManagedIdentity string
+	// CreateEnterpriseApp indicates whether to create a new enterprise application for this integration
+	CreateEnterpriseApp bool
+	// ProxyPublicAddr is the public address of the Teleport Proxy, used when creating a new enterprise application
+	ProxyPublicAddr string
+	// AuthConnectorName is the name of the auth connector when creating a new enterprise application
+	AuthConnectorName string
+	// PrincipalID is the ID of the principal (enterprise application or managed identity) performing the discovery
+	PrincipalID string
 	// RoleName is the name of the Azure Role to create and assign to the managed identity
 	RoleName string
 	// SubscriptionID is the Azure subscription containing resources for sync

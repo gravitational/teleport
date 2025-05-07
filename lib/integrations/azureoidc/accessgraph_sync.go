@@ -20,8 +20,10 @@ package azureoidc
 
 import (
 	"context"
+	"errors"
 	"io"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -47,11 +49,15 @@ const azureUserAgent = "teleport"
 
 // requiredGraphRoleNames is the list of Graph API roles required for the managed identity to fetch resources from Azure
 var requiredGraphRoleNames = map[string]struct{}{
-	"User.ReadBasic.All": {},
 	"Group.Read.All":     {},
 	"Directory.Read.All": {},
 	"User.Read.All":      {},
 	"Policy.Read.All":    {},
+}
+
+// requiredGraphAppRoleNames is the list of Graph API roles required for the enterprise application to fetch resources from Azure
+var requiredGraphAppRoleNames = map[string]struct{}{
+	"Group.Read.All": {},
 }
 
 // AccessGraphAzureConfigureClient provides an interface for granting the managed identity the necessary permissions
@@ -74,7 +80,7 @@ type azureConfigClient struct {
 	graphCli      *msgraph.Client
 }
 
-// NewAzureConfigClient returns a new config client for granting the managed identity the necessary permissions
+// NewAzureConfigClient returns a new config client for granting the principal the necessary permissions
 // to fetch Azure resources
 func NewAzureConfigClient(subscriptionID string) (AccessGraphAzureConfigureClient, error) {
 	telemetryOpts := policy.TelemetryOptions{
@@ -159,10 +165,17 @@ func (c *azureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, 
 	return nil
 }
 
-// AccessGraphAzureConfigureRequest is a request to configure the required Policies to use the TAG AWS Sync.
+// AccessGraphAzureConfigureRequest is a request to assign the right permissions/roles to the Azure principal used
+// for fetching resources from Azure.
 type AccessGraphAzureConfigureRequest struct {
-	// ManagedIdentity is the principal performing the discovery
-	ManagedIdentity string
+	// CreateEnterpriseApp indicates whether to create a new enterprise application for this integration
+	CreateEnterpriseApp bool
+	// ProxyPublicAddr is the public address of the Teleport Proxy, used when creating a new enterprise application
+	ProxyPublicAddr string
+	// AuthConnectorName is the name of the auth connector when creating a new enterprise application
+	AuthConnectorName string
+	// PrincipalID is the principal performing the discovery
+	PrincipalID string
 	// RoleName is the name of the Azure Role to create and assign to the managed identity
 	RoleName string
 	// SubscriptionID is the Azure subscription containing resources for sync
@@ -174,10 +187,26 @@ type AccessGraphAzureConfigureRequest struct {
 }
 
 // roleAssignmentAction assigns both the Azure role and Graph API roles to the managed identity
-func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID string, managedID string, roleName string) (*provisioning.Action, error) {
+func configureAzureSyncAction(clt AccessGraphAzureConfigureClient, subscriptionID string, createApp bool, proxyPublicAddr string, authConnectorName string, principalID string, roleName string) (*provisioning.Action, error) {
 	customRole := "CustomRole"
 	scope := "/subscriptions/" + subscriptionID
 	runnerFn := func(ctx context.Context) error {
+		var requiredRoles map[string]struct{}
+		if createApp {
+			appID, _, err := SetupEnterpriseApp(
+				ctx, "Teleport Access Graph Sync", proxyPublicAddr, authConnectorName, false)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			principal, err := clt.GetServicePrincipalByAppID(ctx, appID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			principalID = *principal.ID
+			requiredRoles = requiredGraphAppRoleNames
+		} else {
+			requiredRoles = requiredGraphRoleNames
+		}
 		// Create the role
 		roleDefinition := armauthorization.RoleDefinition{
 			Name: &roleName,
@@ -199,18 +228,25 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 		}
 		roleID, err := clt.CreateRoleDefinition(ctx, scope, roleDefinition)
 		if err != nil {
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) {
+				if respErr.StatusCode == http.StatusConflict {
+					return trace.Errorf("role name already exists, delete this role or choose another name: %s", *roleDefinition.Name)
+				}
+				return trace.Errorf("failed to create custom role: %v", respErr)
+			}
 			return trace.Errorf("failed to create custom role: %v", err)
 		}
 
 		// Assign the new role to the managed identity
 		roleAssignParams := armauthorization.RoleAssignmentCreateParameters{
 			Properties: &armauthorization.RoleAssignmentProperties{
-				PrincipalID:      &managedID,
+				PrincipalID:      &principalID,
 				RoleDefinitionID: &roleID,
 			},
 		}
 		if err = clt.CreateRoleAssignment(ctx, scope, roleAssignParams); err != nil {
-			return trace.Errorf("failed to assign role %s to principal %s: %v", roleName, managedID, err)
+			return trace.Errorf("failed to assign role %s to principal %s: %v", roleName, principalID, err)
 		}
 
 		// Assign the Graph API permissions to the managed identity
@@ -219,18 +255,18 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 			return trace.Errorf("could not get the graph API service principal: %v", err)
 		}
 		rolesNotAssigned := make(map[string]struct{})
-		for k, v := range requiredGraphRoleNames {
+		for k, v := range requiredRoles {
 			rolesNotAssigned[k] = v
 		}
 		for _, appRole := range graphPrincipal.AppRoles {
-			if _, ok := requiredGraphRoleNames[*appRole.Value]; ok {
+			if _, ok := requiredRoles[*appRole.Value]; ok {
 				roleAssignment := msgraph.AppRoleAssignment{
 					AppRoleID:   appRole.ID,
-					PrincipalID: &managedID,
+					PrincipalID: &principalID,
 					ResourceID:  graphPrincipal.ID,
 				}
 				if err = clt.GrantAppRoleToServicePrincipal(ctx, roleAssignment); err != nil {
-					return trace.Errorf("failed to assign graph API role to %s: %v", managedID, err)
+					return trace.Errorf("failed to assign graph API role to %s: %v", principalID, err)
 				}
 				delete(rolesNotAssigned, *appRole.Value)
 			}
@@ -244,9 +280,10 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 		Name:    "AssignRole",
 		Summary: "Creates a new Azure role and attaches it to a managed identity for the Discovery service",
 		Details: strings.Join([]string{
-			"The Discovery Service needs to run as a credentialed Azure managed identity. This managed identity ",
-			"can be system assigned (i.e. tied to the lifecycle of a virtual machine running the Discovery service), ",
-			"or user-assigned (i.e. a persistent identity). The managed identity requires two types of permissions:\n\n",
+			"The Discovery Service needs to run as a credentialed Azure principal. This principal can be a managed",
+			"identity, either system or user assigned. The principal can also be an enterprise application configured",
+			"for SSO.\n\n",
+			"The principal requires two types of permissions:\n\n",
 			"\t1) Azure resource permissions in order to fetch virtual machines, role definitions, etc, and\n",
 			"\t2) Graph API permissions to fetch users, groups, and service principals.\n\n",
 			"The command assigns both Azure resource permissions as well as Graph API permissions to the specified ",
@@ -259,16 +296,20 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 
 // ConfigureAccessGraphSyncAzure sets up the managed identity and role required for Teleport to be able to pull
 // Azure resources into Teleport.
-func ConfigureAccessGraphSyncAzure(ctx context.Context, clt AccessGraphAzureConfigureClient, req AccessGraphAzureConfigureRequest) error {
-	managedIDAction, err := roleAssignmentAction(clt, req.SubscriptionID, req.ManagedIdentity, req.RoleName)
+func ConfigureAccessGraphSyncAzure(
+	ctx context.Context,
+	clt AccessGraphAzureConfigureClient,
+	req AccessGraphAzureConfigureRequest,
+) error {
+	azureSyncAction, err := configureAzureSyncAction(
+		clt, req.SubscriptionID, req.CreateEnterpriseApp, req.ProxyPublicAddr, req.AuthConnectorName, req.PrincipalID,
+		req.RoleName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	opCfg := provisioning.OperationConfig{
-		Name: "access-graph-azure-sync",
-		Actions: []provisioning.Action{
-			*managedIDAction,
-		},
+		Name:        "access-graph-azure-sync",
+		Actions:     []provisioning.Action{*azureSyncAction},
 		AutoConfirm: req.AutoConfirm,
 		Output:      req.stdout,
 	}
