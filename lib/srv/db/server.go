@@ -96,6 +96,12 @@ func init() {
 	endpoints.RegisterResolver(postgres.NewEndpointsResolver, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
 	endpoints.RegisterResolver(mysql.NewEndpointsResolver, defaults.ProtocolMySQL)
 	endpoints.RegisterResolver(mongodb.NewEndpointsResolver, defaults.ProtocolMongoDB)
+
+	endpoints.RegisterResolver(cassandra.NewEndpointsResolver, defaults.ProtocolCassandra)
+	endpoints.RegisterResolver(clickhouse.NewNativeEndpointsResolver, defaults.ProtocolClickHouse)
+	endpoints.RegisterResolver(clickhouse.NewHTTPEndpointsResolver, defaults.ProtocolClickHouseHTTP)
+	endpoints.RegisterResolver(spanner.NewEndpointsResolver, defaults.ProtocolSpanner)
+	endpoints.RegisterResolver(sqlserver.NewEndpointsResolver, defaults.ProtocolSQLServer)
 }
 
 // Config is the configuration for a database proxy server.
