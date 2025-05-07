@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	pivgo "github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
@@ -215,6 +216,79 @@ func TestOverwritePrompt(t *testing.T) {
 
 		testOverwritePrompt(t)
 	})
+}
+
+func TestPINCaching(t *testing.T) {
+	// This test will overwrite any PIV data on the yubiKey.
+	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+	}
+
+	ctx := context.Background()
+
+	promptWriter := bytes.NewBuffer([]byte{})
+	promptReader := prompt.NewFakeReader()
+	prompt := hardwarekey.NewCLIPrompt(promptWriter, promptReader)
+	s := piv.NewYubiKeyService(prompt)
+
+	y, err := piv.FindYubiKey(0)
+	require.NoError(t, err)
+
+	resetYubikey(t, y)
+	t.Cleanup(func() { resetYubikey(t, y) })
+
+	// Set pin.
+	const testPIN = "123123"
+	require.NoError(t, y.SetPIN(pivgo.DefaultPIN, testPIN))
+	const wrongPIN = "123321"
+
+	// Generate a key with PINPolicyAlways so that the PIN isn't cached internally on the YubiKey.
+	pivSlot := pivgo.SlotAuthentication
+	err = y.GenerateKey(pivSlot, pivgo.Key{
+		Algorithm:   pivgo.AlgorithmEC384,
+		PINPolicy:   pivgo.PINPolicyAlways,
+		TouchPolicy: pivgo.TouchPolicyNever,
+	})
+	require.NoError(t, err)
+
+	// Providing the wrong PIN should fail without caching it.
+	promptReader.AddString(wrongPIN)
+	_, err = keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+		Policy:      hardwarekey.PromptPolicyPIN,
+		PINCacheTTL: time.Second,
+		CustomSlot:  hardwarekey.PIVSlotKeyString(pivSlot.String()),
+	})
+	require.Error(t, err)
+
+	// Retrieve the key with the right PIN and cache it.
+	promptReader.AddString(testPIN)
+	priv, err := keys.NewHardwarePrivateKey(ctx, s, hardwarekey.PrivateKeyConfig{
+		Policy:      hardwarekey.PromptPolicyPIN,
+		PINCacheTTL: time.Second,
+		CustomSlot:  hardwarekey.PIVSlotKeyString(pivSlot.String()),
+	})
+	require.NoError(t, err)
+
+	// The PIN is cached, no prompt needed.
+	err = priv.WarmupHardwareKey(ctx)
+	require.NoError(t, err)
+
+	// Wait for the cache to expire.
+	time.Sleep(time.Second)
+
+	// Signing should fail with the wrong PIN without caching it.
+	promptReader.AddString(wrongPIN)
+	err = priv.WarmupHardwareKey(ctx)
+	require.Error(t, err)
+
+	// Signing with the right PIN should cache it.
+	promptReader.AddString(testPIN)
+	err = priv.WarmupHardwareKey(ctx)
+	require.Error(t, err)
+
+	// The PIN is cached, no prompt needed.
+	err = priv.WarmupHardwareKey(ctx)
+	require.Error(t, err)
 }
 
 // resetYubikey connects to the first yubiKey and resets it to defaults.

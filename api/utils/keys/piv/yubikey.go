@@ -370,7 +370,7 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 		TouchPolicy: touchPolicy,
 	}
 
-	if _, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts); err != nil {
+	if err := y.GenerateKey(slot, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -382,6 +382,12 @@ func (y *YubiKey) generatePrivateKey(slot piv.Slot, policy hardwarekey.PromptPol
 	}
 
 	return y.getKeyRef(slot, pinCacheTTL)
+}
+
+// GenerateKey generates a new private key in the given PIV slot.
+func (y *YubiKey) GenerateKey(slot piv.Slot, opts piv.Key) error {
+	_, err := y.conn.generateKey(piv.DefaultManagementKey, slot, opts)
+	return trace.Wrap(err)
 }
 
 // SetMetadataCertificate creates a self signed certificate and stores it in the YubiKey's
