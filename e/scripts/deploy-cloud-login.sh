@@ -12,7 +12,7 @@ TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.
 AWS_SSO_PROFILE=${AWS_SSO_PROFILE:-tc-stage-core}
 AWS_PROFILE=${AWS_PROFILE:-tc-stage-ecr}
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
-TCCTL_PATH=${TCCTL_PATH:-../../cloud/tcctl/cmd/tcctl}
+TC_PATH=${TC_PATH:-../../cloud/tc/cmd/tc}
 
 function echo_color() {
     local color='\033[0;'$1'm'
@@ -71,14 +71,14 @@ tsh app login --proxy=$TELEPORT_PROXY $CLOUD_API_APP
 fail_on_exit_code "Failed to login to app \"$CLOUD_API_APP\" on $TELEPORT_PROXY"
 
 echo "Checking for tooling to patch tenant..."
-if ! (command -v tcctl); then
-    echo "Using \`tcctl\` from source in folder \"$TCCTL_PATH\"..."
-    tcctl () {
-        cd "$TCCTL_PATH" && go run . "$@"
+if ! (command -v tc); then
+    echo "Using \`tc\` from source in folder \"$TC_PATH\"..."
+    tc () {
+        cd "$TC_PATH" && go run . "$@"
     }
 fi
-tenant=$(tcctl tenant --app-name="$CLOUD_API_APP" list | head -n 1)
-fail_on_exit_code "Unable to retrieve tenant from \"$CLOUD_API_APP\". Ensure the \`tcctl\` executable is available in the path or the source from \"cloud\" repo is found at path \"$TCCTL_PATH\". Override env var \"TCCTL_PATH\" to point to the source folder if necessary."
+tenant=$(tc tenant --app-name="$CLOUD_API_APP" list | head -n 1)
+fail_on_exit_code "Unable to retrieve tenant from \"$CLOUD_API_APP\". Ensure the \`tc\` executable is available in the path or the source from \"cloud\" repo is found at path \"$TC_PATH\". Override env var \"TC_PATH\" to point to the source folder if necessary."
 
 ns="cloud-gravitational-io-$tenant"
 echo "Checking for permissions to patch tenants via k8s API... (tenant=\"$tenant\", namespace=\"$ns\")"

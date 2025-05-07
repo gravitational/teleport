@@ -60,7 +60,7 @@ KUBE_TENANT_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
 KUBE_AUTH_CLUSTER=${KUBE_AUTH_CLUSTER:-tc-staging-cs-01-usw2}
 KUBE_AUTH_CONTEXT=$TELEPORT_CLUSTER-$KUBE_AUTH_CLUSTER
 CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
-TCCTL_PATH=${TCCTL_PATH:-../../cloud/tcctl/cmd/tcctl}
+TC_PATH=${TC_PATH:-../../cloud/tc/cmd/tc}
 
 if [[ -z "$CLOUD_SKIP_DEPLOY" ]]; then
     [ -z "$TENANT" ] && fail_on_exit_code "Environment variable \"TENANT\" must be set." 1
@@ -112,16 +112,16 @@ auth_deployment_generation=$(kubectl get deployment teleport-auth -n $NAMESPACE 
 adg_exit=$?
 
 echo "-> Patching tenant \"$TENANT\" to run image \"$TARGET_IMAGE_REPO:$target_image_tag\"..."
-if ! (command -v tcctl); then
-    echo "Using \`tcctl\` from source in folder \"$TCCTL_PATH\"..."
-    tcctl () {
-        cd "$TCCTL_PATH" && go run . "$@"
+if ! (command -v tc); then
+    echo "Using \`tc\` from source in folder \"$TC_PATH\"..."
+    tc () {
+        cd "$TC_PATH" && go run . "$@"
     }
 fi
-if (tcctl tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
-    (tcctl tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
+if (tc tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
+    (tc tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
 else
-	echo "Failed to patch tenant \"$TENANT\" using tcctl, retrying with kubectl..."
+	echo "Failed to patch tenant \"$TENANT\" using tc, retrying with kubectl..."
 	tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT)
 	fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\'"
 	kubectl patch $tenant -n $NAMESPACE --type merge --patch '{"spec": {"teleportImageRepo": "'"$TARGET_IMAGE_REPO"'", "teleportVersion": "'"$target_image_tag"'"}}' --context=$KUBE_TENANT_CONTEXT
