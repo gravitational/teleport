@@ -7946,6 +7946,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -7954,6 +7955,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7963,6 +7965,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -7972,6 +7975,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
@@ -7979,6 +7983,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			name:      "without any permissions",
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
 			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				t.(*testing.T).Helper()
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
@@ -8036,6 +8041,7 @@ func samlIdPRoleCondition(label types.Labels, verb ...string) (rc types.RoleCond
 
 // modifyAndWaitForEvent performs the function fn() and then waits for the given event.
 func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+	t.Helper()
 	// Make sure we ignore events after consuming this one.
 	defer func() {
 		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()
@@ -8057,6 +8063,7 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *
 // newTestHeadlessAuthn returns the headless authentication resource
 // used across headless authentication tests.
 func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
+	t.Helper()
 	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
@@ -8099,12 +8106,14 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 	_, _, err = CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
 	require.NoError(t, err)
 
-	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
+	assertTimeout := func(t require.TestingT, err error, _ ...any) {
+		t.(*testing.T).Helper()
 		require.Error(t, err)
 		require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
 	}
 
-	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
+	assertAccessDenied := func(t require.TestingT, err error, _ ...any) {
+		t.(*testing.T).Helper()
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
 	}
@@ -8155,6 +8164,12 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			}
 
 			retrievedHeadlessAuthn, err := client.GetHeadlessAuthentication(ctx, tc.headlessID)
+			// handle context canceled error ambiguity
+			// TODO(gavin): remove this after this issue is fixed:
+			// https://github.com/grpc/grpc-go/issues/8281
+			if err != nil && ctx.Err() != nil {
+				err = trace.Wrap(err, ctx.Err())
+			}
 			tc.assertError(t, err)
 			if err == nil {
 				require.Equal(t, headlessAuthn, retrievedHeadlessAuthn)
