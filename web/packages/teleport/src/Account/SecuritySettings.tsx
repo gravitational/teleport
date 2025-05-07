@@ -27,7 +27,6 @@ import {
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { useStore } from 'shared/libs/stores';
 
-import ecfg from 'e-teleport/config';
 import cfg from 'teleport/config';
 import { DeviceUsage } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
@@ -66,14 +65,6 @@ export function securityHeadings(): Headings {
   }
 
   headings.push({ name: 'Multi-factor Authentication', id: 'mfa' });
-
-  if (ecfg.oss.recoveryCodesEnabled) {
-    headings.push({ name: 'Recovery Code', id: 'recovery-code' });
-  }
-
-  if (ecfg.oss.entitlements.DeviceTrust.enabled) {
-    headings.push({ name: 'Trusted Devices', id: 'trusted-devices' });
-  }
 
   return headings;
 }

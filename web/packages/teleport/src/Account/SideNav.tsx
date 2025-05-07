@@ -25,6 +25,110 @@ import cfg from 'teleport/config';
 import { preferencesHeadings } from './Preferences';
 import { securityHeadings } from './SecuritySettings';
 
+export interface Heading {
+  name: string;
+  id: string;
+}
+
+export type Headings = Heading[];
+
+export interface SideNavProps {
+  recoveryEnabled?: boolean;
+  trustedDevicesEnabled?: boolean;
+}
+
+export function SideNav({
+  recoveryEnabled = false,
+  trustedDevicesEnabled = false,
+}: SideNavProps) {
+  const history = useHistory();
+  const location = useLocation();
+
+  const navigateTo = (path: string) => {
+    history.replace(path);
+
+    const idToScrollTo = path.includes('#') ? path.split('#')[1] : null;
+
+    // If there's an ID found, scroll to it
+    if (idToScrollTo) {
+      // setTimeout is used to ensure the DOM is rendered before
+      // trying to scroll to it. The DOM re-renders if the user
+      // clicks on a subheading that is on a different page.
+      setTimeout(() => {
+        const element = document.getElementById(idToScrollTo);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 0);
+    }
+  };
+
+  const navItems = generateHeadings(recoveryEnabled, trustedDevicesEnabled);
+
+  return (
+    <SideNavWrapper>
+      {navItems.map(group => {
+        // Check if this section is active based on the current path
+        const isSectionActive = location.pathname === group.page.link;
+
+        return (
+          <div key={group.page.name}>
+            <SectionTitle
+              className={isSectionActive ? 'active' : ''}
+              onClick={() => navigateTo(group.page.link)}
+            >
+              {group.page.name}
+            </SectionTitle>
+            <LinkList>
+              {group.headings.map(heading => (
+                <li key={heading.name}>
+                  <HeadingItem
+                    href={`${group.page.link}#${heading.id}`}
+                    onClick={e => {
+                      e.preventDefault();
+                      navigateTo(`${group.page.link}#${heading.id}`);
+                    }}
+                  >
+                    {heading.name}
+                  </HeadingItem>
+                </li>
+              ))}
+            </LinkList>
+          </div>
+        );
+      })}
+    </SideNavWrapper>
+  );
+}
+
+function generateHeadings(
+  recoveryEnabled: boolean,
+  trustedDevicesEnabled: boolean
+) {
+  const secHeadings = securityHeadings();
+
+  if (recoveryEnabled) {
+    secHeadings.push({ name: 'Recovery Code', id: 'recovery-code' });
+  }
+
+  if (trustedDevicesEnabled) {
+    secHeadings.push({ name: 'Trusted Devices', id: 'trusted-devices' });
+  }
+
+  const prefHeadings = preferencesHeadings();
+
+  return [
+    {
+      page: { name: 'Security', link: cfg.routes.accountSecurity },
+      headings: secHeadings,
+    },
+    {
+      page: { name: 'Preferences', link: cfg.routes.accountPreferences },
+      headings: prefHeadings,
+    },
+  ];
+}
+
 const SideNavWrapper = styled.aside`
   display: flex;
   flex-direction: column;
@@ -75,80 +179,3 @@ const HeadingItem = styled.a`
     color: ${p => p.theme.colors.text.main};
   }
 `;
-
-export interface Heading {
-  name: string;
-  id: string;
-}
-
-export type Headings = Heading[];
-
-export const SideNav: React.FC = () => {
-  const history = useHistory();
-  const location = useLocation();
-
-  const navigateTo = (path: string) => {
-    history.replace(path);
-
-    const idToScrollTo = path.includes('#') ? path.split('#')[1] : null;
-
-    // If there's an ID found, scroll to it
-    if (idToScrollTo) {
-      // setTimeout is used to ensure the DOM is rendered before
-      // trying to scroll to it. The DOM re-renders if the user
-      // clicks on a subheading that is on a different page.
-      setTimeout(() => {
-        const element = document.getElementById(idToScrollTo);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 0);
-    }
-  };
-
-  const navItems = [
-    {
-      page: { name: 'Security', link: cfg.routes.accountSecurity },
-      headings: securityHeadings(),
-    },
-    {
-      page: { name: 'Preferences', link: cfg.routes.accountPreferences },
-      headings: preferencesHeadings(),
-    },
-  ];
-
-  return (
-    <SideNavWrapper>
-      {navItems.map(group => {
-        // Check if this section is active based on the current path
-        const isSectionActive = location.pathname === group.page.link;
-
-        return (
-          <div key={group.page.name}>
-            <SectionTitle
-              className={isSectionActive ? 'active' : ''}
-              onClick={() => navigateTo(group.page.link)}
-            >
-              {group.page.name}
-            </SectionTitle>
-            <LinkList>
-              {group.headings.map(heading => (
-                <li key={heading.name}>
-                  <HeadingItem
-                    href={`${group.page.link}#${heading.id}`}
-                    onClick={e => {
-                      e.preventDefault();
-                      navigateTo(`${group.page.link}#${heading.id}`);
-                    }}
-                  >
-                    {heading.name}
-                  </HeadingItem>
-                </li>
-              ))}
-            </LinkList>
-          </div>
-        );
-      })}
-    </SideNavWrapper>
-  );
-};

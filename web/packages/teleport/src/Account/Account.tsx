@@ -168,7 +168,10 @@ export function Account({
         {!!errorMessage && <Danger dismissible>{errorMessage}</Danger>}
         <Flex flexDirection="row" gap={4} maxWidth={'1440px'} margin={'auto'}>
           <Flex flexDirection="column" gap={1} width="16rem">
-            <SideNav />
+            <SideNav
+              recoveryEnabled={EnterpriseComponent !== undefined}
+              trustedDevicesEnabled={TrustedDeviceListComponent !== undefined}
+            />
           </Flex>
           <Flex flexDirection="column" gap={4}>
             <Switch>
