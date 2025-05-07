@@ -535,7 +535,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 		go func() {
 			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
-				allFetchers := s.getAllAWSSyncFetchers()
+				allFetchers := s.getAllAWSSyncFetchersWithTrailEnabled()
 				// If there are no fetchers, we don't need to start the access graph sync.
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
@@ -549,14 +549,8 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 					}
 					continue
 				}
-				var matchers []*types.AccessGraphAWSSync
-				for _, matcher := range s.Matchers.AccessGraph.AWS {
-					if matcher.EnableCloudTrailPolling {
-						matchers = append(matchers, matcher)
-					}
-				}
 				// reset the currentTAGResources to force a full sync
-				if err := s.startCloudtrailPoller(ctx, reloadCh, matchers); errors.Is(err, errTAGFeatureNotEnabled) {
+				if err := s.startCloudtrailPoller(ctx, reloadCh, allFetchers); errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
