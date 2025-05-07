@@ -1,4 +1,4 @@
-//go:build !selinux && cgo
+//go:build !linux
 
 /*
  * Teleport
@@ -21,22 +21,19 @@
 package selinux
 
 import (
-	"github.com/gravitational/trace"
+	"errors"
 )
 
-// InBuild returns true if the binary was built with SELinux support.
-func InBuild() bool {
-	return true
-}
+var errPlatformNotSupported = errors.New("platform not supported")
 
 // CheckConfiguration returns an error if SELinux is not configured to
 // enforce the SSH service correctly.
 func CheckConfiguration() error {
-	return trace.Errorf("SELinux was enabled but this Teleport binary was built without SELinux support")
+	return errPlatformNotSupported
 }
 
 // UserContext returns the SELinux context that should be used when
 // creating processes as a certain user.
 func UserContext(login string) (string, error) {
-	return "", nil
+	return "", errPlatformNotSupported
 }

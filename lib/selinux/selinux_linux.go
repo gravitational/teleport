@@ -1,5 +1,3 @@
-//go:build selinux && cgo
-
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -20,13 +18,6 @@
 
 package selinux
 
-// #cgo LDFLAGS: -lselinux
-// #include <stdlib.h>
-// #include <selinux/selinux.h>
-// extern int getseuserbyname(const char *linuxuser, char **selinuxuser, char **level);
-// extern int get_default_context_with_level(const char *user, const char *level, char *fromcon, char **newcon);
-import "C"
-
 import (
 	"bufio"
 	"bytes"
@@ -34,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unsafe"
 
 	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
@@ -45,11 +35,6 @@ const (
 	selinuxTypeTag       = "SELINUXTYPE"
 	permissiveModuleName = "permissive_" + domain
 )
-
-// InBuild returns true if the binary was built with SELinux support.
-func InBuild() bool {
-	return true
-}
 
 // copied from github.com/opencontainers/selinux/go-selinux/selinux-linux.go
 func readConfig(target string) string {
@@ -143,25 +128,18 @@ func CheckConfiguration() error {
 // UserContext returns the SELinux context that should be used when
 // creating processes as a certain user.
 func UserContext(login string) (string, error) {
-	cLogin := C.CString(login)
-	defer C.free(unsafe.Pointer(cLogin))
-
-	var cSeUser, cLevel *C.char
-	n, err := C.getseuserbyname(cLogin, &cSeUser, &cLevel)
-	if n != 0 {
+	seUser, level, err := ocselinux.GetSeUserByName(login)
+	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	defer C.free(unsafe.Pointer(cSeUser))
-	defer C.free(unsafe.Pointer(cLevel))
-
-	var cSeContext *C.char
-	n, err = C.get_default_context_with_level(cSeUser, cLevel, nil, &cSeContext)
-	if n != 0 {
+	curLabel, err := ocselinux.CurrentLabel()
+	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	seContext := C.GoString(cSeContext)
-	C.free(unsafe.Pointer(cSeContext))
+	seContext, err := ocselinux.GetDefaultContextWithLevel(seUser, level, curLabel)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
 
 	return seContext, nil
 }

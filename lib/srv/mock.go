@@ -305,6 +305,11 @@ func (m *mockServer) GetHostSudoers() HostSudoers {
 	return &HostSudoersNotImplemented{}
 }
 
+// GetSELinuxEnabled
+func (m *mockServer) GetSELinuxEnabled() bool {
+	return false
+}
+
 // Implementation of ssh.Conn interface.
 type mockSSHConn struct {
 	remoteAddr net.Addr

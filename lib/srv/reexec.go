@@ -335,17 +335,19 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// Set SELinux context for the child process if SELinux support is
 	// enabled so the child process will be running with the correct SELinux
 	// user, role and domain.
-	if c.SetSELinuxContext && selinux.InBuild() {
+	if c.SetSELinuxContext {
 		seContext, err := selinux.UserContext(c.Login)
 		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("error getting SELinux context of login user: %v", err)
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to get SELinux context of login user")
 		}
 
+		// SetExecLabel changes the SELinux exec context for the
+		// calling thread only, so we need to ensure that is the
+		// thread that will create the child.
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
-		err = ocselinux.SetExecLabel(seContext)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("error setting SELinux exec context: %v", err)
+		if err := ocselinux.SetExecLabel(seContext); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err, "failed to set SELinux context")
 		}
 	}
 
