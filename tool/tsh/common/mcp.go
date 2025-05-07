@@ -776,8 +776,8 @@ The response is a list of audit events found in that time period, maximum 100
 per call. If more events are available, it will return a "next_key"" to be used
 as "start_key"" in the next call for pagination.
 `),
-			mcp.WithString("from", mcp.Required(), mcp.Description("oldest date of returned events, in RFC3339 format")),
-			mcp.WithString("to", mcp.Required(), mcp.Description("newest date of returned events, in RFC3339 format")),
+			mcp.WithString("from", mcp.Required(), mcp.Description("oldest date of returned events, in RFC3339 format, in UTC")),
+			mcp.WithString("to", mcp.Required(), mcp.Description("newest date of returned events, in RFC3339 format, in UTC")),
 			mcp.WithString("start_key", mcp.Description("key to start pagination from, if any")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -832,6 +832,7 @@ The tool takes a mandatory "role" parameter that indicates a Teleport role
 an access request should be submitted for.
 `),
 			mcp.WithString("role", mcp.Required(), mcp.Description("role name to request")),
+			mcp.WithString("reason", mcp.Description("optional reason for the request")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			role, ok := request.Params.Arguments["role"].(string)
@@ -845,6 +846,10 @@ an access request should be submitted for.
 				role)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+
+			if reason, ok := request.Params.Arguments["reason"].(string); ok {
+				accessRequest.SetRequestReason(reason)
 			}
 
 			createdRequest, err := authClient.CreateAccessRequestV2(cf.Context, accessRequest)
@@ -866,7 +871,7 @@ an access request should be submitted for.
 			"teleport_list_access_request",
 			mcp.WithDescription(`List Teleport access request and show their details.
 
-The proposed_state has the following possible values:
+The "state" has the following possible values:
 NONE = 0, PENDING = 1, APPROVED = 2, DENIED = 3, PROMOTED = 4
 `),
 			mcp.WithString("id", mcp.Description("Optional id to filter requests by")),
