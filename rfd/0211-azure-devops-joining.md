@@ -2,7 +2,7 @@
 authors: Noah Stride (noah@goteleport.com)
 state: draft
 ---
-
+<!--- cslint:disable -->
 # RFD 211 - Azure DevOps Joining
 
 ## Required Approvals
@@ -12,8 +12,8 @@ state: draft
 
 ## What
 
-Allow Bots & Agents to secretlessly authenticate to Teleport from Azure DevOps
-pipelines.
+Allow Bots & Agents to authenticate to Teleport without the use of long-lived
+secrets from Azure DevOps pipelines.
 
 ## Why
 
@@ -426,7 +426,7 @@ The following would be good indicators that we should publish a task:
 - A significant uptake of the Azure DevOps join method indicated via usage
   analytics.
 - A disproportionate amount of support tickets in relation to the Azure DevOps
-  join method, indicating that the configuration is too cumbersone/complex.
+  join method, indicating that the configuration is too cumbersome/complex.
 
 It would be a requirement of the "Service Connection JWT" alternative
 implementation to publish an action.
