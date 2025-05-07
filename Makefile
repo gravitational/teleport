@@ -1863,3 +1863,7 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
+
+.PHONY: gen-resource-docs
+gen-resource-docs:
+	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
