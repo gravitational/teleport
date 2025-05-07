@@ -104,7 +104,7 @@ func (c *ProxiedMetricConn) Close() error {
 }
 
 type serverResolverFn = func(ctx context.Context, host, port string, site site) (types.Server, error)
-type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (net.Conn, error)
+type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
 
 // SiteGetter provides access to connected local or remote sites
 type SiteGetter interface {
@@ -329,7 +329,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 // DialWindowsDesktop dials the desktop that matches the provided desktop name and cluster.
 // If no matching desktop is found, an error is returned.
-func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, clusterName string, accessChecker services.AccessChecker) (_ net.Conn, err error) {
+func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialWindowsDesktop",
@@ -343,7 +343,7 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 
 	site := r.localSite
 	if clusterName != r.clusterName {
-		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
 		}
@@ -357,7 +357,7 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 
 	span.AddEvent("looking up Windows desktop service connection")
 
-	serviceConn, err := r.windowsDesktopServiceConnector(ctx, &desktop.ConnectionConfig{
+	serviceConn, _, err := r.windowsDesktopServiceConnector(ctx, &desktop.ConnectionConfig{
 		Log:            r.log,
 		DesktopsGetter: accessPoint,
 		Site:           site,

@@ -129,7 +129,7 @@ func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 	return conn, nil
 }
 
-func (f fakeDialer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error) {
+func (f fakeDialer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error) {
 	key := windowsDesktopConnKey{
 		clusterName: cluster,
 		desktopName: desktopName,
@@ -983,7 +983,7 @@ func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr n
 }
 
 // DialWindowsDesktop returns a connection to the windows desktop.
-func (s *sshServer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error) {
+func (s *sshServer) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error) {
 	return nil, nil
 }
 

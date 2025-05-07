@@ -50,7 +50,7 @@ import (
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
 	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
-	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error)
+	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
 }
 
 // ConnectionMonitor monitors authorized connections and terminates them when
@@ -456,7 +456,7 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker)
+	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker.CheckAccessToRemoteCluster)
 	if err != nil {
 		return trace.Wrap(err, "failed to dial target desktop")
 	}

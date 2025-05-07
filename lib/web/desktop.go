@@ -169,7 +169,7 @@ func (h *Handler) createDesktopConnection(
 
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 
-	serviceConn, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
+	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
 		Site:           site,
