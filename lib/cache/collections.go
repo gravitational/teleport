@@ -131,6 +131,13 @@ func setupCollections(c Config) (*collections, error) {
 		resourceKind := resourceKindFromWatchKind(watch)
 
 		switch watch.Kind {
+		case types.KindHeadlessAuthentication:
+			collect, err := newHeadlessAuthenticationCollection(watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.byKind[resourceKind] = collect
 		case types.KindToken:
 			collect, err := newProvisionTokensCollection(c.Provisioner, watch)
 			if err != nil {

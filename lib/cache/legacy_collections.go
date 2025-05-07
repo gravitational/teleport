@@ -155,9 +155,6 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 			}
 			collections.discoveryConfigs = &genericCollection[*discoveryconfig.DiscoveryConfig, services.DiscoveryConfigsGetter, discoveryConfigExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.discoveryConfigs
-		case types.KindHeadlessAuthentication:
-			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
-			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
 		case types.KindAuditQuery:
 			if c.SecReports == nil {
 				return nil, trace.BadParameter("missing parameter SecReports")
@@ -782,31 +779,3 @@ func (secReportStateExecutor) getReader(cache *Cache, cacheOK bool) services.Sec
 }
 
 var _ executor[*secreports.ReportState, services.SecurityReportStateGetter] = secReportStateExecutor{}
-
-// noopExecutor can be used when a resource's events do not need to processed by
-// the cache itself, only passed on to other watchers.
-type noopExecutor struct{}
-
-func (noopExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
-	return nil, nil
-}
-
-func (noopExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
-	return nil
-}
-
-func (noopExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return nil
-}
-
-func (noopExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return nil
-}
-
-func (noopExecutor) isSingleton() bool { return false }
-
-func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}
