@@ -125,7 +125,7 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 			log.ErrorContext(ctx, "Error while emitting PagerDuty plugin status", "error", err)
 		}
 
-		var errorFn func(string, ...any) error = trace.Errorf
+		errorFn := trace.Errorf
 		if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
 			errorFn = func(msg string, args ...any) error {
 				return trace.AccessDenied(msg, args...)
@@ -371,7 +371,7 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 		anyData = anyData || len(result.OnCalls) > 0
 
 		for _, onCall := range result.OnCalls {
-			if !(onCall.User.Type == "user_reference" && onCall.User.ID == userID) {
+			if onCall.User.Type != "user_reference" || onCall.User.ID != userID {
 				continue
 			}
 

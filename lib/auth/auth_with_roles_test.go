@@ -160,8 +160,8 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 			require.NoError(t, err)
 			mfaVerified := sshCert.Permissions.Extensions[teleport.CertExtensionMFAVerified]
 
-			switch {
-			case mfaResponse == nil:
+			switch mfaResponse {
+			case nil:
 				require.Empty(t, mfaVerified, "GenerateUserCerts returned certificate with non-empty CertExtensionMFAVerified")
 			default:
 				require.Equal(t, mfaVerified, u.totpDev.MFA.Id, "GenerateUserCerts returned certificate with unexpected CertExtensionMFAVerified")
@@ -2902,7 +2902,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
+	require.Len(t, testServers, len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -2946,7 +2946,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Len(t, testServers[1:], len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3029,7 +3029,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers), len(servers))
+	require.Len(t, testServers, len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3073,7 +3073,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServers[1:]), len(servers))
+	require.Len(t, testServers[1:], len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3160,7 +3160,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	require.NoError(t, err)
 	sps, _, err = clt.ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServiceProviders), len(sps))
+	require.Len(t, testServiceProviders, len(sps))
 	require.Empty(t, cmp.Diff(testServiceProviders, sps))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -3204,7 +3204,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	require.NoError(t, err)
 	sps, _, err = clt.ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
-	require.EqualValues(t, len(testServiceProviders[1:]), len(sps))
+	require.Len(t, testServiceProviders[1:], len(sps))
 	require.Empty(t, cmp.Diff(testServiceProviders[1:], sps))
 	resp, err = clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
@@ -4314,7 +4314,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.NoError(t, err)
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, len(testDesktops), len(desktops))
+	require.Len(t, testDesktops, len(desktops))
 	require.Empty(t, cmp.Diff(testDesktops, desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -4369,7 +4369,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	desktops, err = clt.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	require.NoError(t, err)
-	require.EqualValues(t, len(testDesktops[1:]), len(desktops))
+	require.Len(t, testDesktops[1:], len(desktops))
 	require.Empty(t, cmp.Diff(testDesktops[1:], desktops))
 
 	resp, err = clt.ListResources(ctx, listRequest)

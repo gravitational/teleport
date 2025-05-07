@@ -25,7 +25,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	rdsv2 "github.com/aws/aws-sdk-go-v2/service/rds"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -43,7 +42,7 @@ type RDSClient struct {
 	DBEngineVersions []rdstypes.DBEngineVersion
 }
 
-func (c *RDSClient) DescribeDBInstances(_ context.Context, input *rdsv2.DescribeDBInstancesInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBInstancesOutput, error) {
+func (c *RDSClient) DescribeDBInstances(_ context.Context, input *rds.DescribeDBInstancesInput, _ ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
 	if c.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -56,13 +55,13 @@ func (c *RDSClient) DescribeDBInstances(_ context.Context, input *rdsv2.Describe
 		return nil, trace.Wrap(err)
 	}
 	if aws.ToString(input.DBInstanceIdentifier) == "" {
-		return &rdsv2.DescribeDBInstancesOutput{
+		return &rds.DescribeDBInstancesOutput{
 			DBInstances: instances,
 		}, nil
 	}
 	for _, instance := range instances {
 		if aws.ToString(instance.DBInstanceIdentifier) == aws.ToString(input.DBInstanceIdentifier) {
-			return &rdsv2.DescribeDBInstancesOutput{
+			return &rds.DescribeDBInstancesOutput{
 				DBInstances: []rdstypes.DBInstance{instance},
 			}, nil
 		}
@@ -70,7 +69,7 @@ func (c *RDSClient) DescribeDBInstances(_ context.Context, input *rdsv2.Describe
 	return nil, trace.NotFound("instance %v not found", aws.ToString(input.DBInstanceIdentifier))
 }
 
-func (c *RDSClient) DescribeDBClusters(_ context.Context, input *rdsv2.DescribeDBClustersInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBClustersOutput, error) {
+func (c *RDSClient) DescribeDBClusters(_ context.Context, input *rds.DescribeDBClustersInput, _ ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error) {
 	if c.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -83,13 +82,13 @@ func (c *RDSClient) DescribeDBClusters(_ context.Context, input *rdsv2.DescribeD
 		return nil, trace.Wrap(err)
 	}
 	if aws.ToString(input.DBClusterIdentifier) == "" {
-		return &rdsv2.DescribeDBClustersOutput{
+		return &rds.DescribeDBClustersOutput{
 			DBClusters: clusters,
 		}, nil
 	}
 	for _, cluster := range clusters {
 		if aws.ToString(cluster.DBClusterIdentifier) == aws.ToString(input.DBClusterIdentifier) {
-			return &rdsv2.DescribeDBClustersOutput{
+			return &rds.DescribeDBClustersOutput{
 				DBClusters: []rdstypes.DBCluster{cluster},
 			}, nil
 		}
@@ -97,7 +96,7 @@ func (c *RDSClient) DescribeDBClusters(_ context.Context, input *rdsv2.DescribeD
 	return nil, trace.NotFound("cluster %v not found", aws.ToString(input.DBClusterIdentifier))
 }
 
-func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rdsv2.ModifyDBInstanceInput, optFns ...func(*rdsv2.Options)) (*rdsv2.ModifyDBInstanceOutput, error) {
+func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rds.ModifyDBInstanceInput, optFns ...func(*rds.Options)) (*rds.ModifyDBInstanceOutput, error) {
 	if c.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -107,7 +106,7 @@ func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rdsv2.ModifyDBI
 			if aws.ToBool(input.EnableIAMDatabaseAuthentication) {
 				c.DBInstances[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
-			return &rdsv2.ModifyDBInstanceOutput{
+			return &rds.ModifyDBInstanceOutput{
 				DBInstance: &c.DBInstances[i],
 			}, nil
 		}
@@ -115,7 +114,7 @@ func (c *RDSClient) ModifyDBInstance(ctx context.Context, input *rdsv2.ModifyDBI
 	return nil, trace.NotFound("instance %v not found", aws.ToString(input.DBInstanceIdentifier))
 }
 
-func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rdsv2.ModifyDBClusterInput, optFns ...func(*rdsv2.Options)) (*rdsv2.ModifyDBClusterOutput, error) {
+func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rds.ModifyDBClusterInput, optFns ...func(*rds.Options)) (*rds.ModifyDBClusterOutput, error) {
 	if c.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -125,7 +124,7 @@ func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rdsv2.ModifyDBCl
 			if aws.ToBool(input.EnableIAMDatabaseAuthentication) {
 				c.DBClusters[i].IAMDatabaseAuthenticationEnabled = aws.Bool(true)
 			}
-			return &rdsv2.ModifyDBClusterOutput{
+			return &rds.ModifyDBClusterOutput{
 				DBCluster: &c.DBClusters[i],
 			}, nil
 		}
@@ -133,19 +132,19 @@ func (c *RDSClient) ModifyDBCluster(ctx context.Context, input *rdsv2.ModifyDBCl
 	return nil, trace.NotFound("cluster %v not found", aws.ToString(input.DBClusterIdentifier))
 }
 
-func (c *RDSClient) DescribeDBProxies(_ context.Context, input *rdsv2.DescribeDBProxiesInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBProxiesOutput, error) {
+func (c *RDSClient) DescribeDBProxies(_ context.Context, input *rds.DescribeDBProxiesInput, _ ...func(*rds.Options)) (*rds.DescribeDBProxiesOutput, error) {
 	if c.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
 
 	if aws.ToString(input.DBProxyName) == "" {
-		return &rdsv2.DescribeDBProxiesOutput{
+		return &rds.DescribeDBProxiesOutput{
 			DBProxies: c.DBProxies,
 		}, nil
 	}
 	for _, dbProxy := range c.DBProxies {
 		if aws.ToString(dbProxy.DBProxyName) == aws.ToString(input.DBProxyName) {
-			return &rdsv2.DescribeDBProxiesOutput{
+			return &rds.DescribeDBProxiesOutput{
 				DBProxies: []rdstypes.DBProxy{dbProxy},
 			}, nil
 		}
@@ -153,7 +152,7 @@ func (c *RDSClient) DescribeDBProxies(_ context.Context, input *rdsv2.DescribeDB
 	return nil, trace.NotFound("proxy %v not found", aws.ToString(input.DBProxyName))
 }
 
-func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rdsv2.DescribeDBProxyEndpointsInput, _ ...func(*rdsv2.Options)) (*rdsv2.DescribeDBProxyEndpointsOutput, error) {
+func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rds.DescribeDBProxyEndpointsInput, _ ...func(*rds.Options)) (*rds.DescribeDBProxyEndpointsOutput, error) {
 	if c.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -162,7 +161,7 @@ func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rdsv2.Des
 	inputProxyEndpointName := aws.ToString(input.DBProxyEndpointName)
 
 	if inputProxyName == "" && inputProxyEndpointName == "" {
-		return &rdsv2.DescribeDBProxyEndpointsOutput{
+		return &rds.DescribeDBProxyEndpointsOutput{
 			DBProxyEndpoints: c.DBProxyEndpoints,
 		}, nil
 	}
@@ -184,7 +183,7 @@ func (c *RDSClient) DescribeDBProxyEndpoints(_ context.Context, input *rdsv2.Des
 	if len(endpoints) == 0 {
 		return nil, trace.NotFound("proxy endpoint %v not found", aws.ToString(input.DBProxyEndpointName))
 	}
-	return &rdsv2.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
+	return &rds.DescribeDBProxyEndpointsOutput{DBProxyEndpoints: endpoints}, nil
 }
 
 func (c *RDSClient) ListTagsForResource(context.Context, *rds.ListTagsForResourceInput, ...func(*rds.Options)) (*rds.ListTagsForResourceOutput, error) {

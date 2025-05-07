@@ -182,7 +182,7 @@ func TestChaosUpload(t *testing.T) {
 
 			state := streams[event.SessionID]
 			outEvents := readStream(ctx, t, event.UploadID, memUploader)
-			require.Equal(t, len(state.events), len(outEvents), fmt.Sprintf("event: %v", event))
+			require.Len(t, state.events, len(outEvents), fmt.Sprintf("event: %v", event))
 		case <-ctx.Done():
 			t.Fatal("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 		}

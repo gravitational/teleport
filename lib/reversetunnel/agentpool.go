@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -568,7 +567,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	case <-ctx.Done():
 		go ssh.DiscardRequests(reqC)
 		return
-	case <-time.After(apidefaults.DefaultIOTimeout):
+	case <-time.After(defaults.DefaultIOTimeout):
 		go ssh.DiscardRequests(reqC)
 		p.logger.WarnContext(ctx, "Timed out waiting for transport dial request")
 		return
