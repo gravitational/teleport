@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +15,45 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type syncBuffer struct {
+	buf *bytes.Buffer
+	mu  sync.Mutex
+}
+
+func newSyncBuffer() *syncBuffer {
+	return &syncBuffer{
+		buf: &bytes.Buffer{},
+	}
+}
+
+func (rw *syncBuffer) Read(b []byte) (int, error) {
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+	return rw.buf.Read(b)
+}
+
+func (rw *syncBuffer) Write(b []byte) (int, error) {
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+	return rw.buf.Write(b)
+}
+
+func (rw *syncBuffer) String() string {
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+	return rw.buf.String()
+}
+
+func buildBashForkCommand(t *testing.T, params ForkAuthenticateParams) (*exec.Cmd, io.ReadCloser) {
+	cmd, signal, err := buildForkAuthenticateCommand(params)
+	require.NoError(t, err)
+	bash, err := exec.LookPath("bash")
+	require.NoError(t, err)
+	cmd.Path = bash
+	cmd.Args[0] = bash
+	return cmd, signal
+}
 
 func TestRunForkAuthenticateChild(t *testing.T) {
 	t.Parallel()
@@ -31,22 +72,17 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		getArgs := func(signalFd uint64) []string {
 			return []string{"-c", fmt.Sprintf(script, signalFd)}
 		}
-		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		stdout := newSyncBuffer()
+		stderr := newSyncBuffer()
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
 			Stdout:  stdout,
 			Stderr:  stderr,
 		}
-		cmd, signal, err := buildForkAuthenticateCommand(params)
-		require.NoError(t, err)
-		bash, err := exec.LookPath("bash")
-		require.NoError(t, err)
-		cmd.Path = bash
-		cmd.Args[0] = bash
+		cmd, signal := buildBashForkCommand(t, params)
 
-		err = runForkAuthenticateChild(t.Context(), cmd, signal)
+		err := runForkAuthenticateChild(t.Context(), cmd, signal)
 		assert.NoError(t, err)
 		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.Equal(collect, "stdout: hello\n", stdout.String())
@@ -66,22 +102,17 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		getArgs := func(signalFd uint64) []string {
 			return []string{"-c", script}
 		}
-		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		stdout := newSyncBuffer()
+		stderr := newSyncBuffer()
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
 			Stdout:  stdout,
 			Stderr:  stderr,
 		}
-		cmd, signal, err := buildForkAuthenticateCommand(params)
-		require.NoError(t, err)
-		bash, err := exec.LookPath("bash")
-		require.NoError(t, err)
-		cmd.Path = bash
-		cmd.Args[0] = bash
+		cmd, signal := buildBashForkCommand(t, params)
 
-		err = runForkAuthenticateChild(t.Context(), cmd, signal)
+		err := runForkAuthenticateChild(t.Context(), cmd, signal)
 		var execErr *exec.ExitError
 		if assert.ErrorAs(t, err, &execErr) {
 			assert.Equal(t, 1, execErr.ExitCode())
@@ -103,8 +134,8 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 			echo "extra output"
 			`}
 		}
-		stdout := &bytes.Buffer{}
-		stderr := &bytes.Buffer{}
+		stdout := newSyncBuffer()
+		stderr := newSyncBuffer()
 		params := ForkAuthenticateParams{
 			GetArgs: getArgs,
 			Stdin:   bytes.NewBufferString("hello\n"),
@@ -114,12 +145,7 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
-		cmd, signal, err := buildForkAuthenticateCommand(params)
-		require.NoError(t, err)
-		bash, err := exec.LookPath("bash")
-		require.NoError(t, err)
-		cmd.Path = bash
-		cmd.Args[0] = bash
+		cmd, signal := buildBashForkCommand(t, params)
 
 		errorCh := make(chan error, 1)
 		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
@@ -146,6 +172,32 @@ func TestRunForkAuthenticateChild(t *testing.T) {
 
 		assert.Never(t, func() bool {
 			return strings.Contains(stdout.String(), "extra output")
-		}, 4*time.Second, time.Second)
+		}, 3*time.Second, time.Second)
+	})
+
+	t.Run("stdin is closed after disowning", func(t *testing.T) {
+		const script = `
+		# Close signal fd.
+		exec %d>&-
+		sleep 1
+		# Next read should not work
+		read && echo $REPLY
+		`
+		getArgs := func(signalFd uint64) []string {
+			return []string{"-c", fmt.Sprintf(script, signalFd)}
+		}
+		stdout := newSyncBuffer()
+		params := ForkAuthenticateParams{
+			GetArgs: getArgs,
+			Stdin:   bytes.NewBufferString("hello\n"),
+			Stdout:  stdout,
+			Stderr:  io.Discard,
+		}
+		cmd, signal := buildBashForkCommand(t, params)
+		err := runForkAuthenticateChild(t.Context(), cmd, signal)
+		assert.NoError(t, err)
+		assert.Never(t, func() bool {
+			return strings.Contains(stdout.String(), "stdout: hello\n")
+		}, 3*time.Second, time.Second)
 	})
 }
