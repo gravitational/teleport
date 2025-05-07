@@ -65,7 +65,7 @@ how to set up Access Graph.
   Discovery Service within your cluster.
 </Admonition>
 
-### Installing the Discovery Service
+## Step 1/4. Install the Discovery Service
 
 <Admonition type="tip">
   If you plan on running the Discovery Service on a host that is already running
@@ -80,7 +80,7 @@ via Entra ID integration.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-### Configuring the Discovery Service
+## Step 2/4. Configure the Discovery Service
 
 To activate the Teleport Discovery Service, add a top level discovery_service section to the `teleport.yaml`
 config file. This service monitors dynamic `discovery_config` resources that are set up
@@ -112,7 +112,7 @@ discovery_service:
 
 The Discovery Service will now periodically fetch resources from your Azure subscription.
 
-### Activating the Discovery Service
+## Step 3/4. Activate the Discovery Service
 
 To activate the Discovery Service for fetching Azure resources, you'll need to authorize the identity running the
 Discovery service. Two options for authorization are available.
@@ -139,7 +139,8 @@ Discovery service. Two options for authorization are available.
       Use the application object ID as the principal ID in step 2 of the integration command.
     </Admonition>
 
-    Lastly, add the name of the <Var name="integration" /> to the configuration, typically this is `entra-id`:
+    Lastly, add the name of the <Var name="azure-integration" /> to the configuration, typically this is `entra-id`:
+
     ```yaml
     discovery_service:
       access_graph:
@@ -151,7 +152,7 @@ Discovery service. Two options for authorization are available.
   </TabItem>
 </Tabs>
 
-## Step 2/2. Set up Access Graph Azure Sync
+## Step 4/4. Set up Access Graph Azure Sync
 
 To configure the Teleport Discovery Service, the Azure managed identity running the Discovery Service within
 Azure must be given the right permissions to fetch Azure resources. Within the

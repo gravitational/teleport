@@ -91,7 +91,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToCluster:  c.clusterClient.SiteName,
 		RouteToDatabase: client.RouteToDatabaseToProto(routeToDatabase),
 		AccessRequests:  c.status.ActiveRequests,
@@ -102,7 +102,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := key.DBTLSCert(routeToDatabase.ServiceName)
+	dbCert, err := result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
 	return dbCert, trace.Wrap(err)
 }
 
