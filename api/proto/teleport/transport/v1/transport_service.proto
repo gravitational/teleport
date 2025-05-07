@@ -136,7 +136,7 @@ message ClusterDetails {
 
 // Request message for a proxied Windows desktop session.
 message ProxyWindowsDesktopSessionRequest {
-  // A chunk of data from the connection. Can be nonempty even in the first message, but it's also legal for it to be empty.
+  // A chunk of data from the connection. Must be empty in the first message and nonempty in subsequent messages.
   bytes data = 1;
   // Target cluster and desktop. Must be set in the first message and unset in subsequent messages.
   TargetWindowsDesktop dial_target = 2;

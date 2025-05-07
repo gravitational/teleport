@@ -340,9 +340,7 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 		),
 	)
 
-	defer func() {
-		tracing.EndSpan(span, err)
-	}()
+	defer tracing.EndSpan(span, err)
 
 	site := r.localSite
 	if clusterName != r.clusterName {
