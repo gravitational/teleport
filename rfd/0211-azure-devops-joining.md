@@ -364,7 +364,12 @@ be extended to include the following information extracted from the ID token:
 
 #### Use Service Connection JWTs rather than Pipeline JWTs
 
-TODO
+Azure DevOps supports the creation of Service Connections. These are typically
+used to hold secrets (e.g username/password) or to federate with Azure ARM.
+
+It is also possible to generate an ID Token JWT for a specific Service
+Connection rather than the pipeline itself. This JWT is signed by the same
+issuer as the pipeline ID token.
 
 ### Out of Scope
 
@@ -462,10 +467,19 @@ You can also provide a `serviceConnectionId` parameter to the `oidctoken`
 endpoint. This takes the UUID of a service connection. It produces a different
 ID Token that references this service connection.
 
-In order for this parameter to be usable, the step must have an input that
-references this service connection. If there is no input that references this
-service connection, then it will return a Not Found error. You cannot just
-provide the service connection UUID.
+In order for this parameter to be usable, the pipeline must have a step that has
+a task with an input that  references this service connection. If there is no
+input that references this service connection, then it will return a Not Found
+error. You cannot just provide the service connection UUID.
+
+Additional notable facts:
+
+- The step with an input that references the service connection does not
+  necessarily need to be the step that requests the ID token.
+- Providing the name of the service connection rather than the UUID will
+  not return an error, but will silently fall back to providing the pipeline 
+  ID token. One presumes that the API acts as if the parameter value has not
+  been provided if the format is not a UUID.
 
 It is not easy to provide an input without creating a custom task. For the
 purposes of my testing, I leveraged 
