@@ -132,14 +132,11 @@ func install(logName, source, msgFile string, useExpandKey bool, eventsSupported
 		}
 	}
 
-	sk, alreadyExist, err := registry.CreateKey(appkey, source, registry.SET_VALUE)
+	sk, _, err := registry.CreateKey(appkey, source, registry.SET_VALUE)
 	if err != nil {
 		return trace.Wrap(err, "creating registry key for event source")
 	}
 	defer sk.Close()
-	if alreadyExist {
-		return trace.AlreadyExists(`%s\%s registry key already exists`, addKeyName, source)
-	}
 
 	if err := sk.SetDWordValue("CustomSource", 1); err != nil {
 		return trace.Wrap(err, "setting CustomSource")
