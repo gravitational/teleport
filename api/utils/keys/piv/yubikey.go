@@ -493,19 +493,6 @@ func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, 
 const pinPromptTimeout = time.Minute
 
 func (y *YubiKey) promptPIN(ctx context.Context, prompt hardwarekey.Prompt, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo, pinCacheTTL time.Duration) (string, error) {
-	if pinCacheTTL == 0 {
-		pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		if pin == "" {
-			pin = piv.DefaultPIN
-		}
-
-		return pin, nil
-	}
-
 	y.pinCache.mu.Lock()
 	defer y.pinCache.mu.Unlock()
 
@@ -520,10 +507,6 @@ func (y *YubiKey) promptPIN(ctx context.Context, prompt hardwarekey.Prompt, requ
 	pin, err := prompt.AskPIN(ctx, requirement, keyInfo)
 	if err != nil {
 		return "", trace.Wrap(err)
-	}
-
-	if pin == "" {
-		pin = piv.DefaultPIN
 	}
 
 	// Verify that the PIN is correct before we cache it. This also caches it internally in the PC/SC transaction.

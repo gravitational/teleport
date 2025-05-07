@@ -48,6 +48,10 @@ func newPINCache() *pinCache { //nolint:unused // used in yubikey.go with piv bu
 // time equal to the provided TTL, the PIN will not be returned.
 // Must be called under [p.mu] lock.
 func (p *pinCache) getPIN(ttl time.Duration) string {
+	if ttl == 0 {
+		return ""
+	}
+
 	if p.pin == "" {
 		return ""
 	}
@@ -75,6 +79,10 @@ func (p *pinCache) getPIN(ttl time.Duration) string {
 // TTL would exceed that expiration.
 // Must be called under [p.mu] lock.
 func (p *pinCache) setPIN(pin string, ttl time.Duration) {
+	if ttl == 0 {
+		return
+	}
+
 	now := p.clock.Now()
 	expiry := now.Add(ttl)
 
