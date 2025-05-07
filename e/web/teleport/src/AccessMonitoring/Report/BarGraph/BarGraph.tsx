@@ -1,5 +1,4 @@
-import { ResponsiveBar } from '@nivo/bar';
-import { BarTooltipProps } from '@nivo/bar/dist/types/types';
+import { BarTooltipProps, ResponsiveBar } from '@nivo/bar';
 import { timeFormat } from 'd3-time-format';
 import { useMemo, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
