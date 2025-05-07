@@ -706,7 +706,7 @@ type joinServiceClient interface {
 		ctx context.Context,
 		req *proto.RegisterUsingBoundKeypairInitialRequest,
 		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-	) (*proto.Certs, error)
+	) (*proto.Certs, string, error)
 }
 
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
@@ -929,7 +929,8 @@ func registerUsingBoundKeypairMethod(
 		PreviousJoinState: bkParams.PreviousJoinState,
 	}
 
-	certs, err := client.RegisterUsingBoundKeypairMethod(
+	// TODO: inform the caller about the returned public key?
+	certs, _, err := client.RegisterUsingBoundKeypairMethod(
 		ctx,
 		initReq,
 		func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
