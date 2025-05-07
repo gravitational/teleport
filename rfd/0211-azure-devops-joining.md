@@ -371,11 +371,69 @@ It is also possible to generate an ID Token JWT for a specific Service
 Connection rather than the pipeline itself. This JWT is signed by the same
 issuer as the pipeline ID token.
 
+This ID token has different claims:
+
+```json
+{
+  "jti": "53042db8-a477-44c2-aca4-720bab67ad33",
+  "sub": "sc://noahstride0304/testing-azure-devops-join/test-generic-sc",
+  "aud": "api://AzureADTokenExchange",
+  "iss": "https://vstoken.dev.azure.com/0ca3ddd9-f0b0-4635-a98c-5866526961b6",
+  "nbf": 1745851036,
+  "exp": 1745851936,
+  "iat": 1745851636
+}
+```
+
+Notably:
+
+- The service connection token shares the same issuer as the pipeline id token.
+- The `sub` of the token identifies the organization, project and service 
+  connection - but does not identify the pipeline.
+- The token lacks the additional claims that exist in the pipeline token.
+
+If we were to use service connection JWTs instead of pipeline JWTs, then we
+would lose key information about the CI/CD run (e.g which pipeline, commit etc)
+and users would only be able to control access to Teleport by restricting which
+pipelines can access the service connection within Azure DevOps itself.
+
+Additionally, to access the service connection token, there must be a step
+within the pipeline which is a task with an input referencing the service token.
+This is awkward to configure in Azure DevOps, and we'd need to publish a task
+(similar to a GitHub Action) to make this simpler. This would be an additional
+artifact to build, maintain and document.
+
 ### Out of Scope
 
 #### Publish a Teleport Task
 
-TODO
+In a similar way to how GitHub Actions has publishable Actions, which are 
+effectively off-the-shelf scripts, which can be used in workflows, Azure
+DevOps has "Tasks" which can be published and used in pipelines.
+
+See: https://learn.microsoft.com/en-us/azure/devops/extend/develop/add-build-task?toc=%2Fazure%2Fdevops%2Fmarketplace-extensibility%2Ftoc.json&view=azure-devops
+
+As with GitHub actions, these tasks can be implemented in Typescript. Unlike
+Typescript, a task can be configured via the GUI and can provide a guided
+form with validation.
+
+At a later date, we may wish to publish an Azure DevOps task that wraps the 
+process of downloading, configuring and executing `tbot`. This would serve to 
+simplify usage in a similar way to our GitHub Actions.
+
+The following would be good indicators that we should publish a task:
+
+- A significant uptake of the Azure DevOps join method indicated via usage
+  analytics.
+- A disproportionate amount of support tickets in relation to the Azure DevOps
+  join method, indicating that the configuration is too cumbersone/complex.
+
+It would be a requirement of the "Service Connection JWT" alternative
+implementation to publish an action.
+
+It should be noted that publishing an Azure Devops task would involve ongoing
+maintenance to ensure that the latest versions of SDKs are used and security
+vulnerabilities are patched.
 
 ### Research
 
