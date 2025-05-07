@@ -134,7 +134,7 @@ func install(logName, source, msgFile string, useExpandKey bool, eventsSupported
 
 	sk, alreadyExist, err := registry.CreateKey(appkey, source, registry.SET_VALUE)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "creating registry key for event source")
 	}
 	defer sk.Close()
 	if alreadyExist {
@@ -142,7 +142,7 @@ func install(logName, source, msgFile string, useExpandKey bool, eventsSupported
 	}
 
 	if err := sk.SetDWordValue("CustomSource", 1); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "setting CustomSource")
 	}
 	if useExpandKey {
 		err = sk.SetExpandStringValue("EventMessageFile", msgFile)
@@ -150,10 +150,10 @@ func install(logName, source, msgFile string, useExpandKey bool, eventsSupported
 		err = sk.SetStringValue("EventMessageFile", msgFile)
 	}
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "setting EventMessageFile")
 	}
 	if err := sk.SetDWordValue("TypesSupported", eventsSupported); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "setting TypesSupported")
 	}
 	return nil
 }
@@ -166,8 +166,8 @@ func remove(logName, source string) error {
 	addKeyName := makeLogKeyName(logName)
 	appkey, err := registry.OpenKey(registry.LOCAL_MACHINE, addKeyName, registry.SET_VALUE)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "opening registry key for log")
 	}
 	defer appkey.Close()
-	return trace.Wrap(registry.DeleteKey(appkey, source))
+	return trace.Wrap(registry.DeleteKey(appkey, source), "deleting registry key for event source")
 }
