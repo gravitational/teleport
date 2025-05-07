@@ -801,6 +801,17 @@ func Test_PluginEnrolment_OAuthScopes(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "Okta OAuth scopes verification failed: scope \"okta.apps.manage\" missing, scope \"okta.groups.manage\" missing")
+
+	// Disabling whole sync and credentials with no scopes is ok.
+
+	oktaApiClient.scopes = []string{}
+
+	_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+		EnableUserSync:       false,
+		EnableAppGroupSync:   false,
+		EnableAccessListSync: false,
+	})
+	require.NoError(t, err)
 }
 
 func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector {

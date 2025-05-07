@@ -253,8 +253,10 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 		return nil, trace.Wrap(err, "request validation")
 	}
 
-	if err := s.validateClientCredentials(ctx, newUpdateIntegrationRequestWithOrgURL(req, plugin), plugin, oktacommon.GetOAuthScopesForIntegrationRequest(req)); err != nil {
-		return nil, trace.Wrap(err, "validating plugin credentials")
+	if req.GetEnableUserSync() {
+		if err := s.validateClientCredentials(ctx, newUpdateIntegrationRequestWithOrgURL(req, plugin), plugin, oktacommon.GetOAuthScopesForIntegrationRequest(req)); err != nil {
+			return nil, trace.Wrap(err, "validating plugin credentials")
+		}
 	}
 
 	if err := s.updatePluginOktaSpec(ctx, req, plugin); err != nil {
