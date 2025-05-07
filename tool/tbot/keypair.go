@@ -20,8 +20,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
@@ -45,6 +48,44 @@ func getSuiteFromProxy(proxyAddr string, insecure bool) cryptosuites.GetSuiteFun
 	}
 }
 
+type KeypairDocument struct {
+	PublicKey string `json:"public_key"`
+}
+
+func printKeypair(state *boundkeypair.ClientState, format string) error {
+	publicKeyBytes, err := state.ToPublicKeyBytes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyString := strings.TrimSpace(string(publicKeyBytes))
+
+	switch format {
+	case teleport.Text:
+		// TODO: maybe just print out an example token resource to copy and paste? Or a tctl command.
+		fmt.Printf(
+			"\nTo register the keypair with Teleport, include this public key in the token's\n"+
+				"`spec.bound_keypair.onboarding.initial_public_key`:\n\n"+
+				"\t%s\n\n",
+			keyString,
+		)
+	case teleport.JSON:
+
+		bytes, err := json.Marshal(&KeypairDocument{
+			PublicKey: keyString,
+		})
+		if err != nil {
+			return trace.Wrap(err, "generating json")
+		}
+
+		fmt.Printf("%s\n", string(bytes))
+	default:
+		return trace.BadParameter("unsupported output format %s; keypair has been generated")
+	}
+
+	return nil
+}
+
 func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *cli.KeypairCreateCommand) error {
 	dest, err := config.DestinationFromURI(cmd.Storage)
 	if err != nil {
@@ -55,7 +96,20 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 		return trace.Wrap(err, "initializing storage")
 	}
 
-	state, err := boundkeypair.NewUnboundClientState(
+	fsAdapter := config.NewBoundkeypairDestinationAdapter(dest)
+
+	// Check for existing client state.
+	state, err := boundkeypair.LoadClientState(ctx, fsAdapter)
+	if err == nil {
+		if !cmd.Overwrite {
+			log.InfoContext(ctx, "Existing client state found, printing existing public key. To generate a new key, pass --overwrite")
+			return trace.Wrap(printKeypair(state, cmd.Format))
+		} else {
+			log.WarnContext(ctx, "Overwriting existing client state and generating a new keypair.")
+		}
+	}
+
+	state, err = boundkeypair.NewUnboundClientState(
 		ctx,
 		getSuiteFromProxy(cmd.ProxyServer, globals.Insecure),
 	)
@@ -63,7 +117,7 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 		return trace.Wrap(err, "initializing new client state")
 	}
 
-	if err := boundkeypair.StoreClientState(ctx, config.NewBoundkeypairDestinationAdapter(dest), state); err != nil {
+	if err := boundkeypair.StoreClientState(ctx, fsAdapter, state); err != nil {
 		return trace.Wrap(err, "writing bound keypair state")
 	}
 
@@ -73,18 +127,5 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 		"storage", dest.String(),
 	)
 
-	publicKeyBytes, err := state.ToPublicKeyBytes()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// TODO: maybe just print out an example token resource to copy and paste? Or a tctl command.
-	fmt.Printf(
-		"\nTo register the keypair with Teleport, include this public key in the token's\n"+
-			"`spec.bound_keypair.onboarding.initial_public_key`:\n\n"+
-			"\t%s\n\n",
-		string(publicKeyBytes),
-	)
-
-	return nil
+	return trace.Wrap(printKeypair(state, cmd.Format))
 }

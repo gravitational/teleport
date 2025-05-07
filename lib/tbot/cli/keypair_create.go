@@ -18,12 +18,16 @@
 
 package cli
 
+import "github.com/gravitational/teleport"
+
 // KeypairCreateCommand handles `tbot keypair create`
 type KeypairCreateCommand struct {
 	*genericExecutorHandler[KeypairCreateCommand]
 
 	ProxyServer string
 	Storage     string
+	Overwrite   bool
+	Format      string
 }
 
 // NewKeypairCreateCommand initializes the `keypair create` command and returns
@@ -36,6 +40,8 @@ func NewKeypairCreateCommand(parentCmd KingpinClause, action func(*KeypairCreate
 
 	cmd.Flag("storage", "An internal storage URI to write the keypair, such as file:///var/lib/teleport/bot").Required().StringVar(&c.Storage)
 	cmd.Flag("proxy-server", "The proxy server, which will be pinged to determine the current cryptographic suite in use").Required().StringVar(&c.ProxyServer)
+	cmd.Flag("overwrite", "If set, overwrite any existing keypair. If unset and a keypair already exists, its key will be printed for use.").BoolVar(&c.Overwrite)
+	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.Format, teleport.Text, teleport.JSON)
 
 	return c
 }
