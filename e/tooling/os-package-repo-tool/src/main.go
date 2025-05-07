@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"k8s.io/klog/v2"
 )
 
 func main() {
@@ -121,6 +122,8 @@ func setupLogger(config *LoggerConfig) {
 	} else {
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &level})))
 	}
+
+	klog.SetSlogLogger(slog.Default())
 
 	slog.DebugContext(context.Background(), "Setup logger with config", "config", config)
 }

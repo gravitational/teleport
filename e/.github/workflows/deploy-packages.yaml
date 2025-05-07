@@ -336,7 +336,7 @@ jobs:
           # rm -rf "$CACHE_PATH"/*
       - name: Publish the ${{ inputs.artifact-tag }} version artifacts to the ${{ inputs.repo-type }} repo in ${{ inputs.environment }} environment
         env:
-          LOG_LEVEL: 3
+          LOG_LEVEL: 5
         run: |
             IFS=' ' read -r -a tool_arguments_array <<< "$TOOL_ARGUMENTS"
             "./$TOOL_BINARY_PATH" "${REPO_TYPE}" \
@@ -346,6 +346,7 @@ jobs:
             -release-channel "${RELEASE_CHANNEL}" \
             -artifact-path "$DOWNLOAD_DIRECTORY" \
             -log-level "$LOG_LEVEL" \
+            -leader-election-namespace "${LEADERSHIP_ELECTION_NAMESPACE}" \
             "${tool_arguments_array[@]}"
       - name: Log runner state post-job
         run: |

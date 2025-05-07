@@ -11,3 +11,6 @@ YUM_S3_BUCKET: yum.releases.teleport.dev
 YUM_REPO_BASE_DOMAIN_NAME: releases.teleport.dev
 YUM_DEPLOYMENT_AWS_ROLE: arn:aws:iam::146628656107:role/YUM-repo-hosting-teleport.e-gha-role
 YUM_CLOUDFRONT_DISTRIBUTION: E3VV8TKV47BRMD
+
+# OPRT vars
+LEADERSHIP_ELECTION_NAMESPACE: gha-runners

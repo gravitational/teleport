@@ -22,12 +22,14 @@ type YumRepoTool struct {
 	createRepo   *CreateRepo
 	gpg          *GPG
 	supportedOSs map[string][]string
+	serializer   Serializer
+	lockName     string
 }
 
 const ArtifactExtension string = ".rpm"
 
 // Instantiates a new yum repo tool instance and performs any required setup/config.
-func NewYumRepoTool(config *YumConfig, supportedOSs map[string][]string) (*YumRepoTool, error) {
+func NewYumRepoTool(config *YumConfig, supportedOSs map[string][]string, serializer Serializer) (*YumRepoTool, error) {
 	cr, err := NewCreateRepo(config.cacheDir)
 	if err != nil {
 		trace.Wrap(err, "failed to instantiate new CreateRepo instance")
@@ -43,12 +45,19 @@ func NewYumRepoTool(config *YumConfig, supportedOSs map[string][]string) (*YumRe
 		return nil, trace.Wrap(err, "failed to create a new GPG instance")
 	}
 
+	lockName, err := config.GetLockName("yum")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get lock name")
+	}
+
 	return &YumRepoTool{
 		config:       config,
 		s3Manager:    s3Manager,
 		createRepo:   cr,
 		gpg:          gpg,
 		supportedOSs: supportedOSs,
+		serializer:   serializer,
+		lockName:     lockName,
 	}, nil
 }
 
@@ -56,6 +65,14 @@ func (yrt *YumRepoTool) Run() error {
 	start := time.Now()
 	slog.InfoContext(context.Background(), "Starting YUM repo build process")
 	slog.DebugContext(context.Background(), "Using providing configuration", "config", yrt.config)
+
+	lockTimeoutCtx, cancel := context.WithTimeout(context.Background(), 4*time.Hour)
+	defer cancel()
+	releaseLock, err := yrt.serializer.TakeSerializationLock(lockTimeoutCtx, yrt.lockName)
+	if err != nil {
+		return trace.Wrap(err, "failed to take serialization lock")
+	}
+	defer releaseLock()
 
 	isFirstRun, err := yrt.isFirstRun()
 	if err != nil {

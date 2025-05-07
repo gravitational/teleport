@@ -16,10 +16,12 @@ type AptRepoTool struct {
 	gpg          *GPG
 	s3Manager    *S3manager
 	supportedOSs map[string][]string
+	serializer   Serializer
+	lockName     string
 }
 
 // Instantiates a new apt repo tool instance and performs any required setup/config.
-func NewAptRepoTool(config *AptConfig, supportedOSs map[string][]string) (*AptRepoTool, error) {
+func NewAptRepoTool(config *AptConfig, supportedOSs map[string][]string, serializer Serializer) (*AptRepoTool, error) {
 	aptly, err := NewAptly(config.aptlyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create a new aptly instance")
@@ -35,12 +37,19 @@ func NewAptRepoTool(config *AptConfig, supportedOSs map[string][]string) (*AptRe
 		return nil, trace.Wrap(err, "failed to create a new s3manager instance")
 	}
 
+	lockName, err := config.GetLockName("apt")
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get lock name")
+	}
+
 	return &AptRepoTool{
 		aptly:        aptly,
 		config:       config,
 		gpg:          gpg,
 		s3Manager:    s3Manager,
 		supportedOSs: supportedOSs,
+		serializer:   serializer,
+		lockName:     lockName,
 	}, nil
 }
 
@@ -49,6 +58,14 @@ func (art *AptRepoTool) Run() error {
 	start := time.Now()
 	slog.InfoContext(context.Background(), "Starting APT repo build process")
 	slog.DebugContext(context.Background(), "Using providing configuration", "config", art.config)
+
+	lockTimeoutCtx, cancel := context.WithTimeout(context.Background(), 4*time.Hour)
+	defer cancel()
+	releaseLock, err := art.serializer.TakeSerializationLock(lockTimeoutCtx, art.lockName)
+	if err != nil {
+		return trace.Wrap(err, "failed to take serialization lock")
+	}
+	defer releaseLock()
 
 	isFirstRun, err := art.aptly.IsFirstRun()
 	if err != nil {

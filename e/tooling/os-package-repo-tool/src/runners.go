@@ -20,6 +20,7 @@ type AptRunner struct {
 	flags        *flag.FlagSet
 	config       *AptConfig
 	supportedOSs map[string][]string
+	serializer   Serializer
 }
 
 func NewAptRunner() (*AptRunner, error) {
@@ -54,6 +55,8 @@ func NewAptRunner() (*AptRunner, error) {
 
 	runner.config = config
 
+	runner.serializer = NewKubernetesSerializer(runner.flags)
+
 	return runner, nil
 }
 
@@ -77,7 +80,7 @@ func (ar AptRunner) Run() error {
 		return nil
 	}
 
-	art, err := NewAptRepoTool(ar.config, ar.supportedOSs)
+	art, err := NewAptRepoTool(ar.config, ar.supportedOSs, ar.serializer)
 	if err != nil {
 		return trace.Wrap(err, "failed to create a new APT repo tool instance")
 	}
@@ -107,6 +110,7 @@ type YumRunner struct {
 	flags        *flag.FlagSet
 	config       *YumConfig
 	supportedOSs map[string][]string
+	serializer   Serializer
 }
 
 func NewYumRunner() (*YumRunner, error) {
@@ -148,6 +152,8 @@ func NewYumRunner() (*YumRunner, error) {
 	runner.flags = flag.NewFlagSet(runner.Name(), flag.ExitOnError)
 	runner.config = NewYumConfigWithFlagSet(runner.flags)
 
+	runner.serializer = NewKubernetesSerializer(runner.flags)
+
 	return runner, nil
 }
 
@@ -166,7 +172,7 @@ func (yr YumRunner) Init(args []string) error {
 }
 
 func (yr YumRunner) Run() error {
-	yrt, err := NewYumRepoTool(yr.config, yr.supportedOSs)
+	yrt, err := NewYumRepoTool(yr.config, yr.supportedOSs, yr.serializer)
 	if err != nil {
 		return trace.Wrap(err, "failed to create a new YUM repo tool instance")
 	}

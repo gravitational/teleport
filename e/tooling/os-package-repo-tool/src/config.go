@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -248,6 +249,27 @@ func (c *Config) LogValue() slog.Value {
 		slog.Any("s3_config", c.S3Config),
 		slog.Any("logger_config", c.LoggerConfig),
 	)
+}
+
+func (c *Config) GetLockName(repoType string) (string, error) {
+	prefix := fmt.Sprintf("oprt-%s-", repoType)
+
+	// Truncate the bucket name so that the lock name is <=63 characters.
+	// It's important be be very explicit about this because implicitly
+	// dropping the end of the name could result in duplicate lock names.
+	maxBucketNameLength := 63 - len(prefix)
+	truncatedBucketName := c.bucketName
+	if len(truncatedBucketName) > maxBucketNameLength {
+		truncatedBucketName = string(([]rune(c.bucketName))[:maxBucketNameLength])
+	}
+	lockName := prefix + truncatedBucketName
+
+	safeLockName, err := GetSafeLockName(lockName)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to get safe lock name for lock %q", lockName)
+	}
+
+	return safeLockName, nil
 }
 
 // APT-specific config
