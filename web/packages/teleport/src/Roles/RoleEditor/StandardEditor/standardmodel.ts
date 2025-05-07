@@ -309,9 +309,7 @@ export type AppAccess = ResourceAccessBase<'app'> & {
   awsRoleARNs: string[];
   azureIdentities: string[];
   gcpServiceAccounts: string[];
-  mcp: {
-    tools: string[];
-  };
+  mcpTools: string[];
 };
 
 export type DatabaseAccess = ResourceAccessBase<'db'> & {
@@ -545,9 +543,7 @@ export function newResourceAccess(
         awsRoleARNs: ['{{internal.aws_role_arns}}'],
         azureIdentities: ['{{internal.azure_identities}}'],
         gcpServiceAccounts: ['{{internal.gcp_service_accounts}}'],
-        mcp: {
-          tools: ['{{internal.mcp_tools}}'],
-        },
+        mcpTools: ['{{internal.mcp_tools}}'],
         hideValidationErrors: true,
       };
     case 'db':
@@ -779,13 +775,14 @@ function roleConditionsToModel(
   const awsRoleARNsModel = aws_role_arns ?? [];
   const azureIdentitiesModel = azure_identities ?? [];
   const gcpServiceAccountsModel = gcp_service_accounts ?? [];
-  const mcpTools = mcp?.tools ?? [];
+  const mcpToolsModel = mcp?.tools ?? [];
   if (
     someNonEmpty(
       appLabelsModel,
       awsRoleARNsModel,
       azureIdentitiesModel,
-      gcpServiceAccountsModel
+      gcpServiceAccountsModel,
+      mcpToolsModel,
     )
   ) {
     resources.push({
@@ -794,9 +791,7 @@ function roleConditionsToModel(
       awsRoleARNs: awsRoleARNsModel,
       azureIdentities: azureIdentitiesModel,
       gcpServiceAccounts: gcpServiceAccountsModel,
-      mcp: {
-        tools: mcpTools,
-      },
+      mcpTools:mcpToolsModel,
       hideValidationErrors: false,
     });
   }
@@ -1407,6 +1402,12 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
         role.spec.allow.aws_role_arns = res.awsRoleARNs;
         role.spec.allow.azure_identities = res.azureIdentities;
         role.spec.allow.gcp_service_accounts = res.gcpServiceAccounts;
+        if (res.mcpTools.length > 0) {
+          if (role.spec.allow.mcp === undefined) {
+            role.spec.allow.mcp = {};
+          }
+          role.spec.allow.mcp.tools = res.mcpTools
+        }
         break;
 
       case 'db':

@@ -508,8 +508,8 @@ export function AppAccessSection({
       <FieldMultiInput
         label="MCP Tools"
         disabled={isProcessing}
-        value={value.mcp.tools}
-        onChange={mcpTools => onChange?.({ ...value, mcp: {tools: mcpTools} })}
+        value={value.mcpTools}
+        onChange={mcpTools => onChange?.({ ...value, mcpTools: mcpTools })}
         rule={precomputed(validation.fields.mcpTools)}
       />
     </Flex>
