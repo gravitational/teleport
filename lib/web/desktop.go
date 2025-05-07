@@ -23,11 +23,12 @@ import (
 	"crypto"
 	"crypto/tls"
 	"errors"
+	"log/slog"
+	"net/http"
+
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	"log/slog"
-	"net/http"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
