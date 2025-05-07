@@ -122,11 +122,17 @@ linters-settings:
           - pkg: golang.org/x/exp/slices
             desc: 'use "slices" instead'
           - pkg: github.com/hashicorp/go-version
-            desc: 'use "golang.org/x/mod/semver" or "coreos/go-semver/semver" instead'
+            desc: 'use "coreos/go-semver/semver" instead'
+          - pkg: golang.org/x/mod/semver
+            desc: 'use "coreos/go-semver/semver" instead'
           - pkg: github.com/microsoftgraph/msgraph-sdk-go
             desc: 'use "github.com/gravitational/teleport/lib/msgraph" instead'
           - pkg: github.com/cloudflare/cfssl
             desc: 'use "crypto" or "x/crypto" instead'
+          - pkg: github.com/aws/aws-sdk-go/
+            desc: 'use "aws-sdk-go-v2" instead'
+          - pkg: github.com/aws/aws-sdk-go$
+            desc: 'use "aws-sdk-go-v2" instead'
       # Prevent importing any additional logging libraries.
       logging:
         deny:
@@ -167,6 +173,7 @@ linters-settings:
           - '!**/lib/srv/mock.go'
           - '!**/lib/srv/db/redis/test.go'
           - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
           - '!**/lib/teleterm/gatewaytest/**'
           - '!**/lib/utils/testhelpers.go'
           - '!**/lib/utils/testutils/**'
@@ -253,6 +260,7 @@ linters-settings:
           - '!**/lib/srv/mock.go'
           - '!**/lib/srv/db/redis/test.go'
           - '!**/lib/tbot/workloadidentity/workloadattest/podman/test_server.go'
+          - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
           - '!**/lib/teleterm/gatewaytest/**'
           - '!**/lib/utils/cli.go'
           - '!**/lib/utils/testhelpers.go'
@@ -357,6 +365,12 @@ linters-settings:
             desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
           - pkg: github.com/google/go-cmp/cmp/cmpopts
             desc: '"github.com/google/go-cmp/cmp/cmpopts" should only be used in tests'
+      oidc:
+        deny:
+          - pkg: github.com/coreos/go-oidc$
+            desc: 'github.com/coreos/go-oidc/v3 or github.com/zitadel/oidc/v3 should be used instead'
+          - pkg: github.com/zitadel/oidc$
+            desc: 'github.com/zitadel/oidc/v3 should be used instead'
   errorlint:
     comparison: true
     asserts: true
@@ -414,6 +428,10 @@ linters-settings:
         msg: 'Use stsutils.NewV1'
       - p: '^stscreds\.NewCredentials$'
         msg: 'Use stsutils.NewCredentials'
+      - p: '^protojson\.Unmarshal$'
+        msg: 'use protojson.UnmarshalOptions and consider enabling DiscardUnknown'
+      - p: '^jsonpb\.(?:Unmarshal|UnmarshalString|UnmarshalNext)$'
+        msg: 'use jsonpb.Unmarshaler and consider enabling AllowUnknownFields'
 
 run:
   go: '1.24'

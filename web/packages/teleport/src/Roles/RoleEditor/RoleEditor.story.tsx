@@ -23,38 +23,53 @@ import { useEffect, useState } from 'react';
 import { Info } from 'design/Alert';
 import { ButtonPrimary } from 'design/Button';
 import Flex from 'design/Flex';
+import { Indicator } from 'design/Indicator';
+import Text from 'design/Text';
+import { useAsync } from 'shared/hooks/useAsync';
+import { wait } from 'shared/utils/wait';
 
 import useResources from 'teleport/components/useResources';
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { RoleVersion } from 'teleport/services/resources';
+import { storageService } from 'teleport/services/storageService';
 import { Access } from 'teleport/services/user';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 
+import { RoleDiffState } from '../Roles';
 import { RoleEditor } from './RoleEditor';
 import { RoleEditorDialog } from './RoleEditorDialog';
+import { unableToUpdatePreviewMessage } from './Shared';
 import { withDefaults } from './StandardEditor/withDefaults';
 
 const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultGetAccessGraphRoleTesterEnabled =
+  storageService.getAccessGraphRoleTesterEnabled;
 
 export default {
   title: 'Teleport/Roles/Role Editor',
   decorators: [
-    (Story, { parameters }) => {
+    (Story, { args, parameters }) => {
       const ctx = createTeleportContext();
       if (parameters.acl) {
         ctx.storeUser.getRoleAccess = () => parameters.acl;
+      }
+      if (args.roleDiffEnabled) {
+        cfg.isPolicyEnabled = true;
+        storageService.getAccessGraphRoleTesterEnabled = () => true;
       }
       useEffect(() => {
         // Clean up
         return () => {
           cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+          storageService.getAccessGraphRoleTesterEnabled =
+            defaultGetAccessGraphRoleTesterEnabled;
         };
       }, []);
       return (
         <TeleportContextProvider ctx={ctx}>
-          <Flex flexDirection="column" width="700px" height="800px">
+          <Flex flexDirection="column" width="550px" height="800px">
             <Story />
           </Flex>
         </TeleportContextProvider>
@@ -219,8 +234,14 @@ export const saving: StoryObj = {
   render() {
     return (
       <>
-        <Info>Save the role to see the saving state</Info>
-        <RoleEditor onSave={() => delay('infinite')} />
+        <Info>Edit and save the role to see the saving state</Info>
+        <RoleEditor
+          originalRole={{
+            object: withDefaults({ metadata: { name: 'dummy-role' } }),
+            yaml: dummyRoleYaml,
+          }}
+          onSave={() => delay('infinite')}
+        />
       </>
     );
   },
@@ -235,10 +256,16 @@ export const savingError: StoryObj = {
   render() {
     return (
       <>
-        <Info>Save the role to see the error state</Info>
+        <Info>Edit and save the role to see the error state</Info>
         <RoleEditor
+          originalRole={{
+            object: withDefaults({ metadata: { name: 'dummy-role' } }),
+            yaml: dummyRoleYaml,
+          }}
           onSave={async () => {
-            throw new Error('server error');
+            throw new Error('Server error', {
+              cause: new Error('Unexpected rack explosion'),
+            });
           }}
         />
       </>
@@ -277,14 +304,48 @@ export const noAccess: StoryObj = {
 };
 
 export const Dialog: StoryObj = {
-  render() {
+  render({
+    roleDiffEnabled,
+    roleDiffState,
+    accessGraphError,
+  }: {
+    roleDiffEnabled: boolean;
+    roleDiffState: RoleDiffState;
+    accessGraphError: boolean;
+  }) {
     const [open, setOpen] = useState(false);
     const resources = useResources([], {});
+    const [roleDiffAttempt, mockGetDiff] = useAsync(async () => {
+      await wait(1000);
+      if (accessGraphError) {
+        throw new Error(unableToUpdatePreviewMessage, {
+          cause: new Error("There's a raccoon in the router"),
+        });
+      }
+    });
+    const roleDiffProps = {
+      roleDiffElement: (
+        <Flex
+          flex="1"
+          alignItems="center"
+          justifyContent="center"
+          flexDirection="column"
+          gap="2"
+        >
+          <Text typography="h1">Access Graph Placeholder</Text>
+          {roleDiffAttempt.status === 'processing' && <Indicator />}
+        </Flex>
+      ),
+      updateRoleDiff: mockGetDiff,
+      roleDiffAttempt,
+      roleDiffState,
+    };
     return (
       <>
         <ButtonPrimary onClick={() => setOpen(true)}>Open</ButtonPrimary>
         <RoleEditorDialog
           resources={resources}
+          roleDiffProps={roleDiffEnabled ? roleDiffProps : undefined}
           open={open}
           onClose={() => setOpen(false)}
           onSave={async () => setOpen(false)}
@@ -297,29 +358,17 @@ export const Dialog: StoryObj = {
       handlers: [yamlifyHandler, parseHandler],
     },
   },
-};
-
-export const DialogWithPolicyEnabled: StoryObj = {
-  render() {
-    cfg.isPolicyEnabled = true;
-    const [open, setOpen] = useState(false);
-    const resources = useResources([], {});
-    return (
-      <>
-        <ButtonPrimary onClick={() => setOpen(true)}>Open</ButtonPrimary>
-        <RoleEditorDialog
-          resources={resources}
-          open={open}
-          onClose={() => setOpen(false)}
-          onSave={async () => setOpen(false)}
-        />
-      </>
-    );
-  },
-  parameters: {
-    msw: {
-      handlers: [yamlifyHandler, parseHandler],
+  argTypes: {
+    roleDiffState: {
+      control: { type: 'select' },
+      options: Object.values(RoleDiffState).filter(s => typeof s === 'string'),
+      mapping: RoleDiffState,
     },
+  },
+  args: {
+    roleDiffEnabled: false,
+    roleDiffState: RoleDiffState.Disabled,
+    accessGraphError: false,
   },
 };
 

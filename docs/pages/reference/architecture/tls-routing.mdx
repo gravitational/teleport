@@ -55,9 +55,7 @@ these clients can connect to it.
 
 ### Diagram
 
-<Figure align="left" bordered caption="TLS routing">
-  ![TLS routing](../../../img/architecture/tls-routing.png)
-</Figure>
+![TLS routing](../../../img/architecture/tls-routing.png)
 
 Let's take a look at how each protocol Teleport supports implements TLS routing.
 
@@ -234,8 +232,9 @@ protocol for the target group.
 
 TLS routing is compatible with any reverse proxies that supports WebSocket.
 
-You can set up a Teleport Proxy Service behind the reverse proxy and run the
-following command to test the connection:
+You can set up the Teleport Proxy Service behind the reverse proxy and run the
+following command to test the connection, assigning
+<Var name="teleport.example.com" /> to the domain name of the Proxy Service:
 
 (!docs/pages/includes/reference/code-blocks-no-cspell/tls-routing-conn-upgrade-test-command.mdx!)
 

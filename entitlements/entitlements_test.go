@@ -91,6 +91,7 @@ func TestBackfillFeatures(t *testing.T) {
 					string(UpsellAlert):            {Enabled: true},
 					string(UsageReporting):         {Enabled: true},
 					string(LicenseAutoUpdate):      {Enabled: true},
+					string(AccessGraphDemoMode):    {Enabled: true},
 				},
 			},
 			expected: map[string]*proto.EntitlementInfo{
@@ -118,6 +119,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(UpsellAlert):            {Enabled: true},
 				string(UsageReporting):         {Enabled: true},
 				string(LicenseAutoUpdate):      {Enabled: true},
+				string(AccessGraphDemoMode):    {Enabled: true},
 			},
 		},
 		{
@@ -194,6 +196,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(UpsellAlert):            {Enabled: false},
 				string(CloudAuditLogRetention): {Enabled: false},
 				string(LicenseAutoUpdate):      {Enabled: false},
+				string(AccessGraphDemoMode):    {Enabled: false},
 			},
 		},
 		{
@@ -267,6 +270,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(UpsellAlert):            {Enabled: false},
 				string(CloudAuditLogRetention): {Enabled: false},
 				string(LicenseAutoUpdate):      {Enabled: false},
+				string(AccessGraphDemoMode):    {Enabled: false},
 				// Identity off, fields false
 				string(Identity):     {Enabled: false},
 				string(SessionLocks): {Enabled: false},

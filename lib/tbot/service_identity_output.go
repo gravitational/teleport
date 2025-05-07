@@ -21,6 +21,7 @@ package tbot
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -113,12 +115,13 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		}
 	}
 
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime)
 	id, err := generateIdentity(
 		ctx,
 		s.botAuthClient,
 		s.getBotIdentity(),
 		roles,
-		cmp.Or(s.cfg.CredentialLifetime, s.botCfg.CredentialLifetime).TTL,
+		effectiveLifetime.TTL,
 		func(req *proto.UserCertsRequest) {
 			req.ReissuableRoleImpersonation = s.cfg.AllowReissue
 		},
@@ -151,6 +154,8 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	warnOnEarlyExpiration(ctx, s.log.With("output", s), id, effectiveLifetime)
 
 	hostCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
@@ -304,7 +309,9 @@ func renderSSHConfig(
 	}
 
 	executablePath, err := getExecutablePath()
-	if err != nil {
+	if errors.Is(err, autoupdate.ErrUnstableExecutable) {
+		log.WarnContext(ctx, "ssh_config will be created with an unstable path to the tbot executable. Please reinstall tbot with Managed Updates to prevent instability.")
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 

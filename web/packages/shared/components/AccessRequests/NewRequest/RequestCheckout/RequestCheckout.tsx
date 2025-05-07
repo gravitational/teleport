@@ -287,7 +287,7 @@ export function RequestCheckout<T extends PendingListItem>({
           {hasUnsupporteKubeResourceKinds && (
             <Alert kind="danger">
               <HoverTooltip
-                position="left"
+                placement="left"
                 tipContent={
                   fetchResourceRequestRolesAttempt.statusText.length > 248
                     ? fetchResourceRequestRolesAttempt.statusText
@@ -810,7 +810,10 @@ const requireText = (value: string, requireReason: boolean) => () => {
 
 const SidePanel = styled(Box)`
   position: absolute;
-  z-index: 11;
+  // This z-index must be a higher value than the top bar z-index defined for
+  // Teleport web UI navigation found in teleport/src/Navigation/zIndexMap.ts.
+  // It prevents this SidePanel from rendering underneath the navigation bits.
+  z-index: 100;
   top: 0px;
   right: 0px;
   background: ${({ theme }) => theme.colors.levels.sunken};

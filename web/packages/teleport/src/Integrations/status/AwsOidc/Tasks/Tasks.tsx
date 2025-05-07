@@ -156,7 +156,7 @@ export function Tasks() {
                 ),
               },
               {
-                key: 'issueType',
+                key: 'title',
                 headerText: 'Issue Details',
               },
               {

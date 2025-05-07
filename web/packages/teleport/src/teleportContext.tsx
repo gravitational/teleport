@@ -38,6 +38,7 @@ import sessionService from './services/session';
 import { storageService } from './services/storageService';
 import userService from './services/user';
 import userGroupService from './services/userGroups';
+import { yamlService } from './services/yaml/yaml';
 import { StoreNav, StoreUserContext } from './stores';
 import * as types from './types';
 
@@ -62,6 +63,7 @@ class TeleportContext implements types.Context {
   userGroupService = userGroupService;
   mfaService = new MfaService();
   notificationService = new NotificationService();
+  yamlService = yamlService;
 
   notificationContentFactory = notificationContentFactory;
 

@@ -7,6 +7,9 @@ description: This page describes the supported values of the teleport_role resou
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
+This page describes the supported values of the teleport_role resource of the Teleport Terraform provider.
+
+
 
 
 ## Example Usage
@@ -41,7 +44,7 @@ resource "teleport_role" "example" {
       client_idle_timeout     = "1h"
       disconnect_expired_cert = true
       permit_x11_forwarding   = false
-      request_access          = "denied"
+      request_access          = "optional"
     }
 
     allow = {
@@ -200,6 +203,7 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
@@ -398,6 +402,7 @@ Optional:
 
 Optional:
 
+- `api_group` (String) APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.
 - `kind` (String) Kind specifies the Kubernetes Resource type.
 - `name` (String) Name is the resource name. It supports wildcards.
 - `namespace` (String) Namespace is the resource namespace. It supports wildcards.
@@ -533,7 +538,7 @@ Optional:
 - `pin_source_ip` (Boolean) PinSourceIP forces the same client IP for certificate generation and usage
 - `port_forwarding` (Boolean) Deprecated: Use SSHPortForwarding instead
 - `record_session` (Attributes) RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false. (see [below for nested schema](#nested-schema-for-specoptionsrecord_session))
-- `request_access` (String) RequestAccess defines the request strategy (optional|note|always) where optional is the default.
+- `request_access` (String) RequestAccess defines the request strategy (optional|reason|always) where optional is the default.
 - `request_prompt` (String) RequestPrompt is an optional message which tells users what they aught to request.
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean) SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.
@@ -591,4 +596,3 @@ Optional:
 Optional:
 
 - `enabled` (Boolean)
-

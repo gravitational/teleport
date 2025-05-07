@@ -21,7 +21,6 @@ package authclient
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -63,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -100,11 +100,6 @@ var (
 // password, or second factor.
 func IsInvalidLocalCredentialError(err error) bool {
 	return errors.Is(err, InvalidUserPassError) || errors.Is(err, InvalidUserPass2FError)
-}
-
-// HostFQDN consists of host UUID and cluster name joined via '.'.
-func HostFQDN(hostUUID, clusterName string) string {
-	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
 // APIClient is aliased here so that it can be embedded in Client.
@@ -1071,8 +1066,12 @@ type IdentityService interface {
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnectorWithValidationOptions returns SAML connector information
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets valid SAML connectors list
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectorsWithValidationOptions gets valid SAML connectors list
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
@@ -1426,7 +1425,7 @@ func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []by
 // sshAttIn and tlsAttIn will be returned.
 // [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
 // set by any post-17.0.0 client.
-func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *keys.AttestationStatement) (sshAttOut, tlsAttOut *keys.AttestationStatement) {
+func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *hardwarekey.AttestationStatement) (sshAttOut, tlsAttOut *hardwarekey.AttestationStatement) {
 	if attIn == nil {
 		return sshAttIn, tlsAttIn
 	}
@@ -1469,14 +1468,14 @@ type AuthenticateSSHRequest struct {
 	// AttestationStatement is an attestation statement associated with the given public key.
 	//
 	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	AttestationStatement *hardwarekey.AttestationStatement `json:"attestation_statement,omitempty"`
 
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
-	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
-	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1560,36 +1559,6 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 	return out
 }
 
-// KubeCSR is a kubernetes CSR request
-type KubeCSR struct {
-	// Username of user's certificate
-	Username string `json:"username"`
-	// ClusterName is a name of the target cluster to generate certificate for
-	ClusterName string `json:"cluster_name"`
-	// CSR is a kubernetes CSR
-	CSR []byte `json:"csr"`
-}
-
-// CheckAndSetDefaults checks and sets defaults
-func (a *KubeCSR) CheckAndSetDefaults() error {
-	if len(a.CSR) == 0 {
-		return trace.BadParameter("missing parameter 'csr'")
-	}
-	return nil
-}
-
-// KubeCSRResponse is a response to kubernetes CSR request
-type KubeCSRResponse struct {
-	// Cert is a signed certificate PEM block
-	Cert []byte `json:"cert"`
-	// CertAuthorities is a list of PEM block with trusted cert authorities
-	CertAuthorities [][]byte `json:"cert_authorities"`
-	// TargetAddr is an optional target address
-	// of the kubernetes API server that can be set
-	// in the kubeconfig
-	TargetAddr string `json:"target_addr"`
-}
-
 // ClientI is a client to Auth service
 type ClientI interface {
 	IdentityService
@@ -1621,6 +1590,7 @@ type ClientI interface {
 	services.KubeWaitingContainer
 	services.Notifications
 	services.VnetConfigGetter
+	services.HealthCheckConfig
 	types.Events
 
 	types.WebSessionsGetter
@@ -1689,10 +1659,6 @@ type ClientI interface {
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short-lived certificates as a result
 	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
-
-	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if successful.
-	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)

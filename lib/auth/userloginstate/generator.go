@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -133,6 +134,17 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 
 // Generate will generate the user login state for the given user.
 func (g *Generator) Generate(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
+	return g.generate(ctx, user, ulsService, false)
+}
+
+// GeneratePureULS is a variant of user login state generation that emits no usage events and ignores any existing user login state
+// in the backend. Used for auditing/introspection purposes.
+func (g *Generator) GeneratePureULS(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
+	return g.generate(ctx, user, nil, true)
+}
+
+// generate is the underlying implementation for Generate and GeneratePure.
+func (g *Generator) generate(ctx context.Context, user types.User, ulsService services.UserLoginStates, pure bool) (*userloginstate.UserLoginState, error) {
 	var originalTraits map[string][]string
 	var traits map[string][]string
 	var githubIdentity *userloginstate.ExternalIdentity
@@ -176,11 +188,13 @@ func (g *Generator) Generate(ctx context.Context, user types.User, ulsService se
 		return nil, trace.Wrap(err)
 	}
 
-	// Preserve states like GitHub identities across logins.
-	// TODO(greedy52) implement a way to remove the identity or find a way to
-	// avoid keeping the identity forever.
-	if err := g.maybePreserveGitHubIdentity(ctx, uls, ulsService); err != nil {
-		return nil, trace.Wrap(err)
+	if !pure {
+		// Preserve states like GitHub identities across logins.
+		// TODO(greedy52) implement a way to remove the identity or find a way to
+		// avoid keeping the identity forever.
+		if err := g.maybePreserveGitHubIdentity(ctx, uls, ulsService); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Clean up the user login state after generating it.
@@ -188,7 +202,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User, ulsService se
 		return nil, trace.Wrap(err)
 	}
 
-	if g.usageEvents != nil {
+	if g.usageEvents != nil && !pure {
 		// Emit the usage event metadata.
 		if err := g.emitUsageEvent(ctx, user, uls, inheritedRoles, inheritedTraits); err != nil {
 			g.log.DebugContext(ctx, "Error emitting usage event during user login state generation, skipping", "error", err)
@@ -242,9 +256,9 @@ func (g *Generator) handleAccessListMembership(ctx context.Context, user types.U
 
 	membershipKind, err := accesslists.IsAccessListMember(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 	// Return early if there was an error or the user isn't a member of the access list.
-	if err != nil || membershipKind == accesslists.MembershipOrOwnershipTypeNone {
-		// Log any error.
-		if err != nil {
+	if err != nil || membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+		// Log any error besides user being locked.
+		if err != nil && !accesslists.IsUserLocked(err) {
 			g.log.WarnContext(ctx, "checking access list membership", "error", err)
 		}
 		return inheritedRoles, inheritedTraits, nil
@@ -268,7 +282,7 @@ func (g *Generator) handleAccessListMembership(ctx context.Context, user types.U
 	}
 
 	g.grantRolesAndTraits(accessList.Spec.Grants, state)
-	if membershipKind == accesslists.MembershipOrOwnershipTypeInherited {
+	if membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
 		inheritedRoles = append(inheritedRoles, accessList.Spec.Grants.Roles...)
 		for k, values := range accessList.Spec.Grants.Traits {
 			inheritedTraits[k] = append(inheritedTraits[k], values...)
@@ -287,9 +301,9 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 
 	ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
 	// Return early if there was an error or the user isn't an owner of the access list.
-	if err != nil || ownershipType == accesslists.MembershipOrOwnershipTypeNone {
-		// Log any error.
-		if err != nil {
+	if err != nil || ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+		// Log any error besides user being locked.
+		if err != nil && !accesslists.IsUserLocked(err) {
 			g.log.WarnContext(ctx, "checking access list ownership", "error", err)
 		}
 		return inheritedRoles, inheritedTraits, nil
@@ -313,7 +327,7 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 	}
 
 	g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state)
-	if ownershipType == accesslists.MembershipOrOwnershipTypeInherited {
+	if ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
 		inheritedRoles = append(inheritedRoles, accessList.Spec.OwnerGrants.Roles...)
 		for k, values := range accessList.Spec.OwnerGrants.Traits {
 			inheritedTraits[k] = append(inheritedTraits[k], values...)
@@ -324,7 +338,7 @@ func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.Us
 }
 
 // grantRolesAndTraits will append the roles and traits from the provided Grants to the UserLoginState,
-// returning inherited roles and traits if membershipOrOwnershipType is inherited.
+// returning inherited roles and traits if AccessListUserAssignmentType is inherited.
 func (g *Generator) grantRolesAndTraits(grants accesslist.Grants, state *userloginstate.UserLoginState) {
 	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
 

@@ -34,7 +34,7 @@ export default tseslint.config(
       '.prettierrc.js',
       '**/tshd/**/*_pb.js',
       // WASM generated files
-      'web/packages/teleport/src/ironrdp/pkg',
+      '**/ironrdp/pkg/**',
       'web/packages/teleterm/build',
     ],
   },

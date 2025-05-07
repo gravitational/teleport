@@ -47,6 +47,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -81,9 +82,11 @@ var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component
 // VersionStorage local storage for saving the version.
 type VersionStorage interface {
 	// GetTeleportVersion reads the last known Teleport version from storage.
-	GetTeleportVersion(ctx context.Context) (*semver.Version, error)
+	GetTeleportVersion(ctx context.Context) (semver.Version, error)
 	// WriteTeleportVersion writes the last known Teleport version to the storage.
-	WriteTeleportVersion(ctx context.Context, version *semver.Version) error
+	WriteTeleportVersion(ctx context.Context, version semver.Version) error
+	// DeleteTeleportVersion removes the last known Teleport version in storage.
+	DeleteTeleportVersion(ctx context.Context) error
 }
 
 // InitConfig is auth server init config
@@ -328,6 +331,13 @@ type InitConfig struct {
 	// WorkloadIdentityX509Revocations.
 	WorkloadIdentityX509Revocations services.WorkloadIdentityX509Revocations
 
+	// WorkloadIdentityX509Overrides handles the storage for workload
+	// identity-related X.509 certificate overrides.
+	WorkloadIdentityX509Overrides services.WorkloadIdentityX509Overrides
+
+	// SigstorePolicies handles the storage for Sigstore policy objects.
+	SigstorePolicies services.SigstorePolicies
+
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
@@ -343,6 +353,9 @@ type InitConfig struct {
 	// this node.
 	IdentityCenter services.IdentityCenter
 
+	// Plugins is a service that manages plugin resources for integrations.
+	Plugins *local.PluginsService
+
 	// PluginStaticCredentials handles credentials for integrations and plugins.
 	PluginStaticCredentials services.PluginStaticCredentials
 
@@ -351,6 +364,15 @@ type InitConfig struct {
 
 	// StableUNIXUsers handles the storage for stable UNIX users.
 	StableUNIXUsers services.StableUNIXUsersInternal
+
+	// HealthCheckConfig manages health check config resources.
+	HealthCheckConfig services.HealthCheckConfig
+
+	// BackendInfo is a service of backend information.
+	BackendInfo services.BackendInfoService
+
+	// SkipVersionCheck skips version check during major version upgrade/downgrade.
+	SkipVersionCheck bool
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -398,8 +420,15 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, teleport.SemVersion); err != nil {
-		return trace.Wrap(err)
+
+	if cfg.SkipVersionCheck {
+		if err := upsertTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := validateAndUpdateTeleportVersion(ctx, cfg.VersionStorage, asrv.Services.BackendInfoService, *teleport.SemVer()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// if bootstrap resources are supplied, use them to bootstrap backend state
@@ -462,7 +491,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
+		if _, err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
 			return trace.Wrap(err)
 		}
 		asrv.logger.InfoContext(ctx, "Created reverse tunnel", "tunnel", tunnel.GetName())
@@ -526,7 +555,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 
 		// If the cluster name has already been set, log a warning if the user
 		// is trying to change the name.
-		cn, err = asrv.Services.GetClusterName()
+		cn, err = asrv.Services.GetClusterName(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -603,6 +632,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 			asrv.logger.WarnContext(ctx, "error creating preset database object import rules", "error", err)
 		}
 		span.AddEvent("completed creating database object import rules")
+
+		span.AddEvent("creating preset health check config")
+		if err := createPresetHealthCheckConfig(ctx, asrv); err != nil {
+			return trace.Wrap(err)
+		}
+		span.AddEvent("completed creating preset health check config")
 	} else {
 		asrv.logger.InfoContext(ctx, "skipping preset role and user creation")
 	}
@@ -1203,13 +1238,13 @@ func createPresetUsers(ctx context.Context, um PresetUsers) error {
 
 		if types.IsSystemResource(user) {
 			// System resources *always* get reset on every auth startup
-			if user, err := um.UpsertUser(ctx, user); err != nil {
+			if _, err := um.UpsertUser(ctx, user); err != nil {
 				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
 			}
 			continue
 		}
 
-		if user, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
+		if _, err := um.CreateUser(ctx, user); err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
 	}
@@ -1259,6 +1294,27 @@ func createPresetDatabaseObjectImportRule(ctx context.Context, rules services.Da
 	return nil
 }
 
+// createPresetHealthCheckConfig creates a default preset health check config
+// resource that enables health checks on all resources.
+func createPresetHealthCheckConfig(ctx context.Context, svc services.HealthCheckConfig) error {
+	page, _, err := svc.ListHealthCheckConfigs(ctx, 0, "")
+	if err != nil {
+		return trace.Wrap(err, "failed listing available health check configs")
+	}
+	if len(page) > 0 {
+		return nil
+	}
+	preset := services.NewPresetHealthCheckConfig()
+	_, err = svc.CreateHealthCheckConfig(ctx, preset)
+	if err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err,
+			"failed creating preset health_check_config %s",
+			preset.GetMetadata().GetName(),
+		)
+	}
+	return nil
+}
+
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
 func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
@@ -1294,7 +1350,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
@@ -1413,7 +1469,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 	migrationStart(ctx, "remote_clusters", asrv.logger)
 	defer migrationEnd(ctx, "remote_clusters", asrv.logger)
 
-	clusterName, err := asrv.Services.GetClusterName()
+	clusterName, err := asrv.Services.GetClusterName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1488,13 +1544,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		return cmp.Compare(priorityA, priorityB)
 	})
 	for _, resource := range resources {
-		// Unwrap "new style" resources.
-		// We always want to switch over the underlying type.
-		var res any = resource
-		if w, ok := res.(interface{ Unwrap() types.Resource153 }); ok {
-			res = w.Unwrap()
-		}
-		switch r := res.(type) {
+		switch r := resource.(type) {
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
 		case types.User:
@@ -1509,14 +1559,16 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
-		case *machineidv1pb.Bot:
-			_, err = machineidv1.UpsertBot(ctx, service, r, time.Now(), "system")
-		case *dbobjectimportrulev1pb.DatabaseObjectImportRule:
-			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r)
-		case *autoupdatev1pb.AutoUpdateConfig:
-			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r)
-		case *autoupdatev1pb.AutoUpdateVersion:
-			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r)
+		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
+			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
+		case types.Resource153UnwrapperT[*dbobjectimportrulev1pb.DatabaseObjectImportRule]:
+			_, err = dbobjectimportrulev1.UpsertDatabaseObjectImportRule(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
+			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
+			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*healthcheckconfigv1pb.HealthCheckConfig]:
+			_, err = service.UpsertHealthCheckConfig(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

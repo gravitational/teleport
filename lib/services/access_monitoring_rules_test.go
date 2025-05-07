@@ -44,33 +44,42 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification.Name = ""
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "notification plugin name is missing")
 			},
 		},
 		{
-			description: "automatic_approval name required",
+			description: "automatic_review integration required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.Spec.AutomaticApproval.Name = ""
+				amr.Spec.AutomaticReview.Integration = ""
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "automatic_approval plugin name is missing")
+			assertErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "automatic_review integration is missing")
 			},
 		},
 		{
-			description: "notification or automatic_approval required",
+			description: "automatic_review decision required",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.AutomaticReview.Decision = ""
+			},
+			assertErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "automatic_review decision is missing")
+			},
+		},
+		{
+			description: "notification or automatic_review required",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
 				amr.Spec.Notification = nil
-				amr.Spec.AutomaticApproval = nil
+				amr.Spec.AutomaticReview = nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "notification or automatic_approval must be configured")
+			assertErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "notification or automatic_review must be configured")
 			},
 		},
 		{
-			description: "allow automatic_approvals to be nil",
+			description: "allow automatic_review to be nil",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.Spec.AutomaticApproval = nil
+				amr.Spec.AutomaticReview = nil
 			},
 			assertErr: require.NoError,
 		},
@@ -93,8 +102,9 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "fakePlugin",
 			},
-			AutomaticApproval: &accessmonitoringrulesv1.AutomaticApproval{
-				Name: "fakePlugin",
+			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+				Integration: "fakePlugin",
+				Decision:    types.RequestState_APPROVED.String(),
 			},
 		},
 	}

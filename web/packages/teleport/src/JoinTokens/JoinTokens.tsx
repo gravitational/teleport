@@ -30,6 +30,7 @@ import {
   Indicator,
   Label,
   Link,
+  Mark,
   MenuItem,
   Text,
 } from 'design';
@@ -43,6 +44,12 @@ import Dialog, {
 import { Warning } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton } from 'shared/components/MenuAction';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
@@ -127,6 +134,9 @@ export const JoinTokens = () => {
 
   useEffect(() => {
     runJoinTokensAttempt();
+
+    // runJoinTokensAttempt is not stable and causes a render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -137,21 +147,24 @@ export const JoinTokens = () => {
           border-bottom: none;
         `}
         alignItems="center"
+        justifyContent="space-between"
       >
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
         {!creatingToken && !editingToken && (
-          <Button
-            intent="primary"
-            fill="border"
-            ml="auto"
-            width="240px"
-            onClick={() => setCreatingToken(true)}
-          >
-            Create New Token
-          </Button>
+          <InfoGuideButton config={{ guide: <InfoGuide /> }}>
+            <Button
+              intent="primary"
+              fill="border"
+              ml="auto"
+              width="240px"
+              onClick={() => setCreatingToken(true)}
+            >
+              Create New Token
+            </Button>
+          </InfoGuideButton>
         )}
       </FeatureHeader>
-      <Flex>
+      <Flex gap={24}>
         <Box
           css={`
             flex-grow: 1;
@@ -221,7 +234,8 @@ export const JoinTokens = () => {
                         if (
                           token.method === 'iam' ||
                           token.method === 'gcp' ||
-                          token.method === 'token'
+                          token.method === 'token' ||
+                          (token.method === 'github' && token.github)
                         ) {
                           setEditingToken(token);
                           return;
@@ -385,7 +399,7 @@ function TokenDelete({
         <DialogTitle>Delete Join Token?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'error' && <Alert children={attempt.statusText} />}
+        {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
         <Text mb={4}>
           You are about to delete join token
           <Text bold as="span">
@@ -425,7 +439,7 @@ const ActionCell = ({
     return (
       <Cell align="right">
         <HoverTooltip
-          justifyContentProps={{ justifyContent: 'end' }}
+          placement="top-end"
           tipContent="You cannot configure or delete static tokens via the web UI. Static tokens should be removed from your Teleport configuration file."
         >
           <MenuButton buttonProps={{ disabled: true, ...buttonProps }} />
@@ -458,3 +472,57 @@ function Directions() {
     </>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  JoinTokens: {
+    title: 'Join Tokens',
+    href: 'https://goteleport.com/docs/reference/join-methods/',
+  },
+  DelegatedJoinMethods: {
+    title: 'Delegated Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#delegated-join-methods',
+  },
+  SecretBasedJoinMethods: {
+    title: 'Secret-based Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#secret-based-join-methods',
+  },
+};
+
+const InfoGuide = () => (
+  <Box>
+    <InfoParagraph>
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.JoinTokens.href}>
+        Join Tokens
+      </InfoExternalTextLink>{' '}
+      are how a Teleport agent authenticates itself to the Teleport cluster.
+    </InfoParagraph>
+    <InfoParagraph>
+      There are Join Tokens for most types of infrastructure you can connect to
+      Teleport that establish an identity for that infrastructure using
+      metadata, such as AWS role, GitHub organization or TPM hash. These are
+      called{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.DelegatedJoinMethods.href}
+      >
+        delegated join methods
+      </InfoExternalTextLink>
+      . We recommend you use these methods whenever possible. When they are not
+      available, there are{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.SecretBasedJoinMethods.href}
+      >
+        secret-based join methods
+      </InfoExternalTextLink>{' '}
+      to fall back on.
+    </InfoParagraph>
+    <InfoParagraph>
+      Agents’ permission to provide different connection services are limited by
+      the system role of their join token. For example, if you want to provide
+      access to a HTTP application running on a server, but also want to provide
+      SSH access to that server, the join token it uses must have both the{' '}
+      <Mark>node</Mark>
+      and <Mark>app</Mark> permissions.
+    </InfoParagraph>
+    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+  </Box>
+);

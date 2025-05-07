@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/socks"
@@ -110,6 +111,18 @@ func (c *NodeClient) AddCancel(cancel context.CancelFunc) {
 	}))
 }
 
+// RouteToDatabaseToProto converts tlsca.RouteToDatabase to the proto version
+// that is used for ReissueParams.
+func RouteToDatabaseToProto(dbRoute tlsca.RouteToDatabase) proto.RouteToDatabase {
+	return proto.RouteToDatabase{
+		ServiceName: dbRoute.ServiceName,
+		Protocol:    dbRoute.Protocol,
+		Username:    dbRoute.Username,
+		Database:    dbRoute.Database,
+		Roles:       dbRoute.Roles,
+	}
+}
+
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
@@ -144,6 +157,10 @@ type ReissueParams struct {
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
 	// if MFA is required.
 	TTL time.Duration
+
+	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
+	// is required.
+	ReusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -391,7 +408,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 		env[teleport.SSHSessionWebProxyAddr] = c.ProxyPublicAddr
 	}
 
-	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -592,38 +609,42 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		}
 	}
 
-	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, c.TC.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
-		originErr := trace.Unwrap(err)
-		var exitErr *ssh.ExitError
-		if errors.As(originErr, &exitErr) {
-			c.TC.ExitStatus = exitErr.ExitStatus()
-		} else {
-			// if an error occurs, but no exit status is passed back, GoSSH returns
-			// a generic error like this. in this case the error message is printed
-			// to stderr by the remote process so we have to quietly return 1:
-			if strings.Contains(originErr.Error(), "exited without exit status") {
-				c.TC.ExitStatus = 1
-			}
-		}
+	err = nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnChannelRequest, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
+	c.TC.ExitStatus = getExitStatus(err)
+	return trace.Wrap(err)
+}
 
-		return trace.Wrap(err)
+func getExitStatus(err error) int {
+	if err == nil {
+		return 0
 	}
-
-	return nil
+	originErr := trace.Unwrap(err)
+	var exitErr *ssh.ExitError
+	if errors.As(originErr, &exitErr) {
+		return exitErr.ExitStatus()
+	} else {
+		// if an error occurs, but no exit status is passed back, GoSSH returns
+		// a generic error like this. in this case the error message is printed
+		// to stderr by the remote process so we have to quietly return 1:
+		if strings.Contains(originErr.Error(), "exited without exit status") {
+			return 1
+		}
+	}
+	return 0
 }
 
 // AddEnv add environment variable to SSH session. This method needs to be called
 // before the session is created.
 func (c *NodeClient) AddEnv(key, value string) {
-	if c.TC.extraEnvs == nil {
-		c.TC.extraEnvs = make(map[string]string)
+	if c.TC.ExtraEnvs == nil {
+		c.TC.ExtraEnvs = make(map[string]string)
 	}
-	c.TC.extraEnvs[key] = value
+	c.TC.ExtraEnvs[key] = value
 }
 
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {

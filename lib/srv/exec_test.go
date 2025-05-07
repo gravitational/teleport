@@ -139,7 +139,7 @@ func TestLoginDefsParser(t *testing.T) {
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
-	scx := newTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil, nil)
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)

@@ -185,3 +185,16 @@ const (
 	// deleted once IsALPNConnUpgradeRequired is improved.
 	TLSRoutingConnUpgradeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE"
 )
+
+const (
+	// HealthCheckInterval is the default resource health check interval.
+	HealthCheckInterval time.Duration = 30 * time.Second
+	// HealthCheckTimeout is the default resource health check timeout.
+	HealthCheckTimeout time.Duration = 5 * time.Second
+	// HealthCheckHealthyThreshold is the default resource health check healthy
+	// threshold.
+	HealthCheckHealthyThreshold uint32 = 2
+	// HealthCheckUnhealthyThreshold is the default resource health check
+	// unhealthy threshold.
+	HealthCheckUnhealthyThreshold uint32 = 1
+)

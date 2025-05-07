@@ -183,13 +183,6 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
-	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
-	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
-	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
-	//
-	// DEPRECATED: Use KindAppServer and KindSAMLIdPServiceProvider individually.
-	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
-
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -498,6 +491,9 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindHealthCheckConfig is the resource for health check configuration.
+	KindHealthCheckConfig = "health_check_config"
+
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
 
@@ -512,6 +508,12 @@ const (
 
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
+
+	// KindBackendInfo contains backend info.
+	KindBackendInfo = "backend_info"
+
+	// MetaNameBackendInfo name backend info entity.
+	MetaNameBackendInfo = "backend-info"
 
 	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
 	// service to match with a single discovered instance.
@@ -611,6 +613,17 @@ const (
 	// resource.
 	KindWorkloadIdentityX509Revocation = "workload_identity_x509_revocation"
 
+	// KindWorkloadIdentityX509IssuerOverride is the kind of
+	// teleport.workloadidentity.v1.X509IssuerOverride.
+	KindWorkloadIdentityX509IssuerOverride = "workload_identity_x509_issuer_override"
+
+	// KindWorkloadIdentityX509IssuerOverrideCSR is the pseudo-kind representing
+	// the act of signing CSRs on behalf of the SPIFFE CA (with [VerbCreate]).
+	KindWorkloadIdentityX509IssuerOverrideCSR = "workload_identity_x509_issuer_override_csr"
+
+	// KindSigstorePolicy is the kind of teleport.workloadidentity.v1.SigstorePolicy.
+	KindSigstorePolicy = "sigstore_policy"
+
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
@@ -623,6 +636,9 @@ const (
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
+
+	// V8 is the eighth version of resources.
+	V8 = "v8"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -847,6 +863,8 @@ const (
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
 	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
 	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+	// DiscoveryPathLabel optionally specifies a context path for apps created from Kubernetes services.
+	DiscoveryPathLabel = TeleportNamespace + "/path"
 	// DiscoveryAppInsecureSkipVerify specifies the TLS verification enforcement for a discovered app created from Kubernetes service.
 	DiscoveryAppInsecureSkipVerify = TeleportNamespace + "/insecure-skip-verify"
 	// DiscoveryAppIgnore specifies if a Kubernetes service should be ignored by discovery service.
@@ -1544,3 +1562,17 @@ const (
 	// types.Server to indicate the GitHub organization of a Git server.
 	GitHubOrgServerDomain = "teleport-github-org"
 )
+
+// AccessMonitoringRuleState specifies the desired state of an access monitoring
+// rule subject.
+type AccessMonitoringRuleState string
+
+const (
+	// AccessMonitoringRuleStateReviewed indicates that the access monitoring
+	// rule subject should be reviewed.
+	AccessMonitoringRuleStateReviewed = "reviewed"
+)
+
+// BuiltInAutomaticReview is used within access monitoring rules and indicates
+// that the automatic_review rule should be monitored by Teleport.
+const BuiltInAutomaticReview = "builtin"

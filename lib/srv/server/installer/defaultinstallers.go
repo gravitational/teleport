@@ -28,7 +28,7 @@ import (
 
 const (
 	scriptShebangAndSetOptions = `#!/usr/bin/env sh
-set -euo pipefail`
+set -eu`
 	execGenericInstallScript = `
 INSTALL_SCRIPT_URL="https://{{.PublicProxyAddr}}/scripts/install.sh"
 
@@ -63,7 +63,7 @@ var (
 echo "Configuring the Teleport agent"
 
 set +x
-sudo teleport ` + strings.Join(argsList, " ")
+sudo teleport ` + strings.Join(argsList, " ") + " $@"
 
 	argsList = []string{
 		"install", "autodiscover-node",

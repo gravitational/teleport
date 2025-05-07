@@ -20,6 +20,7 @@ package backend
 
 import (
 	"context"
+	"iter"
 	"sync"
 	"time"
 
@@ -71,6 +72,10 @@ func (s *Wrapper) GetRange(ctx context.Context, startKey, endKey Key, limit int)
 		return nil, trace.Wrap(err)
 	}
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
+}
+
+func (s *Wrapper) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
+	return s.backend.Items(ctx, params)
 }
 
 // Create creates item if it does not exist

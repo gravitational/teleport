@@ -76,6 +76,10 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
+	// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+	GetAWSRolesAnywhereProfileARN() string
+	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
+	GetAWSRolesAnywhereAcceptRoleSessionName() bool
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// SetUserGroups will set the list of user group IDs associated with the application.
@@ -87,6 +91,8 @@ type Application interface {
 	GetIntegration() string
 	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
 	GetRequiredAppNames() []string
+	// GetUseAnyProxyPublicAddr will return true if a client should rebuild this app's fqdn based on the proxy's public addr.
+	GetUseAnyProxyPublicAddr() bool
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
 	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
@@ -305,6 +311,22 @@ func (a *AppV3) GetAWSExternalID() string {
 	return a.Spec.AWS.ExternalID
 }
 
+// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
+func (a *AppV3) GetAWSRolesAnywhereProfileARN() string {
+	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
+		return ""
+	}
+	return a.Spec.AWS.RolesAnywhereProfile.ProfileARN
+}
+
+// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
+func (a *AppV3) GetAWSRolesAnywhereAcceptRoleSessionName() bool {
+	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
+		return false
+	}
+	return a.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName
+}
+
 // GetUserGroups will get the list of user group IDss associated with the application.
 func (a *AppV3) GetUserGroups() []string {
 	return a.Spec.UserGroups
@@ -344,6 +366,10 @@ func (a *AppV3) Copy() *AppV3 {
 
 func (a *AppV3) GetRequiredAppNames() []string {
 	return a.Spec.RequiredAppNames
+}
+
+func (a *AppV3) GetUseAnyProxyPublicAddr() bool {
+	return a.Spec.UseAnyProxyPublicAddr
 }
 
 func (a *AppV3) GetCORS() *CORSPolicy {

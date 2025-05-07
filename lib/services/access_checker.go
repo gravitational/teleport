@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -65,6 +66,14 @@ type AccessChecker interface {
 
 	// CheckAccessToRule checks access to a rule within a namespace.
 	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
+
+	// GuessIfAccessIsPossible guesses if access is possible for an entire category
+	// of resources.
+	// It responds the question: "is it possible that there is a resource of this
+	// kind that the current user can access?".
+	// GuessIfAccessIsPossible is used, mainly, for UI decisions ("should the tab
+	// for resource X appear"?). Most callers should use CheckAccessToRule instead.
+	GuessIfAccessIsPossible(ctx RuleContext, namespace string, resource string, verb string) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.
@@ -113,7 +122,7 @@ type AccessChecker interface {
 	CanPortForward() bool
 
 	// SSHPortForwardMode returns the SSHPortForwardMode that the RoleSet allows.
-	SSHPortForwardMode() SSHPortForwardMode
+	SSHPortForwardMode() decisionpb.SSHPortForwardMode
 
 	// DesktopClipboard returns true if the role set has enabled shared
 	// clipboard for desktop sessions. Clipboard sharing is disabled if
@@ -221,7 +230,7 @@ type AccessChecker interface {
 
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
-	HostUsers(types.Server) (*HostUsersInfo, error)
+	HostUsers(types.Server) (*decisionpb.HostUsersInfo, error)
 
 	// HostSudoers returns host sudoers entries matching a server
 	HostSudoers(types.Server) ([]string, error)
@@ -276,6 +285,9 @@ type AccessChecker interface {
 	// requested SPIFFE ID. Returns an error if the role set does not have the
 	// ability to generate the requested SVID.
 	CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs []net.IP) error
+
+	// AccessInfo returns the AccessInfo that this access checker is based on.
+	AccessInfo() *AccessInfo
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -453,6 +465,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	return trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
 }
 
+// AccessInfo returns the AccessInfo that this access checker is based on.
+func (a *accessChecker) AccessInfo() *AccessInfo {
+	return a.info
+}
+
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
@@ -461,14 +478,10 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	}
 
 	switch rr := r.(type) {
-	case types.Resource153Unwrapper:
-		switch urr := rr.Unwrap().(type) {
-		case IdentityCenterAccount:
-			matchers = append(matchers, NewIdentityCenterAccountMatcher(urr))
-
-		case IdentityCenterAccountAssignment:
-			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(urr))
-		}
+	case types.Resource153UnwrapperT[IdentityCenterAccount]:
+		matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
+	case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
+		matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 	}
 
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
@@ -670,6 +683,7 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 		deniedRoleSet = append(deniedRoleSet, role)
 
 	}
+
 	// The collected role list can be empty and that should be ok, we want to
 	// leave the behavior of what happens when a user is created with default
 	// "no roles" configuration up to the target database.
@@ -702,7 +716,7 @@ func (a *accessChecker) GetDatabasePermissions(database types.Database) (allow t
 // EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
 func (a *accessChecker) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) (EnumerationResult, error) {
 	// When auto-user provisioning is enabled, only Teleport username is allowed.
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		result := NewEnumerationResult()
 		autoUser, err := a.DatabaseAutoUserMode(database)
 		if err != nil {
@@ -780,7 +794,6 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 		if err := NewRoleSet(role).checkAccess(resource, a.info.Traits, AccessState{MFAVerified: true}); err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
-
 	}
 
 	entities = apiutils.Deduplicate(append(entities, extraEntities...))
@@ -1014,58 +1027,20 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 	return utils.StringsSliceFromSet(groups), nil
 }
 
-// HostUserMode determines how host users should be created.
-type HostUserMode int
-
-const (
-	// HostUserModeUndefined is the default mode, for when the mode couldn't be
-	// determined from a types.CreateHostUserMode.
-	HostUserModeUndefined HostUserMode = iota
-	// HostUserModeKeep creates a home directory and persists after a session ends.
-	HostUserModeKeep
-	// HostUserModeDrop does not create a home directory, and it is removed after
-	// a session ends.
-	HostUserModeDrop
-	// HostUserModeStatic creates a home directory and exists independently of a
-	// session.
-	HostUserModeStatic
-)
-
-func convertHostUserMode(mode types.CreateHostUserMode) HostUserMode {
+func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {
 	switch mode {
 	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
-		return HostUserModeKeep
+		return decisionpb.HostUserMode_HOST_USER_MODE_KEEP
 	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
-		return HostUserModeDrop
+		return decisionpb.HostUserMode_HOST_USER_MODE_DROP
 	default:
-		return HostUserModeUndefined
+		return decisionpb.HostUserMode_HOST_USER_MODE_UNSPECIFIED
 	}
-}
-
-// HostUsersInfo keeps information about groups and sudoers entries
-// for a particular host user
-type HostUsersInfo struct {
-	// Groups is the list of groups to include host users in
-	Groups []string
-	// Mode determines if a host user should be deleted after a session
-	// ends or not.
-	Mode HostUserMode
-	// UID is the UID that the host user will be created with
-	UID string
-	// GID is the GID that the host user will be created with
-	GID string
-	// Shell is the default login shell for a host user
-	Shell string
-	// TakeOwnership determines whether or not an existing user should be
-	// taken over by teleport. This currently only applies to 'static' mode
-	// users, 'keep' mode users still need to assign 'teleport-keep' in the
-	// Groups slice in order to take ownership.
-	TakeOwnership bool
 }
 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
-func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
+func (a *accessChecker) HostUsers(s types.Server) (*decisionpb.HostUsersInfo, error) {
 	groups := make(map[string]struct{})
 	shellToRoles := make(map[string][]string)
 	var shell string
@@ -1154,11 +1129,11 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		uid = uidL[0]
 	}
 
-	return &HostUsersInfo{
+	return &decisionpb.HostUsersInfo{
 		Groups: utils.StringsSliceFromSet(groups),
 		Mode:   convertHostUserMode(mode),
-		UID:    uid,
-		GID:    gid,
+		Uid:    uid,
+		Gid:    gid,
 		Shell:  shell,
 	}, nil
 }

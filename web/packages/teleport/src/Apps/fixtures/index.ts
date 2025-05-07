@@ -81,6 +81,19 @@ export const awsIamIcAccountApp = makeApp({
   fqdn: 'https://console.aws.amazon.com',
 });
 
+export const tcpApp = makeApp({
+  name: 'tcp-app',
+  uri: 'tcp://localhost:5678',
+  publicAddr: 'tcp-app.teleport.example.com',
+  fqdn: 'tcp-app.teleport.example.com',
+  description: 'This is a TCP app',
+  labels: [
+    { name: 'env', value: 'dev' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+});
+
 export const apps = [
   {
     name: 'Jenkins',
@@ -165,6 +178,27 @@ export const apps = [
     samlAppSSOUrl: '',
   },
   {
+    kind: 'app',
+    name: 'saml app with launch urls',
+    uri: '',
+    publicAddr: '',
+    description: 'SAML Application',
+    awsConsole: false,
+    labels: [],
+    clusterId: 'one',
+    fqdn: '',
+    samlApp: true,
+    samlAppSsoUrl: '',
+    id: 'saml_app_launch_url.teleport.com',
+    launchUrl: '',
+    awsRoles: [],
+    userGroups: [],
+    samlAppLaunchUrls: [
+      { url: 'https://example.com' },
+      { url: 'https://2.example.com' },
+    ],
+  },
+  {
     name: 'okta',
     uri: '',
     publicAddr: '',
@@ -189,17 +223,6 @@ export const apps = [
     ],
     clusterId: 'one',
     fqdn: 'mattermost.one',
-  },
-  {
-    name: 'TCP',
-    uri: 'tcp://some-address',
-    publicAddr: '',
-    description: 'This is a TCP app',
-    labels: [
-      { name: 'env', value: 'dev' },
-      { name: 'cluster', value: 'one' },
-    ],
-    clusterId: 'one',
   },
   {
     name: 'Cloud',
@@ -236,7 +259,7 @@ export const apps = [
     fqdn: 'https://console.aws.amazon.com',
   },
 ].map(makeApp);
-apps.push(awsConsoleApp, awsIamIcAccountApp);
+apps.push(awsConsoleApp, awsIamIcAccountApp, tcpApp);
 
 export const gcpCloudApp = makeApp({
   name: 'cloud-app',

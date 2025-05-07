@@ -81,6 +81,14 @@ type TerraformOnboardingConfig struct {
 	AudienceTag string `yaml:"audience_tag,omitempty"`
 }
 
+// GitlabOnboardingConfig holds configuration relevant to the "gitlab" join method.
+type GitlabOnboardingConfig struct {
+	// TokenEnvVarName is the name of the environment variable that contains the
+	// GitLab ID token. This can be useful to override in cases where a single
+	// gitlab job needs to authenticate to multiple Teleport clusters.
+	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
+}
+
 // OnboardingConfig contains values relevant to how the bot authenticates with
 // the Teleport cluster.
 type OnboardingConfig struct {
@@ -107,6 +115,9 @@ type OnboardingConfig struct {
 
 	// Terraform holds configuration relevant to the `terraform` join method.
 	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
+
+	// Gitlab holds configuration relevant to the `gitlab` join method.
+	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -456,6 +467,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case WorkloadIdentityAWSRAType:
+			v := &WorkloadIdentityAWSRAService{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
 			return trace.BadParameter("unrecognized service type (%s)", header.Type)
 		}
@@ -669,10 +686,17 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 type CredentialLifetime struct {
 	TTL             time.Duration `yaml:"credential_ttl,omitempty"`
 	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
+	// skipMaxTTLValidation is used by services that do not abide by standard
+	// teleport credential lifetime limits to override the check that the
+	// user specified TTL is less than the max TTL. For example, X509 SVIDs can
+	// be issued with a lifetime of up to 2 weeks.
+	skipMaxTTLValidation bool
 }
 
 // IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
 func (l CredentialLifetime) IsEmpty() bool {
+	// We don't care about this field being set when checking empty state.
+	l.skipMaxTTLValidation = false
 	return l == CredentialLifetime{}
 }
 
@@ -704,7 +728,7 @@ func (l CredentialLifetime) Validate(oneShot bool) error {
 		}
 	}
 
-	if l.TTL > defaults.MaxRenewableCertTTL {
+	if !l.skipMaxTTLValidation && l.TTL > defaults.MaxRenewableCertTTL {
 		return SuboptimalCredentialTTLError{
 			msg: "Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
 			details: map[string]any{

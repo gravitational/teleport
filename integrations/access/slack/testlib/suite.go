@@ -184,7 +184,7 @@ func (s *SlackSuiteOSS) TestMessagePosting() {
 	matches := requestReasonRegexp.FindAllStringSubmatch(block.Text.GetText(), -1)
 	require.Len(t, matches, 1)
 	require.Len(t, matches[0], 3)
-	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
+	assert.Equal(t, "because of "+strings.Repeat("A", 389), matches[0][1])
 	assert.Equal(t, " (truncated)", matches[0][2])
 
 	statusLine, err := getStatusLine(messages[0])
@@ -494,7 +494,7 @@ func (s *SlackSuiteOSS) TestDenial() {
 	s.checkNewMessageUpdateByAPI(t, ctx, msgs, matchByTimestamp, func(t *testing.T, msgUpdate slack.Message) {
 		statusLine, err := getStatusLine(msgUpdate)
 		require.NoError(t, err)
-		assert.Equal(t, "*Status*: ❌ DENIED\n*Resolution reason*: ```\nnot okay "+strings.Repeat("A", 491)+"``` (truncated)", statusLine)
+		assert.Equal(t, "*Status*: ❌ DENIED\n*Resolution reason*: ```\nnot okay "+strings.Repeat("A", 391)+"``` (truncated)", statusLine)
 	})
 }
 
