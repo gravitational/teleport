@@ -11752,7 +11752,7 @@ export const SubmitEventResponse = new SubmitEventResponse$Type();
 class SubmitEventsRequest$Type extends MessageType<SubmitEventsRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventsRequest", [
-            { no: 1, name: "events", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => SubmitEventRequest }
+            { no: 1, name: "events", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SubmitEventRequest }
         ]);
     }
     create(value?: PartialMessage<SubmitEventsRequest>): SubmitEventsRequest {

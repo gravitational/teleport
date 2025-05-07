@@ -1667,7 +1667,7 @@ export const GetAccessRequestResponse = new GetAccessRequestResponse$Type();
 class GetAccessRequestsResponse$Type extends MessageType<GetAccessRequestsResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.GetAccessRequestsResponse", [
-            { no: 1, name: "requests", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => AccessRequest }
+            { no: 1, name: "requests", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessRequest }
         ]);
     }
     create(value?: PartialMessage<GetAccessRequestsResponse>): GetAccessRequestsResponse {
@@ -1773,7 +1773,7 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
             { no: 2, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "roles", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "suggested_reviewers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "resource_ids", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ResourceID },
+            { no: 5, name: "resource_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceID },
             { no: 6, name: "assume_start_time", kind: "message", T: () => Timestamp },
             { no: 7, name: "dry_run", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 8, name: "max_duration", kind: "message", T: () => Timestamp },
@@ -1987,7 +1987,7 @@ class GetRequestableRolesRequest$Type extends MessageType<GetRequestableRolesReq
     constructor() {
         super("teleport.lib.teleterm.v1.GetRequestableRolesRequest", [
             { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "resource_ids", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ResourceID }
+            { no: 2, name: "resource_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceID }
         ]);
     }
     create(value?: PartialMessage<GetRequestableRolesRequest>): GetRequestableRolesRequest {
@@ -2400,7 +2400,7 @@ export const GetSuggestedAccessListsRequest = new GetSuggestedAccessListsRequest
 class GetSuggestedAccessListsResponse$Type extends MessageType<GetSuggestedAccessListsResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse", [
-            { no: 1, name: "access_lists", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => AccessList }
+            { no: 1, name: "access_lists", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AccessList }
         ]);
     }
     create(value?: PartialMessage<GetSuggestedAccessListsResponse>): GetSuggestedAccessListsResponse {
@@ -2558,7 +2558,7 @@ export const ListKubernetesResourcesRequest = new ListKubernetesResourcesRequest
 class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesResourcesResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListKubernetesResourcesResponse", [
-            { no: 1, name: "resources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => KubeResource }
+            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeResource }
         ]);
     }
     create(value?: PartialMessage<ListKubernetesResourcesResponse>): ListKubernetesResourcesResponse {
@@ -2653,7 +2653,7 @@ class LoginPasswordlessResponse$Type extends MessageType<LoginPasswordlessRespon
     constructor() {
         super("teleport.lib.teleterm.v1.LoginPasswordlessResponse", [
             { no: 1, name: "prompt", kind: "enum", T: () => ["teleport.lib.teleterm.v1.PasswordlessPrompt", PasswordlessPrompt, "PASSWORDLESS_PROMPT_"] },
-            { no: 2, name: "credentials", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => CredentialInfo }
+            { no: 2, name: "credentials", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => CredentialInfo }
         ]);
     }
     create(value?: PartialMessage<LoginPasswordlessResponse>): LoginPasswordlessResponse {
@@ -3302,7 +3302,7 @@ export const ListClustersRequest = new ListClustersRequest$Type();
 class ListClustersResponse$Type extends MessageType<ListClustersResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListClustersResponse", [
-            { no: 1, name: "clusters", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Cluster }
+            { no: 1, name: "clusters", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Cluster }
         ]);
     }
     create(value?: PartialMessage<ListClustersResponse>): ListClustersResponse {
@@ -3586,7 +3586,7 @@ export const ListGatewaysRequest = new ListGatewaysRequest$Type();
 class ListGatewaysResponse$Type extends MessageType<ListGatewaysResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListGatewaysResponse", [
-            { no: 1, name: "gateways", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Gateway }
+            { no: 1, name: "gateways", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Gateway }
         ]);
     }
     create(value?: PartialMessage<ListGatewaysResponse>): ListGatewaysResponse {
@@ -3885,7 +3885,7 @@ export const GetServersRequest = new GetServersRequest$Type();
 class GetServersResponse$Type extends MessageType<GetServersResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.GetServersResponse", [
-            { no: 1, name: "agents", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => Server },
+            { no: 1, name: "agents", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Server },
             { no: 2, name: "total_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
             { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
@@ -4775,7 +4775,7 @@ export const SortBy = new SortBy$Type();
 class ListUnifiedResourcesResponse$Type extends MessageType<ListUnifiedResourcesResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListUnifiedResourcesResponse", [
-            { no: 1, name: "resources", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => PaginatedResource },
+            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PaginatedResource },
             { no: 2, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
