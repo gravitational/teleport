@@ -51,7 +51,7 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 	}
 
 	p.licenseExpiry = licenseFile.License.Expiry()
-	features := getSelfHostedLicenseFeatures(licenseFile.License)
+	features := GetSelfHostedLicenseFeatures(licenseFile.License)
 
 	// Fetch supported features from salescenter "subscriptions" db table for
 	// cloud based subscriptions:
@@ -217,9 +217,9 @@ func (p *enterpriseModules) GetSuggestedAccessLists(ctx context.Context, identit
 	return accessrequest.GetSuggestedAccessLists(ctx, identity, clt, accessListGetter, requestID)
 }
 
-// getSelfHostedLicenseFeatures is only used to read features for `self-hosted` licenses.
+// GetSelfHostedLicenseFeatures is only used to read features for `self-hosted` licenses.
 // For cloud subscriptions, the features are read from `GetCloudFeatures`.
-func getSelfHostedLicenseFeatures(license types.License) modules.Features {
+func GetSelfHostedLicenseFeatures(license types.License) modules.Features {
 	// Set Legacy Values first; backwards compatibility with older licenses
 	f := setLegacyLogic(license)
 

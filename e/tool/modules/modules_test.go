@@ -136,7 +136,7 @@ func TestGetSelfHostedLicenseFeatures_LegacyLicenseFields(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			actual := getSelfHostedLicenseFeatures(tc.license())
+			actual := GetSelfHostedLicenseFeatures(tc.license())
 			require.Equal(t, tc.expected.Entitlements, actual.Entitlements)
 			require.Equal(t, tc.expected, actual)
 		})
@@ -230,7 +230,7 @@ func TestGetLicenseFeatures_LegacyIdentityFeatures(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			actual := getSelfHostedLicenseFeatures(tc.license())
+			actual := GetSelfHostedLicenseFeatures(tc.license())
 			tc.assert(t, actual)
 		})
 	}
@@ -330,6 +330,6 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	actual := getSelfHostedLicenseFeatures(license)
+	actual := GetSelfHostedLicenseFeatures(license)
 	require.Equal(t, expected, actual)
 }

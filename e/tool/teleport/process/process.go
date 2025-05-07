@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/e/lib/web"
+	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -64,10 +65,18 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		cfg.Logger.InfoContext(ctx, "trying to read cluster features from the backend")
 		f, err := feature.Load(ctx, ossProcess.GetBackend())
 		if err != nil {
-			return nil, trace.Wrap(err, "couldn't read or load the cluster features")
+			// At this point, we couldn't get features from the Cloud API and the backend.
+			// To avoid failing to start the auth server, we can fallback to the license,
+			// since it includes the customer's features.
+			// This will only happen for Cloud clusters during the first time the auth service is started
+			// since subsequent starts will have backend features.
+			licenseFeatures := emodules.GetSelfHostedLicenseFeatures(license.License)
+			modules.GetModules().SetFeatures(licenseFeatures)
+			cfg.Logger.InfoContext(ctx, "feature loading from backend failed, loaded from license as fallback", "features", licenseFeatures)
+		} else {
+			cfg.Logger.InfoContext(ctx, "successfully loaded features from backend", "features", f)
+			modules.GetModules().SetFeatures(*f)
 		}
-		cfg.Logger.InfoContext(ctx, "successfully loaded features from backend", "features", f)
-		modules.GetModules().SetFeatures(*f)
 	}
 
 	// store cloud features for future restarts

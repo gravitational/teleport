@@ -1,6 +1,8 @@
 package process
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -9,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -104,4 +107,43 @@ func TestMissingLicenseError(t *testing.T) {
 
 	_, err = NewTeleport(config)
 	require.True(t, trace.IsAccessDenied(err))
+}
+
+// TestFallbackFeaturesFromLicense tests that a Cloud auth server
+// without connection to the Cloud API and no features
+// stored in the backend will read the features from the license,
+// instead of failing.
+func TestFallbackFeaturesFromLicense(t *testing.T) {
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DataDir = makeTempDir(t)
+	cfg.Auth.Enabled = true
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.StorageConfig = backend.Config{
+		Type: lite.GetName(),
+		Params: backend.Params{
+			"path": t.TempDir(),
+		},
+	}
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.LicenseFile = "testdata/license-cloud.pem"
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+
+	t.Setenv("TELEPORT_CLOUD_HOSTPORT", "invalid.localhost")
+
+	_, err := NewTeleport(cfg)
+	require.NoError(t, err)
+	require.Equal(t, modules.BuildEnterprise, modules.GetModules().BuildType())
+	features := modules.GetModules().Features()
+	require.True(t, features.Cloud)
+}
+
+// makeTempDir makes a temp dir with a shorter name than t.TempDir() in order to
+// avoid https://github.com/golang/go/issues/62614.
+func makeTempDir(t *testing.T) string {
+	t.Helper()
+
+	tempDir, err := os.MkdirTemp("", "teleport-test-")
+	require.NoError(t, err, "os.MkdirTemp() failed")
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	return tempDir
 }
