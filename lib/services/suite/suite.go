@@ -221,7 +221,7 @@ func (s *ServicesTestSuite) Users() services.UsersService {
 }
 
 func userSlicesEqual(t *testing.T, a []types.User, b []types.User) {
-	require.EqualValuesf(t, len(a), len(b), "a: %#v b: %#v", a, b)
+	require.Lenf(t, a, len(b), "a: %#v b: %#v", a, b)
 
 	sort.Sort(services.Users(a))
 	sort.Sort(services.Users(b))

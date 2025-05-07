@@ -50,7 +50,6 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -144,7 +143,7 @@ type dbGatewayCertRenewalParams struct {
 	pack          *dbhelpers.DatabasePack
 	albAddr       string
 	databaseURI   uri.ResourceURI
-	webauthnLogin libclient.WebauthnLoginFunc
+	webauthnLogin client.WebauthnLoginFunc
 }
 
 func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewayCertRenewalParams) {
@@ -169,7 +168,7 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewa
 			},
 			testGatewayConnectionFunc: mustConnectDatabaseGateway,
 			webauthnLogin:             params.webauthnLogin,
-			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
+			generateAndSetupUserCreds: func(t *testing.T, tc *client.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.pack.Root.Cluster.Process,
 					Username: tc.Username,
@@ -185,14 +184,14 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewa
 
 type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
 
-type generateAndSetupUserCredsFunc func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration)
+type generateAndSetupUserCredsFunc func(t *testing.T, tc *client.TeleportClient, ttl time.Duration)
 
 type gatewayCertRenewalParams struct {
-	tc                        *libclient.TeleportClient
+	tc                        *client.TeleportClient
 	albAddr                   string
 	createGatewayParams       daemon.CreateGatewayParams
 	testGatewayConnectionFunc testGatewayConnectionFunc
-	webauthnLogin             libclient.WebauthnLoginFunc
+	webauthnLogin             client.WebauthnLoginFunc
 	generateAndSetupUserCreds generateAndSetupUserCredsFunc
 	customCertsExpireFunc     func(gateway.Gateway)
 	expectNoRelogin           bool
@@ -312,7 +311,7 @@ type mockTSHDEventsService struct {
 	api.UnimplementedTshdEventsServiceServer
 
 	t                         *testing.T
-	tc                        *libclient.TeleportClient
+	tc                        *client.TeleportClient
 	addr                      string
 	reloginCallCount          atomic.Uint32
 	sendNotificationCallCount atomic.Uint32
@@ -320,7 +319,7 @@ type mockTSHDEventsService struct {
 	generateAndSetupUserCreds generateAndSetupUserCredsFunc
 }
 
-func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, generateAndSetupUserCreds generateAndSetupUserCredsFunc) (service *mockTSHDEventsService) {
+func newMockTSHDEventsServiceServer(t *testing.T, tc *client.TeleportClient, generateAndSetupUserCreds generateAndSetupUserCredsFunc) (service *mockTSHDEventsService) {
 	t.Helper()
 
 	ls, err := net.Listen("tcp", "127.0.0.1:0")
@@ -545,7 +544,7 @@ type kubeGatewayCertRenewalParams struct {
 	suite                 *Suite
 	kubeURI               uri.ResourceURI
 	albAddr               string
-	webauthnLogin         libclient.WebauthnLoginFunc
+	webauthnLogin         client.WebauthnLoginFunc
 	customCertsExpireFunc func(gateway.Gateway)
 	expectNoRelogin       bool
 }
@@ -553,7 +552,7 @@ type kubeGatewayCertRenewalParams struct {
 func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGatewayCertRenewalParams) {
 	t.Helper()
 
-	var client *kubernetes.Clientset
+	var kubeClient *kubernetes.Clientset
 	var clientOnce sync.Once
 
 	kubeCluster := params.kubeURI.GetKubeName()
@@ -579,10 +578,10 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 			kubeconfigPath := kubeGateway.KubeconfigPath()
 			checkKubeconfigPathInCommandEnv(t, daemonService, gw, kubeconfigPath)
 
-			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
+			kubeClient = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
 		})
 
-		mustGetKubePod(t, client)
+		mustGetKubePod(t, kubeClient)
 	}
 
 	testGatewayCertRenewal(
@@ -598,7 +597,7 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 			webauthnLogin:             params.webauthnLogin,
 			customCertsExpireFunc:     params.customCertsExpireFunc,
 			expectNoRelogin:           params.expectNoRelogin,
-			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
+			generateAndSetupUserCreds: func(t *testing.T, tc *client.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.suite.root.Process,
 					Username: tc.Username,
@@ -627,7 +626,7 @@ func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service
 // Assumes that MFA is already enabled for the cluster. Per-session MFA should be configured separately.
 //
 // Based on setupUserMFA from e/tool/tsh/tsh_test.go.
-func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, username string, rpid string) libclient.WebauthnLoginFunc {
+func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, username string, rpid string) client.WebauthnLoginFunc {
 	t.Helper()
 
 	// Configure user account.
@@ -750,7 +749,7 @@ func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.Telep
 	})
 }
 
-func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, tc *libclient.TeleportClient, appURI uri.ResourceURI) {
+func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, tc *client.TeleportClient, appURI uri.ResourceURI) {
 	t.Helper()
 
 	testGatewayCertRenewal(

@@ -37,7 +37,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -2133,7 +2132,7 @@ func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request
 		// and on successfully established connection we will set upgrader's websocket connection.
 		WrapTransport: func(baseRt http.RoundTripper) http.RoundTripper {
 			if wrt, ok := baseRt.(*kwebsocket.RoundTripper); ok {
-				upgradeRoundTripper.onConnected = func(wsConn *gwebsocket.Conn) {
+				upgradeRoundTripper.onConnected = func(wsConn *websocket.Conn) {
 					wrt.Conn = wsConn
 				}
 			}
