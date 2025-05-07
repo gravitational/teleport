@@ -7,8 +7,8 @@ state: draft
 
 ## Required Approvals
 
-- Engineering: TimB && DanU
-- Product: DaveS 
+- Engineering: TimB (@timothyb89) && DanU (@boxofrad)
+- Product: DaveS (@thedevelopnik) 
 
 ## What
 
