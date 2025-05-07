@@ -355,7 +355,7 @@ func TestUpgraderBasics(t *testing.T) {
 	// unhealthy marker state should be cleared/removed
 	us, err = tc.Get("state-unhealthy")
 	require.NoError(t, err)
-	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+	require.Empty(t, us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
 }
 
 // TestUpgraderCritical verifies the expected behavior of the 'critical' endpoint mode.
@@ -395,7 +395,7 @@ func TestUpgraderCritical(t *testing.T) {
 	// unhealthy marker should not be set
 	us, err := tc.Get("state-unhealthy")
 	require.NoError(t, err)
-	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+	require.Empty(t, us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
 
 	// go into 'critical' mode
 	endpoint.SetCritical("yes")
@@ -431,7 +431,7 @@ func TestUpgraderCritical(t *testing.T) {
 	// unhealthy marker still not set
 	us, err = tc.Get("state-unhealthy")
 	require.NoError(t, err)
-	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+	require.Empty(t, us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
 }
 
 func TestUnknownVersionScenarios(t *testing.T) {
@@ -785,7 +785,7 @@ func TestUnhealthyAgent(t *testing.T) {
 	// unhealthy marker state should be cleared/removed
 	us, err = tc.Get("state-unhealthy")
 	require.NoError(t, err)
-	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+	require.Empty(t, us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
 }
 
 func TestCache(t *testing.T) {
@@ -866,11 +866,11 @@ func TestCache(t *testing.T) {
 	// state-target-version is reset after an upgrade
 	version, err = tc.Get("state-target-version")
 	require.NoError(t, err)
-	require.Equal(t, "", stripCfgValue(version), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, version)
+	require.Empty(t, stripCfgValue(version), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, version)
 
 	// state-critical is reset after an upgrade
 	critical, err = tc.Get("state-critical")
 	require.NoError(t, err)
-	require.Equal(t, "", stripCfgValue(critical), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, critical)
+	require.Empty(t, stripCfgValue(critical), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, critical)
 
 }
