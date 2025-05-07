@@ -70,6 +70,9 @@ export enum TdpClientEvent {
   // TDP_INFO corresponds with the TDP info message
   TDP_INFO = 'tdp info',
   TRANSPORT_OPEN = 'transport open',
+  // TRANSPORT_CLOSE is emitted when a connection ends due to the transport layer being closed.
+  // This can occur with or without an error.
+  // If an error is present, it will be displayed in the UI.
   TRANSPORT_CLOSE = 'transport close',
   RESET = 'reset',
   POINTER = 'pointer',
@@ -188,6 +191,8 @@ export class TdpClient extends EventEmitter {
     // 'Processing' errors are the most important.
     if (processingError) {
       this.emit(TdpClientEvent.ERROR, processingError);
+      // If the connection was closed intentionally by the user (aborted),
+      // do not treat it as an error in the UI.
     } else if (connectionError && !isAbortError(connectionError)) {
       this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
