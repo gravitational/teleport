@@ -467,15 +467,18 @@ which might also need some handling.
 
 ### Other improvements - OAuth support
 
-Teleport can support [OAuth
-authorization](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization)
-between Teleport service and the MCP servers using the "Client Credentials"
-grant type. Client ID and secrets can potentially be saved as integration
-credentials.
+There are several ways for Teleport to make use of [OAuth
+authorization](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization) for MCP servers.
 
-However, the OAuth support has a dependency on non-stdio transport. More
-importantly, we should monitor adoption trends to determine whether OAuth
-support is necessary.
+1. Teleport Agent --> MCP servers: Teleport agent can use the "Client
+   Credentials" grant type to authorize MCP servers. Client ID and secrets can
+   potentially be saved as integration credentials.
+1. Teleport as IDP --> 3rd party MCP servers: Teleport can act as an OAuth
+   provider for AI clients, allowing them to authorize third-party MCP servers
+   they connect to directly.
+1. Teleport as IDP --> Teleport-protected MCP servers: Teleport can act as an OAuth
+   provider for AI clients, allowing them to connect through Teleport Proxy to MCP
+   servers hosted on Teleport agents.
 
 ### Other Improvements - more AI tools support
 
@@ -489,7 +492,7 @@ Many AI agent SDKs like
 so it would be great to have native `tbot` support to connect MCP servers
 through Teleport.
 
-### Other Improvements - Docker/K8s runtime
+### Other Improvements - Better runtime support
 
 Support for launching stdio-based MCP servers in containers via Docker or
 Kubernetes APIs is desirable. While the current implementation allows setting
@@ -497,6 +500,18 @@ docker as the command with the necessary arguments, relying on `os/exec` is
 suboptimal. A more robust and secure approach would involve integrating directly
 with container runtimes or orchestration APIs without spawning subprocesses via
 `os/exec`.
+
+Another potential enhancement is to support variable interpolation in various
+process launch parameters, in the app or role definition. For example:
+```yaml
+spec:
+  allow:
+    app_labels:
+      "mcp-type": "filesystem"
+    mcp:
+      tools: ["*"]
+      run_as: "{{email.local(external.email)}}"
+```
 
 ### Other Improvements - Teleport Connect
 
