@@ -75,7 +75,7 @@ Optional:
 - `azure` (Attributes) Azure allows the configuration of options specific to the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
 - `bitbucket` (Attributes) Bitbucket allows the configuration of options specific to the "bitbucket" join method. (see [below for nested schema](#nested-schema-for-specbitbucket))
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
-- `bound_keypair` (Attributes) BoundKeypair allows the configuration of options specific to the "bound-keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
+- `bound_keypair` (Attributes) BoundKeypair allows the configuration of options specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `circleci` (Attributes) CircleCI allows the configuration of options specific to the "circleci" join method. (see [below for nested schema](#nested-schema-for-speccircleci))
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
@@ -137,27 +137,25 @@ Optional:
 
 Optional:
 
-- `joining` (Attributes) Joining contains parameters related to all join attempts. (see [below for nested schema](#nested-schema-for-specbound_keypairjoining))
-- `onboarding` (Attributes) Onboarding contains parameters related to initial joining and keypair registration. (see [below for nested schema](#nested-schema-for-specbound_keypaironboarding))
-- `rotate_on_next_renewal` (Boolean) RotateOnNextRenewal is a flag that indicates clients should perform a keypair rotation on the next refresh or rejoin attempt. This flag will automatically be set to `false` after a successful rotation.
-
-### Nested Schema for `spec.bound_keypair.joining`
-
-Optional:
-
-- `insecure` (Boolean) Insecure is an optional flag that enables insecure joining and rejoining. When set, join state verification and generation counter checks are disabled, allowing an arbitrary number of "initial" joins. When combined with the `unlimited` flag, this allows unlimited reuse of this token provided the client has access to the keypair. This may be useful in certain cases - like use in unsupported CI/CD providers - but cannot offer the same security assurances. This flag should be used with care, and RBAC rules should heavily restrict which resources this identity can access.
-- `may_join_until` (String) MayJoinUntil is an optional timestamp before which all joining attempts must occur. If unset, there are no time constraints on joining attempts. Note that clients may continue to renew their identities past this timestamp; a lock should be created if continued access should be cut off. This value may be modified after creation to adjust the joining deadline as desired.
-- `total_joins` (Number) TotalJoins is the total number of joins that will be allowed over the lifetime of this token. This value may be raised or lowered after creation to allow additional joins should `.status.bound_keypair.join_count` reach this limit. Unless `unlimited` is set, this value must be greater than `join_count` for a join attempt to succeed. The initial join counts toward this limit, so it must be at least 1 to allow onboarding. If `unlimited` is set, this value can be set to 0 and ignored.
-- `unlimited` (Boolean) Unlimited indicates no limit for joining and rejoining. `total_joins` and the calculated `.status.bound_keypair.join_count` value will increment as usual, but join attempts will succeed even if the `total_joins` limit is exceeded.
-
+- `onboarding` (Attributes) Onboarding contains parameters related to initial onboarding and keypair registration. (see [below for nested schema](#nested-schema-for-specbound_keypaironboarding))
+- `recovery` (Attributes) Recovery contains parameters related to recovery after identity expiration. (see [below for nested schema](#nested-schema-for-specbound_keypairrecovery))
+- `rotate_after` (String) RotateAfter is an optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.
 
 ### Nested Schema for `spec.bound_keypair.onboarding`
 
 Optional:
 
-- `initial_join_secret` (String) InitialJoinSecret is an initial join secret joining clients may use to register their public key on first join. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.
-- `initial_public_key` (String) InitialPublicKey is an initial, static public key that will be used to immediately populate `.status.bound_keypair.bound_public_key`. If set, `initial_join_secret` and `must_join_before` are ignored, and `.status.bound_keypair.initial_join_secret` will not be generated. This value is written in SSH public key format, including algorithm.
-- `must_join_before` (String) MustJoinBefore is an optional time before which initial secret joining may be used. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place.
+- `initial_public_key` (String) InitialPublicKey is used to preregister a public key generated by `tbot keypair create`. When set, no initial join secret is generated or made available for use, and clients must have the associated private key available to join. If set, `initial_join_secret` and `must_register_before` are ignored. This value is written in SSH authorized_keys format.
+- `must_register_before` (String) MustRegisterBefore is an optional time before which registeration via initial join secret must be performed. Attempts to register using an initial join secret after this timestamp will not be allowed. This may be modified after creation if necessary to allow the initial registration to take place. This value is ignored if `initial_public_key` is set.
+- `registration_secret` (String) RegistrationSecret is a secret joining clients may use to register their public key on first join, which may be used instead of preregistering a public key with `initial_public_key`. If `initial_public_key` is set, this value is ignored. Otherwise, if set, this value will be used to populate `.status.bound_keypair.intitial_join_secret`. If unset and no `initial_public_key` is provided, a random secure value will be generated server-side to populate the status field.
+
+
+### Nested Schema for `spec.bound_keypair.recovery`
+
+Optional:
+
+- `limit` (Number) Limit is the maximum number of allowed recovery attempts. This value may be raised or lowered after creation to allow additional recovery attempts should the initial limit be exhausted. If `mode` is set to `standard`, recovery attempts will only be allowed if `.status.bound_keypair.recovery_count` is less than this limit. This limit is not enforced if `mode` is set to `relaxed` or `insecure`. This value must be at least 1 to allow for the initial join during onboarding, which counts as a recovery.
+- `mode` (String) Mode sets the recovery rule enforcement mode. It may be one of these values: - standard (or unset): all configured rules enforced. The recovery limit and client join state are required and verified. This is the most secure recovery mode. - relaxed: recovery limit is not enforced, but client join state is still required. This effectively allows unlimited recovery attempts, but client join state still helps mitigate stolen credentials. - insecure: neither the recovery nor client join state are enforced. This allows any client with the private key to join freely. This is less secure, but can be useful in certain situations, like in otherwise unsupported CI/CD providers. This mode should be used with care, and RBAC rules should be configured to heavily restrict which resources this identity can access.
 
 
 
@@ -359,15 +357,15 @@ Optional:
 
 Optional:
 
-- `bound_keypair` (Attributes) BoundKeypair contains status information related to bound-keypair type tokens. (see [below for nested schema](#nested-schema-for-statusbound_keypair))
+- `bound_keypair` (Attributes) BoundKeypair contains status information related to bound_keypair type tokens. (see [below for nested schema](#nested-schema-for-statusbound_keypair))
 
 ### Nested Schema for `status.bound_keypair`
 
 Optional:
 
 - `bound_bot_instance_id` (String) BoundBotInstanceID is the ID of the currently associated bot instance. A new bot instance is issued on each join; the new bot instance will have a `previous_bot_instance` set to this value, if any.
-- `bound_public_key` (String) BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration. This value will be updated over time if keypair rotation takes place, and will always reflect the currently valid public key. This value is written in SSH public key format, including algorithm.
-- `initial_join_secret` (String) InitialJoinSecret contains a secret value that may be used for public key registration during the initial join process. If `.spec.bound_keypair.onboarding.initial_public_key` is set, †his field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.initial_join_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.
-- `join_count` (Number) JoinCount is a count of the total number of joins performed using this token. It is incremented for every successful join or rejoin. Join attempts are only allowed if this value is less than `.spec.bound_keypair.joining.total_joins`.
+- `bound_public_key` (String) BoundPublicKey contains the currently bound public key. If `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will be copied here on creation, otherwise it will be populated as part of public key registration process. This value will be updated over time if keypair rotation takes place, and will always reflect the currently trusted public key. This value is written in SSH authorized_keys format.
 - `last_joined_at` (String) LastJoinedAt contains a timestamp of the last successful join attempt. Note that normal renewals will not trigger a join attempt. This corresponds with the last time `bound_bot_instance_id` was updated.
 - `last_rotated_at` (String) LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.
+- `recovery_count` (Number) RecoveryCount is a count of the total number of recoveries performed using this token. It is incremented for every successful join or rejoin. Recovery is only allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or if the recovery mode is `relaxed` or `insecure`.
+- `registration_secret` (String) RegistrationSecret contains a secret value that may be used for public key registration during the initial join process if no public key is preregistered. If `.spec.bound_keypair.onboarding.initial_public_key` is set, †his field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.registration_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.

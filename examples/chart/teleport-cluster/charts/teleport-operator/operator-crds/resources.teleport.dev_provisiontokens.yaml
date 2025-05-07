@@ -142,43 +142,42 @@ spec:
                 type: string
               bound_keypair:
                 description: BoundKeypair allows the configuration of options specific
-                  to the "bound-keypair" join method.
+                  to the "bound_keypair" join method.
                 nullable: true
                 properties:
-                  joining:
-                    description: Joining contains parameters related to all join attempts.
-                    nullable: true
-                    properties:
-                      insecure:
-                        type: boolean
-                      may_join_until:
-                        format: date-time
-                        type: string
-                      total_joins:
-                        format: int32
-                        type: integer
-                      unlimited:
-                        type: boolean
-                    type: object
                   onboarding:
                     description: Onboarding contains parameters related to initial
-                      joining and keypair registration.
+                      onboarding and keypair registration.
                     nullable: true
                     properties:
-                      initial_join_secret:
-                        type: string
                       initial_public_key:
                         type: string
-                      must_join_before:
+                      must_register_before:
                         format: date-time
                         type: string
+                      registration_secret:
+                        type: string
                     type: object
-                  rotate_on_next_renewal:
-                    description: RotateOnNextRenewal is a flag that indicates clients
-                      should perform a keypair rotation on the next refresh or rejoin
-                      attempt. This flag will automatically be set to `false` after
-                      a successful rotation.
-                    type: boolean
+                  recovery:
+                    description: Recovery contains parameters related to recovery
+                      after identity expiration.
+                    nullable: true
+                    properties:
+                      limit:
+                        format: int32
+                        type: integer
+                      mode:
+                        type: string
+                    type: object
+                  rotate_after:
+                    description: RotateAfter is an optional timestamp that forces
+                      clients to perform a keypair rotation on the next join or recovery
+                      attempt after the given date. If `LastRotatedAt` is unset or
+                      before this timestamp, a rotation will be requested. It is recommended
+                      to set this value to the current timestamp if a rotation should
+                      be triggered on the next join attempt.
+                    format: date-time
+                    type: string
                 type: object
               circleci:
                 description: CircleCI allows the configuration of options specific
