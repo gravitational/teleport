@@ -553,5 +553,8 @@ we instead get the following claims:
 }
 ```
 
+Notably, this ID token produced by the ARM WIF service connection is issued by
+a different issuer - `https://login.microsoftonline.com`!
+
 The format of these claims appears to have been recently modified:
 https://learn.microsoft.com/en-us/azure/devops/release-notes/2025/sprint-253-update#workload-identity-federation-uses-entra-issuer
