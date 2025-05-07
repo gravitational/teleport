@@ -28,10 +28,12 @@ import {
 import { TdpClient } from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
+import Logger from 'teleterm/logger';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { routing, WindowsDesktopUri } from 'teleterm/ui/uri';
 
@@ -47,6 +49,7 @@ export function DocumentDesktopSession(props: {
   visible: boolean;
   doc: types.DocumentDesktopSession;
 }) {
+  const logger = useLogger('DocumentDesktopSession');
   const { desktopUri, login, origin } = props.doc;
   const appCtx = useAppContext();
   const loggedInUser = useWorkspaceLoggedInUser();
@@ -69,7 +72,14 @@ export function DocumentDesktopSession(props: {
           origin,
           accessThrough: 'proxy_service',
         });
-        return adaptGRPCStreamToTdpTransport(stream, { desktopUri, login });
+        return adaptGRPCStreamToTdpTransport(
+          stream,
+          {
+            desktopUri,
+            login,
+          },
+          logger
+        );
       })
   );
 
@@ -93,7 +103,8 @@ async function adaptGRPCStreamToTdpTransport(
   targetDesktop: {
     desktopUri: WindowsDesktopUri;
     login: string;
-  }
+  },
+  logger: Logger
 ): Promise<TdpTransport> {
   await stream.requests.send({
     targetDesktop,
@@ -115,6 +126,7 @@ async function adaptGRPCStreamToTdpTransport(
     send: data => {
       // Strings are sent only in the session player.
       if (typeof data === 'string') {
+        logger.error('Sending string data is not supported, this is a bug.');
         return;
       }
       return stream.requests.send({
