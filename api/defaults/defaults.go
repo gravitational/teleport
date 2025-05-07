@@ -184,17 +184,6 @@ const (
 	// detect many situations where connection upgrade is required. This can be
 	// deleted once IsALPNConnUpgradeRequired is improved.
 	TLSRoutingConnUpgradeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE"
-
-	// TLSRoutingConnUpgradeModeEnvVar overwrites the upgrade mode used when
-	// performing connection upgrades by the clients:
-	// - "websocket": client only requests "websocket" in the "Upgrade" header.
-	// - "legacy": client only requests legacy "alpn"/"alpn-ping" in the
-	//   "Upgrade" header.
-	// - "", "default", or any other value than above: client sends both
-	//   WebSocket and legacy in the "Upgrade" header.
-	//
-	// TODO(greedy52) DELETE in 17.0
-	TLSRoutingConnUpgradeModeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE"
 )
 
 const (
