@@ -176,12 +176,9 @@ endif
 	go test ./testlib -v $(TEST_ARGS)
 
 .PHONY: test-full
-test-full: TEST_ARGS=--tags enterprisetests
 test-full: test
-
-.PHONY: test-ent
-test-ent: TEST_ARGS=--tags enterprisetests -run 'TestTerraformEnterprise.*'
-test-ent: test
+test-full:
+	@echo "Run the enterprise tests from the e repository."
 
 .PHONY: apply
 apply: install
