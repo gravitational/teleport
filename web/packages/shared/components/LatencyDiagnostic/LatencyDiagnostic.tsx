@@ -99,7 +99,11 @@ export function LatencyDiagnostic({
   const colors = latencyColors(latency);
 
   return (
-    <MenuIcon Icon={Icons.Wifi} buttonIconProps={{ color: colors.total }}>
+    <MenuIcon
+      Icon={Icons.Wifi}
+      tooltip="Network Connection"
+      buttonIconProps={{ color: colors.total }}
+    >
       <Container>
         <Flex gap={5} flexDirection="column">
           <H2>Network Connection</H2>
