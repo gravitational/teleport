@@ -408,6 +408,19 @@ func TestIdentity_ToFromSubject(t *testing.T) {
 				assertStringOID(t, string(identity.UserType), UserTypeASN1ExtensionOID, subj, "User Type mismatch")
 			},
 		},
+		{
+			name: "aws credential process credentials on app",
+			identity: &Identity{
+				Username: "llama",                      // Required.
+				Groups:   []string{"editor", "viewer"}, // Required.
+				RouteToApp: RouteToApp{
+					AWSCredentialProcessCredentials: "my credential process credentials",
+				},
+			},
+			assertSubject: func(t *testing.T, identity *Identity, subj *pkix.Name) {
+				assertStringOID(t, "my credential process credentials", AppAWSCredentialProcessCredentialsASN1ExtensionOID, subj, "User Type mismatch")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
