@@ -53,6 +53,14 @@ func IsValidIAMRoleName(roleName string) error {
 	return nil
 }
 
+func IsValidIAMRolesAnywhereTrustAnchorName(name string) error {
+	return nil
+}
+
+func IsValidIAMRolesAnywhereProfileName(name string) error {
+	return nil
+}
+
 // IsValidIAMPolicyName checks whether the policy name is a valid AWS IAM Policy
 // identifier.
 //
