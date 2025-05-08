@@ -332,7 +332,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 			Client:                client,
 			UserLoginStatesGetter: client.UserLoginStateClient(),
 		}
-		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.WithExpandVars(true))
+		_, err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), users, req, tlsca.Identity{}, services.WithExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}

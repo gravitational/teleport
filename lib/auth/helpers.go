@@ -1055,6 +1055,10 @@ func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity
 	}
 }
 
+func (i TestIdentity) GetUsername() string {
+	return i.I.GetIdentity().Username
+}
+
 // NewClientFromWebSession returns new authenticated client from web session
 func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authclient.Client, error) {
 	tlsConfig, err := t.Identity.TLSConfig(t.AuthServer.CipherSuites)
