@@ -886,7 +886,7 @@ test-helm-update-snapshots: helmunit/installed
 # Runs all Go tests except integration, called by CI/CD.
 #
 .PHONY: test-go
-test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos
+test-go: test-go-prepare test-go-unit test-go-touch-id test-go-vnet-daemon test-go-tsh test-go-chaos test-go-unit-clidocs
 
 #
 # Runs a test to ensure no environment variable leak into build binaries.
@@ -930,6 +930,14 @@ test-go-unit:
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
 	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| gotestsum --raw-command -- cat
+
+# Runs CLI reference doc generator unit tests
+.PHONY: test-go-unit-clidocs
+test-go-unit-clidocs: FLAGS ?= -shuffle on -tags docs -run 'TestUpdateAppUsageTemplate'
+test-go-unit-clidocs:
+	go test -json $(FLAGS) ./lib/utils/... \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
