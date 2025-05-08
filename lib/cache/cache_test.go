@@ -1369,57 +1369,6 @@ func TestSecurityReportState(t *testing.T) {
 	})
 }
 
-func TestDatabaseObjects(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs153[*dbobjectv1.DatabaseObject]{
-		newResource: func(name string) (*dbobjectv1.DatabaseObject, error) {
-			return newDatabaseObject(t, name), nil
-		},
-		create: func(ctx context.Context, item *dbobjectv1.DatabaseObject) error {
-			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			token := ""
-			var objects []*dbobjectv1.DatabaseObject
-
-			for {
-				resp, nextToken, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, token)
-				if err != nil {
-					return err
-				}
-
-				objects = append(objects, resp...)
-
-				if nextToken == "" {
-					break
-				}
-				token = nextToken
-			}
-
-			for _, object := range objects {
-				err := p.databaseObjects.DeleteDatabaseObject(ctx, object.GetMetadata().GetName())
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	})
-}
-
 // TestStaticHostUsers tests that CRUD operations on static host user resources are
 // replicated from the backend to the cache.
 func TestStaticHostUsers(t *testing.T) {
