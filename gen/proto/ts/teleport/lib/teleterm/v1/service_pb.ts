@@ -1230,7 +1230,8 @@ export interface TargetDesktop {
  */
 export interface ConnectToDesktopRequest {
     /**
-     * A chunk of data from the connection. Can be nonempty even in the first message, but it's also legal for it to be empty.
+     * Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
+     * Must be empty in the first message and nonempty in subsequent messages.
      *
      * @generated from protobuf field: bytes data = 1;
      */
@@ -1249,7 +1250,7 @@ export interface ConnectToDesktopRequest {
  */
 export interface ConnectToDesktopResponse {
     /**
-     * A chunk of data from the connection.
+     * Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
      *
      * @generated from protobuf field: bytes data = 1;
      */

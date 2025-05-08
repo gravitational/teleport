@@ -1126,7 +1126,7 @@ export default class Codec {
     };
   }
 
-  decodeLatencyStats(buffer: ArrayBuffer): LatencyStats {
+  decodeLatencyStats(buffer: ArrayBufferLike): LatencyStats {
     const dv = new DataView(buffer);
     let bufOffset = BYTE_LEN; // eat message type
     const browserLatency = dv.getUint32(bufOffset);

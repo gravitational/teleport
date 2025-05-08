@@ -376,7 +376,7 @@ export class TdpClient extends EventEmitter {
     }
   }
 
-  handleLatencyStats(buffer: ArrayBuffer) {
+  handleLatencyStats(buffer: ArrayBufferLike) {
     const stats = this.codec.decodeLatencyStats(buffer);
     this.emit(TdpClientEvent.LATENCY_STATS, stats);
   }
