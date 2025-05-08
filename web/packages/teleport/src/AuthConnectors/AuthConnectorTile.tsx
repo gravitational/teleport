@@ -73,7 +73,7 @@ export function AuthConnectorTile({
   }
 
   return (
-    <ConnectorBox tabIndex={0}>
+    <ConnectorBox tabIndex={0} data-testid={`${name}-tile`}>
       <Flex
         flexDirection="column"
         justifyContent="space-between"

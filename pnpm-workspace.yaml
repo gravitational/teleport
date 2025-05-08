@@ -1,6 +1,7 @@
 packages:
   - web/packages/*
   - e/web/*
+  - web/e2e
 onlyBuiltDependencies:
   - '@swc/core'
   - electron

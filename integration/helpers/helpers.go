@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -546,4 +547,44 @@ func UpsertAuthPrefAndWaitForCache(
 		p := rp.Clone()
 		assert.Empty(t, cmp.Diff(&pref, &p))
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// CreateTeleportTestInstance creates a new Teleport instance to be used for Web UI e2e tests.
+func CreateTeleportTestInstance(t *testing.T) (instance *TeleInstance, ctx context.Context) {
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	cfg := InstanceConfig{
+		ClusterName: "test-cluster",
+		HostID:      uuid.New().String(),
+		NodeName:    Host,
+		Logger:      utils.NewSlogLoggerForTests(),
+		Priv:        privateKey,
+		Pub:         publicKey,
+	}
+	cfg.Listeners = SingleProxyPortSetupOn(Host)(t, &cfg.Fds)
+	rc := NewInstance(t, cfg)
+
+	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.Auth.Enabled = true
+	rcConf.Auth.Preference.SetSecondFactor("webauthn")
+	rcConf.Auth.Preference.SetWebauthn(&types.Webauthn{RPID: Host})
+	rcConf.Proxy.Enabled = true
+	rcConf.SSH.Enabled = false
+	rcConf.Proxy.DisableWebInterface = false
+	rcConf.Version = "v3"
+
+	ctx, contextCancel := context.WithCancel(context.Background())
+
+	err = rc.CreateEx(t, nil, rcConf)
+	require.NoError(t, err)
+	err = rc.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, rc.StopAll())
+		contextCancel()
+	})
+
+	return rc, ctx
 }

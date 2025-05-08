@@ -1863,3 +1863,7 @@ go-mod-tidy-all:
 dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
+
+.PHONY: test-web-e2e
+test-web-e2e: ensure-webassets
+	$(CGOFLAG) go test -tags=webassets_embed ./integration/web-e2e_test.go

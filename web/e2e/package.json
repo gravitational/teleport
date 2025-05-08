@@ -1,0 +1,15 @@
+{
+  "name": "playwright-e2e-testing",
+  "version": "1.0.0",
+  "description": "Playwright tests for e2e testing.",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test --project=chromium",
+    "report": "playwright show-report"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.51.1"
+  }
+}
