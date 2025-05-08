@@ -184,7 +184,7 @@ func (r *Integration) CheckAndSetDefaults() error {
 		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
 		}
-	case types.IntegrationSubKindAWSRA:
+	case types.IntegrationSubKindAWSRolesAnywhere:
 		if r.AWSRA == nil {
 			return trace.BadParameter("missing spec for AWS Roles Anywhere integration")
 		}
@@ -219,7 +219,7 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
-	if r.SubKind == types.IntegrationSubKindAWSRA {
+	if r.SubKind == types.IntegrationSubKindAWSRolesAnywhere {
 		if r.AWSRA == nil {
 			return trace.BadParameter("missing awsra field")
 		}
@@ -324,8 +324,8 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			Organization: spec.Organization,
 		}
 
-	case types.IntegrationSubKindAWSRA:
-		spec := ig.GetAWSRAIntegrationSpec()
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		spec := ig.GetAWSRolesAnywhereIntegrationSpec()
 		if spec == nil {
 			return nil, trace.BadParameter("missing spec for AWS Roles Anywhere integrations")
 		}

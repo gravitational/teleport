@@ -129,7 +129,7 @@ func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
 
 	intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
 	require.NoError(t, err)
-	require.Equal(t, trustAnchorARN, intgrationResource.GetAWSRAIntegrationSpec().TrustAnchorARN)
+	require.Equal(t, trustAnchorARN, intgrationResource.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN)
 
 	// Get single integration
 	getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
