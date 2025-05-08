@@ -17,6 +17,11 @@
 
 set -euo pipefail
 
+if [[ ! -f "/usr/share/selinux/devel/Makefile" ]]; then
+    echo "SELinux Makefile not found, please install selinux-policy-devel"
+    exit 1
+fi
+
 TELEPORT="teleport"
 TELEPORT_ARGS=""
 
@@ -36,10 +41,12 @@ while getopts "c:t:" opt; do
 done
 
 # Write SELinux module source to a temporary directory
-WORK_DIR="$(mktemp -d)"
+WORK_DIR="$(mktemp -d teleport-selinux.XXXXXXXX)"
+trap 'rm -rf "${WORK_DIR}"' EXIT INT TERM
+
 "${TELEPORT}" selinux module-source > "${WORK_DIR}/teleport_ssh.te"
 "${TELEPORT}" selinux file-contexts ${TELEPORT_ARGS} > "${WORK_DIR}/teleport_ssh.fc"
-DIRS="$(${TELEPORT} selinux dirs ${TELEPORT_ARGS})"
+DIRS=$(${TELEPORT} selinux dirs ${TELEPORT_ARGS})
 
 # Build SELinux module
 cd "${WORK_DIR}"
@@ -47,10 +54,10 @@ make -f /usr/share/selinux/devel/Makefile teleport_ssh.pp
 semodule -i teleport_ssh.pp
 
 # Ensure necessary directories exist and are labeled correctly
-for dir in ${DIRS}; do
+while IFS= read -r dir; do
     # shellcheck disable=SC2174
     mkdir -p -m 0750 "${dir}"
     restorecon -rv "${dir}"
-done
+done <<< "$DIRS"
 
 rm -rf "${WORK_DIR}"

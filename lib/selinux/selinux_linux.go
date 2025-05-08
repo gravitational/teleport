@@ -37,10 +37,10 @@ const (
 )
 
 // copied from github.com/opencontainers/selinux/go-selinux/selinux-linux.go
-func readConfig(target string) string {
+func readConfig(target string) (string, error) {
 	in, err := os.Open(selinuxConfig)
 	if err != nil {
-		return ""
+		return "", trace.Wrap(err)
 	}
 	defer in.Close()
 
@@ -60,11 +60,12 @@ func readConfig(target string) string {
 		if len(fields) != 2 {
 			continue
 		}
-		if bytes.Equal(fields[0], []byte(target)) {
-			return string(bytes.Trim(fields[1], `"`))
+		if string(fields[0]) == target {
+			return string(bytes.Trim(fields[1], `"`)), nil
 		}
 	}
-	return ""
+
+	return "", nil
 }
 
 // CheckConfiguration returns an error if SELinux is not configured to
@@ -77,20 +78,24 @@ func CheckConfiguration() error {
 		return trace.Errorf("SELinux mode is not enforcing, SELinux will not constrain anything")
 	}
 
-	selinuxType := readConfig(selinuxTypeTag)
-	if selinuxType == "" {
-		return trace.NotFound("could not find SELinux type")
+	selinuxType, err := readConfig(selinuxTypeTag)
+	if err != nil {
+		return trace.Wrap(err, "failed to find SELinux type")
 	}
 	selinuxDir := filepath.Join("/var/lib/selinux", selinuxType, "active/modules")
 
 	var moduleInstalled, moduleDisabled, modulePermissive bool
-	err := filepath.WalkDir(selinuxDir, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(selinuxDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return trace.Wrap(err, "failed to access %q", path)
 		}
 
 		name := d.Name()
-		if strings.Contains(name, moduleName) {
+		if !strings.Contains(name, moduleName) {
+			return nil
+		}
+
+		if d.IsDir() {
 			moduleInstalled = true
 			if name == permissiveModuleName {
 				modulePermissive = true
@@ -98,12 +103,13 @@ func CheckConfiguration() error {
 				// so we can end the walk
 				return filepath.SkipAll
 			}
-			if filepath.Base(filepath.Dir(path)) == "disabled" {
-				moduleDisabled = true
-				// if the module is disabled, we also know it's installed
-				// so we can end the walk
-				return filepath.SkipAll
-			}
+			// if the module is disabled, an empty file with the module's
+			// name will exist in the "disabled" dir
+		} else if filepath.Base(filepath.Dir(path)) == "disabled" {
+			moduleDisabled = true
+			// if the module is disabled, we also know it's installed
+			// so we can end the walk
+			return filepath.SkipAll
 		}
 
 		return nil
@@ -126,7 +132,7 @@ func CheckConfiguration() error {
 }
 
 // UserContext returns the SELinux context that should be used when
-// creating processes as a certain user.
+// creating processes as a certain Linux user.
 func UserContext(login string) (string, error) {
 	seUser, level, err := ocselinux.GetSeUserByName(login)
 	if err != nil {
