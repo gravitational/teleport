@@ -51,13 +51,11 @@ description: Provides a comprehensive list of commands, arguments, and flags for
 ---
 
 This guide provides a comprehensive list of commands, arguments, and flags for
-myapp.
+myapp: This is the main CLI tool.
 
 @@@code
 $ myapp [<flags>] <command> [<args> ...]
 @@@
-
-This is the main CLI tool.
 
 Global flags:
 
@@ -119,13 +117,11 @@ Arguments:
 				return app
 			},
 			expectSubstring: `This guide provides a comprehensive list of commands, arguments, and flags for
-myapp.
+myapp: This is the main CLI tool.
 
 @@@code
 $ myapp [<flags>] <command> [<args> ...]
 @@@
-
-This is the main CLI tool.
 
 Global flags:
 
