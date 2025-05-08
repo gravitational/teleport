@@ -52,6 +52,7 @@ func BuildCard(id string, webProxyURL *url.URL, clusterName string, data plugind
 		{Title: "Cluster", Value: clusterName},
 		{Title: "User", Value: data.User},
 		{Title: "Role(s)", Value: strings.Join(data.Roles, ", ")},
+		{Title: "Max Duration", Value: data.MaxDuration.String()},
 	}
 
 	if data.RequestReason != "" {

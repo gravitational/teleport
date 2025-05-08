@@ -34,7 +34,7 @@ export type ResourceStatus = 'healthy' | 'unhealthy' | 'unknown' | '';
 
 export type ResourceTargetHealth = {
   status: ResourceStatus;
-  reason?: string;
+  error?: string;
 };
 
 export type UnifiedResourceApp = {
@@ -237,3 +237,17 @@ export type ResourceViewProps = {
   }[];
   expandAllLabels: boolean;
 };
+
+/**
+ * DatabaseServer (db_server) describes a database heartbeat signal
+ * reported from an agent (db_service) that is proxying
+ * the database.
+ */
+export type DatabaseServer = {
+  kind: 'db_server';
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
+};
+
+export type SharedResourceServer = DatabaseServer;

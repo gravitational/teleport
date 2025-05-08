@@ -127,10 +127,6 @@ func TestOutput(t *testing.T) {
 				name:      "error",
 				slogLevel: slog.LevelError,
 			},
-			{
-				name:      "fatal",
-				slogLevel: slog.LevelError + 1,
-			},
 		}
 
 		for _, test := range tests {
@@ -223,10 +219,6 @@ func TestOutput(t *testing.T) {
 				name:      "error",
 				slogLevel: slog.LevelError,
 			},
-			{
-				name:      "fatal",
-				slogLevel: slog.LevelError + 1,
-			},
 		}
 
 		expectedFields := map[string]any{
@@ -275,8 +267,6 @@ func TestOutput(t *testing.T) {
 					expectedLevel = "trace"
 				case slog.LevelWarn:
 					expectedLevel = "warning"
-				case slog.LevelError + 1:
-					expectedLevel = "fatal"
 				default:
 					expectedLevel = test.slogLevel.String()
 				}
@@ -318,7 +308,8 @@ func BenchmarkFormatter(b *testing.B) {
 
 	b.Run("slog", func(b *testing.B) {
 		b.Run("default_text", func(b *testing.B) {
-			logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
+			var output bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&output, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slog.LevelDebug,
 			})).With(teleport.ComponentKey, "test")
@@ -330,7 +321,8 @@ func BenchmarkFormatter(b *testing.B) {
 		})
 
 		b.Run("text", func(b *testing.B) {
-			logger := slog.New(NewSlogTextHandler(io.Discard, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(teleport.ComponentKey, "test")
+			var output bytes.Buffer
+			logger := slog.New(NewSlogTextHandler(&output, SlogTextHandlerConfig{Level: slog.LevelDebug, EnableColors: true})).With(teleport.ComponentKey, "test")
 
 			for b.Loop() {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)
@@ -339,7 +331,8 @@ func BenchmarkFormatter(b *testing.B) {
 		})
 
 		b.Run("default_json", func(b *testing.B) {
-			logger := slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{
+			var output bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slog.LevelDebug,
 			})).With(teleport.ComponentKey, "test")
@@ -351,7 +344,8 @@ func BenchmarkFormatter(b *testing.B) {
 		})
 
 		b.Run("json", func(b *testing.B) {
-			logger := slog.New(NewSlogJSONHandler(io.Discard, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(teleport.ComponentKey, "test")
+			var output bytes.Buffer
+			logger := slog.New(NewSlogJSONHandler(&output, SlogJSONHandlerConfig{Level: slog.LevelDebug})).With(teleport.ComponentKey, "test")
 
 			for b.Loop() {
 				l := logger.With("test", 123).With("animal", "llama\n").With("error", logErr)

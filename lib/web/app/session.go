@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"math/rand/v2"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -64,7 +65,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := Match(
+	servers, err := MatchUnshuffled(
 		ctx,
 		accessPoint,
 		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
@@ -76,6 +77,10 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	if len(servers) == 0 {
 		return nil, trace.NotFound("failed to match applications")
 	}
+
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
+	})
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{

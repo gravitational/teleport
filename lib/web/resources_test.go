@@ -419,7 +419,7 @@ func TestRoleCRUD(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &getResponse), "invalid resource item received")
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting roles")
 
-	assert.Equal(t, "", getResponse.StartKey)
+	assert.Empty(t, getResponse.StartKey)
 	for _, item := range getResponse.Items.([]interface{}) {
 		assert.NotEqual(t, "test-role", item.(map[string]interface{})["name"], "expected test-role to be deleted")
 	}
@@ -536,7 +536,7 @@ func TestGithubConnectorsCRUD(t *testing.T) {
 			assert.Equal(t, tt.wantConnectorType, connResponse.DefaultConnectorType)
 
 			// Verify connectors list
-			require.Equal(t, len(tt.connectors), len(connResponse.Connectors))
+			require.Len(t, tt.connectors, len(connResponse.Connectors))
 			for i, conn := range tt.connectors {
 				expectedItem, err := ui.NewResourceItem(conn)
 				require.NoError(t, err)

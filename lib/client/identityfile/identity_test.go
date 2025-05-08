@@ -422,7 +422,7 @@ func TestKeyFromIdentityFile(t *testing.T) {
 	})
 }
 
-func TestNewClientStoreFromIdentityFile(t *testing.T) {
+func TestLoadIdentityFileIntoClientStore(t *testing.T) {
 	t.Parallel()
 	keyRing := newClientKeyRing(t)
 	keyRing.ProxyHost = "proxy.example.com"
@@ -439,7 +439,8 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	clientStore, err := NewClientStoreFromIdentityFile(identityFilePath, keyRing.ProxyHost+":3080", keyRing.ClusterName)
+	clientStore := client.NewMemClientStore()
+	err = LoadIdentityFileIntoClientStore(clientStore, identityFilePath, keyRing.ProxyHost+":3080", keyRing.ClusterName)
 	require.NoError(t, err)
 
 	currentProfile, err := clientStore.CurrentProfile()

@@ -110,7 +110,7 @@ func TestMockBackendLister_List(t *testing.T) {
 		pageToken = nextToken
 	}
 
-	require.Equal(t, "", pageToken)
+	require.Empty(t, pageToken)
 
 	pageToken = ""
 	results, nextToken, err := mock.List(ctx, 2, pageToken)
@@ -126,7 +126,7 @@ func TestMockBackendLister_List(t *testing.T) {
 	results, nextToken, err = mock.List(ctx, 2, nextToken)
 	require.NoError(t, err)
 	require.Equal(t, []int{5}, results)
-	require.Equal(t, "", nextToken)
+	require.Empty(t, nextToken)
 }
 
 type mockBackendLister struct {

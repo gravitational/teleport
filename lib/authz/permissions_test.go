@@ -142,8 +142,8 @@ func TestContextLockTargets(t *testing.T) {
 		{
 			role: types.RoleNode,
 			want: []types.LockTarget{
-				{Node: "node", ServerID: "node"},
-				{Node: "node.cluster", ServerID: "node.cluster"},
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
 				{User: "node.cluster"},
 				{Role: "role1"},
 				{Role: "role2"},

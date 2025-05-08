@@ -203,7 +203,7 @@ func TestNotifications(t *testing.T) {
 	fetchedNotifications = append(fetchedNotifications, unmarshaledNotificationsResp.Notifications...)
 
 	require.Equal(t, expectedNotifications, notificationsToTitlesList(t, fetchedNotifications))
-	require.Equal(t, "", unmarshaledNotificationsResp.NextKey)
+	require.Empty(t, unmarshaledNotificationsResp.NextKey)
 	require.Equal(t, lastSeenTimeString, unmarshaledNotificationsResp.UserLastSeenNotification)
 
 	// Mark the most recent notification as clicked.

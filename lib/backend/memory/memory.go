@@ -543,10 +543,7 @@ func (m *Memory) removeExpired() int {
 
 	removed := 0
 	now := m.Clock().Now().UTC()
-	for {
-		if len(*m.heap) == 0 {
-			break
-		}
+	for len(*m.heap) != 0 {
 		item := m.heap.PeekEl()
 		if now.Before(item.Expires) {
 			break

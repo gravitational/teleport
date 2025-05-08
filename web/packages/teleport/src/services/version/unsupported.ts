@@ -65,7 +65,7 @@ export function isPathNotFoundError(err: unknown) {
 export function withGenericUnsupportedError(
   err: unknown,
   supportedVersion: string
-) {
+): never {
   if (err instanceof ApiError && err.response.status === 404) {
     if (err.proxyVersion) {
       throw new Error(

@@ -337,10 +337,12 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 // onPendingRequest is called when there's a new request or a review
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
 	id := req.GetName()
+	maxDuration := req.GetMaxDuration()
 	data := pd.AccessRequestData{
 		User:          req.GetUser(),
 		Roles:         req.GetRoles(),
 		RequestReason: req.GetRequestReason(),
+		MaxDuration:   &maxDuration,
 	}
 
 	log := a.log.With("request_id", id)

@@ -176,7 +176,7 @@ func (p *vnetClientApplication) retryWithRelogin(ctx context.Context, tc *client
 			if p.loginMu.TryLock() {
 				didLock = true
 			} else {
-				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress.", tc.SiteName)
+				return fmt.Errorf("not attempting re-login to cluster %s, another login is current in progress", tc.SiteName)
 			}
 			fmt.Printf("Login for cluster %s expired, attempting to log in again.\n", tc.SiteName)
 			return nil
@@ -233,7 +233,7 @@ func (p *vnetClientApplication) newTeleportClient(ctx context.Context, profileNa
 	cfg := &client.Config{
 		ClientStore: p.clientStore,
 	}
-	if err := cfg.LoadProfile(p.clientStore, profileName); err != nil {
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, trace.Wrap(err, "loading client profile")
 	}
 	if leafClusterName != "" {

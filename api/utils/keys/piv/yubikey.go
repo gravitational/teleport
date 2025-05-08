@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -474,10 +473,7 @@ func (y *YubiKey) checkOrSetPIN(ctx context.Context, prompt hardwarekey.Prompt, 
 	}
 
 	switch pin {
-	case piv.DefaultPIN:
-		fmt.Fprintf(os.Stderr, "The default PIN %q is not supported.\n", piv.DefaultPIN)
-		fallthrough
-	case "":
+	case piv.DefaultPIN, "":
 		pin, err = y.setPINAndPUKFromDefault(ctx, prompt, keyInfo)
 		if err != nil {
 			return trace.Wrap(err)

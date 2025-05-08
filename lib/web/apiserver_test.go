@@ -81,7 +81,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -1349,6 +1348,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
+
 	// add db
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: "dbdb",
@@ -1368,6 +1368,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
 
@@ -1424,6 +1425,28 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Empty(t, res.Items)
 
+	// query only databases
+	type dbResponse struct {
+		Items      []webui.Database `json:"items"`
+		TotalCount int              `json:"totalCount"`
+	}
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"1"}, "kinds": []string{types.KindDatabase}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	dbRes := dbResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &dbRes))
+	require.Len(t, dbRes.Items, 1)
+	require.ElementsMatch(t, dbRes.Items, []webui.Database{{
+		Kind:         types.KindDatabase,
+		Name:         "dbdb",
+		Type:         types.DatabaseTypeSelfHosted,
+		Labels:       []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol:     "test-protocol",
+		Hostname:     "test-uri",
+		URI:          "test-uri",
+		TargetHealth: types.TargetHealth{Status: "testing-status"},
+	}})
+
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
@@ -1431,7 +1454,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
-	require.NotEqual(t, "", res.StartKey)
+	require.NotEmpty(t, res.StartKey)
 
 	// should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1441,7 +1464,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 11)
-	require.Equal(t, "", res.StartKey)
+	require.Empty(t, res.StartKey)
 
 	// Only list valid AWS Roles for AWS Apps
 	query = url.Values{
@@ -4116,6 +4139,7 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
+	dbServer.SetTargetHealth(types.TargetHealth{Status: "testing-status"})
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
@@ -4128,13 +4152,14 @@ func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 	require.Len(t, resp.Items, 1)
 	require.ElementsMatch(t, resp.Items, []webui.Database{{
-		Kind:     types.KindDatabase,
-		Name:     "dbdb",
-		Type:     types.DatabaseTypeSelfHosted,
-		Labels:   []ui.Label{{Name: "env", Value: "prod"}},
-		Protocol: "test-protocol",
-		Hostname: "test-uri",
-		URI:      "test-uri:1234",
+		Kind:         types.KindDatabase,
+		Name:         "dbdb",
+		Type:         types.DatabaseTypeSelfHosted,
+		Labels:       []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol:     "test-protocol",
+		Hostname:     "test-uri",
+		URI:          "test-uri:1234",
+		TargetHealth: types.TargetHealth{Status: "testing-status"},
 	}})
 }
 
@@ -4448,101 +4473,6 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 			}
 		})
 	}
-}
-
-// DELETE IN 16.0
-func TestClusterAppsGet(t *testing.T) {
-	env := newWebPack(t, 1)
-
-	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-
-	type testResponse struct {
-		Items      []webui.App `json:"items"`
-		TotalCount int         `json:"totalCount"`
-	}
-
-	// add a user group
-	ug, err := types.NewUserGroup(types.Metadata{
-		Name: "ug1", Description: "ug1-description",
-	},
-		types.UserGroupSpecV1{Applications: []string{"app1"}})
-	require.NoError(t, err)
-	err = env.server.Auth().CreateUserGroup(context.Background(), ug)
-	require.NoError(t, err)
-
-	resource := &types.AppServerV3{
-		Metadata: types.Metadata{Name: "test-app"},
-		Kind:     types.KindApp,
-		Version:  types.V2,
-		Spec: types.AppServerSpecV3{
-			HostID: "hostid",
-			App: &types.AppV3{
-				Metadata: types.Metadata{
-					Name:        "app1",
-					Description: "description",
-					Labels:      map[string]string{"test-field": "test-value"},
-				},
-				Spec: types.AppSpecV3{
-					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
-					PublicAddr: "publicaddrs",
-					UserGroups: []string{"ug1", "ug2"}, // ug2 doesn't exist in the backend, so its lookup will fail.
-				},
-			},
-		},
-	}
-
-	resource2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
-		HostID: "hostid",
-		App: &types.AppV3{
-			Metadata: types.Metadata{Name: "app2"},
-			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
-		},
-	})
-	require.NoError(t, err)
-
-	// Register apps and service providers.
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
-	require.NoError(t, err)
-
-	// Make the call.
-	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{"sort": []string{"name"}})
-	require.NoError(t, err)
-
-	// Test correct response.
-	resp := testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []webui.App{{
-		Kind:        types.KindApp,
-		Name:        "app1",
-		Description: resource.Spec.App.GetDescription(),
-		URI:         resource.Spec.App.GetURI(),
-		PublicAddr:  resource.Spec.App.GetPublicAddr(),
-		Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
-		FQDN:        resource.Spec.App.GetPublicAddr(),
-		ClusterID:   env.server.ClusterName(),
-		AWSConsole:  true,
-		UserGroups:  []webui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
-	}, {
-		Kind:       types.KindApp,
-		Name:       "app2",
-		URI:        "uri",
-		Labels:     []ui.Label{},
-		ClusterID:  env.server.ClusterName(),
-		FQDN:       "publicaddrs",
-		PublicAddr: "publicaddrs",
-		AWSConsole: false,
-	}})
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -8071,7 +8001,7 @@ func (s *WebSuite) url() *url.URL {
 
 func removeSpace(in string) string {
 	for _, c := range []string{"\n", "\r", "\t"} {
-		in = strings.Replace(in, c, " ", -1)
+		in = strings.ReplaceAll(in, c, " ")
 	}
 	return strings.TrimSpace(in)
 }
@@ -9212,8 +9142,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	require.NoError(t, err)
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(ctx context.Context) (clientproto.UpstreamInventoryHello, error) {
-			return clientproto.UpstreamInventoryHello{
+		func(ctx context.Context) (authproto.UpstreamInventoryHello, error) {
+			return authproto.UpstreamInventoryHello{
 				ServerID: hostID,
 				Version:  teleport.Version,
 				Services: []types.SystemRole{role},
@@ -10921,15 +10851,15 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 			clusterFeatures: authproto.Features{
 				AccessControls: false,
 				AccessGraph:    false,
-				AccessList: &clientproto.AccessListFeature{
+				AccessList: &authproto.AccessListFeature{
 					CreateLimit: 10,
 				},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+				AccessMonitoring: &authproto.AccessMonitoringFeature{
 					Enabled:             false,
 					MaxReportRangeLimit: 20,
 				},
 				AccessMonitoringConfigured: false,
-				AccessRequests: &clientproto.AccessRequestsFeature{
+				AccessRequests: &authproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 30,
 				},
 				AdvancedAccessWorkflows: false,
@@ -10940,7 +10870,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				CustomTheme:             "theme",
 				DB:                      false,
 				Desktop:                 false,
-				DeviceTrust: &clientproto.DeviceTrustFeature{
+				DeviceTrust: &authproto.DeviceTrustFeature{
 					Enabled:           false,
 					DevicesUsageLimit: 40,
 				},
@@ -11088,21 +11018,21 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				MobileDeviceManagement: true,
 				OIDC:                   true,
 				SAML:                   true,
-				AccessRequests: &clientproto.AccessRequestsFeature{
+				AccessRequests: &authproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 88,
 				},
-				AccessList: &clientproto.AccessListFeature{
+				AccessList: &authproto.AccessListFeature{
 					CreateLimit: 88,
 				},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+				AccessMonitoring: &authproto.AccessMonitoringFeature{
 					Enabled:             true,
 					MaxReportRangeLimit: 88,
 				},
-				DeviceTrust: &clientproto.DeviceTrustFeature{
+				DeviceTrust: &authproto.DeviceTrustFeature{
 					Enabled:           true,
 					DevicesUsageLimit: 88,
 				},
-				Policy: &clientproto.PolicyFeature{
+				Policy: &authproto.PolicyFeature{
 					Enabled: true,
 				},
 			},
@@ -11208,21 +11138,21 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				MobileDeviceManagement: true,
 				OIDC:                   true,
 				SAML:                   true,
-				AccessRequests: &clientproto.AccessRequestsFeature{
+				AccessRequests: &authproto.AccessRequestsFeature{
 					MonthlyRequestLimit: 88,
 				},
-				AccessList: &clientproto.AccessListFeature{
+				AccessList: &authproto.AccessListFeature{
 					CreateLimit: 88,
 				},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+				AccessMonitoring: &authproto.AccessMonitoringFeature{
 					Enabled:             true,
 					MaxReportRangeLimit: 88,
 				},
-				DeviceTrust: &clientproto.DeviceTrustFeature{
+				DeviceTrust: &authproto.DeviceTrustFeature{
 					Enabled:           true,
 					DevicesUsageLimit: 88,
 				},
-				Policy: &clientproto.PolicyFeature{
+				Policy: &authproto.PolicyFeature{
 					Enabled: true,
 				},
 			},
@@ -11322,11 +11252,11 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				PremiumSupport:                 true,
 			},
 			clusterFeatures: authproto.Features{
-				DeviceTrust:      &clientproto.DeviceTrustFeature{},
-				AccessRequests:   &clientproto.AccessRequestsFeature{},
-				AccessList:       &clientproto.AccessListFeature{},
-				AccessMonitoring: &clientproto.AccessMonitoringFeature{},
-				Policy:           &clientproto.PolicyFeature{},
+				DeviceTrust:      &authproto.DeviceTrustFeature{},
+				AccessRequests:   &authproto.AccessRequestsFeature{},
+				AccessList:       &authproto.AccessListFeature{},
+				AccessMonitoring: &authproto.AccessMonitoringFeature{},
+				Policy:           &authproto.PolicyFeature{},
 			},
 			expected: &webclient.WebConfig{
 				Auth: webclient.WebConfigAuthSettings{

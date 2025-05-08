@@ -44,6 +44,7 @@ import {
  * @param {boolean} markAsError - manually mark the component as error.
  * @param {string} placeholder - placeholder value.
  * @param {string} formatCreateLabel - custom formatting for create label.
+ * @param {StylesConfig} stylesConfig - custom styles for the inner select component.
  * @returns SelectCreatable
  */
 export function FieldSelectCreatable<

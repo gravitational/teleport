@@ -113,25 +113,25 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	// Make a list of all proxied databases.
-	databases := make([]*types.DatabaseV3, 0, len(page.Resources))
-	for _, server := range page.Resources {
-		databases = append(databases, server.GetDatabase().Copy())
-	}
-
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	uiItems := make([]webui.Database, 0, len(page.Resources))
+	for _, dbServer := range page.Resources {
+		db := webui.MakeDatabaseFromDatabaseServer(dbServer, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requires reset*/)
+		uiItems = append(uiItems, db)
+	}
+
 	return listResourcesGetResponse{
-		Items:      webui.MakeDatabases(databases, accessChecker, h.cfg.DatabaseREPLRegistry),
+		Items:      uiItems,
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
 }
 
-// clusterDatabaseGet returns a list of db servers in a form the UI can present.
+// clusterDatabaseGet returns a database in a form the UI can present.
 func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
@@ -143,7 +143,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
+	dbServer, err := fetchDatabaseServerByDatabaseName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +153,7 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return webui.MakeDatabase(database, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
+	return webui.MakeDatabaseFromDatabaseServer(dbServer, accessChecker, h.cfg.DatabaseREPLRegistry, false /* requiresRequest */), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.

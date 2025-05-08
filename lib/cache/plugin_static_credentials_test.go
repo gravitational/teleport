@@ -89,8 +89,14 @@ func TestPluginStaticCredentials(t *testing.T) {
 					return err
 				},
 				deleteAll: p.pluginStaticCredentials.DeleteAllPluginStaticCredentials,
-				cacheList: p.cache.pluginStaticCredentialsCache.GetAllPluginStaticCredentials,
-				cacheGet:  cacheGet.fn,
+				cacheList: func(ctx context.Context) ([]types.PluginStaticCredentials, error) {
+					var out []types.PluginStaticCredentials
+					for cred := range p.cache.collections.pluginStaticCredentials.store.resources(pluginStaticCredentialsNameIndex, "", "") {
+						out = append(out, cred.Clone())
+					}
+					return out, nil
+				},
+				cacheGet: cacheGet.fn,
 				changeResource: func(cred types.PluginStaticCredentials) {
 					// types.PluginStaticCredentials does not support Expires. Let's
 					// use labels.

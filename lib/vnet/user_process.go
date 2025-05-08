@@ -18,12 +18,9 @@ package vnet
 
 import (
 	"context"
-	"os"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
 
@@ -32,17 +29,11 @@ type UserProcessConfig struct {
 	// ClientApplication is a required field providing an interface implementation for
 	// [ClientApplication].
 	ClientApplication ClientApplication
-	// HomePath is the tsh home used for Teleport clients created by VNet. Resolved using the same
-	// rules as HomeDir in tsh.
-	HomePath string
 }
 
 func (c *UserProcessConfig) checkAndSetDefaults() error {
 	if c.ClientApplication == nil {
 		return trace.BadParameter("missing ClientApplication")
-	}
-	if c.HomePath == "" {
-		c.HomePath = profile.FullProfilePath(os.Getenv(types.HomeEnvVar))
 	}
 	return nil
 }

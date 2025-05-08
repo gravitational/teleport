@@ -245,7 +245,10 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
       </Cell>
     );
   }
-  const statusDescription = getStatusCodeDescription(item.statusCode);
+  const statusDescription = getStatusCodeDescription(
+    item.statusCode,
+    item.status?.errorMessage
+  );
   return (
     <Cell>
       <Flex alignItems="center">
@@ -265,6 +268,7 @@ export enum Status {
   Success,
   Warning,
   Error,
+  OktaConfigError = 20,
 }
 
 const StatusLight = styled(Box)<{ status: Status }>`
@@ -276,7 +280,7 @@ const StatusLight = styled(Box)<{ status: Status }>`
     if (status === Status.Success) {
       return theme.colors.success.main;
     }
-    if (status === Status.Error) {
+    if ([Status.Error, Status.OktaConfigError].includes(status)) {
       return theme.colors.error.main;
     }
     if (status === Status.Warning) {

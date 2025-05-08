@@ -147,6 +147,7 @@ export enum IntegrationStatusCode {
   OtherError = 2,
   Unauthorized = 3,
   SlackNotInChannel = 10,
+  OktaConfigError = 20,
   Draft = 100,
 }
 
@@ -158,6 +159,8 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
       return 'Running';
     case IntegrationStatusCode.Unauthorized:
       return 'Unauthorized';
+    case IntegrationStatusCode.OktaConfigError:
+      return 'Configuration Error';
     case IntegrationStatusCode.SlackNotInChannel:
       return 'Bot not invited to channel';
     case IntegrationStatusCode.Draft:
@@ -168,12 +171,14 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
 }
 
 export function getStatusCodeDescription(
-  code: IntegrationStatusCode
+  code: IntegrationStatusCode,
+  msg?: string
 ): string | null {
   switch (code) {
     case IntegrationStatusCode.Unauthorized:
       return 'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.';
-
+    case IntegrationStatusCode.OktaConfigError:
+      return `There was an error with the integration's configuration.${msg ? ` ${msg}` : ''}`;
     case IntegrationStatusCode.SlackNotInChannel:
       return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
     default:

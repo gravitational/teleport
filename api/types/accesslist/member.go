@@ -135,3 +135,10 @@ func (a *AccessListMember) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
 	return types.MatchSearch(fieldVals, values, nil)
 }
+
+// Clone returns a copy of the member.
+func (a *AccessListMember) Clone() *AccessListMember {
+	var copy *AccessListMember
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
+}

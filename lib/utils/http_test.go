@@ -50,8 +50,8 @@ func TestGetAnyHeader(t *testing.T) {
 	header.Set("aaa", "a1")
 	header.Set("bbb", "b1")
 
-	require.Equal(t, "", GetAnyHeader(header))
-	require.Equal(t, "", GetAnyHeader(header, "ccc"))
+	require.Empty(t, GetAnyHeader(header))
+	require.Empty(t, GetAnyHeader(header, "ccc"))
 	require.Equal(t, "a1", GetAnyHeader(header, "aaa"))
 	require.Equal(t, "a1", GetAnyHeader(header, "ccc", "aaa"))
 	require.Equal(t, "b1", GetAnyHeader(header, "bbb", "aaa"))

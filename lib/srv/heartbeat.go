@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // HeartbeatI abstracts over the basic interface of Heartbeat and HeartbeatV2. This can be removed
@@ -162,9 +163,9 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 	}
 	h.logger.DebugContext(ctx, "Starting heartbeat with announce period",
 		"mode", cfg.Mode,
-		"keep_alive_period", cfg.KeepAlivePeriod,
-		"announce_period", cfg.AnnouncePeriod,
-		"check_period", cfg.CheckPeriod,
+		"keep_alive_period", log.StringerAttr(cfg.KeepAlivePeriod),
+		"announce_period", log.StringerAttr(cfg.AnnouncePeriod),
+		"check_period", log.StringerAttr(cfg.CheckPeriod),
 	)
 	return h, nil
 }

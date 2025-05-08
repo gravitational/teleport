@@ -215,7 +215,7 @@ below, signed by the key in the PIV slot. The important detail is that the certi
 has "teleport" as the organization name in the subject field.
 
 ```code
-$ ykman piv certificates generate 9e -s O=teleport pub.pem
+$ ykman piv certificates generate [slot] -s O=teleport pub.pem
 ```
 
 This command will prompt you for the management key, as well as PIN or touch depending
@@ -223,6 +223,65 @@ on the policies of the key in the PIV slot.
 
 Make sure that the touch and PIN policies of the key satisfy the hardware key requirement
 for your cluster and roles.
+
+## Hardware Key Agent - Teleport Connect
+
+Teleport Connect can act as a Hardware Key Agent, making hardware key requests on behalf
+of Teleport clients.
+
+While Connect is running, touch and PIN prompts for `tsh` and `tctl` commands will be
+displayed in Teleport Connect instead. These prompts will be brought to the foreground
+to raise attention to the user.
+
+![Agent](../../../../img/access-controls/hardware-key-support/agent.png)
+
+## PIN Caching
+
+When a user has hardware key PIN enforced with `require_session_mfa: hardware_key_touch_and_pin`,
+they are required to enter their PIN for each connection. By default, this PIN is cached internally by
+the hardware key for a few seconds, this mechanism is not reliable or long lived enough for several
+common use cases:
+
+* Proxying kubectl commands, database queries, or app requests through a Teleport local proxy (`tsh proxy kube|db|app`).
+* Running automated scripts which run `tsh` commands in bulk.
+* Connecting to TCP applications with [VNet](../../../connect-your-client/vnet.mdx).
+* General Teleport Connect usage.
+
+Instead, you can set the cluster-wide `hardware_key.pin_cache_ttl` configuration option to enable
+Teleport clients to cache the user's PIN for a set duration of time. 
+
+```code
+$ tctl edit cap
+```
+
+Set the value of `spec.hardware_key.pin_cache_ttl` to your desired PIN cache TTL duration:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  ...
+  name: cluster-auth-preference
+spec:  
+  ...
+  hardware_key:
+    # pin_cache_ttl determines how long Teleport clients will cache the user's PIV PIN.
+    # This value cannot exceed 1 hour. When set to 0 (default), PIN caching is disabled.
+    pin_cache_ttl: 1m
+  ...
+version: v2
+```
+
+After you save and exit the editor, `tctl` updates the resource:
+
+```text
+cluster auth preference has been updated
+```
+
+<Admonition type="note" title="hardware key agent">
+  The Hardware Key Agent also makes use of PIN caching when `hardware_key.pin_cache_ttl` is set.
+  This means that with Teleport Connect running, a user can cache their PIN across several
+  separate `tsh` commands.
+</Admonition>
 
 ## Troubleshooting
 

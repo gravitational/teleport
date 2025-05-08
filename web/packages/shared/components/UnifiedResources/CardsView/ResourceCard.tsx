@@ -33,6 +33,7 @@ import {
   getStatusBackgroundColor,
 } from '../shared/getBackgroundColor';
 import { PinButton } from '../shared/PinButton';
+import { ResourceActionButtonWrapper } from '../shared/ResourceActionButton';
 import { SingleLineBox } from '../shared/SingleLineBox';
 import { ResourceItemProps } from '../types';
 import { WarningRightEdgeBadgeSvg } from './WarningRightEdgeBadgeSvg';
@@ -241,7 +242,9 @@ export function ResourceCard({
                 </HoverTooltip>
               </SingleLineBox>
               {hovered && <CopyButton name={name} mr={2} />}
-              {ActionButton}
+              <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
+                {ActionButton}
+              </ResourceActionButtonWrapper>
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>

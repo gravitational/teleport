@@ -323,7 +323,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 					"TeleportCluster": clusterName.GetClusterName(),
 				}
 			}
-			require.Equal(t, len(tc.tags), len(tagsOut.Tags))
+			require.Len(t, tc.tags, len(tagsOut.Tags))
 			for _, tag := range tagsOut.Tags {
 				v := tc.tags[aws.ToString(tag.TagKey)]
 				require.Equal(t, v, aws.ToString(tag.TagValue))

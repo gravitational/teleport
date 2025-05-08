@@ -43,7 +43,7 @@ type resource struct {
 func TestBasics(t *testing.T) {
 	t.Parallel()
 
-	cache := New(Config[resource]{
+	cache := New(Config[resource, string]{
 		Indexes: map[string]func(resource) string{
 			Kind: func(r resource) string {
 				return r.kind + "/" + r.name
@@ -115,7 +115,7 @@ func TestBasics(t *testing.T) {
 func TestOpenBounds(t *testing.T) {
 	t.Parallel()
 
-	cache := New(Config[resource]{
+	cache := New(Config[resource, string]{
 		Indexes: map[string]func(resource) string{
 			Kind: func(r resource) string {
 				return r.kind + "/" + r.name
@@ -192,7 +192,7 @@ func TestOverlap(t *testing.T) {
 
 	// set up indexes s.t. resources with different kinds can collide on the name
 	// index and resources with different names can collide on the kind index.
-	cache := New(Config[resource]{
+	cache := New(Config[resource, string]{
 		Indexes: map[string]func(resource) string{
 			Kind: func(r resource) string {
 				return r.kind
@@ -292,7 +292,7 @@ func BenchmarkSortCache(b *testing.B) {
 	)
 
 	// set up a basic cache configuration
-	cache := New(Config[resource]{
+	cache := New(Config[resource, string]{
 		Indexes: map[string]func(resource) string{
 			Kind: func(r resource) string {
 				return r.kind + "/" + r.name
@@ -399,7 +399,7 @@ func BenchmarkSortCache(b *testing.B) {
 // cache correctly paginates chunks internally.
 func TestSortCachePagination(t *testing.T) {
 	// set up a basic cache configuration
-	cache := New(Config[resource]{
+	cache := New(Config[resource, string]{
 		Indexes: map[string]func(resource) string{
 			Name: func(r resource) string {
 				return r.name + "/" + r.kind

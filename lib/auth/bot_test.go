@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/token"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -918,9 +917,9 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	k8sReadFileFunc := func(name string) ([]byte, error) {
 		return []byte(k8sTokenName), nil
 	}
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
-		if token == k8sTokenName {
-			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+		if tkn == k8sTokenName {
+			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken
@@ -1073,9 +1072,9 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 
 	botName := "bot"
 	k8sTokenName := "jwks-matching-service-account"
-	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, token string) (*token.ValidationResult, error) {
-		if token == k8sTokenName {
-			return &kubetoken.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+	a.k8sJWKSValidator = func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+		if tkn == k8sTokenName {
+			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
 		}
 
 		return nil, errMockInvalidToken

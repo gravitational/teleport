@@ -311,8 +311,8 @@ Loop:
 		// This is a legacy behavior that we need to support for backwards compatibility.
 		case types.RoleNode:
 			lockTargets = append(lockTargets,
-				types.LockTarget{Node: r.GetServerID(), ServerID: r.GetServerID()},
-				types.LockTarget{Node: r.Identity.Username, ServerID: r.Identity.Username},
+				types.LockTarget{ServerID: r.GetServerID()},
+				types.LockTarget{ServerID: r.Identity.Username},
 			)
 		default:
 			lockTargets = append(lockTargets,

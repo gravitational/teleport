@@ -234,8 +234,8 @@ export const TPMQuote = new TPMQuote$Type();
 class TPMPlatformParameters$Type extends MessageType<TPMPlatformParameters> {
     constructor() {
         super("teleport.devicetrust.v1.TPMPlatformParameters", [
-            { no: 1, name: "quotes", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => TPMQuote },
-            { no: 2, name: "pcrs", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => TPMPCR },
+            { no: 1, name: "quotes", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => TPMQuote },
+            { no: 2, name: "pcrs", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => TPMPCR },
             { no: 3, name: "event_log", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
         ]);
     }

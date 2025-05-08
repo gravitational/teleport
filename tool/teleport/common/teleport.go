@@ -1029,7 +1029,7 @@ func onSCP(scpFlags *scp.Flags) error {
 		verbosity = teleport.DebugLevel
 	}
 	_, _, err := logutils.Initialize(logutils.Config{
-		Output:   teleport.Syslog,
+		Output:   logutils.LogOutputSyslog,
 		Severity: verbosity,
 	})
 	if err != nil {

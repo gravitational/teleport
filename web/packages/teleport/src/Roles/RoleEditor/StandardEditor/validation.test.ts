@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResourceKind } from 'teleport/services/resources';
+import { ResourceKind, RoleVersion } from 'teleport/services/resources';
 
 import {
   defaultRoleVersion,
@@ -165,7 +165,7 @@ describe('validateRoleEditorModel', () => {
     expect(result.isValid).toBe(false);
   });
 
-  test('invalid resource', () => {
+  test('invalid resources', () => {
     const model = minimalRoleModel();
     model.resources = [
       {
@@ -174,9 +174,54 @@ describe('validateRoleEditorModel', () => {
         logins: [],
         hideValidationErrors: false,
       },
+      {
+        kind: 'node',
+        labels: [],
+        logins: [],
+        hideValidationErrors: false,
+      },
+      {
+        kind: 'kube_cluster',
+        groups: [],
+        labels: [],
+        resources: [],
+        users: [],
+        hideValidationErrors: false,
+        roleVersion: RoleVersion.V7,
+      },
+      {
+        kind: 'db',
+        labels: [],
+        names: [],
+        users: [],
+        roles: [],
+        dbServiceLabels: [],
+        hideValidationErrors: false,
+      },
+      {
+        kind: 'app',
+        labels: [],
+        awsRoleARNs: [],
+        azureIdentities: [],
+        gcpServiceAccounts: [],
+        hideValidationErrors: false,
+      },
+      {
+        kind: 'windows_desktop',
+        labels: [],
+        logins: [],
+        hideValidationErrors: false,
+      },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
-    expect(validity(result.resources)).toEqual([false]);
+    expect(validity(result.resources)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
     expect(result.isValid).toBe(false);
   });
 
