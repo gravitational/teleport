@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/ui"
 )
@@ -52,6 +53,17 @@ func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUs
 	return &api.ListDatabaseUsersResponse{
 		Users: dbUsers,
 	}, nil
+}
+
+// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
+func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListResourcesRequest) (*api.ListDatabaseServersResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := s.DaemonService.ListDatabaseServers(ctx, clusterURI, req)
+	return resp, trace.Wrap(err)
 }
 
 func newAPIDatabase(db clusters.Database) *api.Database {

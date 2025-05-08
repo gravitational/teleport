@@ -95,6 +95,7 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
+  listDatabaseServers = () => new MockedUnaryCall({ servers: [], nextKey: '' });
   getUserPreferences = () =>
     new MockedUnaryCall({
       userPreferences: {
